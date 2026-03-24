@@ -17,23 +17,30 @@
 
 ## 2. Technology Stack
 
-| Component | Technology | Version |
-|-----------|------------|---------|
-| Build System | Gradle | 8.x (Groovy DSL) |
-| Language | Java | 25 |
-| Web Framework | Jooby | 4.1 |
-| CLI Library | Picocli | 4.7+ |
-| Configuration | SnakeYAML | 2.0+ |
-| Scripting | Groovy | 4.0+ |
-| Logging | SLF4J + Logback | 2.x |
-| JSON Processing | Jackson | 2.17+ |
-| Docker Client | docker-java | 3.4+ |
-| Web UI | Vue | Modern |
+//TODO add here vite/vitetest/cypress
+
+| Component       | Technology      | Version          |
+|-----------------|-----------------|------------------|
+| Build System    | Gradle          | 8.x (Groovy DSL) |
+| Language        | Java            | 25               |
+| Web Framework   | Jooby           | 4.1              |
+| CLI Library     | Picocli         | 4.7+             |
+| Configuration   | SnakeYAML       | 2.0+             |
+| Scripting       | Groovy          | 4.0+             |
+| Logging         | SLF4J + Logback | 2.x              |
+| JSON Processing | Jackson         | 2.17+            |
+| Docker Client   | docker-java     | 3.4+             |
+| Web UI          | Vue             | Modern           |
 
 ---
 
 ## 3. Directory Structure
 
+//TODO: enrich next project structure, add there a package.json and folders src/main, src/test
+        desired folder strucutre must be created by some tool on install. package.json creation also depends on some 
+        other tool
+
+//TODO: Add special cli command for script creation
 ```
 work-directory/
 ├── mt-pipeline.yaml                 # Root user configuration
@@ -50,12 +57,18 @@ work-directory/
 │   └── state/                       # Checkpoint state
 │       └── {run-id}/
 │           ├── checkpoint.json
+│           ├── items.json           # Collection for run processing
 │           ├── metadata.json
-│           └── artifacts/
+│           ├── cache.json           # Internal cache of tool, for text processing
+│           ├── artifacts/
+│           └── run-log-{run-id}.json  # Log must be in json format
 ├────── logs/
 │       └── machinum.log
-└────── output/                      # Processed results
+└─── output/                           # Processed results
 ```
+
+//TODO: move `tools.yaml` to src folder, `pipeline.yaml` to `src/main`. And rename `output` to `build`
+
 
 ---
 
@@ -75,6 +88,10 @@ labels:                             # Key-value tags
 metadata:                           # Extended metadata
   author: string
   created: timestamp
+
+//TODO add body fied, redo all manifest, we need all of them have same header(e.g. version, type, etc, e.g.) and 
+  different body
+
 ```
 
 ### 4.2 Root Pipeline YAML (`mt-pipeline.yaml`)
@@ -85,6 +102,7 @@ type: root
 name: "Book Processing Pipeline"
 description: "Process book chapters through AI pipeline"
 
+//TODO Exclude source/items from root yaml, we need to move it to pipeline yaml instead
 # Source definition
 source:
   type: filesystem|s3|http
@@ -101,9 +119,12 @@ items:
     title: "{{extracted.title}}"
 
 # Pipeline reference
+//TODO, remove this part, we need to control which pipeline to launch based on cli command `run`
 pipeline:
   name: "complex-pipeline"
   version: "1.0.0"
+
+//TODO: instead add link to tools.yaml
 
 # Execution configuration
 execution:
@@ -114,6 +135,7 @@ execution:
   max_retries: 3
   retry_delay: 5s
 
+//TODO change it, we need to add work with: `.env|.ENV` files instead to handle security
 # Environment variables
 env:
   API_KEY: "{{env.OPENAI_KEY}}"
@@ -127,6 +149,14 @@ version: 1.0.0
 type: tools
 name: "Default Toolset"
 description: "AI and utility tools"
+
+//TODO START
+  add here installation config, e.g. this file provide info about tools itself, and allow to execute them 
+  with 
+  some cli command. For example we could have a 'git-tool' that create git repository in configured folder. And we 
+  need something like `install` subcommand, that execute tools with correspondent configuration. Not all tools will 
+  have such, only several. So we have tools that will be used only on bootstrap, tools for runtime, and some hybrid ones
+//TODO END
 
 tools:
   - name: qwen-summary
@@ -142,7 +172,7 @@ tools:
     config:
       model: qwen2.5-72b
       temperature: 0.7
-    input_schema:  # JSON schema for validation
+    input_schema:  # JSON schema for validation of external data only
       type: object
       properties:
         text: { type: string }
@@ -190,11 +220,27 @@ name: "complex-pipeline"
 description: "Full AI pipeline with embeddings and translation"
 
 # Context definition
+//TODO: move that part to corresponent place in body config
 context:
   variables:
     batch_size: 10
     cooldown: 5s
     allow_override_mode: false
+
+//TODO START
+Add here work with source/items stuff. We need 3 types of operations:
+  1. Sources - a creation stage, where we declare where to take info. It could be collection, a file, a link, etc, .
+     e.g it must be converted to suitable type via some tool
+  2. Intermediate Operations - a processing, where we can do something with content. We need to improve current 
+     structure to better one. To Support tool call not only with stage. But with tool chain too. And also we need 
+     support of windows for item processing - for batches. And add simplified declaration with minimal info, only 
+     tool name
+  3. Terminal Operations - a consumers for final result. On start lets add some logger terminator that just add 
+     summary to logs
+
+  Also add tool registry here, we could have 3 types: http|git|file, 3 of them just read some yaml file where we 
+  store info about tools version. By default it will be yaml file somewhere in sources of current project.
+//TODO END
 
 # State definitions (ordered)
 states:
@@ -217,6 +263,7 @@ states:
 
   - name: EMBEDDING
     tools:
+      //TODO: add simplified declaration here
       - tool: embedding-generator
         input: "{{cleaned_text}}"
         output_key: embedding
@@ -225,7 +272,8 @@ states:
     tools:
       - tool: glossary-extractor
         input: "{{cleaned_text}}"
-        output_key: glossary
+        //TODO: output_key needed only if we have more that one tools in chain. By default output_key is toolname 
+        output_key: glossary 
       - tool: glossary-consolidator
         input: "{{glossary}}"
         output_key: consolidated_glossary
@@ -241,6 +289,7 @@ states:
     window:
       type: tumbling
       size: "{{context.batch_size}}"
+      //TODO: make this part more expressive
       aggregation:
         key: title
         tool: batch-translator
@@ -260,6 +309,7 @@ states:
         input: "{{translated_text}}"
         output_key: final_text
 
+  //TODO: add here call of fork
   - name: SYNTHESIZE
     condition: "{{item.generate_audio == true}}"
     tools:
@@ -269,6 +319,7 @@ states:
 
   - name: FINISHED
     wait_for: "{{context.cooldown}}"
+    //TODO move that part to different level instead for termination operation
     finalize:
       - save: "{{output/final/{{item.id}}.json}}"
       - notify: "{{scripts/notifications/complete.groovy}}"
@@ -291,6 +342,8 @@ error_handling:
 parallel:
   enabled: true
   max_forks: 4
+  //TODO: make that part simplier, move configuration of work to pipe instead. And add config field for each 
+          `pipelines` to configure such behaiviour
   fork_groups:
     - name: embedding-group
       states: [EMBEDDING, GLOSSARY]
@@ -312,7 +365,8 @@ graph TD
         Install["install"]
         Run["run"]
         Serve["serve"]
-        MCP["mcp/help/cli"]
+        MCP["mcp/cli"]
+        Help["help"]
     end
 
     subgraph Orchestration_Engine ["Orchestration Engine"]
@@ -355,14 +409,17 @@ public abstract class InternalTool implements Tool {
     public abstract JsonNode process(JsonNode input, ToolContext context);
 }
 
+//TODO add ExternalTool here
+
 // External Tool (Shell)
-public class ShellTool implements Tool {
+public class ShellTool extends ExternalTool {
     public JsonNode execute(JsonNode input, ToolContext context) {
         // Use process builder here
     }
 }
+//TODO: mark Docker as experemental, and say that it will be done only in latest releases, not on start
 // External Tool (Docker)
-public class DockerTool implements Tool {
+public class DockerTool extends ExternalTool {
     private final String image;
     private final DockerClient client;
     
@@ -376,6 +433,7 @@ public class PipelineStateMachine<T> {
     private final List<StateDefinition> states;
     private final StateStore stateStore;
     private final ErrorHandler errorHandler;
+    //TODO add here listeners and interceptors
     
     public Flow<T> createFlow(List<T> items, PipelineContext context);
 }
@@ -385,12 +443,18 @@ public class ExecutionContext {
     private final String runId;
     private final Map<String, Object> metadata;
     private final Map<String, Object> variables;
-    private final GroovyEvaluator groovy;
+    private final GroovyEvaluator groovy;//TODO remove Evaluator from here, we need another way for interpolation, 
+                                                maybe some bean, or else, etc, e.g.
     
     public Object evaluate(String expression);  // {{ ... }} support
 }
+
+//TODO: add here other interfaces/abstract classes, without implementation, only to fixate them in document
 ```
 
+//TODO: add new section here, we need base models, like: source, item, line
+
+//TODO: add here monitoring/tracing description
 ---
 
 ## 6. CLI Commands
@@ -398,6 +462,8 @@ public class ExecutionContext {
 ```
 machinum
 ├── install [tool...]                    # Install tools from tools.yaml
+│   ├── TODO we need action for download
+│   └── TODO we need action for run instalation scripts/tools
 ├── run [pipeline-name]                  # Execute pipeline
 │   ├── --resume <run-id>                # Resume from checkpoint
 │   ├── --parallel                       # Enable parallel execution
@@ -405,8 +471,9 @@ machinum
 ├── serve                                # Start HTTP server
 │   ├── --port 8080                      # Server port
 │   └── --ui                             # Enable admin UI
-├── cli                                  # Interactive REPL mode
-├── mcp                                  # MCP server mode
+├── mcp                                  # MCP mode
+│   ├── --command                        # no daemon mode
+│   └── --server                         # server mode
 ├── status [run-id]                      # Show pipeline status
 ├── logs [run-id]                        # Show execution logs
 └── help                                 # Display help
@@ -425,6 +492,9 @@ machinum
   "started_at": "2025-03-21T10:00:00Z",
   "last_updated": "2025-03-21T10:15:30Z",
   "status": "running",
+  
+  //TODO: split file, add here support of `items.json`
+  
   "items": [
     {
       "id": "chapter-01",
@@ -455,6 +525,9 @@ machinum
 }
 ```
 
+//TODO: add here some policies for clean up(and correspondent settings in root.yml with defaults). Run could take 
+many hdd space, so we need to clean them manually/automatically
+
 ### 7.2 Checkpoint Strategy
 
 - **After each item state transition:** Save item progress
@@ -468,6 +541,7 @@ machinum
 
 ### 8.1 Routes (Jooby)
 
+//TODO: add another endpoints, not only to view, but run some actions too
 ```
 GET  /                        → Dashboard (running pipelines)
 GET  /pipelines               → List available pipelines
@@ -481,6 +555,9 @@ GET  /health                  → Health check
 ```
 
 ### 8.2 UI Features
+
+//TODO: add another feature, some of tools must have their own ui web components, that must be used in admin ui. For 
+example embedding tool must provide simple ui for search, etc. e.g. 
 
 - Real-time status via SSE (`/runs/{run-id}/stream`)
 - Pipeline visualization (state graph)
@@ -528,12 +605,12 @@ fork:
 
 ### 10.1 Error Strategies
 
-| Strategy | Behavior |
-|----------|----------|
-| `stop` | Abort entire pipeline, save checkpoint |
-| `skip` | Skip current item, continue with next |
-| `retry` | Retry current tool with backoff |
-| `fallback` | Use fallback tool/value |
+| Strategy   | Behavior                               |
+|------------|----------------------------------------|
+| `stop`     | Abort entire pipeline, save checkpoint |
+| `skip`     | Skip current item, continue with next  |
+| `retry`    | Retry current tool with backoff        |
+| `fallback` | Use fallback tool/value                |
 
 ### 10.2 Exception Classification
 
@@ -566,7 +643,7 @@ public class GroovyEvaluator {
     private final Map<String, Object> binding;
     
     public Object evaluate(String expression, ExecutionContext ctx) {
-        // Parse {{ ... }} syntax
+        // Parse {{ ... }} syntax, e.g. just use regex and replace to ${}
         // Extract Groovy expression
         // Bind variables: item, context, metadata, previous, env, scripts
         // Return result
@@ -580,19 +657,21 @@ public class GroovyEvaluator {
 
 ### 11.2 Available Bindings
 
-| Variable | Description |
-|----------|-------------|
-| `item` | Current item being processed |
-| `context` | Pipeline execution context |
-| `metadata` | Pipeline metadata |
-| `previous` | Output from previous tool |
-| `env` | Environment variables |
-| `scripts` | External script loader |
+| Variable   | Description                  |
+|------------|------------------------------|
+| `item`     | Current item being processed |
+| `context`  | Pipeline execution context   |
+| `metadata` | Pipeline metadata            |
+| `previous` | Output from previous tool    |
+| `env`      | Environment variables        |
+| `scripts`  | External script loader       |
 
 ---
 
 ## 12. Project Structure (Gradle)
 
+//TODO: add here module for tools, and add folder for ui with at least 3 subfolders for admin-ui,vscode-extension,
+        common part for reuse between 2 moduels and tools web-components
 ```
 machinum-pipeline/
 ├── build.gradle
@@ -625,11 +704,13 @@ machinum-pipeline/
 
 ## 13. Build Configuration (build.gradle)
 
+//TODO: add there some other plugins, like spotless/openrewrite. And add to project a toml with versions for libs
 ```Groovy
 plugins {
     java
     application
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    id 'com.adarshr.test-logger' version '4.0.0' apply false
 }
 
 group = "machinum"
@@ -645,6 +726,7 @@ repositories {
     mavenCentral()
 }
 
+//TODO omit all versions, use bom/toml instead
 dependencies {
     // Jooby
     implementation("io.jooby:jooby:4.1.0")
@@ -696,6 +778,8 @@ tasks.withType<Test> {
 
 ## 14. Roadmap & Phases
 
+//TODO: enrich roadmap with new tasks
+
 ### Phase 1: Core Foundation (MVP)
 - YAML loading with common base structure
 - Tool registry with internal tool support
@@ -708,7 +792,7 @@ tasks.withType<Test> {
 - Docker tool execution
 - Tool source resolution (git, HTTP, file)
 - Tool caching and versioning
-- `install` command
+- `install` command and subcommands
 
 ### Phase 3: Advanced Pipeline Features
 - Parallel execution (per-item)
@@ -719,7 +803,7 @@ tasks.withType<Test> {
 
 ### Phase 4: Server & UI
 - Jooby server implementation
-- Read-only admin UI
+- Admin UI
 - SSE for real-time updates
 - MCP server mode
 - Interactive CLI mode
@@ -728,14 +812,14 @@ tasks.withType<Test> {
 
 ## 15. Non-Functional Requirements
 
-| Requirement | Target |
-|-------------|--------|
-| **Performance** | <100ms overhead per item (excluding tool execution) |
-| **Scalability** | Support 10,000+ items per pipeline |
-| **Reliability** | Checkpoint every 30s, resume within 1 minute |
-| **Observability** | Structured logging, trace IDs, metrics endpoint |
-| **Security** | Docker isolation, no root required, config validation |
-| **Compatibility** | Java 25, Linux/macOS primary, Windows secondary |
+| Requirement       | Target                                                |
+|-------------------|-------------------------------------------------------|
+| **Performance**   | <100ms overhead per item (excluding tool execution)   |
+| **Scalability**   | Support 10,000+ items per pipeline                    |
+| **Reliability**   | Checkpoint every 30s, resume within 1 minute          |
+| **Observability** | Structured logging, trace IDs, metrics endpoint       |
+| **Security**      | Docker isolation, no root required, config validation |
+| **Compatibility** | Java 25, Linux/macOS primary, Windows secondary       |
 
 ---
 
@@ -750,6 +834,6 @@ tasks.withType<Test> {
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** 2025-03-21  
+**Document Version:** 1.1  
+**Last Updated:** 2025-03-24
 **Status:** Approved for Phase 1 Development
