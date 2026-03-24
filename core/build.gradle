@@ -1,0 +1,23 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    // JSON
+    api libs.jackson.databind
+    api libs.jackson.yaml
+
+    // YAML
+    api libs.snakeyaml
+
+    // Groovy scripting
+    api libs.groovy.core
+    api libs.groovy.jsr223
+
+    // Logging
+    api libs.slf4j.api
+
+    // Utilities
+    api libs.commons.lang3
+    api libs.commons.io
+}

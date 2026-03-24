@@ -34,3 +34,9 @@ replay_pid*
 # OS files
 .DS_Store
 Thumbs.db
+/.gradle/
+/build/
+/cli/build/
+/core/build/
+/server/build/
+*.ignore.*

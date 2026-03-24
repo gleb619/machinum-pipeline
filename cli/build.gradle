@@ -1,0 +1,35 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    // Core module
+    implementation project(':core')
+
+    // CLI
+    implementation libs.picocli
+
+    // YAML
+    implementation libs.snakeyaml
+
+    // JSON
+    implementation libs.jackson.databind
+    implementation libs.jackson.yaml
+
+    // Docker
+//    implementation libs.docker.core
+//    implementation libs.docker.transport
+
+    // Logging
+    implementation libs.logback.classic
+    implementation libs.slf4j.api
+
+    // Utilities
+    implementation libs.commons.lang3
+    implementation libs.commons.io
+}
+
+application {
+    mainClass = "machinum.cli.MachinumCli"
+}
+

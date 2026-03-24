@@ -1,0 +1,11 @@
+rootProject.name = "machinum"
+
+include(
+    "core",
+    "cli"
+)
+
+// Faster configuration caching
+enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+
+include 'server'
