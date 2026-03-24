@@ -1,0 +1,8 @@
+Use Claude subagents from `.claude/agents/` for delegated work.
+Configure each subagent to use `opencode`.
+
+Required subagents:
+- `.claude/agents/code-reviewer.md`
+- `.claude/agents/planner.md`
+- `.claude/agents/spec-guardian.md`
+- `.claude/agents/tester.md`

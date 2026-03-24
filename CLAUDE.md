@@ -140,6 +140,16 @@ AGENTS.md               ← same rules for other agents
 
 ---
 
+## Recent Changes
+- 001-phase1-mvp-foundation: Added Java 25 + Gradle 8.x, Picocli, SnakeYAML, Jackson, SLF4J + Logback
+- 001-phase1-mvp-foundation: Added [if applicable, e.g., Json, CoreData, files or N/A]
+
+## Active Technologies
+- Java 25 + Gradle 8.x, Picocli, SnakeYAML, Jackson, SLF4J + Logback (001-phase1-mvp-foundation)
+- Local filesystem for run state and checkpoints (`.mt/state/<run-id>/`) (001-phase1-mvp-foundation)
+
+---
+
 ## Constitution
 
 Always read `.specify/memory/constitution.md` at the start of every session.  
