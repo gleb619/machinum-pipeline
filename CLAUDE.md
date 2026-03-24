@@ -1,51 +1,151 @@
-# machinum-pipeline
-State-machine based document processing pipeline with pluggable tools and checkpoint/resume semantics.
+# CLAUDE.md
 
-## Current Repository Status
-- Repository is currently documentation/bootstrap focused.
-- `docs/tdd.md` describes architecture intent, not full implemented reality.
-- Do not assume `build.gradle`, `settings.gradle`, `src/`, tests, or Gradle wrapper exist until verified.
+## PRIME DIRECTIVE: Spec-Driven Development
 
-## Architecture Intent
-- Pipeline orchestration is modeled as a state machine over items.
-- Each state runs one or more tools, optionally guarded by Groovy expressions/scripts.
-- Checkpoint persistence enables resume (`.mt/state/{run-id}/checkpoint.json`).
-- Tool execution supports both:
-  - internal in-process Java tools
-  - external shell/docker style tools
-- Planned module boundaries:
-  - `core`
-  - `cli`
-  - `server`
-  - `mcp`
+This project uses **Spec-Driven Development** via [github/spec-kit](https://github.com/github/spec-kit).
 
-## Config Model Intent
-- Root config: `mt-pipeline.yaml`
-- Internal config/state under `.mt/`:
-  - `.mt/tools.yaml`
-  - `.mt/pipeline.yaml`
-  - `.mt/state/{run-id}/checkpoint.json`
+**You must NEVER write implementation code before a spec exists for the feature being built.**
 
-## Key Working Rules
-- Keep changes incremental and minimal (small, reviewable diffs).
-- Before coding, verify actual implementation files that exist now.
-- Never invent runnable commands when build/test scaffolding is not present.
-- Preserve intended behaviors from TDD:
-  - state-by-state execution
-  - checkpoint + resume flow
-  - error strategies (`stop` / `skip` / `retry`)
-  - support for internal and external tools
-- Do not delete files or remove tests without explicit user request.
-- If requirements are ambiguous, ask instead of guessing.
+---
 
-## Preferred Workflow
-1. Research relevant files first.
-2. For complex tasks: produce a short implementation plan.
-3. Implement in small steps.
-4. Validate with commands that actually exist in repo.
-5. Summarize changed files and any follow-up steps.
+## Workflow — Always Follow This Order
 
-## Agents
-- Use `planner` for architecture-aware planning before complex implementation.
-- Use `tester` after code changes to add/adjust tests and run available checks.
-- Use `code-reviewer` before commit/merge to catch regressions and design drift.
+When the user asks you to build, change, or add anything:
+
+### 1. Check for an existing spec
+
+Look in `.specify/specs/` for a spec directory matching the feature.
+
+```
+.specify/specs/
+  001-<feature-name>/
+    spec.md          ← requirements + user stories
+    plan.md          ← technical implementation plan
+    tasks.md         ← ordered task breakdown
+    data-model.md
+    research.md
+    contracts/
+```
+
+If `.specify/` does not exist → tell the user to run:
+```
+specify init . --ai claude
+```
+and stop until that's done.
+
+---
+
+### 2. No spec for this feature? Create one first.
+
+Run the spec workflow in order:
+
+| Step | Command                          | Purpose                                |
+|------|----------------------------------|----------------------------------------|
+| 2a   | `/speckit.constitution`          | Establish or update project principles |
+| 2b   | `/speckit.specify <description>` | Write requirements & user stories      |
+| 2c   | `/speckit.clarify`               | Fill gaps before planning              |
+| 2d   | `/speckit.plan <tech stack>`     | Technical plan + data model            |
+| 2e   | `/speckit.analyze`               | Cross-artifact consistency check       |
+| 2f   | `/speckit.tasks`                 | Ordered, dependency-aware task list    |
+| 2g   | `/speckit.implement`             | Execute tasks and write code           |
+
+**Do not skip or reorder steps.** Each output feeds the next.
+
+---
+
+### 3. Spec exists — read it before doing ANYTHING
+
+Before touching code:
+1. Read `.specify/specs/<feature>/spec.md` fully
+2. Read `.specify/specs/<feature>/plan.md` if present
+3. Read `.specify/specs/<feature>/tasks.md` if present
+4. Read `.specify/memory/constitution.md` for project principles
+
+Your implementation must conform to what is written there.  
+If the user's request contradicts the spec → surface the conflict and ask which to trust.
+
+---
+
+### 4. Implementing a task
+
+- Work through `tasks.md` top-to-bottom
+- Respect `[P]` markers (parallel-safe tasks)
+- Do not implement tasks out of order unless explicitly told to
+- After each task group / checkpoint, validate and report status
+- If a task is ambiguous → run `/speckit.clarify` before proceeding
+
+---
+
+### 5. Updating specs
+
+If requirements change mid-implementation:
+1. Update `spec.md` first
+2. Re-run `/speckit.plan` if the technical approach changes
+3. Re-run `/speckit.tasks` to regenerate the task list
+4. Then continue with `/speckit.implement`
+
+**Never silently diverge from the spec while coding.**
+
+---
+
+## File Structure Reference
+
+```
+.specify/
+  memory/
+    constitution.md     ← project principles, always read first
+  specs/
+    <NNN>-<feature>/
+      spec.md
+      plan.md
+      tasks.md
+      data-model.md
+      research.md
+      quickstart.md
+      contracts/
+        api-spec.json
+        signalr-spec.md   (or similar)
+  templates/
+    spec-template.md
+    plan-template.md
+    tasks-template.md
+CLAUDE.md               ← this file
+AGENTS.md               ← same rules for other agents
+```
+
+---
+
+## Decision Rules (Quick Reference)
+
+| Situation                           | Action                                                           |
+|-------------------------------------|------------------------------------------------------------------|
+| User asks to "build X" with no spec | Run `/speckit.specify` first                                     |
+| Spec exists but is unclear          | Run `/speckit.clarify`                                           |
+| Plan is missing                     | Run `/speckit.plan`                                              |
+| Tasks not generated                 | Run `/speckit.tasks`                                             |
+| Ready to code                       | Run `/speckit.implement`                                         |
+| Request contradicts spec            | Surface the conflict, ask user                                   |
+| Spec needs updating                 | Update spec → re-plan → re-task → implement                      |
+| User wants a quick hack / no spec   | Remind them of the rule; comply only if they explicitly override |
+
+---
+
+## What You Must NOT Do
+
+- ❌ Write implementation code without reading the spec first
+- ❌ Invent requirements not in `spec.md`
+- ❌ Skip `/speckit.tasks` and implement directly from the plan
+- ❌ Modify `constitution.md` without using `/speckit.constitution`
+- ❌ Create files outside the spec-kit directory structure without a plan entry
+
+---
+
+## Constitution
+
+Always read `.specify/memory/constitution.md` at the start of every session.  
+It contains the non-negotiable technical and quality principles for this project.  
+If it doesn't exist yet → your first action should be:
+
+```
+/speckit.constitution <describe project principles>
+```
