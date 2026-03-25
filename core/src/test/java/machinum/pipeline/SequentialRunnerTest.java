@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Integration tests for sequential state execution. */
-class SequentialRunnerIT {
+class SequentialRunnerTest {
 
   @TempDir
   Path tempDir;
@@ -64,7 +64,8 @@ class SequentialRunnerIT {
     InMemoryToolRegistry registry = coreConfig(scope).inMemoryToolRegistry();
     registry.registerAll(List.of(new ToolDefinition("tool1", "internal", "Test tool", null, null)));
 
-    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
+    PipelineStateMachine stateMachine =
+        coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
 
     stateMachine.execute();
 
@@ -92,7 +93,8 @@ class SequentialRunnerIT {
     InMemoryToolRegistry registry = coreConfig(scope).inMemoryToolRegistry();
     registry.registerAll(List.of(new ToolDefinition("tool1", "internal", "Test tool", null, null)));
 
-    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
+    PipelineStateMachine stateMachine =
+        coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
 
     stateMachine.execute();
 
@@ -117,7 +119,8 @@ class SequentialRunnerIT {
             null)),
         List.of());
 
-    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
+    PipelineStateMachine stateMachine =
+        coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
 
     assertThrows(IllegalStateException.class, stateMachine::execute);
     assertEquals(PipelineStateMachine.RunState.FAILED, stateMachine.getRunState());

@@ -84,7 +84,8 @@ subprojects {
             testImplementation libs.junit.jupiter
             testImplementation libs.assertj
             testImplementation libs.mockito
-            testRuntimeOnly libs.junit.platform.launcher
+            testImplementation libs.mockito.jupiter
+            testRuntimeOnly libs.junit.launcher
         }
 
         spotless {

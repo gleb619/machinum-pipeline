@@ -48,7 +48,8 @@ public class StatusCommand implements Callable<Integer> {
             Status: %s
             Current State: %s (index: %d)
             Last Updated: %s
-            %n""", snapshot.runId(),
+            %n""",
+        snapshot.runId(),
         snapshot.pipelineName(),
         snapshot.status(),
         snapshot.currentStateName(),

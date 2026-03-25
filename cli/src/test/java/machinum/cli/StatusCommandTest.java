@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.CheckpointStore;
 import machinum.cli.commands.StatusCommand;
@@ -16,7 +17,7 @@ import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
 /** Integration test for status command. */
-class StatusCommandIT {
+class StatusCommandTest {
 
   @TempDir
   Path tempDir;
@@ -39,7 +40,7 @@ class StatusCommandIT {
     CheckpointSnapshot snapshot = CheckpointSnapshot.builder()
         .runId(runId)
         .pipelineName("test-pipeline")
-        .lastUpdated(java.time.Instant.now())
+        .lastUpdated(Instant.now())
         .status(CheckpointSnapshot.RunStatus.RUNNING)
         .currentStateIndex(2)
         .currentStateName("TRANSFORM")
@@ -74,7 +75,7 @@ class StatusCommandIT {
     CheckpointSnapshot snapshot = CheckpointSnapshot.builder()
         .runId(runId)
         .pipelineName("my-pipeline")
-        .lastUpdated(java.time.Instant.now())
+        .lastUpdated(Instant.now())
         .status(CheckpointSnapshot.RunStatus.COMPLETED)
         .currentStateIndex(5)
         .currentStateName("FINISHED")

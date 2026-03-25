@@ -41,7 +41,7 @@ public class InMemoryToolRegistry implements ToolRegistry {
 
   /** Simple internal tool implementation. */
   @RequiredArgsConstructor
-  //TODO: replace with normal implementation
+  // TODO: replace with normal implementation
   @Deprecated(forRemoval = true)
   private static class InternalTool implements Tool {
     private final ToolDefinition definition;

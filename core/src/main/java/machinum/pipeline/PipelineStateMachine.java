@@ -1,6 +1,7 @@
 package machinum.pipeline;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,21 +34,20 @@ public class PipelineStateMachine {
   private RunLogger runLogger;
   private OneStepRunner stepRunner;
 
-  //TODO: Create paramObject move it from class state in argument instead
+  // TODO: Create paramObject move it from class state in argument instead
   @Deprecated(forRemoval = true)
   @Builder.Default
   private String runId = UUID.randomUUID().toString();
 
-  //TODO: Create paramObject move it from class state in argument instead
+  // TODO: Create paramObject move it from class state in argument instead
   @Deprecated(forRemoval = true)
   @Builder.Default
   private int currentStateIndex = 0;
 
-  //TODO: Create paramObject move it from class state in argument instead
+  // TODO: Create paramObject move it from class state in argument instead
   @Deprecated(forRemoval = true)
   @Builder.Default
   private RunState runState = RunState.RUNNING;
-
 
   /** Starts or resumes pipeline execution. */
   public void execute() throws Exception {
@@ -66,7 +66,7 @@ public class PipelineStateMachine {
         currentStateIndex++;
 
         Instant stateEnd = Instant.now();
-        long duration = java.time.Duration.between(stateStart, stateEnd).toMillis();
+        long duration = Duration.between(stateStart, stateEnd).toMillis();
         log.debug("State {} completed in {}ms", currentState.name(), duration);
 
         saveCheckpoint();
@@ -113,7 +113,7 @@ public class PipelineStateMachine {
   }
 
   /** Processes a single state by evaluating conditions and executing tools. */
-  //TODO: Use `core/src/main/java/machinum/pipeline/StateProcessor.java` here
+  // TODO: Use `core/src/main/java/machinum/pipeline/StateProcessor.java` here
   @Deprecated(forRemoval = true)
   private void processState(StateDefinition state, int stateIndex) throws Exception {
     ExecutionContext context = ExecutionContext.builder().build();
@@ -129,12 +129,11 @@ public class PipelineStateMachine {
       return;
     }
 
-    for (ToolDefinition toolDef : state.tools()) {
+    for (ToolDefinition toolDef : state.stateTools()) {
       Tool tool = toolRegistry
           .resolve(toolDef.name())
-          .orElseThrow(() ->
-              new IllegalStateException("Tool not found: %s in state: %s".formatted(toolDef.name(), state.name()))
-          );
+          .orElseThrow(() -> new IllegalStateException(
+              "Tool not found: %s in state: %s".formatted(toolDef.name(), state.name())));
 
       Instant toolStart = Instant.now();
       runLogger.toolStart("-", state.name(), toolDef.name());

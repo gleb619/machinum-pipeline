@@ -11,7 +11,7 @@ import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
 /** Integration test for logs command. */
-class LogsCommandIT {
+class LogsCommandTest {
 
   @TempDir
   Path tempDir;

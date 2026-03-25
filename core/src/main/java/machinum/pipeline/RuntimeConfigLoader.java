@@ -16,7 +16,6 @@ public class RuntimeConfigLoader {
 
   private final YamlManifestLoader yamlLoader;
 
-
   /**
    * Loads all workspace manifests from the given workspace directory.
    *

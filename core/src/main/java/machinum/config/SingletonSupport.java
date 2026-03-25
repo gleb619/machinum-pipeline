@@ -30,16 +30,14 @@ public interface SingletonSupport {
       var kind = new Kind("%s@%s".formatted(name, hash));
       return new HashFactory<>(factory, kind);
     }
-
   }
 
   record HashFactory<U>(Supplier<U> factory, Kind kind) implements Factory<U> {
 
-      @Override
-      public U get() {
-        return factory.get();
-      }
-
+    @Override
+    public U get() {
+      return factory.get();
+    }
   }
 
   @FunctionalInterface
@@ -54,7 +52,6 @@ public interface SingletonSupport {
     default String id() {
       throw new IllegalStateException("Not implemented!");
     }
-
   }
 
   record Kind(String name) {}
@@ -71,7 +68,7 @@ public interface SingletonSupport {
       try {
         return (T) instances.computeIfAbsent(factory.kind(), _ -> factory.get());
       } catch (IllegalStateException e) {
-        if("recursive update".equalsIgnoreCase(e.getMessage())) {
+        if ("recursive update".equalsIgnoreCase(e.getMessage())) {
           return onLameWay(factory);
         } else {
           return ExceptionUtils.rethrow(e);

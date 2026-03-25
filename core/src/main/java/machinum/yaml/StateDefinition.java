@@ -1,12 +1,16 @@
 package machinum.yaml;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.List;
 import java.util.Map;
+import lombok.Builder;
+import lombok.Singular;
 
 /** Represents one pipeline state with optional condition and one or more tool declarations. */
+@Builder
 public record StateDefinition(
     String name,
     String description,
     String condition,
-    List<ToolDefinition> tools,
-    Map<String, Object> config) {}
+    @JsonAlias("tools") @Singular("tool") List<ToolDefinition> stateTools,
+    @JsonAlias("config") @Singular("config") Map<String, Object> stateConfig) {}

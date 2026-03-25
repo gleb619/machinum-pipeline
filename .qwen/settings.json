@@ -3,7 +3,8 @@
     "allow": [
       "Bash(./gradlew *)",
       "Bash(java *)",
-
+      "Bash(bash *)",
+      "Bash(mkdir *)",
       "Read(**/*.java)",
       "Read(**/*.gradle)",
       "Read(**/*.properties)",
@@ -12,7 +13,6 @@
       "Read(**/*.yaml)",
       "Read(**/*.sh)",
       "Read(**/*.md)",
-
       "Write(**/*.java)",
       "Write(**/*.gradle)",
       "Write(**/*.properties)",
@@ -20,7 +20,9 @@
       "Write(**/*.yml)",
       "Write(**/*.yaml)",
       "Write(**/*.sh)",
-      "Write(**/*.md)"
+      "Write(**/*.md)",
+      "Bash(touch *)"
     ]
-  }
+  },
+  "$version": 3
 }
