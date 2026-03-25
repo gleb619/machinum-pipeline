@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Integration tests for checkpoint persistence. */
-class CheckpointPersistenceIT {
+class CheckpointPersistenceTest {
 
   @TempDir
   Path tempDir;

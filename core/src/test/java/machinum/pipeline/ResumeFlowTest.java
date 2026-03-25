@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /** Integration tests for resume flow behavior. */
-class ResumeFlowIT {
+class ResumeFlowTest {
 
   @TempDir
   Path tempDir;
@@ -72,7 +72,8 @@ class ResumeFlowIT {
 
     String runId = "resume-test-1";
 
-    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(runId, checkpointDir, pipeline);
+    PipelineStateMachine stateMachine =
+        coreConfig(scope).pipelineStateMachine(runId, checkpointDir, pipeline);
 
     stateMachine.execute();
 

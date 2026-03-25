@@ -23,7 +23,6 @@ public class YamlManifestLoader {
   private final ObjectMapper objectMapper;
   private final Yaml yaml;
 
-
   /** Loads and validates a root manifest from the given path. */
   public RootManifest loadRootManifest(Path path) throws IOException {
     try (InputStream is = Files.newInputStream(path)) {

@@ -27,9 +27,13 @@ public class OneStepRunner {
    * @throws Exception if execution fails
    */
   public void executeState(
-      StateDefinition state, @Deprecated(forRemoval = true) int stateIndex, String itemId, ExecutionContext context)
+      StateDefinition state,
+      @Deprecated(forRemoval = true) int stateIndex,
+      String itemId,
+      ExecutionContext context)
       throws Exception {
     // TODO: replace with groovy expression resolver
+    @Deprecated(forRemoval = true)
     TempExpressionResolver resolver = new TempExpressionResolver(context);
 
     if (state.condition() != null && !resolver.evaluateCondition(state.condition())) {
@@ -37,7 +41,7 @@ public class OneStepRunner {
       return;
     }
 
-    for (ToolDefinition toolDef : state.tools()) {
+    for (ToolDefinition toolDef : state.stateTools()) {
       Tool tool = toolRegistry
           .resolve(toolDef.name())
           .orElseThrow(() -> new IllegalStateException(
@@ -88,6 +92,7 @@ public class OneStepRunner {
   private static class TempExpressionResolver {
     private final ExecutionContext context;
 
+    @Deprecated(forRemoval = true)
     TempExpressionResolver(ExecutionContext context) {
       this.context = context;
     }

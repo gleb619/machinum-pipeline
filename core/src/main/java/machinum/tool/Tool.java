@@ -21,6 +21,8 @@ public interface Tool {
    */
   ToolResult execute(ExecutionContext context) throws Exception;
 
+  default void validate() {}
+
   /** Result of a tool execution. */
   @Builder
   record ToolResult(boolean success, @Singular Map<String, Object> outputs, String errorMessage) {

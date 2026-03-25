@@ -1,12 +1,17 @@
 package machinum.config;
 
 import java.nio.file.Path;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import javax.script.ScriptEngineManager;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import machinum.checkpoint.CheckpointStore;
 import machinum.checkpoint.FileCheckpointStore;
+import machinum.expression.DefaultExpressionResolver;
+import machinum.expression.ExpressionResolver;
+import machinum.expression.ScriptRegistry;
 import machinum.pipeline.EnvironmentLoader;
 import machinum.pipeline.PipelineStateMachine;
 import machinum.pipeline.RunLogger;
@@ -58,10 +63,10 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new OneStepRunner(inMemoryToolRegistry(), runLogger));
   }
 
-  //TODO: Use bean or remove it
+  // TODO: Use bean or remove it
   @Deprecated(forRemoval = true)
   public EnvironmentLoader environmentLoader() {
-    //TODO: possible problem with env disclosure
+    // TODO: possible problem with env disclosure
     return singleton(() -> new EnvironmentLoader(System.getenv()));
   }
 
@@ -86,10 +91,11 @@ public class CoreConfig implements SingletonSupport {
   }
 
   public PipelineStateMachine pipelineStateMachine(Path checkpointDir, PipelineManifest pipeline) {
-      return pipelineStateMachine(UUID.randomUUID().toString(), checkpointDir, pipeline);
+    return pipelineStateMachine(UUID.randomUUID().toString(), checkpointDir, pipeline);
   }
 
-  public PipelineStateMachine pipelineStateMachine(String runId, Path checkpointDir, PipelineManifest pipeline) {
+  public PipelineStateMachine pipelineStateMachine(
+      String runId, Path checkpointDir, PipelineManifest pipeline) {
     var runLogger = runLogger(runId);
     return singleton(() -> PipelineStateMachine.builder()
         .runId(runId)
@@ -101,13 +107,25 @@ public class CoreConfig implements SingletonSupport {
         .build());
   }
 
-  //TODO: Use bean or remove it
+  // TODO: Use bean or remove it
   @Deprecated(forRemoval = true)
   public StateProcessor stateProcessor(String runId) {
     RunLogger runLogger = runLogger(runId);
-    return singleton(() -> new StateProcessor(inMemoryToolRegistry(), runLogger, oneStepRunner(runLogger)));
+    return singleton(
+        () -> new StateProcessor(inMemoryToolRegistry(), runLogger, oneStepRunner(runLogger)));
   }
 
+  public ExpressionResolver expressionResolver() {
+    var engineManager = new ScriptEngineManager();
+    Objects.requireNonNull(
+        engineManager.getEngineByName("groovy"), "Groovy script engine not available");
+
+    return singleton(() -> new DefaultExpressionResolver(engineManager));
+  }
+
+  public ScriptRegistry scriptRegistry(Path scriptsDir) {
+    return singleton(() -> new ScriptRegistry(scriptsDir, new ConcurrentHashMap<>()).init());
+  }
 
   @Getter
   private static final class Holder implements SingletonSupport {
@@ -123,7 +141,5 @@ public class CoreConfig implements SingletonSupport {
     public CoreConfig coreConfig(Scope scope) {
       return singleton(scope.id(), () -> new CoreConfig(scope));
     }
-
   }
-
 }

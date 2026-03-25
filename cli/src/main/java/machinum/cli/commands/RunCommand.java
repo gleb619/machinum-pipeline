@@ -75,18 +75,20 @@ public class RunCommand implements Callable<Integer> {
       if (!checkpointStore.exists(runId)) {
         System.err.printf("""
             Error: No checkpoint found for run: %s
-            
+
             Cannot resume without existing checkpoint%n""", runId);
         return 1;
       }
 
-      PipelineStateMachine stateMachine = coreConfig().pipelineStateMachine(runId, checkpointDir, pipelineManifest);
+      PipelineStateMachine stateMachine =
+          coreConfig().pipelineStateMachine(runId, checkpointDir, pipelineManifest);
 
       stateMachine.resume();
 
       System.out.println("Pipeline resumed and completed. Run ID: " + stateMachine.getRunId());
     } else {
-      PipelineStateMachine stateMachine = coreConfig().pipelineStateMachine(runId, checkpointDir, pipelineManifest);
+      PipelineStateMachine stateMachine =
+          coreConfig().pipelineStateMachine(runId, checkpointDir, pipelineManifest);
 
       stateMachine.execute();
 
