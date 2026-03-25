@@ -40,3 +40,6 @@ Thumbs.db
 /core/build/
 /server/build/
 *.ignore.*
+/tools/common/build/
+/tools/external/build/
+/tools/internal/build/

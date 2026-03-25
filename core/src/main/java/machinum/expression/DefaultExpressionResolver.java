@@ -1,23 +1,32 @@
 package machinum.expression;
 
 import groovy.lang.Binding;
-import java.util.Map;
+import groovy.lang.GroovyShell;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import machinum.expression.ScriptRegistry.ScriptType;
+import org.codehaus.groovy.control.CompilerConfiguration;
 
 /**
  * Default implementation of ExpressionResolver that supports template expressions with {{...}}
- * syntax. Integrates with Groovy scripting engine for complex expressions.
+ * syntax. Integrates with Groovy scripting engine for complex expressions and script-based
+ * conditions/transformers/validators.
  */
 @Slf4j
 @RequiredArgsConstructor
 public class DefaultExpressionResolver implements ExpressionResolver {
 
   private static final Pattern EXPRESSION_PATTERN = Pattern.compile("\\{\\{([^}]+)\\}\\}");
+  //TODO: Unused
+  @Deprecated(forRemoval = true)
+  private static final Pattern SCRIPT_EXPRESSION_PATTERN =
+      Pattern.compile("^scripts\\.(\\w+)\\.(\\w+)(?:\\((.*)\\))?$");
   private final ScriptEngineManager engineManager;
 
   @Override
@@ -56,133 +65,153 @@ public class DefaultExpressionResolver implements ExpressionResolver {
    * @return the resolved value
    */
   private Object resolveExpression(String expression, ExpressionContext context) {
+    // Check for script-based expression first (e.g., scripts.conditions.should_clean(item))
+    if (expression.startsWith("scripts.")) {
+      return resolveScriptExpression(expression, context);
+    }
+
     try {
       // Create Groovy binding with all context variables
       var binding = new Binding();
-
-      // Core context variables
-      binding.setVariable("item", context.getItem());
-      binding.setVariable("text", context.getText());
-      binding.setVariable("index", context.getIndex());
-      binding.setVariable("textLength", context.getTextLength());
-      binding.setVariable("textWords", context.getTextWords());
-      binding.setVariable("textTokens", context.getTextTokens());
-      binding.setVariable("aggregationIndex", context.getAggregationIndex());
-      binding.setVariable("aggregationText", context.getAggregationText());
-      binding.setVariable("runId", context.getRunId());
-      binding.setVariable("state", context.getState());
-      binding.setVariable("tool", context.getTool());
-      binding.setVariable("retryAttempt", context.getRetryAttempt());
-
-      // Environment variables with env. prefix access
-      binding.setVariable("env", context.getEnv());
-
-      // Pipeline variables
-      binding.setVariable("variables", context.getVariables());
-
-      // Script registry for script calls
-      binding.setVariable("scripts", context.getScripts());
+      populateBinding(binding, context);
 
       // Create a new Groovy engine with the binding
-      var groovy = engineManager.getEngineByName("groovy");
-      // Fallback to standard evaluation using put() method
-      groovy.put("item", context.getItem());
-      groovy.put("text", context.getText());
-      groovy.put("index", context.getIndex());
-      groovy.put("textLength", context.getTextLength());
-      groovy.put("textWords", context.getTextWords());
-      groovy.put("textTokens", context.getTextTokens());
-      groovy.put("aggregationIndex", context.getAggregationIndex());
-      groovy.put("aggregationText", context.getAggregationText());
-      groovy.put("runId", context.getRunId());
-      groovy.put("state", context.getState());
-      groovy.put("tool", context.getTool());
-      groovy.put("retryAttempt", context.getRetryAttempt());
-      groovy.put("env", context.getEnv());
-      groovy.put("variables", context.getVariables());
-      groovy.put("scripts", context.getScripts());
-      return groovy.eval(expression);
+      CompilerConfiguration config = new CompilerConfiguration();
+      GroovyShell shell = new GroovyShell(binding, config);
 
-    } catch (ScriptException e) {
+      return shell.evaluate(expression);
+
+    } catch (Exception e) {
       log.error("Failed to resolve expression: {}", expression, e);
       throw new RuntimeException("Expression resolution failed for: " + expression, e);
     }
   }
 
   /**
-   * Resolves a simple property path (e.g., "item.id", "metadata.title"). This is used for simple
-   * property access without full Groovy evaluation.
+   * Resolves script-based expressions like scripts.conditions.should_clean(item).
    *
-   * @param path the property path
+   * @param expression the script expression
    * @param context the expression context
-   * @return the resolved value or null if not found
+   * @return the script execution result
    */
-  // TODO: remove unused
-  @Deprecated(forRemoval = true)
-  private Object resolvePropertyPath(String path, ExpressionContext context) {
-    String[] parts = path.split("\\.");
-    if (parts.length == 0) {
-      return null;
+  private Object resolveScriptExpression(String expression, ExpressionContext context) {
+    ScriptRegistry scripts = context.getScripts();
+    if (scripts == null) {
+      throw new RuntimeException(
+          "Script registry is null. Cannot execute script expression: " + expression);
     }
 
-    Object current = getRootObject(parts[0], context);
-    if (current == null) {
-      return null;
-    }
+    try {
+      // Parse expression: scripts.<type>.<name>(args)
+      String dottedPath = expression.substring(8); // Remove "scripts."
+      String[] parts = dottedPath.split("\\.", 2);
+      if (parts.length != 2) {
+        throw new IllegalArgumentException("Invalid script expression format: " + expression
+            + ". Expected: scripts.<type>.<name>(args)");
+      }
 
-    // Navigate through the property path
-    for (int i = 1; i < parts.length; i++) {
-      if (current instanceof Map) {
-        current = ((Map<?, ?>) current).get(parts[i]);
+      String scriptType = parts[0];
+      String scriptNameAndArgs = parts[1];
+
+      // Extract script name and arguments
+      String scriptName;
+      String[] argExpressions = null;
+
+      int parenStart = scriptNameAndArgs.indexOf('(');
+      if (parenStart != -1) {
+        scriptName = scriptNameAndArgs.substring(0, parenStart);
+        int parenEnd = scriptNameAndArgs.lastIndexOf(')');
+        if (parenEnd == -1) {
+          throw new IllegalArgumentException(
+              "Missing closing parenthesis in script expression: " + expression);
+        }
+        String argsContent = scriptNameAndArgs.substring(parenStart + 1, parenEnd);
+        if (!argsContent.isBlank()) {
+          argExpressions = argsContent.split(",");
+        }
       } else {
-        // Try reflection for object properties
-        try {
-          var getter = current.getClass().getMethod("get" + capitalize(parts[i]));
-          current = getter.invoke(current);
-        } catch (Exception e) {
-          log.debug(
-              "Could not access property {} on object {}",
-              parts[i],
-              current.getClass().getSimpleName());
-          return null;
+        scriptName = scriptNameAndArgs;
+      }
+
+      // Resolve script type
+      ScriptRegistry.ScriptType type = ScriptRegistry.ScriptType.fromDirectoryName(scriptType);
+      if (type == null) {
+        String[] elements = Arrays.stream(ScriptType.values())
+            .map(ScriptType::getDirectoryName)
+            .toArray(String[]::new);
+        throw new IllegalArgumentException(
+            "Invalid script type: %s. Valid types: %s".formatted(
+                scriptType, String.join(", ", elements)));
+      }
+
+      // Get script path
+      Path scriptPath = scripts.getScript(type, scriptName);
+
+      // Create binding with context variables
+      var binding = new Binding();
+      populateBinding(binding, context);
+
+      // Add arguments if provided
+      if (argExpressions != null && argExpressions.length > 0) {
+        // Evaluate argument expressions first
+        Object[] args = new Object[argExpressions.length];
+        for (int i = 0; i < argExpressions.length; i++) {
+          String argExpr = argExpressions[i].trim();
+          args[i] = resolveExpression(argExpr, context);
+        }
+        binding.setVariable("args", args);
+        // Common convention: first arg is often 'item' or 'text'
+        if (args.length > 0) {
+          binding.setVariable("arg", args[0]);
         }
       }
 
-      if (current == null) {
-        return null;
-      }
-    }
+      // Load and execute script
+      String scriptContent = scripts.loadScript(scriptPath);
+      CompilerConfiguration config = new CompilerConfiguration();
+      GroovyShell shell = new GroovyShell(binding, config);
 
-    return current;
+      log.debug("Executing script: {}.{}, path: {}", scriptType, scriptName, scriptPath);
+      return shell.evaluate(scriptContent);
+
+    } catch (IOException e) {
+      log.error("Failed to load script for expression: {}", expression, e);
+      throw new RuntimeException("Failed to load script: " + expression, e);
+    } catch (Exception e) {
+      log.error("Failed to execute script: {}", expression, e);
+      throw new RuntimeException("Failed to execute script: " + expression, e);
+    }
   }
 
-  /** Gets the root object for a property name. */
-  private Object getRootObject(String rootName, ExpressionContext context) {
-    return switch (rootName) {
-      case "item" -> context.getItem();
-      case "text" -> context.getText();
-      case "index" -> context.getIndex();
-      case "textLength" -> context.getTextLength();
-      case "textWords" -> context.getTextWords();
-      case "textTokens" -> context.getTextTokens();
-      case "aggregationIndex" -> context.getAggregationIndex();
-      case "aggregationText" -> context.getAggregationText();
-      case "runId" -> context.getRunId();
-      case "state" -> context.getState();
-      case "tool" -> context.getTool();
-      case "retryAttempt" -> context.getRetryAttempt();
-      case "env" -> context.getEnv();
-      case "variables" -> context.getVariables();
-      case "scripts" -> context.getScripts();
-      default -> context.getVariables().get(rootName);
-    };
-  }
+  /**
+   * Populates a Groovy Binding with all context variables.
+   *
+   * @param binding the binding to populate
+   * @param context the expression context
+   */
+  private void populateBinding(Binding binding, ExpressionContext context) {
+    // Core context variables
+    binding.setVariable("item", context.getItem());
+    binding.setVariable("text", context.getText());
+    binding.setVariable("index", context.getIndex());
+    binding.setVariable("textLength", context.getTextLength());
+    binding.setVariable("textWords", context.getTextWords());
+    binding.setVariable("textTokens", context.getTextTokens());
+    binding.setVariable("aggregationIndex", context.getAggregationIndex());
+    binding.setVariable("aggregationText", context.getAggregationText());
+    binding.setVariable("runId", context.getRunId());
+    binding.setVariable("state", context.getState());
+    binding.setVariable("tool", context.getTool());
+    binding.setVariable("retryAttempt", context.getRetryAttempt());
 
-  /** Capitalizes the first letter of a string. */
-  private String capitalize(String str) {
-    if (str == null || str.isEmpty()) {
-      return str;
-    }
-    return str.substring(0, 1).toUpperCase() + str.substring(1);
+    // Environment variables with env. prefix access
+    binding.setVariable("env", context.getEnv());
+
+    // Pipeline variables (both direct access and via 'variables' map)
+    context.getVariables().forEach(binding::setVariable);
+    binding.setVariable("variables", context.getVariables());
+
+    // Script registry
+    binding.setVariable("scripts", context.getScripts());
   }
 }

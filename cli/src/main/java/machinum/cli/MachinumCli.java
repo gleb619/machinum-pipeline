@@ -1,7 +1,9 @@
 package machinum.cli;
 
 import java.util.concurrent.Callable;
+import machinum.cli.commands.CleanupCommand;
 import machinum.cli.commands.HelpCommand;
+import machinum.cli.commands.InstallCommand;
 import machinum.cli.commands.LogsCommand;
 import machinum.cli.commands.RunCommand;
 import machinum.cli.commands.StatusCommand;
@@ -13,7 +15,14 @@ import picocli.CommandLine.Command;
     name = "machinum",
     mixinStandardHelpOptions = true,
     version = "0.1.0",
-    subcommands = {RunCommand.class, StatusCommand.class, LogsCommand.class, HelpCommand.class})
+    subcommands = {
+      InstallCommand.class,
+      CleanupCommand.class,
+      RunCommand.class,
+      StatusCommand.class,
+      LogsCommand.class,
+      HelpCommand.class
+    })
 public class MachinumCli implements Callable<Integer> {
 
   @Override

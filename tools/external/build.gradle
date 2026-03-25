@@ -1,0 +1,10 @@
+plugins {
+  id 'java-library'
+}
+
+dependencies {
+  api project(':tools:common')
+
+  compileOnly libs.groovy.core
+  compileOnly libs.groovy.jsr223
+}

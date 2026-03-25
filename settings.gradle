@@ -3,7 +3,10 @@ rootProject.name = "machinum"
 include(
     "core",
     "cli",
-    "server"
+    "server",
+    "tools:common",
+    "tools:internal",
+    "tools:external"
 )
 
 // Faster configuration caching

@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
+import machinum.Tool;
 import machinum.yaml.ToolDefinition;
 
 /**
