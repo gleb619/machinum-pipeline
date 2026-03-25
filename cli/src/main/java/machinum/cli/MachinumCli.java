@@ -20,7 +20,7 @@ public class MachinumCli implements Callable<Integer> {
   public Integer call() {
     System.out.println("""
         Machinum Pipeline CLI v0.1.0
-        
+
         Use 'machinum help' for available commands.
         """);
     return 0;

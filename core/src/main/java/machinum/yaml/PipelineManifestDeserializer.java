@@ -21,15 +21,15 @@ public class PipelineManifestDeserializer extends ValueDeserializer<PipelineMani
   public static final String STATES_KEY = "states";
 
   @Override
-  public PipelineManifest deserialize(JsonParser p, DeserializationContext ctxt) throws JacksonException {
+  public PipelineManifest deserialize(JsonParser p, DeserializationContext ctxt)
+      throws JacksonException {
     JsonNode node = p.readValueAsTree();
 
     String name = node.has(NAME_KEY) ? node.get(NAME_KEY).asText() : null;
     String description = node.has(DESCRIPTION_KEY) ? node.get(DESCRIPTION_KEY).asText() : null;
 
-    Map<String, Object> config = node.has(CONFIG_KEY)
-        ? ctxt.readTreeAsValue(node.get(CONFIG_KEY), Map.class)
-        : Map.of();
+    Map<String, Object> config =
+        node.has(CONFIG_KEY) ? ctxt.readTreeAsValue(node.get(CONFIG_KEY), Map.class) : Map.of();
 
     List<String> listeners = new ArrayList<>();
     if (node.has(LISTENERS_KEY)) {
@@ -50,10 +50,8 @@ public class PipelineManifestDeserializer extends ValueDeserializer<PipelineMani
       }
     }
 
-    var sourceOrItems = SourceOrItems.builder()
-        .source(source)
-        .items(items)
-        .build().validate();
+    var sourceOrItems =
+        SourceOrItems.builder().source(source).items(items).build().validate();
 
     List<StateDefinition> states = new ArrayList<>();
     JsonNode statesNode = node.get(STATES_KEY);

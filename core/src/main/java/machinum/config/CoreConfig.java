@@ -1,0 +1,129 @@
+package machinum.config;
+
+import java.nio.file.Path;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import machinum.checkpoint.CheckpointStore;
+import machinum.checkpoint.FileCheckpointStore;
+import machinum.pipeline.EnvironmentLoader;
+import machinum.pipeline.PipelineStateMachine;
+import machinum.pipeline.RunLogger;
+import machinum.pipeline.RuntimeConfigLoader;
+import machinum.pipeline.StateProcessor;
+import machinum.pipeline.runner.OneStepRunner;
+import machinum.tool.InMemoryToolRegistry;
+import machinum.yaml.PipelineManifest;
+import machinum.yaml.YamlManifestLoader;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
+import org.yaml.snakeyaml.representer.Representer;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
+@Getter
+@RequiredArgsConstructor
+public class CoreConfig implements SingletonSupport {
+
+  private final Scope scope;
+
+  public static CoreConfig coreConfig() {
+    return Holder.INSTANCE.coreConfig();
+  }
+
+  public static CoreConfig coreConfig(Scope scope) {
+    return Holder.INSTANCE.coreConfig(scope);
+  }
+
+  public ObjectMapper objectMapper() {
+    return singleton(() -> JsonMapper.builder().findAndAddModules().build());
+  }
+
+  public FileCheckpointStore fileCheckpointStore(Path baseDir) {
+    return singleton(() -> new FileCheckpointStore(baseDir, objectMapper()));
+  }
+
+  public InMemoryToolRegistry inMemoryToolRegistry() {
+    return singleton(() -> new InMemoryToolRegistry(new ConcurrentHashMap<>()));
+  }
+
+  public RunLogger runLogger(String runId) {
+    return singleton(runId, () -> RunLogger.of(runId));
+  }
+
+  public OneStepRunner oneStepRunner(RunLogger runLogger) {
+    return singleton(() -> new OneStepRunner(inMemoryToolRegistry(), runLogger));
+  }
+
+  //TODO: Use bean or remove it
+  @Deprecated(forRemoval = true)
+  public EnvironmentLoader environmentLoader() {
+    //TODO: possible problem with env disclosure
+    return singleton(() -> new EnvironmentLoader(System.getenv()));
+  }
+
+  public YamlManifestLoader yamlManifestLoader() {
+    LoaderOptions loaderOptions = new LoaderOptions();
+    loaderOptions.setMaxAliasesForCollections(50);
+    loaderOptions.setAllowDuplicateKeys(false);
+    var yaml = new Yaml(new SafeConstructor(loaderOptions), new Representer(new DumperOptions()));
+
+    return singleton(() -> YamlManifestLoader.builder()
+        .objectMapper(JsonMapper.builder().findAndAddModules().build())
+        .yaml(yaml)
+        .build());
+  }
+
+  public RuntimeConfigLoader runtimeConfigLoader() {
+    return singleton(() -> new RuntimeConfigLoader(yamlManifestLoader()));
+  }
+
+  public CheckpointStore checkpointStore(Path checkpointDir) {
+    return singleton(() -> fileCheckpointStore(checkpointDir));
+  }
+
+  public PipelineStateMachine pipelineStateMachine(Path checkpointDir, PipelineManifest pipeline) {
+      return pipelineStateMachine(UUID.randomUUID().toString(), checkpointDir, pipeline);
+  }
+
+  public PipelineStateMachine pipelineStateMachine(String runId, Path checkpointDir, PipelineManifest pipeline) {
+    var runLogger = runLogger(runId);
+    return singleton(() -> PipelineStateMachine.builder()
+        .runId(runId)
+        .pipeline(pipeline)
+        .toolRegistry(inMemoryToolRegistry())
+        .checkpointStore(checkpointStore(checkpointDir))
+        .runLogger(runLogger)
+        .stepRunner(oneStepRunner(runLogger))
+        .build());
+  }
+
+  //TODO: Use bean or remove it
+  @Deprecated(forRemoval = true)
+  public StateProcessor stateProcessor(String runId) {
+    RunLogger runLogger = runLogger(runId);
+    return singleton(() -> new StateProcessor(inMemoryToolRegistry(), runLogger, oneStepRunner(runLogger)));
+  }
+
+
+  @Getter
+  private static final class Holder implements SingletonSupport {
+
+    public static final Holder INSTANCE = new Holder();
+
+    private final SingletonScope scope = SingletonScope.of();
+
+    public CoreConfig coreConfig() {
+      return coreConfig(SingletonScope.of());
+    }
+
+    public CoreConfig coreConfig(Scope scope) {
+      return singleton(scope.id(), () -> new CoreConfig(scope));
+    }
+
+  }
+
+}

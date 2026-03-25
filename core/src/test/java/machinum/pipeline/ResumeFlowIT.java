@@ -1,13 +1,17 @@
 package machinum.pipeline;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static machinum.config.CoreConfig.coreConfig;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.CheckpointStore;
-import machinum.checkpoint.FileCheckpointStore;
+import machinum.config.SingletonSupport.Scope;
+import machinum.config.SingletonSupport.SingletonScope;
 import machinum.tool.InMemoryToolRegistry;
 import machinum.yaml.PipelineManifest;
 import machinum.yaml.StateDefinition;
@@ -19,53 +23,56 @@ import org.junit.jupiter.api.io.TempDir;
 /** Integration tests for resume flow behavior. */
 class ResumeFlowIT {
 
-  @TempDir Path tempDir;
+  @TempDir
+  Path tempDir;
 
   private CheckpointStore checkpointStore;
+  private Path checkpointDir;
+  private Scope scope;
 
   @BeforeEach
   void setUp() {
-    checkpointStore = FileCheckpointStore.of(tempDir.resolve("state"));
+    scope = SingletonScope.of();
+    checkpointDir = tempDir.resolve("state");
+    checkpointStore = coreConfig(scope).checkpointStore(checkpointDir);
   }
 
   @Test
   void testResumeFromCheckpoint() throws Exception {
-    //TODO: redo to builder
+    // TODO: redo to builder
     @Deprecated(forRemoval = true)
-    PipelineManifest pipeline =
-        new PipelineManifest(
-            "test-pipeline",
-            "Test pipeline",
-            Map.of(),
-            new PipelineManifest.SourceOrItems("items.csv", null),
-            List.of(
-                new StateDefinition(
-                    "state1",
-                    null,
-                    null,
-                    List.of(new ToolDefinition("tool1", "internal", null, null, null)),
-                    null),
-                new StateDefinition(
-                    "state2",
-                    null,
-                    null,
-                    List.of(new ToolDefinition("tool1", "internal", null, null, null)),
-                    null),
-                new StateDefinition(
-                    "state3",
-                    null,
-                    null,
-                    List.of(new ToolDefinition("tool1", "internal", null, null, null)),
-                    null)),
-            List.of());
+    PipelineManifest pipeline = new PipelineManifest(
+        "test-pipeline",
+        "Test pipeline",
+        Map.of(),
+        new PipelineManifest.SourceOrItems("items.csv", null),
+        List.of(
+            new StateDefinition(
+                "state1",
+                null,
+                null,
+                List.of(new ToolDefinition("tool1", "internal", null, null, null)),
+                null),
+            new StateDefinition(
+                "state2",
+                null,
+                null,
+                List.of(new ToolDefinition("tool1", "internal", null, null, null)),
+                null),
+            new StateDefinition(
+                "state3",
+                null,
+                null,
+                List.of(new ToolDefinition("tool1", "internal", null, null, null)),
+                null)),
+        List.of());
 
-    InMemoryToolRegistry registry = InMemoryToolRegistry.builder().build();
+    InMemoryToolRegistry registry = coreConfig(scope).inMemoryToolRegistry();
     registry.registerAll(List.of(new ToolDefinition("tool1", "internal", "Test tool", null, null)));
 
     String runId = "resume-test-1";
 
-    PipelineStateMachine stateMachine =
-        PipelineStateMachine.of(runId, pipeline, registry, checkpointStore);
+    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(runId, checkpointDir, pipeline);
 
     stateMachine.execute();
 

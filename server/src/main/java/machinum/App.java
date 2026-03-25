@@ -7,12 +7,11 @@ public class App extends Jooby {
 
   {
 
-    //Place jooby config here
+    // Place jooby config here
 
   }
 
   public static void main(final String[] args) {
     runApp(args, new JettyServer(), App::new);
   }
-
 }

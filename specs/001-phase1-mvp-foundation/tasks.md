@@ -68,8 +68,8 @@
 ### Implementation for User Story 2
 
 - [x] T021 [US2] Implement checkpoint write points in state transition flow in `core/src/main/java/machinum/pipeline/PipelineStateMachine.java`
-- [ ] T022 [US2] Implement resume cursor resolution and skip logic in `core/src/main/java/machinum/pipeline/runner/OneStepRunner.java`
-- [ ] T023 [US2] Extend run command for `--resume` and invalid checkpoint errors in `cli/src/main/java/machinum/cli/commands/RunCommand.java`
+- [x] T022 [US2] Implement resume cursor resolution and skip logic in `core/src/main/java/machinum/pipeline/runner/OneStepRunner.java`
+- [x] T023 [US2] Extend run command for `--resume` and invalid checkpoint errors in `cli/src/main/java/machinum/cli/commands/RunCommand.java`
 
 **Checkpoint**: US1 and US2 operate independently with recovery support.
 
@@ -84,8 +84,8 @@
 ### Tests for User Story 3
 
 - [x] T024 [P] [US3] Add `help` command smoke test in `cli/src/test/java/machinum/cli/HelpCommandIT.java`
-- [ ] T025 [P] [US3] Add `status` command integration test in `cli/src/test/java/machinum/cli/StatusCommandIT.java`
-- [ ] T026 [P] [US3] Add `logs` command integration test in `cli/src/test/java/machinum/cli/LogsCommandIT.java`
+- [x] T025 [P] [US3] Add `status` command integration test in `cli/src/test/java/machinum/cli/StatusCommandIT.java`
+- [x] T026 [P] [US3] Add `logs` command integration test in `cli/src/test/java/machinum/cli/LogsCommandIT.java`
 
 ### Implementation for User Story 3
 
@@ -102,9 +102,9 @@
 
 **Purpose**: Final quality pass across all user stories.
 
-- [ ] T031 [P] Update operator documentation in `README.md` and `docs/tdd.md` for Phase 1 command usage
-- [ ] T032 Harden error classification and retry strategy wiring in `core/src/main/java/machinum/pipeline/ErrorHandler.java`
-- [ ] T033 [P] Validate quickstart scenarios and record outcomes in `specs/001-phase1-mvp-foundation/quickstart.md`
+- [x] T031 [P] Update operator documentation in `README.md` and `docs/tdd.md` for Phase 1 command usage
+- [x] T032 Harden error classification and retry strategy wiring in `core/src/main/java/machinum/pipeline/ErrorHandler.java`
+- [x] T033 [P] Validate quickstart scenarios and record outcomes in `specs/001-phase1-mvp-foundation/quickstart.md`
 
 ---
 

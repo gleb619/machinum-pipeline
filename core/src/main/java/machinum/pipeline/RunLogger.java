@@ -2,19 +2,22 @@ package machinum.pipeline;
 
 import java.time.Duration;
 import java.time.Instant;
+import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
 import org.slf4j.MarkerFactory;
 
 /** Emits structured run logs with run id, item id, state, tool, and duration fields. */
 @Slf4j
-@RequiredArgsConstructor
+@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class RunLogger {
 
   private final String runId;
+
+  public static RunLogger of(String runId) {
+    return new RunLogger(runId);
+  }
 
   /** Logs a run-level event. */
   public void runInfo(String message) {

@@ -3,12 +3,12 @@ plugins {
 }
 
 dependencies {
+    // YAML
+    api libs.snakeyaml
+
     // JSON
     api libs.jackson.databind
     api libs.jackson.yaml
-
-    // YAML
-    api libs.snakeyaml
 
     // Groovy scripting
     api libs.groovy.core

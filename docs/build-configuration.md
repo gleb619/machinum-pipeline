@@ -219,15 +219,12 @@ tasks.withType(JavaCompile).configureEach {
 // ./gradlew spotlessApply
 spotless {
     java {
-        googleJavaFormat("1.22.0")
+        prettier()
         removeUnusedImports()
         trimTrailingWhitespace()
         endWithNewline()
-        licenseHeaderFile(rootProject.file("spotless/license-header.java"))
-            .yearSeparator(" - ")
     }
-    kotlinGradle {
-        ktlint("1.2.1")
+    groovyGradle {
         trimTrailingWhitespace()
         endWithNewline()
     }
@@ -237,7 +234,6 @@ spotless {
 // ./gradlew rewriteDryRun (preview)
 rewrite {
     activeRecipe(
-        "org.openrewrite.java.migrate.UpgradeToJava25",   // bump patterns to modern Java
         "org.openrewrite.java.cleanup.CommonStaticAnalysis",
         "org.openrewrite.java.RemoveUnusedImports",
         "org.openrewrite.java.OrderImports"

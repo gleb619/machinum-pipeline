@@ -6,7 +6,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Runtime key-value map used for expression resolution, variable substitution, and condition
@@ -35,21 +34,29 @@ public class ExecutionContext {
   }
 
   /** Sets all variables from the given map. */
+  // TODO: Unused
+  @Deprecated(forRemoval = true)
   public void setAll(Map<String, Object> vars) {
     variables.putAll(vars);
   }
 
   /** Returns all variables. */
+  // TODO: Unused
+  @Deprecated(forRemoval = true)
   public Map<String, Object> getAll() {
     return new HashMap<>(variables);
   }
 
   /** Returns true if the itemContext contains a variable with the given name. */
+  // TODO: Unused
+  @Deprecated(forRemoval = true)
   public boolean contains(String name) {
     return variables.containsKey(name);
   }
 
   /** Creates a copy of this execution itemContext. */
+  // TODO: Unused
+  @Deprecated(forRemoval = true)
   public ExecutionContext copy() {
     return toBuilder().build();
   }

@@ -1,10 +1,15 @@
 package machinum.yaml;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static machinum.config.CoreConfig.coreConfig;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import machinum.config.SingletonSupport.Scope;
+import machinum.config.SingletonSupport.SingletonScope;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -12,21 +17,22 @@ import org.junit.jupiter.api.io.TempDir;
 /** Integration tests for manifest validation. */
 class ManifestValidationIT {
 
-  @TempDir Path tempDir;
+  @TempDir
+  Path tempDir;
 
   private YamlManifestLoader loader;
+  private Scope scope;
 
   @BeforeEach
   void setUp() {
-    loader = YamlManifestLoader.of();
+    scope = SingletonScope.of();
+    loader = coreConfig(scope).yamlManifestLoader();
   }
 
   @Test
   void testValidRootManifest() throws IOException {
     Path rootPath = tempDir.resolve("root.yaml");
-    Files.writeString(
-        rootPath,
-        """
+    Files.writeString(rootPath, """
                 name: test-workspace
                 version: 1.0.0
                 description: Test workspace
@@ -40,25 +46,19 @@ class ManifestValidationIT {
 
   @Test
   void testRootManifestMissingName() {
-    assertThrows(
-        YamlManifestLoader.ValidationException.class,
-        () -> {
-          Path rootPath = tempDir.resolve("root.yaml");
-          Files.writeString(
-              rootPath,
-              """
+    assertThrows(YamlManifestLoader.ValidationException.class, () -> {
+      Path rootPath = tempDir.resolve("root.yaml");
+      Files.writeString(rootPath, """
                     version: 1.0.0
                     """);
-          loader.loadRootManifest(rootPath);
-        });
+      loader.loadRootManifest(rootPath);
+    });
   }
 
   @Test
   void testValidToolsManifest() throws IOException {
     Path toolsPath = tempDir.resolve("tools.yaml");
-    Files.writeString(
-        toolsPath,
-        """
+    Files.writeString(toolsPath, """
                 name: test-tools
                 version: 1.0.0
                 tools:
@@ -77,9 +77,7 @@ class ManifestValidationIT {
   @Test
   void testValidPipelineManifestWithSource() throws IOException {
     Path pipelinePath = tempDir.resolve("pipeline.yaml");
-    Files.writeString(
-        pipelinePath,
-        """
+    Files.writeString(pipelinePath, """
                 name: test-pipeline
                 source: items.csv
                 states:
@@ -99,9 +97,7 @@ class ManifestValidationIT {
   @Test
   void testValidPipelineManifestWithItems() throws IOException {
     Path pipelinePath = tempDir.resolve("pipeline.yaml");
-    Files.writeString(
-        pipelinePath,
-        """
+    Files.writeString(pipelinePath, """
                 name: test-pipeline
                 items:
                   - id: item1
@@ -122,13 +118,9 @@ class ManifestValidationIT {
 
   @Test
   void testPipelineManifestBothSourceAndItems() {
-    assertThrows(
-        YamlManifestLoader.ValidationException.class,
-        () -> {
-          Path pipelinePath = tempDir.resolve("pipeline.yaml");
-          Files.writeString(
-              pipelinePath,
-              """
+    assertThrows(YamlManifestLoader.ValidationException.class, () -> {
+      Path pipelinePath = tempDir.resolve("pipeline.yaml");
+      Files.writeString(pipelinePath, """
                     name: test-pipeline
                     source: items.csv
                     items:
@@ -139,19 +131,15 @@ class ManifestValidationIT {
                           - name: tool1
                             type: internal
                     """);
-          loader.loadPipelineManifest(pipelinePath);
-        });
+      loader.loadPipelineManifest(pipelinePath);
+    });
   }
 
   @Test
   void testPipelineManifestNeitherSourceNorItems() {
-    assertThrows(
-        YamlManifestLoader.ValidationException.class,
-        () -> {
-          Path pipelinePath = tempDir.resolve("pipeline.yaml");
-          Files.writeString(
-              pipelinePath,
-              """
+    assertThrows(YamlManifestLoader.ValidationException.class, () -> {
+      Path pipelinePath = tempDir.resolve("pipeline.yaml");
+      Files.writeString(pipelinePath, """
                     name: test-pipeline
                     states:
                       - name: state1
@@ -159,23 +147,19 @@ class ManifestValidationIT {
                           - name: tool1
                             type: internal
                     """);
-          loader.loadPipelineManifest(pipelinePath);
-        });
+      loader.loadPipelineManifest(pipelinePath);
+    });
   }
 
   @Test
   void testPipelineManifestMissingStates() {
-    assertThrows(
-        YamlManifestLoader.ValidationException.class,
-        () -> {
-          Path pipelinePath = tempDir.resolve("pipeline.yaml");
-          Files.writeString(
-              pipelinePath,
-              """
+    assertThrows(YamlManifestLoader.ValidationException.class, () -> {
+      Path pipelinePath = tempDir.resolve("pipeline.yaml");
+      Files.writeString(pipelinePath, """
                     name: test-pipeline
                     source: items.csv
                     """);
-          loader.loadPipelineManifest(pipelinePath);
-        });
+      loader.loadPipelineManifest(pipelinePath);
+    });
   }
 }

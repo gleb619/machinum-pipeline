@@ -1,12 +1,14 @@
 package machinum.pipeline;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static machinum.config.CoreConfig.coreConfig;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import machinum.checkpoint.CheckpointStore;
-import machinum.checkpoint.FileCheckpointStore;
+import machinum.config.SingletonSupport.SingletonScope;
 import machinum.tool.InMemoryToolRegistry;
 import machinum.tool.ToolRegistry;
 import machinum.yaml.PipelineManifest;
@@ -19,47 +21,50 @@ import org.junit.jupiter.api.io.TempDir;
 /** Integration tests for sequential state execution. */
 class SequentialRunnerIT {
 
-  @TempDir Path tempDir;
+  @TempDir
+  Path tempDir;
 
   private ToolRegistry toolRegistry;
   private CheckpointStore checkpointStore;
+  private Path checkpointDir;
+  private SingletonScope scope;
 
   @BeforeEach
   void setUp() {
-    toolRegistry = InMemoryToolRegistry.builder().build();
-    checkpointStore = FileCheckpointStore.of(tempDir.resolve("state"));
+    scope = SingletonScope.of();
+    toolRegistry = coreConfig(scope).inMemoryToolRegistry();
+    checkpointDir = tempDir.resolve("state");
+    checkpointStore = coreConfig(scope).checkpointStore(checkpointDir);
   }
 
   @Test
   void testSequentialStateExecution() throws Exception {
-    //TODO: redo to builder
+    // TODO: redo to builder
     @Deprecated(forRemoval = true)
-    PipelineManifest pipeline =
-        new PipelineManifest(
-            "test-pipeline",
-            "Test pipeline",
-            Map.of(),
-            new PipelineManifest.SourceOrItems("items.csv", null),
-            List.of(
-                new StateDefinition(
-                    "state1",
-                    null,
-                    null,
-                    List.of(new ToolDefinition("tool1", "internal", null, null, null)),
-                    null),
-                new StateDefinition(
-                    "state2",
-                    null,
-                    null,
-                    List.of(new ToolDefinition("tool1", "internal", null, null, null)),
-                    null)),
-            List.of());
+    PipelineManifest pipeline = new PipelineManifest(
+        "test-pipeline",
+        "Test pipeline",
+        Map.of(),
+        new PipelineManifest.SourceOrItems("items.csv", null),
+        List.of(
+            new StateDefinition(
+                "state1",
+                null,
+                null,
+                List.of(new ToolDefinition("tool1", "internal", null, null, null)),
+                null),
+            new StateDefinition(
+                "state2",
+                null,
+                null,
+                List.of(new ToolDefinition("tool1", "internal", null, null, null)),
+                null)),
+        List.of());
 
-    InMemoryToolRegistry registry = InMemoryToolRegistry.builder().build();
+    InMemoryToolRegistry registry = coreConfig(scope).inMemoryToolRegistry();
     registry.registerAll(List.of(new ToolDefinition("tool1", "internal", "Test tool", null, null)));
 
-    PipelineStateMachine stateMachine =
-        PipelineStateMachine.of(pipeline, registry, checkpointStore);
+    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
 
     stateMachine.execute();
 
@@ -69,28 +74,25 @@ class SequentialRunnerIT {
 
   @Test
   void testStateConditionSkip() throws Exception {
-    //TODO: redo to builder
+    // TODO: redo to builder
     @Deprecated(forRemoval = true)
-    PipelineManifest pipeline =
-        new PipelineManifest(
-            "test-pipeline",
-            "Test pipeline",
-            Map.of(),
-            new PipelineManifest.SourceOrItems("items.csv", null),
-            List.of(
-                new StateDefinition(
-                    "state1",
-                    null,
-                    "false",
-                    List.of(new ToolDefinition("tool1", "internal", null, null, null)),
-                    null)),
-            List.of());
+    PipelineManifest pipeline = new PipelineManifest(
+        "test-pipeline",
+        "Test pipeline",
+        Map.of(),
+        new PipelineManifest.SourceOrItems("items.csv", null),
+        List.of(new StateDefinition(
+            "state1",
+            null,
+            "false",
+            List.of(new ToolDefinition("tool1", "internal", null, null, null)),
+            null)),
+        List.of());
 
-    InMemoryToolRegistry registry = InMemoryToolRegistry.builder().build();
+    InMemoryToolRegistry registry = coreConfig(scope).inMemoryToolRegistry();
     registry.registerAll(List.of(new ToolDefinition("tool1", "internal", "Test tool", null, null)));
 
-    PipelineStateMachine stateMachine =
-        PipelineStateMachine.of(pipeline, registry, checkpointStore);
+    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
 
     stateMachine.execute();
 
@@ -100,27 +102,22 @@ class SequentialRunnerIT {
 
   @Test
   void testMissingToolFails() {
-    //TODO: redo to builder
+    // TODO: redo to builder
     @Deprecated(forRemoval = true)
-    PipelineManifest pipeline =
-        new PipelineManifest(
-            "test-pipeline",
-            "Test pipeline",
-            Map.of(),
-            new PipelineManifest.SourceOrItems("items.csv", null),
-            List.of(
-                new StateDefinition(
-                    "state1",
-                    null,
-                    null,
-                    List.of(new ToolDefinition("missing-tool", "internal", null, null, null)),
-                    null)),
-            List.of());
+    PipelineManifest pipeline = new PipelineManifest(
+        "test-pipeline",
+        "Test pipeline",
+        Map.of(),
+        new PipelineManifest.SourceOrItems("items.csv", null),
+        List.of(new StateDefinition(
+            "state1",
+            null,
+            null,
+            List.of(new ToolDefinition("missing-tool", "internal", null, null, null)),
+            null)),
+        List.of());
 
-    InMemoryToolRegistry registry = InMemoryToolRegistry.builder().build();
-
-    PipelineStateMachine stateMachine =
-        PipelineStateMachine.of(pipeline, registry, checkpointStore);
+    PipelineStateMachine stateMachine = coreConfig(scope).pipelineStateMachine(checkpointDir, pipeline);
 
     assertThrows(IllegalStateException.class, stateMachine::execute);
     assertEquals(PipelineStateMachine.RunState.FAILED, stateMachine.getRunState());

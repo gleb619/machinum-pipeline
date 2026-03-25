@@ -9,13 +9,8 @@ import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.RequiredArgsConstructor;
-import org.yaml.snakeyaml.DumperOptions;
-import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.SafeConstructor;
-import org.yaml.snakeyaml.representer.Representer;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Loads and validates YAML manifests with strict schema enforcement. Fails fast on ambiguous or
@@ -28,18 +23,6 @@ public class YamlManifestLoader {
   private final ObjectMapper objectMapper;
   private final Yaml yaml;
 
-  public static YamlManifestLoader of() {
-    LoaderOptions loaderOptions = new LoaderOptions();
-    loaderOptions.setMaxAliasesForCollections(50);
-    loaderOptions.setAllowDuplicateKeys(false);
-    var yaml = new Yaml(new SafeConstructor(loaderOptions), new Representer(new DumperOptions()));
-    return YamlManifestLoader.builder()
-        .objectMapper(JsonMapper.builder()
-            .findAndAddModules()
-            .build())
-        .yaml(yaml)
-        .build();
-  }
 
   /** Loads and validates a root manifest from the given path. */
   public RootManifest loadRootManifest(Path path) throws IOException {
@@ -142,8 +125,8 @@ public class YamlManifestLoader {
     }
 
     if (!errors.isEmpty()) {
-      throw new ValidationException(
-          "Pipeline manifest validation failed at %s: %s".formatted(path, String.join(", ", errors)));
+      throw new ValidationException("Pipeline manifest validation failed at %s: %s"
+          .formatted(path, String.join(", ", errors)));
     }
 
     // Validate states
@@ -162,8 +145,8 @@ public class YamlManifestLoader {
     }
 
     if (!errors.isEmpty()) {
-      throw new ValidationException(
-          "Pipeline manifest validation failed at %s: %s".formatted(path, String.join(", ", errors)));
+      throw new ValidationException("Pipeline manifest validation failed at %s: %s"
+          .formatted(path, String.join(", ", errors)));
     }
   }
 
