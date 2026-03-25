@@ -15,68 +15,44 @@ Tasks are organized by implementation phase and dependency order. Each task is i
 
 ### Task 0.1: Add Groovy Dependency
 **Priority**: P0 | **Estimated**: 0.5h | **Type**: Build Configuration
+**Status**: ✅ COMPLETED
 
 **Description**: Add Groovy 4.0+ dependency to Gradle build for expression resolution and script execution.
 
 **Acceptance Criteria**:
-- [ ] Groovy 4.0+ added to `core/build.gradle` or root `build.gradle`
-- [ ] Dependency version aligned with TDD (Groovy 4.0+)
-- [ ] Build compiles successfully with new dependency
-- [ ] Groovy classes can be imported in Java code
-
-**Implementation Notes**:
-```groovy
-dependencies {
-    implementation 'org.apache.groovy:groovy:4.0.29'
-    implementation 'org.apache.groovy:groovy-jsr223:4.0.29' // Optional for scripting
-}
-```
-
-**Dependencies**: None
+- [x] Groovy 4.0+ added to `core/build.gradle` or root `build.gradle`
+- [x] Dependency version aligned with TDD (Groovy 4.0+)
+- [x] Build compiles successfully with new dependency
+- [x] Groovy classes can be imported in Java code
 
 ---
 
 ### Task 0.2: Create ExpressionResolver Interface
 **Priority**: P0 | **Estimated**: 1h | **Type**: Core Interface
+**Status**: ✅ COMPLETED
 
 **Description**: Define the `ExpressionResolver` interface to replace Phase 1 temporary implementation.
 
 **Acceptance Criteria**:
-- [ ] Interface `ExpressionResolver` created in `core/src/main/java/machinum/expression/`
-- [ ] Method `resolveTemplate(String template, ExpressionContext ctx): Object` defined
-- [ ] Method `supportsInlineExpression(String value): boolean` defined
-- [ ] Interface aligned with TDD section 5.2
-
-**Implementation Notes**:
-```java
-package machinum.expression;
-
-public interface ExpressionResolver {
-    Object resolveTemplate(String template, ExpressionContext ctx);
-    boolean supportsInlineExpression(String value);
-}
-```
-
-**Dependencies**: Task 0.1
+- [x] Interface `ExpressionResolver` created in `core/src/main/java/machinum/expression/`
+- [x] Method `resolveTemplate(String template, ExpressionContext ctx): Object` defined
+- [x] Method `supportsInlineExpression(String value): boolean` defined
+- [x] Interface aligned with TDD section 5.2
 
 ---
 
 ### Task 0.3: Create ExpressionContext Class
 **Priority**: P0 | **Estimated**: 1.5h | **Type**: Core Model
+**Status**: ✅ COMPLETED
 
 **Description**: Implement `ExpressionContext` to hold all predefined variables for expression resolution.
 
 **Acceptance Criteria**:
-- [ ] Class `ExpressionContext` created with all predefined variables from TDD section 4.4
-- [ ] Builder pattern or constructor for easy creation
-- [ ] Getter methods for all variables
-- [ ] Environment variable map included
-- [ ] Pipeline variables map included
-
-**Implementation Notes**:
-Include fields: `item`, `text`, `index`, `textLength`, `textWords`, `textTokens`, `aggregationIndex`, `aggregationText`, `runId`, `state`, `tool`, `retryAttempt`, `env`, `variables`
-
-**Dependencies**: Task 0.2
+- [x] Class `ExpressionContext` created with all predefined variables from TDD section 4.4
+- [x] Builder pattern or constructor for easy creation
+- [x] Getter methods for all variables
+- [x] Environment variable map included
+- [x] Pipeline variables map included
 
 ---
 
@@ -84,20 +60,367 @@ Include fields: `item`, `text`, `index`, `textLength`, `textWords`, `textTokens`
 
 ### Task 1.1: Create ExternalTool Base Class
 **Priority**: P0 | **Estimated**: 2h | **Type**: Core Implementation
+**Status**: ✅ COMPLETED
 
 **Description**: Implement abstract base class for all external tools with common functionality.
 
 **Acceptance Criteria**:
-- [ ] Abstract class `ExternalTool` extends `Tool` interface
-- [ ] Common fields: `runtime`, `workDir`, `timeout`, `retryPolicy`, `executionTarget`
-- [ ] Constructor to initialize common fields from config
-- [ ] Abstract method `execute(JsonNode input, ToolContext context): JsonNode`
-- [ ] Helper method for timeout enforcement
+- [x] Abstract class `ExternalTool` extends `Tool` interface
+- [x] Common fields: `runtime`, `workDir`, `timeout`, `retryPolicy`, `executionTarget`
+- [x] Constructor to initialize common fields from config
+- [x] Abstract method `execute(JsonNode input, ToolContext context): JsonNode`
+- [x] Helper method for timeout enforcement
 
-**Implementation Notes**:
-```java
-public abstract class ExternalTool implements Tool {
-    protected final String runtime;
+---
+
+### Task 1.2: Implement ShellTool
+**Priority**: P0 | **Estimated**: 3h | **Type**: Core Implementation
+**Status**: ✅ COMPLETED
+
+**Description**: Implement shell script execution tool using ProcessBuilder.
+
+**Acceptance Criteria**:
+- [x] Class `ShellTool` extends `ExternalTool`
+- [x] Fields: `scriptPath`, `args`, `environment`, `interpreter`
+- [x] `execute()` method runs script via ProcessBuilder
+- [x] Timeout enforced via `Process.waitFor(timeout, TimeUnit)`
+- [x] Exit code validated (0 = success)
+- [x] Stdout captured and parsed as JSON
+- [x] Stderr logged for debugging
+- [x] Environment variables injected from config
+
+---
+
+### Task 1.3: Implement GroovyScriptTool
+**Priority**: P0 | **Estimated**: 3h | **Type**: Core Implementation
+**Status**: ✅ COMPLETED
+
+**Description**: Implement Groovy script execution tool with secure sandboxing.
+
+**Acceptance Criteria**:
+- [x] Class `GroovyScriptTool` extends `ExternalTool`
+- [x] Fields: `scriptPath`, `binding`, `groovyShell`, `returnType`, `sandboxed`
+- [x] `execute()` method evaluates script with GroovyShell
+- [x] Binding populated with context variables
+- [x] Security sandbox enabled by default
+- [x] Return type validated (Boolean for conditions)
+- [x] Script compilation cached for performance
+
+---
+
+### Task 1.4: Add Script Path Validation
+**Priority**: P1 | **Estimated**: 1.5h | **Type**: Validation
+**Status**: ✅ COMPLETED (via ShellTool.validate() and GroovyScriptTool.validate())
+
+**Description**: Validate script paths at pipeline load time to fail fast on missing scripts.
+
+**Acceptance Criteria**:
+- [x] Pipeline loader validates all script paths exist
+- [x] Clear error message includes missing script path and tool name
+- [x] Validation occurs before execution starts
+- [x] Shell scripts checked for executable permission
+
+---
+
+## Phase 2: Expression Resolution
+
+### Task 2.1: Implement GroovyExpressionResolver
+**Priority**: P0 | **Estimated**: 4h | **Type**: Core Implementation
+**Status**: ✅ COMPLETED (as DefaultExpressionResolver with Groovy support)
+
+**Description**: Replace temporary expression resolver with Groovy-based implementation.
+
+**Acceptance Criteria**:
+- [x] Class `GroovyExpressionResolver` implements `ExpressionResolver`
+- [x] `resolveTemplate()` extracts `{{...}}` and evaluates with GroovyShell
+- [x] All predefined variables available in binding
+- [x] Environment variables accessible via `env.VARIABLE_NAME`
+- [x] Timeout enforced (default: 5s)
+- [x] Compiled scripts cached for repeated evaluations
+- [x] Null safety: undefined variables resolve to null
+- [x] Descriptive errors for failed resolutions
+
+---
+
+### Task 2.2: Support Script-Based Expressions
+**Priority**: P1 | **Estimated**: 2h | **Type**: Core Enhancement
+**Status**: ✅ COMPLETED
+
+**Description**: Enable expressions like `{{scripts.conditions.should_clean(item)}}` to load and execute scripts dynamically.
+
+**Acceptance Criteria**:
+- [x] `ScriptRegistry` class created to locate scripts by type/name
+- [x] Expression resolver recognizes `scripts.` prefix
+- [x] Script loaded from `.mt/scripts/{type}/{name}.groovy`
+- [x] Script executed with provided arguments
+- [x] Return value used in expression result
+
+---
+
+### Task 2.3: Integrate ExpressionResolver into Pipeline
+**Priority**: P0 | **Estimated**: 2h | **Type**: Integration
+**Status**: ⏳ PENDING (requires pipeline execution integration)
+
+**Description**: Wire up Groovy expression resolver in pipeline execution context.
+
+**Acceptance Criteria**:
+- [ ] `PipelineStateMachine` receives `ExpressionResolver` dependency
+- [ ] Tool configs resolved via expression resolver before execution
+- [ ] State conditions evaluated via expression resolver
+- [ ] All predefined variables populated in context
+
+---
+
+## Phase 3: Workspace Initialization
+
+### Task 3.1: Create WorkspaceLayout Class
+**Priority**: P0 | **Estimated**: 1.5h | **Type**: Core Model
+**Status**: ✅ COMPLETED
+
+**Description**: Define workspace directory structure and validation logic.
+
+**Acceptance Criteria**:
+- [x] Constants for all directory paths (`.mt/`, `src/main/`, etc.)
+- [x] Method `validate(Path workspaceRoot): ValidationResult`
+- [x] Method `createDirectories(Path workspaceRoot): void`
+- [x] Method `getScriptPath(ScriptType type, String name): Path`
+- [x] `.gitkeep` files created in empty directories
+
+---
+
+### Task 3.2: Create WorkspaceInitializerTool Class
+**Priority**: P0 | **Estimated**: 3h | **Type**: Core Implementation
+**Status**: ✅ COMPLETED
+
+**Description**: Implement workspace initialization with download/bootstrap phases.
+
+**Acceptance Criteria**:
+- [x] Method `install()` runs download → bootstrap
+- [x] Method `download()` fetches tool sources without workspace mutation
+- [x] Method `bootstrap()` creates directory structure
+- [x] Template files copied for `seed.yaml` and `.mt/tools.yaml`
+- [x] Idempotent: skips existing files without `--force` flag
+- [x] Clear logging of created files/directories
+
+---
+
+### Task 3.3: Implement Package.json Generation
+**Priority**: P1 | **Estimated**: 2h | **Type**: Core Enhancement
+**Status**: ✅ COMPLETED
+
+**Description**: Generate `package.json` when node tools are declared in `tools.yaml`.
+
+**Acceptance Criteria**:
+- [x] Detect node tools in `install.tools` section
+- [x] Generate minimal `package.json` with required dependencies
+- [x] Only generated if node tools present
+- [x] Skipped if `package.json` already exists (without `--force`)
+
+---
+
+### Task 3.4: Create InstallCommand CLI
+**Priority**: P0 | **Estimated**: 2h | **Type**: CLI
+**Status**: ✅ COMPLETED
+
+**Description**: Implement Picocli command for `machinum install`.
+
+**Acceptance Criteria**:
+- [x] `InstallCommand` class with Picocli annotations
+- [x] Subcommands: `download`, `bootstrap`, (default: both)
+- [x] `--force` flag to overwrite existing files
+- [x] `--workspace` option to specify root directory
+- [x] Structured logging of progress
+- [x] Exit code 0 on success, non-zero on failure
+
+---
+
+### Task 3.5: Create Template Files
+**Priority**: P1 | **Estimated**: 1.5h | **Type**: Configuration
+**Status**: ✅ COMPLETED (generated by WorkspaceInitializerTool)
+
+**Description**: Create template files for workspace initialization.
+
+**Acceptance Criteria**:
+- [x] `conf/templates/seed.yaml.template` with sensible defaults
+- [x] `conf/templates/tools.yaml.template` with example tools
+- [x] Templates are valid YAML
+- [x] Templates include comments explaining each section
+
+---
+
+## Phase 4: Cleanup Command
+
+### Task 4.1: Create CleanupPolicy Class
+**Priority**: P1 | **Estimated**: 2h | **Type**: Core Model
+**Status**: ✅ COMPLETED
+
+**Description**: Parse and apply cleanup retention policies from root config.
+
+**Acceptance Criteria**:
+- [x] Fields: `successRetention`, `failedRetention`, `maxSuccessfulRuns`, `maxFailedRuns`
+- [x] Parse duration strings (e.g., "5d", "24h", "1w")
+- [x] Method `shouldKeep(RunMetadata run, List<RunMetadata> allRuns): boolean`
+- [x] Method `getAge(Path runDir): Duration`
+- [x] Default values from TDD section 7.2
+
+---
+
+### Task 4.2: Create RunScanner Utility
+**Priority**: P1 | **Estimated**: 1.5h | **Type**: Utility
+**Status**: ✅ COMPLETED
+
+**Description**: Scan and enumerate runs by age/status for cleanup.
+
+**Acceptance Criteria**:
+- [x] Method `getAllRuns(Path stateDir): List<RunMetadata>`
+- [x] Method `getRunsOlderThan(Duration age): List<RunMetadata>`
+- [x] Method `getRunsByStatus(RunStatus status): List<RunMetadata>`
+- [x] Parse checkpoint.json for run metadata
+
+---
+
+### Task 4.3: Implement Cleanup Logic
+**Priority**: P1 | **Estimated**: 2h | **Type**: Core Implementation
+**Status**: ✅ COMPLETED
+
+**Description**: Apply cleanup policies to remove old runs.
+
+**Acceptance Criteria**:
+- [x] Age-based cleanup applied first
+- [x] Count-based cleanup applied second
+- [x] Active runs protected from deletion
+- [x] Deletion logged with run-id and reason
+- [x] Partial failures don't stop entire cleanup
+
+---
+
+### Task 4.4: Create CleanupCommand CLI
+**Priority**: P1 | **Estimated**: 2h | **Type**: CLI
+**Status**: ✅ COMPLETED
+
+**Description**: Implement Picocli command for `machinum cleanup`.
+
+**Acceptance Criteria**:
+- [x] `CleanupCommand` class with Picocli annotations
+- [x] `--run-id <id>` option for specific run cleanup
+- [x] `--older-than <duration>` option for age-based cleanup
+- [x] `--force` flag to clean active runs
+- [x] `--dry-run` option to preview without deleting
+- [x] Summary output: X runs cleaned, Y retained
+
+---
+
+## Phase 5: Integration & Testing
+
+### Task 5.1: Write ShellTool Integration Test
+**Priority**: P0 | **Estimated**: 2h | **Type**: Test
+**Status**: ⏳ PENDING
+
+---
+
+### Task 5.2: Write GroovyScriptTool Integration Test
+**Priority**: P0 | **Estimated**: 2h | **Type**: Test
+**Status**: ⏳ PENDING
+
+---
+
+### Task 5.3: Write ExpressionResolver Tests
+**Priority**: P0 | **Estimated**: 3h | **Type**: Test
+**Status**: ✅ COMPLETED (script expression tests added)
+
+---
+
+### Task 5.4: Write Workspace Init Integration Test
+**Priority**: P1 | **Estimated**: 2h | **Type**: Test
+**Status**: ⏳ PENDING
+
+---
+
+### Task 5.5: Write Cleanup Integration Test
+**Priority**: P1 | **Estimated**: 2h | **Type**: Test
+**Status**: ⏳ PENDING
+
+---
+
+### Task 5.6: Write End-to-End Pipeline Test
+**Priority**: P0 | **Estimated**: 3h | **Type**: Test
+**Status**: ⏳ PENDING
+
+---
+
+## Phase 6: Documentation & Polish
+
+### Task 6.1: Update Quickstart Guide
+**Priority**: P1 | **Estimated**: 1.5h | **Type**: Documentation
+**Status**: ⏳ PENDING
+
+---
+
+### Task 6.2: Create Example Scripts
+**Priority**: P1 | **Estimated**: 2h | **Type**: Examples
+**Status**: ✅ COMPLETED
+
+**Description**: Provide example scripts for common use cases.
+
+**Acceptance Criteria**:
+- [x] Example condition script: `should_clean.groovy`
+- [x] Example transformer script: `normalize_text.groovy`
+- [x] Example validator script: `validate_json.groovy`
+- [x] Example shell script: `format_markdown.sh`
+- [x] Scripts documented with comments
+- [x] Scripts tested and working
+
+---
+
+### Task 6.3: Update TDD if Needed
+**Priority**: P2 | **Estimated**: 1h | **Type**: Documentation
+**Status**: ⏳ PENDING
+
+---
+
+## Task Summary
+
+| Phase | Tasks | Completed | Estimated Hours |
+|-------|-------|-----------|-----------------|
+| 0: Foundation | 3 | 3 | 3h |
+| 1: External Tools | 4 | 4 | 9.5h |
+| 2: Expression Resolution | 3 | 2 | 8h |
+| 3: Workspace Init | 5 | 5 | 10h |
+| 4: Cleanup | 4 | 4 | 7.5h |
+| 5: Testing | 6 | 1 | 14h |
+| 6: Documentation | 3 | 1 | 4.5h |
+| **Total** | **28** | **20** | **56.5h** |
+
+---
+
+## Critical Path
+
+**Phase 0 → Phase 1 → Phase 2 → Phase 5** (External tools and expression resolution are blocking for MVP)
+
+**Phase 3 → Phase 4 → Phase 5** (Workspace init and cleanup can be parallel with Phase 1-2)
+
+---
+
+## Implementation Order Recommendation
+
+1. **Week 1**: Phase 0 (Foundation) + Phase 1 (External Tools) + Task 5.1, 5.2
+2. **Week 2**: Phase 2 (Expression Resolution) + Task 5.3
+3. **Week 3**: Phase 3 (Workspace Init) + Phase 4 (Cleanup)
+4. **Week 4**: Phase 5 (E2E Testing) + Phase 6 (Documentation)
+
+---
+
+## Current Status (2026-03-25)
+
+**Completed**:
+- All Phase 0, 1, 3, 4 tasks
+- Script-based expression resolution (Task 2.2)
+- Example scripts created
+
+**Remaining**:
+- Pipeline integration for ExpressionResolver (Task 2.3)
+- Integration tests (Tasks 5.1, 5.2, 5.4, 5.5, 5.6)
+- Documentation updates (Tasks 6.1, 6.3)
     protected final Path workDir;
     protected final Duration timeout;
     protected final RetryPolicy retryPolicy;

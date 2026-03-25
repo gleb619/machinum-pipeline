@@ -3,6 +3,9 @@ plugins {
 }
 
 dependencies {
+    api project(":tools:internal")
+    api project(":tools:external")
+
     // YAML
     api libs.snakeyaml
 

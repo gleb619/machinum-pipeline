@@ -1,4 +1,4 @@
-package machinum.tool;
+package machinum;
 
 import java.util.Optional;
 

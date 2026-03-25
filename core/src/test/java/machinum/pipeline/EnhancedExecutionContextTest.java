@@ -240,15 +240,13 @@ class EnhancedExecutionContextTest {
 
       // Verify that the expression context has correct text metrics
       if (template.contains("textLength")) {
-        return String.valueOf(
-            ((ExpressionContext) exprContext).getTextLength());
+        return String.valueOf(((ExpressionContext) exprContext).getTextLength());
       }
       if (template.contains("textWords")) {
         return String.valueOf(((ExpressionContext) exprContext).getTextWords());
       }
       if (template.contains("textTokens")) {
-        return String.valueOf(
-            ((ExpressionContext) exprContext).getTextTokens());
+        return String.valueOf(((ExpressionContext) exprContext).getTextTokens());
       }
       return "resolved";
     });

@@ -97,20 +97,20 @@ From TDD section 7.2:
 ### 4. Expression Resolution
 
 #### Predefined Variables (TDD section 4.4)
-| Variable | Type | Description |
-|----------|------|-------------|
-| `item` | Item | Current source/items element |
-| `text` | String | Content of current element |
-| `index` | int | Element index in collection |
-| `textLength` | int | Character count |
-| `textWords` | int | Word count |
-| `textTokens` | int | Token count via CL100K_BASE |
-| `aggregationIndex` | int | Index for window/aggregation |
-| `aggregationText` | String | Window/aggregation result |
-| `runId` | String | Active run identifier |
-| `state` | StateDescriptor | Current state descriptor |
-| `tool` | ToolDescriptor | Current tool descriptor |
-| `retryAttempt` | int | Current retry number |
+| Variable           | Type            | Description                  |
+|--------------------|-----------------|------------------------------|
+| `item`             | Item            | Current source/items element |
+| `text`             | String          | Content of current element   |
+| `index`            | int             | Element index in collection  |
+| `textLength`       | int             | Character count              |
+| `textWords`        | int             | Word count                   |
+| `textTokens`       | int             | Token count via CL100K_BASE  |
+| `aggregationIndex` | int             | Index for window/aggregation |
+| `aggregationText`  | String          | Window/aggregation result    |
+| `runId`            | String          | Active run identifier        |
+| `state`            | StateDescriptor | Current state descriptor     |
+| `tool`             | ToolDescriptor  | Current tool descriptor      |
+| `retryAttempt`     | int             | Current retry number         |
 
 #### Expression Syntax
 - Template resolution: `"{{expression}}"`
@@ -183,13 +183,13 @@ None identified. All required dependencies are available in Phase 1 foundation.
 
 ## Risk Assessment
 
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Groovy security vulnerability | Medium | High | Sandboxed class loader, restricted imports |
-| Shell injection via args | Medium | High | Validate/sanitize all arguments before passing to ProcessBuilder |
-| Expression infinite loop | Low | Medium | Timeout enforcement, max iteration count |
-| Workspace init race condition | Low | Low | File locking, atomic directory creation |
-| Cleanup deletes active run | Low | High | Validate run status before deletion, require --force for active runs |
+| Risk                          | Likelihood | Impact | Mitigation                                                           |
+|-------------------------------|------------|--------|----------------------------------------------------------------------|
+| Groovy security vulnerability | Medium     | High   | Sandboxed class loader, restricted imports                           |
+| Shell injection via args      | Medium     | High   | Validate/sanitize all arguments before passing to ProcessBuilder     |
+| Expression infinite loop      | Low        | Medium | Timeout enforcement, max iteration count                             |
+| Workspace init race condition | Low        | Low    | File locking, atomic directory creation                              |
+| Cleanup deletes active run    | Low        | High   | Validate run status before deletion, require --force for active runs |
 
 ## Next Steps
 

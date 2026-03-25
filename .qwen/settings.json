@@ -5,6 +5,11 @@
       "Bash(java *)",
       "Bash(bash *)",
       "Bash(mkdir *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(touch *)",
+      "Bash(find *)",
+      "Bash(xargs *)",
       "Read(**/*.java)",
       "Read(**/*.gradle)",
       "Read(**/*.properties)",
@@ -20,8 +25,7 @@
       "Write(**/*.yml)",
       "Write(**/*.yaml)",
       "Write(**/*.sh)",
-      "Write(**/*.md)",
-      "Bash(touch *)"
+      "Write(**/*.md)"
     ]
   },
   "$version": 3

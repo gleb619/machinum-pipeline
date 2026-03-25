@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import javax.script.ScriptEngineManager;
@@ -13,6 +15,7 @@ import machinum.yaml.StateDefinition;
 import machinum.yaml.ToolDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** Unit tests for DefaultExpressionResolver. */
 class DefaultExpressionResolverTest {
@@ -231,6 +234,92 @@ class DefaultExpressionResolverTest {
 
     assertThrows(RuntimeException.class, () -> {
       resolver.resolveTemplate("{{invalid.syntax.}}", context);
+    });
+  }
+
+  @Test
+  void testResolveWithScriptExpression(@TempDir Path tempDir) throws Exception {
+    // Create scripts directory structure
+    Path conditionsDir = Files.createDirectories(tempDir.resolve("conditions"));
+    Path scriptPath = conditionsDir.resolve("is_valid.groovy");
+    Files.writeString(scriptPath, "return text != null && text.length() > 0");
+
+    ScriptRegistry scripts = new ScriptRegistry(tempDir).init();
+
+    ExpressionContext context = ExpressionContext.builder()
+        .item(new HashMap<>())
+        .text("Valid text")
+        .scripts(scripts)
+        .build();
+
+    Object result = resolver.resolveTemplate("{{scripts.conditions.is_valid()}}", context);
+    assertTrue(Boolean.parseBoolean(result.toString()));
+  }
+
+  @Test
+  void testResolveWithScriptExpressionAndArguments(@TempDir Path tempDir) throws Exception {
+    // Create transformer script
+    Path transformersDir = Files.createDirectories(tempDir.resolve("transformers"));
+    Path scriptPath = transformersDir.resolve("uppercase.groovy");
+    Files.writeString(scriptPath, "return text.toUpperCase()");
+
+    ScriptRegistry scripts = new ScriptRegistry(tempDir).init();
+
+    ExpressionContext context = ExpressionContext.builder()
+        .item(new HashMap<>())
+        .text("hello world")
+        .scripts(scripts)
+        .build();
+
+    Object result = resolver.resolveTemplate("{{scripts.transformers.uppercase()}}", context);
+    assertEquals("HELLO WORLD", result);
+  }
+
+  @Test
+  void testResolveWithScriptExpressionWithItemArgument(@TempDir Path tempDir) throws Exception {
+    // Create validator script
+    Path validatorsDir = Files.createDirectories(tempDir.resolve("validators"));
+    Path scriptPath = validatorsDir.resolve("has_content.groovy");
+    Files.writeString(
+        scriptPath,
+        "def item = arg; return item.containsKey('content') && item.get('content') != null");
+
+    ScriptRegistry scripts = new ScriptRegistry(tempDir).init();
+    Map<String, Object> item = new HashMap<>();
+    item.put("content", "test content");
+
+    ExpressionContext context =
+        ExpressionContext.builder().item(item).text("test").scripts(scripts).build();
+
+    Object result = resolver.resolveTemplate("{{scripts.validators.has_content(item)}}", context);
+    assertTrue(Boolean.parseBoolean(result.toString()));
+  }
+
+  @Test
+  void testResolveWithScriptExpressionMissingScript(@TempDir Path tempDir) {
+    ScriptRegistry scripts = new ScriptRegistry(tempDir).init();
+
+    ExpressionContext context = ExpressionContext.builder()
+        .item(new HashMap<>())
+        .text("test")
+        .scripts(scripts)
+        .build();
+
+    assertThrows(RuntimeException.class, () -> {
+      resolver.resolveTemplate("{{scripts.conditions.non_existent()}}", context);
+    });
+  }
+
+  @Test
+  void testResolveWithScriptExpressionNullRegistry() {
+    ExpressionContext context = ExpressionContext.builder()
+        .item(new HashMap<>())
+        .text("test")
+        .scripts(null)
+        .build();
+
+    assertThrows(RuntimeException.class, () -> {
+      resolver.resolveTemplate("{{scripts.conditions.test()}}", context);
     });
   }
 }

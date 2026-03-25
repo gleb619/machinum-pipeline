@@ -2,11 +2,11 @@ package machinum.pipeline.runner;
 
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
+import machinum.Tool;
+import machinum.ToolRegistry;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
-import machinum.tool.Tool;
-import machinum.tool.ToolRegistry;
 import machinum.yaml.StateDefinition;
 import machinum.yaml.ToolDefinition;
 
@@ -63,7 +63,6 @@ public class OneStepRunner {
               "Tool failed: " + toolDef.name() + " - " + result.errorMessage());
         }
       } catch (Exception e) {
-        Instant toolEnd = Instant.now();
         runLogger.toolError(itemId, state.name(), toolDef.name(), e);
         throw e;
       }

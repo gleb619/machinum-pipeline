@@ -12,11 +12,11 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import machinum.Tool;
+import machinum.ToolRegistry;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.CheckpointStore;
 import machinum.pipeline.runner.OneStepRunner;
-import machinum.tool.Tool;
-import machinum.tool.ToolRegistry;
 import machinum.yaml.PipelineManifest;
 import machinum.yaml.StateDefinition;
 import machinum.yaml.ToolDefinition;
@@ -151,7 +151,6 @@ public class PipelineStateMachine {
               "Tool failed: %s - %s".formatted(toolDef.name(), result.errorMessage()));
         }
       } catch (Exception e) {
-        Instant toolEnd = Instant.now();
         runLogger.toolError("-", state.name(), toolDef.name(), e);
         throw e;
       }

@@ -124,7 +124,7 @@ public class CoreConfig implements SingletonSupport {
   }
 
   public ScriptRegistry scriptRegistry(Path scriptsDir) {
-    return singleton(() -> new ScriptRegistry(scriptsDir, new ConcurrentHashMap<>()).init());
+    return singleton(() -> new ScriptRegistry(scriptsDir).init());
   }
 
   @Getter

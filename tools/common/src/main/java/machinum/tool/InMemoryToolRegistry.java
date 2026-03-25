@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import machinum.Tool;
+import machinum.ToolRegistry;
 import machinum.pipeline.ExecutionContext;
 import machinum.yaml.ToolDefinition;
 

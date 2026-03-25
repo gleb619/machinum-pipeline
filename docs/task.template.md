@@ -34,25 +34,92 @@
 
 ## Resources
 
-//TODO: add some links to file with exatly line numbers
+**Key Documentation**:
+- **Technical Design**: `docs/tdd.md` (lines 1-1007) - Complete architecture and design
+- **YAML Schema**: `docs/tdd.md` (lines 77-445) - Configuration file formats
+- **Core Interfaces**: `docs/tdd.md` (lines 521-632) - Tool and pipeline contracts
+- **Directory Structure**: `docs/tdd.md` (lines 37-68) - Workspace layout
+- **CLI Commands**: `docs/tdd.md` (lines 652-676) - Command-line interface
+- **Project Structure**: `docs/tdd.md` (lines 891-933) - Module organization
+
+**Task Specific**:
+- **{name}**: `{file path}` (lines {line from}-{line to}) - {Description}
 
 ---
 
 ## Spec
 
-//TODO: add some spec
+### Contracts
+
+{specify contracts that can be verified via clie here}
+
+### Data Model
+
+{specify task data models; optional}
+
+### Checklists
+
+{specify here cli command to check if task could be considered as completed}
+
+### Plan
+
+{a concise checklist (3-7 bullets) of what you will do; keep items conceptual, not implementation-level.}
+
+### Quickstart
+
+- {a list of files that need to read before start task execution; optional}
 
 ---
 
-## Data-model
+## TDD Approach
 
-//TODO: add some data models
+This project follows a **YAML-First Test-Driven Development** methodology:
 
----
+### 1. Start with YAML Configuration
+- Define the pipeline structure in YAML first
+- Specify tools, states, and execution flow
+- Include error handling and retry strategies
+- Validate YAML schema compliance
 
-## Contracts
+### 2. Create Integration Tests
+- Write tests that load and parse your YAML
+- Test pipeline execution with sample data
+- Verify state transitions and tool outputs
+- Test error scenarios and recovery
 
-//TODO: add some contract for cli/rest
+### 3. Implement Supporting Code
+- Create tools referenced in YAML
+- Implement validation logic
+- Add error handling as needed
+- Refactor based on test results
+
+### 4. Iterate and Refine
+- Adjust YAML based on test failures
+- Enhance error messages and validation
+- Add missing functionality
+- Improve performance and reliability
+
+**Example TDD Process**:
+```bash
+# 1. Create YAML manifest
+cat > examples/{example-name}/src/main/manifests/{feature}.yaml << EOF
+version: 1.0.0
+type: pipeline
+name: "feature-pipeline"
+body:
+  states:
+    - name: PROCESS
+      tools:
+        - tool: my-new-tool
+EOF
+
+# 2. Write failing test
+./gradlew test --tests "*FeaturePipelineTest"
+
+# 3. Implement minimal code to pass test
+# 4. Refactor and enhance
+# 5. Repeat for next feature
+```
 
 ---
 

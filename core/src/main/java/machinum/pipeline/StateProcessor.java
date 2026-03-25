@@ -4,9 +4,9 @@ import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import machinum.Tool;
+import machinum.ToolRegistry;
 import machinum.pipeline.runner.OneStepRunner;
-import machinum.tool.Tool;
-import machinum.tool.ToolRegistry;
 import machinum.yaml.StateDefinition;
 import machinum.yaml.ToolDefinition;
 
@@ -28,6 +28,8 @@ public class StateProcessor {
    * @param context the execution itemContext
    * @throws Exception if processing fails
    */
+  //TODO: Unused
+  @Deprecated(forRemoval = true)
   public void processState(
       StateDefinition state, int stateIndex, String itemId, ExecutionContext context)
       throws Exception {
@@ -44,6 +46,8 @@ public class StateProcessor {
    * @param context the execution itemContext
    * @throws Exception if any tool fails
    */
+  //TODO: Unused
+  @Deprecated(forRemoval = true)
   public void processTools(
       List<ToolDefinition> tools, String stateName, String itemId, ExecutionContext context)
       throws Exception {

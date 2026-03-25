@@ -43,7 +43,7 @@ subprojects {
     group = parent.group
     version = parent.version
 
-    if(!it.name.contains("frontend")) {
+    if(!projectsToExclude().contains(it.name)) {
         pluginManager.apply('java')
         pluginManager.apply(libs.plugins.versions.get().pluginId)
         pluginManager.apply(libs.plugins.dependency.analysis.get().pluginId)
@@ -112,3 +112,9 @@ subprojects {
 
 }
 
+def projectsToExclude() {
+    [
+        'frontend',
+        'tools'
+    ]
+}
