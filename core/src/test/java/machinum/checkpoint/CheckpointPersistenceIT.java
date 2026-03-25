@@ -1,6 +1,9 @@
 package machinum.checkpoint;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static machinum.config.CoreConfig.coreConfig;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -8,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import machinum.config.SingletonSupport.SingletonScope;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -15,13 +19,16 @@ import org.junit.jupiter.api.io.TempDir;
 /** Integration tests for checkpoint persistence. */
 class CheckpointPersistenceIT {
 
-  @TempDir Path tempDir;
+  @TempDir
+  Path tempDir;
 
   private CheckpointStore checkpointStore;
+  private SingletonScope scope;
 
   @BeforeEach
   void setUp() {
-    checkpointStore = FileCheckpointStore.of(tempDir);
+    scope = SingletonScope.of();
+    checkpointStore = coreConfig(scope).checkpointStore(tempDir);
   }
 
   @Test
@@ -33,13 +40,12 @@ class CheckpointPersistenceIT {
         .status(CheckpointSnapshot.RunStatus.RUNNING)
         .currentStateIndex(1)
         .currentStateName("state2")
-        .itemProgress(List.of(
-            new CheckpointSnapshot.ItemProgress(
-                "item-1",
-                1,
-                "state2",
-                CheckpointSnapshot.ItemProgress.ItemStatus.IN_PROGRESS,
-                Map.of())))
+        .itemProgress(List.of(new CheckpointSnapshot.ItemProgress(
+            "item-1",
+            1,
+            "state2",
+            CheckpointSnapshot.ItemProgress.ItemStatus.IN_PROGRESS,
+            Map.of())))
         .runContext(Map.of())
         .build();
 
@@ -64,18 +70,17 @@ class CheckpointPersistenceIT {
 
   @Test
   void testDeleteCheckpoint() throws IOException {
-    //TODO: redo to builder
+    // TODO: redo to builder
     @Deprecated(forRemoval = true)
-    CheckpointSnapshot snapshot =
-        new CheckpointSnapshot(
-            "run-456",
-            "test-pipeline",
-            Instant.now(),
-            CheckpointSnapshot.RunStatus.COMPLETED,
-            2,
-            null,
-            List.of(),
-            Map.of());
+    CheckpointSnapshot snapshot = new CheckpointSnapshot(
+        "run-456",
+        "test-pipeline",
+        Instant.now(),
+        CheckpointSnapshot.RunStatus.COMPLETED,
+        2,
+        null,
+        List.of(),
+        Map.of());
 
     checkpointStore.save(snapshot);
     assertTrue(checkpointStore.exists("run-456"));

@@ -4,20 +4,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import machinum.pipeline.ExecutionContext;
 import machinum.yaml.ToolDefinition;
 
 /** In-memory tool registry implementation for internal tool resolution. */
-@Builder
 @AllArgsConstructor
 public class InMemoryToolRegistry implements ToolRegistry {
 
-  @Builder.Default
-  private Map<String, Tool> tools = new ConcurrentHashMap<>();
+  private Map<String, Tool> tools;
 
   @Override
   public void register(Tool tool) {
@@ -45,6 +41,8 @@ public class InMemoryToolRegistry implements ToolRegistry {
 
   /** Simple internal tool implementation. */
   @RequiredArgsConstructor
+  //TODO: replace with normal implementation
+  @Deprecated(forRemoval = true)
   private static class InternalTool implements Tool {
     private final ToolDefinition definition;
 

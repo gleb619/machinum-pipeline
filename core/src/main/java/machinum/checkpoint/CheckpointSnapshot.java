@@ -18,10 +18,8 @@ public record CheckpointSnapshot(
     RunStatus status,
     int currentStateIndex,
     String currentStateName,
-    @Singular("progress")
-    List<ItemProgress> itemProgress,
-    @Singular("context")
-    Map<String, Object> runContext) {
+    @Singular("progress") List<ItemProgress> itemProgress,
+    @Singular("context") Map<String, Object> runContext) {
 
   /** Represents the status of a run. */
   public enum RunStatus {
@@ -38,8 +36,8 @@ public record CheckpointSnapshot(
       int completedStateIndex,
       String lastState,
       ItemStatus status,
-      @Singular("context")
-      Map<String, Object> itemContext) {
+      @Singular("context") Map<String, Object> itemContext) {
+
     public enum ItemStatus {
       PENDING,
       IN_PROGRESS,
@@ -47,5 +45,4 @@ public record CheckpointSnapshot(
       FAILED
     }
   }
-
 }

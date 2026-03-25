@@ -89,8 +89,9 @@ subprojects {
 
         spotless {
             java {
-                //googleJavaFormat("1.28.0")
-                prettier()
+                palantirJavaFormat()
+                    .style("GOOGLE")
+                    .formatJavadoc(true)
                 importOrder()
                 removeUnusedImports()
                 trimTrailingWhitespace()

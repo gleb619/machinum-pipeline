@@ -2,10 +2,9 @@ rootProject.name = "machinum"
 
 include(
     "core",
-    "cli"
+    "cli",
+    "server"
 )
 
 // Faster configuration caching
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
-
-include 'server'

@@ -26,10 +26,7 @@ public interface Tool {
   record ToolResult(boolean success, @Singular Map<String, Object> outputs, String errorMessage) {
 
     public static ToolResult success(Map<String, Object> outputs) {
-      return ToolResult.builder()
-          .success(Boolean.TRUE)
-          .outputs(outputs)
-          .build();
+      return ToolResult.builder().success(Boolean.TRUE).outputs(outputs).build();
     }
 
     public static ToolResult failure(String errorMessage) {
@@ -38,6 +35,5 @@ public interface Tool {
           .errorMessage(errorMessage)
           .build();
     }
-
   }
 }

@@ -16,10 +16,6 @@ dependencies {
     implementation libs.jackson.databind
     implementation libs.jackson.yaml
 
-    // Docker
-//    implementation libs.docker.core
-//    implementation libs.docker.transport
-
     // Logging
     implementation libs.logback.classic
     implementation libs.slf4j.api
@@ -32,4 +28,3 @@ dependencies {
 application {
     mainClass = "machinum.cli.MachinumCli"
 }
-

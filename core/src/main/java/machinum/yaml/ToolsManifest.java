@@ -11,9 +11,5 @@ import lombok.Singular;
 public record ToolsManifest(
     String name,
     String version,
-    @JsonAlias("tools")
-    @Singular("tool")
-    List<ToolDefinition> tools,
-    @JsonAlias("config")
-    @Singular("config")
-    Map<String, Object> toolConfig) {}
+    @JsonAlias("tools") @Singular("tool") List<ToolDefinition> tools,
+    @JsonAlias("config") @Singular("config") Map<String, Object> toolConfig) {}

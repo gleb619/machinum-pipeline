@@ -1,4 +1,4 @@
-package machinum.cli;
+package machinum.pipeline;
 
 import java.io.IOException;
 import java.nio.file.Files;

@@ -1,14 +1,14 @@
 package machinum.cli.commands;
 
+import static machinum.config.CoreConfig.coreConfig;
+
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import machinum.checkpoint.CheckpointStore;
-import machinum.checkpoint.FileCheckpointStore;
-import machinum.cli.RuntimeConfigLoader;
 import machinum.pipeline.PipelineStateMachine;
+import machinum.pipeline.RuntimeConfigLoader;
 import machinum.tool.InMemoryToolRegistry;
 import machinum.yaml.PipelineManifest;
-import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -48,7 +48,7 @@ public class RunCommand implements Callable<Integer> {
     Path workspaceDir = Path.of(workspace).toAbsolutePath();
     Path checkpointDir = workspaceDir.resolve(".mt/state");
 
-    RuntimeConfigLoader configLoader = RuntimeConfigLoader.of();
+    RuntimeConfigLoader configLoader = coreConfig().runtimeConfigLoader();
     var config = configLoader.load(workspaceDir);
 
     PipelineManifest pipelineManifest = configLoader.loadPipeline(workspaceDir, pipeline);
@@ -61,17 +61,38 @@ public class RunCommand implements Callable<Integer> {
       return 0;
     }
 
-    InMemoryToolRegistry toolRegistry = InMemoryToolRegistry.builder().build();
+    InMemoryToolRegistry toolRegistry = coreConfig().inMemoryToolRegistry();
     toolRegistry.registerAll(config.tools().tools());
 
-    CheckpointStore checkpointStore = FileCheckpointStore.of(checkpointDir);
+    CheckpointStore checkpointStore = coreConfig().fileCheckpointStore(checkpointDir);
 
-    PipelineStateMachine stateMachine =
-        PipelineStateMachine.of(runId, pipelineManifest, toolRegistry, checkpointStore);
+    if (resume) {
+      if (runId == null) {
+        System.err.println("Error: --run-id is required when using --resume");
+        return 1;
+      }
 
-    stateMachine.execute();
+      if (!checkpointStore.exists(runId)) {
+        System.err.printf("""
+            Error: No checkpoint found for run: %s
+            
+            Cannot resume without existing checkpoint%n""", runId);
+        return 1;
+      }
 
-    System.out.println("Pipeline completed. Run ID: " + stateMachine.getRunId());
+      PipelineStateMachine stateMachine = coreConfig().pipelineStateMachine(runId, checkpointDir, pipelineManifest);
+
+      stateMachine.resume();
+
+      System.out.println("Pipeline resumed and completed. Run ID: " + stateMachine.getRunId());
+    } else {
+      PipelineStateMachine stateMachine = coreConfig().pipelineStateMachine(runId, checkpointDir, pipelineManifest);
+
+      stateMachine.execute();
+
+      System.out.println("Pipeline completed. Run ID: " + stateMachine.getRunId());
+    }
+
     return 0;
   }
 }

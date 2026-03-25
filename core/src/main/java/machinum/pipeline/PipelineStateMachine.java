@@ -6,10 +6,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.CheckpointStore;
@@ -19,14 +19,12 @@ import machinum.tool.ToolRegistry;
 import machinum.yaml.PipelineManifest;
 import machinum.yaml.StateDefinition;
 import machinum.yaml.ToolDefinition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Manages pipeline state transitions and execution flow. */
 @Slf4j
 @Data
-@AllArgsConstructor
 @Builder(toBuilder = true)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class PipelineStateMachine {
 
   private PipelineManifest pipeline;
@@ -35,36 +33,21 @@ public class PipelineStateMachine {
   private RunLogger runLogger;
   private OneStepRunner stepRunner;
 
+  //TODO: Create paramObject move it from class state in argument instead
+  @Deprecated(forRemoval = true)
   @Builder.Default
   private String runId = UUID.randomUUID().toString();
+
+  //TODO: Create paramObject move it from class state in argument instead
+  @Deprecated(forRemoval = true)
   @Builder.Default
   private int currentStateIndex = 0;
+
+  //TODO: Create paramObject move it from class state in argument instead
+  @Deprecated(forRemoval = true)
   @Builder.Default
   private RunState runState = RunState.RUNNING;
 
-  public static PipelineStateMachine of(
-      PipelineManifest pipeline,
-      ToolRegistry toolRegistry,
-      CheckpointStore checkpointStore) {
-    return of(UUID.randomUUID().toString(), pipeline, toolRegistry, checkpointStore);
-  }
-
-  public static PipelineStateMachine of(
-      String runId,
-      PipelineManifest pipeline,
-      ToolRegistry toolRegistry,
-      CheckpointStore checkpointStore) {
-    var logger = new RunLogger(runId);
-
-    return PipelineStateMachine.builder()
-        .runId(runId)
-        .pipeline(pipeline)
-        .toolRegistry(toolRegistry)
-        .checkpointStore(checkpointStore)
-        .runLogger(logger)
-        .stepRunner(new OneStepRunner(toolRegistry, logger))
-        .build();
-  }
 
   /** Starts or resumes pipeline execution. */
   public void execute() throws Exception {
@@ -102,13 +85,42 @@ public class PipelineStateMachine {
     }
   }
 
+  /**
+   * Resumes pipeline execution from a checkpoint.
+   *
+   * @throws Exception if resume fails
+   */
+  public void resume() throws Exception {
+    CheckpointSnapshot snapshot = checkpointStore
+        .load(runId)
+        .orElseThrow(() -> new IllegalStateException("No checkpoint found for run: " + runId));
+
+    if (snapshot.status() == CheckpointSnapshot.RunStatus.COMPLETED) {
+      runLogger.runInfo("Run already completed, nothing to resume");
+      return;
+    }
+
+    if (snapshot.status() == CheckpointSnapshot.RunStatus.FAILED) {
+      runLogger.runInfo("Resuming failed run from checkpoint");
+    }
+
+    currentStateIndex = snapshot.currentStateIndex();
+    runState = RunState.RUNNING;
+
+    runLogger.runInfo("Resumed from checkpoint at state index: " + currentStateIndex);
+
+    execute();
+  }
+
   /** Processes a single state by evaluating conditions and executing tools. */
+  //TODO: Use `core/src/main/java/machinum/pipeline/StateProcessor.java` here
+  @Deprecated(forRemoval = true)
   private void processState(StateDefinition state, int stateIndex) throws Exception {
     ExecutionContext context = ExecutionContext.builder().build();
     context.set("state", state.name());
     context.set("stateIndex", stateIndex);
 
-    //TODO: replace with groovy expression resolver
+    // TODO: replace with groovy expression resolver
     @Deprecated(forRemoval = true)
     ExpressionResolver resolver = new ExpressionResolver(context);
 
@@ -118,9 +130,11 @@ public class PipelineStateMachine {
     }
 
     for (ToolDefinition toolDef : state.tools()) {
-      Tool tool = toolRegistry.resolve(toolDef.name())
-          .orElseThrow(() -> new IllegalStateException(
-              "Tool not found: %s in state: %s".formatted(toolDef.name(), state.name())));
+      Tool tool = toolRegistry
+          .resolve(toolDef.name())
+          .orElseThrow(() ->
+              new IllegalStateException("Tool not found: %s in state: %s".formatted(toolDef.name(), state.name()))
+          );
 
       Instant toolStart = Instant.now();
       runLogger.toolStart("-", state.name(), toolDef.name());
@@ -147,18 +161,19 @@ public class PipelineStateMachine {
 
   /** Saves a checkpoint of the current execution state. */
   private void saveCheckpoint() throws IOException {
-    CheckpointSnapshot snapshot =
-        new CheckpointSnapshot(
-            runId,
-            pipeline.name(),
-            Instant.now(),
-            CheckpointSnapshot.RunStatus.valueOf(runState.name()),
-            currentStateIndex,
-            currentStateIndex < pipeline.pipelineStates().size()
-                ? pipeline.pipelineStates().get(currentStateIndex).name()
-                : null,
-            new ArrayList<>(),
-            Map.of());
+    // TODO: Use builder instead
+    @Deprecated(forRemoval = true)
+    CheckpointSnapshot snapshot = new CheckpointSnapshot(
+        runId,
+        pipeline.name(),
+        Instant.now(),
+        CheckpointSnapshot.RunStatus.valueOf(runState.name()),
+        currentStateIndex,
+        currentStateIndex < pipeline.pipelineStates().size()
+            ? pipeline.pipelineStates().get(currentStateIndex).name()
+            : null,
+        new ArrayList<>(),
+        Map.of());
 
     checkpointStore.save(snapshot);
     runLogger.checkpointSaved("checkpoint for state index " + currentStateIndex);

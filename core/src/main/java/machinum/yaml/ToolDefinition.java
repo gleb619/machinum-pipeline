@@ -11,9 +11,7 @@ public record ToolDefinition(
     String name,
     String type,
     String description,
-    @JsonAlias("config")
-    @Singular("config")
-    Map<String, Object> toolConfig,
+    @JsonAlias("config") @Singular("config") Map<String, Object> toolConfig,
     String script) {
 
   /** Returns true if this is an internal tool (type == "internal"). */
@@ -25,5 +23,4 @@ public record ToolDefinition(
   public boolean isExternal() {
     return "external".equalsIgnoreCase(type);
   }
-
 }

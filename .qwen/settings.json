@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew *)",
+      "Bash(java *)",
+
+      "Read(**/*.java)",
+      "Read(**/*.gradle)",
+      "Read(**/*.properties)",
+      "Read(**/*.xml)",
+      "Read(**/*.yml)",
+      "Read(**/*.yaml)",
+      "Read(**/*.sh)",
+      "Read(**/*.md)",
+
+      "Write(**/*.java)",
+      "Write(**/*.gradle)",
+      "Write(**/*.properties)",
+      "Write(**/*.xml)",
+      "Write(**/*.yml)",
+      "Write(**/*.yaml)",
+      "Write(**/*.sh)",
+      "Write(**/*.md)"
+    ]
+  }
+}

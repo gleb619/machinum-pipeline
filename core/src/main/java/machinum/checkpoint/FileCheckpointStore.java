@@ -6,7 +6,6 @@ import java.nio.file.Path;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
 
 /** Filesystem-backed checkpoint store using local storage under .mt/state/<run-id>/. */
 @RequiredArgsConstructor
@@ -16,12 +15,6 @@ public class FileCheckpointStore implements CheckpointStore {
 
   private final Path baseDir;
   private final ObjectMapper objectMapper;
-
-  public static FileCheckpointStore of(Path baseDir) {
-    return new FileCheckpointStore(baseDir, JsonMapper.builder()
-        .findAndAddModules()
-        .build());
-  }
 
   @Override
   public void save(CheckpointSnapshot snapshot) throws IOException {

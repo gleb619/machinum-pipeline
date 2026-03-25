@@ -2,7 +2,6 @@ package machinum.pipeline;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -10,7 +9,7 @@ import lombok.RequiredArgsConstructor;
  * variable interpolation.
  */
 @RequiredArgsConstructor
-//TODO: replace with groovy expression resolver
+// TODO: replace with groovy expression resolver
 @Deprecated(forRemoval = true)
 public class ExpressionResolver {
 

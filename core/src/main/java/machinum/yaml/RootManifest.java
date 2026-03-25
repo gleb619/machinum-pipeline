@@ -11,9 +11,5 @@ public record RootManifest(
     String name,
     String version,
     String description,
-    @JsonAlias("config")
-    @Singular("config")
-    Map<String, Object> rootConfig,
-    @JsonAlias("env")
-    @Singular("env")
-    Map<String, Object> rootEnv) {}
+    @JsonAlias("config") @Singular("config") Map<String, Object> rootConfig,
+    @JsonAlias("env") @Singular("env") Map<String, Object> rootEnv) {}

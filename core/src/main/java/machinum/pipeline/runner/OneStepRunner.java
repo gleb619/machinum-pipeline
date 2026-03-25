@@ -2,6 +2,7 @@ package machinum.pipeline.runner;
 
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
+import machinum.checkpoint.CheckpointSnapshot;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
 import machinum.tool.Tool;
@@ -26,9 +27,9 @@ public class OneStepRunner {
    * @throws Exception if execution fails
    */
   public void executeState(
-      StateDefinition state, int stateIndex, String itemId, ExecutionContext context)
+      StateDefinition state, @Deprecated(forRemoval = true) int stateIndex, String itemId, ExecutionContext context)
       throws Exception {
-    //TODO: replace with groovy expression resolver
+    // TODO: replace with groovy expression resolver
     TempExpressionResolver resolver = new TempExpressionResolver(context);
 
     if (state.condition() != null && !resolver.evaluateCondition(state.condition())) {
@@ -37,7 +38,8 @@ public class OneStepRunner {
     }
 
     for (ToolDefinition toolDef : state.tools()) {
-      Tool tool = toolRegistry.resolve(toolDef.name())
+      Tool tool = toolRegistry
+          .resolve(toolDef.name())
           .orElseThrow(() -> new IllegalStateException(
               "Tool not found: %s in state: %s".formatted(toolDef.name(), state.name())));
 
@@ -64,8 +66,24 @@ public class OneStepRunner {
     }
   }
 
+  /**
+   * Determines if a state should be skipped during resume based on checkpoint.
+   *
+   * @param stateIndex the state index to check
+   * @param checkpoint the checkpoint snapshot
+   * @return true if the state should be skipped
+   */
+  // TODO: use method or remove it
+  @Deprecated(forRemoval = true)
+  public boolean shouldSkipState(int stateIndex, CheckpointSnapshot checkpoint) {
+    if (checkpoint == null) {
+      return false;
+    }
+    return stateIndex < checkpoint.currentStateIndex();
+  }
+
   /** Simple expression resolver for state conditions. */
-  //TODO: add real one
+  // TODO: add real one
   @Deprecated(forRemoval = true)
   private static class TempExpressionResolver {
     private final ExecutionContext context;

@@ -1,4 +1,4 @@
-package machinum.cli;
+package machinum.pipeline;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -16,11 +16,6 @@ public class RuntimeConfigLoader {
 
   private final YamlManifestLoader yamlLoader;
 
-  public static RuntimeConfigLoader of() {
-    return RuntimeConfigLoader.builder()
-        .yamlLoader(YamlManifestLoader.of())
-        .build();
-  }
 
   /**
    * Loads all workspace manifests from the given workspace directory.

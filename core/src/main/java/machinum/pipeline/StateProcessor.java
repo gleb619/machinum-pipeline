@@ -9,8 +9,6 @@ import machinum.tool.Tool;
 import machinum.tool.ToolRegistry;
 import machinum.yaml.StateDefinition;
 import machinum.yaml.ToolDefinition;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Processes pipeline states by evaluating conditions and invoking tools. */
 @Slf4j
@@ -20,10 +18,6 @@ public class StateProcessor {
   private final ToolRegistry toolRegistry;
   private final RunLogger runLogger;
   private final OneStepRunner stepRunner;
-
-  public static StateProcessor of(ToolRegistry toolRegistry, RunLogger runLogger) {
-    return new StateProcessor(toolRegistry, runLogger, new OneStepRunner(toolRegistry, runLogger));
-  }
 
   /**
    * Processes a single state for an item.
@@ -54,7 +48,8 @@ public class StateProcessor {
       List<ToolDefinition> tools, String stateName, String itemId, ExecutionContext context)
       throws Exception {
     for (ToolDefinition toolDef : tools) {
-      Tool tool = toolRegistry.resolve(toolDef.name())
+      Tool tool = toolRegistry
+          .resolve(toolDef.name())
           .orElseThrow(() -> new IllegalStateException(
               "Tool not found: %s in state: %s".formatted(toolDef.name(), stateName)));
 
