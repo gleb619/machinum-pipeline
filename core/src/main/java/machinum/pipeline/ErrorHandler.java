@@ -12,6 +12,7 @@ public class ErrorHandler {
 
   private final ErrorHandlingConfig config;
 
+  @Deprecated(forRemoval = true)
   public ErrorHandler() {
     this(ErrorHandlingConfig.defaultConfig());
   }
@@ -36,6 +37,7 @@ public class ErrorHandler {
     return config.defaultStrategy;
   }
 
+  @Deprecated(forRemoval = true)
   public boolean shouldRetry(Exception exception, int currentAttempt) {
     ErrorStrategy strategy = resolveStrategy(exception);
 
@@ -50,7 +52,7 @@ public class ErrorHandler {
     return currentAttempt < maxAttempts;
   }
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public long calculateBackoffDelay(int attempt) {
     if (config.retryConfig == null) {
@@ -98,6 +100,7 @@ public class ErrorHandler {
   }
 
   @RequiredArgsConstructor
+  @Deprecated(forRemoval = true)
   public static class ErrorHandlingConfig {
 
     public final ErrorStrategy defaultStrategy;
@@ -114,6 +117,7 @@ public class ErrorHandler {
   }
 
   @RequiredArgsConstructor
+  @Deprecated(forRemoval = true)
   public static class RetryConfig {
 
     public static final int DEFAULT_MAX_ATTEMPTS = 3;

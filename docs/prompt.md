@@ -15,7 +15,7 @@ composition, checkpointing, and hybrid execution modes.
 
 **Technology Stack** (see [technical-design.md](technical-design.md#2-technology-stack)):
 
-- Java 25 + Gradle 8.x, Picocli 4.7+, SnakeYAML 2.0+, Jackson 2.17+, Groovy 4.0+, SLF4J + Logback
+- Java 25 + Gradle 8.x, Picocli 4.7+, Jooby 4.1, SnakeYAML 2.0+, Jackson 3.1+, Groovy 4.0+, SLF4J + Logback
 
 ## TDD Development Process
 

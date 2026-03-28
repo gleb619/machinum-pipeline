@@ -7,8 +7,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import machinum.yaml.StateDefinition;
-import machinum.yaml.ToolDefinition;
+import machinum.definition.PipelineStateDefinition;
+import machinum.definition.ToolDefinition;
 
 @Data
 @AllArgsConstructor
@@ -42,7 +42,7 @@ public class ExpressionContext {
   @Builder.Default
   private String runId = "";
 
-  private StateDefinition state;
+  private PipelineStateDefinition state;
 
   private ToolDefinition tool;
 

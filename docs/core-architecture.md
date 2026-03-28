@@ -13,6 +13,38 @@
 
 ---
 
+## 1.5 Compiled Models
+
+At runtime, YAML manifests are compiled to optimized POJOs with lazy expression evaluation. See [Value Compilers](value-compilers.md) for complete documentation.
+
+| Raw YAML Model     | Compiled Model             | Compiler                   |
+|--------------------|----------------------------|----------------------------|
+| `ToolDefinition`   | `CompiledToolDefinition`   | `ToolDefinitionCompiler`   |
+| `StateDefinition`  | `CompiledStateDefinition`  | `StateDefinitionCompiler`  |
+| `PipelineManifest` | `CompiledPipelineManifest` | `PipelineManifestCompiler` |
+| `RootManifest`     | `CompiledRootManifest`     | `RootManifestCompiler`     |
+| `ToolsManifest`    | `CompiledToolsManifest`    | `ToolsManifestCompiler`    |
+
+**Key Types:**
+- `CompiledValue<T>` - Lazy-evaluating wrapper for expression-containing values
+- `CompiledMap` - Map wrapper with expression value support
+- `CompilationContext` - Shared state during compilation
+
+**Example:**
+```java
+// Load compiled pipeline
+CompiledPipelineManifest pipeline = loader.loadCompiledPipelineManifest(path, ctx);
+
+// Evaluate state condition
+for (CompiledStateDefinition state : pipeline.getPipelineStates()) {
+    if (state.evaluateCondition()) {  // Groovy expression
+        // Process tools
+    }
+}
+```
+
+---
+
 ## 2. Monitoring and Tracing (MVP)
 
 - Structured JSON logs: `run-id`, `item-id`, `state`, `tool`, `duration-ms`

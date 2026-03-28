@@ -9,9 +9,22 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import machinum.checkpoint.CheckpointStore;
 import machinum.checkpoint.FileCheckpointStore;
+import machinum.compiler.CommonCompiler;
+import machinum.compiler.ErrorHandlingCompiler;
+import machinum.compiler.ItemsCompiler;
+import machinum.compiler.PipelineConfigCompiler;
+import machinum.compiler.PipelineManifestCompiler;
+import machinum.compiler.RootManifestCompiler;
+import machinum.compiler.SourceCompiler;
+import machinum.compiler.StateCompiler;
+import machinum.compiler.ToolCompiler;
+import machinum.compiler.ToolsManifestCompiler;
+import machinum.executor.Executor;
+import machinum.executor.YamlManifestLoader;
 import machinum.expression.DefaultExpressionResolver;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
+import machinum.manifest.PipelineManifest;
 import machinum.pipeline.EnvironmentLoader;
 import machinum.pipeline.PipelineStateMachine;
 import machinum.pipeline.RunLogger;
@@ -20,8 +33,6 @@ import machinum.pipeline.runner.OneStepRunner;
 import machinum.pipeline.runner.StateProcessor;
 import machinum.pipeline.runner.StateRunner;
 import machinum.tool.InMemoryToolRegistry;
-import machinum.yaml.PipelineManifest;
-import machinum.yaml.YamlManifestLoader;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -92,11 +103,9 @@ public class CoreConfig implements SingletonSupport {
     loaderOptions.setMaxAliasesForCollections(50);
     loaderOptions.setAllowDuplicateKeys(false);
     var yaml = new Yaml(new SafeConstructor(loaderOptions), new Representer(new DumperOptions()));
+    var objectMapper = JsonMapper.builder().findAndAddModules().build();
 
-    return singleton(() -> YamlManifestLoader.builder()
-        .objectMapper(JsonMapper.builder().findAndAddModules().build())
-        .yaml(yaml)
-        .build());
+    return singleton(() -> new YamlManifestLoader(objectMapper, yaml));
   }
 
   public RuntimeConfigLoader runtimeConfigLoader() {
@@ -105,6 +114,15 @@ public class CoreConfig implements SingletonSupport {
 
   public CheckpointStore checkpointStore(Path checkpointDir) {
     return singleton(() -> fileCheckpointStore(checkpointDir));
+  }
+
+  public Executor executor() {
+    return singleton(() -> new Executor(
+        yamlManifestLoader(),
+        rootManifestCompiler(),
+        toolsManifestCompiler(),
+        pipelineManifestCompiler(),
+        scriptRegistry(Path.of("./scripts"))));
   }
 
   public PipelineStateMachine pipelineStateMachine(Path checkpointDir, PipelineManifest pipeline) {
@@ -142,6 +160,46 @@ public class CoreConfig implements SingletonSupport {
 
   public ScriptRegistry scriptRegistry(Path scriptsDir) {
     return singleton(() -> new ScriptRegistry(scriptsDir).init());
+  }
+
+  public StateCompiler stateDefinitionCompiler() {
+    return singleton(() -> StateCompiler.INSTANCE);
+  }
+
+  public PipelineManifestCompiler pipelineManifestCompiler() {
+    return singleton(() -> PipelineManifestCompiler.INSTANCE);
+  }
+
+  public RootManifestCompiler rootManifestCompiler() {
+    return singleton(() -> RootManifestCompiler.INSTANCE);
+  }
+
+  public ToolsManifestCompiler toolsManifestCompiler() {
+    return singleton(() -> ToolsManifestCompiler.INSTANCE);
+  }
+
+  public PipelineConfigCompiler pipelineConfigDefinitionCompiler() {
+    return singleton(() -> PipelineConfigCompiler.INSTANCE);
+  }
+
+  public SourceCompiler sourceDefinitionCompiler() {
+    return singleton(() -> SourceCompiler.INSTANCE);
+  }
+
+  public ItemsCompiler itemsDefinitionCompiler() {
+    return singleton(() -> ItemsCompiler.INSTANCE);
+  }
+
+  public ErrorHandlingCompiler errorHandlingDefinitionCompiler() {
+    return singleton(() -> ErrorHandlingCompiler.INSTANCE);
+  }
+
+  public CommonCompiler commonCompiler() {
+    return singleton(() -> CommonCompiler.INSTANCE);
+  }
+
+  public ToolCompiler toolCompiler() {
+    return singleton(() -> ToolCompiler.INSTANCE);
   }
 
   @Getter

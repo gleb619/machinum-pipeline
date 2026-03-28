@@ -16,38 +16,28 @@ import java.util.concurrent.TimeUnit;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * External tool that executes shell scripts with JSON I/O.
- *
- * <p>Scripts receive JSON input via stdin and must produce JSON output to stdout. Exit code 0
- * indicates success; non-zero indicates failure.
- */
 @Slf4j
 @Data
 public class ShellTool extends ExternalTool {
 
-  /** Path to the shell script. */
   private Path scriptPath;
 
-  /** Command-line arguments for the script. */
   private List<String> args;
 
-  /** Environment variables for script execution. */
   private Map<String, String> environment;
 
-  /** Shell interpreter (default: bash). */
   private String interpreter;
 
   private ObjectMapper objectMapper;
 
   @Builder
   protected ShellTool(
-      ToolDefinition definition,
+      ToolManifestDepricated definition,
       Path workDir,
       Duration timeout,
       RetryPolicy retryPolicy,
@@ -67,7 +57,7 @@ public class ShellTool extends ExternalTool {
 
   // TODO: use or remove
   @Deprecated(forRemoval = true)
-  public static ShellTool fromDefinition(ToolDefinition definition, Path workDir) {
+  public static ShellTool fromDefinition(ToolManifestDepricated definition, Path workDir) {
     Map<String, Object> config = definition.toolConfig();
 
     String scriptUrl = (String) config.get("url");

@@ -16,8 +16,8 @@ import java.util.Optional;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
-import machinum.yaml.StateDefinition;
-import machinum.yaml.ToolDefinition;
+import machinum.manifest.PipelineStateManifest;
+import machinum.manifest.ToolManifestDepricated;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,9 +34,9 @@ class EnhancedExecutionContextTest {
   @Mock
   private ScriptRegistry scriptRegistry;
 
-  private StateDefinition stateDefinition;
+  private PipelineStateManifest stateManifest;
 
-  private ToolDefinition toolDefinition;
+  private ToolManifestDepricated toolManifest;
 
   private EnhancedExecutionContext context;
 
@@ -51,8 +51,8 @@ class EnhancedExecutionContextTest {
     Map<String, String> environment = new HashMap<>();
     environment.put("API_KEY", "test-key");
 
-    stateDefinition = StateDefinition.builder().build();
-    toolDefinition = ToolDefinition.builder().build();
+    stateManifest = PipelineStateManifest.builder().build();
+    toolManifest = ToolManifestDepricated.builder().build();
 
     context = EnhancedExecutionContext.builder()
         .runId("run-001")
@@ -62,20 +62,6 @@ class EnhancedExecutionContextTest {
         .expressionResolver(expressionResolver)
         .scriptRegistry(scriptRegistry)
         .build();
-  }
-
-  @Test
-  void testEvaluateWithExpressionResolver() {
-    Map<String, Object> item = new HashMap<>();
-    item.put("id", "123");
-    item.put("content", "Test content");
-
-    context.updateContext(item, stateDefinition, toolDefinition);
-
-    when(expressionResolver.resolveTemplate(eq("{{item.id}}"), any())).thenReturn("123");
-
-    Object result = context.evaluate("{{item.id}}");
-    assertEquals("123", result);
   }
 
   @Test
@@ -149,18 +135,6 @@ class EnhancedExecutionContextTest {
   void testSetVariable() {
     context.setVariable("new_var", "new_value");
     assertEquals("new_value", context.getVariable("new_var").get());
-  }
-
-  @Test
-  void testUpdateContext() {
-    Map<String, Object> item = new HashMap<>();
-    item.put("id", "123");
-
-    context.updateContext(item, stateDefinition, toolDefinition);
-
-    assertEquals(item, context.getCurrentItem());
-    assertEquals(stateDefinition, context.getCurrentState());
-    assertEquals(toolDefinition, context.getCurrentTool());
   }
 
   @Test

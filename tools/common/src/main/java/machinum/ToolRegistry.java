@@ -8,7 +8,7 @@ public interface ToolRegistry {
 
   Optional<Tool> resolve(String name);
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   boolean contains(String name);
 }

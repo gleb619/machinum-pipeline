@@ -16,15 +16,15 @@ import machinum.ToolRegistry;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.CheckpointStore;
 import machinum.expression.ExpressionResolver;
+import machinum.manifest.PipelineManifest;
+import machinum.manifest.PipelineStateManifest;
 import machinum.pipeline.runner.StateRunner;
-import machinum.yaml.PipelineManifest;
-import machinum.yaml.StateDefinition;
 
 @Slf4j
 @Data
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-//TODO: Use OneStepRunner Instead
+// TODO: Use OneStepRunner Instead
 @Deprecated(forRemoval = true)
 public class PipelineStateMachine {
 
@@ -53,10 +53,10 @@ public class PipelineStateMachine {
   public void execute() throws Exception {
     runLogger.runInfo("Starting pipeline execution");
 
-    List<StateDefinition> states = pipeline.pipelineStates();
+    List<PipelineStateManifest> states = pipeline.body().states();
 
     while (currentStateIndex < states.size() && runState == RunState.RUNNING) {
-      StateDefinition currentState = states.get(currentStateIndex);
+      PipelineStateManifest currentState = states.get(currentStateIndex);
       runLogger.stateTransition("-", "previous", currentState.name());
 
       Instant stateStart = Instant.now();
@@ -109,12 +109,8 @@ public class PipelineStateMachine {
 
   // TODO: Use `core/src/main/java/machinum/pipeline/StateProcessor.java` here
   @Deprecated(forRemoval = true)
-  private void processState(StateDefinition state, int stateIndex) throws Exception {
-    ExecutionContext context = ExecutionContext.builder().build();
-    context.set("state", state.name());
-    context.set("stateIndex", stateIndex);
-
-    stateRunner.executeState(state, stateIndex, "-", context);
+  private void processState(PipelineStateManifest state, int stateIndex) throws Exception {
+    // TODO: rewrite class
   }
 
   private void saveCheckpoint() throws IOException {
@@ -126,8 +122,8 @@ public class PipelineStateMachine {
         Instant.now(),
         CheckpointSnapshot.RunStatus.valueOf(runState.name()),
         currentStateIndex,
-        currentStateIndex < pipeline.pipelineStates().size()
-            ? pipeline.pipelineStates().get(currentStateIndex).name()
+        currentStateIndex < pipeline.body().states().size()
+            ? pipeline.body().states().get(currentStateIndex).name()
             : null,
         new ArrayList<>(),
         Map.of());

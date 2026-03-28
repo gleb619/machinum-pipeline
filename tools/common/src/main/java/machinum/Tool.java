@@ -2,12 +2,12 @@ package machinum;
 
 import java.util.Map;
 import lombok.Builder;
+import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
 
 public interface Tool {
 
-  ToolDefinition definition();
+  ToolManifestDepricated definition();
 
   ToolResult execute(ExecutionContext context) throws Exception;
 

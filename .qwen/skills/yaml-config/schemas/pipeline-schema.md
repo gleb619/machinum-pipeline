@@ -61,7 +61,7 @@ states:
     tools:
       - tool: string       # Tool name
         async: boolean     # Optional - Default: false
-        output-key: string  # Optional - Defaults to tool name
+        output: string  # Optional - Defaults to tool name
         input: {}          # Optional - Input configuration
 ```
 

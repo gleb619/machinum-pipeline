@@ -11,17 +11,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import machinum.Tool.ToolResult;
+import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * Integration tests for ShellTool to verify shell script execution with JSON I/O, timeout
- * enforcement, exit code handling, and environment variable injection.
- */
 class ShellToolTest {
 
   @TempDir
@@ -40,7 +36,7 @@ class ShellToolTest {
   @Test
   void testExecuteWithJsonInput() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("echo_input.sh");
+    ToolManifestDepricated def = createToolDefinition("echo_input.sh");
     ShellTool tool = ShellTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("echo_input.sh"))
@@ -69,7 +65,7 @@ class ShellToolTest {
   @Test
   void testExecuteWithTimeout() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("slow_script.sh");
+    ToolManifestDepricated def = createToolDefinition("slow_script.sh");
     ShellTool tool = ShellTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("slow_script.sh"))
@@ -92,7 +88,7 @@ class ShellToolTest {
   @Test
   void testExecuteWithNonZeroExitCode() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("exit_code.sh");
+    ToolManifestDepricated def = createToolDefinition("exit_code.sh");
     ShellTool tool = ShellTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("exit_code.sh"))
@@ -118,7 +114,7 @@ class ShellToolTest {
   @Test
   void testExecuteWithEnvironmentVariables() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("use_env.sh");
+    ToolManifestDepricated def = createToolDefinition("use_env.sh");
     ShellTool tool = ShellTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("use_env.sh"))
@@ -141,7 +137,7 @@ class ShellToolTest {
   @Test
   void testExecuteWithTransform() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("transform.sh");
+    ToolManifestDepricated def = createToolDefinition("transform.sh");
     ShellTool tool = ShellTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("transform.sh"))
@@ -167,8 +163,8 @@ class ShellToolTest {
     assertEquals("original", item.get("value"));
   }
 
-  private ToolDefinition createToolDefinition(String scriptName) {
-    return ToolDefinition.builder()
+  private ToolManifestDepricated createToolDefinition(String scriptName) {
+    return ToolManifestDepricated.builder()
         .name(scriptName.replace(".sh", ""))
         .type("external")
         .toolConfig(Map.of("url", scriptName))

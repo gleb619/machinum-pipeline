@@ -1,0 +1,45 @@
+version: 1.0.0
+type: tools
+name: "Default Toolset"
+description: "Example tool configurations"
+
+body:
+  # Execution targets
+  execution-targets:
+    default: local
+    targets:
+      - name: local
+        type: local
+
+  # Tool definitions
+  tools:
+    # Example: Internal tool (SPI-based)
+    - name: peek
+      type: internal
+      description: "Log input for debugging"
+      config:
+        log-level: info
+
+    # Example: External shell script
+    - name: uppercase-transformer
+      type: external
+      runtime: shell
+      description: "Convert text to uppercase"
+      source:
+        type: file
+        url: ".mt/scripts/transformers/uppercase.sh"
+      timeout: 30s
+      config:
+        work-dir: "{{rootDir}}"
+
+    # Example: External Groovy script
+    - name: text-validator
+      type: external
+      runtime: groovy
+      description: "Validate text content"
+      source:
+        type: file
+        url: ".mt/scripts/validators/not_empty.groovy"
+      timeout: 10s
+      config:
+        return-type: Boolean

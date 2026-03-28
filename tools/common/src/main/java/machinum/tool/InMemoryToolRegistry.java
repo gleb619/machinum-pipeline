@@ -10,8 +10,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.Tool;
 import machinum.ToolRegistry;
+import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
 
 @Slf4j
 @AllArgsConstructor
@@ -20,8 +20,7 @@ public class InMemoryToolRegistry implements ToolRegistry {
   private final Map<String, Tool> tools;
   private final Map<String, InternalToolFactory> internalToolFactories;
 
-  /** Creates a new registry with empty tool maps. */
-  //TODO: Use lombok's contructor instead
+  // TODO: Use lombok's contructor instead
   @Deprecated(forRemoval = true)
   public InMemoryToolRegistry() {
     this.tools = new ConcurrentHashMap<>();
@@ -43,14 +42,6 @@ public class InMemoryToolRegistry implements ToolRegistry {
     return tools.containsKey(name);
   }
 
-  /**
-   * Registers an internal tool factory.
-   *
-   * <p>Internal tool factories are used to create internal tool instances from YAML definitions.
-   * Register your tool factory during application initialization.
-   *
-   * @param factory the internal tool factory to register
-   */
   // TODO: Unused
   @Deprecated(forRemoval = true)
   public void registerInternalToolFactory(InternalToolFactory factory) {
@@ -61,16 +52,8 @@ public class InMemoryToolRegistry implements ToolRegistry {
         factory.getClass().getName());
   }
 
-  /**
-   * Registers all internal tools from the given definitions.
-   *
-   * <p>For each internal tool definition, this method attempts to create an instance using a
-   * registered factory. If no factory is found, a stub is created.
-   *
-   * @param definitions the tool definitions to register
-   */
-  public void registerAll(List<ToolDefinition> definitions) {
-    for (ToolDefinition def : definitions) {
+  public void registerAll(List<ToolManifestDepricated> definitions) {
+    for (ToolManifestDepricated def : definitions) {
       if (def.isInternal()) {
         Tool tool = createInternalTool(def);
         if (tool != null) {
@@ -83,13 +66,7 @@ public class InMemoryToolRegistry implements ToolRegistry {
     }
   }
 
-  /**
-   * Creates an internal tool instance from its definition.
-   *
-   * @param def the tool definition
-   * @return the tool instance, or null if no factory found and not a known internal tool
-   */
-  private Tool createInternalTool(ToolDefinition def) {
+  private Tool createInternalTool(ToolManifestDepricated def) {
     // Try to find a registered factory
     InternalToolFactory factory = internalToolFactories.get(def.name());
     if (factory != null) {
@@ -110,35 +87,22 @@ public class InMemoryToolRegistry implements ToolRegistry {
     return new InternalToolStub(def);
   }
 
-  /** Factory interface for creating internal tool instances. */
   public interface InternalToolFactory {
 
-    /**
-     * Returns the tool name that this factory creates.
-     *
-     * @return the tool name
-     */
     String getToolName();
 
-    /**
-     * Creates a new internal tool instance.
-     *
-     * @param definition the tool definition from YAML
-     * @return the internal tool instance
-     */
-    InternalTool create(ToolDefinition definition);
+    InternalTool create(ToolManifestDepricated definition);
   }
 
-  /** Stub implementation for internal tools without a registered factory. */
   @RequiredArgsConstructor
   // TODO: TO Remove
   @Deprecated(forRemoval = true)
   private static class InternalToolStub implements Tool {
 
-    private final ToolDefinition definition;
+    private final ToolManifestDepricated definition;
 
     @Override
-    public ToolDefinition definition() {
+    public ToolManifestDepricated definition() {
       return definition;
     }
 

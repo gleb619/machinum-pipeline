@@ -46,7 +46,7 @@ Skills are automatically discovered by Qwen Code and can be:
 
 All skills are tailored to:
 
-- **Technology Stack**: Java 25, Gradle 8.x, Picocli 4.7+, SnakeYAML 2.0+
+- **Technology Stack**: Java 25, Gradle 8.x, Picocli 4.7+, Jooby 4.1, SnakeYAML 2.0+
 - **Architecture**: Multi-module structure (core, cli, server)
 - **Workflow**: Strict TDD with agent-based development
 - **Patterns**: Established conventions from existing codebase

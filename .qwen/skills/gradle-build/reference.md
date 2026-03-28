@@ -16,7 +16,7 @@ From `gradle/libs.versions.toml`:
 - Gradle 8.x (Groovy DSL)
 - Picocli 4.7+ (CLI)
 - SnakeYAML 2.0+ (YAML)
-- Jackson 2.17+ (JSON)
+- Jackson 3.1+ (JSON)
 - Groovy 4.0+ (Scripting)
 - SLF4J + Logback 2.x (Logging)
 

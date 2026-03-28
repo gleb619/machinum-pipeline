@@ -37,7 +37,6 @@ type: root
 name: "Book Processing Runtime Config"
 description: "Global runtime defaults and references"
 body:
-  tools: ".mt/tools.yaml"        # default
   metadata:
     book_id: my_book_123
   execution:
@@ -149,17 +148,17 @@ body:
       tools:
         - tool: language-detector
           async: true
-          output-key: detected_lang
+          output: detected_lang
         - tool: text-normalizer
           async: true
-          output-key: normalized
+          output: normalized
 
     - name: SUMMARY
       condition: "{{ item.type != 'preface' }}"
       tools:
         - tool: qwen-summary
           input: "{{item.content}}"
-          output-key: summary
+          output: summary
 
   listeners:
     on_item_complete:
@@ -172,7 +171,7 @@ body:
 
 - Shorthand: `- tool-name`
 - Object form: `- tool: tool-name`
-- `output-key` defaults to tool name if omitted
+- `output` defaults to tool name if omitted
 - Terminal `listeners` execute after the final state for each item
 
 ### Expression Variables

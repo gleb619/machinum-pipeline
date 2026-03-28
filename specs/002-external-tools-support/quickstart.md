@@ -94,7 +94,7 @@ body:
       tools:
         - tool: uppercase-transformer
           input: "{{item.content}}"
-          output-key: transformed_text
+          output: transformed_text
     
     - name: FINISHED
       tools:
@@ -147,7 +147,7 @@ states:
     tools:
       - tool: html-cleaner
         input: "{{item.content}}"
-        output-key: cleaned_text
+        output: cleaned_text
 ```
 
 ---

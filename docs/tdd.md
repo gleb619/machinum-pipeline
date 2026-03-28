@@ -1,9 +1,115 @@
-# Technical Design Document Index: Machinum Pipeline
+# Technical Design Document: Machinum Pipeline
 
-**Machinum Pipeline** is a pluggable document processing orchestration engine that manages stateful pipelines with tool
-composition, checkpointing, and hybrid execution modes.
+**Machinum Pipeline** — pluggable document processing orchestration engine with stateful pipelines, tool composition,
+and checkpointing.
 
-This document serves as an index to specialized technical documentation.
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Java 25+
+- Gradle (wrapper included)
+
+### 1. Prepare Workspace
+
+```
+my-project/
+├── seed.yaml
+└── src/main/
+    ├── chapters/
+    │   └── 1.md
+    └── manifests/
+        └── demo-pipeline.yaml
+```
+
+### 2. Create `seed.yaml`
+
+Root configuration — see [YAML Schema §2](yaml-schema.md#2-root-pipeline-yaml-rootyml) for all options.
+
+```yaml
+version: 1.0.0
+type: root
+name: "Quick Start"
+body:
+  metadata:
+    book_id: quickstart
+  execution:
+    resume: true
+```
+
+### 3. Create `src/main/manifests/demo-pipeline.yaml`
+
+Pipeline declaration — see [YAML Schema §4](yaml-schema.md#4-pipeline-declaration-yaml-srcmainmanifestspipelineyaml).
+
+```yaml
+version: 1.0.0
+type: pipeline
+name: "demo-pipeline"
+body:
+  source:
+    type: file
+    file-location: "src/main/chapters"
+    format: md
+  states:
+    - name: PROCESS
+      tools:
+        - tool: mock-processor
+```
+
+### 4. Add Input File `src/main/chapters/1.md`
+
+```markdown
+# Chapter One
+
+Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+```
+
+### 5. Run Pipeline
+
+```bash
+./gradlew :cli:run --args="run -p demo-pipeline -w ./my-project"
+```
+
+See [CLI Commands](cli-commands.md) for full reference.
+
+### 6. Verify Results
+
+**Before run:**
+
+```
+my-project/
+├── seed.yaml
+└── src/main/
+    ├── chapters/
+    │   └── 1.md
+    └── manifests/
+        └── demo-pipeline.yaml
+```
+
+**After run:**
+
+```
+my-project/
+├── seed.yaml
+├── .mt/                              ← generated
+│   └── state/
+│       └── {run-id}/
+│           ├── checkpoint.json       ← item progress
+│           └── items.json            ← item payloads
+├── src/main/
+│   ├── chapters/
+│   │   └── 1.md
+│   └── manifests/
+│       └── demo-pipeline.yaml
+└── build/                            ← generated
+    └── demo-pipeline/
+        └── 1.md                      ← processed output
+```
+
+See [Project Structure §1](project-structure.md#1-workspace-directory-structure) for directory layout,
+[Core Architecture §3](core-architecture.md#3-checkpointing--state-management) for checkpoint details.
 
 ---
 
@@ -16,6 +122,7 @@ This document serves as an index to specialized technical documentation.
 | [Core Architecture](core-architecture.md) | Runtime architecture, state management, checkpointing, admin UI             |
 | [CLI Commands](cli-commands.md)           | Command-line interface reference                                            |
 | [Project Structure](project-structure.md) | Directory layout, Gradle modules, workspace organization                    |
+| [Value Compilers](value-compilers.md)     | Verious information about runtime evaluation of groovy scripts              |
 
 ---
 
@@ -34,6 +141,6 @@ This document serves as an index to specialized technical documentation.
 
 ---
 
-**Document Version:** 1.5  
-**Last Updated:** 2026-03-27  
+**Document Version:** 2.0
+**Last Updated:** 2026-03-28
 **Status:** Approved for Phase 1 Development

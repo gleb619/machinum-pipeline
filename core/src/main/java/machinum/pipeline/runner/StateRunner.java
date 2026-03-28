@@ -1,10 +1,11 @@
 package machinum.pipeline.runner;
 
+import machinum.definition.PipelineStateDefinition;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.StateDefinition;
 
 public interface StateRunner {
 
-  void executeState(StateDefinition state, int stateIndex, String itemId, ExecutionContext context)
+  void executeState(
+      PipelineStateDefinition state, int stateIndex, String itemId, ExecutionContext context)
       throws Exception;
 }

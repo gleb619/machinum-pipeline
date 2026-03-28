@@ -87,7 +87,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Map;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
+import machinum.manifest.ToolManifest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

@@ -134,7 +134,7 @@ import java.util.Map;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ScriptRegistry;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
+import machinum.manifest.ToolManifest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

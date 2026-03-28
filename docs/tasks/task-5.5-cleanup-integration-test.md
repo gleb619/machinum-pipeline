@@ -52,7 +52,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
-class CleanupCommandIntegrationTest {
+class CleanupCommandTest {
 
   @TempDir
   Path tempDir;
@@ -361,7 +361,7 @@ class CleanupCommandIntegrationTest {
 
 **Files to Create**:
 
-- `cli/src/test/java/machinum/cleanup/CleanupCommandIntegrationTest.java`
+- `cli/src/test/java/machinum/cleanup/CleanupCommandTest.java`
 
 **Files to Read**:
 
@@ -390,11 +390,12 @@ machinum cleanup                           # Policy-based cleanup
 
 ```yaml
 version: 1.0.0
-cleanup:
-  successRetention: 3d      # Keep successful runs for 3 days
-  failedRetention: 7d       # Keep failed runs for 7 days
-  maxSuccessfulRuns: 5      # Keep max 5 successful runs
-  maxFailedRuns: 10         # Keep max 10 failed runs
+body:
+    cleanup:
+      successRetention: 3d      # Keep successful runs for 3 days
+      failedRetention: 7d       # Keep failed runs for 7 days
+      maxSuccessfulRuns: 5      # Keep max 5 successful runs
+      maxFailedRuns: 10         # Keep max 10 failed runs
 ```
 
 ### Checklists
@@ -403,10 +404,10 @@ cleanup:
 
 ```bash
 # Run cleanup integration tests
-./gradlew :cli:test --tests "*CleanupCommandIntegrationTest*"
+./gradlew :cli:test --tests "*CleanupCommandTest*"
 
 # Run with verbose output
-./gradlew :cli:test --tests "*CleanupCommandIntegrationTest*" --info
+./gradlew :cli:test --tests "*CleanupCommandTest*" --info
 
 # Verify state directory structure
 find .mt/state -type d
@@ -414,7 +415,7 @@ find .mt/state -type d
 
 ### Plan
 
-1. **Create test class** `CleanupCommandIntegrationTest.java`
+1. **Create test class** `CleanupCommandTest.java`
 2. **Implement helper method** to create mock runs
 3. **Implement --older-than test**
 4. **Implement --run-id test**

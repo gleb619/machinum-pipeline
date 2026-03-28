@@ -12,7 +12,6 @@ metadata:
   author: "Machinum Team"
   created: "2026-03-25"
 body:
-  tools: ".mt/tools.yaml"
   metadata:
     project_id: doc_processor_001
   execution:
@@ -154,10 +153,10 @@ body:
     - name: EXTRACT
       tools:
         - tool: text-extractor
-          output-key: extracted_text
+          output: extracted_text
         - tool: language-detector
           input: "{{extracted_text}}"
-          output-key: detected_language
+          output: detected_language
           async: true
 
     - name: SUMMARIZE
@@ -167,7 +166,7 @@ body:
           input:
             content: "{{extracted_text}}"
             language: "{{detected_language.language}}"
-          output-key: summary
+          output: summary
 
     - name: ANALYZE
       tools:
@@ -175,7 +174,7 @@ body:
           input:
             text: "{{extracted_text}}"
             summary: "{{summary}}"
-          output-key: analysis
+          output: analysis
 
   listeners:
     on_item_complete:
@@ -183,7 +182,7 @@ body:
         input:
           content: "{{summary}}"
           analysis: "{{analysis}}"
-          output-key: formatted_output
+          output: formatted_output
       - tool: metrics-collector
         async: true
 

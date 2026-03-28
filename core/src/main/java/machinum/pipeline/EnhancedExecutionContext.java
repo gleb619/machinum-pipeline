@@ -5,11 +5,11 @@ import java.util.Optional;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import machinum.definition.PipelineStateDefinition;
+import machinum.definition.ToolDefinition;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
-import machinum.yaml.StateDefinition;
-import machinum.yaml.ToolDefinition;
 
 @AllArgsConstructor
 @Builder(toBuilder = true)
@@ -30,7 +30,7 @@ public class EnhancedExecutionContext {
 
   private Map<String, Object> currentItem;
 
-  private StateDefinition currentState;
+  private PipelineStateDefinition currentState;
 
   private ToolDefinition currentTool;
 
@@ -88,7 +88,8 @@ public class EnhancedExecutionContext {
     variables.put(name, value);
   }
 
-  public void updateContext(Map<String, Object> item, StateDefinition state, ToolDefinition tool) {
+  public void updateContext(
+      Map<String, Object> item, PipelineStateDefinition state, ToolDefinition tool) {
     this.currentItem = item;
     this.currentState = state;
     this.currentTool = tool;

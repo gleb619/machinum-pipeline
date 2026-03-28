@@ -15,8 +15,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
 import org.codehaus.groovy.control.CompilerConfiguration;
 
 @Data
@@ -33,7 +33,7 @@ public class GroovyScriptTool extends ExternalTool {
 
   @Builder
   public GroovyScriptTool(
-      ToolDefinition definition,
+      ToolManifestDepricated definition,
       Path workDir,
       Duration timeout,
       RetryPolicy retryPolicy,
@@ -49,7 +49,7 @@ public class GroovyScriptTool extends ExternalTool {
 
   // TODO: use or remove
   @Deprecated(forRemoval = true)
-  public static GroovyScriptTool fromDefinition(ToolDefinition definition, Path workDir) {
+  public static GroovyScriptTool fromDefinition(ToolManifestDepricated definition, Path workDir) {
     Map<String, Object> config = definition.toolConfig();
 
     String scriptUrl = (String) config.get("url");

@@ -18,11 +18,8 @@ import org.codehaus.groovy.control.CompilerConfiguration;
 public class DefaultExpressionResolver implements ExpressionResolver {
 
   private static final Pattern EXPRESSION_PATTERN = Pattern.compile("\\{\\{([^}]+)\\}\\}");
-  // TODO: Unused
-  @Deprecated(forRemoval = true)
-  private static final Pattern SCRIPT_EXPRESSION_PATTERN =
-      Pattern.compile("^scripts\\.(\\w+)\\.(\\w+)(?:\\((.*)\\))?$");
 
+  @Deprecated(forRemoval = true)
   private final ScriptEngineManager engineManager;
 
   @Override
@@ -160,8 +157,9 @@ public class DefaultExpressionResolver implements ExpressionResolver {
     binding.setVariable("aggregationIndex", context.getAggregationIndex());
     binding.setVariable("aggregationText", context.getAggregationText());
     binding.setVariable("runId", context.getRunId());
-    binding.setVariable("state", context.getState());
-    binding.setVariable("tool", context.getTool());
+
+    // TODO: Rewrite class
+
     binding.setVariable("retryAttempt", context.getRetryAttempt());
 
     binding.setVariable("env", context.getEnv());

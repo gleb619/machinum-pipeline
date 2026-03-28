@@ -3,7 +3,6 @@ type: root
 name: "Expression Test Runtime Config"
 description: "Configuration for testing expression resolver integration"
 body:
-  tools: ".mt/tools.yaml"
   metadata:
     book_id: "expression-test-book"
   execution:

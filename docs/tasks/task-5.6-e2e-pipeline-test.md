@@ -54,11 +54,8 @@ package machinum.integration;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Map;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.FileCheckpointStore;
@@ -66,8 +63,8 @@ import machinum.expression.ExpressionContext;
 import machinum.expression.DefaultExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.pipeline.PipelineStateMachine;
-import machinum.yaml.PipelineManifest;
-import machinum.yaml.YamlManifestLoader;
+import machinum.manifest.PipelineManifest;
+import machinum.manifest.YamlManifestLoader;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

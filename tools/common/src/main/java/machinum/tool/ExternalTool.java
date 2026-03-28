@@ -9,7 +9,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import machinum.Tool;
-import machinum.yaml.ToolDefinition;
+import machinum.manifest.ToolManifestDepricated;
 
 @Data
 @SuperBuilder
@@ -17,7 +17,7 @@ import machinum.yaml.ToolDefinition;
 @AllArgsConstructor
 public abstract class ExternalTool implements Tool {
 
-  protected ToolDefinition definition;
+  protected ToolManifestDepricated definition;
 
   protected String runtime;
 
@@ -33,7 +33,7 @@ public abstract class ExternalTool implements Tool {
   protected ExecutionTarget executionTarget = ExecutionTarget.LOCAL;
 
   @Override
-  public ToolDefinition definition() {
+  public ToolManifestDepricated definition() {
     return definition;
   }
 

@@ -2,6 +2,10 @@ plugins {
     id 'java-library'
 }
 
+configurations.all {
+    exclude group: 'com.fasterxml.jackson'
+}
+
 dependencies {
     api project(":tools:internal")
     api project(":tools:external")

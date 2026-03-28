@@ -2,13 +2,13 @@ package machinum.pipeline.runner;
 
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import machinum.definition.PipelineStateDefinition;
+import machinum.definition.ToolDefinition;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
-import machinum.yaml.StateDefinition;
-import machinum.yaml.ToolDefinition;
 
 @RequiredArgsConstructor
 public class OneStepRunner implements StateRunner {
@@ -22,30 +22,19 @@ public class OneStepRunner implements StateRunner {
 
   @Override
   public void executeState(
-      StateDefinition state,
+      PipelineStateDefinition state,
       @Deprecated(forRemoval = true) int stateIndex,
       String itemId,
       ExecutionContext context)
       throws Exception {
 
-    ExpressionContext exprContext = createExpressionContext(itemId, context, state, null);
-
-    if (state.condition() != null) {
-      Object conditionResult = expressionResolver.resolveTemplate(state.condition(), exprContext);
-      if (!Boolean.parseBoolean(conditionResult.toString())) {
-        runLogger.itemInfo(
-            itemId, "Skipping state " + state.name() + " due to condition: " + state.condition());
-        return;
-      }
-    }
-
-    stateProcessor.processTools(state.stateTools(), state.name(), itemId, context);
+    // TODO: rewrite class
   }
 
   private ExpressionContext createExpressionContext(
       @Deprecated(forRemoval = true) String itemId,
       ExecutionContext context,
-      StateDefinition state,
+      PipelineStateDefinition state,
       ToolDefinition tool) {
     Map<String, Object> currentItem =
         (Map<String, Object>) context.get("currentItem").orElse(Map.of());
@@ -70,7 +59,7 @@ public class OneStepRunner implements StateRunner {
         .build();
   }
 
-  //TODO: We need to use a compiledValue here
+  // TODO: We need to use a compiledValue here
   @Deprecated(forRemoval = true)
   private String getTextContent(Map<String, Object> item) {
     if (item == null) {

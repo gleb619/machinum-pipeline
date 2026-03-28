@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import machinum.yaml.ToolDefinition;
+import machinum.manifest.ToolManifestDepricated;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.dataformat.yaml.YAMLFactory;
@@ -22,7 +22,7 @@ public class WorkspaceInitializerTool {
 
   private final WorkspaceLayout layout;
 
-  //TODO: Use CoreCOnfig Instead
+  // TODO: Use CoreCOnfig Instead
   @Deprecated(forRemoval = true)
   private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
 
@@ -49,7 +49,7 @@ public class WorkspaceInitializerTool {
     // Parse tools.yaml and generate package.json if node tools are present
     Path toolsYamlPath = layout.getMtDir().resolve("tools.yaml");
     if (Files.exists(toolsYamlPath)) {
-      List<ToolDefinition> nodeTools = parseNodeToolsFromYaml(toolsYamlPath);
+      List<ToolManifestDepricated> nodeTools = parseNodeToolsFromYaml(toolsYamlPath);
       generatePackageJson(nodeTools, force);
     }
 
@@ -183,8 +183,8 @@ public class WorkspaceInitializerTool {
   }
 
   @SuppressWarnings("unchecked")
-  private List<ToolDefinition> parseNodeToolsFromYaml(Path toolsYamlPath) {
-    List<ToolDefinition> nodeTools = new ArrayList<>();
+  private List<ToolManifestDepricated> parseNodeToolsFromYaml(Path toolsYamlPath) {
+    List<ToolManifestDepricated> nodeTools = new ArrayList<>();
 
     try {
       JsonNode root = YAML_MAPPER.readTree(toolsYamlPath.toFile());
@@ -205,7 +205,7 @@ public class WorkspaceInitializerTool {
   }
 
   @SuppressWarnings("unchecked")
-  private void parseToolsFromSection(JsonNode sectionNode, List<ToolDefinition> nodeTools) {
+  private void parseToolsFromSection(JsonNode sectionNode, List<ToolManifestDepricated> nodeTools) {
     if (!sectionNode.isArray()) {
       return;
     }
@@ -229,7 +229,7 @@ public class WorkspaceInitializerTool {
             config.put("version", toolNode.path("version").asText());
           }
 
-          ToolDefinition def = ToolDefinition.builder()
+          ToolManifestDepricated def = ToolManifestDepricated.builder()
               .name(name)
               .type("node")
               .toolConfig(config)
@@ -241,7 +241,7 @@ public class WorkspaceInitializerTool {
     }
   }
 
-  public void generatePackageJson(List<ToolDefinition> nodeTools, boolean force)
+  public void generatePackageJson(List<ToolManifestDepricated> nodeTools, boolean force)
       throws IOException {
     Path packagePath = workspaceRoot.resolve("package.json");
 
@@ -256,7 +256,7 @@ public class WorkspaceInitializerTool {
     }
 
     StringBuilder depsBuilder = new StringBuilder();
-    for (ToolDefinition tool : nodeTools) {
+    for (ToolManifestDepricated tool : nodeTools) {
       String version = (String) tool.toolConfig().getOrDefault("version", "latest");
       String name = tool.name();
       depsBuilder.append("    \"").append(name).append("\": \"").append(version).append("\",\n");

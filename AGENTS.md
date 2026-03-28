@@ -9,5 +9,5 @@ For delegated work, use the following subagents and configure each to use `openc
 - `.claude/agents/tester.md`
 
 ## Active Technologies
-- Java 25 + Gradle 8.x (actually 9.4.1), Picocli 4.7+, SnakeYAML 2.0+, Jackson 2.17+, Groovy 4.0+, SLF4J + Logback 
+- Java 25 + Gradle 9.4.1, Picocli 4.7+, Jooby 4.1, SnakeYAML 2.0+, Jackson 3.1+, Groovy 4.0+, SLF4J + Logback 
 

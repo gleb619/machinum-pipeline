@@ -13,17 +13,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import machinum.Tool.ToolResult;
+import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
-import machinum.yaml.ToolDefinition;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Integration tests for GroovyScriptTool to verify Groovy script execution with context binding,
- * return type validation, security sandbox, and script caching.
- */
 class GroovyScriptToolTest {
 
   @TempDir
@@ -40,7 +36,7 @@ class GroovyScriptToolTest {
   @Test
   void testConditionScriptWithTrueResult() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("is_valid.groovy", "Boolean");
+    ToolManifestDepricated def = createToolDefinition("is_valid.groovy", "Boolean");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("conditions/is_valid.groovy"))
@@ -64,7 +60,7 @@ class GroovyScriptToolTest {
   @Test
   void testConditionScriptWithFalseResult() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("is_valid.groovy", "Boolean");
+    ToolManifestDepricated def = createToolDefinition("is_valid.groovy", "Boolean");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("conditions/is_valid.groovy"))
@@ -88,7 +84,7 @@ class GroovyScriptToolTest {
   @Test
   void testTypeCheckConditionWithMatchingType() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("type_check.groovy", "Boolean");
+    ToolManifestDepricated def = createToolDefinition("type_check.groovy", "Boolean");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("conditions/type_check.groovy"))
@@ -112,7 +108,7 @@ class GroovyScriptToolTest {
   @Test
   void testTypeCheckConditionWithNonMatchingType() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("type_check.groovy", "Boolean");
+    ToolManifestDepricated def = createToolDefinition("type_check.groovy", "Boolean");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("conditions/type_check.groovy"))
@@ -136,7 +132,7 @@ class GroovyScriptToolTest {
   @Test
   void testTransformerScript() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("uppercase.groovy");
+    ToolManifestDepricated def = createToolDefinition("uppercase.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("transformers/uppercase.groovy"))
@@ -158,7 +154,7 @@ class GroovyScriptToolTest {
   @Test
   void testTransformerScriptWithMetadataExtraction() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("extract_metadata.groovy");
+    ToolManifestDepricated def = createToolDefinition("extract_metadata.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("transformers/extract_metadata.groovy"))
@@ -185,7 +181,7 @@ class GroovyScriptToolTest {
   @Test
   void testValidatorScriptWithValidContent() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("has_content.groovy", "Boolean");
+    ToolManifestDepricated def = createToolDefinition("has_content.groovy", "Boolean");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("validators/has_content.groovy"))
@@ -209,7 +205,7 @@ class GroovyScriptToolTest {
   @Test
   void testValidatorScriptWithInvalidContent() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("has_content.groovy", "Boolean");
+    ToolManifestDepricated def = createToolDefinition("has_content.groovy", "Boolean");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("validators/has_content.groovy"))
@@ -233,7 +229,7 @@ class GroovyScriptToolTest {
   @Test
   void testValidatorScriptWithJsonStructure() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("json_structure.groovy");
+    ToolManifestDepricated def = createToolDefinition("json_structure.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("validators/json_structure.groovy"))
@@ -260,7 +256,7 @@ class GroovyScriptToolTest {
   @Test
   void testValidatorScriptWithMissingFields() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("json_structure.groovy");
+    ToolManifestDepricated def = createToolDefinition("json_structure.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("validators/json_structure.groovy"))
@@ -288,7 +284,7 @@ class GroovyScriptToolTest {
   @Test
   void testScriptWithEnvironmentVariables() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("use_env.groovy");
+    ToolManifestDepricated def = createToolDefinition("use_env.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("use_env.groovy"))
@@ -311,7 +307,7 @@ class GroovyScriptToolTest {
   @Test
   void testScriptWithPipelineVariables() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("use_variables.groovy");
+    ToolManifestDepricated def = createToolDefinition("use_variables.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("use_variables.groovy"))
@@ -341,7 +337,7 @@ class GroovyScriptToolTest {
   @Test
   void testScriptCaching() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("uppercase.groovy");
+    ToolManifestDepricated def = createToolDefinition("uppercase.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("transformers/uppercase.groovy"))
@@ -365,7 +361,7 @@ class GroovyScriptToolTest {
   @Test
   void testScriptWithTimeout() {
     // Arrange
-    ToolDefinition def = createToolDefinition("slow_script.groovy");
+    ToolManifestDepricated def = createToolDefinition("slow_script.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("slow_script.groovy"))
@@ -389,7 +385,7 @@ class GroovyScriptToolTest {
     Path invalidScript = tempDir.resolve("invalid.groovy");
     Files.writeString(invalidScript, "return invalid syntax here !!!");
 
-    ToolDefinition def = createToolDefinition("invalid.groovy");
+    ToolManifestDepricated def = createToolDefinition("invalid.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(invalidScript)
@@ -412,7 +408,7 @@ class GroovyScriptToolTest {
   @Test
   void testScriptWithReturnTypeValidation() throws Exception {
     // Arrange - Script returns String but expects Boolean
-    ToolDefinition def = createToolDefinition("uppercase.groovy", "Boolean");
+    ToolManifestDepricated def = createToolDefinition("uppercase.groovy", "Boolean");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("transformers/uppercase.groovy"))
@@ -437,7 +433,7 @@ class GroovyScriptToolTest {
   @Test
   void testScriptWithNonExistentScript() throws Exception {
     // Arrange
-    ToolDefinition def = createToolDefinition("nonexistent.groovy");
+    ToolManifestDepricated def = createToolDefinition("nonexistent.groovy");
     GroovyScriptTool tool = GroovyScriptTool.builder()
         .definition(def)
         .scriptPath(scriptDir.resolve("nonexistent.groovy"))
@@ -448,16 +444,15 @@ class GroovyScriptToolTest {
     ExecutionContext context = new ExecutionContext(new ConcurrentHashMap<>());
 
     // Act & Assert
-    Assertions.assertThrows(
-        IllegalStateException.class, () -> tool.execute(context));
+    Assertions.assertThrows(IllegalStateException.class, () -> tool.execute(context));
   }
 
-  private ToolDefinition createToolDefinition(String scriptName) {
+  private ToolManifestDepricated createToolDefinition(String scriptName) {
     return createToolDefinition(scriptName, null);
   }
 
-  private ToolDefinition createToolDefinition(String scriptName, String returnType) {
-    var builder = ToolDefinition.builder()
+  private ToolManifestDepricated createToolDefinition(String scriptName, String returnType) {
+    var builder = ToolManifestDepricated.builder()
         .name(scriptName.replace(".groovy", ""))
         .type("external")
         .toolConfig(new HashMap<>());

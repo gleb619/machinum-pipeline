@@ -7,15 +7,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.Tool;
 import machinum.ToolRegistry;
+import machinum.definition.ToolDefinition;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
-import machinum.yaml.ToolDefinition;
 
 @Slf4j
 @RequiredArgsConstructor
+// TODO: Rewrite from scratch
+@Deprecated(forRemoval = true)
 public class StateProcessor {
 
   private final ToolRegistry toolRegistry;
@@ -30,33 +32,29 @@ public class StateProcessor {
       throws Exception {
     for (ToolDefinition toolDef : tools) {
       Tool tool = toolRegistry
-          .resolve(toolDef.name())
+          .resolve(toolDef.name().get())
           .orElseThrow(() -> new IllegalStateException(
-              "Tool not found: %s in state: %s".formatted(toolDef.name(), stateName)));
+              "Tool not found: %s in state: %s".formatted(toolDef.name().get(), stateName)));
 
       ExpressionContext exprContext = createExpressionContext(itemId, context, toolDef);
 
-      //TODO: Unused
-      @Deprecated(forRemoval = true)
-      ToolDefinition resolvedToolDef = resolveToolConfig(toolDef, exprContext);
-
       Instant toolStart = Instant.now();
-      runLogger.toolStart(itemId, stateName, toolDef.name());
+      runLogger.toolStart(itemId, stateName, toolDef.name().get());
 
       try {
         Tool.ToolResult result = tool.execute(context);
         Instant toolEnd = Instant.now();
 
         if (result.success()) {
-          runLogger.toolComplete(itemId, stateName, toolDef.name(), toolStart, toolEnd);
+          runLogger.toolComplete(itemId, stateName, toolDef.name().get(), toolStart, toolEnd);
         } else {
           runLogger.toolError(
-              itemId, stateName, toolDef.name(), new RuntimeException(result.errorMessage()));
+              itemId, stateName, toolDef.name().get(), new RuntimeException(result.errorMessage()));
           throw new RuntimeException(
               "Tool failed: " + toolDef.name() + " - " + result.errorMessage());
         }
       } catch (Exception e) {
-        runLogger.toolError(itemId, stateName, toolDef.name(), e);
+        runLogger.toolError(itemId, stateName, toolDef.name().get(), e);
         throw e;
       }
     }
@@ -85,13 +83,6 @@ public class StateProcessor {
         .variables(pipelineVariables)
         .scripts(scriptRegistry)
         .build();
-  }
-
-  //TODO: Unused
-  @Deprecated(forRemoval = true)
-  private ToolDefinition resolveToolConfig(ToolDefinition toolDef, ExpressionContext exprContext) {
-    // TODO: Implement tool config resolution when ToolDefinition supports expression-based configs
-    return toolDef;
   }
 
   private String getTextContent(Map<String, Object> item) {

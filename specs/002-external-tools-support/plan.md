@@ -10,7 +10,7 @@ Implement external tool support (shell/Groovy scripts), workspace initialization
 ## Technical Context
 
 **Language/Version**: Java 25
-**Primary Dependencies**: Gradle 8.x (actually 9.4.1), Picocli 4.7+, SnakeYAML 2.0+, Jackson 2.17+, Groovy 4.0+, SLF4J + Logback
+**Primary Dependencies**: Gradle 9.4.1, Picocli 4.7+, Jooby 4.1, SnakeYAML 2.0+, Jackson 3.1+, Groovy 4.0+, SLF4J + Logback
 **Storage**: Local filesystem for run state, checkpoints, and workspace structure (`.mt/`, `src/main/`, `build/`)
 **Testing**: JUnit 5 + integration tests for CLI commands and external tool execution
 **Target Platform**: Linux and macOS CLI environments

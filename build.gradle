@@ -99,7 +99,7 @@ subprojects {
       // Misc
       compileOnly libs.lombok
       implementation libs.mapstruct
-      annotationProcessor libs.mapstruct
+      annotationProcessor libs.mapstruct.processor
 
       // Tests deps from main runtime
       testImplementation libs.jackson.databind
@@ -137,7 +137,7 @@ subprojects {
   }
 }
 
-def projectsToExclude() {
+static def projectsToExclude() {
   [
       'frontend',
       'tools'

@@ -1,4 +1,4 @@
-package machinum.yaml;
+package machinum.manifest;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.Map;
@@ -6,7 +6,8 @@ import lombok.Builder;
 import lombok.Singular;
 
 @Builder
-public record ToolDefinition(
+// TODO: Add custom deserializer for short declaration form
+public record ToolManifestDepricated(
     String name,
     String type,
     String description,

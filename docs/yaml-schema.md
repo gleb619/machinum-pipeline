@@ -31,8 +31,7 @@ description: "Global runtime defaults and references"
 labels:
   my-label: 123abc
 body:
-  tools: ".mt/tools.yaml"        # default
-  metadata:
+  variables:
     book_id: my_book_123
   execution:
     parallel: false              # default
@@ -62,10 +61,6 @@ body:
     window-batch-size: 5
     cooldown: 5s
     allow-override-mode: false
-    tool-registry:
-      type: file                 # file|http|git
-      url: https://raw.githubusercontent.com/gleb619/machinum-pipeline/refs/heads/main/tools.yaml
-      refresh: on_startup        # on_startup|never
   cleanup:
     success: 5d
     failed: 7d
@@ -91,6 +86,11 @@ description: "AI and utility tools"
 metadata:
   created: 2020.01.01
 body:
+  tool-registry:
+    type: file                 # file|http|git
+    url: https://raw.githubusercontent.com/gleb619/machinum-pipeline/refs/heads/main/tools.yaml
+    refresh: on_startup        # on_startup|never
+  
   execution-targets:
     default: local               # local|remote|docker
     targets:
@@ -159,11 +159,11 @@ body:
           source:
             type: file
             url: "{{ '/app/some-path/script.sh' args[0] }}"
-          args:
-            - "{{item.id}}"
-          cache:
-            enabled: false
           config:
+            args:
+              - "{{item.id}}"
+            cache:
+              enabled: false
             work-dir: "{{rootDir}}"
 
         - name: notify-webhook
@@ -182,13 +182,29 @@ body:
       tools:
         - name: workspace-init
           tool: fs-layout-generator
-        - name: git-init
-          tool: git-init-tool
-        - name: node-scaffold
-          tool: node-package-generator
-        - name: opencode-sandbox
-          tool: docker-compose-runner
+        
+        # Short declaration form  
+        - tool: git-init-tool
+
+        # Shortest declaration form
+        - node-package-generator
 ```
+
+### 3.1 Typed Manifest Records (Tools)
+
+The tools `body` fields are deserialized into typed Java records in `machinum.manifest`. Each YAML section maps to a record:
+
+| YAML Section  | Java Record | File |
+|---|---|---|
+| `body` | `ToolsBody` | [`core/src/main/java/machinum/manifest/ToolsBody.java`](../core/src/main/java/machinum/manifest/ToolsBody.java) |
+| `body.tool-registry` | `ToolRegistryManifest` | inner class of `ToolsBody` |
+| `body.execution-targets` | `ExecutionTargetsManifest` | inner class of `ToolsBody` |
+| `body.execution-targets.targets[]` | `ExecutionTargetManifest` | inner class of `ToolsBody` |
+| `body.states[]` | `ToolsStateManifest` | [`core/src/main/java/machinum/manifest/ToolsStateManifest.java`](../core/src/main/java/machinum/manifest/ToolsStateManifest.java) |
+| `body.states[].tools[]` | `ToolDefinitionManifest` | inner class of `ToolsBody` |
+| `tool.source` | `ToolSourceManifest` | inner class of `ToolsBody` |
+| `tool.cache` | `ToolCacheManifest` | inner class of `ToolsBody` |
+| `tool.config` | `ToolConfigManifest` | inner class of `ToolsBody` |
 
 ---
 
@@ -252,15 +268,15 @@ body:
     file-location: "./input/book.pdf"
     format: md                   # folder|md|json|jsonl|pdf|docx (pdf|docx: post-MVP)
     custom-loader: "{{scripts/loaders/pdf-loader.groovy}}"
-    metadata:
-      book_source: "{{metadata.book_id}}"
+    variables:
+      book_source: "{{variables.book_id}}"
       title: "{{extracted.title}}"
 
   items:
     type: chapter                # chapter|paragraph|line|document|page (document|page: post-MVP)
     custom-extractor: "{{scripts/extractors/chapter-extractor.groovy}}"
-    metadata:
-      book_id: "{{metadata.book_id}}"
+    variables:
+      book_id: "{{variables.book_id}}"
       title: "{{extracted.title}}"
 
   # State definitions (ordered)
@@ -270,10 +286,10 @@ body:
       tools:
         - tool: language-detector
           async: true
-          output-key: detected_lang
+          output: detected_lang
         - tool: text-normalizer
           async: true
-          output-key: normalized
+          output: normalized
         - tool: content-validator
           input:
             lang: "{{detected_lang}}"
@@ -284,10 +300,10 @@ body:
       tools:
         - tool: qwen-summary
           input: "{{item.content}}"
-          output-key: summary
+          output: summary
         - tool: glossary-consolidator
           input: "{{previous.summary}}"
-          output-key: consolidated_summary
+          output: consolidated_summary
 
     - name: CLEANING
       condition: "{{ scripts.conditions.should_clean(item) }}"
@@ -303,7 +319,7 @@ body:
                 tools:
                   - tool: embedding-generator
                     async: true
-                    output-key: embedding
+                    output: embedding
               - name: STORE_EMBEDDING
                 tools:
                   - vector-store
@@ -321,7 +337,7 @@ body:
       tools:
         - tool: glossary-deduplicator
           input: "{{consolidated_glossary}}"
-          output-key: final_glossary
+          output: final_glossary
 
     - name: TRANSLATE_TITLE
       window:
@@ -331,25 +347,25 @@ body:
           group-by: title
           tools:
             - batch-translator
-          output-key: translated_titles
+          output: translated_titles
 
     - name: TRANSLATE
       tools:
         - tool: peek
-          tools:                   # Tool chain; output-key receives last tool's result
+          tools:                   # Tool chain; output receives last tool's result
             - tool: language-detector
             - tool: translator-guard
             - tool: translator
               input:
                 text: "{{cleaned_text}}"
                 glossary: "{{final_glossary}}"
-          output-key: translated_text
+          output: translated_text
 
     - name: COPYEDIT
       tools:
         - tool: grammar-editor
           input: "{{translated_text}}"
-          output-key: final_text
+          output: final_text
 
     - name: FINISHED
       wait-for: "{{config.cooldown}}"
@@ -379,11 +395,32 @@ body:
         strategy: stop
 ```
 
+### 4.1 Typed Manifest Records (Pipeline)
+
+The pipeline `body` fields are deserialized into typed Java records in `machinum.manifest`. Each YAML section maps to a record:
+
+| YAML Section  | Java Record              | File                                                                                                                              |
+|---------------|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `body`        | `PipelineBody`           | [`core/src/main/java/machinum/manifest/PipelineBody.java`](../core/src/main/java/machinum/manifest/PipelineBody.java)             |
+| `body.config` | `PipelineConfigManifest` | [`core/src/main/java/machinum/manifest/PipelineConfigManifest.java`](../core/src/main/java/machinum/manifest/PipelineConfig.java) |
+| `body.source` | `SourceManifest`         | [`core/src/main/java/machinum/manifest/SourceManifest.java`](../core/src/main/java/machinum/manifest/SourceConfig.java)           |
+| `body.items`  | `ItemsManifest`          | [`core/src/main/java/machinum/manifest/ItemsManifest.java`](../core/src/main/java/machinum/manifest/ItemsConfig.java)             |
+
+### 4.2 Typed Manifest Records (Root)
+
+The root `body` fields are deserialized into typed Java records in `machinum.manifest`. Each YAML section maps to a record:
+
+| YAML Section                         | Java Record                  | File                                                                                                                                              |
+|--------------------------------------|------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `body`                               | `RootBody`                   | [`core/src/main/java/machinum/manifest/RootBody.java`](../core/src/main/java/machinum/manifest/RootBody.java)                                     |
+
+**Compilation path:** `PipelineBody` (typed manifest) → `PipelineManifestCompiler` → `PipelineDefinition` (compiled). See [Technical Design §3.3](technical-design.md#33-value-compilation-system).
+
 **Tool declaration rules:**
 
 - Shorthand: `- tool-name`
 - Object form: `- tool: tool-name`
-- `output-key` defaults to tool name if omitted
+- `output` defaults to tool name if omitted
 - Terminal `listeners` execute after the final state for each item
 
 **Predefined expression variables:**
@@ -402,3 +439,31 @@ body:
 | `state`            | Current state descriptor                     |
 | `tool`             | Current tool descriptor                      |
 | `retryAttempt`     | Current retry number for the tool            |
+
+---
+
+## 5. Runtime Compilation
+
+> **Note:** All string values supporting `{{...}}` expressions are compiled to `CompiledValue<T>` at load time. See [Value Compilers](value-compilers.md) for details.
+
+**Compilation Process:**
+1. YAML loaded → Raw POJO (e.g., `ToolDefinition`)
+2. Compiler transforms → Compiled POJO (e.g., `CompiledToolDefinition`)
+3. String fields → `CompiledValue<String>` wrappers
+4. Map fields → `CompiledMap` wrappers
+5. At runtime: `CompiledValue.get()` evaluates Groovy expression
+
+**Example:**
+```yaml
+# YAML
+condition: "{{ item.size() > 0 }}"
+tools:
+  - tool: "{{env.DEFAULT_TOOL}}"
+```
+
+```java
+// Compiled
+CompiledStateDefinition state = compiler.compile(rawState, ctx);
+boolean shouldRun = state.evaluateCondition();  // Evaluates: item.size() > 0
+String toolName = state.getStateTools().get(0).getNameValue();  // Evaluates: {{env.DEFAULT_TOOL}}
+```

@@ -87,6 +87,8 @@ graph TD
 
 ### 3.2 Core Interfaces
 
+See [Value Compilers](value-compilers.md) for the complete compiler system documentation.
+
 ```java
 // Tool Contract
 public interface Tool {
@@ -198,6 +200,65 @@ public interface CheckpointStore {
 public interface ErrorStrategyResolver {
     ErrorStrategy resolve(Exception e, ErrorHandlingConfig config);
 }
+
+// Value Compilation System
+public class CompiledValue<T> implements Supplier<T> {
+    public static <T> CompiledValue<T> of(String raw, ExpressionContext ctx, ExpressionResolver resolver);
+    public static <T> CompiledValue<T> ofConstant(T constant);
+    @Override
+    public T get();  // Lazy evaluation
+}
+
+public interface YamlCompiler<SOURCE, COMPILED> {
+    COMPILED compile(SOURCE source, CompilationContext ctx);
+    boolean supports(Class<?> type);
+}
+
+public class CompilationContext {
+    private ExpressionResolver resolver;
+    private ScriptRegistry scriptRegistry;
+    private Map<String, Object> variables;
+    private Map<String, String> environment;
+    private String runId;
+}
+```
+
+---
+
+## 3.3 Value Compilation System
+
+The value compilation system transforms YAML manifest POJOs with raw `String` values into compiled POJOs with lazy expression evaluation support. See [Value Compilers](value-compilers.md) for complete documentation.
+
+**Key Components:**
+
+| Component            | Purpose                                                  |
+|----------------------|----------------------------------------------------------|
+| `CompiledValue<T>`   | Lazy-evaluating wrapper for expression-containing values |
+| `CompilationContext` | Shared state during compilation                          |
+| `YamlCompiler<S,C>`  | Base interface for all compilers                         |
+
+**Available Compilers:**
+
+| YAML Model         | Compiled Output            | Compiler Class             |
+|--------------------|----------------------------|----------------------------|
+| `ToolDefinition`   | `CompiledToolDefinition`   | `ToolDefinitionCompiler`   |
+| `StateDefinition`  | `CompiledStateDefinition`  | `StateDefinitionCompiler`  |
+| `PipelineManifest` | `CompiledPipelineManifest` | `PipelineManifestCompiler` |
+| `RootManifest`     | `CompiledRootManifest`     | `RootManifestCompiler`     |
+| `ToolsManifest`    | `CompiledToolsManifest`    | `ToolsManifestCompiler`    |
+
+**Example:**
+```java
+// Load and compile pipeline
+CompilationContext ctx = // ... setup
+CompiledPipelineManifest pipeline = loader.loadCompiledPipelineManifest(path, ctx);
+
+// Evaluate condition at runtime
+for (CompiledStateDefinition state : pipeline.getPipelineStates()) {
+    if (state.evaluateCondition()) {  // Groovy expression evaluated here
+        // Process tools
+    }
+}
 ```
 
 ---
@@ -210,21 +271,14 @@ Base algorithm of `one_step` runner. Other runners reuse the same state transiti
 loading strategy.
 
 ```java
-for(Item item :items){
-    for(
-State state :pipeline.
-
-getStates()){
-    if(
-
-conditionMet(item, state)){
-
-processState(item, state);
-
-checkpoint();
+for (Item item: items) {
+    for (State state: pipeline.getStates()) {
+        if (conditionMet(item, state)) {
+            processState(item, state);
+            checkpoint();
         }
-            }
-            }
+    }
+}
 ```
 
 ### 4.2 Parallel Execution (Future)
@@ -234,14 +288,8 @@ behavior.
 
 ```java
 ExecutorService executor = Executors.newFixedThreadPool(maxConcurrency);
-List<CompletableFuture<Void>> futures = items.stream()
-    .map(item -> CompletableFuture.runAsync(() -> processItem(item), executor))
-    .collect(toList());
-CompletableFuture.
-
-allOf(futures).
-
-join();
+List < CompletableFuture < Void >> futures = items.stream().map(item -> CompletableFuture.runAsync(() -> processItem(item), executor)).collect(toList());
+CompletableFuture.allOf(futures).join();
 ```
 
 ### 4.3 Fork/Sub-Pipeline (Future)
@@ -292,6 +340,8 @@ public class ErrorHandler {
 ## 6. Groovy Scripting Integration
 
 ### 6.1 Evaluation Context
+
+For expression compilation and lazy evaluation, see [Value Compilers](value-compilers.md).
 
 ```java
 public class GroovyEvaluator {
