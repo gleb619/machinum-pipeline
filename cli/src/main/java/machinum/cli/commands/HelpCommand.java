@@ -4,7 +4,6 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-/** Command to show help information. */
 @Command(name = "help", description = "Show help information")
 public class HelpCommand implements Callable<Integer> {
 

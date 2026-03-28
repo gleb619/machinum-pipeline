@@ -6,7 +6,6 @@ import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
 
-/** Represents the tools manifest (.mt/tools.yaml) declaring available tools. */
 @Builder
 public record ToolsManifest(
     String name,

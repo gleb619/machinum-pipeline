@@ -1,16 +1,14 @@
-package machinum.cli;
+package machinum.cli.commands;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import machinum.cli.commands.LogsCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
-/** Integration test for logs command. */
 class LogsCommandTest {
 
   @TempDir

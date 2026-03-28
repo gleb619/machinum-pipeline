@@ -10,19 +10,6 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
-/**
- * Install command: initializes workspace with download and bootstrap phases.
- *
- * <p>Usage:
- *
- * <pre>{@code
- * machinum install                    # Full install (download + bootstrap)
- * machinum install download           # Download only
- * machinum install bootstrap          # Bootstrap only
- * machinum install --force            # Overwrite existing files
- * machinum install --workspace /path  # Specify workspace directory
- * }</pre>
- */
 @Slf4j
 @Command(
     name = "install",
@@ -31,14 +18,12 @@ import picocli.CommandLine.ParentCommand;
     mixinStandardHelpOptions = true)
 public class InstallCommand implements Callable<Integer> {
 
-  /** Workspace root directory option. */
   @Option(
       names = {"--workspace", "-w"},
       description = "Workspace root directory (default: current directory)",
       paramLabel = "<path>")
   private String workspace;
 
-  /** Force overwrite flag. */
   @Option(
       names = {"--force", "-f"},
       description = "Overwrite existing configuration files")
@@ -57,11 +42,6 @@ public class InstallCommand implements Callable<Integer> {
     return 0;
   }
 
-  /**
-   * Resolves the workspace root directory.
-   *
-   * @return the workspace root path
-   */
   private Path resolveWorkspace() {
     if (workspace == null) {
       return Paths.get(System.getProperty("user.dir"));
@@ -69,7 +49,6 @@ public class InstallCommand implements Callable<Integer> {
     return Paths.get(workspace).toAbsolutePath().normalize();
   }
 
-  /** Download subcommand: fetches tool sources without workspace mutation. */
   @Command(
       name = "download",
       description = "Download tool sources without creating workspace structure",
@@ -94,7 +73,6 @@ public class InstallCommand implements Callable<Integer> {
     }
   }
 
-  /** Bootstrap subcommand: creates workspace structure and generates files. */
   @Command(
       name = "bootstrap",
       description = "Create workspace structure and generate configuration files",
@@ -105,7 +83,7 @@ public class InstallCommand implements Callable<Integer> {
     private InstallCommand parent;
 
     @Override
-    //TODO: we need to start here another state machine process
+    // TODO: we need to start here another state machine process
     @Deprecated(forRemoval = true)
     public Integer call() throws Exception {
       Path workspaceRoot = parent.resolveWorkspace();

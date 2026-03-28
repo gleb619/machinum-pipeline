@@ -191,7 +191,7 @@ dependencies {
     implementation libs.commons.lang3
     implementation libs.commons.io
 
-    // Testing
+    // Tests
     testImplementation libs.junit.jupiter
     testImplementation libs.assertj
     testImplementation libs.mockito
@@ -257,7 +257,8 @@ tasks.shadowJar {
 
 ## `frontend/build.gradle`
 
-> **NOTE:** The project contains a frontend (e.g. React/Vue). This subproject delegates all build steps to **Yarn**. Gradle orchestrates it so that `./gradlew build` or `./gradlew assemble` transparently drives the full stack.
+> **NOTE:** The project contains a frontend (e.g. React/Vue). This subproject delegates all build steps to **Yarn**.
+> Gradle orchestrates it so that `./gradlew build` or `./gradlew assemble` transparently drives the full stack.
 
 ```groovy
 /**

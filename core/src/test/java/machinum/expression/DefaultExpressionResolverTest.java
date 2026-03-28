@@ -17,7 +17,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Unit tests for DefaultExpressionResolver. */
 class DefaultExpressionResolverTest {
 
   private DefaultExpressionResolver resolver;
@@ -86,7 +85,6 @@ class DefaultExpressionResolverTest {
         .runId("run-001")
         .build();
 
-    // Test Groovy expression
     Object result =
         resolver.resolveTemplate("{{item.type.toUpperCase()}}-{{item.id}}-{{index + 1}}", context);
     assertEquals("CHAPTER-test-123-2", result);
@@ -162,7 +160,7 @@ class DefaultExpressionResolverTest {
         .text("This is a test sentence with multiple words.")
         .textLength(43)
         .textWords(8)
-        .textTokens(11) // Approximate
+        .textTokens(11)
         .build();
 
     Object result = resolver.resolveTemplate(
@@ -239,7 +237,6 @@ class DefaultExpressionResolverTest {
 
   @Test
   void testResolveWithScriptExpression(@TempDir Path tempDir) throws Exception {
-    // Create scripts directory structure
     Path conditionsDir = Files.createDirectories(tempDir.resolve("conditions"));
     Path scriptPath = conditionsDir.resolve("is_valid.groovy");
     Files.writeString(scriptPath, "return text != null && text.length() > 0");
@@ -258,7 +255,6 @@ class DefaultExpressionResolverTest {
 
   @Test
   void testResolveWithScriptExpressionAndArguments(@TempDir Path tempDir) throws Exception {
-    // Create transformer script
     Path transformersDir = Files.createDirectories(tempDir.resolve("transformers"));
     Path scriptPath = transformersDir.resolve("uppercase.groovy");
     Files.writeString(scriptPath, "return text.toUpperCase()");
@@ -277,7 +273,6 @@ class DefaultExpressionResolverTest {
 
   @Test
   void testResolveWithScriptExpressionWithItemArgument(@TempDir Path tempDir) throws Exception {
-    // Create validator script
     Path validatorsDir = Files.createDirectories(tempDir.resolve("validators"));
     Path scriptPath = validatorsDir.resolve("has_content.groovy");
     Files.writeString(

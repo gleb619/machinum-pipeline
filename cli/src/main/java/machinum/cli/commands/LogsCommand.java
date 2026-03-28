@@ -8,7 +8,6 @@ import java.util.stream.Stream;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-/** Command to show run logs. */
 @Command(name = "logs", description = "Show run logs")
 public class LogsCommand implements Callable<Integer> {
 

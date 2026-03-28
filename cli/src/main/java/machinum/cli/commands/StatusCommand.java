@@ -9,7 +9,6 @@ import machinum.checkpoint.CheckpointStore;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-/** Command to show run status. */
 @Command(name = "status", description = "Show run status")
 public class StatusCommand implements Callable<Integer> {
 

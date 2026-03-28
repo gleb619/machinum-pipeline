@@ -12,10 +12,6 @@ import lombok.RequiredArgsConstructor;
 import org.yaml.snakeyaml.Yaml;
 import tools.jackson.databind.ObjectMapper;
 
-/**
- * Loads and validates YAML manifests with strict schema enforcement. Fails fast on ambiguous or
- * invalid configuration.
- */
 @Builder
 @RequiredArgsConstructor
 public class YamlManifestLoader {
@@ -23,7 +19,6 @@ public class YamlManifestLoader {
   private final ObjectMapper objectMapper;
   private final Yaml yaml;
 
-  /** Loads and validates a root manifest from the given path. */
   public RootManifest loadRootManifest(Path path) throws IOException {
     try (InputStream is = Files.newInputStream(path)) {
       Map<String, Object> raw = yaml.load(is);
@@ -35,7 +30,6 @@ public class YamlManifestLoader {
     }
   }
 
-  /** Loads and validates a tools manifest from the given path. */
   public ToolsManifest loadToolsManifest(Path path) throws IOException {
     try (InputStream is = Files.newInputStream(path)) {
       Map<String, Object> raw = yaml.load(is);
@@ -47,9 +41,8 @@ public class YamlManifestLoader {
     }
   }
 
-  /** Loads and validates a pipeline manifest from the given path. */
   public PipelineManifest loadPipelineManifest(Path path) throws IOException {
-    try (InputStream is = Files.newInputStream(path)) {
+    try (InputStream is = Files.newInputStream(path.normalize())) {
       Map<String, Object> raw = yaml.load(is);
       if (raw == null) {
         throw new ValidationException("Pipeline manifest is empty: " + path);
@@ -59,7 +52,6 @@ public class YamlManifestLoader {
     }
   }
 
-  /** Loads a generic YAML file as a map. */
   @SuppressWarnings("unchecked")
   public Map<String, Object> loadYaml(Path path) throws IOException {
     try (InputStream is = Files.newInputStream(path)) {
@@ -107,13 +99,29 @@ public class YamlManifestLoader {
     if (!raw.containsKey("name")) {
       errors.add("Missing required field: name");
     }
+
+    if (!raw.containsKey("body")) {
+      errors.add("Missing required field: body");
+    } else {
+      var body = (Map<String, Object>) raw.get("body");
+      var bodyResult = validateBody(body, path);
+      errors.addAll(bodyResult);
+    }
+
+    if (!errors.isEmpty()) {
+      throw new ValidationException("Pipeline manifest validation failed at %s: %s"
+          .formatted(path, String.join(", ", errors)));
+    }
+  }
+
+  private List<String> validateBody(Map<String, Object> raw, Path path) {
+    List<String> errors = new ArrayList<>();
     if (!raw.containsKey("states")) {
       errors.add("Missing required field: states");
     } else if (!(raw.get("states") instanceof List)) {
       errors.add("Field 'states' must be a list");
     }
 
-    // Validate source/items constraint
     boolean hasSource = raw.containsKey("source");
     boolean hasItems = raw.containsKey("items");
 
@@ -128,7 +136,6 @@ public class YamlManifestLoader {
           .formatted(path, String.join(", ", errors)));
     }
 
-    // Validate states
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> states = (List<Map<String, Object>>) raw.get("states");
     if (states != null) {
@@ -143,14 +150,11 @@ public class YamlManifestLoader {
       }
     }
 
-    if (!errors.isEmpty()) {
-      throw new ValidationException("Pipeline manifest validation failed at %s: %s"
-          .formatted(path, String.join(", ", errors)));
-    }
+    return errors;
   }
 
-  /** Exception thrown when manifest validation fails. */
   public static class ValidationException extends RuntimeException {
+
     public ValidationException(String message) {
       super(message);
     }

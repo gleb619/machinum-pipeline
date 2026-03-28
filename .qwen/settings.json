@@ -5,11 +5,14 @@
       "Bash(java *)",
       "Bash(bash *)",
       "Bash(mkdir *)",
+      "Bash(cd *)",
       "Bash(ls *)",
       "Bash(cat *)",
       "Bash(touch *)",
       "Bash(find *)",
       "Bash(xargs *)",
+      "Bash(chmod *)",
+      "Bash(tail *)",
       "Read(**/*.java)",
       "Read(**/*.gradle)",
       "Read(**/*.properties)",
@@ -18,6 +21,7 @@
       "Read(**/*.yaml)",
       "Read(**/*.sh)",
       "Read(**/*.md)",
+      "Read",
       "Write(**/*.java)",
       "Write(**/*.gradle)",
       "Write(**/*.properties)",
@@ -26,6 +30,10 @@
       "Write(**/*.yaml)",
       "Write(**/*.sh)",
       "Write(**/*.md)"
+    ],
+    "deny": [
+      "Write(.env)",
+      "Bash(--force)"
     ]
   },
   "$version": 3

@@ -25,7 +25,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** Unit tests for EnhancedExecutionContext. */
 @ExtendWith(MockitoExtension.class)
 class EnhancedExecutionContextTest {
 
@@ -99,7 +98,6 @@ class EnhancedExecutionContextTest {
     assertTrue(context.hasExpressions("{{item.id}}"));
     assertFalse(context.hasExpressions("plain text"));
 
-    // Test without resolver
     EnhancedExecutionContext contextWithoutResolver =
         EnhancedExecutionContext.builder().runId("run-001").build();
 
@@ -197,7 +195,6 @@ class EnhancedExecutionContextTest {
 
     context.updateItem(item, 0);
 
-    // The evaluate method should use text content from item
     when(expressionResolver.resolveTemplate(any(), any())).thenReturn("resolved");
 
     Object result = context.evaluate("{{text}}");
@@ -222,7 +219,6 @@ class EnhancedExecutionContextTest {
     assertEquals(originalContext.getRunId(), childContext.getRunId());
     assertEquals(originalContext.getExpressionResolver(), childContext.getExpressionResolver());
 
-    // Variables should be copied but not the same reference
     assertNotSame(originalContext.getVariables(), childContext.getVariables());
     assertEquals(originalContext.getVariables(), childContext.getVariables());
   }
@@ -238,7 +234,6 @@ class EnhancedExecutionContextTest {
       String template = invocation.getArgument(0);
       var exprContext = invocation.getArgument(1);
 
-      // Verify that the expression context has correct text metrics
       if (template.contains("textLength")) {
         return String.valueOf(((ExpressionContext) exprContext).getTextLength());
       }
@@ -255,10 +250,9 @@ class EnhancedExecutionContextTest {
     Object wordsResult = context.evaluate("{{textWords}}");
     Object tokensResult = context.evaluate("{{textTokens}}");
 
-    // Verify the calculations
-    assertEquals("44", lengthResult); // "This is a test sentence with multiple words." length
-    assertEquals("8", wordsResult); // Word count
-    assertTrue(tokensResult.toString().matches("\\d+")); // Token count (approximate)
+    assertEquals("44", lengthResult);
+    assertEquals("8", wordsResult);
+    assertTrue(tokensResult.toString().matches("\\d+"));
   }
 
   @Test

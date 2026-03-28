@@ -1,60 +1,62 @@
 [versions]
-java                = "25"
-jooby               = "4.1.0"
-picocli             = "4.7.6"
-snakeyaml           = "2.2"
-groovy              = "4.0.21"
-jackson             = "3.1.0"
-logback             = "1.5.3"
-slf4j               = "2.0.12"
-commons-lang3       = "3.14.0"
-commons-io          = "2.15.1"
-lombok              = "1.18.32"
-mapstruct           = "1.5.5.Final"
+java = "25"
+jooby = "4.1.0"
+picocli = "4.7.6"
+snakeyaml = "2.2"
+groovy = "4.0.21"
+jackson = "3.1.0"
+logback = "1.5.3"
+slf4j = "2.0.12"
+commons-lang3 = "3.14.0"
+commons-io = "2.15.1"
+lombok = "1.18.32"
+mapstruct = "1.5.5.Final"
 
 # tests
-junit-jupiter       = "6.0.3"
-junit-platform      = "1.10.0"
-assertj             = "3.27.7"
-mockito             = "5.23.0"
+junit-jupiter = "6.0.3"
+junit-platform = "1.10.0"
+assertj = "3.27.7"
+mockito = "5.23.0"
 
 # plugins
-test-logger         = "4.0.0"
-spotless            = "8.3.0"
-versions            = "0.53.0"
+test-logger = "4.0.0"
+spotless = "8.3.0"
+versions = "0.53.0"
 dependency-analysis = "3.6.1"
-freefair-lombok     = "9.2"
+freefair-lombok = "9.2"
 
 [libraries]
-jooby-core          = { module = "io.jooby:jooby",                                    version.ref = "jooby" }
-jooby-jetty         = { module = "io.jooby:jooby-jetty",                              version.ref = "jooby" }
-jooby-jackson       = { module = "io.jooby:jooby-jackson",                            version.ref = "jooby" }
-jooby-logback       = { module = "io.jooby:jooby-logback",                            version.ref = "jooby" }
-jooby-apt           = { module = "io.jooby:jooby-apt",                                version.ref = "jooby" }
-jooby-bom           = { module = "io.jooby:jooby-bom",                                version.ref = "jooby" }
-jooby-test          = { module = "io.jooby:jooby-test",                               version.ref = "jooby" }
-picocli             = { module = "info.picocli:picocli",                              version.ref = "picocli" }
-snakeyaml           = { module = "org.yaml:snakeyaml",                                version.ref = "snakeyaml" }
-groovy-core         = { module = "org.apache.groovy:groovy",                          version.ref = "groovy" }
-groovy-jsr223       = { module = "org.apache.groovy:groovy-jsr223",                   version.ref = "groovy" }
-jackson-databind    = { module = "tools.jackson.core:jackson-databind",       version.ref = "jackson" }
-jackson-yaml        = { module = "tools.jackson.dataformat:jackson-dataformat-yaml", version.ref = "jackson" }
-logback-classic     = { module = "ch.qos.logback:logback-classic",                    version.ref = "logback" }
-slf4j-api           = { module = "org.slf4j:slf4j-api",                               version.ref = "slf4j" }
-commons-lang3       = { module = "org.apache.commons:commons-lang3",                  version.ref = "commons-lang3" }
-commons-io          = { module = "commons-io:commons-io",                             version.ref = "commons-io" }
-lombok              = { module = "org.projectlombok:lombok",                          version.ref = "lombok" }
-mapstruct           = { module = "org.mapstruct:mapstruct-processor",                 version.ref = "mapstruct" }
+jooby-core = { module = "io.jooby:jooby", version.ref = "jooby" }
+jooby-jetty = { module = "io.jooby:jooby-jetty", version.ref = "jooby" }
+jooby-jackson = { module = "io.jooby:jooby-jackson", version.ref = "jooby" }
+jooby-logback = { module = "io.jooby:jooby-logback", version.ref = "jooby" }
+jooby-apt = { module = "io.jooby:jooby-apt", version.ref = "jooby" }
+jooby-bom = { module = "io.jooby:jooby-bom", version.ref = "jooby" }
+jooby-test = { module = "io.jooby:jooby-test", version.ref = "jooby" }
+picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
+snakeyaml = { module = "org.yaml:snakeyaml", version.ref = "snakeyaml" }
+groovy-core = { module = "org.apache.groovy:groovy", version.ref = "groovy" }
+groovy-jsr223 = { module = "org.apache.groovy:groovy-jsr223", version.ref = "groovy" }
+jackson-databind = { module = "tools.jackson.core:jackson-databind", version.ref = "jackson" }
+jackson-yaml = { module = "tools.jackson.dataformat:jackson-dataformat-yaml", version.ref = "jackson" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
-junit-launcher = { group = "org.junit.platform", name = "junit-platform-launcher", version.ref = "junit-platform" }
-junit-jupiter       = { module = "org.junit.jupiter:junit-jupiter",                   version.ref = "junit-jupiter" }
-assertj             = { module = "org.assertj:assertj-core",                          version.ref = "assertj" }
-mockito             = { module = "org.mockito:mockito-core",                          version.ref = "mockito" }
-mockito-jupiter     = { module = "org.mockito:mockito-junit-jupiter",                 version.ref = "mockito" }
+commons-lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "commons-lang3" }
+commons-io = { module = "commons-io:commons-io", version.ref = "commons-io" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+mapstruct = { module = "org.mapstruct:mapstruct-processor", version.ref = "mapstruct" }
+
+junit-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+assertj = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+mockito = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
 
 [plugins]
-test-logger         = { id = "com.adarshr.test-logger",           version.ref = "test-logger" }
-spotless            = { id = "com.diffplug.spotless",             version.ref = "spotless" }
-versions            = { id = "com.github.ben-manes.versions",     version.ref = "versions" }
+test-logger = { id = "com.adarshr.test-logger", version.ref = "test-logger" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+versions = { id = "com.github.ben-manes.versions", version.ref = "versions" }
 dependency-analysis = { id = "com.autonomousapps.dependency-analysis", version.ref = "dependency-analysis" }
-freefair-lombok     = { id = "io.freefair.lombok",                version.ref = "freefair-lombok" }
+freefair-lombok = { id = "io.freefair.lombok", version.ref = "freefair-lombok" }

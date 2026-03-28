@@ -4,10 +4,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.RequiredArgsConstructor;
 
-/**
- * Resolves expressions and variable substitutions in strings. Supports ${var.name} syntax for
- * variable interpolation.
- */
 @RequiredArgsConstructor
 // TODO: replace with groovy expression resolver
 @Deprecated(forRemoval = true)
@@ -17,10 +13,6 @@ public class ExpressionResolver {
 
   private final ExecutionContext context;
 
-  /**
-   * Resolves all variable references in the given expression string. Unresolved variables are left
-   * as-is.
-   */
   public String resolve(String expression) {
     if (expression == null) {
       return null;
@@ -39,10 +31,8 @@ public class ExpressionResolver {
     return result.toString();
   }
 
-  /**
-   * Evaluates a condition expression against the current itemContext. Supports simple equality and
-   * boolean checks.
-   */
+  // TODO: Unused
+  @Deprecated(forRemoval = true)
   public boolean evaluateCondition(String condition) {
     if (condition == null || condition.isBlank()) {
       return true;

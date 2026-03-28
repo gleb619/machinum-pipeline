@@ -82,7 +82,6 @@ public interface SingletonSupport {
         return (T) instance;
       }
 
-      // Double-check locking block
       synchronized (instances) {
         instance = instances.get(factory.kind());
         if (instance != null) {

@@ -18,7 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Integration tests for sequential state execution. */
 class SequentialRunnerTest {
 
   @TempDir
@@ -45,7 +44,7 @@ class SequentialRunnerTest {
         "test-pipeline",
         "Test pipeline",
         Map.of(),
-        new PipelineManifest.SourceOrItems("items.csv", null),
+        new PipelineManifest.SourceOrItems(Map.of("file", "items.csv"), null),
         List.of(
             new StateDefinition(
                 "state1",
@@ -81,7 +80,7 @@ class SequentialRunnerTest {
         "test-pipeline",
         "Test pipeline",
         Map.of(),
-        new PipelineManifest.SourceOrItems("items.csv", null),
+        new PipelineManifest.SourceOrItems(Map.of("file", "items.csv"), null),
         List.of(new StateDefinition(
             "state1",
             null,
@@ -110,7 +109,7 @@ class SequentialRunnerTest {
         "test-pipeline",
         "Test pipeline",
         Map.of(),
-        new PipelineManifest.SourceOrItems("items.csv", null),
+        new PipelineManifest.SourceOrItems(Map.of("file", "items.csv"), null),
         List.of(new StateDefinition(
             "state1",
             null,

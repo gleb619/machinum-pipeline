@@ -5,6 +5,18 @@ plugins {
 dependencies {
   api project(':tools:common')
 
+  // JSON
+  compileOnly libs.jackson.yaml
+
+  // Groovy
   compileOnly libs.groovy.core
   compileOnly libs.groovy.jsr223
+
+  // Tests
+  testImplementation libs.jackson.yaml
+
+  testImplementation libs.groovy.core
+  testImplementation libs.groovy.jsr223
+
+  testImplementation libs.slf4j.simple
 }

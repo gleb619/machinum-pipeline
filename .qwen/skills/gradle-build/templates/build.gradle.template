@@ -1,0 +1,31 @@
+plugins {
+    id 'java-library'
+}
+
+dependencies {
+    // Core dependencies
+    implementation(libs.bundles.slf4j)
+    
+    // Module dependencies
+    // implementation(project(':core'))
+    
+    // Tests
+    testImplementation(libs.bundles.junit)
+    testImplementation(libs.groovy.test)
+}
+
+jar {
+    archiveBaseName = 'machinum-MODULE_NAME'
+}
+
+java {
+    withSourcesJar()
+}
+
+test {
+    useJUnitPlatform()
+    
+    testLogging {
+        events "failed"
+    }
+}

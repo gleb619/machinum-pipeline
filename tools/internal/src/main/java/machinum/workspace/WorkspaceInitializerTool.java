@@ -3,37 +3,29 @@ package machinum.workspace;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.yaml.ToolDefinition;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.dataformat.yaml.YAMLFactory;
 
-/**
- * Initializes workspace with download and bootstrap phases.
- *
- * <p>Phases:
- *
- * <ul>
- *   <li>download - Fetches tool sources without mutating workspace layout
- *   <li>bootstrap - Creates directory structure and generates configuration files
- * </ul>
- */
 @Slf4j
 @RequiredArgsConstructor
 public class WorkspaceInitializerTool {
 
-  /** Workspace root directory. */
   private final Path workspaceRoot;
 
-  /** Workspace layout helper. */
   private final WorkspaceLayout layout;
 
-  /**
-   * Runs full installation: download → bootstrap.
-   *
-   * @param force if true, overwrite existing files
-   * @throws IOException if initialization fails
-   */
+  //TODO: Use CoreCOnfig Instead
+  @Deprecated(forRemoval = true)
+  private static final ObjectMapper YAML_MAPPER = new ObjectMapper(new YAMLFactory());
+
   public void install(boolean force) throws IOException {
     log.info("Starting workspace installation...");
     download();
@@ -41,43 +33,29 @@ public class WorkspaceInitializerTool {
     log.info("Workspace installation complete!");
   }
 
-  /**
-   * Downloads tool sources without mutating workspace layout.
-   *
-   * @throws IOException if download fails
-   */
-  public void download() throws IOException {
+  public void download() {
     log.info("Downloading tool sources...");
-    // For MVP: This is a placeholder - actual tool downloading will be implemented
-    // when tool registry with git/http sources is available
     log.debug("Tool download complete (no external tools configured yet)");
   }
 
-  /**
-   * Bootstraps workspace by creating directory structure and generating files.
-   *
-   * @param force if true, overwrite existing files
-   * @throws IOException if bootstrap fails
-   */
   public void bootstrap(boolean force) throws IOException {
     log.info("Bootstrapping workspace...");
 
-    // Create directory structure
     layout.createDirectories();
 
-    // Generate configuration files
     generateSeedYaml(force);
     generateToolsYaml(force);
+
+    // Parse tools.yaml and generate package.json if node tools are present
+    Path toolsYamlPath = layout.getMtDir().resolve("tools.yaml");
+    if (Files.exists(toolsYamlPath)) {
+      List<ToolDefinition> nodeTools = parseNodeToolsFromYaml(toolsYamlPath);
+      generatePackageJson(nodeTools, force);
+    }
 
     log.info("Bootstrap complete!");
   }
 
-  /**
-   * Generates seed.yaml configuration file.
-   *
-   * @param force if true, overwrite existing file
-   * @throws IOException if generation fails
-   */
   private void generateSeedYaml(boolean force) throws IOException {
     Path seedPath = workspaceRoot.resolve("seed.yaml");
 
@@ -134,12 +112,6 @@ public class WorkspaceInitializerTool {
     log.info("Generated: seed.yaml");
   }
 
-  /**
-   * Generates .mt/tools.yaml configuration file.
-   *
-   * @param force if true, overwrite existing file
-   * @throws IOException if generation fails
-   */
   private void generateToolsYaml(boolean force) throws IOException {
     Path toolsPath = layout.getMtDir().resolve("tools.yaml");
 
@@ -210,13 +182,65 @@ public class WorkspaceInitializerTool {
     log.info("Generated: .mt/tools.yaml");
   }
 
-  /**
-   * Generates package.json if node tools are declared.
-   *
-   * @param nodeTools list of node tool definitions
-   * @param force if true, overwrite existing file
-   * @throws IOException if generation fails
-   */
+  @SuppressWarnings("unchecked")
+  private List<ToolDefinition> parseNodeToolsFromYaml(Path toolsYamlPath) {
+    List<ToolDefinition> nodeTools = new ArrayList<>();
+
+    try {
+      JsonNode root = YAML_MAPPER.readTree(toolsYamlPath.toFile());
+      JsonNode bodyNode = root.path("body");
+
+      // Check install-phase tools
+      JsonNode installNode = bodyNode.path("install");
+      parseToolsFromSection(installNode, nodeTools);
+
+      // Check regular tools section
+      JsonNode toolsNode = bodyNode.path("tools");
+      parseToolsFromSection(toolsNode, nodeTools);
+    } catch (Exception e) {
+      log.warn("Failed to parse tools.yaml for node tools: {}", e.getMessage());
+    }
+
+    return nodeTools;
+  }
+
+  @SuppressWarnings("unchecked")
+  private void parseToolsFromSection(JsonNode sectionNode, List<ToolDefinition> nodeTools) {
+    if (!sectionNode.isArray()) {
+      return;
+    }
+
+    for (JsonNode toolNode : sectionNode) {
+      String runtime = toolNode.path("runtime").asText("");
+      String type = toolNode.path("type").asText("");
+
+      // Detect node tools by runtime or type
+      if ("node".equalsIgnoreCase(runtime) || "node".equalsIgnoreCase(type)) {
+        String name = toolNode.path("name").asText();
+        if (!name.isEmpty()) {
+          JsonNode configNode = toolNode.path("config");
+          Map<String, Object> config = configNode.isMissingNode() || configNode.isNull()
+              ? Map.of()
+              : YAML_MAPPER.convertValue(configNode, Map.class);
+
+          // Extract version if present
+          if (toolNode.has("version")) {
+            config = new HashMap<>(config);
+            config.put("version", toolNode.path("version").asText());
+          }
+
+          ToolDefinition def = ToolDefinition.builder()
+              .name(name)
+              .type("node")
+              .toolConfig(config)
+              .build();
+
+          nodeTools.add(def);
+        }
+      }
+    }
+  }
+
   public void generatePackageJson(List<ToolDefinition> nodeTools, boolean force)
       throws IOException {
     Path packagePath = workspaceRoot.resolve("package.json");
@@ -231,16 +255,13 @@ public class WorkspaceInitializerTool {
       return;
     }
 
-    // Build dependencies map
     StringBuilder depsBuilder = new StringBuilder();
     for (ToolDefinition tool : nodeTools) {
-      // Extract version from tool config
       String version = (String) tool.toolConfig().getOrDefault("version", "latest");
       String name = tool.name();
       depsBuilder.append("    \"").append(name).append("\": \"").append(version).append("\",\n");
     }
 
-    // Remove trailing comma and newline
     String deps =
         depsBuilder.length() > 0 ? depsBuilder.substring(0, depsBuilder.length() - 2) : "";
 
@@ -251,21 +272,16 @@ public class WorkspaceInitializerTool {
           "description": "Machinum Pipeline workspace with Node.js tools",
           "private": true,
           "dependencies": {
-        """ + deps + """
-
+        %s
           }
         }
-        """;
+        """.formatted(deps);
 
     Files.writeString(packagePath, packageContent);
     log.info("Generated: package.json with {} node tool(s)", nodeTools.size());
   }
 
-  /**
-   * Checks if workspace is already initialized.
-   *
-   * @return true if workspace structure exists
-   */
+  @Deprecated(forRemoval = true)
   public boolean isInitialized() {
     return Files.exists(layout.getMtDir())
         && Files.exists(layout.getChaptersDir())

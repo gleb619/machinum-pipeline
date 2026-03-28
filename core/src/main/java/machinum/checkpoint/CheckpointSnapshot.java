@@ -6,10 +6,6 @@ import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
 
-/**
- * Captures resumable execution state including state cursor, item progress summary, and links to
- * item payload state.
- */
 @Builder
 public record CheckpointSnapshot(
     String runId,
@@ -21,7 +17,6 @@ public record CheckpointSnapshot(
     @Singular("progress") List<ItemProgress> itemProgress,
     @Singular("context") Map<String, Object> runContext) {
 
-  /** Represents the status of a run. */
   public enum RunStatus {
     RUNNING,
     COMPLETED,
@@ -29,7 +24,6 @@ public record CheckpointSnapshot(
     INTERRUPTED
   }
 
-  /** Tracks progress for a single item. */
   @Builder
   public record ItemProgress(
       String itemId,

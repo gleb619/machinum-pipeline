@@ -1,4 +1,4 @@
-package machinum.cli;
+package machinum.cli.commands;
 
 import static machinum.config.CoreConfig.coreConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -8,7 +8,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.CheckpointStore;
-import machinum.cli.commands.StatusCommand;
 import machinum.config.SingletonSupport.Scope;
 import machinum.config.SingletonSupport.SingletonScope;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
-/** Integration test for status command. */
 class StatusCommandTest {
 
   @TempDir

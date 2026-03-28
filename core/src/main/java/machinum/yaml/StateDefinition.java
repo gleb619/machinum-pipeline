@@ -6,7 +6,6 @@ import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
 
-/** Represents one pipeline state with optional condition and one or more tool declarations. */
 @Builder
 public record StateDefinition(
     String name,

@@ -12,27 +12,28 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import machinum.Tool;
 import machinum.ToolRegistry;
 import machinum.checkpoint.CheckpointSnapshot;
 import machinum.checkpoint.CheckpointStore;
-import machinum.pipeline.runner.OneStepRunner;
+import machinum.expression.ExpressionResolver;
+import machinum.pipeline.runner.StateRunner;
 import machinum.yaml.PipelineManifest;
 import machinum.yaml.StateDefinition;
-import machinum.yaml.ToolDefinition;
 
-/** Manages pipeline state transitions and execution flow. */
 @Slf4j
 @Data
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+//TODO: Use OneStepRunner Instead
+@Deprecated(forRemoval = true)
 public class PipelineStateMachine {
 
   private PipelineManifest pipeline;
   private ToolRegistry toolRegistry;
   private CheckpointStore checkpointStore;
   private RunLogger runLogger;
-  private OneStepRunner stepRunner;
+  private StateRunner stateRunner;
+  private ExpressionResolver expressionResolver;
 
   // TODO: Create paramObject move it from class state in argument instead
   @Deprecated(forRemoval = true)
@@ -49,7 +50,6 @@ public class PipelineStateMachine {
   @Builder.Default
   private RunState runState = RunState.RUNNING;
 
-  /** Starts or resumes pipeline execution. */
   public void execute() throws Exception {
     runLogger.runInfo("Starting pipeline execution");
 
@@ -85,11 +85,6 @@ public class PipelineStateMachine {
     }
   }
 
-  /**
-   * Resumes pipeline execution from a checkpoint.
-   *
-   * @throws Exception if resume fails
-   */
   public void resume() throws Exception {
     CheckpointSnapshot snapshot = checkpointStore
         .load(runId)
@@ -112,7 +107,6 @@ public class PipelineStateMachine {
     execute();
   }
 
-  /** Processes a single state by evaluating conditions and executing tools. */
   // TODO: Use `core/src/main/java/machinum/pipeline/StateProcessor.java` here
   @Deprecated(forRemoval = true)
   private void processState(StateDefinition state, int stateIndex) throws Exception {
@@ -120,44 +114,9 @@ public class PipelineStateMachine {
     context.set("state", state.name());
     context.set("stateIndex", stateIndex);
 
-    // TODO: replace with groovy expression resolver
-    @Deprecated(forRemoval = true)
-    ExpressionResolver resolver = new ExpressionResolver(context);
-
-    if (state.condition() != null && !resolver.evaluateCondition(state.condition())) {
-      log.debug("Skipping state {} due to condition: {}", state.name(), state.condition());
-      return;
-    }
-
-    for (ToolDefinition toolDef : state.stateTools()) {
-      Tool tool = toolRegistry
-          .resolve(toolDef.name())
-          .orElseThrow(() -> new IllegalStateException(
-              "Tool not found: %s in state: %s".formatted(toolDef.name(), state.name())));
-
-      Instant toolStart = Instant.now();
-      runLogger.toolStart("-", state.name(), toolDef.name());
-
-      try {
-        Tool.ToolResult result = tool.execute(context);
-        Instant toolEnd = Instant.now();
-
-        if (result.success()) {
-          runLogger.toolComplete("-", state.name(), toolDef.name(), toolStart, toolEnd);
-        } else {
-          runLogger.toolError(
-              "-", state.name(), toolDef.name(), new RuntimeException(result.errorMessage()));
-          throw new RuntimeException(
-              "Tool failed: %s - %s".formatted(toolDef.name(), result.errorMessage()));
-        }
-      } catch (Exception e) {
-        runLogger.toolError("-", state.name(), toolDef.name(), e);
-        throw e;
-      }
-    }
+    stateRunner.executeState(state, stateIndex, "-", context);
   }
 
-  /** Saves a checkpoint of the current execution state. */
   private void saveCheckpoint() throws IOException {
     // TODO: Use builder instead
     @Deprecated(forRemoval = true)
@@ -177,7 +136,6 @@ public class PipelineStateMachine {
     runLogger.checkpointSaved("checkpoint for state index " + currentStateIndex);
   }
 
-  /** Pipeline run state enumeration. */
   public enum RunState {
     RUNNING,
     COMPLETED,

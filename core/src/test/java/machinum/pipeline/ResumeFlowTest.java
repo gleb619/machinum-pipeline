@@ -20,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** Integration tests for resume flow behavior. */
 class ResumeFlowTest {
 
   @TempDir
@@ -45,7 +44,7 @@ class ResumeFlowTest {
         "test-pipeline",
         "Test pipeline",
         Map.of(),
-        new PipelineManifest.SourceOrItems("items.csv", null),
+        new PipelineManifest.SourceOrItems(Map.of("file", "items.csv"), null),
         List.of(
             new StateDefinition(
                 "state1",

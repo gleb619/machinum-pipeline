@@ -7,7 +7,6 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
 
-/** Filesystem-backed checkpoint store using local storage under .mt/state/<run-id>/. */
 @RequiredArgsConstructor
 public class FileCheckpointStore implements CheckpointStore {
 

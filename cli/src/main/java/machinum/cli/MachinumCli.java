@@ -10,7 +10,6 @@ import machinum.cli.commands.StatusCommand;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
-/** Main CLI entry point. */
 @Command(
     name = "machinum",
     mixinStandardHelpOptions = true,

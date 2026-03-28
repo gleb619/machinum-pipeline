@@ -1,11 +1,11 @@
-package machinum.cli;
+package machinum.cli.commands;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import machinum.cli.MachinumCli;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 
-/** Smoke test for help command. */
 class HelpCommandTest {
 
   @Test

@@ -663,16 +663,16 @@ class InstallCommand implements Runnable { ...
 
 ## Task Summary
 
-| Phase                    | Tasks  | Estimated Hours |
-|--------------------------|--------|-----------------|
-| 0: Foundation            | 3      | 3h              |
-| 1: External Tools        | 4      | 9.5h            |
-| 2: Expression Resolution | 3      | 8h              |
-| 3: Workspace Init        | 5      | 10h             |
-| 4: Cleanup               | 4      | 7.5h            |
-| 5: Testing               | 6      | 14h             |
-| 6: Documentation         | 3      | 4.5h            |
-| **Total**                | **28** | **56.5h**       |
+| Phase                    | Total  | Completed | Remaining | Estimated Hours |
+|--------------------------|--------|-----------|-----------|-----------------|
+| 0: Foundation            | 3      | 3 ✅       | 0         | 3h              |
+| 1: External Tools        | 4      | 4 ✅       | 0         | 9.5h            |
+| 2: Expression Resolution | 3      | 2 ✅       | 1         | 8h              |
+| 3: Workspace Init        | 5      | 5 ✅       | 0         | 10h             |
+| 4: Cleanup               | 4      | 4 ✅       | 0         | 7.5h            |
+| 5: Testing               | 6      | 1 ✅       | 5         | 14h             |
+| 6: Documentation         | 3      | 1 ✅       | 2         | 4.5h            |
+| **Total**                | **28** | **20**    | **8**     | **56.5h**       |
 
 ---
 
@@ -690,3 +690,26 @@ class InstallCommand implements Runnable { ...
 2. **Week 2**: Phase 2 (Expression Resolution) + Task 5.3
 3. **Week 3**: Phase 3 (Workspace Init) + Phase 4 (Cleanup)
 4. **Week 4**: Phase 5 (E2E Testing) + Phase 6 (Documentation)
+
+---
+
+## Current Status (2026-03-25)
+
+**Completed (20/28 tasks)**:
+
+- ✅ All Phase 0, 1, 3, 4 tasks
+- ✅ Task 2.1: DefaultExpressionResolver implemented
+- ✅ Task 2.2: Script-based expressions with ScriptRegistry
+- ✅ Task 5.3: ExpressionResolver tests (DefaultExpressionResolverTest.java)
+- ✅ Task 6.2: Example scripts in `examples/scripts/`
+
+**Remaining (8/28 tasks)**:
+
+- ⏳ Task 2.3: Pipeline integration for ExpressionResolver
+- ⏳ Task 5.1: ShellTool integration test
+- ⏳ Task 5.2: GroovyScriptTool integration test
+- ⏳ Task 5.4: Workspace init integration test
+- ⏳ Task 5.5: Cleanup integration test
+- ⏳ Task 5.6: End-to-end pipeline test
+- ⏳ Task 6.1: Update Quickstart Guide
+- ⏳ Task 6.3: Update TDD if needed

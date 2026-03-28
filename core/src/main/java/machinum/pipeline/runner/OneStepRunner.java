@@ -1,117 +1,108 @@
 package machinum.pipeline.runner;
 
-import java.time.Instant;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
-import machinum.Tool;
-import machinum.ToolRegistry;
-import machinum.checkpoint.CheckpointSnapshot;
+import machinum.expression.ExpressionContext;
+import machinum.expression.ExpressionResolver;
+import machinum.expression.ScriptRegistry;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
 import machinum.yaml.StateDefinition;
 import machinum.yaml.ToolDefinition;
 
-/** Sequential runner strategy for executing pipeline states one step at a time. */
 @RequiredArgsConstructor
-public class OneStepRunner {
+public class OneStepRunner implements StateRunner {
 
-  private final ToolRegistry toolRegistry;
   private final RunLogger runLogger;
+  private final StateProcessor stateProcessor;
+  private final ExpressionResolver expressionResolver;
+  private final ScriptRegistry scriptRegistry;
+  private final Map<String, String> environmentVariables;
+  private final Map<String, Object> pipelineVariables;
 
-  /**
-   * Executes a single state with all its tools.
-   *
-   * @param state the state to execute
-   * @param stateIndex the state index
-   * @param itemId the item being processed
-   * @param context the execution itemContext
-   * @throws Exception if execution fails
-   */
+  @Override
   public void executeState(
       StateDefinition state,
       @Deprecated(forRemoval = true) int stateIndex,
       String itemId,
       ExecutionContext context)
       throws Exception {
-    // TODO: replace with groovy expression resolver
-    @Deprecated(forRemoval = true)
-    TempExpressionResolver resolver = new TempExpressionResolver(context);
 
-    if (state.condition() != null && !resolver.evaluateCondition(state.condition())) {
-      runLogger.itemInfo(itemId, "Skipping state " + state.name() + " due to condition");
-      return;
-    }
+    ExpressionContext exprContext = createExpressionContext(itemId, context, state, null);
 
-    for (ToolDefinition toolDef : state.stateTools()) {
-      Tool tool = toolRegistry
-          .resolve(toolDef.name())
-          .orElseThrow(() -> new IllegalStateException(
-              "Tool not found: %s in state: %s".formatted(toolDef.name(), state.name())));
-
-      Instant toolStart = Instant.now();
-      runLogger.toolStart(itemId, state.name(), toolDef.name());
-
-      try {
-        Tool.ToolResult result = tool.execute(context);
-        Instant toolEnd = Instant.now();
-
-        if (result.success()) {
-          runLogger.toolComplete(itemId, state.name(), toolDef.name(), toolStart, toolEnd);
-        } else {
-          runLogger.toolError(
-              itemId, state.name(), toolDef.name(), new RuntimeException(result.errorMessage()));
-          throw new RuntimeException(
-              "Tool failed: " + toolDef.name() + " - " + result.errorMessage());
-        }
-      } catch (Exception e) {
-        runLogger.toolError(itemId, state.name(), toolDef.name(), e);
-        throw e;
+    if (state.condition() != null) {
+      Object conditionResult = expressionResolver.resolveTemplate(state.condition(), exprContext);
+      if (!Boolean.parseBoolean(conditionResult.toString())) {
+        runLogger.itemInfo(
+            itemId, "Skipping state " + state.name() + " due to condition: " + state.condition());
+        return;
       }
     }
+
+    stateProcessor.processTools(state.stateTools(), state.name(), itemId, context);
   }
 
-  /**
-   * Determines if a state should be skipped during resume based on checkpoint.
-   *
-   * @param stateIndex the state index to check
-   * @param checkpoint the checkpoint snapshot
-   * @return true if the state should be skipped
-   */
-  // TODO: use method or remove it
-  @Deprecated(forRemoval = true)
-  public boolean shouldSkipState(int stateIndex, CheckpointSnapshot checkpoint) {
-    if (checkpoint == null) {
-      return false;
-    }
-    return stateIndex < checkpoint.currentStateIndex();
+  private ExpressionContext createExpressionContext(
+      @Deprecated(forRemoval = true) String itemId,
+      ExecutionContext context,
+      StateDefinition state,
+      ToolDefinition tool) {
+    Map<String, Object> currentItem =
+        (Map<String, Object>) context.get("currentItem").orElse(Map.of());
+    String textContent = getTextContent(currentItem);
+
+    return ExpressionContext.builder()
+        .item(currentItem)
+        .text(textContent)
+        .index((Integer) context.get("index", 0))
+        .textLength(textContent.length())
+        .textWords(calculateTextWords(textContent))
+        .textTokens(calculateTextTokens(textContent))
+        .aggregationIndex((Integer) context.get("aggregationIndex", 0))
+        .aggregationText((String) context.get("aggregationText", ""))
+        .runId((String) context.get("runId", ""))
+        .state(state)
+        .tool(tool)
+        .retryAttempt((Integer) context.get("retryAttempt", 0))
+        .env(environmentVariables)
+        .variables(pipelineVariables)
+        .scripts(scriptRegistry)
+        .build();
   }
 
-  /** Simple expression resolver for state conditions. */
-  // TODO: add real one
+  //TODO: We need to use a compiledValue here
   @Deprecated(forRemoval = true)
-  private static class TempExpressionResolver {
-    private final ExecutionContext context;
-
-    @Deprecated(forRemoval = true)
-    TempExpressionResolver(ExecutionContext context) {
-      this.context = context;
+  private String getTextContent(Map<String, Object> item) {
+    if (item == null) {
+      return "";
     }
 
-    public boolean evaluateCondition(String condition) {
-      if (condition == null || condition.isBlank()) {
-        return true;
-      }
-
-      if ("true".equalsIgnoreCase(condition)) {
-        return true;
-      }
-      if ("false".equalsIgnoreCase(condition)) {
-        return false;
-      }
-
-      return context
-          .get(condition)
-          .map(val -> "true".equalsIgnoreCase(val.toString()))
-          .orElse(false);
+    Object content = item.get("content");
+    if (content instanceof String) {
+      return (String) content;
     }
+
+    for (String field : new String[] {"text", "body", "data"}) {
+      Object value = item.get(field);
+      if (value instanceof String) {
+        return (String) value;
+      }
+    }
+
+    return "";
+  }
+
+  private int calculateTextWords(String text) {
+    if (text == null || text.trim().isEmpty()) {
+      return 0;
+    }
+    return text.split("\\s+").length;
+  }
+
+  private int calculateTextTokens(String text) {
+    if (text == null || text.isEmpty()) {
+      return 0;
+    }
+    return (int) Math.ceil(text.length() / 4.0);
   }
 }

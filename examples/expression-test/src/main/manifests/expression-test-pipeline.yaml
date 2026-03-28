@@ -1,0 +1,55 @@
+version: 1.0.0
+type: pipeline
+name: "expression-test-pipeline"
+description: "Test pipeline for expression resolver integration"
+variables:
+  book_name: "Test Book"
+  version: 1
+body:
+  config:
+    batch-size: 10
+    window-batch-size: 5
+    cooldown: 5s
+    allow-override-mode: false
+
+  # Test source
+  source:
+    type: file
+    file-location: "src/main/chapters"
+    format: md
+
+  # States with various expression types
+  states:
+    - name: FILTER_CHAPTERS
+      condition: "{{item.type == 'chapter'}}"
+      tools:
+        - tool: mock-processor
+          config:
+            message: "Processing {{item.id}} from {{variables.book_name}}"
+
+    - name: PROCESS_LONG_CONTENT
+      condition: "{{textWords > 5}}"
+      tools:
+        - tool: mock-processor
+          config:
+            message: "Long content ({{textWords}} words) in {{item.id}}"
+
+    - name: ENVIRONMENT_TEST
+      condition: "{{env.REGION == 'us-east-1'}}"
+      tools:
+        - tool: mock-processor
+          config:
+            message: "Running in {{env.REGION}} with API key {{env.API_KEY}}"
+
+    - name: COMPLEX_EXPRESSION
+      condition: "{{item.type == 'chapter' && textWords > 3 && index >= 0}}"
+      tools:
+        - tool: mock-processor
+          config:
+            message: "Complex condition met for {{item.id}} at index {{index}}"
+
+    - name: FINAL_PROCESSING
+      tools:
+        - tool: mock-processor
+          config:
+            message: "Final processing of {{item.id}}"

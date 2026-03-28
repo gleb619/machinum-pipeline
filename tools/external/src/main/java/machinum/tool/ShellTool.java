@@ -1,7 +1,9 @@
 package machinum.tool;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import lombok.Builder;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import machinum.pipeline.ExecutionContext;
 import machinum.yaml.ToolDefinition;
 import tools.jackson.databind.JsonNode;
@@ -24,6 +27,7 @@ import tools.jackson.databind.ObjectMapper;
  * <p>Scripts receive JSON input via stdin and must produce JSON output to stdout. Exit code 0
  * indicates success; non-zero indicates failure.
  */
+@Slf4j
 @Data
 public class ShellTool extends ExternalTool {
 
@@ -42,7 +46,7 @@ public class ShellTool extends ExternalTool {
   private ObjectMapper objectMapper;
 
   @Builder
-  public ShellTool(
+  protected ShellTool(
       ToolDefinition definition,
       Path workDir,
       Duration timeout,
@@ -61,20 +65,11 @@ public class ShellTool extends ExternalTool {
     this.objectMapper = objectMapper;
   }
 
-  /**
-   * Creates a ShellTool from a ToolDefinition.
-   *
-   * @param definition tool definition with config
-   * @param workDir workspace root directory
-   * @return configured ShellTool instance
-   * @throws IllegalArgumentException if script path is missing or invalid
-   */
   // TODO: use or remove
   @Deprecated(forRemoval = true)
   public static ShellTool fromDefinition(ToolDefinition definition, Path workDir) {
     Map<String, Object> config = definition.toolConfig();
 
-    // Resolve script path
     String scriptUrl = (String) config.get("url");
     if (scriptUrl == null || scriptUrl.isBlank()) {
       throw new IllegalArgumentException("Shell tool must have a script url");
@@ -82,21 +77,16 @@ public class ShellTool extends ExternalTool {
 
     Path scriptPath = resolveScriptPath(scriptUrl, workDir);
 
-    // Get optional arguments
     @SuppressWarnings("unchecked")
     List<String> args = (List<String>) config.get("args");
 
-    // Get optional environment
     @SuppressWarnings("unchecked")
     Map<String, String> env = (Map<String, String>) config.get("env");
 
-    // Get optional interpreter
     String interpreter = (String) config.get("interpreter");
 
-    // Get optional timeout
     Duration timeout = parseTimeout(config.get("timeout"));
 
-    // Get optional work-dir override
     String workDirStr = (String) config.get("work-dir");
     Path actualWorkDir = workDirStr != null ? Paths.get(workDirStr) : workDir;
 
@@ -115,29 +105,45 @@ public class ShellTool extends ExternalTool {
   public ToolResult execute(ExecutionContext context) throws Exception {
     validate();
 
-    // Build command list
+    log.info("""
+        Executing script: {}
+        Script exists: {}
+        Script is executable: {}""", scriptPath, Files.exists(scriptPath), Files.isExecutable(scriptPath));
+
     List<String> command = new ArrayList<>();
-    command.add(interpreter);
+    String actualInterpreter = interpreter != null ? interpreter : "bash";
+    command.add(actualInterpreter);
     command.add(scriptPath.toString());
-    command.addAll(args);
+    if (args != null) {
+      command.addAll(args);
+    }
+
+    log.info("Command: {}", command);
 
     ProcessBuilder pb = new ProcessBuilder(command);
 
-    // Set working directory
     if (workDir != null && Files.exists(workDir)) {
       pb.directory(workDir.toFile());
     }
 
-    // Set environment variables
-    pb.environment().putAll(environment);
+    if (environment != null) {
+      pb.environment().putAll(environment);
+    }
 
-    // Redirect stderr to stdout for unified output capture
     pb.redirectErrorStream(true);
 
-    // Start process
     Process process = pb.start();
 
-    // Wait for completion with timeout
+    // Write input JSON to process stdin
+    Map<String, Object> inputData = context.getAll();
+    String inputJson = objectMapper.writeValueAsString(inputData);
+    try (OutputStream stdin = process.getOutputStream()) {
+      stdin.write(inputJson.getBytes(StandardCharsets.UTF_8));
+    } catch (IOException ignore) {
+      // Process may have exited before we finished writing (e.g., exit 1 immediately)
+      // This is expected for fast-failing scripts; continue to read output
+    }
+
     boolean completed = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
 
     if (!completed) {
@@ -145,21 +151,25 @@ public class ShellTool extends ExternalTool {
       return ToolResult.failure("Shell script timed out after " + timeout);
     }
 
-    // Read output
-    String output;
+    StringBuilder outputBuilder = new StringBuilder();
     try (BufferedReader reader = new BufferedReader(
         new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-      output = reader.lines().reduce("", (a, b) -> a + "\n" + b);
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (!outputBuilder.isEmpty()) {
+          outputBuilder.append("\n");
+        }
+        outputBuilder.append(line);
+      }
     }
+    String output = outputBuilder.toString();
 
-    // Check exit code
     int exitCode = process.exitValue();
     if (exitCode != 0) {
       return ToolResult.failure(
           "Shell script exited with code %d. Output: %s".formatted(exitCode, output));
     }
 
-    // Parse JSON output
     try {
       JsonNode resultNode = objectMapper.readTree(output.trim());
       @SuppressWarnings("unchecked")
@@ -171,7 +181,6 @@ public class ShellTool extends ExternalTool {
     }
   }
 
-  /** Validates that the script exists and is executable. */
   @Override
   public void validate() {
     super.validate();
@@ -185,32 +194,16 @@ public class ShellTool extends ExternalTool {
     }
   }
 
-  /**
-   * Resolves a script path from a URL/path string.
-   *
-   * @param scriptUrl the script URL or path
-   * @param workDir the workspace root directory
-   * @return the resolved absolute path
-   */
   private static Path resolveScriptPath(String scriptUrl, Path workDir) {
-    // Handle expression resolution if needed (caller should resolve {{...}} before this)
     Path path = Paths.get(scriptUrl);
 
-    // If absolute, use as-is
     if (path.isAbsolute()) {
       return path;
     }
 
-    // Otherwise resolve relative to workDir
     return workDir.resolve(scriptUrl).normalize();
   }
 
-  /**
-   * Parses a timeout value from config.
-   *
-   * @param timeoutObj timeout as string (e.g., "30s", "1m") or Duration
-   * @return the parsed Duration
-   */
   private static Duration parseTimeout(Object timeoutObj) {
     if (timeoutObj == null) {
       return Duration.ofSeconds(30);
@@ -222,7 +215,6 @@ public class ShellTool extends ExternalTool {
 
     String timeoutStr = timeoutObj.toString();
 
-    // Parse duration string (e.g., "30s", "1m", "5m30s")
     if (timeoutStr.matches("\\d+s")) {
       return Duration.ofSeconds(Long.parseLong(timeoutStr.replace("s", "")));
     } else if (timeoutStr.matches("\\d+m")) {
@@ -231,7 +223,6 @@ public class ShellTool extends ExternalTool {
       return Duration.ofSeconds(Long.parseLong(timeoutStr));
     }
 
-    // Default
     return Duration.ofSeconds(30);
   }
 }

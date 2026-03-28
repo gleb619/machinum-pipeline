@@ -1,23 +1,23 @@
 import com.github.benmanes.gradle.versions.updates.DependencyUpdatesTask
 
 buildscript {
-    repositories {
-        maven { url "https://plugins.gradle.org/m2/" }
-        gradlePluginPortal()
-        mavenCentral()
-        google()
-    }
+  repositories {
+    maven {url "https://plugins.gradle.org/m2/"}
+    gradlePluginPortal()
+    mavenCentral()
+    google()
+  }
 
-    dependencies {
-        classpath("io.freefair.lombok:io.freefair.lombok.gradle.plugin:9.2.0")
-    }
+  dependencies {
+    classpath("io.freefair.lombok:io.freefair.lombok.gradle.plugin:9.2.0")
+  }
 }
 
 plugins {
-    alias(libs.plugins.spotless)         apply false
-    alias(libs.plugins.versions)
-    alias(libs.plugins.dependency.analysis)
-    alias(libs.plugins.test.logger)      apply false
+  alias(libs.plugins.spotless) apply false
+  alias(libs.plugins.versions)
+  alias(libs.plugins.dependency.analysis)
+  alias(libs.plugins.test.logger) apply false
 }
 
 group = 'machinum'
@@ -25,96 +25,121 @@ version = '0.1.0-SNAPSHOT'
 
 // ./gradlew dependencyUpdates
 tasks.withType(DependencyUpdatesTask) {
-    rejectVersionIf {
-        def v = candidate.version
-        ['alpha', 'beta', 'rc', 'cr', 'm', 'preview', 'b', 'ea'].any {
-            v.contains(it, ignoreCase: true)
-        }
+  rejectVersionIf {
+    def v = candidate.version
+    ['alpha', 'beta', 'rc', 'cr', 'm', 'preview', 'b', 'ea'].any {
+      v.contains(it, ignoreCase: true)
     }
+  }
 }
 
 // ./gradlew buildHealth
 dependencyAnalysis {
-    issues { all { onAny { severity("warn") } } }
+  issues {all {onAny {severity("warn")}}}
 }
 
 subprojects {
 
-    group = parent.group
-    version = parent.version
+  group = parent.group
+  version = parent.version
 
-    if(!projectsToExclude().contains(it.name)) {
-        pluginManager.apply('java')
-        pluginManager.apply(libs.plugins.versions.get().pluginId)
-        pluginManager.apply(libs.plugins.dependency.analysis.get().pluginId)
-        pluginManager.apply(libs.plugins.spotless.get().pluginId)
-        pluginManager.apply(libs.plugins.test.logger.get().pluginId)
-        pluginManager.apply(libs.plugins.freefair.lombok.get().pluginId)
+  if (!projectsToExclude().contains(it.name)) {
+    pluginManager.apply('java')
+    pluginManager.apply(libs.plugins.versions.get().pluginId)
+    pluginManager.apply(libs.plugins.dependency.analysis.get().pluginId)
+    pluginManager.apply(libs.plugins.spotless.get().pluginId)
+    pluginManager.apply(libs.plugins.test.logger.get().pluginId)
+    pluginManager.apply(libs.plugins.freefair.lombok.get().pluginId)
 
-        repositories {
-            mavenLocal()
-            mavenCentral()
-        }
-
-        java {
-            toolchain {
-                languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInteger())
-            }
-        }
-
-        tasks.withType(Test).configureEach {
-            useJUnitPlatform()
-        }
-
-        dependencies {
-            // JSON
-            compileOnly libs.jackson.databind
-
-            // Logging
-            compileOnly libs.slf4j.api
-
-            // Misc
-            compileOnly libs.lombok
-            testCompileOnly libs.lombok
-            implementation libs.mapstruct
-            annotationProcessor libs.mapstruct
-
-
-            // Testing
-            testImplementation libs.junit.jupiter
-            testImplementation libs.assertj
-            testImplementation libs.mockito
-            testImplementation libs.mockito.jupiter
-            testRuntimeOnly libs.junit.launcher
-        }
-
-        spotless {
-            java {
-                palantirJavaFormat()
-                    .style("GOOGLE")
-                    .formatJavadoc(true)
-                importOrder()
-                removeUnusedImports()
-                trimTrailingWhitespace()
-                endWithNewline()
-            }
-            groovyGradle {
-                trimTrailingWhitespace()
-                endWithNewline()
-            }
-            format 'misc', {
-                target '*.md', '.gitignore'
-                trimTrailingWhitespace()
-                endWithNewline()
-            }
-        }
+    repositories {
+      mavenLocal()
+      mavenCentral()
     }
 
+    java {
+      toolchain {
+        languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInteger())
+      }
+    }
+
+    tasks.withType(Test).configureEach {
+      useJUnitPlatform()
+      testLogging {
+        events "failed"
+        exceptionFormat "short"
+        showStandardStreams = false
+        showExceptions = true
+      }
+    }
+
+    testlogger {
+      theme 'plain'
+      showExceptions true
+      slowThreshold 2000
+      showSummary true
+      showSimpleNames false
+      showPassed false
+      showSkipped false
+      showFailed true
+      showOnlySlow false
+      showStandardStreams false
+      showPassedStandardStreams false
+      showSkippedStandardStreams false
+      showFailedStandardStreams true
+      logLevel 'lifecycle'
+    }
+
+    dependencies {
+      // JSON
+      compileOnly libs.jackson.databind
+
+      // Logging
+      compileOnly libs.slf4j.api
+
+      // Misc
+      compileOnly libs.lombok
+      implementation libs.mapstruct
+      annotationProcessor libs.mapstruct
+
+      // Tests deps from main runtime
+      testImplementation libs.jackson.databind
+      testImplementation libs.slf4j.api
+      testImplementation libs.lombok
+
+      // Tests
+      testImplementation libs.junit.jupiter
+      testImplementation libs.assertj
+      testImplementation libs.mockito
+      testImplementation libs.mockito.jupiter
+      testRuntimeOnly libs.junit.launcher
+    }
+
+    spotless {
+      java {
+        palantirJavaFormat()
+            .style("GOOGLE")
+            .formatJavadoc(true)
+        importOrder()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+      }
+      groovyGradle {
+        trimTrailingWhitespace()
+        endWithNewline()
+      }
+      format 'misc', {
+        target '*.md', '.gitignore'
+        trimTrailingWhitespace()
+        endWithNewline()
+      }
+    }
+  }
 }
 
 def projectsToExclude() {
-    [
-        'frontend',
-        'tools'
-    ]
+  [
+      'frontend',
+      'tools'
+  ]
 }

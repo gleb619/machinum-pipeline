@@ -5,7 +5,6 @@ import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
 
-/** Represents the root manifest (root.yaml) containing workspace-level configuration. */
 @Builder
 public record RootManifest(
     String name,

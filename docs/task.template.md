@@ -35,14 +35,15 @@
 ## Resources
 
 **Key Documentation**:
-- **Technical Design**: `docs/tdd.md` (lines 1-1007) - Complete architecture and design
-- **YAML Schema**: `docs/tdd.md` (lines 77-445) - Configuration file formats
-- **Core Interfaces**: `docs/tdd.md` (lines 521-632) - Tool and pipeline contracts
-- **Directory Structure**: `docs/tdd.md` (lines 37-68) - Workspace layout
-- **CLI Commands**: `docs/tdd.md` (lines 652-676) - Command-line interface
-- **Project Structure**: `docs/tdd.md` (lines 891-933) - Module organization
+
+- **Technical Design**: [technical-design.md](technical-design.md) - Complete architecture and design
+- **YAML Schema**: [yaml-schema.md](yaml-schema.md) - Configuration file formats
+- **Core Architecture**: [core-architecture.md](core-architecture.md) - Runtime, state management, checkpointing
+- **CLI Commands**: [cli-commands.md](cli-commands.md) - Command-line interface
+- **Project Structure**: [project-structure.md](project-structure.md) - Module organization and workspace layout
 
 **Task Specific**:
+
 - **{name}**: `{file path}` (lines {line from}-{line to}) - {Description}
 
 ---
@@ -76,30 +77,35 @@
 This project follows a **YAML-First Test-Driven Development** methodology:
 
 ### 1. Start with YAML Configuration
+
 - Define the pipeline structure in YAML first
 - Specify tools, states, and execution flow
 - Include error handling and retry strategies
 - Validate YAML schema compliance
 
 ### 2. Create Integration Tests
+
 - Write tests that load and parse your YAML
 - Test pipeline execution with sample data
 - Verify state transitions and tool outputs
 - Test error scenarios and recovery
 
 ### 3. Implement Supporting Code
+
 - Create tools referenced in YAML
 - Implement validation logic
 - Add error handling as needed
 - Refactor based on test results
 
 ### 4. Iterate and Refine
+
 - Adjust YAML based on test failures
 - Enhance error messages and validation
 - Add missing functionality
 - Improve performance and reliability
 
 **Example TDD Process**:
+
 ```bash
 # 1. Create YAML manifest
 cat > examples/{example-name}/src/main/manifests/{feature}.yaml << EOF

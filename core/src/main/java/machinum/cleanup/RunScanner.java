@@ -13,19 +13,12 @@ import lombok.extern.slf4j.Slf4j;
 import machinum.cleanup.CleanupPolicy.RunMetadata;
 import machinum.cleanup.CleanupPolicy.RunStatus;
 
-/** Scans and enumerates runs by age and status for cleanup operations. */
 @Slf4j
 @RequiredArgsConstructor
 public class RunScanner {
 
-  /** State directory containing all runs. */
   private final Path stateDir;
 
-  /**
-   * Gets all runs in the state directory.
-   *
-   * @return list of run metadata
-   */
   public List<RunMetadata> getAllRuns() {
     List<RunMetadata> runs = new ArrayList<>();
 
@@ -49,12 +42,6 @@ public class RunScanner {
     return runs;
   }
 
-  /**
-   * Gets runs older than the specified duration.
-   *
-   * @param age the minimum age
-   * @return list of old runs
-   */
   public List<RunMetadata> getRunsOlderThan(Duration age) {
     List<RunMetadata> oldRuns = new ArrayList<>();
 
@@ -69,13 +56,7 @@ public class RunScanner {
     return oldRuns;
   }
 
-  /**
-   * Gets runs by status.
-   *
-   * @param status the run status to filter by
-   * @return list of runs with matching status
-   */
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public List<RunMetadata> getRunsByStatus(RunStatus status) {
     List<RunMetadata> filtered = new ArrayList<>();
@@ -90,12 +71,6 @@ public class RunScanner {
     return filtered;
   }
 
-  /**
-   * Gets a specific run by ID.
-   *
-   * @param runId the run ID
-   * @return the run metadata, or null if not found
-   */
   public RunMetadata getRunById(String runId) {
     Path runDir = stateDir.resolve(runId);
     if (!Files.exists(runDir)) {
@@ -104,12 +79,6 @@ public class RunScanner {
     return loadRunMetadata(runDir);
   }
 
-  /**
-   * Loads metadata from a run directory.
-   *
-   * @param runDir the run directory
-   * @return the run metadata, or null if cannot load
-   */
   private RunMetadata loadRunMetadata(Path runDir) {
     try {
       String runId = runDir.getFileName().toString();
@@ -121,7 +90,6 @@ public class RunScanner {
       if (Files.exists(checkpointFile)) {
         String content = Files.readString(checkpointFile);
 
-        // Simple JSON parsing
         if (content.contains("\"status\": \"success\"")) {
           status = RunStatus.SUCCESS;
         } else if (content.contains("\"status\": \"failed\"")) {
@@ -130,10 +98,8 @@ public class RunScanner {
           status = RunStatus.STOPPED;
         }
 
-        // Extract created-at timestamp
         int startedIdx = content.indexOf("\"started-at\"");
         if (startedIdx != -1) {
-          // Look for timestamp after the key
           int colonIdx = content.indexOf(':', startedIdx);
           if (colonIdx != -1) {
             int quoteStart = content.indexOf('"', colonIdx + 1);
@@ -158,7 +124,6 @@ public class RunScanner {
           .createdAt(createdAt)
           .directory(runDir)
           .build();
-
     } catch (IOException e) {
       log.error("Failed to load metadata for run: {}", runDir, e);
       return null;

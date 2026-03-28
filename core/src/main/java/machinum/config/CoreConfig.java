@@ -1,9 +1,9 @@
 package machinum.config;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.script.ScriptEngineManager;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +16,9 @@ import machinum.pipeline.EnvironmentLoader;
 import machinum.pipeline.PipelineStateMachine;
 import machinum.pipeline.RunLogger;
 import machinum.pipeline.RuntimeConfigLoader;
-import machinum.pipeline.StateProcessor;
 import machinum.pipeline.runner.OneStepRunner;
+import machinum.pipeline.runner.StateProcessor;
+import machinum.pipeline.runner.StateRunner;
 import machinum.tool.InMemoryToolRegistry;
 import machinum.yaml.PipelineManifest;
 import machinum.yaml.YamlManifestLoader;
@@ -52,15 +53,31 @@ public class CoreConfig implements SingletonSupport {
   }
 
   public InMemoryToolRegistry inMemoryToolRegistry() {
-    return singleton(() -> new InMemoryToolRegistry(new ConcurrentHashMap<>()));
+    return singleton(InMemoryToolRegistry::new);
   }
 
   public RunLogger runLogger(String runId) {
     return singleton(runId, () -> RunLogger.of(runId));
   }
 
-  public OneStepRunner oneStepRunner(RunLogger runLogger) {
-    return singleton(() -> new OneStepRunner(inMemoryToolRegistry(), runLogger));
+  public StateProcessor stateProcessor(RunLogger runLogger) {
+    return singleton(() -> new StateProcessor(
+        inMemoryToolRegistry(),
+        runLogger,
+        expressionResolver(),
+        scriptRegistry(Path.of("./scripts")),
+        System.getenv(),
+        Map.of()));
+  }
+
+  public StateRunner stateRunner(RunLogger runLogger) {
+    return singleton(() -> new OneStepRunner(
+        runLogger,
+        stateProcessor(runLogger),
+        expressionResolver(),
+        scriptRegistry(Path.of("./scripts")),
+        System.getenv(),
+        Map.of()));
   }
 
   // TODO: Use bean or remove it
@@ -103,7 +120,8 @@ public class CoreConfig implements SingletonSupport {
         .toolRegistry(inMemoryToolRegistry())
         .checkpointStore(checkpointStore(checkpointDir))
         .runLogger(runLogger)
-        .stepRunner(oneStepRunner(runLogger))
+        .stateRunner(stateRunner(runLogger))
+        .expressionResolver(expressionResolver())
         .build());
   }
 
@@ -111,8 +129,7 @@ public class CoreConfig implements SingletonSupport {
   @Deprecated(forRemoval = true)
   public StateProcessor stateProcessor(String runId) {
     RunLogger runLogger = runLogger(runId);
-    return singleton(
-        () -> new StateProcessor(inMemoryToolRegistry(), runLogger, oneStepRunner(runLogger)));
+    return singleton(() -> stateProcessor(runLogger));
   }
 
   public ExpressionResolver expressionResolver() {

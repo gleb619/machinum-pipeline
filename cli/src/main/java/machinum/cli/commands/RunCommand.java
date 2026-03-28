@@ -12,7 +12,6 @@ import machinum.yaml.PipelineManifest;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-/** Command to run a pipeline. */
 @Command(name = "run", description = "Run a pipeline")
 public class RunCommand implements Callable<Integer> {
 
@@ -53,8 +52,10 @@ public class RunCommand implements Callable<Integer> {
 
     PipelineManifest pipelineManifest = configLoader.loadPipeline(workspaceDir, pipeline);
 
-    System.out.println("Loaded pipeline: " + pipelineManifest.name());
-    System.out.println("States: " + pipelineManifest.pipelineStates().size());
+    System.out.printf(
+        """
+            Loaded pipeline: %s
+            States: %d""", pipelineManifest.name(), pipelineManifest.pipelineStates().size());
 
     if (dryRun) {
       System.out.println("Dry run - validation successful, not executing");
