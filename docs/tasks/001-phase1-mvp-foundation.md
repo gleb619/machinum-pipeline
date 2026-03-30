@@ -104,7 +104,6 @@
 
 - [x] T031 [P] Update operator documentation in `README.md` and `docs/tdd.md` for Phase 1 command usage
 - [x] T032 Harden error classification and retry strategy wiring in `core/src/main/java/machinum/pipeline/ErrorHandler.java`
-- [x] T033 [P] Validate quickstart scenarios and record outcomes in `specs/001-phase1-mvp-foundation/quickstart.md`
 
 ---
 

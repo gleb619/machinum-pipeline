@@ -15,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
 import org.codehaus.groovy.control.CompilerConfiguration;
 
@@ -33,7 +32,7 @@ public class GroovyScriptTool extends ExternalTool {
 
   @Builder
   public GroovyScriptTool(
-      ToolManifestDepricated definition,
+      ToolInfo info,
       Path workDir,
       Duration timeout,
       RetryPolicy retryPolicy,
@@ -41,7 +40,7 @@ public class GroovyScriptTool extends ExternalTool {
       Path scriptPath,
       Class<?> returnType,
       boolean sandboxed) {
-    super(definition, "groovy", workDir, timeout, retryPolicy, executionTarget);
+    super(info, "groovy", workDir, timeout, retryPolicy, executionTarget);
     this.scriptPath = scriptPath;
     this.returnType = returnType;
     this.sandboxed = sandboxed;
@@ -49,9 +48,8 @@ public class GroovyScriptTool extends ExternalTool {
 
   // TODO: use or remove
   @Deprecated(forRemoval = true)
-  public static GroovyScriptTool fromDefinition(ToolManifestDepricated definition, Path workDir) {
-    Map<String, Object> config = definition.toolConfig();
-
+  public static GroovyScriptTool fromDefinition(
+      ToolInfo info, Path workDir, Map<String, Object> config) {
     String scriptUrl = (String) config.get("url");
     if (scriptUrl == null || scriptUrl.isBlank()) {
       throw new IllegalArgumentException("Groovy tool must have a script url");
@@ -70,7 +68,7 @@ public class GroovyScriptTool extends ExternalTool {
     Duration timeout = parseTimeout(config.get("timeout"));
 
     return GroovyScriptTool.builder()
-        .definition(definition)
+        .info(info)
         .scriptPath(scriptPath)
         .returnType(returnType)
         .sandboxed(sandboxed)

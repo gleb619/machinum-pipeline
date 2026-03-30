@@ -1,26 +1,23 @@
 package machinum.compiler;
 
-import java.util.HashMap;
+import java.nio.file.Path;
 import java.util.Map;
 import lombok.Builder;
-import lombok.Value;
+import lombok.Singular;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 
-@Value
 @Builder
-// TODO: redo class to record
-public class CompilationContext {
+public record CompilationContext(
+    ExpressionResolver resolver,
 
-  ExpressionResolver resolver;
+    ScriptRegistry scriptRegistry,
 
-  ScriptRegistry scriptRegistry;
+    @Singular Map<String, Object> variables,
 
-  Map<String, Object> variables = new HashMap<>();
+    @Singular("env") Map<String, String> environment,
 
-  Map<String, String> environment = new HashMap<>();
+    Path workspaceDir,
 
-  // TODO: Remove extra, it's a runtime info, that can't acquired at compile time
-  @Deprecated(forRemoval = true)
-  String runId;
-}
+    // TODO: Remove extra, it's a runtime info, that can't acquired at compile time
+    @Deprecated(forRemoval = true) String runId) {}

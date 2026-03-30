@@ -211,7 +211,6 @@ tools:
 
 - `docs/tdd.md` - Current TDD to update
 - `docs/plan.md` - Development plan for context
-- `specs/002-external-tools-support/spec.md` - Original specification
 
 ---
 

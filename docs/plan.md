@@ -15,9 +15,8 @@ organized by phase with status tracking and links to detailed specifications.
 1. **Read `docs/tdd.md` first** - Understand the technical design and architecture
 2. **Check task status** - Find available tasks (status: `pending`)
 3. **Block your task** - Update status to `in_progress` to prevent conflicts
-4. **Read detailed spec** - Navigate to `specs/{phase}/tasks.md` for full task description
-5. **Work in sessions** - Large tasks may require multiple sessions
-6. **Document results** - Create `docs/results/{task-name}.result.md` after completion
+4. **Work in sessions** - Large tasks may require multiple sessions
+5. **Document results** - Create `docs/results/{task-name}.result.md` after completion
 
 ---
 

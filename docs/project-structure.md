@@ -4,11 +4,13 @@
 
 ## 1. Workspace Directory Structure
 
+> **Related:** [CLI Commands §install](cli-commands.md#install), [YAML Schema §3](yaml-schema.md#3-tools-yaml-mttoolsyaml)
+
 ```
 work-directory/
 ├── seed.yaml                        # Root user configuration (also: root.yml|yaml)
 ├── .mt/                             # Internal directory
-│   ├── tools.yaml                   # Tool definitions
+│   ├── tools.yaml                   # Tool definitions (flat list, no states)
 │   ├── scripts/                     # External Groovy scripts
 │   │   ├── conditions/
 │   │   ├── transformers/
@@ -34,13 +36,24 @@ work-directory/
 ├── package.json                     # Generated when node tools enabled in tools.yaml
 └── build/                           # Processed results and final artifacts
 ```
+  
+> The `chapters/` directory serves dual purpose: as direct input when using `items` mode, or as a target for `source` preprocessors that acquire and convert external data. See [YAML Schema §4.x](yaml-schema.md#4x-source-vs-items--data-acquisition-layer).
 
 **Generation rules:**
 
-- `machinum install` — shortcut for `download` → `bootstrap`
-- `machinum install download` — resolves/fetches tool sources; MUST NOT mutate workspace layout
-- `machinum install bootstrap` — creates default workspace (`.mt`, `src/main`, `build`) via internal tools; generates
+- `machinum setup` — shortcut for download + bootstrap; runs `install()` on all internal tools
+- `machinum setup download` — resolves/fetches tool sources; MUST NOT mutate workspace layout
+- `machinum setup bootstrap` — creates default workspace (`.mt`, `src/main`, `build`) via internal tools; generates
   `package.json` if node tools are enabled
+
+**Tools Lifecycle:**
+Each internal tool's `install(ExecutionContext)` method runs unconditionally during the install phase. Use this for:
+- Downloading external dependencies
+- Initializing tool state or caches
+- Validating configuration
+- Setting up required resources
+
+See [YAML Schema §3.1](yaml-schema.md#31-tool-lifecycle) for lifecycle details.
 
 ---
 

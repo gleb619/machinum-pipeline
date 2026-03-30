@@ -16,7 +16,6 @@ import java.util.concurrent.TimeUnit;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import machinum.manifest.ToolManifestDepricated;
 import machinum.pipeline.ExecutionContext;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -37,7 +36,7 @@ public class ShellTool extends ExternalTool {
 
   @Builder
   protected ShellTool(
-      ToolManifestDepricated definition,
+      ToolInfo info,
       Path workDir,
       Duration timeout,
       RetryPolicy retryPolicy,
@@ -47,7 +46,7 @@ public class ShellTool extends ExternalTool {
       Map<String, String> environment,
       String interpreter,
       ObjectMapper objectMapper) {
-    super(definition, "shell", workDir, timeout, retryPolicy, executionTarget);
+    super(info, "shell", workDir, timeout, retryPolicy, executionTarget);
     this.scriptPath = scriptPath;
     this.args = args;
     this.environment = environment;
@@ -57,9 +56,7 @@ public class ShellTool extends ExternalTool {
 
   // TODO: use or remove
   @Deprecated(forRemoval = true)
-  public static ShellTool fromDefinition(ToolManifestDepricated definition, Path workDir) {
-    Map<String, Object> config = definition.toolConfig();
-
+  public static ShellTool fromDefinition(ToolInfo info, Path workDir, Map<String, Object> config) {
     String scriptUrl = (String) config.get("url");
     if (scriptUrl == null || scriptUrl.isBlank()) {
       throw new IllegalArgumentException("Shell tool must have a script url");
@@ -81,7 +78,7 @@ public class ShellTool extends ExternalTool {
     Path actualWorkDir = workDirStr != null ? Paths.get(workDirStr) : workDir;
 
     return ShellTool.builder()
-        .definition(definition)
+        .info(info)
         .scriptPath(scriptPath)
         .args(args)
         .environment(env)

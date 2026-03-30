@@ -30,7 +30,6 @@ public class RunLogger {
     log.info(createMarker("item"), "[run={}] [item={}] {}", runId, itemId, message);
   }
 
-  @Deprecated(forRemoval = true)
   public void itemError(String itemId, String message, Throwable t) {
     log.error(createMarker("item"), "[run={}] [item={}] {}", runId, itemId, message, t);
   }

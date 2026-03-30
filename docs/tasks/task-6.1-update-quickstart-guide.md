@@ -18,8 +18,7 @@ features of Machinum Pipeline.
 
 ## Acceptance Criteria
 
-- [ ] `specs/002-external-tools-support/quickstart.md` created
-- [ ] Example: `machinum install` usage with output
+- [ ] Example: `machinum setup` usage with output
 - [ ] Example: Shell tool in pipeline with complete YAML manifest
 - [ ] Example: Groovy condition script with explanation
 - [ ] Example: Groovy transformer script with explanation
@@ -54,7 +53,7 @@ features of Machinum Pipeline.
 mkdir my-pipeline && cd my-pipeline
 
 # Initialize workspace with default structure
-machinum install
+machinum setup
 
 # What this creates:
 # .mt/                    # Machinum configuration directory
@@ -74,16 +73,16 @@ machinum install
 
 ```bash
 # Download only (don't create structure)
-machinum install download
+machinum setup download
 
 # Bootstrap only (create structure, no download)
-machinum install bootstrap
+machinum setup bootstrap
 
 # Force overwrite existing files
-machinum install --force
+machinum setup bootstrap --force
 
 # Specify workspace directory
-machinum install --workspace /path/to/workspace
+machinum setup --workspace /path/to/workspace
 ```
 
 ## 2. Create Your First Pipeline with External Tools
@@ -431,7 +430,6 @@ cat .mt/logs/run-001.log
 **Files to Read**:
 - `README.md` - Existing quickstart
 - `docs/tdd.md` - Technical design
-- `specs/002-external-tools-support/spec.md` - Feature specification
 
 ---
 

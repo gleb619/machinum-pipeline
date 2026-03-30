@@ -19,10 +19,10 @@ public interface CommonCompiler {
   @Named("createExpressionContext")
   default ExpressionContext createExpressionContext(@Context CompilationContext ctx) {
     return ExpressionContext.builder()
-        .variables(ctx.getVariables())
-        .env(ctx.getEnvironment())
-        .runId(ctx.getRunId())
-        .scripts(ctx.getScriptRegistry())
+        .variables(ctx.variables())
+        .env(ctx.environment())
+        .runId(ctx.runId())
+        .scripts(ctx.scriptRegistry())
         .build();
   }
 
@@ -37,7 +37,7 @@ public interface CommonCompiler {
       return compileConstant(null);
     }
     ExpressionContext context = createExpressionContext(ctx);
-    ExpressionResolver resolver = ctx.getResolver();
+    ExpressionResolver resolver = ctx.resolver();
     return Compiled.of(raw, context, resolver);
   }
 
@@ -50,7 +50,7 @@ public interface CommonCompiler {
   @Named("compileMap")
   default CompiledMap compileMap(Map<String, String> source, @Context CompilationContext ctx) {
     ExpressionContext context = createExpressionContext(ctx);
-    ExpressionResolver resolver = ctx.getResolver();
+    ExpressionResolver resolver = ctx.resolver();
     var map = compileSimpleMap(source);
     return CompiledMap.of(map, context, resolver);
   }

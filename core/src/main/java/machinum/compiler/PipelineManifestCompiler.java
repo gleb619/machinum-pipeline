@@ -2,13 +2,13 @@ package machinum.compiler;
 
 import java.util.Collections;
 import java.util.List;
-import machinum.definition.ErrorHandlingDefinition;
-import machinum.definition.ItemsDefinition;
 import machinum.definition.PipelineConfigDefinition;
 import machinum.definition.PipelineDefinition;
+import machinum.definition.PipelineDefinition.ErrorHandlingDefinition;
+import machinum.definition.PipelineDefinition.ItemsDefinition;
 import machinum.definition.PipelineDefinition.PipelineBodyDefinition;
+import machinum.definition.PipelineDefinition.SourceDefinition;
 import machinum.definition.PipelineStateDefinition;
-import machinum.definition.SourceDefinition;
 import machinum.manifest.PipelineManifest;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;

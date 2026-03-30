@@ -6,13 +6,13 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-// TODO: Use class or remove it
+// TODO: Use `machinum.definition.PipelineDefinition.ErrorHandlingDefinition` and
+// `machinum.definition.PipelineDefinition.ErrorStrategyDefinition`
 @Deprecated(forRemoval = true)
 public class ErrorHandler {
 
   private final ErrorHandlingConfig config;
 
-  @Deprecated(forRemoval = true)
   public ErrorHandler() {
     this(ErrorHandlingConfig.defaultConfig());
   }
@@ -37,6 +37,7 @@ public class ErrorHandler {
     return config.defaultStrategy;
   }
 
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public boolean shouldRetry(Exception exception, int currentAttempt) {
     ErrorStrategy strategy = resolveStrategy(exception);
@@ -52,8 +53,6 @@ public class ErrorHandler {
     return currentAttempt < maxAttempts;
   }
 
-  // TODO: Unused
-  @Deprecated(forRemoval = true)
   public long calculateBackoffDelay(int attempt) {
     if (config.retryConfig == null) {
       return RetryConfig.DEFAULT_INITIAL_DELAY_MS;
@@ -99,8 +98,9 @@ public class ErrorHandler {
     return false;
   }
 
-  @RequiredArgsConstructor
+  // TODO: Use definition instead
   @Deprecated(forRemoval = true)
+  @RequiredArgsConstructor
   public static class ErrorHandlingConfig {
 
     public final ErrorStrategy defaultStrategy;
@@ -116,8 +116,9 @@ public class ErrorHandler {
     }
   }
 
-  @RequiredArgsConstructor
+  // TODO: Use definition instead
   @Deprecated(forRemoval = true)
+  @RequiredArgsConstructor
   public static class RetryConfig {
 
     public static final int DEFAULT_MAX_ATTEMPTS = 3;
@@ -139,6 +140,8 @@ public class ErrorHandler {
     }
   }
 
+  // TODO: Use definition instead
+  @Deprecated(forRemoval = true)
   @RequiredArgsConstructor
   public static class ErrorStrategyConfig {
 
@@ -146,6 +149,8 @@ public class ErrorHandler {
     public final ErrorStrategy strategy;
   }
 
+  // TODO: Use definition instead
+  @Deprecated(forRemoval = true)
   public enum ErrorStrategy {
     RETRY,
     SKIP,
@@ -153,6 +158,8 @@ public class ErrorHandler {
     FALLBACK
   }
 
+  // TODO: Use definition instead
+  @Deprecated(forRemoval = true)
   public enum BackoffType {
     FIXED,
     LINEAR,

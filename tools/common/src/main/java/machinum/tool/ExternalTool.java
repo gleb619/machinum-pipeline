@@ -9,7 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import machinum.Tool;
-import machinum.manifest.ToolManifestDepricated;
 
 @Data
 @SuperBuilder
@@ -17,7 +16,7 @@ import machinum.manifest.ToolManifestDepricated;
 @AllArgsConstructor
 public abstract class ExternalTool implements Tool {
 
-  protected ToolManifestDepricated definition;
+  protected ToolInfo info;
 
   protected String runtime;
 
@@ -33,8 +32,8 @@ public abstract class ExternalTool implements Tool {
   protected ExecutionTarget executionTarget = ExecutionTarget.LOCAL;
 
   @Override
-  public ToolManifestDepricated definition() {
-    return definition;
+  public ToolInfo info() {
+    return info;
   }
 
   @Override
@@ -66,10 +65,14 @@ public abstract class ExternalTool implements Tool {
       return new RetryPolicy(0, Duration.ofSeconds(1), 1.0, 0.0);
     }
 
+    //TODO: Unused
+    @Deprecated(forRemoval = true)
     public static RetryPolicy fixed(int maxAttempts, Duration delay) {
       return new RetryPolicy(maxAttempts, delay, 1.0, 0.0);
     }
 
+    //TODO: Unused
+    @Deprecated(forRemoval = true)
     public static RetryPolicy exponential(
         int maxAttempts, Duration initialDelay, double multiplier) {
       return new RetryPolicy(maxAttempts, initialDelay, multiplier, 0.1);

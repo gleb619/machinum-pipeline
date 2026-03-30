@@ -4,7 +4,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import machinum.definition.PipelineStateDefinition;
-import machinum.definition.ToolDefinition;
+import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
 import machinum.manifest.PipelineStateManifest;
 import machinum.manifest.ToolManifest;
 import org.mapstruct.Context;
@@ -26,7 +26,7 @@ public interface StateCompiler
   PipelineStateDefinition compile(PipelineStateManifest source, @Context CompilationContext ctx);
 
   @Named("compileStateTools")
-  default List<ToolDefinition> compileStateTools(
+  default List<PipelineToolDefinition> compileStateTools(
       List<ToolManifest> tools, @Context CompilationContext ctx) {
     return Objects.requireNonNullElse(tools, Collections.<ToolManifest>emptyList()).stream()
         .map(tool -> ToolCompiler.INSTANCE.compile(tool, ctx))

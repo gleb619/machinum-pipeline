@@ -10,4 +10,14 @@ public record PipelineStateDefinition(
     Compiled<String> name,
     Compiled<String> description,
     Compiled<String> condition,
-    @Singular List<ToolDefinition> stateTools) {}
+    @Singular List<PipelineToolDefinition> stateTools) {
+
+  @Builder
+  public record PipelineToolDefinition(
+      Compiled<String> name,
+      Compiled<String> description,
+      Compiled<Boolean> async,
+      Compiled<String> input,
+      Compiled<String> output,
+      @Singular List<PipelineToolDefinition> tools) {}
+}

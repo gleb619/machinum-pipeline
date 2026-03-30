@@ -376,7 +376,7 @@ evaluateScript(scriptPath, context);
 
 **Priority**: P0 | **Estimated**: 2h | **Type**: CLI
 
-**Description**: Implement Picocli command for `machinum install`.
+**Description**: Implement Picocli command for `machinum setup`.
 
 **Acceptance Criteria**:
 
@@ -594,7 +594,7 @@ class InstallCommand implements Runnable { ...
 
 **Acceptance Criteria**:
 
-- [x] Initialize workspace via `machinum install`
+- [x] Initialize workspace via `machinum setup`
 - [x] Create pipeline with shell and Groovy tools
 - [x] Execute pipeline end-to-end
 - [x] Verify checkpoint created
@@ -615,7 +615,7 @@ class InstallCommand implements Runnable { ...
 
 **Acceptance Criteria**:
 
-- [x] Example: `machinum install` usage
+- [x] Example: `machinum setup` usage
 - [x] Example: Shell tool in pipeline
 - [x] Example: Groovy condition script
 - [x] Example: `machinum cleanup` usage

@@ -78,6 +78,8 @@ body:
 
 ## 3. Tools YAML (`.mt/tools.yaml`)
 
+> **Related:** [CLI Commands §install](cli-commands.md#install), [Technical Design §3.2](technical-design.md#32-core-interfaces), [Project Structure §1](project-structure.md#1-workspace-directory-structure)
+
 ```yaml
 version: 1.0.0
 type: tools
@@ -86,11 +88,13 @@ description: "AI and utility tools"
 metadata:
   created: 2020.01.01
 body:
+  # Tool registry configuration (optional)
   tool-registry:
     type: file                 # file|http|git
     url: https://raw.githubusercontent.com/gleb619/machinum-pipeline/refs/heads/main/tools.yaml
     refresh: on_startup        # on_startup|never
-  
+
+  # Execution targets (optional)
   execution-targets:
     default: local               # local|remote|docker
     targets:
@@ -103,114 +107,156 @@ body:
         type: docker
         docker-host: unix:///var/run/docker.sock
 
-  # States define the installation pipeline: DOWNLOAD → BOOTSTRAP
-  states:
-    # DOWNLOAD: Resolve/fetch tool sources; MUST NOT mutate workspace layout
-    - name: DOWNLOAD
-      tools:
-        - name: qwen-summary
-          type: internal             # internal|external; default: internal
-          version: 2.1.0             # default: latest
-          execution-target: local
-          source:
-            type: spi                # spi|git|http|file; default: spi
-            url: "https://github.com/org/qwen-summary.git"
-            git-tag: v2.1.0
-          cache:
-            enabled: true
-            key: "{{tool.name}}:{{tool.version}}:{{sha256(input)}}"
-            ttl: 24h
-          timeout: 30s               # default
-          config:
-            model: qwen2.5-72b
-            temperature: 0.7
-            input-schema:            # JSON Schema; validation for external tools only
-              type: object
-              properties:
-                content: { type: string }
-            output-schema:
-              type: object
-              properties:
-                summary: { type: string }
+  # Tool definitions (flat list, no states)
+  tools:
+    # Internal tool (Java SPI-based)
+    - name: qwen-summary
+      type: internal             # internal|external; default: internal
+      version: 2.1.0             # default: latest
+      execution-target: local
+      source:
+        type: spi                # spi|git|http|file; default: spi
+        url: "https://github.com/org/qwen-summary.git"
+        git-tag: v2.1.0
+      cache:
+        enabled: true
+        key: "{{tool.name}}:{{tool.version}}:{{sha256(input)}}"
+        ttl: 24h
+      timeout: 30s               # default
+      config:
+        model: qwen2.5-72b
+        temperature: 0.7
+        input-schema:            # JSON Schema; validation for external tools only
+          type: object
+          properties:
+            content: { type: string }
+        output-schema:
+          type: object
+          properties:
+            summary: { type: string }
 
-        - name: embedding-generator
-          type: external
-          runtime: docker            # Experimental/post-MVP
-          source:
-            type: docker
-            image: "https://registry.example.com/embedding:latest"
-          config:
-            model: bge-large
-            dimension: 1024
+    # External tool with Docker runtime
+    - name: embedding-generator
+      type: external
+      runtime: docker            # Experimental/post-MVP
+      source:
+        type: docker
+        image: "https://registry.example.com/embedding:latest"
+      config:
+        model: bge-large
+        dimension: 1024
 
-        - name: glossary-consolidator
-          source:
-            type: spi
-            spi-class: machinum.tools.GlossaryConsolidator
-          config:
-            threshold: 0.8
+    # Internal tool with SPI class reference
+    - name: glossary-consolidator
+      source:
+        type: spi
+        spi-class: machinum.tools.GlossaryConsolidator
+      config:
+        threshold: 0.8
 
-        # Minimal declaration — name resolves via SPI
-        - name: translator
+    # Minimal declaration — name resolves via SPI
+    - name: translator
 
-        - name: md-formatter
-          type: external
-          runtime: shell
-          source:
-            type: file
-            url: "{{ '/app/some-path/script.sh' args[0] }}"
-          config:
-            args:
-              - "{{item.id}}"
-            cache:
-              enabled: false
-            work-dir: "{{rootDir}}"
+    # External shell tool
+    - name: md-formatter
+      type: external
+      runtime: shell
+      source:
+        type: file
+        url: "{{ '/app/some-path/script.sh' args[0] }}"
+      config:
+        args:
+          - "{{item.id}}"
+        cache:
+          enabled: false
+        work-dir: "{{rootDir}}"
 
-        - name: notify-webhook
-          type: external
-          execution-target: remote-build
-          runtime: shell
-          source:
-            type: file
-            url: "./.mt/scripts/notifications/webhook.sh"
-          config:
-            endpoint: "{{env.NOTIFY_ENDPOINT}}"
-            channel: pipeline-events
-
-    # BOOTSTRAP: Create workspace structure and run install scripts
-    - name: BOOTSTRAP
-      tools:
-        - name: workspace-init
-          tool: fs-layout-generator
-        
-        # Short declaration form  
-        - tool: git-init-tool
-
-        # Shortest declaration form
-        - node-package-generator
+    # External tool with remote execution
+    - name: notify-webhook
+      type: external
+      execution-target: remote-build
+      runtime: shell
+      source:
+        type: file
+        url: "./.mt/scripts/notifications/webhook.sh"
+      config:
+        endpoint: "{{env.NOTIFY_ENDPOINT}}"
+        channel: pipeline-events
 ```
 
-### 3.1 Typed Manifest Records (Tools)
+### 3.1 Tool Lifecycle
+
+Each internal tool has two lifecycle methods:
+
+| Method                      | Phase                   | Description                                                            |
+|-----------------------------|-------------------------|------------------------------------------------------------------------|
+| `install(ExecutionContext)` | Install (unconditional) | Runs during `machinum setup`; sets up dependencies, validates config |
+| `process(ExecutionContext)` | Runtime (conditional)   | Runs during pipeline execution when tool is invoked                    |
+
+**Example:**
+```java
+public class QwenSummary implements InternalTool {
+    @Override
+    public void install(ExecutionContext context) throws Exception {
+        // Downloads model, validates API keys, initializes cache
+    }
+
+    @Override
+    public ToolResult process(ExecutionContext context) throws Exception {
+        // Processes input text and returns summary
+    }
+}
+```
+
+See [InternalTool Interface](technical-design.md#32-core-interfaces) for full contract details.
+
+### 3.2 Typed Manifest Records (Tools)
 
 The tools `body` fields are deserialized into typed Java records in `machinum.manifest`. Each YAML section maps to a record:
 
 | YAML Section  | Java Record | File |
-|---|---|---|
-| `body` | `ToolsBody` | [`core/src/main/java/machinum/manifest/ToolsBody.java`](../core/src/main/java/machinum/manifest/ToolsBody.java) |
+|---------------|-------------|------|
+| `body` | `ToolsBody` | [`ToolsBody.java`](../core/src/main/java/machinum/manifest/ToolsBody.java) |
 | `body.tool-registry` | `ToolRegistryManifest` | inner class of `ToolsBody` |
 | `body.execution-targets` | `ExecutionTargetsManifest` | inner class of `ToolsBody` |
 | `body.execution-targets.targets[]` | `ExecutionTargetManifest` | inner class of `ToolsBody` |
-| `body.states[]` | `ToolsStateManifest` | [`core/src/main/java/machinum/manifest/ToolsStateManifest.java`](../core/src/main/java/machinum/manifest/ToolsStateManifest.java) |
-| `body.states[].tools[]` | `ToolDefinitionManifest` | inner class of `ToolsBody` |
+| `body.tools[]` | `ToolDefinitionManifest` | inner class of `ToolsBody` |
 | `tool.source` | `ToolSourceManifest` | inner class of `ToolsBody` |
 | `tool.cache` | `ToolCacheManifest` | inner class of `ToolsBody` |
 | `tool.config` | `ToolConfigManifest` | inner class of `ToolsBody` |
+
+**Compiled Model:** `ToolsManifest` → `ToolsManifestCompiler` → [`ToolsDefinition`](../core/src/main/java/machinum/definition/ToolsDefinition.java). See [Core Architecture §1.5](core-architecture.md#15-compiled-models).
 
 ---
 
 ## 4. Pipeline Declaration YAML (`src/main/manifests/pipeline.yaml`)
 
 > **Constraint:** Exactly one of `source` or `items` must be declared; missing both throws an exception.
+
+### 4.x `source` vs `items` — Data Acquisition Layer
+
+The pipeline manifest accepts **exactly one** of two mutually exclusive data acquisition modes:
+
+| Mode | Purpose | Typical Use |
+|------|---------|-------------|
+| `source` | **Preprocessor** — acquires raw data from external locations and converts it into pipeline-compatible items | FTP extraction, archive decompression, HTTP download, S3 fetch, git clone, or any custom acquisition logic |
+| `items` | **Direct collection** — references items already available in the workspace as POJOs/chapters | Pre-downloaded chapters, local JSON/JSONL files, workspace-resident documents |
+
+**When to use `source`:**
+Use a preprocessor when data must be fetched, extracted, or transformed before the pipeline can consume it. The `source` block defines *where* and *how* to acquire items — file paths, URLs, archives, or custom loader scripts that convert external formats (PDF, DOCX, remote APIs) into the pipeline's internal item representation.
+
+**When to use `items`:**
+Use direct items when your data already exists in the expected format within the workspace. No acquisition step is needed — the pipeline reads items directly from `src/main/chapters/` or similar locations.
+
+**Flow:**
+```
+source (preprocessor) → [acquire + convert] → items → [pipeline states]
+items (direct)         →                    → items → [pipeline states]
+```
+
+Both modes converge to the same item processing pipeline; only the acquisition front differs.
+
+See [Core Architecture §1](core-architecture.md#1-base-models-mvp) for model mapping (`SourceRef` → `source`, `Item` → items processed by states).
 
 ```yaml
 version: 1.0.0
@@ -274,6 +320,7 @@ body:
 
   items:
     type: chapter                # chapter|paragraph|line|document|page (document|page: post-MVP)
+    path: "src/main/chapters"   # Path to directory containing item files
     custom-extractor: "{{scripts/extractors/chapter-extractor.groovy}}"
     variables:
       book_id: "{{variables.book_id}}"

@@ -18,7 +18,7 @@ logging. This test validates all user stories from the specification.
 
 ## Acceptance Criteria
 
-- [ ] Test initializes workspace via `machinum install`
+- [ ] Test initializes workspace via `machinum setup`
 - [ ] Test creates pipeline manifest with shell and Groovy tools
 - [ ] Test creates example scripts (conditions, transformers, validators)
 - [ ] Test executes pipeline end-to-end successfully
@@ -29,7 +29,6 @@ logging. This test validates all user stories from the specification.
 - [ ] Test verifies environment variable injection
 - [ ] Test verifies resume from checkpoint after failure
 - [ ] Test verifies cleanup command works after pipeline execution
-- [ ] All user stories from `specs/002-external-tools-support/spec.md` validated
 
 ---
 
@@ -566,7 +565,6 @@ class EndToEndPipelineTest {
 
 **Files to Read**:
 
-- `specs/002-external-tools-support/spec.md` - User stories
 - `core/src/test/java/machinum/pipeline/SequentialRunnerTest.java` - Test style reference
 - `core/src/test/java/machinum/pipeline/ResumeFlowTest.java` - Resume test reference
 
@@ -592,7 +590,7 @@ class EndToEndPipelineTest {
 
 **US3: Workspace Management**
 
-- `machinum install` initializes workspace
+- `machinum setup` initializes workspace
 - Directory structure created correctly
 - Template files generated
 - Idempotent operation

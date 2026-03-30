@@ -10,7 +10,7 @@
 
 ## Description
 
-Create comprehensive integration tests for workspace initialization to verify the full `machinum install` flow including
+Create comprehensive integration tests for workspace initialization to verify the full `machinum setup` flow including
 directory structure creation, template file generation, idempotency, `--force` flag behavior, and `package.json`
 generation when node tools are present.
 

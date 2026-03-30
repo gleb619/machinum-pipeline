@@ -3,7 +3,6 @@ package machinum.config;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 import javax.script.ScriptEngineManager;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -20,19 +19,16 @@ import machinum.compiler.StateCompiler;
 import machinum.compiler.ToolCompiler;
 import machinum.compiler.ToolsManifestCompiler;
 import machinum.executor.Executor;
+import machinum.executor.ToolsExecutor;
 import machinum.executor.YamlManifestLoader;
 import machinum.expression.DefaultExpressionResolver;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
-import machinum.manifest.PipelineManifest;
-import machinum.pipeline.EnvironmentLoader;
-import machinum.pipeline.PipelineStateMachine;
+import machinum.pipeline.ErrorHandler;
 import machinum.pipeline.RunLogger;
-import machinum.pipeline.RuntimeConfigLoader;
 import machinum.pipeline.runner.OneStepRunner;
-import machinum.pipeline.runner.StateProcessor;
-import machinum.pipeline.runner.StateRunner;
-import machinum.tool.InMemoryToolRegistry;
+import machinum.pipeline.runner.PipelineRunner;
+import machinum.tool.SpiToolRegistry;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -63,39 +59,27 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new FileCheckpointStore(baseDir, objectMapper()));
   }
 
-  public InMemoryToolRegistry inMemoryToolRegistry() {
-    return singleton(InMemoryToolRegistry::new);
+  public SpiToolRegistry spiToolRegistry() {
+    return singleton(SpiToolRegistry::new);
   }
 
   public RunLogger runLogger(String runId) {
     return singleton(runId, () -> RunLogger.of(runId));
   }
 
-  public StateProcessor stateProcessor(RunLogger runLogger) {
-    return singleton(() -> new StateProcessor(
-        inMemoryToolRegistry(),
-        runLogger,
-        expressionResolver(),
-        scriptRegistry(Path.of("./scripts")),
-        System.getenv(),
-        Map.of()));
+  public ErrorHandler errorHandler() {
+    return singleton(() -> new ErrorHandler(ErrorHandler.ErrorHandlingConfig.defaultConfig()));
   }
 
-  public StateRunner stateRunner(RunLogger runLogger) {
+  public PipelineRunner oneStepRunner(RunLogger runLogger) {
     return singleton(() -> new OneStepRunner(
         runLogger,
-        stateProcessor(runLogger),
+        spiToolRegistry(),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
+        errorHandler(),
         System.getenv(),
         Map.of()));
-  }
-
-  // TODO: Use bean or remove it
-  @Deprecated(forRemoval = true)
-  public EnvironmentLoader environmentLoader() {
-    // TODO: possible problem with env disclosure
-    return singleton(() -> new EnvironmentLoader(System.getenv()));
   }
 
   public YamlManifestLoader yamlManifestLoader() {
@@ -108,10 +92,6 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new YamlManifestLoader(objectMapper, yaml));
   }
 
-  public RuntimeConfigLoader runtimeConfigLoader() {
-    return singleton(() -> new RuntimeConfigLoader(yamlManifestLoader()));
-  }
-
   public CheckpointStore checkpointStore(Path checkpointDir) {
     return singleton(() -> fileCheckpointStore(checkpointDir));
   }
@@ -122,32 +102,15 @@ public class CoreConfig implements SingletonSupport {
         rootManifestCompiler(),
         toolsManifestCompiler(),
         pipelineManifestCompiler(),
-        scriptRegistry(Path.of("./scripts"))));
+        errorHandler(),
+        spiToolRegistry(),
+        expressionResolver(),
+        scriptRegistry(Path.of("./scripts")),
+        toolsExecutor()));
   }
 
-  public PipelineStateMachine pipelineStateMachine(Path checkpointDir, PipelineManifest pipeline) {
-    return pipelineStateMachine(UUID.randomUUID().toString(), checkpointDir, pipeline);
-  }
-
-  public PipelineStateMachine pipelineStateMachine(
-      String runId, Path checkpointDir, PipelineManifest pipeline) {
-    var runLogger = runLogger(runId);
-    return singleton(() -> PipelineStateMachine.builder()
-        .runId(runId)
-        .pipeline(pipeline)
-        .toolRegistry(inMemoryToolRegistry())
-        .checkpointStore(checkpointStore(checkpointDir))
-        .runLogger(runLogger)
-        .stateRunner(stateRunner(runLogger))
-        .expressionResolver(expressionResolver())
-        .build());
-  }
-
-  // TODO: Use bean or remove it
-  @Deprecated(forRemoval = true)
-  public StateProcessor stateProcessor(String runId) {
-    RunLogger runLogger = runLogger(runId);
-    return singleton(() -> stateProcessor(runLogger));
+  public ToolsExecutor toolsExecutor() {
+    return singleton(() -> new ToolsExecutor(spiToolRegistry()));
   }
 
   public ExpressionResolver expressionResolver() {

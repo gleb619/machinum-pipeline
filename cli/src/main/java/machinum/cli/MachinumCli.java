@@ -3,9 +3,9 @@ package machinum.cli;
 import java.util.concurrent.Callable;
 import machinum.cli.commands.CleanupCommand;
 import machinum.cli.commands.HelpCommand;
-import machinum.cli.commands.InstallCommand;
 import machinum.cli.commands.LogsCommand;
 import machinum.cli.commands.RunCommand;
+import machinum.cli.commands.SetupCommand;
 import machinum.cli.commands.StatusCommand;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -15,7 +15,7 @@ import picocli.CommandLine.Command;
     mixinStandardHelpOptions = true,
     version = "0.1.0",
     subcommands = {
-      InstallCommand.class,
+      SetupCommand.class,
       CleanupCommand.class,
       RunCommand.class,
       StatusCommand.class,

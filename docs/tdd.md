@@ -39,7 +39,30 @@ body:
     resume: true
 ```
 
-### 3. Create `src/main/manifests/demo-pipeline.yaml`
+### 3. Create `.mt/tools.yaml`
+
+Tool definitions — see [YAML Schema §3](yaml-schema.md#3-tools-yaml-mttoolsyaml).
+
+```yaml
+version: 1.0.0
+type: tools
+name: "Demo Tools"
+body:
+  execution-targets:
+    default: local
+    targets:
+      - name: local
+        type: local
+
+  tools:
+    - name: mock-processor
+      type: internal
+      description: "Mock processor for demo"
+```
+
+> **Note:** Tools are declared as a flat list (no states). Each internal tool has an `install()` method that runs unconditionally during `machinum setup`. See [YAML Schema §3.1](yaml-schema.md#31-tool-lifecycle).
+
+### 4. Create `src/main/manifests/demo-pipeline.yaml`
 
 Pipeline declaration — see [YAML Schema §4](yaml-schema.md#4-pipeline-declaration-yaml-srcmainmanifestspipelineyaml).
 
@@ -58,7 +81,9 @@ body:
         - tool: mock-processor
 ```
 
-### 4. Add Input File `src/main/chapters/1.md`
+> **Note:** This example uses `source` to read from a local directory. Use `source` when data must be acquired/converted (FTP, download, archive extraction). Use `items` when data already exists as workspace POJOs. See [YAML Schema §4.x](yaml-schema.md#4x-source-vs-items--data-acquisition-layer) for details.
+
+### 5. Add Input File `src/main/chapters/1.md`
 
 ```markdown
 # Chapter One
@@ -66,7 +91,15 @@ body:
 Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 ```
 
-### 5. Run Pipeline
+### 6. Install Tools
+
+```bash
+./gradlew :cli:run --args="install -w ./my-project"
+```
+
+This runs the `install()` method on all internal tools defined in `.mt/tools.yaml`.
+
+### 7. Run Pipeline
 
 ```bash
 ./gradlew :cli:run --args="run -p demo-pipeline -w ./my-project"
@@ -74,7 +107,7 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 
 See [CLI Commands](cli-commands.md) for full reference.
 
-### 6. Verify Results
+### 8. Verify Results
 
 **Before run:**
 
@@ -141,6 +174,6 @@ See [Project Structure §1](project-structure.md#1-workspace-directory-structure
 
 ---
 
-**Document Version:** 2.0
+**Document Version:** 2.1
 **Last Updated:** 2026-03-28
 **Status:** Approved for Phase 1 Development

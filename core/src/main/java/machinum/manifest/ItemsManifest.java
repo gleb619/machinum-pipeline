@@ -8,12 +8,12 @@ import lombok.Singular;
 @Builder
 public record ItemsManifest(
     Type type,
+    String path,
     @JsonAlias("custom-extractor") String customExtractor,
     @Singular Map<String, String> variables) {
 
   public boolean isEmpty() {
-    // TODO: Add here some fields to check if object is not empty
-    return true;
+    return type == null && path == null;
   }
 
   public enum Type {

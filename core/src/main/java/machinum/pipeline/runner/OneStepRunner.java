@@ -1,97 +1,180 @@
 package machinum.pipeline.runner;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import machinum.Tool;
 import machinum.definition.PipelineStateDefinition;
-import machinum.definition.ToolDefinition;
+import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
+import machinum.pipeline.ErrorHandler;
+import machinum.pipeline.ErrorHandler.ErrorStrategy;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
+import machinum.tool.SpiToolRegistry;
 
+@Slf4j
 @RequiredArgsConstructor
-public class OneStepRunner implements StateRunner {
+public class OneStepRunner implements PipelineRunner {
 
   private final RunLogger runLogger;
-  private final StateProcessor stateProcessor;
+  private final SpiToolRegistry toolRegistry;
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
+  private final ErrorHandler errorHandler;
   private final Map<String, String> environmentVariables;
   private final Map<String, Object> pipelineVariables;
 
   @Override
   public void executeState(
-      PipelineStateDefinition state,
-      @Deprecated(forRemoval = true) int stateIndex,
-      String itemId,
-      ExecutionContext context)
+      PipelineStateDefinition state, int stateIndex, String itemId, ExecutionContext context)
       throws Exception {
 
-    // TODO: rewrite class
-  }
+    String stateName = state.name().get();
+    log.debug("Executing state: {} for item: {}", stateName, itemId);
 
-  private ExpressionContext createExpressionContext(
-      @Deprecated(forRemoval = true) String itemId,
-      ExecutionContext context,
-      PipelineStateDefinition state,
-      ToolDefinition tool) {
-    Map<String, Object> currentItem =
-        (Map<String, Object>) context.get("currentItem").orElse(Map.of());
-    String textContent = getTextContent(currentItem);
-
-    return ExpressionContext.builder()
-        .item(currentItem)
-        .text(textContent)
-        .index((Integer) context.get("index", 0))
-        .textLength(textContent.length())
-        .textWords(calculateTextWords(textContent))
-        .textTokens(calculateTextTokens(textContent))
-        .aggregationIndex((Integer) context.get("aggregationIndex", 0))
-        .aggregationText((String) context.get("aggregationText", ""))
-        .runId((String) context.get("runId", ""))
-        .state(state)
-        .tool(tool)
-        .retryAttempt((Integer) context.get("retryAttempt", 0))
-        .env(environmentVariables)
-        .variables(pipelineVariables)
-        .scripts(scriptRegistry)
-        .build();
-  }
-
-  // TODO: We need to use a compiledValue here
-  @Deprecated(forRemoval = true)
-  private String getTextContent(Map<String, Object> item) {
-    if (item == null) {
-      return "";
+    // Evaluate condition if present
+    if (state.condition() != null && state.condition().get() != null) {
+      String condition = state.condition().get();
+      boolean shouldExecute = evaluateCondition(condition, context, state);
+      if (!shouldExecute) {
+        log.debug("Condition not met for state: {}, skipping", stateName);
+        return;
+      }
     }
 
-    Object content = item.get("content");
+    runLogger.stateTransition(itemId, stateIndex > 0 ? "previous" : "-", stateName);
+    context.updateContext(context.getCurrentItem(), convertToMap(state), Map.of());
+
+    // Process each tool in the state
+    List<PipelineToolDefinition> tools = state.stateTools();
+    for (PipelineToolDefinition toolDef : tools) {
+      processTool(toolDef, stateName, itemId, context);
+    }
+  }
+
+  private void processTool(
+      PipelineToolDefinition toolDef, String stateName, String itemId, ExecutionContext context)
+      throws Exception {
+
+    String toolName = toolDef.name().get();
+    Tool tool = toolRegistry
+        .resolve(toolName)
+        .orElseThrow(() -> new IllegalStateException(
+            "Tool not found: %s in state: %s".formatted(toolName, stateName)));
+
+    context.updateContext(
+        context.getCurrentItem(), context.getCurrentState(), Map.of("name", toolName));
+
+    Instant toolStart = Instant.now();
+    runLogger.toolStart(itemId, stateName, toolName);
+
+    int maxAttempts = 3;
+    int attempt = 0;
+    Exception lastException = null;
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      context.updateRetryAttempt(attempt);
+
+      try {
+        Tool.ToolResult result = tool.execute(context);
+        Instant toolEnd = Instant.now();
+
+        if (result.success()) {
+          runLogger.toolComplete(itemId, stateName, toolName, toolStart, toolEnd);
+          return;
+        } else {
+          lastException =
+              new RuntimeException("Tool failed: " + toolName + " - " + result.errorMessage());
+        }
+      } catch (Exception e) {
+        lastException = e;
+        log.warn("Tool {} failed on attempt {}: {}", toolName, attempt, e.getMessage());
+      }
+
+      // Check error strategy
+      ErrorStrategy strategy = errorHandler.resolveStrategy(lastException);
+      switch (strategy) {
+        case RETRY -> {
+          if (attempt < maxAttempts) {
+            long delay = errorHandler.calculateBackoffDelay(attempt);
+            log.debug("Retrying tool {} after {}ms", toolName, delay);
+            Thread.sleep(delay);
+            continue;
+          }
+        }
+        case SKIP -> {
+          log.warn("Skipping tool {} due to error: {}", toolName, lastException.getMessage());
+          return;
+        }
+        case STOP -> {
+          runLogger.toolError(itemId, stateName, toolName, lastException);
+          throw lastException;
+        }
+        default -> {
+          runLogger.toolError(itemId, stateName, toolName, lastException);
+          throw lastException;
+        }
+      }
+    }
+
+    runLogger.toolError(itemId, stateName, toolName, lastException);
+    throw lastException;
+  }
+
+  private boolean evaluateCondition(
+      String condition, ExecutionContext context, PipelineStateDefinition state) {
+
+    try {
+      context.updateContext(context.getCurrentItem(), convertToMap(state), Map.of());
+
+      // Build expression context for evaluation
+      ExpressionContext exprCtx = ExpressionContext.builder()
+          .item(context.getCurrentItem())
+          .text(getTextContent(context))
+          .index(context.getCurrentIndex())
+          .textLength(context.getTextLength())
+          .textWords(context.getTextWords())
+          .textTokens(context.getTextTokens())
+          .aggregationIndex(context.getAggregationIndex())
+          .aggregationText(context.getAggregationText())
+          .runId(context.getRunId())
+          .state(state)
+          .tool(null)
+          .retryAttempt(context.getRetryAttempt())
+          .env(environmentVariables)
+          .variables(pipelineVariables)
+          .scripts(scriptRegistry)
+          .build();
+
+      Object result = expressionResolver.resolveTemplate(condition, exprCtx);
+      return Boolean.TRUE.equals(result);
+    } catch (Exception e) {
+      log.warn("Failed to evaluate condition: {}, defaulting to false", condition, e);
+      return false;
+    }
+  }
+
+  private String getTextContent(ExecutionContext context) {
+    Object content = context.getCurrentItem().get("content");
     if (content instanceof String) {
       return (String) content;
     }
-
     for (String field : new String[] {"text", "body", "data"}) {
-      Object value = item.get(field);
+      Object value = context.getCurrentItem().get(field);
       if (value instanceof String) {
         return (String) value;
       }
     }
-
     return "";
   }
 
-  private int calculateTextWords(String text) {
-    if (text == null || text.trim().isEmpty()) {
-      return 0;
-    }
-    return text.split("\\s+").length;
-  }
-
-  private int calculateTextTokens(String text) {
-    if (text == null || text.isEmpty()) {
-      return 0;
-    }
-    return (int) Math.ceil(text.length() / 4.0);
+  private Map<String, Object> convertToMap(PipelineStateDefinition state) {
+    return Map.of("name", state.name().get());
   }
 }

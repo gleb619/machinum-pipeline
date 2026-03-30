@@ -10,6 +10,10 @@
 | `Item`        | id, type, content pointer/body, metadata, current state |
 | `ItemResult`  | per-state/per-tool outputs attached to item context     |
 | `RunMetadata` | run id, selected pipeline, timestamps, status           |
+| `SourceStreamer` | [SourceStreamer](../core/src/main/java/machinum/streamer/SourceStreamer.java) - streams items from source configuration |
+| `ItemsStreamer` | [ItemsStreamer](../core/src/main/java/machinum/streamer/ItemsStreamer.java) - streams items from items configuration |
+
+> `SourceRef` maps to the `source` block in [Pipeline YAML §4](yaml-schema.md#4-pipeline-declaration-yaml-srcmainmanifestspipelineyaml) — it represents the preprocessor acquisition layer. `Item` is the normalized unit that flows through states. See [§4.x source vs items](yaml-schema.md#4x-source-vs-items--data-acquisition-layer) for the distinction.
 
 ---
 
@@ -30,18 +34,24 @@ At runtime, YAML manifests are compiled to optimized POJOs with lazy expression 
 - `CompiledMap` - Map wrapper with expression value support
 - `CompilationContext` - Shared state during compilation
 
-**Example:**
-```java
-// Load compiled pipeline
-CompiledPipelineManifest pipeline = loader.loadCompiledPipelineManifest(path, ctx);
+**Tools Manifest Compilation:**
+The tools manifest uses a simplified flat structure (no states). All tools are compiled into a single list with full configuration:
 
-// Evaluate state condition
-for (CompiledStateDefinition state : pipeline.getPipelineStates()) {
-    if (state.evaluateCondition()) {  // Groovy expression
-        // Process tools
-    }
+```java
+// Load compiled tools manifest
+CompiledToolsManifest tools = compiler.compile(rawManifest, ctx);
+
+// Access tool definitions
+for (ToolDefinition tool : tools.body().tools()) {
+    // Install phase - runs unconditionally
+    tool.install(context);
+    
+    // Runtime phase - runs when tool is invoked in pipeline
+    ToolResult result = tool.execute(context);
 }
 ```
+
+See [YAML Schema §3](yaml-schema.md#3-tools-yaml-mttoolsyaml) for manifest format, [Technical Design §3.2](technical-design.md#32-core-interfaces) for tool lifecycle.
 
 ---
 

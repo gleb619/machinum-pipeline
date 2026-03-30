@@ -11,7 +11,7 @@ checkpointing, and hybrid execution modes.
 
 **Core Capabilities:**
 
-- Process items (chapters, documents, files) through state machine–defined pipelines
+- Process items (chapters, documents, files) through state machine–defined pipelines (see [YAML Schema §4.x](yaml-schema.md#4x-source-vs-items--data-acquisition-layer) for data acquisition modes)
 - Support internal (Java) and external (Shell/Docker) tools with JSON I/O
 - Provide checkpointing for resume capabilities
 - Offer CLI, server, and MCP interfaces
@@ -92,21 +92,32 @@ See [Value Compilers](value-compilers.md) for the complete compiler system docum
 ```java
 // Tool Contract
 public interface Tool {
-    String getName();
-    Version getVersion();
-    JsonNode execute(JsonNode input, ToolContext context);
+    ToolDefinition definition();
+    ToolResult execute(ExecutionContext context) throws Exception;
+    default void validate() {}
+    
+    record ToolResult(boolean success, Map<String, Object> outputs, String errorMessage) {}
 }
 
-// Internal Tool (Java SPI)
-@FunctionalInterface
+// Internal Tool (Java SPI) - with lifecycle methods
 public interface InternalTool extends Tool {
-    default String getName() {
-        return this.getClass().getSimpleName();
+    /**
+     * Install lifecycle method - executes unconditionally during install phase.
+     * Use for: downloading dependencies, initializing state, validating config.
+     */
+    default void install(ExecutionContext context) throws Exception {
+        // No-op by default
     }
-    default Version getVersion() {
-        return BuildInfo.current().version();
+    
+    /**
+     * Process method - executes during pipeline runtime when tool is invoked.
+     */
+    ToolResult process(ExecutionContext context) throws Exception;
+    
+    @Override
+    default ToolResult execute(ExecutionContext context) throws Exception {
+        return process(context);
     }
-    JsonNode process(JsonNode input, ToolContext context);
 }
 
 // External Tool (base)

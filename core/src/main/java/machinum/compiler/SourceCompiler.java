@@ -1,6 +1,6 @@
 package machinum.compiler;
 
-import machinum.definition.SourceDefinition;
+import machinum.definition.PipelineDefinition.SourceDefinition;
 import machinum.manifest.SourceManifest;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;

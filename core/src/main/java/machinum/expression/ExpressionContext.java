@@ -8,7 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import machinum.definition.PipelineStateDefinition;
-import machinum.definition.ToolDefinition;
+import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
 
 @Data
 @AllArgsConstructor
@@ -44,7 +44,7 @@ public class ExpressionContext {
 
   private PipelineStateDefinition state;
 
-  private ToolDefinition tool;
+  private PipelineToolDefinition tool;
 
   @Builder.Default
   private int retryAttempt = 0;

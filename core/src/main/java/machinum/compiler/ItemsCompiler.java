@@ -1,6 +1,6 @@
 package machinum.compiler;
 
-import machinum.definition.ItemsDefinition;
+import machinum.definition.PipelineDefinition.ItemsDefinition;
 import machinum.manifest.ItemsManifest;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;
@@ -13,6 +13,7 @@ public interface ItemsCompiler extends YamlCompiler<ItemsManifest, ItemsDefiniti
   ItemsCompiler INSTANCE = Mappers.getMapper(ItemsCompiler.class);
 
   @Mapping(target = "type", qualifiedByName = "compileConstant")
+  @Mapping(target = "path", qualifiedByName = "compileString")
   @Mapping(target = "customExtractor", qualifiedByName = "compileString")
   @Mapping(target = "variables", qualifiedByName = "compileMap")
   ItemsDefinition compile(ItemsManifest items, @Context CompilationContext ctx);

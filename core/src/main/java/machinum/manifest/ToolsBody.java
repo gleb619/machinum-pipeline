@@ -10,7 +10,7 @@ import lombok.Singular;
 public record ToolsBody(
     @JsonAlias("tool-registry") ToolRegistryManifest toolRegistry,
     @JsonAlias("execution-targets") ExecutionTargetsManifest executionTargets,
-    @Singular List<ToolsStateDefinitionManifest> states)
+    @Singular List<ToolDefinitionManifest> tools)
     implements ManifestBody {
 
   @Builder
@@ -18,7 +18,8 @@ public record ToolsBody(
 
   @Builder
   public record ExecutionTargetsManifest(
-      String defaultTarget, @Singular List<ExecutionTargetManifest> targets) {}
+      @JsonAlias("default-target") String defaultTarget,
+      @Singular List<ExecutionTargetManifest> targets) {}
 
   @Builder
   public record ExecutionTargetManifest(
@@ -28,15 +29,9 @@ public record ToolsBody(
       @JsonAlias("docker-host") String dockerHost) {}
 
   @Builder
-  public record ToolsStateDefinitionManifest(
-      String name,
-      String description,
-      String condition,
-      @JsonAlias("tools") @Singular List<ToolDefinitionManifest> stateTools) {}
-
-  @Builder
   public record ToolDefinitionManifest(
       String name,
+      String description,
       String type,
       String version,
       @JsonAlias("execution-target") String executionTarget,
