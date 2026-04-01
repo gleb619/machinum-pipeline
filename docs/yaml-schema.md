@@ -89,141 +89,95 @@ metadata:
   created: 2020.01.01
 body:
   # Tool registry configuration (optional)
-  tool-registry:
-    type: file                 # file|http|git
+  registry:
+    type: builtin              # file|http|builtin
     url: https://raw.githubusercontent.com/gleb619/machinum-pipeline/refs/heads/main/tools.yaml
     refresh: on_startup        # on_startup|never
 
-  # Execution targets (optional)
-  execution-targets:
-    default: local               # local|remote|docker
-    targets:
-      - name: local
-        type: local
-      - name: remote-build
-        type: remote
-        remote-host: build.example.internal
-      - name: docker-sandbox
-        type: docker
-        docker-host: unix:///var/run/docker.sock
+  # Bootstrap tools list - tools to initialize during setup phase
+  bootstrap:
+    - prettier
+    - eslint
+    - workspace-init
 
-  # Tool definitions (flat list, no states)
+  # Custom tool registry (flat list)
   tools:
-    # Internal tool (Java SPI-based)
+    # Simple tool declaration - name resolves via SPI
     - name: qwen-summary
-      type: internal             # internal|external; default: internal
-      version: 2.1.0             # default: latest
-      execution-target: local
-      source:
-        type: spi                # spi|git|http|file; default: spi
-        url: "https://github.com/org/qwen-summary.git"
-        git-tag: v2.1.0
-      cache:
-        enabled: true
-        key: "{{tool.name}}:{{tool.version}}:{{sha256(input)}}"
-        ttl: 24h
-      timeout: 30s               # default
+      description: "Qwen-based text summarization"
       config:
         model: qwen2.5-72b
         temperature: 0.7
-        input-schema:            # JSON Schema; validation for external tools only
-          type: object
-          properties:
-            content: { type: string }
-        output-schema:
-          type: object
-          properties:
-            summary: { type: string }
 
-    # External tool with Docker runtime
-    - name: embedding-generator
-      type: external
-      runtime: docker            # Experimental/post-MVP
-      source:
-        type: docker
-        image: "https://registry.example.com/embedding:latest"
-      config:
-        model: bge-large
-        dimension: 1024
-
-    # Internal tool with SPI class reference
-    - name: glossary-consolidator
-      source:
-        type: spi
-        spi-class: machinum.tools.GlossaryConsolidator
-      config:
-        threshold: 0.8
-
-    # Minimal declaration — name resolves via SPI
-    - name: translator
-
-    # External shell tool
+    # Shell script tool
     - name: md-formatter
-      type: external
-      runtime: shell
-      source:
-        type: file
-        url: "{{ '/app/some-path/script.sh' args[0] }}"
+      description: "Markdown formatter"
       config:
         args:
           - "{{item.id}}"
-        cache:
-          enabled: false
         work-dir: "{{rootDir}}"
 
-    # External tool with remote execution
-    - name: notify-webhook
-      type: external
-      execution-target: remote-build
-      runtime: shell
-      source:
-        type: file
-        url: "./.mt/scripts/notifications/webhook.sh"
+    # Groovy script tool
+    - name: text-validator
+      description: "Validates text content"
       config:
-        endpoint: "{{env.NOTIFY_ENDPOINT}}"
-        channel: pipeline-events
+        script: "./.mt/scripts/validate.groovy"
+
+    # Git tool - initializes repo and creates commits
+    - name: git
+      description: "Git repository management"
 ```
 
 ### 3.1 Tool Lifecycle
 
-Each internal tool has two lifecycle methods:
+Each tool has an bootstrap lifecycle method:
 
-| Method                      | Phase                   | Description                                                            |
-|-----------------------------|-------------------------|------------------------------------------------------------------------|
-| `install(ExecutionContext)` | Install (unconditional) | Runs during `machinum setup`; sets up dependencies, validates config |
-| `process(ExecutionContext)` | Runtime (conditional)   | Runs during pipeline execution when tool is invoked                    |
+| Method                        | Phase                     | Description                                                          |
+|-------------------------------|---------------------------|----------------------------------------------------------------------|
+| `bootstrap(ExecutionContext)` | Bootstrap (unconditional) | Runs during `machinum setup`; sets up dependencies, validates config |
+| `execute(ExecutionContext)`   | Runtime (conditional)     | Runs during pipeline execution when tool is invoked                  |
 
 **Example:**
 ```java
-public class QwenSummary implements InternalTool {
+public class QwenSummary implements Tool {
     @Override
-    public void install(ExecutionContext context) throws Exception {
+    public void bootstrap(ExecutionContext context) throws Exception {
         // Downloads model, validates API keys, initializes cache
     }
 
     @Override
-    public ToolResult process(ExecutionContext context) throws Exception {
+    public ToolResult execute(ExecutionContext context) {
         // Processes input text and returns summary
     }
 }
 ```
 
-See [InternalTool Interface](technical-design.md#32-core-interfaces) for full contract details.
+See [Tool Interface](technical-design.md#32-core-interfaces) for full contract details.
 
 ### 3.2 Typed Manifest Records (Tools)
 
 The tools `body` fields are deserialized into typed Java records in `machinum.manifest`. Each YAML section maps to a record:
 
-| YAML Section  | Java Record | File |
-|---------------|-------------|------|
-| `body` | `ToolsBody` | [`ToolsBody.java`](../core/src/main/java/machinum/manifest/ToolsBody.java) |
-| `body.tool-registry` | `ToolRegistryManifest` | inner class of `ToolsBody` |
-| `body.execution-targets` | `ExecutionTargetsManifest` | inner class of `ToolsBody` |
-| `body.execution-targets.targets[]` | `ExecutionTargetManifest` | inner class of `ToolsBody` |
-| `body.tools[]` | `ToolDefinitionManifest` | inner class of `ToolsBody` |
-| `tool.source` | `ToolSourceManifest` | inner class of `ToolsBody` |
-| `tool.cache` | `ToolCacheManifest` | inner class of `ToolsBody` |
-| `tool.config` | `ToolConfigManifest` | inner class of `ToolsBody` |
+| YAML Section              | Java Record                | File                                                                       |
+|---------------------------|----------------------------|----------------------------------------------------------------------------|
+| `body`                    | `ToolsBody`                | [`ToolsBody.java`](../core/src/main/java/machinum/manifest/ToolsBody.java) |
+| `body.registry`           | `ToolRegistryManifest`     | inner class of `ToolsBody`                                                 |
+| `body.bootstrap[]`        | `List<String>`             | Bootstrap tool names list                                                  |
+| `body.tools[]`            | `ToolDefinitionManifest`   | inner class of `ToolsBody`                                                 |
+| `tool.config`             | `ToolConfigManifest`       | inner class of `ToolsBody`                                                 |
+
+**Schema Changes (v2.1):**
+- **Removed:** `execution-targets` - Execution targets removed; tools execute locally
+- **Removed:** `execution-target` from tool definitions
+- **Added:** `bootstrap` - List of tool names to bootstrap during setup phase
+
+**Removed Fields:** The following fields have been removed from the tool manifest:
+- `version` - Tools are versioned externally via JAR files
+- `source` - Tool source resolution handled by registry type
+- `cache` - Caching handled by registry implementation
+- `timeout` - Timeout configured per tool implementation
+- `runtime` - Runtime type inferred from tool implementation
+- `execution-target` - All tools execute locally
 
 **Compiled Model:** `ToolsManifest` → `ToolsManifestCompiler` → [`ToolsDefinition`](../core/src/main/java/machinum/definition/ToolsDefinition.java). See [Core Architecture §1.5](core-architecture.md#15-compiled-models).
 
@@ -237,10 +191,10 @@ The tools `body` fields are deserialized into typed Java records in `machinum.ma
 
 The pipeline manifest accepts **exactly one** of two mutually exclusive data acquisition modes:
 
-| Mode | Purpose | Typical Use |
-|------|---------|-------------|
+| Mode     | Purpose                                                                                                     | Typical Use                                                                                                |
+|----------|-------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `source` | **Preprocessor** — acquires raw data from external locations and converts it into pipeline-compatible items | FTP extraction, archive decompression, HTTP download, S3 fetch, git clone, or any custom acquisition logic |
-| `items` | **Direct collection** — references items already available in the workspace as POJOs/chapters | Pre-downloaded chapters, local JSON/JSONL files, workspace-resident documents |
+| `items`  | **Direct collection** — references items already available in the workspace as POJOs/chapters               | Pre-downloaded chapters, local JSON/JSONL files, workspace-resident documents                              |
 
 **When to use `source`:**
 Use a preprocessor when data must be fetched, extracted, or transformed before the pipeline can consume it. The `source` block defines *where* and *how* to acquire items — file paths, URLs, archives, or custom loader scripts that convert external formats (PDF, DOCX, remote APIs) into the pipeline's internal item representation.
@@ -280,7 +234,6 @@ body:
         step_over_cursor_key: "{{run.cursor.state_item_index}}"
       listeners:
         - name: run-log-listener
-          type: internal
         - name: webhook-listener
           type: script
           path: "{{scripts/listeners/webhook-listener.groovy}}"

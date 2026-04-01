@@ -1,0 +1,21 @@
+# Test fixture: Built-in tool registry configuration
+# Used for testing DownloadCommand with builtin tool registry (dev mode)
+version: 1.0.0
+type: tools
+name: "Test Builtin Registry Tools"
+body:
+  registry:
+    type: builtin
+
+  bootstrap:
+    - workspace-init
+
+  tools:
+    - name: workspace-init
+      description: "Workspace initialization tool"
+
+    - name: qwen-summary
+      description: "Qwen-based text summarization"
+      config:
+        model: qwen2.5-72b
+        temperature: 0.7

@@ -1,64 +1,59 @@
 package machinum.manifest;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
+import machinum.tool.RegistryManifest;
 
 @Builder
 public record ToolsBody(
-    @JsonAlias("tool-registry") ToolRegistryManifest toolRegistry,
-    @JsonAlias("execution-targets") ExecutionTargetsManifest executionTargets,
-    @Singular List<ToolDefinitionManifest> tools)
+    ToolRegistryConfigManifest registry,
+    @Singular("bootstrap") List<ToolManifest> bootstrap,
+    @Singular List<ToolManifest> tools)
     implements ManifestBody {
 
   @Builder
-  public record ToolRegistryManifest(String type, String url, String refresh) {}
+  public record ToolRegistryConfigManifest(ToolRegistryType type, String url, String refresh) {}
 
   @Builder
-  public record ExecutionTargetsManifest(
-      @JsonAlias("default-target") String defaultTarget,
-      @Singular List<ExecutionTargetManifest> targets) {}
-
-  @Builder
-  public record ExecutionTargetManifest(
-      String name,
-      String type,
-      @JsonAlias("remote-host") String remoteHost,
-      @JsonAlias("docker-host") String dockerHost) {}
-
-  @Builder
-  public record ToolDefinitionManifest(
+  public record ToolManifest(
       String name,
       String description,
       String type,
-      String version,
       @JsonAlias("execution-target") String executionTarget,
-      ToolSourceManifest source,
-      ToolCacheManifest cache,
-      String timeout,
       ToolConfigManifest config) {}
 
   @Builder
-  public record ToolSourceManifest(
-      String type,
-      String url,
-      @JsonAlias("git-tag") String gitTag,
-      @JsonAlias("spi-class") String spiClass,
-      String image) {}
-
-  @Builder
-  public record ToolCacheManifest(Boolean enabled, String key, String ttl) {}
-
-  @Builder
   public record ToolConfigManifest(
-      String model,
-      Double temperature,
       @JsonAlias("input-schema") Map<String, Object> inputSchema,
       @JsonAlias("output-schema") Map<String, Object> outputSchema,
-      List<String> args,
-      String endpoint,
-      String channel,
-      @JsonAlias("work-dir") String workDir) {}
+      @JsonAnySetter Map<String, Object> params) {}
+
+  public enum ToolRegistryType {
+    file,
+    http,
+    builtin,
+  }
+
+  //TODO: Remove
+  @Deprecated(forRemoval = true)
+  public RegistryManifest toRegistryManifest() {
+    if (tools == null || tools.isEmpty()) {
+      return new RegistryManifest("registry", "1.0.0", List.of());
+    }
+
+    var jars = tools.stream()
+        .map(tool -> new RegistryManifest.ToolJarInfo(
+            tool.name(),
+            "classpath",
+            tool.type() != null ? tool.type() : tool.name(),
+            List.of(),
+            null))
+        .toList();
+
+    return new RegistryManifest("registry", "1.0.0", jars);
+  }
 }

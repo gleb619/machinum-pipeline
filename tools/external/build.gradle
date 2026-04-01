@@ -12,6 +12,9 @@ dependencies {
   compileOnly libs.groovy.core
   compileOnly libs.groovy.jsr223
 
+  // Git
+  implementation libs.jgit.core
+
   // Tests
   testImplementation libs.jackson.yaml
 

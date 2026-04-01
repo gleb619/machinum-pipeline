@@ -112,7 +112,7 @@ public class CompilationContext {
 
 ### 3.1 ToolDefinitionCompiler
 
-**Source:** `machinum.manifest.ToolManifest`  
+**Source:** `machinum.manifest.PipelineToolManifest`  
 **Compiled:** `machinum.compiler.ToolDefinition`
 
 ```java

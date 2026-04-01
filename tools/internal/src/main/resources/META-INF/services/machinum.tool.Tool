@@ -2,3 +2,4 @@ machinum.tool.ErrorTool
 machinum.tool.RandomErrorTool
 machinum.tool.TestTool
 machinum.tool.NoOpTool
+machinum.workspace.WorkspaceInitializerTool

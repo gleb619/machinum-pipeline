@@ -10,8 +10,7 @@ import machinum.compiler.PipelineManifestCompiler;
 import machinum.compiler.RootManifestCompiler;
 import machinum.compiler.ToolsManifestCompiler;
 import machinum.definition.PipelineDefinition;
-import machinum.executor.Executor.LifecycleContext;
-import machinum.executor.Executor.LifecyclePhase;
+import machinum.executor.LifecycleContext.LifecyclePhase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -63,7 +62,6 @@ class ExecutorTest {
     @Test
     @DisplayName("findManifests loads root manifest (seed.yaml)")
     void testFindManifests_loadsRootManifest() throws IOException {
-      // Arrange: Create seed.yaml
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -75,10 +73,8 @@ class ExecutorTest {
           """;
       Files.writeString(tempWorkspace.resolve("seed.yaml"), rootYaml);
 
-      // Act
       LifecycleContext ctx = executor.findManifests(tempWorkspace);
 
-      // Assert
       assertThat(ctx.currentPhase()).isEqualTo(LifecyclePhase.FIND);
       assertThat(ctx.rootManifest()).isPresent();
       assertThat(ctx.rootManifest().get().name()).isEqualTo("Test Root");
@@ -88,7 +84,6 @@ class ExecutorTest {
     @Test
     @DisplayName("findManifests loads tools manifest (.mt/tools.yaml)")
     void testFindManifests_loadsToolsManifest() throws IOException {
-      // Arrange: Create .mt/tools.yaml
       Path mtDir = tempWorkspace.resolve(".mt");
       Files.createDirectory(mtDir);
       String toolsYaml = """
@@ -101,10 +96,8 @@ class ExecutorTest {
           """;
       Files.writeString(mtDir.resolve("tools.yaml"), toolsYaml);
 
-      // Act
       LifecycleContext ctx = executor.findManifests(tempWorkspace);
 
-      // Assert
       assertThat(ctx.currentPhase()).isEqualTo(LifecyclePhase.FIND);
       assertThat(ctx.toolsManifest()).isPresent();
       assertThat(ctx.toolsManifest().get().name()).isEqualTo("Test Tools");
@@ -113,7 +106,6 @@ class ExecutorTest {
     @Test
     @DisplayName("findManifests loads pipeline manifest (src/main/manifests/*.yaml)")
     void testFindManifests_loadsPipelineManifest() throws IOException {
-      // Arrange: Create seed.yaml and src/main/manifests/test-pipeline.yaml
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -142,10 +134,8 @@ class ExecutorTest {
           """;
       Files.writeString(manifestsDir.resolve("test-pipeline.yaml"), pipelineYaml);
 
-      // Act
       LifecycleContext ctx = executor.findManifests(tempWorkspace);
 
-      // Assert - FIND phase should succeed, pipeline will be loaded in compile phase
       assertThat(ctx.currentPhase()).isEqualTo(LifecyclePhase.FIND);
       assertThat(ctx.rootManifest()).isPresent();
     }
@@ -153,10 +143,8 @@ class ExecutorTest {
     @Test
     @DisplayName("findManifests returns empty when no root manifest exists")
     void testFindManifests_noRootManifest() throws IOException {
-      // Act
       LifecycleContext ctx = executor.findManifests(tempWorkspace);
 
-      // Assert
       assertThat(ctx.currentPhase()).isEqualTo(LifecyclePhase.FIND);
       assertThat(ctx.rootManifest()).isEmpty();
     }
@@ -169,7 +157,6 @@ class ExecutorTest {
     @Test
     @DisplayName("compileManifests compiles root configuration")
     void testCompileManifests_compilesRootConfig() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -184,10 +171,8 @@ class ExecutorTest {
 
       LifecycleContext findCtx = executor.findManifests(tempWorkspace);
 
-      // Act
       LifecycleContext compileCtx = executor.compileManifests(findCtx);
 
-      // Assert
       assertThat(compileCtx.currentPhase()).isEqualTo(LifecyclePhase.COMPILE);
       assertThat(compileCtx.root()).isNotNull();
       assertThat(compileCtx.root().name()).isEqualTo("Test Root");
@@ -197,7 +182,6 @@ class ExecutorTest {
     @Test
     @DisplayName("compileManifests compiles tools configuration")
     void testCompileManifests_compilesToolsConfig() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -221,10 +205,8 @@ class ExecutorTest {
 
       LifecycleContext findCtx = executor.findManifests(tempWorkspace);
 
-      // Act
       LifecycleContext compileCtx = executor.compileManifests(findCtx);
 
-      // Assert
       assertThat(compileCtx.currentPhase()).isEqualTo(LifecyclePhase.COMPILE);
       assertThat(compileCtx.root()).isNotNull();
       assertThat(compileCtx.tools()).isNotNull();
@@ -234,7 +216,6 @@ class ExecutorTest {
     @Test
     @DisplayName("compileManifests compiles pipeline configuration")
     void testCompileManifests_compilesPipelineConfig() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -266,18 +247,12 @@ class ExecutorTest {
       LifecycleContext findCtx = executor.findManifests(tempWorkspace);
       LifecycleContext compileCtx = executor.compileManifests(findCtx);
 
-      // Act - Load pipeline separately
-      //      var pipeline =
-      //          executor.loadPipeline(tempWorkspace, "test-pipeline",
-      // compileCtx.compilationContext());
       // TODO: It's forbidden to open private methods for tests
       var pipeline = PipelineDefinition.builder().build();
 
-      // Assert
       assertThat(pipeline).isNotNull();
       assertThat(pipeline.name()).isEqualTo("test-pipeline");
       assertThat(pipeline.body().states()).hasSize(1);
-      // State name is wrapped in Compiled - get the actual value
       String stateName = pipeline.body().states().get(0).name().get();
       assertThat(stateName).isEqualTo("PROCESS");
     }
@@ -285,10 +260,8 @@ class ExecutorTest {
     @Test
     @DisplayName("compileManifests throws exception when root manifest missing")
     void testCompileManifests_missingRootManifest_throwsException() throws IOException {
-      // Arrange
       LifecycleContext findCtx = executor.findManifests(tempWorkspace);
 
-      // Act & Assert
       assertThatThrownBy(() -> executor.compileManifests(findCtx))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("Root manifest")
@@ -303,7 +276,6 @@ class ExecutorTest {
     @Test
     @DisplayName("executeDownload completes when no tools defined")
     void testExecuteDownload_noToolsDefined() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -316,7 +288,6 @@ class ExecutorTest {
       LifecycleContext findCtx = executor.findManifests(tempWorkspace);
       LifecycleContext compileCtx = executor.compileManifests(findCtx);
 
-      // Act & Assert - Should not throw
       executor.executeDownload(compileCtx);
     }
   }
@@ -328,7 +299,6 @@ class ExecutorTest {
     @Test
     @DisplayName("executeBootstrap completes successfully")
     void testExecuteBootstrap_completesSuccessfully() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -341,45 +311,7 @@ class ExecutorTest {
       LifecycleContext findCtx = executor.findManifests(tempWorkspace);
       LifecycleContext compileCtx = executor.compileManifests(findCtx);
 
-      // Act & Assert - Should not throw
       executor.executeBootstrap(compileCtx, Boolean.FALSE);
-    }
-  }
-
-  @Nested
-  @DisplayName("Full Lifecycle - Install Command")
-  class InstallLifecycleTests {
-
-    @Test
-    @DisplayName("executeInstall completes full lifecycle: FIND → COMPILE → DOWNLOAD → BOOTSTRAP")
-    void testExecuteInstall_fullLifecycle() throws IOException {
-      // Arrange
-      String rootYaml = """
-          version: 1.0.0
-          type: root
-          name: "Test Root"
-          body:
-            type: root
-          """;
-      Files.writeString(tempWorkspace.resolve("seed.yaml"), rootYaml);
-
-      // Act
-      LifecycleContext finalCtx = executor.executeInstall(tempWorkspace, false);
-
-      // Assert
-      assertThat(finalCtx.currentPhase()).isEqualTo(LifecyclePhase.COMPLETE);
-      assertThat(finalCtx.root()).isNotNull();
-      assertThat(finalCtx.root().name()).isEqualTo("Test Root");
-    }
-
-    @Test
-    @DisplayName("executeInstall throws exception when root manifest missing")
-    void testExecuteInstall_missingRootManifest_throwsException() {
-      // Act & Assert
-      assertThatThrownBy(() -> executor.executeInstall(tempWorkspace, false))
-          .isInstanceOf(IllegalStateException.class)
-          .hasMessageContaining("Root manifest")
-          .hasMessageContaining("seed.yaml");
     }
   }
 
@@ -390,7 +322,6 @@ class ExecutorTest {
     @Test
     @DisplayName("executePipeline loads and prepares pipeline for execution")
     void testExecutePipeline_loadsPipeline() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -419,10 +350,8 @@ class ExecutorTest {
           """;
       Files.writeString(manifestsDir.resolve("test-pipeline.yaml"), pipelineYaml);
 
-      // Act
       LifecycleContext ctx = executor.executePipeline("test-pipeline", tempWorkspace, false, null);
 
-      // Assert
       assertThat(ctx.currentPhase()).isEqualTo(LifecyclePhase.COMPILE);
       assertThat(ctx.pipeline()).isNotNull();
       assertThat(ctx.pipeline().name()).isEqualTo("test-pipeline");
@@ -431,7 +360,6 @@ class ExecutorTest {
     @Test
     @DisplayName("executePipeline throws exception when pipeline not found")
     void testExecutePipeline_pipelineNotFound_throwsException() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -441,7 +369,6 @@ class ExecutorTest {
           """;
       Files.writeString(tempWorkspace.resolve("seed.yaml"), rootYaml);
 
-      // Act & Assert
       assertThatThrownBy(() -> executor.executePipeline("nonexistent", tempWorkspace, false, null))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("Pipeline manifest")
@@ -456,7 +383,6 @@ class ExecutorTest {
     @Test
     @DisplayName("LifecycleContext builder preserves state across phases")
     void testLifecycleContext_builderPreservesState() throws IOException {
-      // Arrange
       String rootYaml = """
           version: 1.0.0
           type: root
@@ -466,11 +392,9 @@ class ExecutorTest {
           """;
       Files.writeString(tempWorkspace.resolve("seed.yaml"), rootYaml);
 
-      // Act
       LifecycleContext findCtx = executor.findManifests(tempWorkspace);
       LifecycleContext compileCtx = executor.compileManifests(findCtx);
 
-      // Assert
       assertThat(compileCtx.workspaceDir()).isEqualTo(findCtx.workspaceDir());
       assertThat(compileCtx.runId()).isEqualTo(findCtx.runId());
       assertThat(compileCtx.currentPhase()).isEqualTo(LifecyclePhase.COMPILE);
@@ -480,7 +404,6 @@ class ExecutorTest {
     @Test
     @DisplayName("LifecyclePhase enum has correct order")
     void testLifecyclePhase_enumOrder() {
-      // Assert
       assertThat(LifecyclePhase.values())
           .containsExactly(
               LifecyclePhase.FIND,

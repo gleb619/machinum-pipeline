@@ -91,7 +91,7 @@ body:
 
   tools:
     - name: qwen-summary
-      type: internal             # internal|external; default: internal
+      # internal|external; default: internal
       execution-target: local
       source:
         type: spi                # spi|git|http|file; default: spi

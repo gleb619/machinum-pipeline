@@ -2,10 +2,10 @@ package machinum.tool;
 
 import machinum.pipeline.ExecutionContext;
 
-public class ErrorTool implements InternalTool {
+public class ErrorTool implements Tool {
 
   private static final ToolInfo INFO =
-      new ToolInfo("errortool", "internal", "Always throws an exception for error handling tests");
+      new ToolInfo("errortool", "Always throws an exception for error handling tests");
 
   @Override
   public ToolInfo info() {
@@ -13,7 +13,7 @@ public class ErrorTool implements InternalTool {
   }
 
   @Override
-  public ToolResult process(ExecutionContext context) throws Exception {
+  public ToolResult execute(ExecutionContext context) {
     return ToolResult.failure("ErrorTool: forced error");
   }
 }

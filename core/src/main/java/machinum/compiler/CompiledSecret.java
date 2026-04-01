@@ -36,8 +36,12 @@ public final class CompiledSecret {
     return internal.isEmpty();
   }
 
-  public int size() {
-    return internal.size();
+  public Map<String, String> asMap() {
+    Map<String, String> result = new LinkedHashMap<>();
+    for (Map.Entry<String, Compiled<String>> entry : internal.entrySet()) {
+      result.put(entry.getKey(), entry.getValue().get());
+    }
+    return result;
   }
 
   @Override

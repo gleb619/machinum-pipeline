@@ -44,19 +44,19 @@ public class ExecutionContext {
 
   private String aggregationText;
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public Optional<Object> getVariable(String name) {
     return Optional.ofNullable(variables.get(name));
   }
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public Optional<String> getEnvironment(String name) {
     return Optional.ofNullable(environment.get(name));
   }
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public void setVariable(String name, Object value) {
     variables.put(name, value);
@@ -78,7 +78,7 @@ public class ExecutionContext {
     this.retryAttempt = attempt;
   }
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public void updateAggregation(int index, String text) {
     this.aggregationIndex = index;
@@ -97,13 +97,13 @@ public class ExecutionContext {
     return new HashMap<>(variables);
   }
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public boolean hasVariable(String name) {
     return variables.containsKey(name);
   }
 
-  //TODO: Unused
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public ExecutionContext createChildContext() {
     return toBuilder().variables(new ConcurrentHashMap<>(variables)).build();

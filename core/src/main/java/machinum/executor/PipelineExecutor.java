@@ -6,6 +6,7 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.definition.PipelineDefinition;
+import machinum.executor.LifecycleContext.LifecyclePhase;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.pipeline.ErrorHandler;
@@ -15,26 +16,23 @@ import machinum.pipeline.runner.OneStepRunner;
 import machinum.streamer.ItemsStreamer;
 import machinum.streamer.SourceStreamer;
 import machinum.streamer.Streamer;
-import machinum.tool.SpiToolRegistry;
+import machinum.tool.ToolRegistry;
 
 @Slf4j
 @RequiredArgsConstructor
 public class PipelineExecutor {
 
-  private final SpiToolRegistry toolRegistry;
+  private final ToolRegistry toolRegistry;
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
   private final ErrorHandler errorHandler;
 
-  public Executor.LifecycleContext executeRun(
-      Executor.LifecycleContext ctx, PipelineDefinition pipeline) {
+  public LifecycleContext executeRun(LifecycleContext ctx, PipelineDefinition pipeline) {
     log.info("Starting RUN lifecycle: pipeline={} in {}", pipeline.name(), ctx.workspaceDir());
 
-    // 1. Stream items (source OR items)
     List<Map<String, Object>> items = streamItems(pipeline, ctx.workspaceDir());
     log.info("Loaded {} items for processing", items.size());
 
-    // 2. Create OneStepRunner
     RunLogger runLogger = RunLogger.of(ctx.runId());
     Map<String, Object> pipelineVariables =
         pipeline.body().variables() != null ? pipeline.body().variables().get() : Map.of();
@@ -45,10 +43,9 @@ public class PipelineExecutor {
         expressionResolver,
         scriptRegistry,
         errorHandler,
-        System.getenv(),
+        Map.of(),
         pipelineVariables);
 
-    // 3. Execute each item through all states
     ExecutionContext execCtx = buildExecutionContext(ctx, pipeline);
     int processed = 0;
     int failed = 0;
@@ -83,7 +80,7 @@ public class PipelineExecutor {
 
     log.info("RUN lifecycle completed: processed={}, failed={}", processed, failed);
 
-    return ctx.toBuilder().currentPhase(Executor.LifecyclePhase.COMPLETE).build();
+    return ctx.toBuilder().currentPhase(LifecyclePhase.COMPLETE).build();
   }
 
   private List<Map<String, Object>> streamItems(PipelineDefinition pipeline, Path workspaceDir) {
@@ -101,13 +98,13 @@ public class PipelineExecutor {
   }
 
   private ExecutionContext buildExecutionContext(
-      Executor.LifecycleContext ctx, PipelineDefinition pipeline) {
+      LifecycleContext ctx, PipelineDefinition pipeline) {
     Map<String, Object> variables =
         pipeline.body().variables() != null ? pipeline.body().variables().get() : Map.of();
     return ExecutionContext.builder()
         .runId(ctx.runId())
         .variables(variables)
-        .environment(System.getenv())
+        .environment(Map.of())
         .build();
   }
 }

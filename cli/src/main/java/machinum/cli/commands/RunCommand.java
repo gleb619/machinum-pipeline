@@ -5,7 +5,7 @@ import java.util.concurrent.Callable;
 import lombok.extern.slf4j.Slf4j;
 import machinum.config.CoreConfig;
 import machinum.executor.Executor;
-import machinum.executor.Executor.LifecycleContext;
+import machinum.executor.LifecycleContext;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 

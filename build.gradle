@@ -123,6 +123,7 @@ subprojects {
         removeUnusedImports()
         trimTrailingWhitespace()
         endWithNewline()
+        indentWithSpaces(2)
       }
       groovyGradle {
         trimTrailingWhitespace()
@@ -142,4 +143,35 @@ static def projectsToExclude() {
       'frontend',
       'tools'
   ]
+}
+
+/**
+ * Aggregated task to generate tool registry manifest from all tool submodules.
+ * Collects JAR paths from tool subprojects and passes to ToolRegistrar.
+ *
+ * Usage:
+ *   ./gradlew generateAllToolRegistryManifest
+ *   ./gradlew generateAllToolRegistryManifest -PregistryOutput=/path/to/output.yaml
+ */
+tasks.register('generateAllToolRegistryManifest', JavaExec) {
+  group = 'machinum'
+  description = 'Generate tool registry manifest from all tool submodules'
+
+  mainClass = 'machinum.tool.ToolRegistrar'
+  classpath = project(':tools:common').sourceSets.main.runtimeClasspath
+
+  def outputPath = project.hasProperty('registryOutput') ?
+      project.property('registryOutput') :
+      "${rootDir}/.mt/registry.yaml"
+
+  def toolProjects = subprojects.findAll { it.path.startsWith(':tools:') && it.path != ':tools:common' }
+  def jarPaths = toolProjects.collect { proj ->
+    proj.tasks.matching { it.name == 'jar' }.findAll { it.enabled }.collect {
+      it.outputs.files.singleFile
+    }
+  }.flatten().findAll { it.exists() }
+
+  args = [outputPath] + jarPaths.collect { it.absolutePath }
+
+  toolProjects.each { dependsOn it.tasks.jar }
 }

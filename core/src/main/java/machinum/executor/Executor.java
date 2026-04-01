@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.compiler.CompilationContext;
@@ -14,13 +13,14 @@ import machinum.compiler.ToolsManifestCompiler;
 import machinum.definition.PipelineDefinition;
 import machinum.definition.RootDefinition;
 import machinum.definition.ToolsDefinition;
+import machinum.executor.LifecycleContext.LifecyclePhase;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.manifest.PipelineManifest;
 import machinum.manifest.RootManifest;
 import machinum.manifest.ToolsManifest;
 import machinum.pipeline.ErrorHandler;
-import machinum.tool.SpiToolRegistry;
+import machinum.tool.FileToolRegistry;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,7 +31,7 @@ public class Executor {
   private final ToolsManifestCompiler toolsCompiler;
   private final PipelineManifestCompiler pipelineCompiler;
   private final ErrorHandler errorHandler;
-  private final SpiToolRegistry toolRegistry;
+  private final FileToolRegistry toolRegistry;
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
   private final ToolsExecutor toolsExecutor;
@@ -98,22 +98,6 @@ public class Executor {
     return toolsExecutor.executeBootstrap(ctx, force);
   }
 
-  @Deprecated(forRemoval = true)
-  public LifecycleContext executeInstall(Path workspaceDir, boolean force) {
-    log.info("Starting INSTALL lifecycle in {} (force={})", workspaceDir, force);
-
-    LifecycleContext ctx = findManifests(workspaceDir);
-    ctx = compileManifests(ctx);
-    ctx = executeDownload(ctx);
-    ctx = executeBootstrap(ctx, force);
-
-    LifecycleContext finalCtx =
-        ctx.toBuilder().currentPhase(LifecyclePhase.COMPLETE).build();
-
-    log.info("INSTALL lifecycle completed successfully");
-    return finalCtx;
-  }
-
   private PipelineDefinition loadPipeline(
       Path workspaceDir, String pipelineName, CompilationContext ctx) {
     Optional<PipelineManifest> manifest =
@@ -158,13 +142,10 @@ public class Executor {
   public LifecycleContext executeRun(String pipelineName, Path workspaceDir) {
     log.info("Starting RUN lifecycle: pipeline={} in {}", pipelineName, workspaceDir);
 
-    // 1. FIND manifests
     LifecycleContext ctx = findManifests(workspaceDir);
 
-    // 2. COMPILE manifests
     ctx = compileManifests(ctx);
 
-    // 3. Load pipeline
     PipelineDefinition pipeline =
         loadPipeline(workspaceDir, pipelineName, ctx.compilationContext());
     if (pipeline == null) {
@@ -173,32 +154,9 @@ public class Executor {
     }
     ctx = ctx.toBuilder().pipeline(pipeline).build();
 
-    // 4. Delegate to PipelineExecutor
     PipelineExecutor pipelineExecutor =
         new PipelineExecutor(toolRegistry, expressionResolver, scriptRegistry, errorHandler);
     return pipelineExecutor.executeRun(ctx, pipeline);
-  }
-
-  @Builder(toBuilder = true)
-  public record LifecycleContext(
-      Path workspaceDir,
-      CompilationContext compilationContext,
-      String runId,
-      LifecyclePhase currentPhase,
-      RootDefinition root,
-      ToolsDefinition tools,
-      PipelineDefinition pipeline,
-      Optional<RootManifest> rootManifest,
-      Optional<ToolsManifest> toolsManifest) {}
-
-  public enum LifecyclePhase {
-    FIND,
-    COMPILE,
-    DOWNLOAD,
-    BOOTSTRAP,
-    RUN,
-    RESUME,
-    COMPLETE
   }
 
   @RequiredArgsConstructor

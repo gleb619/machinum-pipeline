@@ -105,7 +105,7 @@ public interface InternalTool extends Tool {
      * Install lifecycle method - executes unconditionally during install phase.
      * Use for: downloading dependencies, initializing state, validating config.
      */
-    default void install(ExecutionContext context) throws Exception {
+    default void bootstrap(ExecutionContext context) throws Exception {
         // No-op by default
     }
     
@@ -120,30 +120,74 @@ public interface InternalTool extends Tool {
     }
 }
 
-// External Tool (base)
-public abstract class ExternalTool implements Tool {
-    protected final String runtime;       // shell|docker
-    protected final Path workDir;
-    protected final Duration timeout;
-    protected final RetryPolicy retryPolicy;
-    protected final ExecutionTarget target;
+// Tool Contract (unified - no internal/external separation)
+public interface Tool {
+    ToolInfo info();
+    ToolResult execute(ExecutionContext context) throws Exception;
+
+    /**
+     * Install lifecycle method - executes unconditionally during install phase.
+     * Use for: downloading dependencies, initializing state, validating config.
+     */
+    default void bootstrap(ExecutionContext context) throws Exception {
+        // No-op by default
+    }
+
+    default void validate() {}
+
+    record ToolResult(boolean success, Map<String, Object> outputs, String errorMessage) {}
 }
 
-// External Tool — Shell
-public class ShellTool extends ExternalTool {
-    public JsonNode execute(JsonNode input, ToolContext context) {
-        // ProcessBuilder-based execution
+// Tool Registry Types
+public interface ToolRegistry {
+    void register(Tool tool);
+    Optional<Tool> resolve(String name);
+
+    enum RegistryType {
+        BUILTIN("builtin"),  // Loads tools from JARs at runtime (dev mode)
+        FILE("file"),        // Loads tools via SPI from classpath
+        HTTP("http");        // Downloads tools from remote URLs (release mode)
     }
 }
 
-// External Tool — Docker (experimental, post-MVP)
-public class DockerTool extends ExternalTool {
-    private final String image;
-    private final DockerClient client;
+/**
+ * Registry Mode Switching:
+ * - Dev mode (build.gradle exists): Uses BUILTIN registry
+ * - Release mode: Uses configured type or defaults to HTTP
+ *
+ * Configuration in tools.yaml:
+ * ```yaml
+ * body:
+ *   registry:
+ *     type: builtin  # or http
+ *     url: https://...
+ *     refresh: on_startup
+ * ```
+ */
 
-    public JsonNode execute(JsonNode input, ToolContext context) {
-        // Mount input, run container, capture stdout JSON
-    }
+// Built-in Tool Registry - loads tools from JAR files dynamically
+public class BuiltInToolRegistry implements ToolRegistry {
+    // Uses custom URLClassLoader to load JARs from ~/.machinum/tools/
+    // Discovers tools via SPI from loaded JARs
+}
+
+// File Tool Registry - loads tools from classpath via SPI
+public class FileToolRegistry implements ToolRegistry {
+    // Discovers tools via ServiceLoader.load(Tool.class)
+}
+
+// HTTP Tool Registry - downloads tools from remote URLs
+public class HttpToolRegistry implements ToolRegistry {
+    // Downloads tools from GitHub/HTTP URLs
+    // Caches to ~/.machinum/cache/
+    // Delegates to FileToolRegistry for local management
+}
+
+// Tool Registrar - generates registry manifests
+public class ToolRegistrar {
+    // Scans for tools via SPI
+    // Generates registry-manifest.json with tool metadata
+    // Used by FileToolRegistry to load tools without compilation
 }
 
 // Pipeline State Machine
@@ -194,10 +238,7 @@ public interface StateProcessor {
     ItemResult process(StateDefinition state, Item item, ExecutionContext ctx);
 }
 
-public interface ToolRegistry {
-    Tool resolve(String toolName);
-    List<Tool> list();
-}
+// ToolRegistry interface removed - see new registry types above
 
 public interface ToolExecutor {
     JsonNode execute(Tool tool, JsonNode input, ToolContext context);

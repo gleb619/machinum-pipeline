@@ -3,10 +3,10 @@ package machinum.tool;
 import java.util.Map;
 import machinum.pipeline.ExecutionContext;
 
-public class NoOpTool implements InternalTool {
+public class NoOpTool implements Tool {
 
   private static final ToolInfo INFO =
-      new ToolInfo("nooptool", "internal", "No-operation tool for testing pipeline wiring");
+      new ToolInfo("nooptool", "No-operation tool for testing pipeline wiring");
 
   @Override
   public ToolInfo info() {
@@ -14,7 +14,7 @@ public class NoOpTool implements InternalTool {
   }
 
   @Override
-  public ToolResult process(ExecutionContext context) throws Exception {
+  public ToolResult execute(ExecutionContext context) {
     return ToolResult.success(Map.of());
   }
 }

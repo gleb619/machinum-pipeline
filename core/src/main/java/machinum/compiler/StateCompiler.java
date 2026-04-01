@@ -6,7 +6,7 @@ import java.util.Objects;
 import machinum.definition.PipelineStateDefinition;
 import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
 import machinum.manifest.PipelineStateManifest;
-import machinum.manifest.ToolManifest;
+import machinum.manifest.PipelineToolManifest;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -22,13 +22,13 @@ public interface StateCompiler
   @Mapping(target = "name", qualifiedByName = "compileString")
   @Mapping(target = "description", qualifiedByName = "compileString")
   @Mapping(target = "condition", qualifiedByName = "compileString")
-  @Mapping(target = "stateTools", qualifiedByName = "compileStateTools")
+  @Mapping(target = "tools", source = "tools", qualifiedByName = "compileStateTools")
   PipelineStateDefinition compile(PipelineStateManifest source, @Context CompilationContext ctx);
 
   @Named("compileStateTools")
   default List<PipelineToolDefinition> compileStateTools(
-      List<ToolManifest> tools, @Context CompilationContext ctx) {
-    return Objects.requireNonNullElse(tools, Collections.<ToolManifest>emptyList()).stream()
+      List<PipelineToolManifest> tools, @Context CompilationContext ctx) {
+    return Objects.requireNonNullElse(tools, Collections.<PipelineToolManifest>emptyList()).stream()
         .map(tool -> ToolCompiler.INSTANCE.compile(tool, ctx))
         .toList();
   }

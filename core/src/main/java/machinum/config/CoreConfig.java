@@ -3,12 +3,14 @@ package machinum.config;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import javax.script.ScriptEngineManager;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import machinum.checkpoint.CheckpointStore;
 import machinum.checkpoint.FileCheckpointStore;
 import machinum.compiler.CommonCompiler;
+import machinum.compiler.EnvironmentLoader;
 import machinum.compiler.ErrorHandlingCompiler;
 import machinum.compiler.ItemsCompiler;
 import machinum.compiler.PipelineConfigCompiler;
@@ -24,11 +26,15 @@ import machinum.executor.YamlManifestLoader;
 import machinum.expression.DefaultExpressionResolver;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
+import machinum.manifest.ToolsBody.ToolRegistryType;
 import machinum.pipeline.ErrorHandler;
+import machinum.pipeline.ErrorHandler.ErrorHandlingConfig;
 import machinum.pipeline.RunLogger;
 import machinum.pipeline.runner.OneStepRunner;
 import machinum.pipeline.runner.PipelineRunner;
-import machinum.tool.SpiToolRegistry;
+import machinum.tool.BuiltInToolRegistry;
+import machinum.tool.FileToolRegistry;
+import machinum.tool.HttpToolRegistry;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -59,8 +65,17 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new FileCheckpointStore(baseDir, objectMapper()));
   }
 
-  public SpiToolRegistry spiToolRegistry() {
-    return singleton(SpiToolRegistry::new);
+  public BuiltInToolRegistry builtInToolRegistry(Path gradleProjectPath) {
+    return singleton(() -> new BuiltInToolRegistry(gradleProjectPath).init());
+  }
+
+  public FileToolRegistry fileToolRegistry() {
+    return singleton(FileToolRegistry::new);
+  }
+
+  public HttpToolRegistry httpToolRegistry(
+      Path workspaceRoot, String baseUrl, String refreshStrategy) {
+    return singleton(() -> new HttpToolRegistry(workspaceRoot, baseUrl, refreshStrategy).init());
   }
 
   public RunLogger runLogger(String runId) {
@@ -68,28 +83,42 @@ public class CoreConfig implements SingletonSupport {
   }
 
   public ErrorHandler errorHandler() {
-    return singleton(() -> new ErrorHandler(ErrorHandler.ErrorHandlingConfig.defaultConfig()));
+    return singleton(() -> new ErrorHandler(ErrorHandlingConfig.defaultConfig()));
   }
 
   public PipelineRunner oneStepRunner(RunLogger runLogger) {
     return singleton(() -> new OneStepRunner(
         runLogger,
-        spiToolRegistry(),
+        fileToolRegistry(),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
         errorHandler(),
-        System.getenv(),
+        Map.of(),
         Map.of()));
   }
 
+  public EnvironmentLoader environmentLoader() {
+    var env = System.getenv().entrySet().stream()
+        .filter(entry -> entry.getKey().toUpperCase().startsWith("MT_"))
+        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    return singleton(() -> new EnvironmentLoader(env));
+  }
+
   public YamlManifestLoader yamlManifestLoader() {
-    LoaderOptions loaderOptions = new LoaderOptions();
-    loaderOptions.setMaxAliasesForCollections(50);
-    loaderOptions.setAllowDuplicateKeys(false);
-    var yaml = new Yaml(new SafeConstructor(loaderOptions), new Representer(new DumperOptions()));
+    var yaml = yaml();
     var objectMapper = JsonMapper.builder().findAndAddModules().build();
 
     return singleton(() -> new YamlManifestLoader(objectMapper, yaml));
+  }
+
+  public Yaml yaml() {
+    LoaderOptions loaderOptions = new LoaderOptions();
+    loaderOptions.setMaxAliasesForCollections(50);
+    loaderOptions.setAllowDuplicateKeys(false);
+    SafeConstructor safeConstructor = new SafeConstructor(loaderOptions);
+    Representer representer = new Representer(new DumperOptions());
+
+    return singleton(() -> new Yaml(safeConstructor, representer));
   }
 
   public CheckpointStore checkpointStore(Path checkpointDir) {
@@ -103,14 +132,14 @@ public class CoreConfig implements SingletonSupport {
         toolsManifestCompiler(),
         pipelineManifestCompiler(),
         errorHandler(),
-        spiToolRegistry(),
+        fileToolRegistry(),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
-        toolsExecutor()));
+        toolsExecutor(ToolRegistryType.builtin)));
   }
 
-  public ToolsExecutor toolsExecutor() {
-    return singleton(() -> new ToolsExecutor(spiToolRegistry()));
+  public ToolsExecutor toolsExecutor(ToolRegistryType type) {
+    return singleton(ToolsExecutor::new);
   }
 
   public ExpressionResolver expressionResolver() {
@@ -121,6 +150,8 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new DefaultExpressionResolver(engineManager));
   }
 
+  // TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead
+  @Deprecated(forRemoval = true)
   public ScriptRegistry scriptRegistry(Path scriptsDir) {
     return singleton(() -> new ScriptRegistry(scriptsDir).init());
   }

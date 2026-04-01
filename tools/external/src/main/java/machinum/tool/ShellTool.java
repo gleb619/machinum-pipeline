@@ -13,26 +13,70 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import machinum.pipeline.ExecutionContext;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
-@Data
-public class ShellTool extends ExternalTool {
+public class ShellTool implements Tool {
 
-  private Path scriptPath;
+  private final ToolInfo info;
 
-  private List<String> args;
+  private final Path workDir;
 
-  private Map<String, String> environment;
+  private final Duration timeout;
 
-  private String interpreter;
+  private final Path scriptPath;
 
-  private ObjectMapper objectMapper;
+  private final List<String> args;
+
+  private final Map<String, String> environment;
+
+  private final String interpreter;
+
+  private final ObjectMapper objectMapper;
+
+  @Override
+  public ToolInfo info() {
+    return info;
+  }
+
+  @Data
+  @Builder
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class RetryPolicy {
+
+    private int maxAttempts;
+
+    private Duration initialDelay;
+
+    private double multiplier;
+
+    private double jitter;
+
+    public static RetryPolicy defaultPolicy() {
+      return new RetryPolicy(0, Duration.ofSeconds(1), 1.0, 0.0);
+    }
+  }
+
+  @Getter
+  @RequiredArgsConstructor
+  public enum ExecutionTarget {
+    LOCAL("local"),
+    REMOTE("remote"),
+    DOCKER("docker");
+
+    private final String name;
+  }
 
   @Builder
   protected ShellTool(
@@ -46,7 +90,9 @@ public class ShellTool extends ExternalTool {
       Map<String, String> environment,
       String interpreter,
       ObjectMapper objectMapper) {
-    super(info, "shell", workDir, timeout, retryPolicy, executionTarget);
+    this.info = info;
+    this.workDir = workDir;
+    this.timeout = timeout != null ? timeout : Duration.ofSeconds(30);
     this.scriptPath = scriptPath;
     this.args = args;
     this.environment = environment;
@@ -88,8 +134,9 @@ public class ShellTool extends ExternalTool {
         .build();
   }
 
+  @SneakyThrows
   @Override
-  public ToolResult execute(ExecutionContext context) throws Exception {
+  public ToolResult execute(ExecutionContext context) {
     validate();
 
     log.info("""
@@ -121,7 +168,6 @@ public class ShellTool extends ExternalTool {
 
     Process process = pb.start();
 
-    // Write input JSON to process stdin
     Map<String, Object> inputData = context.getAll();
     String inputJson = objectMapper.writeValueAsString(inputData);
     try (OutputStream stdin = process.getOutputStream()) {
@@ -170,7 +216,13 @@ public class ShellTool extends ExternalTool {
 
   @Override
   public void validate() {
-    super.validate();
+    if (workDir != null && !workDir.toFile().exists()) {
+      throw new IllegalStateException("Working directory does not exist: " + workDir);
+    }
+
+    if (timeout != null && (timeout.isNegative() || timeout.isZero())) {
+      throw new IllegalStateException("Timeout must be positive");
+    }
 
     if (!Files.exists(scriptPath)) {
       throw new IllegalStateException("Shell script does not exist: " + scriptPath);

@@ -1,3 +1,6 @@
 package machinum.tool;
 
-public record ToolInfo(String name, String type, String description) {}
+import lombok.Builder;
+
+@Builder
+public record ToolInfo(String name, String description) {}

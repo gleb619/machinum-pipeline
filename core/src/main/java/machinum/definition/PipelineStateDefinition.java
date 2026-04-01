@@ -10,7 +10,7 @@ public record PipelineStateDefinition(
     Compiled<String> name,
     Compiled<String> description,
     Compiled<String> condition,
-    @Singular List<PipelineToolDefinition> stateTools) {
+    @Singular List<PipelineToolDefinition> tools) {
 
   @Builder
   public record PipelineToolDefinition(

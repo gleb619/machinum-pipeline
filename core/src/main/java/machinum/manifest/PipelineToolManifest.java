@@ -1,13 +1,12 @@
 package machinum.manifest;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.List;
 import lombok.Builder;
 import lombok.Singular;
 
 @Builder
 // TODO: Add custom deserializer for short declaration form
-public record ToolManifest(
+public record PipelineToolManifest(
     String name,
     String description,
     Boolean async,
@@ -15,6 +14,6 @@ public record ToolManifest(
     String input,
     // TODO: Add here support of output types: it could be String or Map<String, String>
     String output,
-    @JsonAlias("tools") @Singular List<ToolManifest> stateTools
+    @Singular List<PipelineToolManifest> tools
     // TODO: Add here support of `wait-for`, `window`, `fork`
     ) {}

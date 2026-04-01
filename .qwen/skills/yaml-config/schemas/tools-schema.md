@@ -36,30 +36,14 @@ install:
 ### tools
 
 ```yaml
-tools:
+registry:
   - name: string         # Required - Tool identifier
-    type: internal|external  # Default: internal
-    version: string       # Default: latest
     execution-target: string # Default: default from execution-targets
-    runtime: shell|docker  # For external tools
-    source:
-      type: spi|git|http|file|docker
-      url: string         # For git/http/file
-      spi-class: string   # For spi type
-      image: string       # For docker type
-      git-tag: string     # For git type
-    args: []             # Optional - Script arguments
-    cache:
-      enabled: boolean    # Default: true
-      key: string         # Cache key template
-      ttl: duration       # Default: 24h
-    timeout: duration     # Default: 30s
     config:
       # Tool-specific configuration
-      model: string
-      temperature: number
       input-schema: {}    # JSON Schema for external tools
       output-schema: {}   # JSON Schema for external tools
+      any-key: any-value  # A @JsonAnySetter captor, that handle all values
 ```
 
 ## Tool Types
@@ -68,24 +52,19 @@ tools:
 
 ```yaml
 - name: translator
-  type: internal
-  source:
-    type: spi
-    spi-class: machinum.tools.Translator
 ```
 
 ### External Shell Tools
 
 ```yaml
 - name: md-formatter
-  type: external
   runtime: shell
-  source:
-    type: file
-    url: "./.mt/scripts/formatter.sh"
-  args:
-    - "{{item.id}}"
   config:
+    source:
+      type: file
+      url: "./.mt/scripts/formatter.sh"
+    args:
+      - "{{item.id}}"
     work-dir: "{{rootDir}}"
 ```
 
@@ -93,14 +72,13 @@ tools:
 
 ```yaml
 - name: embedding-generator
-  type: external
-  runtime: docker
-  source:
-    type: docker
-    image: "registry.example.com/embedding:latest"
   config:
     model: bge-large
     dimension: 1024
+    runtime: docker
+    source:
+      type: docker
+      image: "registry.example.com/embedding:latest"
 ```
 
 ### Minimal Declaration

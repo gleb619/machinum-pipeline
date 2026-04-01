@@ -1,0 +1,23 @@
+# Test fixture: HTTP tool registry configuration
+# Used for testing DownloadCommand with remote tool registry
+version: 1.0.0
+type: tools
+name: "Test HTTP Registry Tools"
+body:
+  registry:
+    type: http
+    url: https://raw.githubusercontent.com/gleb619/machinum-pipeline/refs/heads/main/tools.yaml
+    refresh: on_startup
+
+  bootstrap:
+    - workspace-init
+
+  tools:
+    - name: workspace-init
+      description: "Workspace initialization tool"
+
+    - name: qwen-summary
+      description: "Qwen-based text summarization"
+      config:
+        model: qwen2.5-72b
+        temperature: 0.7

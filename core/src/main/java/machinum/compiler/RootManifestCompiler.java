@@ -1,5 +1,7 @@
 package machinum.compiler;
 
+import static machinum.config.CoreConfig.coreConfig;
+
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,6 +33,8 @@ import machinum.manifest.RootBody.RootExecutionManifest;
 import machinum.manifest.RootManifest;
 
 @Slf4j
+//TODO: Redo to `mapstruct`
+@Deprecated(forRemoval = true)
 public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefinition> {
 
   public static final RootManifestCompiler INSTANCE = new RootManifestCompiler();
@@ -65,22 +69,11 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
       return null;
     }
 
-    // 1. Compile variables
     CompiledMap variables = CommonCompiler.INSTANCE.compileMap(body.variables(), ctx);
-
-    // 2. Compile execution
     RootExecutionDefinition execution = compileExecution(body.execution());
-
-    // 3. Compile config
     PipelineConfigDefinition config = compileConfig(body.config(), ctx);
-
-    // 4. Compile cleanup
     RootCleanupDefinition cleanup = compileCleanup(body.cleanup());
-
-    // 5. Compile error-handling
     ErrorHandlingDefinition errorHandling = compileErrorHandling(body.errorHandling(), ctx);
-
-    // 6. Load env files and build CompiledSecret
     CompiledSecret secrets = compileSecrets(body, ctx, exprCtx, resolver);
 
     return RootBodyDefinition.builder()
@@ -99,24 +92,19 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
       ExpressionContext exprCtx,
       ExpressionResolver resolver) {
 
-    EnvironmentLoader loader = EnvironmentLoader.builder().build();
+    EnvironmentLoader loader = coreConfig().environmentLoader();
     Path workspaceDir = ctx.workspaceDir();
 
-    if (workspaceDir != null) {
-      List<String> envFiles = body.envFiles();
-      if (envFiles == null || envFiles.isEmpty()) {
-        // Default: load .env and .ENV from workspace root
-        loader.loadFromDirectory(workspaceDir);
-        log.debug("No envFiles specified, loading .env/.ENV from workspace root: {}", workspaceDir);
-      } else {
-        // Load specified env files
-        Path[] paths = envFiles.stream().map(f -> workspaceDir.resolve(f)).toArray(Path[]::new);
-        loader.loadFromPaths(paths);
-        log.debug("Loaded env from specified files: {}", envFiles);
-      }
+    List<String> envFiles = body.envFiles();
+    if (envFiles == null || envFiles.isEmpty()) {
+      loader.loadFromDirectory(workspaceDir);
+      log.debug("No envFiles specified, loading .env/.ENV from workspace root: {}", workspaceDir);
+    } else {
+      Path[] paths = envFiles.stream().map(workspaceDir::resolve).toArray(Path[]::new);
+      loader.loadFromPaths(paths);
+      log.debug("Loaded env from specified files: {}", envFiles);
     }
 
-    // Merge: file-loaded env + inline env (inline overrides file)
     Map<String, String> merged = new HashMap<>(loader.getAll());
     Map<String, String> inlineEnv = body.env();
     if (inlineEnv != null) {

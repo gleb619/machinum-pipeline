@@ -72,33 +72,31 @@ body:
 
   tools:
     - name: text-extractor
-      type: internal
       execution-target: local
       config:
         max_file_size: 50MB
         supported_formats: [pdf, docx, txt]
 
     - name: ai-summarizer
-      type: external
-      runtime: shell
       execution-target: gpu-server
-      source:
-        type: http
-        url: "https://raw.githubusercontent.com/company/summarizer/main/summarize.py"
-      args:
-        - "--model"
-        - "qwen2.5-72b"
-        - "--input"
-        - "{{input.content}}"
-      timeout: 120s
-      cache:
-        enabled: true
-        key: "summarize:{{model}}:{{sha256(input.content)}}"
-        ttl: 24h
       config:
         model: qwen2.5-72b
         temperature: 0.3
         max_tokens: 1000
+        runtime: shell
+        source:
+          type: http
+          url: "https://raw.githubusercontent.com/company/summarizer/main/summarize.py"
+        args:
+          - "--model"
+          - "qwen2.5-72b"
+          - "--input"
+          - "{{input.content}}"
+        timeout: 120s
+        cache:
+          enabled: true
+          key: "summarize:{{model}}:{{sha256(input.content)}}"
+          ttl: 24h
 
     - name: language-detector
       # Minimal SPI declaration
@@ -106,7 +104,6 @@ body:
         confidence_threshold: 0.8
 
     - name: document-converter
-      type: external
       runtime: docker
       source:
         type: docker

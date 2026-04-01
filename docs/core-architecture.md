@@ -42,10 +42,10 @@ The tools manifest uses a simplified flat structure (no states). All tools are c
 CompiledToolsManifest tools = compiler.compile(rawManifest, ctx);
 
 // Access tool definitions
-for (ToolDefinition tool : tools.body().tools()) {
+for (ToolDefinition tool : tools.body().registry()) {
     // Install phase - runs unconditionally
-    tool.install(context);
-    
+    tool.bootstrap(context);
+
     // Runtime phase - runs when tool is invoked in pipeline
     ToolResult result = tool.execute(context);
 }

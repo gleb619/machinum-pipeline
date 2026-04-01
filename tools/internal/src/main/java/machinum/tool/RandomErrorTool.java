@@ -5,10 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import machinum.pipeline.ExecutionContext;
 
 @Slf4j
-public class RandomErrorTool implements InternalTool {
+public class RandomErrorTool implements Tool {
 
-  private static final ToolInfo INFO = new ToolInfo(
-      "randerrortool", "internal", "Throws an exception randomly based on threshold config");
+  private static final ToolInfo INFO =
+      new ToolInfo("randerrortool", "Throws an exception randomly based on threshold config");
 
   @Override
   public ToolInfo info() {
@@ -16,7 +16,7 @@ public class RandomErrorTool implements InternalTool {
   }
 
   @Override
-  public ToolResult process(ExecutionContext context) throws Exception {
+  public ToolResult execute(ExecutionContext context) {
     double threshold = 0.5;
     double roll = Math.random();
 

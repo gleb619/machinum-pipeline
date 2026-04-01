@@ -54,4 +54,13 @@ public interface CommonCompiler {
     var map = compileSimpleMap(source);
     return CompiledMap.of(map, context, resolver);
   }
+
+  @Named("compileObjectMap")
+  default CompiledMap compileObjectMap(
+      Map<String, Object> source, @Context CompilationContext ctx) {
+    ExpressionContext context = createExpressionContext(ctx);
+    ExpressionResolver resolver = ctx.resolver();
+    var map = new HashMap<>(source);
+    return CompiledMap.of(map, context, resolver);
+  }
 }

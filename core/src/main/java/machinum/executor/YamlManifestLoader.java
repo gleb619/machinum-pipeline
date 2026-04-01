@@ -77,13 +77,11 @@ public class YamlManifestLoader {
   }
 
   private Path findRootManifest(Path workspaceDir) {
-    // First check for seed.yaml in root
     Path seedPath = workspaceDir.resolve("seed.yaml");
     if (Files.exists(seedPath)) {
       return seedPath;
     }
 
-    // Fallback: scan for any root manifest
     return scanManifests(workspaceDir).stream()
         .filter(m -> m.type() == Type.root)
         .map(ManifestObject::filepath)
@@ -92,13 +90,11 @@ public class YamlManifestLoader {
   }
 
   private Path findToolsManifest(Path workspaceDir) {
-    // First check for .mt/tools.yaml
     Path toolsPath = workspaceDir.resolve(".mt/tools.yaml");
     if (Files.exists(toolsPath)) {
       return toolsPath;
     }
 
-    // Fallback: scan for any tools manifest
     return scanManifests(workspaceDir).stream()
         .filter(m -> m.type() == Type.tools)
         .map(ManifestObject::filepath)
@@ -107,7 +103,6 @@ public class YamlManifestLoader {
   }
 
   private Path findPipelineManifest(Path workspaceDir, String pipelineName) {
-    // First check in standard location
     Path manifestsDir = workspaceDir.resolve("src/main/manifests");
     if (Files.isDirectory(manifestsDir)) {
       Path namedPath = manifestsDir.resolve(pipelineName + ".yaml");
@@ -116,7 +111,6 @@ public class YamlManifestLoader {
       }
     }
 
-    // Fallback: scan for matching pipeline manifest
     return scanManifests(workspaceDir).stream()
         .filter(m -> m.type() == Type.pipeline)
         .map(ManifestObject::filepath)
@@ -131,7 +125,6 @@ public class YamlManifestLoader {
   }
 
   private List<Path> findPipelineManifest(Path workspaceDir) {
-    // Fallback: scan for matching pipeline manifest
     return scanManifests(workspaceDir).stream()
         .filter(m -> m.type() == Type.pipeline)
         .map(ManifestObject::filepath)

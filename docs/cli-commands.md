@@ -7,7 +7,7 @@
 
 ```
 machinum
-├── install [tool...]                    # Install tools from tools.yaml
+├── setup [tool...]                      # Install tools from tools.yaml
 │   ├── download                         # Fetch tool sources (no workspace mutation)
 │   └── bootstrap                        # Create workspace structure and run install() on all tools
 ├── run [pipeline-name]                  # Execute pipeline
@@ -55,20 +55,43 @@ machinum install qwen-summary translator
 ```
 
 **Tool Lifecycle Method:**
-Each internal tool implements `void install(ExecutionContext context)` which runs unconditionally:
+Each tool implements `void bootstrap(ExecutionContext context)` which runs unconditionally:
 ```java
-public class QwenSummary implements InternalTool {
+public class QwenSummary implements Tool {
     @Override
-    public void install(ExecutionContext context) throws Exception {
+    public void bootstrap(ExecutionContext context) throws Exception {
         // Downloads model, validates API keys, initializes cache
         // Runs during 'machinum setup' for every tool
     }
-    
+
     @Override
-    public ToolResult process(ExecutionContext context) throws Exception {
+    public ToolResult execute(ExecutionContext context) {
         // Runs during pipeline execution when tool is invoked
     }
 }
 ```
 
+**GitTool Example:**
+The `git` tool demonstrates the bootstrap/execute lifecycle:
+- **Bootstrap:** Initializes Git repository, creates `.githooks/commit-msg.sh`
+- **Execute:** Creates commits with GitLab convention messages
+
+```java
+public class GitTool implements Tool {
+    @Override
+    public void bootstrap(BootstrapContext context) throws Exception {
+        // Initialize git repository in workspace
+        // Create .githooks/commit-msg.sh hook
+    }
+
+    @Override
+    public ToolResult execute(ExecutionContext context) {
+        // Create commit with message from context
+        String message = context.getVariable("commitMessage", "feat: update");
+        // git.commit().setMessage(message).call();
+    }
+}
+```
+
 See [YAML Schema §3.1](yaml-schema.md#31-tool-lifecycle) for lifecycle details.
+See [GitTool](../tools/external/src/main/java/machinum/tool/GitTool.java) for implementation example.

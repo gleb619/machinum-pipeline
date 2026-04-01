@@ -6,6 +6,10 @@ dependencies {
     // Core module
     implementation project(':core')
 
+    // Tools
+    implementation project(':tools:internal')
+    implementation project(':tools:external')
+
     // CLI
     implementation libs.picocli
 

@@ -72,7 +72,7 @@ class WorkspaceInitTest {
     int exitCode = cli.execute("install", "--workspace", workspaceRoot.toString());
 
     // Assert
-    assertEquals(0, exitCode, "Install command should succeed");
+    assertEquals(0, exitCode, "Bootstrap command should succeed");
 
     // Verify directories created
     assertTrue(Files.exists(workspaceRoot.resolve(".mt")),
@@ -167,7 +167,7 @@ class WorkspaceInitTest {
     Files.writeString(seedYaml, modifiedContent);
 
     // Act - Install with --force (should overwrite)
-    int exitCode2 = cli.execute("install", "--workspace", workspaceRoot.toString(), "--force");
+    int exitCode2 = cli.execute("setup", "--workspace", workspaceRoot.toString(), "--force");
 
     // Assert
     assertEquals(0, exitCode1);

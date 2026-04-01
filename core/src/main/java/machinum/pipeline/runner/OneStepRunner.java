@@ -3,9 +3,9 @@ package machinum.pipeline.runner;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import machinum.Tool;
 import machinum.definition.PipelineStateDefinition;
 import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
 import machinum.expression.ExpressionContext;
@@ -15,14 +15,15 @@ import machinum.pipeline.ErrorHandler;
 import machinum.pipeline.ErrorHandler.ErrorStrategy;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
-import machinum.tool.SpiToolRegistry;
+import machinum.tool.Tool.ToolResult;
+import machinum.tool.ToolRegistry;
 
 @Slf4j
 @RequiredArgsConstructor
 public class OneStepRunner implements PipelineRunner {
 
   private final RunLogger runLogger;
-  private final SpiToolRegistry toolRegistry;
+  private final ToolRegistry toolRegistry;
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
   private final ErrorHandler errorHandler;
@@ -37,7 +38,6 @@ public class OneStepRunner implements PipelineRunner {
     String stateName = state.name().get();
     log.debug("Executing state: {} for item: {}", stateName, itemId);
 
-    // Evaluate condition if present
     if (state.condition() != null && state.condition().get() != null) {
       String condition = state.condition().get();
       boolean shouldExecute = evaluateCondition(condition, context, state);
@@ -50,8 +50,7 @@ public class OneStepRunner implements PipelineRunner {
     runLogger.stateTransition(itemId, stateIndex > 0 ? "previous" : "-", stateName);
     context.updateContext(context.getCurrentItem(), convertToMap(state), Map.of());
 
-    // Process each tool in the state
-    List<PipelineToolDefinition> tools = state.stateTools();
+    List<PipelineToolDefinition> tools = state.tools();
     for (PipelineToolDefinition toolDef : tools) {
       processTool(toolDef, stateName, itemId, context);
     }
@@ -62,11 +61,6 @@ public class OneStepRunner implements PipelineRunner {
       throws Exception {
 
     String toolName = toolDef.name().get();
-    Tool tool = toolRegistry
-        .resolve(toolName)
-        .orElseThrow(() -> new IllegalStateException(
-            "Tool not found: %s in state: %s".formatted(toolName, stateName)));
-
     context.updateContext(
         context.getCurrentItem(), context.getCurrentState(), Map.of("name", toolName));
 
@@ -74,15 +68,15 @@ public class OneStepRunner implements PipelineRunner {
     runLogger.toolStart(itemId, stateName, toolName);
 
     int maxAttempts = 3;
-    int attempt = 0;
+    AtomicInteger attempt = new AtomicInteger();
     Exception lastException = null;
 
-    while (attempt < maxAttempts) {
-      attempt++;
-      context.updateRetryAttempt(attempt);
+    while (attempt.get() < maxAttempts) {
+      attempt.getAndIncrement();
+      context.updateRetryAttempt(attempt.get());
 
       try {
-        Tool.ToolResult result = tool.execute(context);
+        ToolResult result = toolRegistry.execute(toolName, context);
         Instant toolEnd = Instant.now();
 
         if (result.success()) {
@@ -97,15 +91,13 @@ public class OneStepRunner implements PipelineRunner {
         log.warn("Tool {} failed on attempt {}: {}", toolName, attempt, e.getMessage());
       }
 
-      // Check error strategy
       ErrorStrategy strategy = errorHandler.resolveStrategy(lastException);
       switch (strategy) {
         case RETRY -> {
-          if (attempt < maxAttempts) {
-            long delay = errorHandler.calculateBackoffDelay(attempt);
+          if (attempt.get() < maxAttempts) {
+            long delay = errorHandler.calculateBackoffDelay(attempt.get());
             log.debug("Retrying tool {} after {}ms", toolName, delay);
             Thread.sleep(delay);
-            continue;
           }
         }
         case SKIP -> {
@@ -133,7 +125,6 @@ public class OneStepRunner implements PipelineRunner {
     try {
       context.updateContext(context.getCurrentItem(), convertToMap(state), Map.of());
 
-      // Build expression context for evaluation
       ExpressionContext exprCtx = ExpressionContext.builder()
           .item(context.getCurrentItem())
           .text(getTextContent(context))
@@ -160,6 +151,8 @@ public class OneStepRunner implements PipelineRunner {
     }
   }
 
+  // TODO: We need a proper pojo, not just map with random naming
+  @Deprecated(forRemoval = true)
   private String getTextContent(ExecutionContext context) {
     Object content = context.getCurrentItem().get("content");
     if (content instanceof String) {

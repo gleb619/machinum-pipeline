@@ -3,10 +3,43 @@ plugins {
 }
 
 dependencies {
+  // YAML
+  implementation libs.jackson.yaml
+
   // Misc
   compileOnly libs.lombok
   annotationProcessor libs.lombok
 
   // Logging
-  compileOnly libs.slf4j.api
+  implementation libs.slf4j.api
+}
+
+/**
+ * Task to generate tool registry manifest.
+ * Scans for tools via SPI and creates a manifest file.
+ *
+ * Usage:
+ *   ./gradlew :tools:common:generateToolRegistryManifest
+ *   ./gradlew :tools:common:generateToolRegistryManifest -PregistryOutput=/path/to/output.yaml
+ *   ./gradlew :tools:common:generateToolRegistryManifest -PsubmodulePaths=/path/to/jar1.jar,/path/to/jar2.jar
+ */
+tasks.register('generateToolRegistryManifest', JavaExec) {
+  group = 'machinum'
+  description = 'Generate tool registry manifest'
+
+  mainClass = 'machinum.tool.ToolRegistrar'
+  classpath = sourceSets.main.runtimeClasspath
+
+  def outputPath = project.hasProperty('registryOutput') ?
+      project.property('registryOutput') :
+      "${rootDir}/tools/registry.yaml"
+
+  def submodulePaths = project.hasProperty('submodulePaths') ?
+      project.property('submodulePaths').split(',').toList() :
+      [
+          'tools/external/build/libs',
+          'tools/internal/build/libs'
+      ]
+
+  args = [outputPath] + submodulePaths
 }

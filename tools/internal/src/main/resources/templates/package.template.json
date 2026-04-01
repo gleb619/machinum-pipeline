@@ -1,0 +1,9 @@
+{
+  "name": "machinum-workspace",
+  "version": "1.0.0",
+  "description": "Machinum Pipeline workspace with Node.js tools",
+  "private": true,
+  "dependencies": {
+
+  }
+}

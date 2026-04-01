@@ -12,23 +12,66 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.pipeline.ExecutionContext;
 import org.codehaus.groovy.control.CompilerConfiguration;
 
-@Data
 @Slf4j
-public class GroovyScriptTool extends ExternalTool {
+public class GroovyScriptTool implements Tool {
 
   private static final Map<Path, Script> SCRIPT_CACHE = new ConcurrentHashMap<>();
 
-  private Path scriptPath;
+  private final ToolInfo info;
 
-  private Class<?> returnType;
+  private final Path workDir;
 
-  private boolean sandboxed;
+  private final Duration timeout;
+
+  private final Path scriptPath;
+
+  private final Class<?> returnType;
+
+  private final boolean sandboxed;
+
+  @Override
+  public ToolInfo info() {
+    return info;
+  }
+
+  @Data
+  @Builder
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class RetryPolicy {
+
+    private int maxAttempts;
+
+    private Duration initialDelay;
+
+    private double multiplier;
+
+    private double jitter;
+
+    public static RetryPolicy defaultPolicy() {
+      return new RetryPolicy(0, Duration.ofSeconds(1), 1.0, 0.0);
+    }
+  }
+
+  @Getter
+  @RequiredArgsConstructor
+  public enum ExecutionTarget {
+    LOCAL("local"),
+    REMOTE("remote"),
+    DOCKER("docker");
+
+    private final String name;
+  }
 
   @Builder
   public GroovyScriptTool(
@@ -40,7 +83,9 @@ public class GroovyScriptTool extends ExternalTool {
       Path scriptPath,
       Class<?> returnType,
       boolean sandboxed) {
-    super(info, "groovy", workDir, timeout, retryPolicy, executionTarget);
+    this.info = info;
+    this.workDir = workDir;
+    this.timeout = timeout != null ? timeout : Duration.ofSeconds(30);
     this.scriptPath = scriptPath;
     this.returnType = returnType;
     this.sandboxed = sandboxed;
@@ -78,10 +123,16 @@ public class GroovyScriptTool extends ExternalTool {
   }
 
   @Override
-  public ToolResult execute(ExecutionContext context) throws Exception {
+  public ToolResult execute(ExecutionContext context) {
     validate();
 
-    Script script = getScript(scriptPath, sandboxed);
+    Script script;
+    try {
+      script = getScript(scriptPath, sandboxed);
+    } catch (IOException e) {
+      log.error("Failed to load script {}: {}", scriptPath, e.getMessage(), e);
+      return ToolResult.failure("Failed to load Groovy script: " + e.getMessage());
+    }
 
     Binding binding = createBinding(context);
     script.setBinding(binding);
@@ -104,7 +155,13 @@ public class GroovyScriptTool extends ExternalTool {
 
   @Override
   public void validate() {
-    super.validate();
+    if (workDir != null && !workDir.toFile().exists()) {
+      throw new IllegalStateException("Working directory does not exist: " + workDir);
+    }
+
+    if (timeout != null && (timeout.isNegative() || timeout.isZero())) {
+      throw new IllegalStateException("Timeout must be positive");
+    }
 
     if (!Files.exists(scriptPath)) {
       throw new IllegalStateException("Groovy script does not exist: " + scriptPath);

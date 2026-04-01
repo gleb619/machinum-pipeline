@@ -56,7 +56,6 @@ body:
 
   tools:
     - name: mock-processor
-      type: internal
       description: "Mock processor for demo"
 ```
 
@@ -91,13 +90,13 @@ body:
 Lorem ipsum dolor sit amet, consectetur adipiscing elit.
 ```
 
-### 6. Install Tools
+### 6. Setup Tools
 
 ```bash
-./gradlew :cli:run --args="install -w ./my-project"
+./gradlew :cli:run --args="setup -w ./my-project"
 ```
 
-This runs the `install()` method on all internal tools defined in `.mt/tools.yaml`.
+This runs the `bootstrap()` method on all internal tools defined in `.mt/tools.yaml`.
 
 ### 7. Run Pipeline
 

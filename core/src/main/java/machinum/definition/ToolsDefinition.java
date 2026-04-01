@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
+import machinum.manifest.ToolsBody.ToolRegistryType;
 
 @Builder
 public record ToolsDefinition(
@@ -19,18 +20,10 @@ public record ToolsDefinition(
   @Builder
   public record ToolsBodyDefinition(
       ToolRegistryDefinition toolRegistry,
-      ExecutionTargetsDefinition executionTargets,
+      @Singular("bootstrap") List<String> bootstrap,
       @Singular List<ToolDefinition> tools)
       implements BodyDefinition {}
 
   @Builder
-  public record ToolRegistryDefinition(String type, String url, String refresh) {}
-
-  @Builder
-  public record ExecutionTargetsDefinition(
-      String defaultTarget, @Singular List<ExecutionTargetDefinition> targets) {}
-
-  @Builder
-  public record ExecutionTargetDefinition(
-      String name, String type, String remoteHost, String dockerHost) {}
+  public record ToolRegistryDefinition(ToolRegistryType type, String url, String refresh) {}
 }

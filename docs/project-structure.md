@@ -9,6 +9,9 @@
 ```
 work-directory/
 ├── seed.yaml                        # Root user configuration (also: root.yml|yaml)
+├── .git/                            # Git repository (initialized by GitTool)
+├── .githooks/                       # Git hooks (created during bootstrap)
+│   └── commit-msg.sh                # Commit message validation hook
 ├── .mt/                             # Internal directory
 │   ├── tools.yaml                   # Tool definitions (flat list, no states)
 │   ├── scripts/                     # External Groovy scripts
@@ -36,6 +39,23 @@ work-directory/
 ├── package.json                     # Generated when node tools enabled in tools.yaml
 └── build/                           # Processed results and final artifacts
 ```
+
+**Git Integration:**
+- `.git/` - Initialized by `GitTool` during bootstrap phase
+- `.githooks/commit-msg.sh` - Validates commit messages follow GitLab convention
+- Git hooks configured via `core.hooksPath` in `.git/config`
+
+**.gitignore Rules:**
+The `.mt/` directory is ignored by git except for `tools.yaml`:
+```gitignore
+.mt/
+!.mt/tools.yaml
+.mt/state/
+.mt/tools/
+.mt/scripts/
+```
+
+See [YAML Schema §3](yaml-schema.md#3-tools-yaml-mttoolsyaml) for tools.yaml format.
   
 > The `chapters/` directory serves dual purpose: as direct input when using `items` mode, or as a target for `source` preprocessors that acquire and convert external data. See [YAML Schema §4.x](yaml-schema.md#4x-source-vs-items--data-acquisition-layer).
 

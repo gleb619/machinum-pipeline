@@ -2,8 +2,8 @@ package machinum.cli.commands;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Objects;
 import java.util.concurrent.Callable;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.config.CoreConfig;
 import picocli.CommandLine.Command;
@@ -17,7 +17,6 @@ import picocli.CommandLine.ParentCommand;
         "Initialize workspace with tool sources and directory structure. Shortcut for: download + bootstrap",
     subcommands = {SetupCommand.DownloadCommand.class, SetupCommand.BootstrapCommand.class},
     mixinStandardHelpOptions = true)
-@RequiredArgsConstructor
 public class SetupCommand implements Callable<Integer> {
 
   @Option(
@@ -32,13 +31,15 @@ public class SetupCommand implements Callable<Integer> {
   private boolean force;
 
   @Override
-  public Integer call() throws Exception {
+  public Integer call() {
     Path workspaceRoot = resolveWorkspace();
     log.info("Setting workspace up in {} (download + bootstrap)", workspaceRoot);
 
     var executor = CoreConfig.coreConfig().executor();
 
-    executor.chain(workspaceRoot).findManifests().executeBootstrap(force);
+    executor.chain(workspaceRoot).findManifests()
+        .executeDownload()
+        .executeBootstrap(force);
 
     log.info("Setup complete!");
 
@@ -49,14 +50,13 @@ public class SetupCommand implements Callable<Integer> {
       name = "download",
       description = "Download tool sources without creating workspace structure",
       mixinStandardHelpOptions = true)
-  @RequiredArgsConstructor
   static class DownloadCommand implements Callable<Integer> {
 
     @ParentCommand
     private SetupCommand parent;
 
     @Override
-    public Integer call() throws Exception {
+    public Integer call() {
       Path workspaceRoot = parent.resolveWorkspace();
       log.info("Downloading tool sources to {}", workspaceRoot);
 
@@ -71,9 +71,8 @@ public class SetupCommand implements Callable<Integer> {
 
   @Command(
       name = "bootstrap",
-      description = "Create workspace structure and run install() on all internal tools",
+      description = "Create workspace structure and run bootstrap() on all internal tools",
       mixinStandardHelpOptions = true)
-  @RequiredArgsConstructor
   static class BootstrapCommand implements Callable<Integer> {
 
     @ParentCommand
@@ -85,7 +84,7 @@ public class SetupCommand implements Callable<Integer> {
     private boolean force;
 
     @Override
-    public Integer call() throws Exception {
+    public Integer call() {
       Path workspaceRoot = parent.resolveWorkspace();
       log.info("Bootstrapping workspace in {}", workspaceRoot);
 
@@ -99,9 +98,8 @@ public class SetupCommand implements Callable<Integer> {
   }
 
   Path resolveWorkspace() {
-    if (workspace == null) {
-      return Paths.get(System.getProperty("user.dir"));
-    }
-    return Paths.get(workspace).toAbsolutePath().normalize();
+    return Paths.get(
+        Objects.requireNonNullElse(workspace, ""))
+        .toAbsolutePath().normalize();
   }
 }
