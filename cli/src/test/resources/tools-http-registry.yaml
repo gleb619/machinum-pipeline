@@ -10,10 +10,10 @@ body:
     refresh: on_startup
 
   bootstrap:
-    - workspace-init
+    - workspace
 
   tools:
-    - name: workspace-init
+    - name: workspace
       description: "Workspace initialization tool"
 
     - name: qwen-summary

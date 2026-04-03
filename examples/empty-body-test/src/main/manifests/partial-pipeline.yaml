@@ -1,0 +1,14 @@
+# Example 2: Semi-Empty Pipeline Body
+# Demonstrates pipeline with only source, no states
+# See: docs/yaml-schema.md#4-pipeline-declaration-yaml
+version: 1.0.0
+type: pipeline
+name: "partial-pipeline"
+description: "Pipeline with only source - no states defined"
+body:
+  # Only source defined - states will be empty
+  source:
+    type: file
+    file-location: "src/main/chapters"
+    format: md
+  # states, config, variables, listeners, error-handling all use defaults

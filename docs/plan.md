@@ -51,7 +51,7 @@ organized by phase with status tracking and links to detailed specifications.
 | 2     | 5.1 | Write ShellTool Integration Test    | P0       | 1.2            | ✅ Complete | 3h     | `docs/tasks/task-5.1-shelltool-integration-test.md`        |
 | 2     | 5.2 | Write GroovyScriptTool Integration  | P0       | 1.3            | ⏳ Pending  | 3h     | `docs/tasks/task-5.2-groovyscripttool-integration-test.md` |
 | 2     | 5.3 | Write ExpressionResolver Tests      | P0       | 2.1, 2.2       | ✅ Complete | 3h     | `docs/tasks/002-external-tools-support.md`                 |
-| 2     | 5.4 | Write Workspace Init Integration    | P1       | 3.4, 3.3       | ✅ Complete | 2h     | `docs/tasks/task-5.4-workspace-init-integration-test.md`   |
+| 2     | 5.4 | Write Workspace Init Integration    | P1       | 3.4, 3.3       | ✅ Complete | 2h     | `docs/tasks/task-5.4-workspace-integration-test.md`   |
 | 2     | 5.5 | Write Cleanup Integration Test      | P1       | 4.4            | ⏳ Pending  | 2h     | `docs/tasks/task-5.5-cleanup-integration-test.md`          |
 | 2     | 5.6 | Write End-to-End Pipeline Test      | P0       | All previous   | ⏳ Pending  | 4h     | `docs/tasks/task-5.6-e2e-pipeline-test.md`                 |
 | 2     | 6.1 | Update Quickstart Guide             | P1       | All impl       | ⏳ Pending  | 2h     | `docs/tasks/task-6.1-update-quickstart-guide.md`           |

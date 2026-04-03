@@ -4,13 +4,6 @@ name: "Default Toolset"
 description: "Example tool configurations"
 
 body:
-  # Execution targets
-  execution-targets:
-    default: local
-    targets:
-      - name: local
-        type: local
-
   # Tool definitions
   tools:
     # Example: Internal tool (SPI-based)

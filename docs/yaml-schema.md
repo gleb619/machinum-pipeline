@@ -2,6 +2,13 @@
 
 > **Part of:** [Technical Design Document Index](tdd.md)
 
+> **Examples:** See [`examples/`](../examples/) folder for working YAML configurations:
+> - [`examples/setup-test/seed.yaml`](../examples/setup-test/seed.yaml) - Root configuration example
+> - [`examples/setup-test/.mt/tools.yaml`](../examples/setup-test/.mt/tools.yaml) - Tools manifest example
+> - [`examples/setup-test/src/main/manifests/setup-test-pipeline.yaml`](../examples/setup-test/src/main/manifests/setup-test-pipeline.yaml) - Pipeline manifest example
+> - [`examples/empty-body-test/`](../examples/empty-body-test/) - Minimal configurations with empty body
+> - [`examples/fully-empty-folder/`](../examples/fully-empty-folder/) - Empty folder with no manifests (defaults applied)
+
 ## 1. Common Base Structure
 
 All YAML files share this base:
@@ -16,12 +23,53 @@ labels:
 metadata:
   author: string
   created: timestamp
-body: { }                      # Type-specific payload
+body: { }                      # Type-specific payload (optional - defaults to empty)
 ```
+
+**Note:** The `body` field is **optional**. When omitted or empty, default values are applied:
+- Maps default to empty maps
+- Lists default to empty lists
+- Objects default to null (runtime uses system defaults)
+
+**Default Application:**
+
+When manifests are missing entirely (empty folder), defaults are applied automatically by [`Executor.setDefaults()`](../core/src/main/java/machinum/executor/Executor.java#L72-L91):
+- Missing `seed.yaml` → [`RootBody.empty()`](../core/src/main/java/machinum/manifest/RootBody.java#L34-L40)
+- Missing `.mt/tools.yaml` → [`ToolsBody.empty()`](../core/src/main/java/machinum/manifest/ToolsBody.java#L36-L41)
+- Missing pipeline → loaded on-demand during `run` command
+
+See [`examples/empty-body-test/`](../examples/empty-body-test/) for working examples of minimal configurations.
+See [`examples/fully-empty-folder/`](../examples/fully-empty-folder/) for empty folder setup example.
 
 ---
 
 ## 2. Root Pipeline YAML (`root.yml`)
+
+### Minimal Example (Empty Body)
+
+```yaml
+version: 1.0.0
+type: root
+name: "Minimal Root"
+# body is optional - defaults to empty values
+```
+
+### Default Values
+
+When `body` is omitted or empty:
+- `variables` → empty map
+- `execution` → `null` (runtime uses defaults: parallel=false, max-concurrency=4)
+- `error-handling` → `null` (runtime uses default strategy)
+- `config` → `null` (runtime uses default batch sizes)
+- `cleanup` → `null` (runtime uses default retention)
+- `env-files` → empty list
+- `env` → empty map
+
+Applied via [`RootBody.empty()`](../core/src/main/java/machinum/manifest/RootBody.java#L34-L40).
+
+When `seed.yaml` is missing entirely, [`Executor.setDefaults()`](../core/src/main/java/machinum/executor/Executor.java#L72-L91) creates an empty root manifest automatically during setup.
+
+### Full Example
 
 ```yaml
 version: 1.0.0
@@ -80,6 +128,28 @@ body:
 
 > **Related:** [CLI Commands §install](cli-commands.md#install), [Technical Design §3.2](technical-design.md#32-core-interfaces), [Project Structure §1](project-structure.md#1-workspace-directory-structure)
 
+### Minimal Example (Empty Body)
+
+```yaml
+version: 1.0.0
+type: tools
+name: "Minimal Tools"
+# body is optional - defaults to empty tool list
+```
+
+### Default Values
+
+When `body` is omitted or empty:
+- `registry` → `null` (auto-detect: builtin if dev mode, http otherwise)
+- `bootstrap` → empty list (no tools bootstrapped)
+- `tools` → empty list (no custom tools defined)
+
+Applied via [`ToolsBody.empty()`](../core/src/main/java/machinum/manifest/ToolsBody.java#L36-L41).
+
+When `.mt/tools.yaml` is missing entirely, [`Executor.setDefaults()`](../core/src/main/java/machinum/executor/Executor.java#L72-L91) creates an empty tools manifest automatically during setup.
+
+### Full Example
+
 ```yaml
 version: 1.0.0
 type: tools
@@ -89,16 +159,13 @@ metadata:
   created: 2020.01.01
 body:
   # Tool registry configuration (optional)
-  registry:
-    type: builtin              # file|http|builtin
-    url: https://raw.githubusercontent.com/gleb619/machinum-pipeline/refs/heads/main/tools.yaml
-    refresh: on_startup        # on_startup|never
+  registry: classpath://default
 
   # Bootstrap tools list - tools to initialize during setup phase
   bootstrap:
     - prettier
     - eslint
-    - workspace-init
+    - workspace
 
   # Custom tool registry (flat list)
   tools:
@@ -121,6 +188,7 @@ body:
     - name: text-validator
       description: "Validates text content"
       config:
+        type: groovy
         script: "./.mt/scripts/validate.groovy"
 
     # Git tool - initializes repo and creates commits
@@ -128,20 +196,62 @@ body:
       description: "Git repository management"
 ```
 
+### 3.0 Shorthand Forms
+
+All fields in `tools.yaml` support **shorthand string forms** for concise configuration:
+
+| Field         | Shorthand                       | Object Form                             | Example                                                                               |
+|---------------|---------------------------------|-----------------------------------------|---------------------------------------------------------------------------------------|
+| `registry`    | `registry: classpath://default` | `registry: classpath://default`         | [`examples/shorthand-test/.mt/tools.yaml`](../examples/shorthand-test/.mt/tools.yaml) |
+| `bootstrap[]` | `- tool-name`                   | `- name: tool-name, description: "..."` | See below                                                                             |
+| `tools[]`     | `- tool-name`                   | `- name: tool-name, config: {...}`      | See below                                                                             |
+
+**Complete Shorthand Example:**
+
+```yaml
+version: 1.0.0
+type: tools
+name: "Shorthand Tools"
+body:
+  # Registry
+  registry: classpath://default
+  
+  # Bootstrap list shorthand
+  bootstrap:
+    - prettier                  # shorthand: name only
+    - name: eslint              # object form: full config
+      description: "Linting tool"
+      config:
+        config-file: ".eslintrc"
+  
+  # Tools list shorthand
+  tools:
+    - qwen-summary              # shorthand: name only
+    - name: translator          # object form: full config
+      description: "Translate text"
+      config:
+        model: gpt-4
+        temperature: 0.7
+```
+
+> **Note:** Shorthand forms are purely syntactic sugar. Both forms produce identical runtime objects. Use shorthand for simple cases, object form when you need `description` or `config` fields.
+
+See [`examples/shorthand-test/`](../examples/shorthand-test/) for working examples.
+
 ### 3.1 Tool Lifecycle
 
 Each tool has an bootstrap lifecycle method:
 
-| Method                        | Phase                     | Description                                                          |
-|-------------------------------|---------------------------|----------------------------------------------------------------------|
-| `bootstrap(ExecutionContext)` | Bootstrap (unconditional) | Runs during `machinum setup`; sets up dependencies, validates config |
-| `execute(ExecutionContext)`   | Runtime (conditional)     | Runs during pipeline execution when tool is invoked                  |
+| Method                             | Phase                 | Description                                                                                                            |
+|------------------------------------|-----------------------|------------------------------------------------------------------------------------------------------------------------|
+| `bootstrap(BootstrapContext)`      | Bootstrap             | Runs for tools in `body.bootstrap` during `machinum setup bootstrap`; sets up dependencies                             |
+| `execute(ExecutionContext)`        | Runtime (conditional) | Runs during pipeline execution when tool is invoked                                                                    |
 
 **Example:**
 ```java
 public class QwenSummary implements Tool {
     @Override
-    public void bootstrap(ExecutionContext context) throws Exception {
+    public void bootstrap(BootstrapContext context) throws Exception {
         // Downloads model, validates API keys, initializes cache
     }
 
@@ -158,26 +268,13 @@ See [Tool Interface](technical-design.md#32-core-interfaces) for full contract d
 
 The tools `body` fields are deserialized into typed Java records in `machinum.manifest`. Each YAML section maps to a record:
 
-| YAML Section              | Java Record                | File                                                                       |
-|---------------------------|----------------------------|----------------------------------------------------------------------------|
-| `body`                    | `ToolsBody`                | [`ToolsBody.java`](../core/src/main/java/machinum/manifest/ToolsBody.java) |
-| `body.registry`           | `ToolRegistryManifest`     | inner class of `ToolsBody`                                                 |
-| `body.bootstrap[]`        | `List<String>`             | Bootstrap tool names list                                                  |
-| `body.tools[]`            | `ToolDefinitionManifest`   | inner class of `ToolsBody`                                                 |
-| `tool.config`             | `ToolConfigManifest`       | inner class of `ToolsBody`                                                 |
-
-**Schema Changes (v2.1):**
-- **Removed:** `execution-targets` - Execution targets removed; tools execute locally
-- **Removed:** `execution-target` from tool definitions
-- **Added:** `bootstrap` - List of tool names to bootstrap during setup phase
-
-**Removed Fields:** The following fields have been removed from the tool manifest:
-- `version` - Tools are versioned externally via JAR files
-- `source` - Tool source resolution handled by registry type
-- `cache` - Caching handled by registry implementation
-- `timeout` - Timeout configured per tool implementation
-- `runtime` - Runtime type inferred from tool implementation
-- `execution-target` - All tools execute locally
+| YAML Section       | Java Record              | File                                                                            |
+|--------------------|--------------------------|---------------------------------------------------------------------------------|
+| `body`             | `ToolsBody`              | [`ToolsBody.java`](../core/src/main/java/machinum/manifest/ToolsBody.java)      |
+| `body.registry`    | `String`                 | Registry URI or shorthand (builtin, file, http, classpath://, file://, http://) |
+| `body.bootstrap[]` | `List<String>`           | Bootstrap tool names list                                                       |
+| `body.tools[]`     | `ToolDefinitionManifest` | inner class of `ToolsBody`                                                      |
+| `tool.config`      | `ToolConfigManifest`     | inner class of `ToolsBody`                                                      |
 
 **Compiled Model:** `ToolsManifest` → `ToolsManifestCompiler` → [`ToolsDefinition`](../core/src/main/java/machinum/definition/ToolsDefinition.java). See [Core Architecture §1.5](core-architecture.md#15-compiled-models).
 
@@ -185,7 +282,67 @@ The tools `body` fields are deserialized into typed Java records in `machinum.ma
 
 ## 4. Pipeline Declaration YAML (`src/main/manifests/pipeline.yaml`)
 
-> **Constraint:** Exactly one of `source` or `items` must be declared; missing both throws an exception.
+> **Constraint:** When pipeline has `states`, exactly one of `source` or `items` must be declared. Empty pipelines (no states) are allowed for validation purposes.
+
+### Minimal Example (Empty Body)
+
+```yaml
+version: 1.0.0
+type: pipeline
+name: "minimal-pipeline"
+# body is optional - defaults to empty states and variables
+```
+
+### Default Values
+
+When `body` is omitted or empty:
+- `variables` → empty map
+- `config` → `null` (runtime uses default batch sizes, no cooldown)
+- `source` → `null` (must be provided for execution)
+- `items` → `null` (must be provided for execution)
+- `states` → empty list (no processing states)
+- `tools` → empty list (no stateless tools)
+- `listeners` → empty map (no lifecycle listeners)
+- `error-handling` → `null` (runtime uses default error strategy)
+
+Applied via [`PipelineBody.empty()`](../core/src/main/java/machinum/manifest/PipelineBody.java#L35-L41).
+
+**Note:** For pipeline execution, either `source` or `items` must be provided, along with at least one `state` or `tools` entry. See [§4.x source vs items](#4x-source-vs-items--data-acquisition-layer).
+
+### Minimal Executable Example (Stateless Pipeline)
+
+```yaml
+version: 1.0.0
+type: pipeline
+name: "stateless-pipeline"
+body:
+  source:
+    type: file
+    file-location: "src/main/chapters"
+    format: md
+  # A pipeline can run without states by using 'tools' directly
+  tools:
+    - mock-processor
+    - tool: text-cleaner
+      input: "{{text}}"
+```
+
+### Minimal Executable Example (Stateful Pipeline)
+
+```yaml
+version: 1.0.0
+type: pipeline
+name: "simple-pipeline"
+body:
+  source:
+    type: file
+    file-location: "src/main/chapters"
+    format: md
+  states:
+    - name: PROCESS
+      tools:
+        - mock-processor
+```
 
 ### 4.x `source` vs `items` — Data Acquisition Layer
 
@@ -308,7 +465,7 @@ body:
     - name: CLEANING
       condition: "{{ scripts.conditions.should_clean(item) }}"
       tools:
-        - text-cleaner             # Shorthand form
+        - text-cleaner             # Shorthand form (string entry resolving to 'tool')
 
     - name: FORK_PROCESSING
       fork:
@@ -399,12 +556,12 @@ body:
 
 The pipeline `body` fields are deserialized into typed Java records in `machinum.manifest`. Each YAML section maps to a record:
 
-| YAML Section  | Java Record              | File                                                                                                                              |
-|---------------|--------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `body`        | `PipelineBody`           | [`core/src/main/java/machinum/manifest/PipelineBody.java`](../core/src/main/java/machinum/manifest/PipelineBody.java)             |
-| `body.config` | `PipelineConfigManifest` | [`core/src/main/java/machinum/manifest/PipelineConfigManifest.java`](../core/src/main/java/machinum/manifest/PipelineConfig.java) |
-| `body.source` | `SourceManifest`         | [`core/src/main/java/machinum/manifest/SourceManifest.java`](../core/src/main/java/machinum/manifest/SourceConfig.java)           |
-| `body.items`  | `ItemsManifest`          | [`core/src/main/java/machinum/manifest/ItemsManifest.java`](../core/src/main/java/machinum/manifest/ItemsConfig.java)             |
+| YAML Section  | Java Record                  | File                                                                                                                              |
+|---------------|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `body`        | `PipelineBody`               | [`core/src/main/java/machinum/manifest/PipelineBody.java`](../core/src/main/java/machinum/manifest/PipelineBody.java)             |
+| `body.config` | `PipelineConfigManifest`     | [`core/src/main/java/machinum/manifest/PipelineConfigManifest.java`](../core/src/main/java/machinum/manifest/PipelineConfig.java) |
+| `body.items`  | `ItemsManifest`              | [`core/src/main/java/machinum/manifest/ItemsManifest.java`](../core/src/main/java/machinum/manifest/ItemsConfig.java)             |
+| `body.tools`  | `List<PipelineToolManifest>` | Direct stateless tools execution array (when `states` logic isn't needed)                                                         |
 
 ### 4.2 Typed Manifest Records (Root)
 
@@ -418,9 +575,10 @@ The root `body` fields are deserialized into typed Java records in `machinum.man
 
 **Tool declaration rules:**
 
-- Shorthand: `- tool-name`
-- Object form: `- tool: tool-name`
+- Shorthand: `- tool-name` (Parsed identically to `- name: tool-name`)
+- Object form: `- tool: tool-name` or `- name: tool-name`
 - `output` defaults to tool name if omitted
+- `input` and `output` accept complex objects, maps, or format strings (e.g. `"{{text}}"`)
 - Terminal `listeners` execute after the final state for each item
 
 **Predefined expression variables:**

@@ -1,5 +1,6 @@
 package machinum.tool;
 
+import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import machinum.bootstrap.BootstrapContext;
@@ -17,8 +18,20 @@ public interface Tool {
     validate();
   }
 
+  default void afterBootstrap(BootstrapContext context) {
+    // No-op by default
+  }
+
   default void validate() {
     // No-op by default
+  }
+
+  default List<String> dependsOn() {
+    return List.of();
+  }
+
+  default int priority() {
+    return -1;
   }
 
   @Builder

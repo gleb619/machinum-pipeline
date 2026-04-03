@@ -4,7 +4,8 @@ import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
-import machinum.manifest.ToolsBody.ToolRegistryType;
+import machinum.compiler.Compiled;
+import machinum.compiler.CompiledMap;
 
 @Builder
 public record ToolsDefinition(
@@ -19,11 +20,12 @@ public record ToolsDefinition(
 
   @Builder
   public record ToolsBodyDefinition(
-      ToolRegistryDefinition toolRegistry,
-      @Singular("bootstrap") List<String> bootstrap,
+      Compiled<String> registry,
+      @Singular("bootstrap") List<BootstrapToolDefinition> bootstrap,
       @Singular List<ToolDefinition> tools)
       implements BodyDefinition {}
 
   @Builder
-  public record ToolRegistryDefinition(ToolRegistryType type, String url, String refresh) {}
+  public record BootstrapToolDefinition(
+      Compiled<String> name, Compiled<String> description, CompiledMap config) {}
 }

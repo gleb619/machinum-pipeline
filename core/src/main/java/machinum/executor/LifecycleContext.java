@@ -13,9 +13,10 @@ import machinum.manifest.ToolsManifest;
 @Builder(toBuilder = true)
 public record LifecycleContext(
     Path workspaceDir,
-    CompilationContext compilationContext,
-    @Deprecated(forRemoval = true)
-    String runId,
+    // TODO: redo, keep `CompilationContext` only in
+    // `core/src/main/java/machinum/executor/Executor#compileManifests`
+    @Deprecated(forRemoval = true) CompilationContext compilationContext,
+    @Deprecated(forRemoval = true) String runId,
     LifecyclePhase currentPhase,
     RootDefinition root,
     ToolsDefinition tools,
@@ -28,10 +29,10 @@ public record LifecycleContext(
     COMPILE,
     DOWNLOAD,
     BOOTSTRAP,
-    //TODO: Add method in executor for check
+    AFTER_BOOTSTRAP,
     CHECK,
     RUN,
-    //TODO: Change state in executor to pause, if task wasn't completed
+    // TODO: Change state in executor to pause, if task wasn't completed
     PAUSE,
     RESUME,
     COMPLETE

@@ -8,6 +8,18 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 
+/**
+ * Runtime context passed through pipeline execution.
+ *
+ * <p>Holds the current item map, variables, environment, and execution state for the active
+ * pipeline run.
+ *
+ * <p>See:
+ *
+ * <ul>
+ *   <li><a href="../../../../docs/core-architecture.md#1-base-models-mvp">Core Architecture §1</a>
+ * </ul>
+ */
 @Data
 @AllArgsConstructor
 @Builder(toBuilder = true)
@@ -44,19 +56,16 @@ public class ExecutionContext {
 
   private String aggregationText;
 
-  // TODO: Unused
   @Deprecated(forRemoval = true)
   public Optional<Object> getVariable(String name) {
     return Optional.ofNullable(variables.get(name));
   }
 
-  // TODO: Unused
   @Deprecated(forRemoval = true)
   public Optional<String> getEnvironment(String name) {
     return Optional.ofNullable(environment.get(name));
   }
 
-  // TODO: Unused
   @Deprecated(forRemoval = true)
   public void setVariable(String name, Object value) {
     variables.put(name, value);
@@ -78,7 +87,6 @@ public class ExecutionContext {
     this.retryAttempt = attempt;
   }
 
-  // TODO: Unused
   @Deprecated(forRemoval = true)
   public void updateAggregation(int index, String text) {
     this.aggregationIndex = index;
@@ -97,35 +105,34 @@ public class ExecutionContext {
     return new HashMap<>(variables);
   }
 
-  // TODO: Unused
   @Deprecated(forRemoval = true)
   public boolean hasVariable(String name) {
     return variables.containsKey(name);
   }
 
-  // TODO: Unused
   @Deprecated(forRemoval = true)
   public ExecutionContext createChildContext() {
     return toBuilder().variables(new ConcurrentHashMap<>(variables)).build();
   }
 
-  private String getTextContent() {
+  /**
+   * Returns text content from the current item map. Checks keys: content, text, body, data (first
+   * string match wins).
+   */
+  public String getTextContent() {
     if (currentItem == null || currentItem.isEmpty()) {
       return "";
     }
-
     Object content = currentItem.get("content");
-    if (content instanceof String) {
-      return (String) content;
+    if (content instanceof String s) {
+      return s;
     }
-
     for (String field : new String[] {"text", "body", "data"}) {
       Object value = currentItem.get(field);
-      if (value instanceof String) {
-        return (String) value;
+      if (value instanceof String s) {
+        return s;
       }
     }
-
     return "";
   }
 

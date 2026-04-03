@@ -16,8 +16,8 @@ public record PipelineDefinition(
     String type,
     String name,
     String description,
-    Map<String, Object> labels,
-    Map<String, Object> metadata,
+    @Singular Map<String, Object> labels,
+    @Singular("metadata") Map<String, Object> metadata,
     PipelineBodyDefinition body)
     implements Definition {
 
@@ -27,7 +27,8 @@ public record PipelineDefinition(
       PipelineConfigDefinition pipelineConfig,
       SourceDefinition source,
       ItemsDefinition items,
-      List<PipelineStateDefinition> states,
+      @Singular List<PipelineStateDefinition> states,
+      @Singular List<PipelineStateDefinition.PipelineToolDefinition> tools,
       ErrorHandlingDefinition errorHandling)
       implements BodyDefinition {}
 

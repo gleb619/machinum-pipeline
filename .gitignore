@@ -43,3 +43,9 @@ Thumbs.db
 /tools/common/build/
 /tools/external/build/
 /tools/internal/build/
+/server/admin-backend/build/
+/server/http-streamer/build/
+/tools/common/.project
+/tools/internal/.project
+/tools/internal/.settings/
+/tools/common/.settings/

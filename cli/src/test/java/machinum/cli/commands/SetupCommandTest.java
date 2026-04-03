@@ -42,8 +42,7 @@ class SetupCommandTest {
 
       assertTrue(Files.exists(workspaceRoot.resolve(".mt")), ".mt directory should exist");
       assertTrue(
-          Files.exists(workspaceRoot.resolve(".mt/scripts")),
-          ".mt/scripts directory should exist");
+          Files.exists(workspaceRoot.resolve(".mt/scripts")), ".mt/scripts directory should exist");
       assertTrue(
           Files.exists(workspaceRoot.resolve(".mt/scripts/conditions")),
           ".mt/scripts/conditions directory should exist");
@@ -146,8 +145,7 @@ class SetupCommandTest {
 
       String contentAfterForce = Files.readString(seedYaml);
       assertFalse(
-          contentAfterForce.contains("# modified"),
-          "File should be overwritten with --force flag");
+          contentAfterForce.contains("# modified"), "File should be overwritten with --force flag");
     }
   }
 
@@ -176,10 +174,9 @@ class SetupCommandTest {
           version: 1.0.0
           type: tools
           body:
-            registry:
-              type: builtin
+            registry: classpath://default
             tools:
-              - name: workspace-init
+              - name: workspace
           """;
       Files.writeString(toolsYaml, toolsContent);
 
@@ -229,7 +226,8 @@ class SetupCommandTest {
       int exitCode1 = cli.execute("setup", "-w", workspaceRoot.toString(), "bootstrap");
 
       Path seedYaml = workspaceRoot.resolve("seed.yaml");
-      String modifiedContent = Files.readString(seedYaml).replace("version:", "# modified\nversion:");
+      String modifiedContent =
+          Files.readString(seedYaml).replace("version:", "# modified\nversion:");
       Files.writeString(seedYaml, modifiedContent);
 
       int exitCode2 = cli.execute("setup", "-w", workspaceRoot.toString(), "bootstrap");
@@ -251,19 +249,18 @@ class SetupCommandTest {
       int exitCode1 = cli.execute("setup", "-w", workspaceRoot.toString(), "bootstrap");
 
       Path seedYaml = workspaceRoot.resolve("seed.yaml");
-      String modifiedContent = Files.readString(seedYaml).replace("version:", "# modified\nversion:");
+      String modifiedContent =
+          Files.readString(seedYaml).replace("version:", "# modified\nversion:");
       Files.writeString(seedYaml, modifiedContent);
 
-      int exitCode2 =
-          cli.execute("setup", "-w", workspaceRoot.toString(), "bootstrap", "--force");
+      int exitCode2 = cli.execute("setup", "-w", workspaceRoot.toString(), "bootstrap", "--force");
 
       assertEquals(0, exitCode1);
       assertEquals(0, exitCode2);
 
       String contentAfterForce = Files.readString(seedYaml);
       assertFalse(
-          contentAfterForce.contains("# modified"),
-          "File should be overwritten with --force flag");
+          contentAfterForce.contains("# modified"), "File should be overwritten with --force flag");
     }
 
     @Test
@@ -278,10 +275,11 @@ class SetupCommandTest {
           type: tools
           body:
             bootstrap:
+              - workspace
               - prettier
               - eslint
             tools:
-              - name: workspace-init
+              - name: workspace
           """;
       Files.writeString(toolsYaml, toolsContent);
 
@@ -291,19 +289,16 @@ class SetupCommandTest {
 
       Path packageJson = workspaceRoot.resolve("package.json");
       assertTrue(
-          Files.exists(packageJson), "package.json should be generated when node tools present");
+          Files.exists(packageJson), "package.json should be generated when tools.yaml exists");
 
       String packageContent = Files.readString(packageJson);
       assertTrue(
-          packageContent.contains("prettier-mock"),
-          "package.json should include prettier-mock dependency");
-      assertTrue(
-          packageContent.contains("eslint-mock"),
-          "package.json should include eslint-mock dependency");
+          packageContent.contains("machinum-workspace"),
+          "package.json should contain workspace name");
     }
 
     @Test
-    void testPackageJsonSkippedWithoutNodeTools() throws Exception {
+    void testPackageJsonGeneratedWhenToolsExist() throws Exception {
       Path workspaceRoot = tempDir.resolve("workspace");
       Files.createDirectory(workspaceRoot);
 
@@ -313,8 +308,10 @@ class SetupCommandTest {
           version: 1.0.0
           type: tools
           body:
+            bootstrap:
+              - workspace
             tools:
-              - name: workspace-init
+              - name: workspace
           """;
       Files.writeString(toolsYaml, toolsContent);
 
@@ -322,9 +319,10 @@ class SetupCommandTest {
 
       assertEquals(0, exitCode);
 
+      // package.json is generated because tools.yaml exists
       Path packageJson = workspaceRoot.resolve("package.json");
-      assertFalse(
-          Files.exists(packageJson), "package.json should not be generated without node tools");
+      assertTrue(
+          Files.exists(packageJson), "package.json should be generated when tools.yaml exists");
     }
   }
 

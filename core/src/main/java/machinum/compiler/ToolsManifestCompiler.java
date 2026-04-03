@@ -6,12 +6,12 @@ import java.util.stream.Collectors;
 import machinum.definition.ToolDefinition;
 import machinum.definition.ToolDefinition.ToolConfigDefinition;
 import machinum.definition.ToolsDefinition;
-import machinum.definition.ToolsDefinition.ToolRegistryDefinition;
+import machinum.definition.ToolsDefinition.BootstrapToolDefinition;
 import machinum.definition.ToolsDefinition.ToolsBodyDefinition;
 import machinum.manifest.ToolsBody;
+import machinum.manifest.ToolsBody.BootstrapToolManifest;
 import machinum.manifest.ToolsBody.ToolConfigManifest;
 import machinum.manifest.ToolsBody.ToolManifest;
-import machinum.manifest.ToolsBody.ToolRegistryConfigManifest;
 import machinum.manifest.ToolsManifest;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;
@@ -28,27 +28,33 @@ public interface ToolsManifestCompiler extends YamlCompiler<ToolsManifest, Tools
   @Mapping(target = "metadata", source = "metadata", qualifiedByName = "compileSimpleMap")
   ToolsDefinition compile(ToolsManifest source, @Context CompilationContext ctx);
 
-  @Mapping(target = "toolRegistry", source = "registry")
+  @Mapping(target = "registry", source = "registry", qualifiedByName = "compileString")
   @Mapping(target = "tools", source = "tools", qualifiedByName = "tools")
-  @Mapping(target = "bootstrap", source = "bootstrap")
+  @Mapping(target = "bootstrap", source = "bootstrap", qualifiedByName = "compileBootstrap")
   ToolsBodyDefinition compileToolsBody(ToolsBody source, @Context CompilationContext ctx);
 
-  ToolRegistryDefinition compileToolRegistry(
-      ToolRegistryConfigManifest source, @Context CompilationContext ctx);
+  @Named("compileToolsBody")
+  default ToolsBodyDefinition compileToolsBodyWrapper(
+      ToolsBody source, @Context CompilationContext ctx) {
+    return compileToolsBody(source, ctx);
+  }
+
+  @Named("compileBootstrap")
+  default List<BootstrapToolDefinition> compileBootstrap(
+      List<BootstrapToolManifest> source, @Context CompilationContext ctx) {
+    if (source == null) {
+      return Collections.emptyList();
+    }
+    return source.stream()
+        .map(tool -> compileBootstrapTool(tool, ctx))
+        .collect(Collectors.toList());
+  }
 
   @Mapping(target = "name", source = "name", qualifiedByName = "compileString")
   @Mapping(target = "description", source = "description", qualifiedByName = "compileString")
-  @Mapping(target = "type", source = "type", qualifiedByName = "compileString")
-  @Mapping(
-      target = "executionTarget",
-      source = "executionTarget",
-      qualifiedByName = "compileString")
-  ToolDefinition compileInstalledTool(
-      ToolManifest source, @Context CompilationContext ctx);
-
-  @Mapping(target = "params", source = "params", qualifiedByName = "compileObjectMap")
-  ToolConfigDefinition compileToolConfig(
-      ToolConfigManifest source, @Context CompilationContext ctx);
+  @Mapping(target = "config", source = "config", qualifiedByName = "compileObjectMap")
+  BootstrapToolDefinition compileBootstrapTool(
+      BootstrapToolManifest source, @Context CompilationContext ctx);
 
   @Named("tools")
   default List<ToolDefinition> compileTools(
@@ -57,7 +63,15 @@ public interface ToolsManifestCompiler extends YamlCompiler<ToolsManifest, Tools
       return Collections.emptyList();
     }
     return source.stream()
-        .map(tool -> compileInstalledTool(tool, ctx))
+        .map(tool -> compileCustomRegistryTool(tool, ctx))
         .collect(Collectors.toList());
   }
+
+  @Mapping(target = "name", source = "name", qualifiedByName = "compileString")
+  @Mapping(target = "description", source = "description", qualifiedByName = "compileString")
+  ToolDefinition compileCustomRegistryTool(ToolManifest source, @Context CompilationContext ctx);
+
+  @Mapping(target = "params", source = "params", qualifiedByName = "compileObjectMap")
+  ToolConfigDefinition compileToolConfig(
+      ToolConfigManifest source, @Context CompilationContext ctx);
 }

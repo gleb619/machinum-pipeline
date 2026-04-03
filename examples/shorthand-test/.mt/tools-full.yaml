@@ -1,0 +1,62 @@
+# Comprehensive Shorthand Forms Example
+# Demonstrates all shorthand forms for tools.yaml
+# See: docs/yaml-schema.md#30-shorthand-forms
+
+version: 1.0.0
+type: tools
+name: "Comprehensive Shorthand Test"
+description: "Tests all shorthand forms for registry, bootstrap, and tools"
+
+body:
+  # Registry
+  registry: classpath://default
+  
+  # Bootstrap list - mixed shorthand and object forms
+  bootstrap:
+    # Shorthand form: string (tool name only)
+    - workspace
+    - prettier
+    
+    # Object form: full configuration
+    - name: eslint
+      description: "JavaScript/TypeScript linter"
+      config:
+        config-file: ".eslintrc.json"
+        fix: true
+    
+    - name: git
+      description: "Git repository initialization"
+
+  # Tools list - mixed shorthand and object forms
+  tools:
+    # Shorthand form: string (tool name only)
+    - qwen-summary
+    - md-formatter
+    - text-validator
+    
+    # Object form: with description
+    - name: translator
+      description: "AI-powered text translation"
+    
+    # Object form: with full config
+    - name: embedding-generator
+      description: "Generate vector embeddings"
+      config:
+        model: text-embedding-3-small
+        dimensions: 1536
+        batch-size: 100
+    
+    # Object form: shell script tool
+    - name: file-processor
+      description: "Process files via shell script"
+      config:
+        type: shell
+        script: "./.mt/scripts/process.sh"
+        work-dir: "{{rootDir}}"
+    
+    # Object form: Groovy script tool
+    - name: custom-validator
+      description: "Custom validation logic"
+      config:
+        type: groovy
+        script: "./.mt/scripts/validators/custom.groovy"

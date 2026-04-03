@@ -151,20 +151,12 @@ public class OneStepRunner implements PipelineRunner {
     }
   }
 
-  // TODO: We need a proper pojo, not just map with random naming
-  @Deprecated(forRemoval = true)
+  /**
+   * Returns text content from the current item. Uses {@link machinum.streamer.StreamItem#content()}
+   * — no more map key guessing.
+   */
   private String getTextContent(ExecutionContext context) {
-    Object content = context.getCurrentItem().get("content");
-    if (content instanceof String) {
-      return (String) content;
-    }
-    for (String field : new String[] {"text", "body", "data"}) {
-      Object value = context.getCurrentItem().get(field);
-      if (value instanceof String) {
-        return (String) value;
-      }
-    }
-    return "";
+    return context.getTextContent();
   }
 
   private Map<String, Object> convertToMap(PipelineStateDefinition state) {

@@ -53,27 +53,50 @@ public interface PipelineManifestCompiler
             .map(state -> StateCompiler.INSTANCE.compile(state, ctx))
             .toList()
         : Collections.emptyList();
+
+    List<PipelineStateDefinition.PipelineToolDefinition> compiledTools = body.tools() != null
+        ? body.tools().stream()
+            .map(tool -> ToolCompiler.INSTANCE.compile(tool, ctx))
+            .toList()
+        : Collections.emptyList();
+
     ErrorHandlingDefinition errorHandling =
         ErrorHandlingCompiler.INSTANCE.compile(body.errorHandling(), ctx);
-    return new PipelineBodyDefinition(
-        variables, pipelineConfig, compiledSource, compiledItems, compiledStates, errorHandling);
+    return PipelineBodyDefinition.builder()
+        .variables(variables)
+        .pipelineConfig(pipelineConfig)
+        .source(compiledSource)
+        .items(compiledItems)
+        .states(compiledStates)
+        .tools(compiledTools)
+        .errorHandling(errorHandling)
+        .build();
   }
 
   default void validate(PipelineManifest source) {
-    if (source == null || source.body() == null) {
+    if (source == null) {
       throw new IllegalArgumentException("Source can't be null");
+    }
+
+    if (source.body() == null) {
+      return;
     }
 
     var body = source.body();
     boolean hasSource = body.source() != null && !body.source().isEmpty();
     boolean hasItems = body.items() != null && !body.items().isEmpty();
+    boolean hasStates = body.states() != null && !body.states().isEmpty();
+    boolean hasTools = body.tools() != null && !body.tools().isEmpty();
 
-    if (hasSource && hasItems) {
-      throw new IllegalArgumentException(
-          "Exactly one of 'source' or 'items' must be declared, not both");
-    }
-    if (!hasSource && !hasItems) {
-      throw new IllegalArgumentException("Exactly one of 'source' or 'items' must be declared");
+    if (hasStates || hasTools) {
+      if (hasSource && hasItems) {
+        throw new IllegalArgumentException(
+            "Exactly one of 'source' or 'items' must be declared, not both");
+      }
+      if (!hasSource && !hasItems) {
+        throw new IllegalArgumentException(
+            "Pipeline with states or tools requires either 'source' or 'items' to process data");
+      }
     }
   }
 }

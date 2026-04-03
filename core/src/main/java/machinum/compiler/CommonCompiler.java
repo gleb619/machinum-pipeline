@@ -58,6 +58,8 @@ public interface CommonCompiler {
   @Named("compileObjectMap")
   default CompiledMap compileObjectMap(
       Map<String, Object> source, @Context CompilationContext ctx) {
+    if (source == null) return CompiledMap.empty();
+
     ExpressionContext context = createExpressionContext(ctx);
     ExpressionResolver resolver = ctx.resolver();
     var map = new HashMap<>(source);

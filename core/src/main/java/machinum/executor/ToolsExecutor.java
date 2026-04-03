@@ -2,16 +2,17 @@ package machinum.executor;
 
 import static machinum.config.CoreConfig.coreConfig;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.bootstrap.BootstrapContext;
-import machinum.manifest.ToolsBody.ToolRegistryConfigManifest;
+import machinum.manifest.ToolsBody.BootstrapToolManifest;
 import machinum.manifest.ToolsBody.ToolRegistryType;
+import machinum.tool.HttpToolRegistry;
 import machinum.tool.ToolRegistry;
 
 @Slf4j
@@ -26,25 +27,17 @@ public class ToolsExecutor {
       return ctx;
     }
 
-    var registryManifest = ctx.toolsManifest().get().body().registry();
-    ToolRegistryType registryType = determineRegistryType(registryManifest);
+    var toolsManifest = ctx.toolsManifest().get();
+    String registryUri = toolsManifest.body().registry();
+    ToolRegistryType registryType = determineRegistryType(registryUri);
 
     log.info("Using {} tool registry for DOWNLOAD phase", registryType);
 
-    switch (registryType) {
-      case builtin -> {
-        log.info("BuiltIn ToolRegistry: checking local gradle 'kitchen'");
-        // TODO: check if jars exist in the tool directory; if not, trigger gradle jar build
-      }
-      case file -> {
-        log.info("File ToolRegistry: using SPI tools from classpath. No download required.");
-        // TODO: Check hmac before use, if any jars is compromised, stop executing
-      }
-      case http -> {
-        log.info("Http ToolRegistry: downloading jars from github registry to cache...");
-        // TODO: download jars and place somewhere in tools cache
-        // (see machinum.workspace.WorkspaceLayout#getToolsCacheDir)
-        // Then reuse FileToolRegistry inside HttpToolRegistry loop.
+    if (Objects.requireNonNull(registryType) == ToolRegistryType.http) {
+      log.debug("Http ToolRegistry: downloading jars from github registry to cache...");
+      ToolRegistry registry = acquireRegistry(ctx, registryUri, registryType);
+      if (registry instanceof HttpToolRegistry httpRegistry) {
+        httpRegistry.refresh();
       }
     }
 
@@ -61,15 +54,21 @@ public class ToolsExecutor {
     return ctx;
   }
 
-  //TODO: Redo, add profiles. For Dev use `builtin` for other http
-  @Deprecated(forRemoval = true)
+  public LifecycleContext executeAfterBootstrap(LifecycleContext ctx) {
+    log.info("Executing AFTER_BOOTSTRAP phase");
+
+    afterBootstrapAllTools(ctx);
+
+    log.info("AFTER_BOOTSTRAP phase completed");
+    return ctx;
+  }
+
   private void bootstrapAllTools(LifecycleContext ctx, boolean force) {
-    // If tools manifest exists, use it; otherwise use SPI tools directly
     if (ctx.toolsManifest().isPresent()) {
       var toolsManifest = ctx.toolsManifest().get();
-      var registryManifest = toolsManifest.body().registry();
-      ToolRegistryType registryType = determineRegistryType(registryManifest);
-      var toolRegistry = acquireRegistry(ctx, registryManifest, registryType);
+      String registryUri = toolsManifest.body().registry();
+      ToolRegistryType registryType = determineRegistryType(registryUri);
+      var toolRegistry = acquireRegistry(ctx, registryUri, registryType);
 
       if (toolRegistry == null) {
         throw new IllegalArgumentException(
@@ -79,76 +78,110 @@ public class ToolsExecutor {
       try {
         Map<String, Object> variables = ctx.root().body().variables().get();
         Map<String, String> secrets = ctx.root().body().secrets().asMap();
-        BootstrapContext bootstrapContext = BootstrapContext.builder()
+
+        List<String> targetTools = toolsManifest.body().bootstrap() != null
+            ? toolsManifest.body().bootstrap().stream()
+                .map(BootstrapToolManifest::name)
+                .toList()
+            : List.of();
+
+        var bootstrapContext = BootstrapContext.builder()
             .workspaceRoot(ctx.workspaceDir())
             .secrets(Map.copyOf(secrets))
             .data(new HashMap<>(variables))
             .force(force)
             .build();
 
-        toolRegistry.bootstrapAll(bootstrapContext);
+        toolRegistry.bootstrapAll(bootstrapContext, targetTools);
         log.info("All tools installed successfully");
       } catch (Exception e) {
         log.error("Failed to bootstrap tools", e);
         throw new RuntimeException("Failed to bootstrap tools: " + e.getMessage(), e);
       }
     } else {
-      //TODO: If tools manifest not provided, then throw exception. Check
-      // `tools/internal/src/main/java/machinum/workspace/WorkspaceInitializerTool.java`
-
-      // No tools manifest - use SPI tools directly
-      log.info("No tools manifest found, using SPI tools directly");
-      try {
-        var toolRegistry = coreConfig().fileToolRegistry();
-        BootstrapContext bootstrapContext = BootstrapContext.builder()
-            .workspaceRoot(ctx.workspaceDir())
-            .secrets(Map.of())
-            .data(Map.of())
-            .force(force)
-            .build();
-
-        toolRegistry.bootstrapAll(bootstrapContext);
-        log.info("All SPI tools installed successfully");
-      } catch (Exception e) {
-        log.error("Failed to bootstrap SPI tools", e);
-        throw new RuntimeException("Failed to bootstrap SPI tools: " + e.getMessage(), e);
-      }
+      throw new RuntimeException(
+          "No tools manifest found. Please ensure the workspace is initialized via 'machinum setup'.");
     }
   }
 
-  /**
-   * Determines registry type based on dev/release mode.
-   * <p>
-   * Dev mode (build.gradle exists): uses builtin registry
-   * Release mode: uses configured type or defaults to http
-   * </p>
-   */
-  private ToolRegistryType determineRegistryType(ToolRegistryConfigManifest manifest) {
-    // Check if running in dev mode (Gradle project exists)
-    Path gradleProject = Paths.get("").normalize().toAbsolutePath();
-    boolean isDevMode = Files.exists(gradleProject.resolve("build.gradle"));
+  private void afterBootstrapAllTools(LifecycleContext ctx) {
+    if (ctx.toolsManifest().isPresent()) {
+      var toolsManifest = ctx.toolsManifest().get();
+      String registryUri = toolsManifest.body().registry();
+      ToolRegistryType registryType = determineRegistryType(registryUri);
+      var toolRegistry = acquireRegistry(ctx, registryUri, registryType);
 
-    if (isDevMode) {
-      log.info("Dev mode detected: using builtin tool registry");
+      if (toolRegistry == null) {
+        throw new IllegalArgumentException(
+            "No tools registered in registry, skipping after bootstrap");
+      }
+
+      try {
+        Map<String, Object> variables = ctx.root().body().variables().get();
+        Map<String, String> secrets = ctx.root().body().secrets().asMap();
+
+        List<String> targetTools = toolsManifest.body().bootstrap() != null
+            ? toolsManifest.body().bootstrap().stream()
+                .map(BootstrapToolManifest::name)
+                .toList()
+            : List.of();
+
+        var bootstrapContext = BootstrapContext.builder()
+            .workspaceRoot(ctx.workspaceDir())
+            .secrets(Map.copyOf(secrets))
+            .data(new HashMap<>(variables))
+            .force(Boolean.FALSE)
+            .build();
+
+        toolRegistry.afterBootstrapAll(bootstrapContext, targetTools);
+        log.info("All tools after-bootstrapped successfully");
+      } catch (Exception e) {
+        log.error("Failed to after bootstrap tools", e);
+        throw new RuntimeException("Failed to after bootstrap tools: " + e.getMessage(), e);
+      }
+    } else {
+      throw new RuntimeException(
+          "No tools manifest found. Please ensure of workspace is initialized via 'machinum setup'.");
+    }
+  }
+
+  private ToolRegistryType determineRegistryType(String registryUri) {
+    if (registryUri == null || registryUri.startsWith("classpath://")) {
       return ToolRegistryType.builtin;
     }
+    if (registryUri.startsWith("file://")) {
+      return ToolRegistryType.file;
+    }
+    if (registryUri.startsWith("http://") || registryUri.startsWith("https://")) {
+      return ToolRegistryType.http;
+    }
 
-    // Release mode: use configured type or default to http
-    ToolRegistryType type = manifest.type() != null ? manifest.type() : ToolRegistryType.http;
-    log.info("Release mode detected: using {} tool registry", type);
-    return type;
+    throw new IllegalArgumentException(
+        "Invalid registry URI: '%s'. Must be one of: builtin, file, http, or a valid URI (classpath://, file://, http://, https://)"
+            .formatted(registryUri));
   }
 
   private ToolRegistry acquireRegistry(
-      LifecycleContext ctx, ToolRegistryConfigManifest registryManifest, ToolRegistryType registryType) {
+      LifecycleContext ctx, String registryUri, ToolRegistryType registryType) {
     return switch (registryType) {
-      case file -> coreConfig().fileToolRegistry();
-      case http ->
-        coreConfig()
-            .httpToolRegistry(
-                ctx.workspaceDir(), registryManifest.url(), registryManifest.refresh());
-      case builtin ->
-        coreConfig().builtInToolRegistry(Paths.get("").normalize().toAbsolutePath());
+      case file -> {
+        String path = extractPathFromUri(registryUri);
+        yield coreConfig().fileToolRegistry(Path.of(path));
+      }
+      case http -> // Always refresh for HTTP - no conditional refresh parameter
+        coreConfig().httpToolRegistry(ctx.workspaceDir(), registryUri, null);
+      case builtin -> coreConfig().builtInToolRegistry();
     };
+  }
+
+  private String extractPathFromUri(String uri) {
+    if (uri == null || !uri.startsWith("file://")) {
+      return ".mt/tools";
+    }
+    String path = uri.substring("file://".length());
+    if (path.startsWith("/")) {
+      return path;
+    }
+    return path;
   }
 }

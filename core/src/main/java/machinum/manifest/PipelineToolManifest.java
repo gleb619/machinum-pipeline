@@ -3,9 +3,11 @@ package machinum.manifest;
 import java.util.List;
 import lombok.Builder;
 import lombok.Singular;
+import machinum.manifest.io.PipelineToolManifestDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 @Builder
-// TODO: Add custom deserializer for short declaration form
+@JsonDeserialize(using = PipelineToolManifestDeserializer.class)
 public record PipelineToolManifest(
     String name,
     String description,
@@ -14,6 +16,4 @@ public record PipelineToolManifest(
     String input,
     // TODO: Add here support of output types: it could be String or Map<String, String>
     String output,
-    @Singular List<PipelineToolManifest> tools
-    // TODO: Add here support of `wait-for`, `window`, `fork`
-    ) {}
+    @Singular List<PipelineToolManifest> tools) {}

@@ -3,12 +3,12 @@ WORKDIR /app
 COPY build.gradle build.gradle
 COPY settings.gradle settings.gradle
 COPY src src
-COPY conf conf
+COPY server/admin-backend/conf conf
 RUN gradle shadowJar
 
 FROM eclipse-temurin:17-jdk
 WORKDIR /app
 COPY --from=build /app/build/libs/app-1.0.0-all.jar app.jar
-COPY conf conf
-EXPOSE 8080
+COPY server/admin-backend/conf conf
+EXPOSE 7070
 CMD ["java", "-jar", "app.jar"]

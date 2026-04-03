@@ -13,6 +13,10 @@ public class CompiledMap implements Supplier<Map<String, Object>> {
 
   private final Map<String, Compiled<Object>> compiledValues;
 
+  public static CompiledMap empty() {
+    return new CompiledMap(Collections.emptyMap());
+  }
+
   public static CompiledMap of(
       Map<String, Object> raw, ExpressionContext context, ExpressionResolver resolver) {
     if (raw == null || raw.isEmpty()) {

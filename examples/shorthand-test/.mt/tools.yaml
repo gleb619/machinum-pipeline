@@ -1,0 +1,23 @@
+# Basic Shorthand Forms Example
+# Demonstrates minimal shorthand syntax for tools.yaml
+# See: docs/yaml-schema.md#30-shorthand-forms
+
+version: 1.0.0
+type: tools
+name: "Shorthand Tools"
+description: "Basic example of shorthand forms"
+
+body:
+  # Registry
+  registry: classpath://default
+  
+  # Bootstrap list shorthand - strings only
+  bootstrap:
+    - nooptool
+    - testtool
+  
+  # Tools list shorthand - strings only
+  tools:
+    - nooptool
+    - testtool
+

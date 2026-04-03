@@ -22,7 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class JarScanner {
 
-  private static final int DEFAULT_PARALLELISM = Math.max(Runtime.getRuntime().availableProcessors(), 4);
+  private static final int DEFAULT_PARALLELISM =
+      Math.max(Runtime.getRuntime().availableProcessors(), 4);
 
   public static List<RegistryManifest.ToolJarInfo> scanJarsAsync(List<Path> jarPaths) {
     Executor executor =

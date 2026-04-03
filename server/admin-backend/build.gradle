@@ -1,0 +1,43 @@
+plugins {
+  alias(libs.plugins.jooby.run)
+  alias(libs.plugins.spring.dependency.management)
+  alias(libs.plugins.osdetector)
+  alias(libs.plugins.shadow)
+  alias(libs.plugins.jooby.openapi)
+  alias(libs.plugins.openapi.generator)
+}
+
+dependencies {
+  // Jooby
+  implementation platform(libs.jooby.bom)
+
+  annotationProcessor libs.jooby.apt
+  implementation libs.jooby.core
+  implementation libs.jooby.jetty
+  implementation libs.jooby.logback
+  implementation libs.jooby.jackson
+
+  testImplementation libs.jooby.test
+}
+
+tasks.withType(JavaCompile) {
+  options.compilerArgs += [
+      '-parameters',
+      '-Ajooby.incremental=true',
+      '-Ajooby.debug=false'
+  ]
+  options.debug = true
+}
+
+shadowJar {
+  mergeServiceFiles()
+}
+
+joobyRun {
+  mainClass = "machinum.App"
+  restartExtensions = ["conf", "properties", "class"]
+  compileExtensions = ["java"]
+  port = 7070
+}
+
+//TODO: add stork -> https://jooby.io/#tooling-and-operations-packaging-stork

@@ -1,6 +1,7 @@
 package machinum.manifest;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import lombok.Builder;
@@ -15,16 +16,17 @@ public record PipelineBody(
     SourceManifest source,
     ItemsManifest items,
     @Singular List<PipelineStateManifest> states,
+    @Singular List<PipelineToolManifest> tools,
     @Singular Map<PipelineLifecycleEvent, List<ListenerItemManifest>> listeners,
     @JsonAlias("error-handling") ErrorHandlingManifest errorHandling)
     implements ManifestBody {
 
-  public boolean hasSource() {
-    return source != null && !source.isEmpty();
-  }
-
-  public boolean hasItems() {
-    return items != null && !items.isEmpty();
+  public static PipelineBody empty() {
+    return PipelineBody.builder()
+        .variables(Collections.emptyMap())
+        .states(Collections.emptyList())
+        .tools(Collections.emptyList())
+        .build();
   }
 
   @Builder

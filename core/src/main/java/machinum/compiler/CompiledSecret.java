@@ -14,6 +14,10 @@ public final class CompiledSecret {
     this.internal = internal;
   }
 
+  public static CompiledSecret empty() {
+    return new CompiledSecret(Collections.emptyMap());
+  }
+
   public static CompiledSecret of(
       Map<String, String> raw, ExpressionContext context, ExpressionResolver resolver) {
     if (raw == null || raw.isEmpty()) {

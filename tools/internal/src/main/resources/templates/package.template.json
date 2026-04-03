@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Machinum Pipeline workspace with Node.js tools",
   "private": true,
-  "dependencies": {
-
-  }
+  "scripts": {
+    "validate:md": "node .mt/scripts/validators/validate-md-lines.js"
+  },
+  "dependencies": {}
 }

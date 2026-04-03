@@ -29,7 +29,8 @@
       "Write(**/*.yml)",
       "Write(**/*.yaml)",
       "Write(**/*.sh)",
-      "Write(**/*.md)"
+      "Write(**/*.md)",
+      "Bash(rm *)"
     ],
     "deny": [
       "Write(.env)",

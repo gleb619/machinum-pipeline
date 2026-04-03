@@ -4,17 +4,16 @@ version: 1.0.0
 type: tools
 name: "Test Bootstrap List Tools"
 body:
-  registry:
-    type: builtin
+  registry: classpath://default
 
   # List of tools to bootstrap during setup phase
   bootstrap:
     - prettier
     - eslint
-    - workspace-init
+    - workspace
 
   tools:
-    - name: workspace-init
+    - name: workspace
       description: "Workspace initialization tool"
 
     - name: qwen-summary

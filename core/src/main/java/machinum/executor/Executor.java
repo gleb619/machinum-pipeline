@@ -17,7 +17,9 @@ import machinum.executor.LifecycleContext.LifecyclePhase;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.manifest.PipelineManifest;
+import machinum.manifest.RootBody;
 import machinum.manifest.RootManifest;
+import machinum.manifest.ToolsBody;
 import machinum.manifest.ToolsManifest;
 import machinum.pipeline.ErrorHandler;
 import machinum.tool.FileToolRegistry;
@@ -45,7 +47,7 @@ public class Executor {
 
     String runId = UUID.randomUUID().toString();
     CompilationContext compilationContext =
-        CompilationContext.builder().runId(runId).build();
+        CompilationContext.builder().runId(runId).workspaceDir(workspaceDir).build();
 
     Optional<RootManifest> rootManifest = manifestLoader.loadRootManifest(workspaceDir);
     Optional<ToolsManifest> toolsManifest = manifestLoader.loadToolsManifest(workspaceDir);
@@ -63,6 +65,20 @@ public class Executor {
         "Found manifests: root={}, tools={}", rootManifest.isPresent(), toolsManifest.isPresent());
 
     return ctx;
+  }
+
+  public LifecycleContext setDefaults(LifecycleContext ctx) {
+    var newCtx = ctx.toBuilder();
+    if (ctx.rootManifest().isEmpty()) {
+      newCtx.rootManifest(
+          Optional.of(RootManifest.builder().body(RootBody.empty()).build()));
+    }
+    if (ctx.toolsManifest().isEmpty()) {
+      newCtx.toolsManifest(
+          Optional.of(ToolsManifest.builder().body(ToolsBody.empty()).build()));
+    }
+
+    return newCtx.build();
   }
 
   public LifecycleContext compileManifests(LifecycleContext ctx) {
@@ -96,6 +112,10 @@ public class Executor {
 
   public LifecycleContext executeBootstrap(LifecycleContext ctx, boolean force) {
     return toolsExecutor.executeBootstrap(ctx, force);
+  }
+
+  public LifecycleContext executeAfterBootstrap(LifecycleContext ctx) {
+    return toolsExecutor.executeAfterBootstrap(ctx);
   }
 
   private PipelineDefinition loadPipeline(
@@ -154,6 +174,7 @@ public class Executor {
     }
     ctx = ctx.toBuilder().pipeline(pipeline).build();
 
+    // TODO: Use `core/src/main/java/machinum/config/CoreConfig.java` here
     PipelineExecutor pipelineExecutor =
         new PipelineExecutor(toolRegistry, expressionResolver, scriptRegistry, errorHandler);
     return pipelineExecutor.executeRun(ctx, pipeline);
@@ -172,6 +193,12 @@ public class Executor {
       return this;
     }
 
+    public ExecutorChain setDefaults() {
+      context.set(executor.setDefaults(context.get()));
+
+      return this;
+    }
+
     public ExecutorChain compileManifests() {
       context.set(executor.compileManifests(context.get()));
 
@@ -186,6 +213,12 @@ public class Executor {
 
     public ExecutorChain executeBootstrap(boolean force) {
       context.set(executor.executeBootstrap(context.get(), force));
+
+      return this;
+    }
+
+    public ExecutorChain executeAfterBootstrap() {
+      context.set(executor.executeAfterBootstrap(context.get()));
 
       return this;
     }

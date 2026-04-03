@@ -1,8 +1,10 @@
 package machinum.tool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import machinum.bootstrap.BootstrapContext;
@@ -46,6 +48,23 @@ public class GitTool implements Tool {
     }
   }
 
+  @Override
+  public List<String> dependsOn() {
+    return List.of("workspace");
+  }
+
+  @Override
+  public void afterBootstrap(BootstrapContext context) {
+    Path workspaceRoot = context.getWorkspaceRoot();
+    try (Git git = Git.open(workspaceRoot.toFile())) {
+      git.add().addFilepattern(".").call();
+      git.commit().setMessage("feat(start): initial commit").call();
+      log.info("Initial commit created during afterBootstrap phase.");
+    } catch (GitAPIException | IOException e) {
+      log.error("Failed to create initial commit during afterBootstrap", e);
+    }
+  }
+
   private void initializeGitRepository(Path workspaceRoot) throws GitAPIException {
     Path gitDir = workspaceRoot.resolve(".git");
 
@@ -63,17 +82,18 @@ public class GitTool implements Tool {
     Path githooksDir = workspaceRoot.resolve(GITHOOKS_DIR);
     Files.createDirectories(githooksDir);
 
+    // Create commit-msg hook (validates message format and runs Node script)
     Path commitMsgHook = githooksDir.resolve(COMMIT_MSG_HOOK);
     if (Files.notExists(commitMsgHook)) {
       String hookContent = loadCommitMsgHookContent();
       Files.writeString(commitMsgHook, hookContent);
       commitMsgHook.toFile().setExecutable(true);
       log.info("Created git commit-msg hook: {}", commitMsgHook);
-
-      configureGitHooksPath(workspaceRoot);
     } else {
       log.debug("Git commit-msg hook already exists");
     }
+
+    configureGitHooksPath(workspaceRoot);
   }
 
   private String loadCommitMsgHookContent() throws IOException {
@@ -83,35 +103,14 @@ public class GitTool implements Tool {
       return Files.readString(projectHook);
     }
 
-    log.debug("Using inline commit-msg hook content");
-    //TODO: Add to resources folder
-    return """
-        #!/usr/bin/env bash
-
-        commit_msg_file="$1"
-        commit_msg="$(head -n1 "$commit_msg_file")"
-
-        allowed_pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([^)]+\\))?(!)?: .+$'
-
-        if [[ ! "$commit_msg" =~ $allowed_pattern ]]; then
-          cat >&2 <<'EOF'
-        ERROR: Invalid commit message format.
-
-        Expected format:
-          <type>(<scope>): <subject>
-          or
-          <type>!: <subject>
-
-        Allowed types:
-          feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-
-        Example:
-          feat(auth): add jwt authentication support
-          fix!: resolve memory leak issue
-        EOF
-          exit 1
-        fi
-        """;
+    log.debug("Loading commit-msg hook from resources");
+    String resourcePath = "/hooks/commit-msg.sh";
+    try (InputStream input = getClass().getResourceAsStream(resourcePath)) {
+      if (input == null) {
+        throw new IOException("Hook resource not found: " + resourcePath);
+      }
+      return new String(input.readAllBytes());
+    }
   }
 
   private void configureGitHooksPath(Path workspaceRoot) throws IOException {
@@ -129,7 +128,8 @@ public class GitTool implements Tool {
   public ToolInfo info() {
     return ToolInfo.builder()
         .name("git")
-        .description("Git repository management - initializes repo and creates commits with GitLab convention")
+        .description(
+            "Git repository management - initializes repo and creates commits with GitLab convention")
         .build();
   }
 }

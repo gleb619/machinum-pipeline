@@ -9,20 +9,6 @@ name: string             # Required - Toolset identifier
 body: {}                 # Required - Tools configuration
 ```
 
-## Body Schema
-
-### execution-targets
-
-```yaml
-execution-targets:
-  default: local|remote|docker
-  targets:
-    - name: string       # Target identifier
-      type: local|remote|docker
-      remote-host: string # For remote type
-      docker-host: string # For docker type
-```
-
 ### install (Optional)
 
 ```yaml
@@ -38,7 +24,6 @@ install:
 ```yaml
 registry:
   - name: string         # Required - Tool identifier
-    execution-target: string # Default: default from execution-targets
     config:
       # Tool-specific configuration
       input-schema: {}    # JSON Schema for external tools

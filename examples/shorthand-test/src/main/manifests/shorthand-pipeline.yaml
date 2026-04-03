@@ -1,0 +1,11 @@
+version: 1.0.0
+type: pipeline
+name: "shorthand-pipeline"
+body:
+  items:
+    type: chapter
+    path: "src/main/chapters"
+  tools:
+    - nooptool
+    - tool: testtool
+      input: "{{text}}"

@@ -1,0 +1,7 @@
+# Example 3: Minimal Root (Missing Optional Fields)
+# Demonstrates root with only required fields
+# See: docs/yaml-schema.md#2-root-pipeline-yaml
+version: 1.0.0
+type: root
+name: "Minimal Root"
+body: {}

@@ -10,8 +10,12 @@
 | `Item`        | id, type, content pointer/body, metadata, current state |
 | `ItemResult`  | per-state/per-tool outputs attached to item context     |
 | `RunMetadata` | run id, selected pipeline, timestamps, status           |
-| `SourceStreamer` | [SourceStreamer](../core/src/main/java/machinum/streamer/SourceStreamer.java) - streams items from source configuration |
-| `ItemsStreamer` | [ItemsStreamer](../core/src/main/java/machinum/streamer/ItemsStreamer.java) - streams items from items configuration |
+| `StreamItem`  | [StreamItem](../core/src/main/java/machinum/streamer/StreamItem.java) — typed item: `file`, `index`, `subIndex`, `content`, `metadata` |
+| `StreamCursor`| [StreamCursor](../core/src/main/java/machinum/streamer/StreamCursor.java) — resume position: `stateIndex`, `itemOffset`, `windowId` |
+| `StreamError` | [StreamError](../core/src/main/java/machinum/streamer/StreamError.java) — non-fatal stream error with `ErrorType` classification |
+| `StreamerCallback` | [StreamerCallback](../core/src/main/java/machinum/streamer/StreamerCallback.java) — observer-style batch consumer |
+| `SourceStreamer` | [SourceStreamer](../core/src/main/java/machinum/streamer/SourceStreamer.java) — streams items from source configuration |
+| `ItemsStreamer` | [ItemsStreamer](../core/src/main/java/machinum/streamer/ItemsStreamer.java) — streams items from items configuration |
 
 > `SourceRef` maps to the `source` block in [Pipeline YAML §4](yaml-schema.md#4-pipeline-declaration-yaml-srcmainmanifestspipelineyaml) — it represents the preprocessor acquisition layer. `Item` is the normalized unit that flows through states. See [§4.x source vs items](yaml-schema.md#4x-source-vs-items--data-acquisition-layer) for the distinction.
 
@@ -37,15 +41,16 @@ At runtime, YAML manifests are compiled to optimized POJOs with lazy expression 
 **Tools Manifest Compilation:**
 The tools manifest uses a simplified flat structure (no states). All tools are compiled into a single list with full configuration:
 
-```java
-// Load compiled tools manifest
+// Compile and bootstrap
 CompiledToolsManifest tools = compiler.compile(rawManifest, ctx);
 
-// Access tool definitions
-for (ToolDefinition tool : tools.body().registry()) {
-    // Install phase - runs unconditionally
-    tool.bootstrap(context);
+// In setup phase, executor bootstraps explicitly requested tools
+// toolRegistry.bootstrapAll(bootstrapContext, tools.body().bootstrap());
+// This orders tools by dependsOn(), runs bootstrap(), and then afterBootstrap()
 
+// Access tool definitions for pipeline
+String registryUri = tools.body().registry();  // Now a String (URI or shorthand)
+for (ToolDefinition tool : tools.body().tools()) {
     // Runtime phase - runs when tool is invoked in pipeline
     ToolResult result = tool.execute(context);
 }
@@ -161,3 +166,62 @@ GET  /health                  → Health check
 - Item progress bars
 - Log viewer with filtering
 - Tool registry browser
+
+---
+
+## 5. Tool Registry Architecture
+
+The tool registry system provides a unified interface for discovering, loading, and executing tools
+from different sources. All registries implement the [`ToolRegistry`](../tools/common/src/main/java/machinum/tool/ToolRegistry.java)
+interface.
+
+### 5.1 Registry Types
+
+| Registry | Implementation | Loading Strategy | Use Case |
+|----------|---------------|------------------|----------|
+| **Built-in** | [`BuiltInToolRegistry`](../tools/common/src/main/java/machinum/tool/BuiltInToolRegistry.java) | Classpath scanning → Gradle build output | Local development |
+| **File** | [`FileToolRegistry`](../tools/common/src/main/java/machinum/tool/FileToolRegistry.java) | JAR directory scanning | Pre-installed tools |
+| **HTTP** | [`HttpToolRegistry`](../tools/common/src/main/java/machinum/tool/HttpToolRegistry.java) | HTTP download → cache → delegate to FileToolRegistry | Production/remote |
+
+### 5.2 Built-in Tool Registry
+
+The `BuiltInToolRegistry` uses a two-phase loading strategy:
+
+```
+Phase 1: Classpath Scanning (preferred)
+├── ServiceLoader<Tool> discovers all Tool implementations on runtime classpath
+├── Tools loaded via Gradle runtimeOnly dependencies
+│   ├── runtimeOnly project(':tools:internal')
+│   └── runtimeOnly project(':tools:external')
+└── If tools found → done
+
+Phase 2: Gradle Build Output (fallback)
+├── Scan tools/{internal,external}/build/libs/*.jar
+├── Create shared URLClassLoader for all JARs
+└── ServiceLoader<Tool> with shared classloader
+```
+
+> **Note:** Both phases use `ServiceLoader` for SPI-based discovery. Each tool module must have a
+> `META-INF/services/machinum.tool.Tool` file listing its tool implementations.
+> See [Project Structure §3.1](project-structure.md#31-built-in-mode-gradle-configuration).
+
+### 5.3 ClassLoader Isolation
+
+All JAR-based registries (`BuiltInToolRegistry`, `FileToolRegistry`) maintain classloader isolation:
+
+- Each JAR (or shared JAR set) gets its own `URLClassLoader`
+- Before executing a tool, the thread's context classloader is swapped to the tool's classloader
+- After execution, the original classloader is restored
+- This prevents classpath conflicts between tools with different dependencies
+
+### 5.4 Registry Auto-Detection
+
+When `registry` is `null` in `tools.yaml`, the system auto-detects based on precedence:
+
+1. `MT_BUILTIN_TOOLS_ENABLED` environment variable
+2. `machinum.builtin.tools` system property
+3. Presence of `build.gradle` in project root (dev mode → builtin)
+4. Default fallback → HTTP registry
+
+See [YAML Schema §3](yaml-schema.md#3-tools-yaml-mttoolsyaml) for configuration,
+[CLI Commands §builtin](cli-commands.md#builtin-mode-flags) for CLI usage.

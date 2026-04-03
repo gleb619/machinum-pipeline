@@ -2,29 +2,42 @@ package machinum.manifest;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
-import machinum.tool.RegistryManifest;
+import machinum.manifest.io.BootstrapToolManifestDeserializer;
+import machinum.manifest.io.ToolManifestDeserializer;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 @Builder
 public record ToolsBody(
-    ToolRegistryConfigManifest registry,
-    @Singular("bootstrap") List<ToolManifest> bootstrap,
-    @Singular List<ToolManifest> tools)
+    String registry,
+
+    @Singular("bootstrap") @JsonDeserialize(contentUsing = BootstrapToolManifestDeserializer.class)
+    List<BootstrapToolManifest> bootstrap,
+
+    @Singular @JsonDeserialize(contentUsing = ToolManifestDeserializer.class)
+    List<ToolManifest> tools)
     implements ManifestBody {
 
-  @Builder
-  public record ToolRegistryConfigManifest(ToolRegistryType type, String url, String refresh) {}
+  public static ToolsBody empty() {
+    return ToolsBody.builder()
+        .registry("classpath://default")
+        .bootstrap(BootstrapToolManifest.builder().name("workspace").build())
+        .tools(Collections.emptyList())
+        .build();
+  }
 
   @Builder
-  public record ToolManifest(
-      String name,
-      String description,
-      String type,
-      @JsonAlias("execution-target") String executionTarget,
-      ToolConfigManifest config) {}
+  @JsonDeserialize(using = BootstrapToolManifestDeserializer.class)
+  public record BootstrapToolManifest(
+      String name, String description, Map<String, Object> config) {}
+
+  @Builder
+  @JsonDeserialize(using = ToolManifestDeserializer.class)
+  public record ToolManifest(String name, String description, ToolConfigManifest config) {}
 
   @Builder
   public record ToolConfigManifest(
@@ -36,24 +49,5 @@ public record ToolsBody(
     file,
     http,
     builtin,
-  }
-
-  //TODO: Remove
-  @Deprecated(forRemoval = true)
-  public RegistryManifest toRegistryManifest() {
-    if (tools == null || tools.isEmpty()) {
-      return new RegistryManifest("registry", "1.0.0", List.of());
-    }
-
-    var jars = tools.stream()
-        .map(tool -> new RegistryManifest.ToolJarInfo(
-            tool.name(),
-            "classpath",
-            tool.type() != null ? tool.type() : tool.name(),
-            List.of(),
-            null))
-        .toList();
-
-    return new RegistryManifest("registry", "1.0.0", jars);
   }
 }

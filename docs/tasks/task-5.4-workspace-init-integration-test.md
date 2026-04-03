@@ -1,4 +1,4 @@
-# Task: 5.4-workspace-init-integration-test
+# Task: 5.4-workspace-integration-test
 
 **Phase**: 5
 **Priority**: P1
@@ -432,4 +432,4 @@ Ensure `WorkspaceInitializerTool` and `InstallCommand` work correctly
 
 ## Result
 
-Link to: `docs/results/5.4-workspace-init-integration-test.result.md`
+Link to: `docs/results/5.4-workspace-integration-test.result.md`

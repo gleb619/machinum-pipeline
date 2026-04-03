@@ -126,13 +126,22 @@ public interface Tool {
     ToolResult execute(ExecutionContext context) throws Exception;
 
     /**
-     * Install lifecycle method - executes unconditionally during install phase.
-     * Use for: downloading dependencies, initializing state, validating config.
+     * Bootstrap lifecycle method - executes for explicitly defined tools during bootstrap phase.
      */
-    default void bootstrap(ExecutionContext context) throws Exception {
+    default void bootstrap(BootstrapContext context) throws Exception {
         // No-op by default
     }
 
+    /**
+     * Executed strictly after bootstrap for all ordered tools in separate AFTER_BOOTSTRAP phase.
+     * Use for post-creation operations that might affect compilation.
+     */
+    default void afterBootstrap(BootstrapContext context) throws Exception {
+        // No-op by default
+    }
+
+    default List<String> dependsOn() { return List.of(); }
+    default int priority() { return -1; }
     default void validate() {}
 
     record ToolResult(boolean success, Map<String, Object> outputs, String errorMessage) {}
@@ -142,45 +151,46 @@ public interface Tool {
 public interface ToolRegistry {
     void register(Tool tool);
     Optional<Tool> resolve(String name);
-
-    enum RegistryType {
-        BUILTIN("builtin"),  // Loads tools from JARs at runtime (dev mode)
-        FILE("file"),        // Loads tools via SPI from classpath
-        HTTP("http");        // Downloads tools from remote URLs (release mode)
-    }
 }
 
 /**
- * Registry Mode Switching:
- * - Dev mode (build.gradle exists): Uses BUILTIN registry
- * - Release mode: Uses configured type or defaults to HTTP
+ * Registry URI Parsing:
+ * - URI: classpath://, file://, http://, https://
  *
  * Configuration in tools.yaml:
  * ```yaml
  * body:
- *   registry:
- *     type: builtin  # or http
- *     url: https://...
- *     refresh: on_startup
+ *   registry: classpath://default        # URI format
+ *   registry: file:///path/to/tools      # local file path
+ *   registry: https://.../tools.yaml     # remote HTTP registry (always refreshed)
  * ```
  */
 
-// Built-in Tool Registry - loads tools from JAR files dynamically
-public class BuiltInToolRegistry implements ToolRegistry {
-    // Uses custom URLClassLoader to load JARs from ~/.machinum/tools/
-    // Discovers tools via SPI from loaded JARs
-}
-
-// File Tool Registry - loads tools from classpath via SPI
-public class FileToolRegistry implements ToolRegistry {
+// Shared Base Jar Registry - handles classloading & SPI tool discovery
+public abstract class AbstractJarToolRegistry implements ToolRegistry {
+    // Maintains URLClassLoaders for loaded jars
     // Discovers tools via ServiceLoader.load(Tool.class)
+    // Ensures context ClassLoader is set during execution phase
 }
 
-// HTTP Tool Registry - downloads tools from remote URLs
+// Built-in Tool Registry - local dev, loads from classpath or Gradle build output
+// See: docs/core-architecture.md#52-built-in-tool-registry
+// See: docs/project-structure.md#31-built-in-mode-gradle-configuration
+public class BuiltInToolRegistry extends AbstractJarToolRegistry {
+    // Phase 1: ServiceLoader from classpath (when -PbuiltinToolsEnabled=true)
+    // Phase 2: Scan tools/{internal,external}/build/libs/*.jar (fallback)
+    // Supports module filtering (internal, external)
+}
+
+// File Tool Registry - offline prod, loads jars from path
+public class FileToolRegistry extends AbstractJarToolRegistry {
+    // Loads tools directly from provided path (e.g. .mt/tools cache directory)
+}
+
+// HTTP Tool Registry - online prod, downloads tools from remote URLs
 public class HttpToolRegistry implements ToolRegistry {
-    // Downloads tools from GitHub/HTTP URLs
-    // Caches to ~/.machinum/cache/
-    // Delegates to FileToolRegistry for local management
+    // Downloads tools from GitHub/HTTP URLs to cache directory
+    // Delegates actual registration and loading phase to FileToolRegistry instance
 }
 
 // Tool Registrar - generates registry manifests
@@ -204,14 +214,47 @@ public class PipelineStateMachine<T> {
     public Flow<T> createFlow(List<T> items, PipelineContext context);
 }
 
-// Execution Context
+// Execution Context (in tools:common — stays Map-based for tool compatibility)
 @Data
 public class ExecutionContext {
     private final String runId;
     private final Map<String, Object> metadata;
     private final Map<String, Object> variables;
+    private final Map<String, Object> currentItem;  // StreamItem converted to Map at executor level
 
+    public String getTextContent();        // reads "content" key from currentItem map
     public Object evaluate(String expression); // resolves {{ ... }}
+}
+
+// Streamer — observer-style item producer
+public sealed interface Streamer permits ItemsStreamer, SourceStreamer {
+    // Synchronous (deprecated)
+    @Deprecated
+    List<StreamItem> stream(Path workspaceDir);
+
+    // Observer-style with batch support and resume
+    void stream(Path workspaceDir, StreamCursor cursor, StreamerCallback callback);
+
+    // Error-tolerant — connection/IO errors don't break the flow
+    void stream(Path workspaceDir, StreamCursor cursor,
+        StreamerCallback callback, Consumer<StreamError> errorHandler);
+}
+
+// Typed item replacing raw Map<String, Object>
+public record StreamItem(
+    Path file, Integer index, Integer subIndex,
+    String content, Map<String, Object> metadata) {}
+
+// Resume cursor — maps to checkpoint fields (state_index, item_offset, window_id)
+public record StreamCursor(int stateIndex, int itemOffset, int windowId, String runId) {}
+
+// Non-fatal stream error — recoverable errors (CONNECTION, TIMEOUT) don't stop the stream
+public record StreamError(ErrorType type, String message, Throwable cause, StreamCursor cursorAtError) {}
+
+// Batch consumer callback
+@FunctionalInterface
+public interface StreamerCallback {
+    boolean onBatch(List<StreamItem> items, StreamCursor cursor); // return false to stop
 }
 
 public interface StateExecutionListener {

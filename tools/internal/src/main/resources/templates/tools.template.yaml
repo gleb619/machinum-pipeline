@@ -7,37 +7,7 @@ name: "Default Toolset"
 description: "Example tool configurations"
 
 body:
-  # Tool registry configuration
-  registry:
-    type: builtin              # builtin, file, or http
-    refresh: on_startup        # on_startup or never
-    # url: https://...        # Required for http type
+  registry: classpath://default
 
-  # Bootstrap tools - tools to initialize during setup phase
   bootstrap:
-    - workspace-init
-
-  # Tool definitions
-  tools:
-    # Simple tool declaration - name resolves via SPI
-    - name: peek
-      description: "Log input for debugging"
-      config:
-        log-level: info
-
-    # Example: External shell script
-    - name: uppercase-transformer
-      description: "Convert text to uppercase"
-      config:
-        work-dir: "{{rootDir}}"
-        script: ".mt/scripts/transformers/uppercase.sh"
-
-    # Example: External Groovy script
-    - name: text-validator
-      description: "Validate text content"
-      config:
-        script: ".mt/scripts/validators/not_empty.groovy"
-
-    # Git tool - initializes repo and creates commits with GitLab convention
-    - name: git
-      description: "Git repository management"
+    - workspace

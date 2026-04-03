@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
 import machinum.definition.BackoffDefinition;
 import machinum.definition.PipelineConfigDefinition;
 import machinum.definition.PipelineDefinition.ErrorHandlingDefinition;
@@ -31,48 +30,39 @@ import machinum.manifest.RootBody;
 import machinum.manifest.RootBody.RootCleanupManifest;
 import machinum.manifest.RootBody.RootExecutionManifest;
 import machinum.manifest.RootManifest;
+import org.mapstruct.Context;
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
+import org.mapstruct.Named;
+import org.mapstruct.factory.Mappers;
 
-@Slf4j
-//TODO: Redo to `mapstruct`
-@Deprecated(forRemoval = true)
-public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefinition> {
+@Mapper(uses = CommonCompiler.class)
+public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDefinition> {
 
-  public static final RootManifestCompiler INSTANCE = new RootManifestCompiler();
+  RootManifestCompiler INSTANCE = Mappers.getMapper(RootManifestCompiler.class);
 
-  @Override
-  public RootDefinition compile(RootManifest source, CompilationContext ctx) {
-    validate(source);
+  @Mapping(target = "labels", source = "labels", qualifiedByName = "compileSimpleMap")
+  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "compileSimpleMap")
+  @Mapping(target = "body", expression = "java(compileBody(source, ctx))")
+  RootDefinition compile(RootManifest source, @Context CompilationContext ctx);
+
+  @Named("compileBody")
+  default RootBodyDefinition compileBody(RootManifest source, @Context CompilationContext ctx) {
+    RootBody body = source.body();
+    if (body == null) {
+      return RootBodyDefinition.builder()
+          .variables(CompiledMap.empty())
+          .secrets(CompiledSecret.empty())
+          .build();
+    }
 
     ExpressionContext exprCtx = CommonCompiler.INSTANCE.createExpressionContext(ctx);
     ExpressionResolver resolver = ctx.resolver();
 
-    RootBodyDefinition body = compileBody(source, ctx, exprCtx, resolver);
-
-    return RootDefinition.builder()
-        .version(source.version())
-        .type(source.type())
-        .name(source.name())
-        .description(source.description())
-        .labels(CommonCompiler.INSTANCE.compileSimpleMap(source.labels()))
-        .metadata(CommonCompiler.INSTANCE.compileSimpleMap(source.metadata()))
-        .body(body)
-        .build();
-  }
-
-  private RootBodyDefinition compileBody(
-      RootManifest source,
-      CompilationContext ctx,
-      ExpressionContext exprCtx,
-      ExpressionResolver resolver) {
-    RootBody body = source.body();
-    if (body == null) {
-      return null;
-    }
-
     CompiledMap variables = CommonCompiler.INSTANCE.compileMap(body.variables(), ctx);
-    RootExecutionDefinition execution = compileExecution(body.execution());
+    RootExecutionDefinition execution = compileExecution(body.execution(), ctx);
     PipelineConfigDefinition config = compileConfig(body.config(), ctx);
-    RootCleanupDefinition cleanup = compileCleanup(body.cleanup());
+    RootCleanupDefinition cleanup = compileCleanup(body.cleanup(), ctx);
     ErrorHandlingDefinition errorHandling = compileErrorHandling(body.errorHandling(), ctx);
     CompiledSecret secrets = compileSecrets(body, ctx, exprCtx, resolver);
 
@@ -86,23 +76,31 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .build();
   }
 
-  private CompiledSecret compileSecrets(
+  @Named("compileSecrets")
+  default CompiledSecret compileSecrets(
       RootBody body,
       CompilationContext ctx,
       ExpressionContext exprCtx,
       ExpressionResolver resolver) {
 
-    EnvironmentLoader loader = coreConfig().environmentLoader();
+    var loader = coreConfig().environmentLoader();
     Path workspaceDir = ctx.workspaceDir();
+
+    if (body == null) {
+      if (workspaceDir != null) {
+        loader.loadFromDirectory(workspaceDir);
+      }
+      return CompiledSecret.of(loader.getAll(), exprCtx, resolver);
+    }
 
     List<String> envFiles = body.envFiles();
     if (envFiles == null || envFiles.isEmpty()) {
-      loader.loadFromDirectory(workspaceDir);
-      log.debug("No envFiles specified, loading .env/.ENV from workspace root: {}", workspaceDir);
+      if (workspaceDir != null) {
+        loader.loadFromDirectory(workspaceDir);
+      }
     } else {
       Path[] paths = envFiles.stream().map(workspaceDir::resolve).toArray(Path[]::new);
       loader.loadFromPaths(paths);
-      log.debug("Loaded env from specified files: {}", envFiles);
     }
 
     Map<String, String> merged = new HashMap<>(loader.getAll());
@@ -114,7 +112,8 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
     return CompiledSecret.of(merged, exprCtx, resolver);
   }
 
-  private RootExecutionDefinition compileExecution(RootExecutionManifest exec) {
+  default RootExecutionDefinition compileExecution(
+      RootExecutionManifest exec, @Context CompilationContext ctx) {
     if (exec == null) {
       return null;
     }
@@ -127,7 +126,7 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         ? CommonCompiler.INSTANCE.compileConstant(snapshot.enabled())
         : CompiledConstant.of(null);
     Compiled<String> snapshotMode = snapshot != null
-        ? CommonCompiler.INSTANCE.compileConstant(snapshot.mode())
+        ? CommonCompiler.INSTANCE.compileString(snapshot.mode(), ctx)
         : CompiledConstant.of(null);
 
     return RootExecutionDefinition.builder()
@@ -138,8 +137,8 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .build();
   }
 
-  private PipelineConfigDefinition compileConfig(
-      PipelineConfigManifest cfg, CompilationContext ctx) {
+  default PipelineConfigDefinition compileConfig(
+      PipelineConfigManifest cfg, @Context CompilationContext ctx) {
     if (cfg == null) {
       return null;
     }
@@ -162,8 +161,8 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .build();
   }
 
-  private PipelineExecutionDefinition compilePipelineExecution(
-      PipelineExecution exec, CompilationContext ctx) {
+  default PipelineExecutionDefinition compilePipelineExecution(
+      PipelineExecution exec, @Context CompilationContext ctx) {
     if (exec == null) {
       return null;
     }
@@ -187,7 +186,8 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .build();
   }
 
-  private RootCleanupDefinition compileCleanup(RootCleanupManifest cleanup) {
+  default RootCleanupDefinition compileCleanup(
+      RootCleanupManifest cleanup, @Context CompilationContext ctx) {
     if (cleanup == null) {
       return null;
     }
@@ -199,8 +199,8 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .build();
   }
 
-  private ErrorHandlingDefinition compileErrorHandling(
-      ErrorHandlingManifest eh, CompilationContext ctx) {
+  default ErrorHandlingDefinition compileErrorHandling(
+      ErrorHandlingManifest eh, @Context CompilationContext ctx) {
     if (eh == null) {
       return null;
     }
@@ -219,7 +219,7 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .build();
   }
 
-  private RetryDefinition compileRetry(RetryManifest retry, CompilationContext ctx) {
+  default RetryDefinition compileRetry(RetryManifest retry, @Context CompilationContext ctx) {
     if (retry == null) {
       return null;
     }
@@ -228,7 +228,8 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
     return RetryDefinition.builder().maxAttempts(maxAttempts).backoff(backoff).build();
   }
 
-  private BackoffDefinition compileBackoff(BackoffManifest backoff, CompilationContext ctx) {
+  default BackoffDefinition compileBackoff(
+      BackoffManifest backoff, @Context CompilationContext ctx) {
     if (backoff == null) {
       return null;
     }
@@ -241,8 +242,8 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .build();
   }
 
-  private ErrorStrategyDefinition compileStrategy(
-      ErrorStrategyManifest strategy, CompilationContext ctx) {
+  default ErrorStrategyDefinition compileStrategy(
+      ErrorStrategyManifest strategy, @Context CompilationContext ctx) {
     if (strategy == null) {
       return null;
     }
@@ -250,11 +251,5 @@ public class RootManifestCompiler implements YamlCompiler<RootManifest, RootDefi
         .exception(CommonCompiler.INSTANCE.compileString(strategy.exception(), ctx))
         .strategy(CommonCompiler.INSTANCE.compileConstant(strategy.strategy()))
         .build();
-  }
-
-  private void validate(RootManifest source) {
-    if (source == null) {
-      throw new IllegalArgumentException("Root manifest can't be null");
-    }
   }
 }

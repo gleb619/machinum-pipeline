@@ -7,11 +7,7 @@ import machinum.compiler.CompiledMap;
 
 @Builder
 public record ToolDefinition(
-    Compiled<String> name,
-    Compiled<String> description,
-    Compiled<String> type,
-    Compiled<String> executionTarget,
-    ToolConfigDefinition config) {
+    Compiled<String> name, Compiled<String> description, ToolConfigDefinition config) {
 
   @Builder
   public record ToolConfigDefinition(

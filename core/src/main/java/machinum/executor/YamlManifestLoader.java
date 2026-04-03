@@ -134,7 +134,7 @@ public class YamlManifestLoader {
   @SneakyThrows
   private List<ManifestObject> scanManifests(Path workspaceDir) {
     if (!Files.isDirectory(workspaceDir)) {
-      throw new IllegalArgumentException("Workspace directory does not exist: " + workspaceDir);
+      return Collections.emptyList();
     }
 
     List<ManifestObject> manifests = new ArrayList<>();

@@ -7,7 +7,6 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,9 +15,7 @@ import java.util.concurrent.TimeUnit;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Getter;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import machinum.pipeline.ExecutionContext;
@@ -28,25 +25,25 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 public class ShellTool implements Tool {
 
-  private final ToolInfo info;
+  // TODO: load next fields from config of tool itself, look
+  // `core/src/main/java/machinum/definition/ToolDefinition#ToolConfigDefinition`
+  private Path workDir;
 
-  private final Path workDir;
+  private Duration timeout;
 
-  private final Duration timeout;
+  private Path scriptPath;
 
-  private final Path scriptPath;
+  private List<String> args;
 
-  private final List<String> args;
+  private Map<String, String> environment;
 
-  private final Map<String, String> environment;
+  private String interpreter;
 
-  private final String interpreter;
-
-  private final ObjectMapper objectMapper;
+  private ObjectMapper objectMapper;
 
   @Override
   public ToolInfo info() {
-    return info;
+    return ToolInfo.builder().name("shell").description("Execute shell scripts").build();
   }
 
   @Data
@@ -66,72 +63,6 @@ public class ShellTool implements Tool {
     public static RetryPolicy defaultPolicy() {
       return new RetryPolicy(0, Duration.ofSeconds(1), 1.0, 0.0);
     }
-  }
-
-  @Getter
-  @RequiredArgsConstructor
-  public enum ExecutionTarget {
-    LOCAL("local"),
-    REMOTE("remote"),
-    DOCKER("docker");
-
-    private final String name;
-  }
-
-  @Builder
-  protected ShellTool(
-      ToolInfo info,
-      Path workDir,
-      Duration timeout,
-      RetryPolicy retryPolicy,
-      ExecutionTarget executionTarget,
-      Path scriptPath,
-      List<String> args,
-      Map<String, String> environment,
-      String interpreter,
-      ObjectMapper objectMapper) {
-    this.info = info;
-    this.workDir = workDir;
-    this.timeout = timeout != null ? timeout : Duration.ofSeconds(30);
-    this.scriptPath = scriptPath;
-    this.args = args;
-    this.environment = environment;
-    this.interpreter = interpreter;
-    this.objectMapper = objectMapper;
-  }
-
-  // TODO: use or remove
-  @Deprecated(forRemoval = true)
-  public static ShellTool fromDefinition(ToolInfo info, Path workDir, Map<String, Object> config) {
-    String scriptUrl = (String) config.get("url");
-    if (scriptUrl == null || scriptUrl.isBlank()) {
-      throw new IllegalArgumentException("Shell tool must have a script url");
-    }
-
-    Path scriptPath = resolveScriptPath(scriptUrl, workDir);
-
-    @SuppressWarnings("unchecked")
-    List<String> args = (List<String>) config.get("args");
-
-    @SuppressWarnings("unchecked")
-    Map<String, String> env = (Map<String, String>) config.get("env");
-
-    String interpreter = (String) config.get("interpreter");
-
-    Duration timeout = parseTimeout(config.get("timeout"));
-
-    String workDirStr = (String) config.get("work-dir");
-    Path actualWorkDir = workDirStr != null ? Paths.get(workDirStr) : workDir;
-
-    return ShellTool.builder()
-        .info(info)
-        .scriptPath(scriptPath)
-        .args(args)
-        .environment(env)
-        .interpreter(interpreter)
-        .workDir(actualWorkDir)
-        .timeout(timeout)
-        .build();
   }
 
   @SneakyThrows
@@ -231,37 +162,5 @@ public class ShellTool implements Tool {
     if (!Files.isReadable(scriptPath)) {
       throw new IllegalStateException("Shell script is not readable: " + scriptPath);
     }
-  }
-
-  private static Path resolveScriptPath(String scriptUrl, Path workDir) {
-    Path path = Paths.get(scriptUrl);
-
-    if (path.isAbsolute()) {
-      return path;
-    }
-
-    return workDir.resolve(scriptUrl).normalize();
-  }
-
-  private static Duration parseTimeout(Object timeoutObj) {
-    if (timeoutObj == null) {
-      return Duration.ofSeconds(30);
-    }
-
-    if (timeoutObj instanceof Duration) {
-      return (Duration) timeoutObj;
-    }
-
-    String timeoutStr = timeoutObj.toString();
-
-    if (timeoutStr.matches("\\d+s")) {
-      return Duration.ofSeconds(Long.parseLong(timeoutStr.replace("s", "")));
-    } else if (timeoutStr.matches("\\d+m")) {
-      return Duration.ofMinutes(Long.parseLong(timeoutStr.replace("m", "")));
-    } else if (timeoutStr.matches("\\d+")) {
-      return Duration.ofSeconds(Long.parseLong(timeoutStr));
-    }
-
-    return Duration.ofSeconds(30);
   }
 }

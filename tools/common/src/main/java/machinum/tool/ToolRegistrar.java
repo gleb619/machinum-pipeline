@@ -36,7 +36,12 @@ public class ToolRegistrar {
       jarInfos = JarScanner.discoverFromClasspath();
     }
 
-    return new RegistryManifest("registry", "1.0.0", jarInfos);
+    return RegistryManifest.builder()
+        .version("1.0.0")
+        .type("tool-registry")
+        .name("generated-registry")
+        .body(RegistryManifest.RegistryManifestBody.builder().jars(jarInfos).build())
+        .build();
   }
 
   private List<RegistryManifest.ToolJarInfo> scanSubmodules(List<Path> submodulePaths) {
@@ -70,15 +75,17 @@ public class ToolRegistrar {
     return yamlMapper.readValue(yaml, RegistryManifest.class);
   }
 
-  //TODO: use verify in `core/src/main/java/machinum/executor/ToolsExecutor#executeDownload`
+  // TODO: use verify in `core/src/main/java/machinum/executor/ToolsExecutor#executeDownload`
   @Deprecated(forRemoval = true)
   public boolean verifySignatures(RegistryManifest manifest) {
-    if (manifest.jars() == null || manifest.jars().isEmpty()) {
+    if (manifest.body() == null
+        || manifest.body().jars() == null
+        || manifest.body().jars().isEmpty()) {
       log.debug("No JARs to verify");
       return true;
     }
 
-    List<CompletableFuture<Boolean>> futures = manifest.jars().stream()
+    List<CompletableFuture<Boolean>> futures = manifest.body().jars().stream()
         .map(jarInfo -> CompletableFuture.supplyAsync(() -> {
           Path jarPath = Path.of(jarInfo.jarPath());
           if (!Files.exists(jarPath)) {
@@ -132,9 +139,14 @@ public class ToolRegistrar {
     ToolRegistrar registrar = new ToolRegistrar(submodulePaths);
     RegistryManifest manifest = registrar.scanAndGenerateManifest();
     registrar.writeManifest(manifest, outputPath);
-    System.out.printf("""
+    System.out.printf(
+        """
         Registry manifest generated successfully: %s%n
-        
-        Total tools: %d%n""", outputPath, manifest.jars() != null ? manifest.jars().size() : 0);
+
+        Total tools: %d%n""",
+        outputPath,
+        manifest.body() != null && manifest.body().jars() != null
+            ? manifest.body().jars().size()
+            : 0);
   }
 }

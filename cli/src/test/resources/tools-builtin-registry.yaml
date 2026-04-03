@@ -4,14 +4,13 @@ version: 1.0.0
 type: tools
 name: "Test Builtin Registry Tools"
 body:
-  registry:
-    type: builtin
+  registry: classpath://default
 
   bootstrap:
-    - workspace-init
+    - workspace
 
   tools:
-    - name: workspace-init
+    - name: workspace
       description: "Workspace initialization tool"
 
     - name: qwen-summary

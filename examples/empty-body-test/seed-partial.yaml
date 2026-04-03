@@ -1,0 +1,12 @@
+# Example 2: Semi-Empty Root Body
+# Demonstrates root configuration with only variables, no execution/config sections
+# See: docs/yaml-schema.md#2-root-pipeline-yaml
+version: 1.0.0
+type: root
+name: "Semi-Empty Body Test - Root"
+description: "Root config with only variables - other fields use defaults"
+body:
+  variables:
+    book_id: "semi-empty-test"
+    environment: "test"
+  # execution, config, error-handling, cleanup all use defaults

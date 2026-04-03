@@ -106,6 +106,9 @@ public class WorkspaceLayout {
     Path githooksDir = workspaceRoot.resolve(".githooks");
     Files.createDirectories(githooksDir);
 
+    Path scriptsDir = githooksDir.resolve("scripts");
+    Files.createDirectories(scriptsDir);
+
     Path commitMsgHook = githooksDir.resolve("commit-msg.sh");
     if (Files.notExists(commitMsgHook)) {
       String hookContent = loadCommitMsgHookContent();
@@ -126,7 +129,7 @@ public class WorkspaceLayout {
 
     log.debug("Using inline commit-msg hook content");
 
-    //TODO: Move to resources
+    // TODO: Move to resources
     return """
         #!/usr/bin/env bash
 

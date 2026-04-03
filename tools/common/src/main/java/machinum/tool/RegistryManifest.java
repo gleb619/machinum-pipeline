@@ -1,13 +1,27 @@
 package machinum.tool;
 
 import java.util.List;
+import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
 
 @Builder
-//TODO: Redo, add basic fields here. Read `docs/yaml-schema.md`, a `Common Base Structure`. Add RegistryManifest body
 public record RegistryManifest(
-    String type, String version, @Singular List<ToolJarInfo> jars) {
+    String version,
+    String type,
+    String name,
+    String description,
+    @Singular Map<String, Object> labels,
+    Map<String, Object> metadata,
+    RegistryManifestBody body) {
+
+  @Builder
+  public record RegistryManifestBody(@Singular List<ToolJarInfo> jars) {
+
+    public static RegistryManifestBody empty() {
+      return RegistryManifestBody.builder().build();
+    }
+  }
 
   @Builder
   public record ToolJarInfo(

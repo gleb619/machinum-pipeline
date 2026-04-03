@@ -1,5 +1,6 @@
 package machinum.tool;
 
+import java.util.List;
 import java.util.Optional;
 import machinum.bootstrap.BootstrapContext;
 import machinum.pipeline.ExecutionContext;
@@ -17,5 +18,8 @@ public interface ToolRegistry {
         .orElseThrow(() -> new IllegalStateException("Tool not found: %s".formatted(name)));
   }
 
-  void bootstrapAll(BootstrapContext context) throws Exception;
+  void bootstrapAll(BootstrapContext context, List<String> targetTools) throws Exception;
+
+  void afterBootstrapAll(BootstrapContext context, List<String> targetTools)
+      throws Exception;
 }

@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -19,58 +19,54 @@ import machinum.tool.Tool.ToolResult;
 import machinum.workspace.WorkspaceLayout;
 
 @Slf4j
-//TODO: Redo:
-//  core/src/main/java/machinum/executor/Executor.java
-//  core/src/main/java/machinum/executor/PipelineExecutor.java
-//  core/src/main/java/machinum/executor/ToolsExecutor.java
-//  We need to call a `HttpToolRegistry#refresh` somewhere in executor lifecycle chain
-@Deprecated(forRemoval = true)
 public class HttpToolRegistry implements ToolRegistry {
-
-  //TODO: Redo to input arg, like `baseUrl`
-  @Deprecated(forRemoval = true)
-  private static final Duration REGISTRY_TIMEOUT = Duration.of(2, ChronoUnit.MINUTES);
 
   private final String baseUrl;
   private final String refreshStrategy;
   private final Path cacheDirectory;
-  private final FileToolRegistry delegate;
+  private FileToolRegistry delegate;
   private final HttpClient httpClient;
+  private final Duration registryTimeout;
 
-  public HttpToolRegistry(Path workspaceRoot, String baseUrl, String refreshStrategy) {
+  public HttpToolRegistry(
+      Path workspaceRoot, String baseUrl, String refreshStrategy, Duration registryTimeout) {
     this.baseUrl = baseUrl;
     this.refreshStrategy = refreshStrategy != null ? refreshStrategy : "on_startup";
+    this.registryTimeout = registryTimeout != null ? registryTimeout : Duration.ofMinutes(2);
     this.cacheDirectory = resolveCacheDirectory(workspaceRoot);
-    this.delegate = new FileToolRegistry();
+    this.delegate = new FileToolRegistry(this.cacheDirectory);
     this.httpClient = HttpClient.newHttpClient();
   }
 
-  //TODO: Check some hash/state file, and download missed files
-  @Deprecated(forRemoval = true)
+  public HttpToolRegistry(Path workspaceRoot, String baseUrl, String refreshStrategy) {
+    this(workspaceRoot, baseUrl, refreshStrategy, Duration.ofMinutes(2));
+  }
+
   public HttpToolRegistry init() {
     if ("on_startup".equals(this.refreshStrategy)) {
       downloadAndLoadTools();
     }
-
     return this;
   }
 
   @SneakyThrows
   private Path resolveCacheDirectory(Path workspaceRoot) {
     var toolsCacheDir = new WorkspaceLayout(workspaceRoot).getToolsCacheDir();
-    if(!Files.exists(toolsCacheDir)) {
+    if (!Files.exists(toolsCacheDir)) {
       Files.createDirectories(toolsCacheDir);
     }
-
     return toolsCacheDir;
   }
 
   private void downloadAndLoadTools() {
     try {
-      log.info("Downloading tools from: {}", baseUrl);
+      log.info("Downloading tools registry from: {}", baseUrl);
 
-      HttpRequest request =
-          HttpRequest.newBuilder().uri(URI.create(baseUrl)).timeout(REGISTRY_TIMEOUT).GET().build();
+      HttpRequest request = HttpRequest.newBuilder()
+          .uri(URI.create(baseUrl))
+          .timeout(registryTimeout)
+          .GET()
+          .build();
 
       HttpResponse<InputStream> response =
           httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -85,14 +81,8 @@ public class HttpToolRegistry implements ToolRegistry {
 
       log.info("Tools downloaded and cached to: {}", cacheFile);
 
-      // TODO: Parse the tools manifest and download individual tool JARs
-      // For now, this is a placeholder for the full implementation
-      // The full implementation would:
-      // 1. Parse the tools.yaml to get tool definitions
-      // 2. Download each tool JAR to the cache directory
-      // 3. Transform paths/links as needed
-      // 4. Load tools using a custom ClassLoader
-      // 5. Create temp registry file, place it to tools cache folder, to use a `FileToolRegistry`
+      // Re-initialize the delegate so it scans the cacheDirectory for downloaded jars
+      this.delegate = new FileToolRegistry(this.cacheDirectory);
 
     } catch (Exception e) {
       log.error("Failed to download tools from: {}", baseUrl, e);
@@ -115,11 +105,17 @@ public class HttpToolRegistry implements ToolRegistry {
   }
 
   @Override
-  public void bootstrapAll(BootstrapContext context) throws Exception {
-    delegate.bootstrapAll(context);
+  public void bootstrapAll(BootstrapContext context, List<String> targetTools)
+      throws Exception {
+    delegate.bootstrapAll(context, targetTools);
   }
 
-  // TODO: Call method on next event in context reload
+  @Override
+  public void afterBootstrapAll(BootstrapContext context, List<String> targetTools)
+      throws Exception {
+    delegate.afterBootstrapAll(context, targetTools);
+  }
+
   public void refresh() {
     if ("never".equals(refreshStrategy)) {
       log.debug("Refresh strategy is 'never', skipping tool refresh");

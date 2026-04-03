@@ -1,0 +1,9 @@
+# Example 1: Completely Empty Pipeline Body
+# Demonstrates minimal pipeline configuration with empty body
+# See: docs/yaml-schema.md#4-pipeline-declaration-yaml
+version: 1.0.0
+type: pipeline
+name: "empty-pipeline"
+description: "Minimal pipeline config with empty body - no states, no source/items"
+# body is intentionally omitted - will default to empty values
+# Note: This pipeline won't execute without source/items and states

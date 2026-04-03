@@ -1,0 +1,8 @@
+# Example 1: Completely Empty Tools Body
+# Demonstrates minimal tools configuration with empty body
+# See: docs/yaml-schema.md#3-tools-yaml
+version: 1.0.0
+type: tools
+name: "Empty Body Test - Tools"
+description: "Minimal tools config with empty body - no tools defined"
+# body is intentionally omitted - will default to empty values

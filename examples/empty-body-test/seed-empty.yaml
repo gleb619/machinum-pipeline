@@ -1,0 +1,8 @@
+# Example 1: Completely Empty Body
+# Demonstrates minimal root configuration with empty body
+# See: docs/yaml-schema.md#2-root-pipeline-yaml
+version: 1.0.0
+type: root
+name: "Empty Body Test - Root"
+description: "Minimal root config with empty body - all defaults applied"
+# body is intentionally omitted - will default to empty values

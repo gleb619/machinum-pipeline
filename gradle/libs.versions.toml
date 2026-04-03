@@ -20,6 +20,12 @@ assertj = "3.27.7"
 mockito = "5.23.0"
 
 # plugins
+jooby-run = "4.1.0"
+spring-dependency-management = "1.1.7"
+osdetector = "1.7.3"
+shadow = "9.4.0"
+jooby-openapi = "4.1.0"
+openapi-generator = "7.12.0"
 test-logger = "4.0.0"
 spotless = "8.3.0"
 versions = "0.53.0"
@@ -60,6 +66,12 @@ mockito = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
 
 [plugins]
+jooby-run = { id = "io.jooby.run", version.ref = "jooby-run" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+osdetector = { id = "com.google.osdetector", version.ref = "osdetector" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+jooby-openapi = { id = "io.jooby.openAPI", version.ref = "jooby-openapi" }
+openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
 test-logger = { id = "com.adarshr.test-logger", version.ref = "test-logger" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 versions = { id = "com.github.ben-manes.versions", version.ref = "versions" }

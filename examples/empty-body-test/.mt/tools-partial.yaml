@@ -1,0 +1,11 @@
+# Example 2: Semi-Empty Tools Body
+# Demonstrates tools configuration with only bootstrap list, no custom tools
+# See: docs/yaml-schema.md#3-tools-yaml
+version: 1.0.0
+type: tools
+name: "Semi-Empty Body Test - Tools"
+description: "Tools config with only bootstrap list - no custom tool definitions"
+body:
+  bootstrap:
+    - name: workspace
+  # tools list is empty - only bootstrap tools will be initialized

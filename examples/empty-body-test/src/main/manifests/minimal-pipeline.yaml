@@ -1,0 +1,20 @@
+# Example 3: Minimal Pipeline (Missing Optional Fields)
+# Demonstrates pipeline with source + minimal states
+# See: docs/yaml-schema.md#4-pipeline-declaration-yaml
+version: 1.0.0
+type: pipeline
+name: "minimal-pipeline"
+body:
+  variables:
+    test_mode: true
+  
+  source:
+    type: file
+    file-location: "src/main/chapters"
+    format: md
+
+  states:
+    - name: PROCESS
+      tools:
+        - mock-processor
+  # No config, listeners, error-handling - all use defaults

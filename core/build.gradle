@@ -27,3 +27,20 @@ dependencies {
     api libs.commons.lang3
     api libs.commons.io
 }
+
+gradle.projectsEvaluated {
+    def prop = project.findProperty('builtinToolsEnabled') ?: System.getenv('MT_BUILTIN_TOOLS_ENABLED') ?: 'false'
+
+    if (prop == 'true') {
+        def toolsProjects = []
+        rootProject.allprojects.each {proj ->
+            if (proj.path.startsWith(':tools:') && proj.name != 'common') {
+                toolsProjects.add(proj.name)
+            }
+        }
+
+        toolsProjects.each {module ->
+            dependencies.add('runtimeOnly', project(":tools:${module}"))
+        }
+    }
+}

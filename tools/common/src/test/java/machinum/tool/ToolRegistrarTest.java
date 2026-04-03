@@ -24,13 +24,20 @@ class ToolRegistrarTest {
         .signature("abc123")
         .build();
 
-    RegistryManifest manifest = new RegistryManifest("registry", "1.0.0", List.of(jarInfo));
+    RegistryManifest manifest = RegistryManifest.builder()
+        .version("1.0.0")
+        .type("tool-registry")
+        .name("test-registry")
+        .body(RegistryManifest.RegistryManifestBody.builder()
+            .jars(List.of(jarInfo))
+            .build())
+        .build();
 
     registrar.writeManifest(manifest, outputPath);
 
     assertThat(Files.exists(outputPath)).isTrue();
     String yaml = Files.readString(outputPath);
-    assertThat(yaml).contains("type: \"registry\"");
+    assertThat(yaml).contains("type: \"tool-registry\"");
     assertThat(yaml).contains("version: \"1.0.0\"");
     assertThat(yaml).contains("test-tool");
     assertThat(yaml).contains("/path/to/tool.jar");
@@ -43,18 +50,20 @@ class ToolRegistrarTest {
   void shouldReadYamlManifest(@TempDir Path tempDir) throws IOException {
     ToolRegistrar registrar = new ToolRegistrar(List.of());
 
-    //TODO: Move to resources
+    // TODO: Move to resources
     String yaml = """
-        type: registry
+        type: tool-registry
         version: 1.0.0
-        jars:
-          - toolName: test-tool
-            jarPath: /path/to/tool.jar
-            className: com.example.TestTool
-            dependencies:
-              - dep1
-              - dep2
-            signature: abc123
+        name: test-registry
+        body:
+          jars:
+            - toolName: test-tool
+              jarPath: /path/to/tool.jar
+              className: com.example.TestTool
+              dependencies:
+                - dep1
+                - dep2
+              signature: abc123
         """;
 
     Path inputPath = tempDir.resolve("registry.yaml");
@@ -62,11 +71,11 @@ class ToolRegistrarTest {
 
     RegistryManifest manifest = registrar.readManifest(inputPath);
 
-    assertThat(manifest.type()).isEqualTo("registry");
+    assertThat(manifest.type()).isEqualTo("tool-registry");
     assertThat(manifest.version()).isEqualTo("1.0.0");
-    assertThat(manifest.jars()).hasSize(1);
+    assertThat(manifest.body().jars()).hasSize(1);
 
-    RegistryManifest.ToolJarInfo jarInfo = manifest.jars().get(0);
+    RegistryManifest.ToolJarInfo jarInfo = manifest.body().jars().get(0);
     assertThat(jarInfo.toolName()).isEqualTo("test-tool");
     assertThat(jarInfo.jarPath()).isEqualTo("/path/to/tool.jar");
     assertThat(jarInfo.className()).isEqualTo("com.example.TestTool");

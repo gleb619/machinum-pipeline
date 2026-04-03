@@ -1,6 +1,7 @@
 package machinum.manifest;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import lombok.Builder;
@@ -18,6 +19,14 @@ public record RootBody(
     @JsonAlias("env-files") @Singular List<String> envFiles,
     @Singular("env") Map<String, String> env)
     implements ManifestBody {
+
+  public static RootBody empty() {
+    return RootBody.builder()
+        .variables(Collections.emptyMap())
+        .envFiles(Collections.emptyList())
+        .env(Collections.emptyMap())
+        .build();
+  }
 
   @Builder
   public record RootExecutionManifest(

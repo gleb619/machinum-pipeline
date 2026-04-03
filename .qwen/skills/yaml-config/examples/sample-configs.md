@@ -61,24 +61,13 @@ description: "Tools for document processing pipeline"
 metadata:
   created: "2026-03-25"
 body:
-  execution-targets:
-    default: local
-    targets:
-      - name: local
-        type: local
-      - name: gpu-server
-        type: remote
-        remote-host: gpu-server.internal
-
   tools:
     - name: text-extractor
-      execution-target: local
       config:
         max_file_size: 50MB
         supported_formats: [pdf, docx, txt]
 
     - name: ai-summarizer
-      execution-target: gpu-server
       config:
         model: qwen2.5-72b
         temperature: 0.3
@@ -104,13 +93,12 @@ body:
         confidence_threshold: 0.8
 
     - name: document-converter
-      runtime: docker
-      source:
-        type: docker
-        image: "document-converter:latest"
       config:
         output_format: markdown
         preserve_formatting: true
+        source:
+          type: docker
+          image: "document-converter:latest"
 ```
 
 ## Pipeline Configuration Example
@@ -131,9 +119,6 @@ body:
       max-concurrency: 2
 
   variables: {}
-  project_name: "Document Analysis Project"
-  output_format: markdown
-  languages: [en, es, fr, de]
 
   source:
     type: file

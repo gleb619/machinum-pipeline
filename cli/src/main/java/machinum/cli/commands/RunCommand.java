@@ -50,7 +50,7 @@ public class RunCommand implements Callable<Integer> {
         resume,
         dryRun);
 
-    Executor executor = CoreConfig.coreConfig().executor();
+    Executor executor = CoreConfig.coreConfig().executor(workspaceDir);
     // TODO: Add here new lifecycle method to check if tools are installed and bootstrapped
     LifecycleContext ctx = executor.executePipeline(pipeline, workspaceDir, resume, runId);
 

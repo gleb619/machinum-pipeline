@@ -25,13 +25,13 @@ import picocli.CommandLine.Command;
 public class MachinumCli implements Callable<Integer>, CommandLine.IVersionProvider {
 
   @Override
-  //TODO: use build info to take info from gradle
+  // TODO: use build info to take info from gradle
   @Deprecated
   public Integer call() {
     var version = new MachinumCli().getVersion()[0];
     System.out.printf("""
         Machinum Pipeline CLI v%s
-        
+
         Use 'machinum help' for available commands.
         %n""", version);
     return 0;
@@ -45,6 +45,6 @@ public class MachinumCli implements Callable<Integer>, CommandLine.IVersionProvi
 
   @Override
   public String[] getVersion() {
-    return new String[]{"0.1.0"};
+    return new String[] {"0.1.0"};
   }
 }

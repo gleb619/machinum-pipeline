@@ -15,7 +15,11 @@ import picocli.CommandLine.ParentCommand;
     name = "setup",
     description =
         "Initialize workspace with tool sources and directory structure. Shortcut for: download + bootstrap",
-    subcommands = {SetupCommand.DownloadCommand.class, SetupCommand.BootstrapCommand.class},
+    subcommands = {
+      SetupCommand.DownloadCommand.class,
+      SetupCommand.BootstrapCommand.class,
+      SetupCommand.AfterBootstrapCommand.class
+    },
     mixinStandardHelpOptions = true)
 public class SetupCommand implements Callable<Integer> {
 
@@ -32,14 +36,19 @@ public class SetupCommand implements Callable<Integer> {
 
   @Override
   public Integer call() {
-    Path workspaceRoot = resolveWorkspace();
-    log.info("Setting workspace up in {} (download + bootstrap)", workspaceRoot);
+    Path workspaceDir = resolveWorkspace();
+    log.info("Setting workspace up in {} (download + bootstrap)", workspaceDir);
 
-    var executor = CoreConfig.coreConfig().executor();
+    var executor = CoreConfig.coreConfig().executor(workspaceDir);
 
-    executor.chain(workspaceRoot).findManifests()
+    executor
+        .chain(workspaceDir)
+        .findManifests()
+        .setDefaults()
+        .compileManifests()
         .executeDownload()
-        .executeBootstrap(force);
+        .executeBootstrap(force)
+        .executeAfterBootstrap();
 
     log.info("Setup complete!");
 
@@ -57,12 +66,17 @@ public class SetupCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-      Path workspaceRoot = parent.resolveWorkspace();
-      log.info("Downloading tool sources to {}", workspaceRoot);
+      Path workspaceDir = parent.resolveWorkspace();
+      log.info("Downloading tool sources to {}", workspaceDir);
 
-      var executor = CoreConfig.coreConfig().executor();
+      var executor = CoreConfig.coreConfig().executor(workspaceDir);
 
-      executor.chain(workspaceRoot).findManifests().executeDownload();
+      executor
+          .chain(workspaceDir)
+          .findManifests()
+          .setDefaults()
+          .compileManifests()
+          .executeDownload();
 
       log.info("Download complete!");
       return 0;
@@ -85,21 +99,68 @@ public class SetupCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-      Path workspaceRoot = parent.resolveWorkspace();
-      log.info("Bootstrapping workspace in {}", workspaceRoot);
+      Path workspaceDir = parent.resolveWorkspace();
+      boolean effectiveForce = force || parent.force;
+      log.info("Bootstrapping workspace in {} (force={})", workspaceDir, effectiveForce);
 
-      var executor = CoreConfig.coreConfig().executor();
+      var executor = CoreConfig.coreConfig().executor(workspaceDir);
 
-      executor.chain(workspaceRoot).findManifests().executeBootstrap(force);
+      executor
+          .chain(workspaceDir)
+          .findManifests()
+          .setDefaults()
+          .compileManifests()
+          .executeBootstrap(effectiveForce)
+          .executeAfterBootstrap();
 
       log.info("Bootstrap complete!");
       return 0;
     }
   }
 
+  @Command(
+      name = "after-bootstrap",
+      description =
+          "Run afterBootstrap() phase separately for tools that create files affecting compilation",
+      mixinStandardHelpOptions = true)
+  static class AfterBootstrapCommand implements Callable<Integer> {
+
+    @ParentCommand
+    private SetupCommand parent;
+
+    @Option(
+        names = {"--workspace", "-w"},
+        description = "Workspace root directory (default: current directory)",
+        paramLabel = "<path>")
+    private String workspace;
+
+    @Option(
+        names = {"--force", "-f"},
+        description = "Overwrite existing configuration files")
+    private boolean force;
+
+    @Override
+    public Integer call() {
+      Path workspaceDir = workspace != null
+          ? Paths.get(workspace).toAbsolutePath().normalize()
+          : parent.resolveWorkspace();
+      log.info("Running after bootstrap phase in {}", workspaceDir);
+
+      var executor = CoreConfig.coreConfig().executor(workspaceDir);
+
+      executor
+          .chain(workspaceDir)
+          .findManifests()
+          .setDefaults()
+          .compileManifests()
+          .executeAfterBootstrap();
+
+      log.info("After bootstrap complete!");
+      return 0;
+    }
+  }
+
   Path resolveWorkspace() {
-    return Paths.get(
-        Objects.requireNonNullElse(workspace, ""))
-        .toAbsolutePath().normalize();
+    return Paths.get(Objects.requireNonNullElse(workspace, "")).toAbsolutePath().normalize();
   }
 }

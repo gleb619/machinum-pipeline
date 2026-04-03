@@ -17,7 +17,7 @@ machinum
 │   ├── --run-id <run-id>                # Clean specific run
 │   └── --older-than <duration>          # Clean by age
 ├── serve                                # Start HTTP server
-│   ├── --port 8080
+│   ├── --port 7070
 │   └── --ui                             # Enable admin UI
 ├── mcp                                  # MCP mode
 │   ├── --command                        # No daemon mode
@@ -37,7 +37,7 @@ Installs tools by running the `install()` lifecycle method on all internal tools
 
 **Lifecycle:**
 1. **DOWNLOAD** — Fetches tool sources (git, http, file); does NOT mutate workspace
-2. **BOOTSTRAP** — Creates workspace structure, runs `install()` on each tool unconditionally
+2. **BOOTSTRAP** — Creates workspace structure, runs `bootstrap()` on tools listed in `tools.yaml -> body.bootstrap` (ordered by `dependsOn` and `priority`)
 
 **Usage:**
 ```bash
@@ -47,12 +47,30 @@ machinum setup
 # Download only (no workspace mutation)
 machinum setup download
 
-# Bootstrap only (create structure, run install scripts)
+# Bootstrap only (create structure, run bootstrap scripts)
 machinum setup bootstrap
 
 # Install specific tools only
 machinum install qwen-summary translator
+
+# Try with examples folder
+./gradlew :cli:run --args="setup -w ./examples/setup-test"
+./gradlew :cli:run --args="setup download -w ./examples/expression-test"
+./gradlew :cli:run --args="setup bootstrap -w ./examples/setup-test"
+
+# Setup on empty folder (no manifests - defaults applied)
+./gradlew :cli:run --args="setup -w ./examples/fully-empty-folder"
 ```
+
+**Empty Folder Behavior:**
+
+When running `setup` on a workspace with no manifest files:
+- Missing `seed.yaml` → Default empty root config applied via [`Executor.setDefaults()`](../core/src/main/java/machinum/executor/Executor.java#L72-L91)
+- Missing `.mt/tools.yaml` → Default empty tools config applied
+- Workspace structure created: `.mt/`, `src/main/chapters/`, `src/main/manifests/`, `build/`
+- No errors - setup completes successfully with defaults
+
+This allows you to start with an empty directory and add manifests incrementally. See [`examples/fully-empty-folder/`](../examples/fully-empty-folder/) for a complete example.
 
 **Tool Lifecycle Method:**
 Each tool implements `void bootstrap(ExecutionContext context)` which runs unconditionally:
@@ -95,3 +113,18 @@ public class GitTool implements Tool {
 
 See [YAML Schema §3.1](yaml-schema.md#31-tool-lifecycle) for lifecycle details.
 See [GitTool](../tools/external/src/main/java/machinum/tool/GitTool.java) for implementation example.
+
+---
+
+## Built-in Mode Flags
+
+| Method              | Example                                                              |
+|---------------------|----------------------------------------------------------------------|
+| **Gradle property** | `./gradlew :cli:run --args="setup -w ./" -PbuiltinToolsEnabled=true` |
+| **Environment var** | `MT_BUILTIN_TOOLS_ENABLED=true machinum setup -w ./my-project`       |
+| **System property** | `java -Dmachinum.builtin.tools=true -jar cli.jar setup`              |
+| **Auto-detect**     | Running from project root with `build.gradle` → builtin mode         |
+
+See [Project Structure §3.1](project-structure.md#31-built-in-mode-gradle-configuration) for
+Gradle configuration details,
+[YAML Schema §3](yaml-schema.md#3-tools-yaml-mttoolsyaml) for registry configuration.

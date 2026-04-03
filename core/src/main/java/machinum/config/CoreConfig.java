@@ -65,12 +65,12 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new FileCheckpointStore(baseDir, objectMapper()));
   }
 
-  public BuiltInToolRegistry builtInToolRegistry(Path gradleProjectPath) {
-    return singleton(() -> new BuiltInToolRegistry(gradleProjectPath).init());
+  public BuiltInToolRegistry builtInToolRegistry() {
+    return singleton(() -> new BuiltInToolRegistry().init());
   }
 
-  public FileToolRegistry fileToolRegistry() {
-    return singleton(FileToolRegistry::new);
+  public FileToolRegistry fileToolRegistry(Path workspaceRoot) {
+    return singleton(() -> new FileToolRegistry(workspaceRoot).init());
   }
 
   public HttpToolRegistry httpToolRegistry(
@@ -86,10 +86,10 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new ErrorHandler(ErrorHandlingConfig.defaultConfig()));
   }
 
-  public PipelineRunner oneStepRunner(RunLogger runLogger) {
+  public PipelineRunner oneStepRunner(Path workspaceRoot, RunLogger runLogger) {
     return singleton(() -> new OneStepRunner(
         runLogger,
-        fileToolRegistry(),
+        fileToolRegistry(workspaceRoot),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
         errorHandler(),
@@ -125,14 +125,14 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> fileCheckpointStore(checkpointDir));
   }
 
-  public Executor executor() {
+  public Executor executor(Path workspaceRoot) {
     return singleton(() -> new Executor(
         yamlManifestLoader(),
         rootManifestCompiler(),
         toolsManifestCompiler(),
         pipelineManifestCompiler(),
         errorHandler(),
-        fileToolRegistry(),
+        fileToolRegistry(workspaceRoot),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
         toolsExecutor(ToolRegistryType.builtin)));

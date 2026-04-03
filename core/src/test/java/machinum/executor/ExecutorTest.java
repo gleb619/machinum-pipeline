@@ -410,6 +410,11 @@ class ExecutorTest {
               LifecyclePhase.COMPILE,
               LifecyclePhase.DOWNLOAD,
               LifecyclePhase.BOOTSTRAP,
+              LifecyclePhase.AFTER_BOOTSTRAP,
+              LifecyclePhase.CHECK,
+              LifecyclePhase.RUN,
+              LifecyclePhase.PAUSE,
+              LifecyclePhase.RESUME,
               LifecyclePhase.COMPLETE);
     }
   }

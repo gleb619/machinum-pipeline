@@ -80,21 +80,8 @@ type: tools
 name: "Default Toolset"
 description: "AI and utility tools"
 body:
-  execution-targets:
-    default: local               # local|remote|docker
-    targets:
-      - name: local
-        type: local
-      - name: remote-build
-        type: remote
-        remote-host: build.example.internal
-
   tools:
     - name: qwen-summary
-      # internal|external; default: internal
-      execution-target: local
-      source:
-        type: spi                # spi|git|http|file; default: spi
       config:
         model: qwen2.5-72b
         temperature: 0.7

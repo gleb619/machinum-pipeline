@@ -1,0 +1,10 @@
+# Example 3: Minimal Tools (Missing Optional Fields)
+# Demonstrates tools with minimal tool definitions
+# See: docs/yaml-schema.md#3-tools-yaml
+version: 1.0.0
+type: tools
+name: "Minimal Tools"
+body:
+  tools:
+    - name: mock-processor
+  # No description, config, registry - all use defaults
