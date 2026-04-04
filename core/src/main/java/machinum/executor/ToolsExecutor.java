@@ -168,8 +168,7 @@ public class ToolsExecutor {
         String path = extractPathFromUri(registryUri);
         yield coreConfig().fileToolRegistry(Path.of(path));
       }
-      case http -> // Always refresh for HTTP - no conditional refresh parameter
-        coreConfig().httpToolRegistry(ctx.workspaceDir(), registryUri, null);
+      case http -> coreConfig().httpToolRegistry(ctx.workspaceDir(), registryUri, null);
       case builtin -> coreConfig().builtInToolRegistry();
     };
   }

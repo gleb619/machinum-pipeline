@@ -5,7 +5,7 @@ import lombok.Builder;
 import machinum.compiler.Compiled;
 import machinum.compiler.CompiledMap;
 import machinum.compiler.CompiledSecret;
-import machinum.definition.PipelineDefinition.ErrorHandlingDefinition;
+import machinum.definition.PipelineDefinition.FallbackDefinition;
 
 @Builder
 public record RootDefinition(
@@ -22,7 +22,7 @@ public record RootDefinition(
   public record RootBodyDefinition(
       CompiledMap variables,
       RootExecutionDefinition execution,
-      ErrorHandlingDefinition errorHandling,
+      FallbackDefinition fallback,
       PipelineConfigDefinition config,
       RootCleanupDefinition cleanup,
       CompiledSecret secrets)

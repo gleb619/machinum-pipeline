@@ -18,32 +18,34 @@ public record PipelineBody(
     @Singular List<PipelineStateManifest> states,
     @Singular List<PipelineToolManifest> tools,
     @Singular Map<PipelineLifecycleEvent, List<ListenerItemManifest>> listeners,
-    @JsonAlias("error-handling") ErrorHandlingManifest errorHandling)
+    FallbackManifest fallback)
     implements ManifestBody {
 
   public static PipelineBody empty() {
     return PipelineBody.builder()
+        .source(SourceManifest.empty())
+        .items(ItemsManifest.empty())
         .variables(Collections.emptyMap())
         .states(Collections.emptyList())
         .tools(Collections.emptyList())
+        .listeners(Collections.emptyMap())
         .build();
   }
 
   @Builder
-  public record ErrorHandlingManifest(
-      @JsonAlias("default-strategy") String defaultStrategy,
-      @JsonAlias("retry-config") RetryManifest retryConfig,
+  public record FallbackManifest(
+      @JsonAlias("default") String defaultStrategy,
+      @JsonAlias("retry") RetryManifest retryConfig,
       @Singular List<ErrorStrategyManifest> strategies) {}
 
   @Builder
-  public record RetryManifest(
-      @JsonAlias("max-attempts") Integer maxAttempts, BackoffManifest backoff) {}
+  public record RetryManifest(@JsonAlias("max") Integer maxAttempts, BackoffManifest backoff) {}
 
   @Builder
   public record BackoffManifest(
       BackoffType type,
-      @JsonAlias("initial-delay") String initialDelay,
-      @JsonAlias("max-delay") String maxDelay,
+      @JsonAlias("start") String initialDelay,
+      @JsonAlias("max") String maxDelay,
       Double multiplier,
       Double jitter) {}
 

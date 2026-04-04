@@ -41,18 +41,18 @@ body:
     book_id: my_book_123
   execution:
     parallel: false              # default
-    max-concurrency: 4           # default
+    concurrency: 4           # default
     resume: true                 # default
-    manifest-snapshot:
+    snapshot:
       enabled: true              # default
       mode: copy                 # copy|reference; default: copy
-  error-handling:
+  fallback:
     retry:
-      max-attempts: 3
+      max: 3
       backoff:
         type: fixed              # fixed|linear|exponential; default: fixed
-        initial-delay: 2s
-        max-delay: 30s
+        start: 2s
+        max: 30s
         multiplier: 2.0
         jitter: 0.15
     strategies:
@@ -109,10 +109,10 @@ name: "complex-pipeline"
 description: "Full AI pipeline with embeddings and translation"
 body:
   config:
-    batch-size: 10
+    batch: 10
     execution:
       mode: sequential           # sequential|parallel
-      max-concurrency: 4
+      concurrency: 4
 
   variables:
     book_name: my first book
@@ -122,12 +122,11 @@ body:
 
   # Exactly one of source|items required
   source:
-    type: file                   # file|http|git|s3
-    file-location: "./input/book.pdf"
-    format: md                   # folder|md|json|jsonl|pdf|docx
+    uri: "file://src/main/input/book.jsonl"   # file|http
 
   items:
     type: chapter                # chapter|paragraph|line|document|page
+    file-location: "./src/main/chapters/en"
 
   # State definitions (ordered)
   states:

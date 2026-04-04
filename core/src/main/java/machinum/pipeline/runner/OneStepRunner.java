@@ -151,10 +151,6 @@ public class OneStepRunner implements PipelineRunner {
     }
   }
 
-  /**
-   * Returns text content from the current item. Uses {@link machinum.streamer.StreamItem#content()}
-   * — no more map key guessing.
-   */
   private String getTextContent(ExecutionContext context) {
     return context.getTextContent();
   }

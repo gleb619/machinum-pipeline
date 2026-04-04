@@ -3,6 +3,7 @@ package machinum.compiler;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import machinum.expression.ExpressionContext;
@@ -43,9 +44,9 @@ public class CompiledMap implements Supplier<Map<String, Object>> {
     return new CompiledMap(compiled);
   }
 
-  public Object get(String key) {
+  public Optional<Object> get(String key) {
     Compiled<Object> value = compiledValues.get(key);
-    return value != null ? value.get() : null;
+    return value != null ? Optional.ofNullable(value.get()) : Optional.empty();
   }
 
   @SuppressWarnings("unchecked")

@@ -122,11 +122,8 @@ class ExecutorTest {
           type: pipeline
           name: "test-pipeline"
           body:
-            type: pipeline
             source:
-              type: file
-              file-location: "chapters"
-              format: md
+              uri: "file://./chapters/test.jsonl"
             states:
               - name: PROCESS
                 tools:
@@ -234,9 +231,7 @@ class ExecutorTest {
           body:
             type: pipeline
             source:
-              type: file
-              file-location: "chapters"
-              format: md
+              uri: "file://./chapters/test.jsonl"
             states:
               - name: PROCESS
                 tools:
@@ -340,9 +335,7 @@ class ExecutorTest {
           body:
             type: pipeline
             source:
-              type: file
-              file-location: "chapters"
-              format: md
+              uri: "file://./chapters/test.jsonl"
             states:
               - name: PROCESS
                 tools:

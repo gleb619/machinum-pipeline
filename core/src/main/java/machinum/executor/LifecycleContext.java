@@ -7,6 +7,7 @@ import machinum.compiler.CompilationContext;
 import machinum.definition.PipelineDefinition;
 import machinum.definition.RootDefinition;
 import machinum.definition.ToolsDefinition;
+import machinum.manifest.PipelineManifest;
 import machinum.manifest.RootManifest;
 import machinum.manifest.ToolsManifest;
 
@@ -22,7 +23,8 @@ public record LifecycleContext(
     ToolsDefinition tools,
     PipelineDefinition pipeline,
     Optional<RootManifest> rootManifest,
-    Optional<ToolsManifest> toolsManifest) {
+    Optional<ToolsManifest> toolsManifest,
+    Optional<PipelineManifest> pipelineManifest) {
 
   public enum LifecyclePhase {
     FIND,

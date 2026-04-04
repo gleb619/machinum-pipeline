@@ -3,6 +3,7 @@ package machinum.compiler;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 
@@ -31,9 +32,9 @@ public final class CompiledSecret {
     return new CompiledSecret(Collections.unmodifiableMap(map));
   }
 
-  public String get(String key) {
+  public Optional<String> get(String key) {
     Compiled<String> val = internal.get(key);
-    return val != null ? val.get() : null;
+    return val != null ? Optional.ofNullable(val.get()) : Optional.empty();
   }
 
   public boolean isEmpty() {

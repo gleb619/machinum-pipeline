@@ -1,35 +1,19 @@
 package machinum.manifest;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
 
 @Builder
-public record SourceManifest(
-    Type type,
-    @JsonAlias("file-location") String fileLocation,
-    Format format,
-    @JsonAlias("custom-loader") String customLoader,
-    @Singular Map<String, String> variables) {
+public record SourceManifest(String uri, @Singular Map<String, String> variables) {
+
+  public static final String VOID = "void://";
+
+  public static SourceManifest empty() {
+    return SourceManifest.builder().uri(VOID).build();
+  }
 
   public boolean isEmpty() {
-    return false;
-  }
-
-  public enum Type {
-    file,
-    http,
-    git,
-    s3
-  }
-
-  public enum Format {
-    folder,
-    md,
-    json,
-    jsonl,
-    pdf,
-    docx
+    return uri == null || uri.isBlank() || VOID.equals(uri);
   }
 }

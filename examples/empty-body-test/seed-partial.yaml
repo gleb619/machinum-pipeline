@@ -9,4 +9,4 @@ body:
   variables:
     book_id: "semi-empty-test"
     environment: "test"
-  # execution, config, error-handling, cleanup all use defaults
+  # execution, config, fallback, cleanup all use defaults

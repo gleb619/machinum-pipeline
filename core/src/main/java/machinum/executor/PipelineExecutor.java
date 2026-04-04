@@ -1,5 +1,8 @@
 package machinum.executor;
 
+import static machinum.config.CoreConfig.coreConfig;
+
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -13,12 +16,12 @@ import machinum.pipeline.ErrorHandler;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
 import machinum.pipeline.runner.OneStepRunner;
-import machinum.streamer.ItemsStreamer;
-import machinum.streamer.SourceStreamer;
 import machinum.streamer.StreamCursor;
 import machinum.streamer.StreamItem;
 import machinum.streamer.Streamer;
+import machinum.streamer.StreamerCallback;
 import machinum.tool.ToolRegistry;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -28,13 +31,13 @@ public class PipelineExecutor {
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
   private final ErrorHandler errorHandler;
+  private final ObjectMapper objectMapper;
 
   public LifecycleContext executeRun(LifecycleContext ctx, PipelineDefinition pipeline) {
     log.info("Starting RUN lifecycle: pipeline={} in {}", pipeline.name(), ctx.workspaceDir());
 
     RunLogger runLogger = RunLogger.of(ctx.runId());
-    Map<String, Object> pipelineVariables =
-        pipeline.body().variables() != null ? pipeline.body().variables().get() : Map.of();
+    Map<String, Object> pipelineVariables = pipeline.body().variables().get();
 
     OneStepRunner runner = new OneStepRunner(
         runLogger,
@@ -51,43 +54,62 @@ public class PipelineExecutor {
     AtomicInteger failed = new AtomicInteger();
 
     Streamer streamer = createStreamer(pipeline);
-    StreamCursor cursor = StreamCursor.initial(ctx.runId());
+    StreamCursor cursor = StreamCursor.initial();
 
-    // Observer-style streaming — batches pushed by streamer
     streamer.stream(
         ctx.workspaceDir(),
         cursor,
-        (items, cur) -> {
-          log.info("Processing batch of {} items (offset={})", items.size(), cur.itemOffset());
+        new StreamerCallback() {
+          private int totalItems = 0;
 
-          for (StreamItem item : items) {
-            String itemId = item.metaOrDefault("id", "item-" + item.index()).toString();
-            execCtx.updateItem(toItemMap(item), item.index());
+          @Override
+          public void onStreamStart(StreamCursor initialCursor) {
+            log.info("Stream started: runId={}", ctx.runId());
+          }
 
-            log.debug("Processing item {}: {}", item.index(), itemId);
-            runLogger.itemInfo(itemId, "Starting processing");
+          @Override
+          public boolean onBatch(List<StreamItem> items, StreamCursor cur) {
+            log.info(
+                "Processing batch of {} items (offset={}, total={})",
+                items.size(),
+                cur.itemOffset(),
+                totalItems);
 
-            boolean itemFailed = false;
-            for (int stateIndex = 0; stateIndex < pipeline.body().states().size(); stateIndex++) {
-              var state = pipeline.body().states().get(stateIndex);
-              try {
-                runner.executeState(state, stateIndex, itemId, execCtx);
-              } catch (Exception e) {
-                log.error("Item {} failed at state {}", itemId, state.name().get(), e);
-                runLogger.itemError(itemId, "Failed at state: " + state.name().get(), e);
-                itemFailed = true;
-                failed.incrementAndGet();
-                break;
+            for (StreamItem item : items) {
+              String itemId = item.metaOrDefault("id", "item-" + item.index()).toString();
+              execCtx.updateItem(toItemMap(item), item.index());
+
+              log.debug("Processing item {}: {}", item.index(), itemId);
+              runLogger.itemInfo(itemId, "Starting processing");
+
+              boolean itemFailed = false;
+              for (int stateIndex = 0; stateIndex < pipeline.body().states().size(); stateIndex++) {
+                var state = pipeline.body().states().get(stateIndex);
+                try {
+                  runner.executeState(state, stateIndex, itemId, execCtx);
+                } catch (Exception e) {
+                  log.error("Item {} failed at state {}", itemId, state.name().get(), e);
+                  runLogger.itemError(itemId, "Failed at state: " + state.name().get(), e);
+                  itemFailed = true;
+                  failed.incrementAndGet();
+                  break;
+                }
+              }
+
+              if (!itemFailed) {
+                processed.incrementAndGet();
+                runLogger.itemInfo(itemId, "Processing completed");
               }
             }
 
-            if (!itemFailed) {
-              processed.incrementAndGet();
-              runLogger.itemInfo(itemId, "Processing completed");
-            }
+            totalItems += items.size();
+            return true;
           }
 
-          return true; // continue streaming
+          @Override
+          public void onStreamEnd(StreamCursor finalCursor) {
+            log.info("Stream ended: runId={}, totalItems={}", ctx.runId(), totalItems);
+          }
         },
         error -> {
           log.error(
@@ -96,7 +118,6 @@ public class PipelineExecutor {
               error.message(),
               error.cause());
           runLogger.runError("Stream error: " + error.message(), error.cause());
-          // continue — don't break the flow
         });
 
     log.info("RUN lifecycle completed: processed={}, failed={}", processed.get(), failed.get());
@@ -104,7 +125,6 @@ public class PipelineExecutor {
     return ctx.toBuilder().currentPhase(LifecyclePhase.COMPLETE).build();
   }
 
-  /** Converts a {@link StreamItem} to a map for {@link ExecutionContext}. */
   private Map<String, Object> toItemMap(StreamItem item) {
     Map<String, Object> map = new ConcurrentHashMap<>();
     map.put("content", item.content());
@@ -122,18 +142,18 @@ public class PipelineExecutor {
   }
 
   private Streamer createStreamer(PipelineDefinition pipeline) {
-    if (pipeline.body().source() != null) {
-      return new SourceStreamer(pipeline.body().source());
-    } else if (pipeline.body().items() != null) {
-      return new ItemsStreamer(pipeline.body().items());
+    if (!pipeline.body().source().isEmpty()) {
+      return coreConfig().sourceStreamer(pipeline.body().source());
+    } else if (!pipeline.body().items().isEmpty()) {
+      return coreConfig().itemsStreamer(pipeline.body().items());
     }
+
     throw new IllegalStateException("Pipeline must have either 'source' or 'items'");
   }
 
   private ExecutionContext buildExecutionContext(
       LifecycleContext ctx, PipelineDefinition pipeline) {
-    Map<String, Object> variables =
-        pipeline.body().variables() != null ? pipeline.body().variables().get() : Map.of();
+    Map<String, Object> variables = pipeline.body().variables().get();
     return ExecutionContext.builder()
         .runId(ctx.runId())
         .variables(variables)

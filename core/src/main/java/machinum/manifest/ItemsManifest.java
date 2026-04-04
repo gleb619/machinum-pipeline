@@ -9,11 +9,15 @@ import lombok.Singular;
 public record ItemsManifest(
     Type type,
     String path,
-    @JsonAlias("custom-extractor") String customExtractor,
+    @JsonAlias("extractor") String customExtractor,
     @Singular Map<String, String> variables) {
 
+  public static ItemsManifest empty() {
+    return ItemsManifest.builder().type(Type.other).build();
+  }
+
   public boolean isEmpty() {
-    return type == null && path == null;
+    return (type == null || Type.other == type) && path == null;
   }
 
   public enum Type {
@@ -21,6 +25,7 @@ public record ItemsManifest(
     paragraph,
     line,
     document,
-    page
+    page,
+    other
   }
 }

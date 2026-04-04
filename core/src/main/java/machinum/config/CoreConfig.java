@@ -9,17 +9,12 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import machinum.checkpoint.CheckpointStore;
 import machinum.checkpoint.FileCheckpointStore;
-import machinum.compiler.CommonCompiler;
 import machinum.compiler.EnvironmentLoader;
-import machinum.compiler.ErrorHandlingCompiler;
-import machinum.compiler.ItemsCompiler;
-import machinum.compiler.PipelineConfigCompiler;
 import machinum.compiler.PipelineManifestCompiler;
 import machinum.compiler.RootManifestCompiler;
-import machinum.compiler.SourceCompiler;
-import machinum.compiler.StateCompiler;
-import machinum.compiler.ToolCompiler;
 import machinum.compiler.ToolsManifestCompiler;
+import machinum.definition.PipelineDefinition.ItemsDefinition;
+import machinum.definition.PipelineDefinition.SourceDefinition;
 import machinum.executor.Executor;
 import machinum.executor.ToolsExecutor;
 import machinum.executor.YamlManifestLoader;
@@ -28,10 +23,18 @@ import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.manifest.ToolsBody.ToolRegistryType;
 import machinum.pipeline.ErrorHandler;
-import machinum.pipeline.ErrorHandler.ErrorHandlingConfig;
+import machinum.pipeline.ErrorHandler.FallbackConfig;
 import machinum.pipeline.RunLogger;
 import machinum.pipeline.runner.OneStepRunner;
 import machinum.pipeline.runner.PipelineRunner;
+import machinum.streamer.FileSourceStreamer;
+import machinum.streamer.HttpSourceStreamer;
+import machinum.streamer.JsonlSourceStreamer;
+import machinum.streamer.MdFileItemsStreamer;
+import machinum.streamer.SampleSourceStreamer;
+import machinum.streamer.SourceUriParser;
+import machinum.streamer.Streamer;
+import machinum.streamer.VoidSourceStreamer;
 import machinum.tool.BuiltInToolRegistry;
 import machinum.tool.FileToolRegistry;
 import machinum.tool.HttpToolRegistry;
@@ -78,14 +81,20 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new HttpToolRegistry(workspaceRoot, baseUrl, refreshStrategy).init());
   }
 
+  //TODO: Replace code at `core/src/main/java/machinum/executor/PipelineExecutor.java`, we need to use `CoreConfig`
+  //  // instead of static creation
+  @Deprecated
   public RunLogger runLogger(String runId) {
     return singleton(runId, () -> RunLogger.of(runId));
   }
 
   public ErrorHandler errorHandler() {
-    return singleton(() -> new ErrorHandler(ErrorHandlingConfig.defaultConfig()));
+    return singleton(() -> new ErrorHandler(FallbackConfig.defaultConfig()));
   }
 
+  //TODO: replace code at `core/src/main/java/machinum/executor/PipelineExecutor.java`, we need to use `CoreConfig`
+  // instead of contructor creation
+  @Deprecated
   public PipelineRunner oneStepRunner(Path workspaceRoot, RunLogger runLogger) {
     return singleton(() -> new OneStepRunner(
         runLogger,
@@ -135,7 +144,8 @@ public class CoreConfig implements SingletonSupport {
         fileToolRegistry(workspaceRoot),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
-        toolsExecutor(ToolRegistryType.builtin)));
+        toolsExecutor(ToolRegistryType.builtin),
+        objectMapper()));
   }
 
   public ToolsExecutor toolsExecutor(ToolRegistryType type) {
@@ -156,10 +166,6 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new ScriptRegistry(scriptsDir).init());
   }
 
-  public StateCompiler stateDefinitionCompiler() {
-    return singleton(() -> StateCompiler.INSTANCE);
-  }
-
   public PipelineManifestCompiler pipelineManifestCompiler() {
     return singleton(() -> PipelineManifestCompiler.INSTANCE);
   }
@@ -172,28 +178,35 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> ToolsManifestCompiler.INSTANCE);
   }
 
-  public PipelineConfigCompiler pipelineConfigDefinitionCompiler() {
-    return singleton(() -> PipelineConfigCompiler.INSTANCE);
+  private static final int DEFAULT_BATCH_SIZE = 10;
+
+  public Streamer sourceStreamer(SourceDefinition source) {
+    String uri = source.uri() != null ? source.uri().get() : null;
+    if (uri == null || uri.isBlank()) {
+      throw new IllegalArgumentException("Source URI cannot be empty");
+    }
+
+    SourceUriParser.ParsedSourceUri parsed = SourceUriParser.parse(uri);
+
+    return switch (parsed.type()) {
+      case VOID -> new VoidSourceStreamer();
+      case SAMPLES -> new SampleSourceStreamer(source, DEFAULT_BATCH_SIZE);
+      case FILE -> {
+        //TODO: redo, just check extension, work on *.jsonl
+        String format = parsed.getQueryParam("format", "folder");
+        if ("jsonl".equals(format)) {
+          yield new JsonlSourceStreamer(source, objectMapper(), DEFAULT_BATCH_SIZE);
+        }
+        yield new FileSourceStreamer(source, DEFAULT_BATCH_SIZE);
+      }
+      case HTTP -> new HttpSourceStreamer(source, objectMapper(), DEFAULT_BATCH_SIZE);
+      case SCRIPT ->
+        throw new IllegalArgumentException("Custom script loaders not yet supported. URI: " + uri);
+    };
   }
 
-  public SourceCompiler sourceDefinitionCompiler() {
-    return singleton(() -> SourceCompiler.INSTANCE);
-  }
-
-  public ItemsCompiler itemsDefinitionCompiler() {
-    return singleton(() -> ItemsCompiler.INSTANCE);
-  }
-
-  public ErrorHandlingCompiler errorHandlingDefinitionCompiler() {
-    return singleton(() -> ErrorHandlingCompiler.INSTANCE);
-  }
-
-  public CommonCompiler commonCompiler() {
-    return singleton(() -> CommonCompiler.INSTANCE);
-  }
-
-  public ToolCompiler toolCompiler() {
-    return singleton(() -> ToolCompiler.INSTANCE);
+  public Streamer itemsStreamer(ItemsDefinition items) {
+    return new MdFileItemsStreamer(items, DEFAULT_BATCH_SIZE);
   }
 
   @Getter

@@ -49,7 +49,7 @@ cd /path/to/machinum-pipeline
 - `variables`: empty map
 - `execution`: null (uses runtime defaults)
 - `config`: null (uses runtime defaults)
-- `errorHandling`: null (uses runtime defaults)
+- `fallback`: null (uses runtime defaults)
 - `cleanup`: null (uses runtime defaults)
 - `envFiles`: empty list
 - `env`: empty map
@@ -66,7 +66,7 @@ cd /path/to/machinum-pipeline
 - `items`: null (must be provided for execution)
 - `states`: empty list
 - `listeners`: empty map
-- `errorHandling`: null (uses runtime defaults)
+- `fallback`: null (uses runtime defaults)
 
 ## Documentation Links
 - [YAML Schema - Root](../../../docs/yaml-schema.md#2-root-pipeline-yaml)

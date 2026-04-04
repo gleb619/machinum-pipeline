@@ -6,7 +6,7 @@
 
 | Model         | Key Fields                                              |
 |---------------|---------------------------------------------------------|
-| `SourceRef`   | source type, location, format, optional loader script   |
+| `SourceManifest` | URI string (schema determines type), variables map  |
 | `Item`        | id, type, content pointer/body, metadata, current state |
 | `ItemResult`  | per-state/per-tool outputs attached to item context     |
 | `RunMetadata` | run id, selected pipeline, timestamps, status           |
@@ -17,7 +17,7 @@
 | `SourceStreamer` | [SourceStreamer](../core/src/main/java/machinum/streamer/SourceStreamer.java) — streams items from source configuration |
 | `ItemsStreamer` | [ItemsStreamer](../core/src/main/java/machinum/streamer/ItemsStreamer.java) — streams items from items configuration |
 
-> `SourceRef` maps to the `source` block in [Pipeline YAML §4](yaml-schema.md#4-pipeline-declaration-yaml-srcmainmanifestspipelineyaml) — it represents the preprocessor acquisition layer. `Item` is the normalized unit that flows through states. See [§4.x source vs items](yaml-schema.md#4x-source-vs-items--data-acquisition-layer) for the distinction.
+> `SourceManifest` maps to the `source` block in [Pipeline YAML §4](yaml-schema.md#4-pipeline-declaration-yaml-srcmainmanifestspipelineyaml) — it represents the preprocessor acquisition layer with URI-based declaration. `Item` is the normalized unit that flows through states. See [§4.1 Source URI Schema](yaml-schema.md#41-source-uri-schema) and [§4.x source vs items](yaml-schema.md#4x-source-vs-items--data-acquisition-layer) for details.
 
 ---
 
@@ -78,8 +78,8 @@ immutable run-specific config.
 
 Controlled by root config:
 
-- `body.config.execution.manifest-snapshot.enabled: true` (default)
-- `body.config.execution.manifest-snapshot.mode: copy|reference` (`copy` default)
+- `body.config.execution.snapshot.enabled: true` (default)
+- `body.config.execution.snapshot.mode: copy|reference` (`copy` default)
 
 For `batch_step_over`/`batch`, checkpoint MUST include a deterministic cursor:
 

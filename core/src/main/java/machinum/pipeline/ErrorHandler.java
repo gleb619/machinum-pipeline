@@ -6,15 +6,15 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-// TODO: Use `machinum.definition.PipelineDefinition.ErrorHandlingDefinition` and
+// TODO: Use `machinum.definition.PipelineDefinition.FallbackDefinition` and
 // `machinum.definition.PipelineDefinition.ErrorStrategyDefinition`
 @Deprecated(forRemoval = true)
 public class ErrorHandler {
 
-  private final ErrorHandlingConfig config;
+  private final FallbackConfig config;
 
   public ErrorHandler() {
-    this(ErrorHandlingConfig.defaultConfig());
+    this(FallbackConfig.defaultConfig());
   }
 
   public ErrorStrategy resolveStrategy(Exception exception) {
@@ -101,18 +101,18 @@ public class ErrorHandler {
   // TODO: Use definition instead
   @Deprecated(forRemoval = true)
   @RequiredArgsConstructor
-  public static class ErrorHandlingConfig {
+  public static class FallbackConfig {
 
     public final ErrorStrategy defaultStrategy;
     public final RetryConfig retryConfig;
     public final List<ErrorStrategyConfig> strategies;
 
-    public ErrorHandlingConfig() {
+    public FallbackConfig() {
       this(ErrorStrategy.STOP, RetryConfig.defaultConfig(), null);
     }
 
-    public static ErrorHandlingConfig defaultConfig() {
-      return new ErrorHandlingConfig();
+    public static FallbackConfig defaultConfig() {
+      return new FallbackConfig();
     }
   }
 

@@ -43,8 +43,8 @@ registry:
 
 ```yaml
 - name: md-formatter
-  runtime: shell
   config:
+    runtime: shell
     source:
       type: file
       url: "./.mt/scripts/formatter.sh"

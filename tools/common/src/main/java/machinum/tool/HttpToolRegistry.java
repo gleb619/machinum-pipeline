@@ -22,16 +22,13 @@ import machinum.workspace.WorkspaceLayout;
 public class HttpToolRegistry implements ToolRegistry {
 
   private final String baseUrl;
-  private final String refreshStrategy;
   private final Path cacheDirectory;
   private FileToolRegistry delegate;
   private final HttpClient httpClient;
   private final Duration registryTimeout;
 
-  public HttpToolRegistry(
-      Path workspaceRoot, String baseUrl, String refreshStrategy, Duration registryTimeout) {
+  public HttpToolRegistry(Path workspaceRoot, String baseUrl, Duration registryTimeout) {
     this.baseUrl = baseUrl;
-    this.refreshStrategy = refreshStrategy != null ? refreshStrategy : "on_startup";
     this.registryTimeout = registryTimeout != null ? registryTimeout : Duration.ofMinutes(2);
     this.cacheDirectory = resolveCacheDirectory(workspaceRoot);
     this.delegate = new FileToolRegistry(this.cacheDirectory);
@@ -39,13 +36,11 @@ public class HttpToolRegistry implements ToolRegistry {
   }
 
   public HttpToolRegistry(Path workspaceRoot, String baseUrl, String refreshStrategy) {
-    this(workspaceRoot, baseUrl, refreshStrategy, Duration.ofMinutes(2));
+    this(workspaceRoot, baseUrl, Duration.ofMinutes(2));
   }
 
   public HttpToolRegistry init() {
-    if ("on_startup".equals(this.refreshStrategy)) {
-      downloadAndLoadTools();
-    }
+    downloadAndLoadTools();
     return this;
   }
 
@@ -105,8 +100,7 @@ public class HttpToolRegistry implements ToolRegistry {
   }
 
   @Override
-  public void bootstrapAll(BootstrapContext context, List<String> targetTools)
-      throws Exception {
+  public void bootstrapAll(BootstrapContext context, List<String> targetTools) throws Exception {
     delegate.bootstrapAll(context, targetTools);
   }
 
@@ -117,11 +111,6 @@ public class HttpToolRegistry implements ToolRegistry {
   }
 
   public void refresh() {
-    if ("never".equals(refreshStrategy)) {
-      log.debug("Refresh strategy is 'never', skipping tool refresh");
-      return;
-    }
-
     downloadAndLoadTools();
   }
 }

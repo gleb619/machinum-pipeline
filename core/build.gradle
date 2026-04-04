@@ -8,6 +8,7 @@ configurations.all {
 
 dependencies {
     api project(':tools:common')
+    api project(':server:http-streamer')
 
     // YAML
     api libs.snakeyaml

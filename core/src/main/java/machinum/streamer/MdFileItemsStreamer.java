@@ -10,46 +10,21 @@ import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import machinum.definition.PipelineDefinition.ItemsDefinition;
 
-/**
- * Streams items from an {@link ItemsDefinition} (chapter, paragraph, line, etc.).
- *
- * <p>Supports observer-style streaming with batch emission, resume via {@link StreamCursor}, and
- * error-tolerant operation.
- *
- * <p>See:
- *
- * <ul>
- *   <li>{@link Streamer} — interface contract
- *   <li><a href="../../../../docs/yaml-schema.md#4x-source-vs-items--data-acquisition-layer">YAML
- *       Schema §4.x</a>
- * </ul>
- */
 @Slf4j
-public final class ItemsStreamer implements Streamer {
+public final class MdFileItemsStreamer implements Streamer {
 
   private static final int DEFAULT_BATCH_SIZE = 10;
 
   private final ItemsDefinition items;
   private final int batchSize;
 
-  public ItemsStreamer(ItemsDefinition items) {
+  public MdFileItemsStreamer(ItemsDefinition items) {
     this(items, DEFAULT_BATCH_SIZE);
   }
 
-  public ItemsStreamer(ItemsDefinition items, int batchSize) {
+  public MdFileItemsStreamer(ItemsDefinition items, int batchSize) {
     this.items = items;
     this.batchSize = batchSize;
-  }
-
-  @Override
-  @Deprecated(forRemoval = true)
-  public List<StreamItem> stream(Path workspaceDir) {
-    List<StreamItem> result = new ArrayList<>();
-    stream(workspaceDir, null, (items, cursor) -> {
-      result.addAll(items);
-      return true;
-    });
-    return result;
   }
 
   @Override
@@ -72,23 +47,29 @@ public final class ItemsStreamer implements Streamer {
       StreamerCallback callback,
       Consumer<StreamError> errorHandler) {
 
-    StreamCursor cur = cursor != null ? cursor : StreamCursor.initial("items-stream");
+    StreamCursor cur = cursor != null ? cursor : StreamCursor.initial();
     int offset = cur.itemOffset();
 
-    String path = items.path() != null ? items.path().get() : null;
+    String path = items.path().get();
     if (path == null || path.isBlank()) {
       log.warn("Items path is empty, nothing to stream");
+      callback.onStreamStart(cur);
+      callback.onStreamEnd(cur);
       return;
     }
 
     Path itemsDir = workspaceDir.resolve(path);
     if (!Files.exists(itemsDir)) {
       errorHandler.accept(StreamError.io("Items path not found: " + itemsDir, null, cur));
+      callback.onStreamStart(cur);
+      callback.onStreamEnd(cur);
       return;
     }
 
+    callback.onStreamStart(cur);
+
     try {
-      List<Path> files = collectFiles(itemsDir);
+      List<Path> files = collectMarkdownFiles(itemsDir);
       List<StreamItem> batch = new ArrayList<>();
       int index = 0;
 
@@ -106,8 +87,9 @@ public final class ItemsStreamer implements Streamer {
               .file(file)
               .index(index)
               .content(content)
-              .meta("type", items.type() != null ? items.type().get().name() : "chapter")
+              .meta("type", items.type().get().name())
               .meta("name", fileName)
+              .meta("format", "md")
               .build();
           batch.add(item);
           index++;
@@ -121,27 +103,31 @@ public final class ItemsStreamer implements Streamer {
           }
         } catch (IOException e) {
           errorHandler.accept(StreamError.io("Failed to read: " + file, e, cur));
-          // continue with next file
         }
       }
 
-      // emit remaining
       if (!batch.isEmpty()) {
         cur = cur.advance(batch.size());
         callback.onBatch(List.copyOf(batch), cur);
       }
 
+      callback.onStreamEnd(cur);
+
     } catch (IOException e) {
       errorHandler.accept(StreamError.io("Failed to list items directory: " + itemsDir, e, cur));
+      callback.onStreamEnd(cur);
     }
   }
 
-  private List<Path> collectFiles(Path dir) throws IOException {
+  private List<Path> collectMarkdownFiles(Path dir) throws IOException {
     List<Path> files = new ArrayList<>();
     try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
       for (Path entry : stream) {
         if (Files.isRegularFile(entry)) {
-          files.add(entry);
+          String name = entry.getFileName().toString().toLowerCase();
+          if (name.endsWith(".md") || name.endsWith(".markdown")) {
+            files.add(entry);
+          }
         }
       }
     }

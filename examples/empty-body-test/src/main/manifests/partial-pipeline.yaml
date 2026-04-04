@@ -8,7 +8,5 @@ description: "Pipeline with only source - no states defined"
 body:
   # Only source defined - states will be empty
   source:
-    type: file
-    file-location: "src/main/chapters"
-    format: md
-  # states, config, variables, listeners, error-handling all use defaults
+    uri: "file://src/main/chapters?format=md"
+  # states, config, variables, listeners, fallback all use defaults

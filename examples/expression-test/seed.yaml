@@ -7,18 +7,18 @@ body:
     book_id: "expression-test-book"
   execution:
     parallel: false
-    max-concurrency: 4
+    concurrency: 4
     resume: true
-    manifest-snapshot:
+    snapshot:
       enabled: true
       mode: copy
-  error-handling:
+  fallback:
     retry:
-      max-attempts: 3
+      max: 3
       backoff:
         type: fixed
-        initial-delay: 2s
-        max-delay: 30s
+        start: 2s
+        max: 30s
         multiplier: 2.0
         jitter: 0.15
     strategies:
@@ -29,10 +29,10 @@ body:
       - exception: ".*"
         strategy: stop
   pipeline-config:
-    batch-size: 10
-    window-batch-size: 5
+    batch: 10
+    window: 5
     cooldown: 5s
-    allow-override-mode: false
+    override: false
   cleanup:
     success: 5d
     failed: 7d

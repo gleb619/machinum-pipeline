@@ -369,11 +369,11 @@ Use `withContext()` for re-evaluation with different contexts instead of recompi
 
 ### 6.3 Memory Usage
 
-| Component | Memory Overhead |
-|-----------|-----------------|
-| `Compiled` (constant) | ~32 bytes |
-| `Compiled` (expression) | ~64 bytes + raw string |
-| `CompiledMap` | ~48 bytes + entry overhead |
+| Component               | Memory Overhead            |
+|-------------------------|----------------------------|
+| `Compiled` (constant)   | ~32 bytes                  |
+| `Compiled` (expression) | ~64 bytes + raw string     |
+| `CompiledMap`           | ~48 bytes + entry overhead |
 
 For large manifests (1000+ states/tools), expect ~10-20MB heap usage for compiled structures.
 

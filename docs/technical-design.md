@@ -226,7 +226,7 @@ public class ExecutionContext {
     public Object evaluate(String expression); // resolves {{ ... }}
 }
 
-// Streamer — observer-style item producer
+// Streamer — observer-style item producer with lifecycle callbacks
 public sealed interface Streamer permits ItemsStreamer, SourceStreamer {
     // Synchronous (deprecated)
     @Deprecated
@@ -238,6 +238,18 @@ public sealed interface Streamer permits ItemsStreamer, SourceStreamer {
     // Error-tolerant — connection/IO errors don't break the flow
     void stream(Path workspaceDir, StreamCursor cursor,
         StreamerCallback callback, Consumer<StreamError> errorHandler);
+}
+
+// Stream lifecycle callback interface
+public interface StreamerCallback {
+    // Called for each batch of items (return false to stop streaming)
+    boolean onBatch(List<StreamItem> items, StreamCursor cursor);
+    
+    // Called once when streaming begins
+    default void onStreamStart(StreamCursor initialCursor) {}
+    
+    // Called once when streaming completes (normal or explicit stop)
+    default void onStreamEnd(StreamCursor finalCursor) {}
 }
 
 // Typed item replacing raw Map<String, Object>
@@ -293,7 +305,7 @@ public interface CheckpointStore {
 }
 
 public interface ErrorStrategyResolver {
-    ErrorStrategy resolve(Exception e, ErrorHandlingConfig config);
+    ErrorStrategy resolve(Exception e, FallbackConfig config);
 }
 
 // Value Compilation System
@@ -358,6 +370,44 @@ for (CompiledStateDefinition state : pipeline.getPipelineStates()) {
 
 ---
 
+## 3.4 Stream Lifecycle Management
+
+The streaming system supports three execution modes with lifecycle callbacks:
+
+| Mode           | Schema      | Behavior                                    | Streamer                           |
+|----------------|-------------|---------------------------------------------|------------------------------------|
+| **Finite**     | `file://`   | Streams all items, then completes           | `FileSourceStreamer`, `JsonlSourceStreamer` |
+| **Infinite**   | `http://`   | Runs until explicitly stopped or idle       | `HttpSourceStreamer`               |
+| **Void**       | `void://`   | Immediately completes with no items         | `VoidSourceStreamer`               |
+
+### Stream Lifecycle Callbacks
+
+All streamers call lifecycle methods on `StreamerCallback`:
+
+1. **`onStreamStart(cursor)`** — Called once when streaming begins
+2. **`onBatch(items, cursor)`** — Called for each batch (return `false` to stop)
+3. **`onStreamEnd(cursor)`** — Called once when streaming completes
+
+### Infinite Stream Control
+
+`HttpSourceStreamer` supports infinite streaming with automatic idle detection:
+- Default idle timeout: 10 consecutive empty polls (50 seconds)
+- Configurable via `MAX_IDLE_POLLS` constant
+- Stops immediately when `onBatch()` returns `false`
+
+### Void Source
+
+Use `void://` when you need a pipeline that processes no items. Useful for:
+- Testing pipeline configuration without data
+- Stateful operations that don't require input
+- Conditional workflows where source is optional
+
+See [YAML Schema §4.1](yaml-schema.md#41-source-uri-schema) for URI examples.
+See [VoidSourceStreamer](../core/src/main/java/machinum/streamer/VoidSourceStreamer.java) for implementation.
+See [StreamerCallback](../core/src/main/java/machinum/streamer/StreamerCallback.java) for interface.
+
+---
+
 ## 4. Execution Models
 
 ### 4.1 Sequential Execution
@@ -415,7 +465,7 @@ fork:
 ```java
 public class ErrorHandler {
 
-  public ErrorStrategy determineStrategy(Exception e, ErrorHandlingConfig config) {
+  public ErrorStrategy determineStrategy(Exception e, FallbackConfig config) {
     // Match exception type against configured strategies
     // Apply default if no match
   }

@@ -15,13 +15,13 @@ body: {}                 # Required - Pipeline configuration
 
 ```yaml
 config:
-  batch-size: number              # Default: 10
-  window-batch-size: number       # Default: 5
+  batch: number              # Default: 10
+  window: number       # Default: 5
   cooldown: duration               # Default: 5s
-  allow-override-mode: boolean    # Default: false
+  override: boolean    # Default: false
   execution:
     mode: sequential|parallel     # Default: sequential
-    max-concurrency: number       # Default: 4
+    concurrency: number       # Default: 4
     runner:
       type: one_step|batch_step|batch_step_over
 ```
@@ -38,10 +38,9 @@ variables:
 
 ```yaml
 source:
-  type: file|http|git|s3
-  file-location: string
-  format: md|json|jsonl|pdf|docx
-  custom-loader: string   # Optional Groovy script path
+  url: file|http  #uri: "file://src/main/input/documents?format=folder"
+  variables:
+    book_id: 123abc
 ```
 
 ### items (Exactly one of source|items required)
@@ -49,7 +48,7 @@ source:
 ```yaml
 items:
   type: chapter|paragraph|line|document|page
-  custom-extractor: string # Optional Groovy script path
+  extractor: string # Optional Groovy script path
 ```
 
 ### states
@@ -76,13 +75,13 @@ listeners:
     - tool: string
 ```
 
-### error-handling
+### fallback
 
 ```yaml
-error-handling:
-  default-strategy: retry|skip|stop|fallback
-  retry-config:
-    max-attempts: number
+fallback:
+  default: retry|skip|stop|fallback
+  retry:
+    max: number
     backoff: fixed|linear|exponential
   strategies:
     - exception: string     # Regex pattern

@@ -16,6 +16,7 @@ import machinum.definition.ToolsDefinition;
 import machinum.executor.LifecycleContext.LifecyclePhase;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
+import machinum.manifest.PipelineBody;
 import machinum.manifest.PipelineManifest;
 import machinum.manifest.RootBody;
 import machinum.manifest.RootManifest;
@@ -23,6 +24,7 @@ import machinum.manifest.ToolsBody;
 import machinum.manifest.ToolsManifest;
 import machinum.pipeline.ErrorHandler;
 import machinum.tool.FileToolRegistry;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -37,6 +39,7 @@ public class Executor {
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
   private final ToolsExecutor toolsExecutor;
+  private final ObjectMapper objectMapper;
 
   public ExecutorChain chain(Path workspaceDir) {
     return new ExecutorChain(workspaceDir, this);
@@ -51,6 +54,7 @@ public class Executor {
 
     Optional<RootManifest> rootManifest = manifestLoader.loadRootManifest(workspaceDir);
     Optional<ToolsManifest> toolsManifest = manifestLoader.loadToolsManifest(workspaceDir);
+    Optional<PipelineManifest> pipelineManifest = manifestLoader.loadAnyPipeline(workspaceDir);
 
     LifecycleContext ctx = LifecycleContext.builder()
         .workspaceDir(workspaceDir)
@@ -59,6 +63,7 @@ public class Executor {
         .currentPhase(LifecyclePhase.FIND)
         .rootManifest(rootManifest)
         .toolsManifest(toolsManifest)
+        .pipelineManifest(pipelineManifest)
         .build();
 
     log.info(
@@ -76,6 +81,10 @@ public class Executor {
     if (ctx.toolsManifest().isEmpty()) {
       newCtx.toolsManifest(
           Optional.of(ToolsManifest.builder().body(ToolsBody.empty()).build()));
+    }
+    if (ctx.pipelineManifest().isEmpty()) {
+      newCtx.pipelineManifest(
+          Optional.of(PipelineManifest.builder().body(PipelineBody.empty()).build()));
     }
 
     return newCtx.build();
@@ -175,8 +184,8 @@ public class Executor {
     ctx = ctx.toBuilder().pipeline(pipeline).build();
 
     // TODO: Use `core/src/main/java/machinum/config/CoreConfig.java` here
-    PipelineExecutor pipelineExecutor =
-        new PipelineExecutor(toolRegistry, expressionResolver, scriptRegistry, errorHandler);
+    PipelineExecutor pipelineExecutor = new PipelineExecutor(
+        toolRegistry, expressionResolver, scriptRegistry, errorHandler, objectMapper);
     return pipelineExecutor.executeRun(ctx, pipeline);
   }
 

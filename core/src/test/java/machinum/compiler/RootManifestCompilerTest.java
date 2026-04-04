@@ -6,15 +6,16 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 import javax.script.ScriptEngineManager;
 import machinum.definition.RootDefinition;
 import machinum.expression.DefaultExpressionResolver;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
-import machinum.manifest.PipelineBody.ErrorHandlingManifest;
 import machinum.manifest.PipelineBody.ErrorStrategy;
 import machinum.manifest.PipelineBody.ErrorStrategyManifest;
+import machinum.manifest.PipelineBody.FallbackManifest;
 import machinum.manifest.PipelineConfigManifest;
 import machinum.manifest.PipelineConfigManifest.ManifestSnapshotConfig;
 import machinum.manifest.RootBody;
@@ -78,9 +79,9 @@ class RootManifestCompilerTest {
       CompiledSecret secret =
           CompiledSecret.of(Map.of("DB_PASS", "s3cret", "API_KEY", "abc123"), exprCtx, resolver);
 
-      assertThat(secret.get("DB_PASS")).isEqualTo("s3cret");
-      assertThat(secret.get("API_KEY")).isEqualTo("abc123");
-      assertThat(secret.get("MISSING")).isNull();
+      assertThat(secret.get("DB_PASS")).isEqualTo(Optional.of("s3cret"));
+      assertThat(secret.get("API_KEY")).isEqualTo(Optional.of("abc123"));
+      assertThat(secret.get("MISSING")).isEmpty();
       assertThat(secret.isEmpty()).isFalse();
     }
 
@@ -91,7 +92,7 @@ class RootManifestCompilerTest {
       CompiledSecret secret = CompiledSecret.of(Map.of(), exprCtx, resolver);
 
       assertThat(secret.isEmpty()).isTrue();
-      assertThat(secret.get("ANY")).isNull();
+      assertThat(secret.get("ANY")).isEmpty();
     }
 
     @Test
@@ -100,7 +101,7 @@ class RootManifestCompilerTest {
       ExpressionContext exprCtx = ExpressionContext.builder().build();
       CompiledSecret secret = CompiledSecret.of(Map.of("STATIC", "value1"), exprCtx, resolver);
 
-      assertThat(secret.get("STATIC")).isEqualTo("value1");
+      assertThat(secret.get("STATIC")).isEqualTo(Optional.of("value1"));
     }
   }
 
@@ -245,14 +246,14 @@ class RootManifestCompilerTest {
     }
 
     @Test
-    @DisplayName("compiles error-handling section")
-    void testCompilesErrorHandling() {
+    @DisplayName("compiles fallback section")
+    void testCompilesFallback() {
       RootManifest manifest = RootManifest.builder()
           .version("1.0.0")
           .type("root")
           .name("test")
           .body(RootBody.builder()
-              .errorHandling(ErrorHandlingManifest.builder()
+              .fallback(FallbackManifest.builder()
                   .defaultStrategy("retry")
                   .strategy(ErrorStrategyManifest.builder()
                       .exception("TimeoutException")
@@ -265,8 +266,8 @@ class RootManifestCompilerTest {
       CompilationContext ctx = ctxWith(Map.of());
       RootDefinition def = RootManifestCompiler.INSTANCE.compile(manifest, ctx);
 
-      assertThat(def.body().errorHandling()).isNotNull();
-      assertThat(def.body().errorHandling().defaultStrategy().get()).isEqualTo("retry");
+      assertThat(def.body().fallback()).isNotNull();
+      assertThat(def.body().fallback().defaultStrategy().get()).isEqualTo("retry");
     }
 
     @Test
@@ -287,8 +288,8 @@ class RootManifestCompilerTest {
 
       assertThat(def.body().secrets()).isNotNull();
       assertThat(def.body().secrets()).isInstanceOf(CompiledSecret.class);
-      assertThat(def.body().secrets().get("API_KEY")).isEqualTo("test-key");
-      assertThat(def.body().secrets().get("DB_PASS")).isEqualTo("secret");
+      assertThat(def.body().secrets().get("API_KEY")).isEqualTo(Optional.of("test-key"));
+      assertThat(def.body().secrets().get("DB_PASS")).isEqualTo(Optional.of("secret"));
     }
   }
 
@@ -315,8 +316,8 @@ class RootManifestCompilerTest {
       RootDefinition def = RootManifestCompiler.INSTANCE.compile(manifest, ctx);
 
       assertThat(def.body().secrets()).isNotNull();
-      assertThat(def.body().secrets().get("MY_SECRET")).isEqualTo("from_file");
-      assertThat(def.body().secrets().get("INLINE")).isEqualTo("inline_val");
+      assertThat(def.body().secrets().get("MY_SECRET")).isEqualTo(Optional.of("from_file"));
+      assertThat(def.body().secrets().get("INLINE")).isEqualTo(Optional.of("inline_val"));
     }
 
     @Test
@@ -336,9 +337,9 @@ class RootManifestCompilerTest {
       RootDefinition def = RootManifestCompiler.INSTANCE.compile(manifest, ctx);
 
       assertThat(def.body().secrets()).isNotNull();
-      assertThat(def.body().secrets().get("FALLBACK_KEY")).isEqualTo("fallback_val");
-      assertThat(def.body().secrets().get("ENV_KEY")).isEqualTo("env_val");
-      assertThat(def.body().secrets().get("INLINE")).isEqualTo("inline_val");
+      assertThat(def.body().secrets().get("FALLBACK_KEY")).isEqualTo(Optional.of("fallback_val"));
+      assertThat(def.body().secrets().get("ENV_KEY")).isEqualTo(Optional.of("env_val"));
+      assertThat(def.body().secrets().get("INLINE")).isEqualTo(Optional.of("inline_val"));
     }
   }
 }

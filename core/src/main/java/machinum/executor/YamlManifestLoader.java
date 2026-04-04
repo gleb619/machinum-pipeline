@@ -23,6 +23,9 @@ import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @RequiredArgsConstructor
+// TODO: Refactor next, class, on load put data to metadata, fill it with file name, creation date,
+// current date,
+// timezone, language, etc, e.g.
 public class YamlManifestLoader {
 
   private final ObjectMapper objectMapper;
@@ -53,7 +56,12 @@ public class YamlManifestLoader {
         readManifest(manifestPath, PipelineManifest.class, "Pipeline manifest"));
   }
 
-  public List<PipelineManifest> loadPipelineManifest(Path workspaceDir) {
+  // TODO: Sort by date, load first one by date creation
+  public Optional<PipelineManifest> loadAnyPipeline(Path workspaceDir) {
+    return loadPipelineManifests(workspaceDir).stream().findFirst();
+  }
+
+  public List<PipelineManifest> loadPipelineManifests(Path workspaceDir) {
     List<Path> manifestPaths = findPipelineManifest(workspaceDir);
     if (manifestPaths == null || manifestPaths.isEmpty()) {
       return Collections.emptyList();

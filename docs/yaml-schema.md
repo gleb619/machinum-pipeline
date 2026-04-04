@@ -58,8 +58,8 @@ name: "Minimal Root"
 
 When `body` is omitted or empty:
 - `variables` → empty map
-- `execution` → `null` (runtime uses defaults: parallel=false, max-concurrency=4)
-- `error-handling` → `null` (runtime uses default strategy)
+- `execution` → `null` (runtime uses defaults: parallel=false, concurrency=4)
+- `fallback` → `null` (runtime uses default strategy)
 - `config` → `null` (runtime uses default batch sizes)
 - `cleanup` → `null` (runtime uses default retention)
 - `env-files` → empty list
@@ -83,18 +83,18 @@ body:
     book_id: my_book_123
   execution:
     parallel: false              # default
-    max-concurrency: 4           # default
+    concurrency: 4           # default
     resume: true                 # default
-    manifest-snapshot:
+    snapshot:
       enabled: true              # default
       mode: copy                 # copy|reference; default: copy
-  error-handling:
+  fallback:
     retry:
-      max-attempts: 3
+      max: 3
       backoff:
         type: fixed              # fixed|linear|exponential; default: fixed
-        initial-delay: 2s
-        max-delay: 30s
+        start: 2s
+        max: 30s
         multiplier: 2.0
         jitter: 0.15
     strategies:
@@ -105,10 +105,10 @@ body:
       - exception: ".*"
         strategy: stop
   pipeline-config:
-    batch-size: 10
-    window-batch-size: 5
+    batch: 10
+    window: 5
     cooldown: 5s
-    allow-override-mode: false
+    override: false
   cleanup:
     success: 5d
     failed: 7d
@@ -303,7 +303,7 @@ When `body` is omitted or empty:
 - `states` → empty list (no processing states)
 - `tools` → empty list (no stateless tools)
 - `listeners` → empty map (no lifecycle listeners)
-- `error-handling` → `null` (runtime uses default error strategy)
+- `fallback` → `null` (runtime uses default error strategy)
 
 Applied via [`PipelineBody.empty()`](../core/src/main/java/machinum/manifest/PipelineBody.java#L35-L41).
 
@@ -317,9 +317,9 @@ type: pipeline
 name: "stateless-pipeline"
 body:
   source:
-    type: file
-    file-location: "src/main/chapters"
-    format: md
+    uri: "file://./chapters/test.jsonl"
+    #uri: "file://./chapters/*.jsonl"
+    #uri: "file://./chapters/?format=jsonl"
   # A pipeline can run without states by using 'tools' directly
   tools:
     - mock-processor
@@ -335,14 +335,81 @@ type: pipeline
 name: "simple-pipeline"
 body:
   source:
-    type: file
-    file-location: "src/main/chapters"
-    format: md
+    uri: "file://src/main/chapters?format=md"
   states:
     - name: PROCESS
       tools:
         - mock-processor
 ```
+
+### 4.1 Source URI Schema
+
+The `source.uri` field uses URI syntax to define data source type and configuration. This replaces the previous multi-field declaration (`type`, `file-location`, `format`, `custom-loader`) with a single URI string.
+
+**Supported URI Schemas:**
+
+| Schema     | Purpose                    | Example                                          | Streamer                           |
+|------------|----------------------------|--------------------------------------------------|------------------------------------|
+| `file://`  | Local files/folders        | `file://src/main/chapters?format=md`             | `FileSourceStreamer`               |
+| `http://`  | HTTP endpoint              | `http://example.com/data.json`                   | `HttpSourceStreamer`               |
+| `https://` | Secure HTTP endpoint       | `https://api.example.com/items`                  | `HttpSourceStreamer`               |
+| `void://`  | No-op source               | `void://`                                        | `VoidSourceStreamer`               |
+| `script://`| Custom Groovy loader       | `script://.mt/scripts/custom-loader.groovy`      | Post-MVP (throws error for now)    |
+
+**Query Parameters:**
+
+| Parameter  | Description                                    | Allowed Values                        | Default   |
+|------------|------------------------------------------------|---------------------------------------|-----------|
+| `format`   | File format for `file://` schema               | `md`, `json`, `jsonl`, `folder`, `pdf`, `docx`, `txt` | `folder` |
+
+**Examples:**
+
+```yaml
+# Local markdown folder
+source:
+  uri: "file://src/main/chapters?format=md"
+
+# JSONL file
+source:
+  uri: "file://data/input.jsonl"
+
+# HTTP endpoint
+source:
+  uri: "https://api.example.com/items"
+
+# Void source - no items, completes immediately
+source:
+  uri: "void://"
+
+# Custom loader script (post-MVP)
+source:
+  uri: "script://.mt/scripts/custom-loader.groovy" # doesn't work for now
+  variables:
+    custom_param: value
+```
+
+**Void Source (`void://`):**
+
+Use `void://` when you need a pipeline that processes no items. Useful for:
+- Testing pipeline configuration without data
+- Stateful operations that don't require input
+- Conditional workflows where source is optional
+
+```yaml
+# Void pipeline example
+version: 1.0.0
+type: pipeline
+name: "void-test"
+body:
+  source:
+    uri: "void://"
+  states:
+    - name: INIT
+      tools:
+        - setup-tool
+```
+
+The pipeline runs successfully with 0 items processed. See [Technical Design §3.4](technical-design.md#34-stream-lifecycle-management).
 
 ### 4.x `source` vs `items` — Data Acquisition Layer
 
@@ -354,7 +421,7 @@ The pipeline manifest accepts **exactly one** of two mutually exclusive data acq
 | `items`  | **Direct collection** — references items already available in the workspace as POJOs/chapters               | Pre-downloaded chapters, local JSON/JSONL files, workspace-resident documents                              |
 
 **When to use `source`:**
-Use a preprocessor when data must be fetched, extracted, or transformed before the pipeline can consume it. The `source` block defines *where* and *how* to acquire items — file paths, URLs, archives, or custom loader scripts that convert external formats (PDF, DOCX, remote APIs) into the pipeline's internal item representation.
+Use a preprocessor when data must be fetched, extracted, or transformed before the pipeline can consume it. The `source.uri` field defines *where* and *how* to acquire items using URI syntax — file paths, URLs, archives, or custom loader scripts that convert external formats (PDF, DOCX, remote APIs) into the pipeline's internal item representation.
 
 **When to use `items`:**
 Use direct items when your data already exists in the expected format within the workspace. No acquisition step is needed — the pipeline reads items directly from `src/main/chapters/` or similar locations.
@@ -367,7 +434,7 @@ items (direct)         →                    → items → [pipeline states]
 
 Both modes converge to the same item processing pipeline; only the acquisition front differs.
 
-See [Core Architecture §1](core-architecture.md#1-base-models-mvp) for model mapping (`SourceRef` → `source`, `Item` → items processed by states).
+See [Core Architecture §1](core-architecture.md#1-base-models-mvp) for model mapping (`SourceManifest` → `source`, `Item` → items processed by states).
 
 ```yaml
 version: 1.0.0
@@ -376,18 +443,18 @@ name: "complex-pipeline"
 description: "Full AI pipeline with embeddings and translation"
 body:
   config:
-    batch-size: 10
-    window-batch-size: 5
+    batch: 10
+    window: 5
     cooldown: 5s
-    allow-override-mode: false
+    override: false
     execution:
-      manifest-snapshot:
+      snapshot:
         enabled: true
       mode: sequential           # sequential|parallel
-      max-concurrency: 4
+      concurrency: 4
       runner:
         type: one_step           # one_step|batch_step|batch_step_over
-        batch-size: "{{config.batch-size}}"
+        batch: "{{config.batch}}"
         step_over_cursor_key: "{{run.cursor.state_item_index}}"
       listeners:
         - name: run-log-listener
@@ -400,7 +467,7 @@ body:
     runner:
       type: one_step             # one_step|batch_step|batch_step_over
       options:
-        batch-size: 5
+        batch: 5
         async:
           enabled: true
           max_in_flight: 1       # MVP default for one_step
@@ -420,21 +487,11 @@ body:
 
   # Exactly one of source|items required
   source:
-    type: file                   # file|http|git|s3 (s3: post-MVP)
-    file-location: "./input/book.pdf"
-    format: md                   # folder|md|json|jsonl|pdf|docx (pdf|docx: post-MVP)
-    custom-loader: "{{scripts/loaders/pdf-loader.groovy}}"
-    variables:
-      book_source: "{{variables.book_id}}"
-      title: "{{extracted.title}}"
+    uri: "file://./input/book.zip?format=jsonl"
 
   items:
     type: chapter                # chapter|paragraph|line|document|page (document|page: post-MVP)
-    path: "src/main/chapters"   # Path to directory containing item files
-    custom-extractor: "{{scripts/extractors/chapter-extractor.groovy}}"
-    variables:
-      book_id: "{{variables.book_id}}"
-      title: "{{extracted.title}}"
+    file-location: "src/main/chapters"   # Path to directory containing item files
 
   # State definitions (ordered)
   states:
@@ -499,7 +556,7 @@ body:
     - name: TRANSLATE_TITLE
       window:
         type: tumbling
-        size: "{{config.batch-size}}"
+        size: "{{config.batch}}"
         aggregation:
           group-by: title
           tools:
@@ -538,10 +595,10 @@ body:
         input: "{{translated_text}}"
       - log-summary                # Shorthand form
 
-  error-handling:
-    default-strategy: retry
-    retry-config:
-      max-attempts: 3
+  fallback:
+    default: retry
+    retry:
+      max: 3
       backoff: exponential
     strategies:
       - exception: "TimeoutException"

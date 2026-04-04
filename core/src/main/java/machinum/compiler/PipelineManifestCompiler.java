@@ -4,7 +4,7 @@ import java.util.Collections;
 import java.util.List;
 import machinum.definition.PipelineConfigDefinition;
 import machinum.definition.PipelineDefinition;
-import machinum.definition.PipelineDefinition.ErrorHandlingDefinition;
+import machinum.definition.PipelineDefinition.FallbackDefinition;
 import machinum.definition.PipelineDefinition.ItemsDefinition;
 import machinum.definition.PipelineDefinition.PipelineBodyDefinition;
 import machinum.definition.PipelineDefinition.SourceDefinition;
@@ -22,7 +22,7 @@ import org.mapstruct.factory.Mappers;
       SourceCompiler.class,
       ItemsCompiler.class,
       StateCompiler.class,
-      ErrorHandlingCompiler.class
+      FallbackCompiler.class
     })
 public interface PipelineManifestCompiler
     extends YamlCompiler<PipelineManifest, PipelineDefinition> {
@@ -60,8 +60,7 @@ public interface PipelineManifestCompiler
             .toList()
         : Collections.emptyList();
 
-    ErrorHandlingDefinition errorHandling =
-        ErrorHandlingCompiler.INSTANCE.compile(body.errorHandling(), ctx);
+    FallbackDefinition fallback = FallbackCompiler.INSTANCE.compile(body.fallback(), ctx);
     return PipelineBodyDefinition.builder()
         .variables(variables)
         .pipelineConfig(pipelineConfig)
@@ -69,7 +68,7 @@ public interface PipelineManifestCompiler
         .items(compiledItems)
         .states(compiledStates)
         .tools(compiledTools)
-        .errorHandling(errorHandling)
+        .fallback(fallback)
         .build();
   }
 

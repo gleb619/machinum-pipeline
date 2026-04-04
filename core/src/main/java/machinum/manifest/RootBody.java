@@ -6,14 +6,14 @@ import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
-import machinum.manifest.PipelineBody.ErrorHandlingManifest;
+import machinum.manifest.PipelineBody.FallbackManifest;
 import machinum.manifest.PipelineConfigManifest.ManifestSnapshotConfig;
 
 @Builder
 public record RootBody(
     @Singular Map<String, String> variables,
     RootExecutionManifest execution,
-    @JsonAlias("error-handling") ErrorHandlingManifest errorHandling,
+    FallbackManifest fallback,
     @JsonAlias("pipeline-config") PipelineConfigManifest config,
     RootCleanupManifest cleanup,
     @JsonAlias("env-files") @Singular List<String> envFiles,
@@ -31,8 +31,8 @@ public record RootBody(
   @Builder
   public record RootExecutionManifest(
       Boolean parallel,
-      @JsonAlias("max-concurrency") Integer maxConcurrency,
-      @JsonAlias("manifest-snapshot") ManifestSnapshotConfig manifestSnapshot) {}
+      @JsonAlias("concurrency") Integer maxConcurrency,
+      @JsonAlias("snapshot") ManifestSnapshotConfig manifestSnapshot) {}
 
   @Builder
   public record RootCleanupManifest(

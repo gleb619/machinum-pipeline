@@ -2,13 +2,13 @@ package machinum.definition;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.Builder;
 import lombok.Singular;
 import machinum.compiler.Compiled;
 import machinum.compiler.CompiledMap;
 import machinum.manifest.ItemsManifest;
 import machinum.manifest.PipelineBody;
-import machinum.manifest.SourceManifest;
 
 @Builder
 public record PipelineDefinition(
@@ -29,7 +29,7 @@ public record PipelineDefinition(
       ItemsDefinition items,
       @Singular List<PipelineStateDefinition> states,
       @Singular List<PipelineStateDefinition.PipelineToolDefinition> tools,
-      ErrorHandlingDefinition errorHandling)
+      FallbackDefinition fallback)
       implements BodyDefinition {}
 
   @Builder
@@ -37,18 +37,24 @@ public record PipelineDefinition(
       Compiled<ItemsManifest.Type> type,
       Compiled<String> path,
       Compiled<String> customExtractor,
-      CompiledMap variables) {}
+      CompiledMap variables) {
+
+    // TODO: redo items to uri format, like source
+    public boolean isEmpty() {
+      return Boolean.FALSE;
+    }
+  }
 
   @Builder
-  public record SourceDefinition(
-      Compiled<SourceManifest.Type> type,
-      Compiled<String> fileLocation,
-      Compiled<SourceManifest.Format> format,
-      Compiled<String> customLoader,
-      CompiledMap variables) {}
+  public record SourceDefinition(Compiled<String> uri, CompiledMap variables) {
+
+    public boolean isEmpty() {
+      return Objects.equals(uri().get(), "void://");
+    }
+  }
 
   @Builder
-  public record ErrorHandlingDefinition(
+  public record FallbackDefinition(
       Compiled<String> defaultStrategy,
       RetryDefinition retryConfig,
       @Singular List<ErrorStrategyDefinition> strategies) {}

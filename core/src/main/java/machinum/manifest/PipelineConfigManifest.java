@@ -5,17 +5,17 @@ import lombok.Builder;
 
 @Builder
 public record PipelineConfigManifest(
-    @JsonAlias("batch-size") Integer batchSize,
-    @JsonAlias("window-batch-size") Integer windowBatchSize,
+    @JsonAlias("batch") Integer batchSize,
+    @JsonAlias("window") Integer windowBatchSize,
     String cooldown,
-    @JsonAlias("allow-override-mode") Boolean allowOverrideMode,
+    @JsonAlias("override") Boolean allowOverrideMode,
     PipelineExecution execution) {
 
   @Builder
   public record PipelineExecution(
-      @JsonAlias("manifest-snapshot") ManifestSnapshotConfig manifestSnapshot,
+      @JsonAlias("snapshot") ManifestSnapshotConfig manifestSnapshot,
       String mode,
-      @JsonAlias("max-concurrency") Integer maxConcurrency) {}
+      @JsonAlias("concurrency") Integer maxConcurrency) {}
 
   @Builder
   public record ManifestSnapshotConfig(Boolean enabled, String mode) {}

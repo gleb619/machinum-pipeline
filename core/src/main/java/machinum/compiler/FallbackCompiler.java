@@ -4,12 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import machinum.definition.BackoffDefinition;
-import machinum.definition.PipelineDefinition.ErrorHandlingDefinition;
 import machinum.definition.PipelineDefinition.ErrorStrategyDefinition;
+import machinum.definition.PipelineDefinition.FallbackDefinition;
 import machinum.definition.RetryDefinition;
 import machinum.manifest.PipelineBody;
-import machinum.manifest.PipelineBody.ErrorHandlingManifest;
 import machinum.manifest.PipelineBody.ErrorStrategyManifest;
+import machinum.manifest.PipelineBody.FallbackManifest;
 import org.mapstruct.Context;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -17,15 +17,14 @@ import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
 @Mapper(uses = CommonCompiler.class)
-public interface ErrorHandlingCompiler
-    extends YamlCompiler<ErrorHandlingManifest, ErrorHandlingDefinition> {
+public interface FallbackCompiler extends YamlCompiler<FallbackManifest, FallbackDefinition> {
 
-  ErrorHandlingCompiler INSTANCE = Mappers.getMapper(ErrorHandlingCompiler.class);
+  FallbackCompiler INSTANCE = Mappers.getMapper(FallbackCompiler.class);
 
   @Mapping(target = "defaultStrategy", qualifiedByName = "compileString")
   @Mapping(target = "retryConfig", qualifiedByName = "compileRetry")
   @Mapping(target = "strategies", qualifiedByName = "compileStrategies")
-  ErrorHandlingDefinition compile(ErrorHandlingManifest source, @Context CompilationContext ctx);
+  FallbackDefinition compile(FallbackManifest source, @Context CompilationContext ctx);
 
   @Named("compileRetry")
   default RetryDefinition compileRetry(

@@ -6,50 +6,27 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import machinum.definition.PipelineDefinition.SourceDefinition;
 
-/**
- * Streams items from a {@link SourceDefinition} (file, http, git, s3).
- *
- * <p>Supports observer-style streaming with batch emission, resume via {@link StreamCursor}, and
- * error-tolerant operation for remote sources.
- *
- * <p>See:
- *
- * <ul>
- *   <li>{@link Streamer} — interface contract
- *   <li><a href="../../../../docs/yaml-schema.md#4x-source-vs-items--data-acquisition-layer">YAML
- *       Schema §4.x</a>
- * </ul>
- */
 @Slf4j
-public final class SourceStreamer implements Streamer {
+public final class FileSourceStreamer implements Streamer {
 
   private static final int DEFAULT_BATCH_SIZE = 10;
+  private static final Set<String> SUPPORTED_EXTENSIONS = Set.of(".md", ".txt", ".markdown");
 
   private final SourceDefinition source;
   private final int batchSize;
 
-  public SourceStreamer(SourceDefinition source) {
+  public FileSourceStreamer(SourceDefinition source) {
     this(source, DEFAULT_BATCH_SIZE);
   }
 
-  public SourceStreamer(SourceDefinition source, int batchSize) {
+  public FileSourceStreamer(SourceDefinition source, int batchSize) {
     this.source = source;
     this.batchSize = batchSize;
-  }
-
-  @Override
-  @Deprecated(forRemoval = true)
-  public List<StreamItem> stream(Path workspaceDir) {
-    List<StreamItem> result = new ArrayList<>();
-    stream(workspaceDir, null, (items, cursor) -> {
-      result.addAll(items);
-      return true;
-    });
-    return result;
   }
 
   @Override
@@ -72,23 +49,32 @@ public final class SourceStreamer implements Streamer {
       StreamerCallback callback,
       Consumer<StreamError> errorHandler) {
 
-    StreamCursor cur = cursor != null ? cursor : StreamCursor.initial("source-stream");
+    StreamCursor cur = cursor != null ? cursor : StreamCursor.initial();
     int offset = cur.itemOffset();
 
-    String fileLocation = source.fileLocation() != null ? source.fileLocation().get() : null;
-    if (fileLocation == null || fileLocation.isBlank()) {
-      log.warn("Source fileLocation is empty, nothing to stream");
+    String uri = source.uri().get();
+    if (uri == null || uri.isBlank()) {
+      log.warn("Source URI is empty, nothing to stream");
+      callback.onStreamStart(cur);
+      callback.onStreamEnd(cur);
       return;
     }
 
-    Path sourceDir = workspaceDir.resolve(fileLocation);
+    SourceUriParser.ParsedSourceUri parsed = SourceUriParser.parse(uri);
+    Path sourceDir = workspaceDir.resolve(parsed.path());
+    String format = parsed.getQueryParam("format", "folder");
+
     if (!Files.exists(sourceDir)) {
       errorHandler.accept(StreamError.io("Source path not found: " + sourceDir, null, cur));
+      callback.onStreamStart(cur);
+      callback.onStreamEnd(cur);
       return;
     }
 
+    callback.onStreamStart(cur);
+
     try {
-      List<Path> files = collectFiles(sourceDir);
+      List<Path> files = collectFiles(sourceDir, format);
       List<StreamItem> batch = new ArrayList<>();
       int index = 0;
 
@@ -100,11 +86,15 @@ public final class SourceStreamer implements Streamer {
 
         try {
           String content = Files.readString(file);
+          String fileName = file.getFileName().toString();
+
           StreamItem item = StreamItem.builder()
               .file(file)
               .index(index)
               .content(content)
-              .meta("format", source.format() != null ? source.format().get().name() : "md")
+              .meta("type", "source")
+              .meta("name", fileName)
+              .meta("format", format)
               .build();
           batch.add(item);
           index++;
@@ -118,31 +108,48 @@ public final class SourceStreamer implements Streamer {
           }
         } catch (IOException e) {
           errorHandler.accept(StreamError.io("Failed to read: " + file, e, cur));
-          // continue with next file
         }
       }
 
-      // emit remaining
       if (!batch.isEmpty()) {
         cur = cur.advance(batch.size());
         callback.onBatch(List.copyOf(batch), cur);
       }
 
+      callback.onStreamEnd(cur);
+
     } catch (IOException e) {
       errorHandler.accept(StreamError.io("Failed to list source directory: " + sourceDir, e, cur));
+      callback.onStreamEnd(cur);
     }
   }
 
-  private List<Path> collectFiles(Path dir) throws IOException {
+  private List<Path> collectFiles(Path dir, String format) throws IOException {
     List<Path> files = new ArrayList<>();
     try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
       for (Path entry : stream) {
         if (Files.isRegularFile(entry)) {
-          files.add(entry);
+          String name = entry.getFileName().toString().toLowerCase();
+          boolean supported = isSupportedExtension(name, format);
+          if (supported) {
+            files.add(entry);
+          }
         }
       }
     }
     files.sort(Path::compareTo);
     return files;
+  }
+
+  private boolean isSupportedExtension(String fileName, String format) {
+    return switch (format) {
+      case "md" -> fileName.endsWith(".md") || fileName.endsWith(".markdown");
+      case "json" -> fileName.endsWith(".json");
+      case "jsonl" -> fileName.endsWith(".jsonl");
+      case "pdf" -> fileName.endsWith(".pdf");
+      case "docx" -> fileName.endsWith(".docx");
+      case "folder", "txt" -> true;
+      default -> SUPPORTED_EXTENSIONS.stream().anyMatch(fileName::endsWith);
+    };
   }
 }

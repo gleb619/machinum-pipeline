@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Map;
 import machinum.definition.BackoffDefinition;
 import machinum.definition.PipelineConfigDefinition;
-import machinum.definition.PipelineDefinition.ErrorHandlingDefinition;
 import machinum.definition.PipelineDefinition.ErrorStrategyDefinition;
+import machinum.definition.PipelineDefinition.FallbackDefinition;
 import machinum.definition.PipelineExecutionDefinition;
 import machinum.definition.RetryDefinition;
 import machinum.definition.RootDefinition;
@@ -20,8 +20,8 @@ import machinum.definition.RootDefinition.RootExecutionDefinition;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.manifest.PipelineBody.BackoffManifest;
-import machinum.manifest.PipelineBody.ErrorHandlingManifest;
 import machinum.manifest.PipelineBody.ErrorStrategyManifest;
+import machinum.manifest.PipelineBody.FallbackManifest;
 import machinum.manifest.PipelineBody.RetryManifest;
 import machinum.manifest.PipelineConfigManifest;
 import machinum.manifest.PipelineConfigManifest.ManifestSnapshotConfig;
@@ -63,7 +63,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     RootExecutionDefinition execution = compileExecution(body.execution(), ctx);
     PipelineConfigDefinition config = compileConfig(body.config(), ctx);
     RootCleanupDefinition cleanup = compileCleanup(body.cleanup(), ctx);
-    ErrorHandlingDefinition errorHandling = compileErrorHandling(body.errorHandling(), ctx);
+    FallbackDefinition fallback = compileFallback(body.fallback(), ctx);
     CompiledSecret secrets = compileSecrets(body, ctx, exprCtx, resolver);
 
     return RootBodyDefinition.builder()
@@ -71,7 +71,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
         .execution(execution)
         .config(config)
         .cleanup(cleanup)
-        .errorHandling(errorHandling)
+        .fallback(fallback)
         .secrets(secrets)
         .build();
   }
@@ -199,8 +199,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
         .build();
   }
 
-  default ErrorHandlingDefinition compileErrorHandling(
-      ErrorHandlingManifest eh, @Context CompilationContext ctx) {
+  default FallbackDefinition compileFallback(FallbackManifest eh, @Context CompilationContext ctx) {
     if (eh == null) {
       return null;
     }
@@ -212,7 +211,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
         ? eh.strategies().stream().map(s -> compileStrategy(s, ctx)).toList()
         : Collections.emptyList();
 
-    return ErrorHandlingDefinition.builder()
+    return FallbackDefinition.builder()
         .defaultStrategy(defaultStrategy)
         .retryConfig(retryConfig)
         .strategies(strategies)

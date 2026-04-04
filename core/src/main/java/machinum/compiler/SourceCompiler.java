@@ -12,10 +12,7 @@ public interface SourceCompiler extends YamlCompiler<SourceManifest, SourceDefin
 
   SourceCompiler INSTANCE = Mappers.getMapper(SourceCompiler.class);
 
-  @Mapping(target = "type", qualifiedByName = "compileConstant")
-  @Mapping(target = "fileLocation", qualifiedByName = "compileString")
-  @Mapping(target = "format", qualifiedByName = "compileConstant")
-  @Mapping(target = "customLoader", qualifiedByName = "compileString")
+  @Mapping(target = "uri", qualifiedByName = "compileString")
   @Mapping(target = "variables", qualifiedByName = "compileMap")
   SourceDefinition compile(SourceManifest source, @Context CompilationContext ctx);
 }

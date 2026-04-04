@@ -66,9 +66,7 @@ type: pipeline
 name: "my-pipeline"
 body:
   source:
-    type: file
-    file-location: "src/main/chapters"
-    format: md
+    uri: "file://src/main/chapters?format=md"
   states:
     - name: PROCESS
       tools:
@@ -134,9 +132,7 @@ type: pipeline
 name: "demo-pipeline"
 body:
   source:
-    type: file
-    file-location: "src/main/chapters"
-    format: md
+    uri: "file://src/main/chapters?format=md"
   tools:
     - tool: mock-processor
 ```

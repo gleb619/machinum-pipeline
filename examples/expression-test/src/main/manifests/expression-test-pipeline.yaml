@@ -7,16 +7,14 @@ variables:
   version: 1
 body:
   config:
-    batch-size: 10
-    window-batch-size: 5
+    batch: 10
+    window: 5
     cooldown: 5s
-    allow-override-mode: false
+    override: false
 
   # Test source
   source:
-    type: file
-    file-location: "src/main/chapters"
-    format: md
+    uri: "file://src/main/chapters?format=md"
 
   # States with various expression types
   states:

@@ -8,18 +8,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 
-/**
- * Runtime context passed through pipeline execution.
- *
- * <p>Holds the current item map, variables, environment, and execution state for the active
- * pipeline run.
- *
- * <p>See:
- *
- * <ul>
- *   <li><a href="../../../../docs/core-architecture.md#1-base-models-mvp">Core Architecture §1</a>
- * </ul>
- */
 @Data
 @AllArgsConstructor
 @Builder(toBuilder = true)
@@ -71,6 +59,8 @@ public class ExecutionContext {
     variables.put(name, value);
   }
 
+  // TODO: Change api, we need type object here, not just HashMap
+  @Deprecated(forRemoval = true)
   public void updateContext(
       Map<String, Object> item, Map<String, Object> state, Map<String, Object> tool) {
     this.currentItem = item != null ? item : new ConcurrentHashMap<>();
@@ -78,6 +68,8 @@ public class ExecutionContext {
     this.currentTool = tool != null ? tool : new ConcurrentHashMap<>();
   }
 
+  // TODO: Change api, we need type object here, not just HashMap
+  @Deprecated(forRemoval = true)
   public void updateItem(Map<String, Object> item, int index) {
     this.currentItem = item != null ? item : new ConcurrentHashMap<>();
     this.currentIndex = index;
@@ -87,6 +79,7 @@ public class ExecutionContext {
     this.retryAttempt = attempt;
   }
 
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public void updateAggregation(int index, String text) {
     this.aggregationIndex = index;
@@ -105,20 +98,18 @@ public class ExecutionContext {
     return new HashMap<>(variables);
   }
 
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public boolean hasVariable(String name) {
     return variables.containsKey(name);
   }
 
+  // TODO: Unused
   @Deprecated(forRemoval = true)
   public ExecutionContext createChildContext() {
     return toBuilder().variables(new ConcurrentHashMap<>(variables)).build();
   }
 
-  /**
-   * Returns text content from the current item map. Checks keys: content, text, body, data (first
-   * string match wins).
-   */
   public String getTextContent() {
     if (currentItem == null || currentItem.isEmpty()) {
       return "";

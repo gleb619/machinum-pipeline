@@ -9,12 +9,10 @@ body:
     test_mode: true
   
   source:
-    type: file
-    file-location: "src/main/chapters"
-    format: md
+    uri: "file://src/main/chapters?format=md"
 
   states:
     - name: PROCESS
       tools:
         - mock-processor
-  # No config, listeners, error-handling - all use defaults
+  # No config, listeners, fallback - all use defaults

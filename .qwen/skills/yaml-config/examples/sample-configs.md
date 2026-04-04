@@ -16,18 +16,18 @@ body:
     project_id: doc_processor_001
   execution:
     parallel: false
-    max-concurrency: 2
+    concurrency: 2
     resume: true
-    manifest-snapshot:
+    snapshot:
       enabled: true
       mode: copy
-  error-handling:
+  fallback:
     retry:
-      max-attempts: 3
+      max: 3
       backoff:
         type: exponential
-        initial-delay: 1s
-        max-delay: 30s
+        start: 1s
+        max: 30s
         multiplier: 2.0
         jitter: 0.1
     strategies:
@@ -111,25 +111,21 @@ name: "document-processing"
 description: "Process documents through extraction, summarization, and analysis"
 body:
   config:
-    batch-size: 5
-    window-batch-size: 3
+    batch: 5
+    window: 3
     cooldown: 2s
     execution:
       mode: sequential
-      max-concurrency: 2
+      concurrency: 2
 
   variables: {}
 
   source:
-    type: file
-    file-location: "./input/documents/"
-    format: pdf
-    metadata:
-      source_system: "document_management"
+    uri: "file://src/main/input/documents?format=folder"
 
   items:
-    type: document
-    custom-extractor: "{{scripts/extractors/document-extractor.groovy}}"
+    type: chapter
+    #extractor: "{{scripts/extractors/document-extractor.groovy}}"
 
   states:
     - name: EXTRACT
@@ -174,10 +170,10 @@ body:
           message: "Document processing completed"
           count: "{{items.length}}"
 
-  error-handling:
-    default-strategy: retry
-    retry-config:
-      max-attempts: 2
+  fallback:
+    default: retry
+    retry:
+      max: 2
       backoff: fixed
     strategies:
       - exception: "FileSizeExceededException"

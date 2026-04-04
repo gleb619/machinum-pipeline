@@ -11,17 +11,17 @@ body:
   execution:
     parallel: false
     resume: true
-    manifest-snapshot:
+    snapshot:
       enabled: true
       mode: copy
 
   # Error handling
-  error-handling:
+  fallback:
     retry:
-      max-attempts: 3
+      max: 3
       backoff:
         type: fixed
-        initial-delay: 2s
+        start: 2s
 
   # Cleanup policy
   cleanup:

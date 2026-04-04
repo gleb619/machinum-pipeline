@@ -44,7 +44,7 @@ body:
       config:
         model: text-embedding-3-small
         dimensions: 1536
-        batch-size: 100
+        batch: 100
     
     # Object form: shell script tool
     - name: file-processor

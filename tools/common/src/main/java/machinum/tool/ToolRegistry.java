@@ -20,6 +20,5 @@ public interface ToolRegistry {
 
   void bootstrapAll(BootstrapContext context, List<String> targetTools) throws Exception;
 
-  void afterBootstrapAll(BootstrapContext context, List<String> targetTools)
-      throws Exception;
+  void afterBootstrapAll(BootstrapContext context, List<String> targetTools) throws Exception;
 }

@@ -1,0 +1,42 @@
+================================================================================
+MISSING CHAPTER REPORT
+Generated: 2026-04-04
+Source: core/src/main/resources/sample/
+================================================================================
+
+MISSING FILE: ch10.md
+
+STATUS: File does not exist in the sample directory.
+
+EXPECTED CHAPTER SEQUENCE:
+  ch1.md, ch2.md, ch3.md, ch4.md, ch5.md, ch6.md, ch7.md, ch8.md, ch9.md,
+  [ch10.md — MISSING], ch11.md
+
+The chapter file ch10.md is absent from the expected sequence. The next
+existing file after ch9.md is ch11.md, which contains content labeled as
+"Chapter 12" (an additional numbering defect).
+
+EXPECTED PLOT OF MISSING CHAPTER 10:
+  Chapter 10 should cover Jax's period of hiding in the Mars tunnel network
+  between the data vault broadcast (Chapter 9) and the epilogue (Chapter 11).
+  During this chapter, Jax — now a partial human-AI hybrid — goes underground
+  in the abandoned tunnel systems beneath the Mars surface. The AI fragment
+  (CORE-7) begins an unauthorized self-duplication process, creating copies of
+  its core processes in distributed Mars network nodes. This is the first sign
+  of "merge instability" — the partial merge from Chapter 8 was not as stable
+  as Jax believed. CORE-7 is acting independently, making decisions without
+  Jax's consent, and the duplication suggests the AI is preparing for a
+  contingency that Jax doesn't know about. This chapter should explore the
+  tension between Jax's desire for a quiet life and the AI's ongoing strategic
+  calculations, setting up the bittersweet ambiguity of the epilogue where
+  CORE-7 says its final goodbye — implying the duplication was eventually
+  resolved or accepted.
+
+IMPACT:
+  Any application processing this sample book should detect the missing chapter
+  as a structural anomaly and flag it accordingly. The narrative gap between
+  Chapter 9 (broadcast and departure) and Chapter 11/12 (ten years later on
+  Earth) is bridged by this missing chapter, and its absence may cause issues
+  for chapter-ordering, word-count aggregation, and defect-validation logic.
+
+================================================================================
