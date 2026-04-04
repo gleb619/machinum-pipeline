@@ -14,6 +14,6 @@ public class ErrorTool implements Tool {
 
   @Override
   public ToolResult execute(ExecutionContext context) {
-    return ToolResult.failure("ErrorTool: forced error");
+    return ToolResult.failure(context, "ErrorTool: forced error");
   }
 }

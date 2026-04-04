@@ -102,7 +102,7 @@ public class WorkspaceLayout {
     return getWorkDir().resolve("tools.yaml");
   }
 
-  //TODO: move to `tools/internal/src/main/java/machinum/workspace/FolderStructureHelper.java`
+  // TODO: move to `tools/internal/src/main/java/machinum/workspace/FolderStructureHelper.java`
   @Deprecated(forRemoval = true)
   public void createWithGitkeep(Path dir) throws IOException {
     Files.createDirectories(dir);
@@ -112,7 +112,7 @@ public class WorkspaceLayout {
     }
   }
 
-  //TODO: Move to `tools/external/src/main/java/machinum/tool/GitTool.java`
+  // TODO: Move to `tools/external/src/main/java/machinum/tool/GitTool.java`
   @Deprecated(forRemoval = true)
   public void createGitHook(Path workspaceRoot) throws IOException {
     Path githooksDir = workspaceRoot.resolve(".githooks");
@@ -132,7 +132,7 @@ public class WorkspaceLayout {
     }
   }
 
-  //TODO: Move to `tools/external/src/main/java/machinum/tool/GitTool.java`
+  // TODO: Move to `tools/external/src/main/java/machinum/tool/GitTool.java`
   @Deprecated(forRemoval = true)
   private String loadCommitMsgHookContent() throws IOException {
     Path projectHook = Path.of(".githooks", "commit-msg.sh");

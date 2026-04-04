@@ -33,7 +33,8 @@ public class ScriptRegistry {
     return this;
   }
 
-  //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+  // TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of
+  // hardcode
   @Deprecated
   public Path getScript(ScriptType type, String name) {
     if (type == null) {

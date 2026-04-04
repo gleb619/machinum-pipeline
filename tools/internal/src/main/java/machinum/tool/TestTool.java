@@ -29,6 +29,6 @@ public class TestTool implements Tool {
 
     log.debug("TestTool: input='{}' -> output='{}'", inputStr, output);
 
-    return ToolResult.success(Map.of("input", inputStr, "output", output));
+    return ToolResult.success(context, Map.of("input", inputStr, "output", output));
   }
 }

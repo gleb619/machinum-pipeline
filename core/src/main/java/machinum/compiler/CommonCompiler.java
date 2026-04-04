@@ -20,8 +20,7 @@ import org.mapstruct.factory.Mappers;
 public interface CommonCompiler {
 
   CommonCompiler INSTANCE = Mappers.getMapper(CommonCompiler.class);
-  Pattern DURATION_PATTERN = Pattern
-      .compile("(\\d+)\\s*(d|h|m|s|ms)");
+  Pattern DURATION_PATTERN = Pattern.compile("(\\d+)\\s*(d|h|m|s|ms)");
 
   @Named("createExpressionContext")
   default ExpressionContext createExpressionContext(@Context CompilationContext ctx) {
@@ -33,19 +32,16 @@ public interface CommonCompiler {
         .build();
   }
 
-  @Named("compileConstant")
-  default <T> Compiled<T> compileConstant(T value) {
-    return CompiledConstant.of(value);
+  @Named("compile")
+  default <T> Compiled<T> compile(T value, @Context CompilationContext ctx) {
+    ExpressionContext context = createExpressionContext(ctx);
+    ExpressionResolver resolver = ctx.resolver();
+    return Compiled.of(value, context, resolver);
   }
 
   @Named("compileString")
   default Compiled<String> compileString(String raw, @Context CompilationContext ctx) {
-    if (raw == null) {
-      return compileConstant(null);
-    }
-    ExpressionContext context = createExpressionContext(ctx);
-    ExpressionResolver resolver = ctx.resolver();
-    return Compiled.of(raw, context, resolver);
+    return compile(raw, ctx);
   }
 
   @Named("simpleMap")
@@ -55,7 +51,8 @@ public interface CommonCompiler {
   }
 
   @Named("compileMap")
-  default CompiledMap<String> compileMap(Map<String, String> source, @Context CompilationContext ctx) {
+  default CompiledMap<String> compileMap(
+      Map<String, String> source, @Context CompilationContext ctx) {
     ExpressionContext context = createExpressionContext(ctx);
     ExpressionResolver resolver = ctx.resolver();
     var map = simpleMap(source);
@@ -106,16 +103,15 @@ public interface CommonCompiler {
       found = true;
       long v = Long.parseLong(m.group(1));
       total += switch (m.group(2)) {
-        case "d"  -> v * 86_400_000L;
-        case "h"  -> v * 3_600_000L;
-        case "m"  -> v * 60_000L;
-        case "s"  -> v * 1_000L;
+        case "d" -> v * 86_400_000L;
+        case "h" -> v * 3_600_000L;
+        case "m" -> v * 60_000L;
+        case "s" -> v * 1_000L;
         case "ms" -> v;
-        default   -> throw new IllegalArgumentException("Unknown unit");
+        default -> throw new IllegalArgumentException("Unknown unit");
       };
     }
     if (!found) return CompiledConstant.of(Duration.parse(source.toUpperCase()));
     return CompiledConstant.of(Duration.ofMillis(total));
   }
-
 }

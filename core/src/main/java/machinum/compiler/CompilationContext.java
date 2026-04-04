@@ -21,13 +21,11 @@ public record CompilationContext(
     Path workspaceDir,
 
     // TODO: Remove extra, it's a runtime info, that can't acquired at compile time
-    @Deprecated(forRemoval = true) String runId) implements PhaseContext {
+    @Deprecated(forRemoval = true) String runId)
+    implements PhaseContext {
 
   @Override
   public LifecyclePhase[] getPhases() {
-    return new LifecyclePhase[] {
-        LifecyclePhase.COMPILE
-    };
+    return new LifecyclePhase[] {LifecyclePhase.COMPILE};
   }
-
 }

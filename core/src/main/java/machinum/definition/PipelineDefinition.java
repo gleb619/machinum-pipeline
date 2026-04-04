@@ -11,7 +11,7 @@ import machinum.manifest.ItemsManifest;
 import machinum.manifest.PipelineBody;
 
 @Builder
-//TODO: Add support of `snapshot`
+// TODO: Add support of `snapshot`
 public record PipelineDefinition(
     String version,
     String type,
@@ -56,8 +56,7 @@ public record PipelineDefinition(
 
   @Builder
   public record FallbackDefinition(
-      RetryDefinition retryConfig,
-      @Singular List<ErrorStrategyDefinition> strategies) {}
+      RetryDefinition retryConfig, @Singular List<ErrorStrategyDefinition> strategies) {}
 
   @Builder
   public record ErrorStrategyDefinition(

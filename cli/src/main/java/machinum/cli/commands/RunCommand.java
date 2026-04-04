@@ -52,7 +52,8 @@ public class RunCommand implements Callable<Integer> {
 
     Executor executor = CoreConfig.coreConfig().executor(workspaceDir);
     // TODO: Add here new lifecycle method to check if tools are installed and bootstrapped
-    //TODO: Use executor.chain here, like in `cli/src/main/java/machinum/cli/commands/SetupCommand.java`
+    // TODO: Use executor.chain here, like in
+    // `cli/src/main/java/machinum/cli/commands/SetupCommand.java`
     LifecycleContext ctx = executor.executePipeline(pipeline, workspaceDir, resume, runId);
 
     if (dryRun) {

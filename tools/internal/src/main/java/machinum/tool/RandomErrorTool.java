@@ -23,10 +23,12 @@ public class RandomErrorTool implements Tool {
     log.debug("RandomErrorTool: roll={}, threshold={}", roll, threshold);
 
     if (roll < threshold) {
-      return ToolResult.failure("RandomErrorTool: random failure (roll=%.4f < threshold=%.4f)"
-          .formatted(roll, threshold));
+      return ToolResult.failure(
+          context,
+          "RandomErrorTool: random failure (roll=%.4f < threshold=%.4f)"
+              .formatted(roll, threshold));
     }
 
-    return ToolResult.success(Map.of("roll", roll, "threshold", threshold));
+    return ToolResult.success(context, Map.of("roll", roll, "threshold", threshold));
   }
 }

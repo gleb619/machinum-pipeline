@@ -12,6 +12,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -28,7 +30,8 @@ public final class SampleSourceStreamer implements Streamer {
 
   private static final int DEFAULT_BATCH_SIZE = 10;
   private static final String SAMPLE_CLASSPATH_DIR = "/sample";
-  private static final Pattern CHAPTER_PATTERN = Pattern.compile("^ch(\\d+)\\.md$", Pattern.CASE_INSENSITIVE);
+  private static final Pattern CHAPTER_PATTERN =
+      Pattern.compile("^ch(\\d+)\\.md$", Pattern.CASE_INSENSITIVE);
   private static final int MAX_CHAPTER_SCAN = 200;
 
   private final SourceDefinition source;
@@ -103,24 +106,34 @@ public final class SampleSourceStreamer implements Streamer {
           }
 
           StreamItem item = StreamItem.builder()
-              .file(chapter.path())
+              .file(Optional.ofNullable(chapter.path()))
               .index(index)
               .content(parseResult.bodyContent())
               .meta("chapterNumber", chapterNumber)
               .meta("fileName", chapter.fileName())
               .meta("title", parseResult.header() != null ? parseResult.header().title() : null)
-              .meta("wordCount", parseResult.header() != null ? parseResult.header().wordCount() : null)
-              .meta("ageRating", parseResult.header() != null ? parseResult.header().ageRating() : null)
-              .meta("contentWarnings", parseResult.header() != null ? parseResult.header().contentWarnings() : List.of())
-              .meta("defects", parseResult.header() != null ? parseResult.header().defects() : List.of())
+              .meta(
+                  "wordCount",
+                  parseResult.header() != null ? parseResult.header().wordCount() : null)
+              .meta(
+                  "ageRating",
+                  parseResult.header() != null ? parseResult.header().ageRating() : null)
+              .meta(
+                  "contentWarnings",
+                  parseResult.header() != null ? parseResult.header().contentWarnings() : List.of())
+              .meta(
+                  "defects",
+                  parseResult.header() != null ? parseResult.header().defects() : List.of())
               .meta("hasHeader", parseResult.header() != null)
               .meta("format", "md")
               .meta("type", "chapter")
-              .meta("timeout", parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO)
+              .meta(
+                  "timeout",
+                  parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO)
               .build();
 
-          // Apply timeout simulation if configured
-          Duration timeout = parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO;
+          Duration timeout =
+              parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO;
           if (!timeout.isZero() && !timeout.isNegative()) {
             log.debug("Simulating timeout of {} for chapter {}", timeout, chapter.fileName());
             try {
@@ -142,7 +155,8 @@ public final class SampleSourceStreamer implements Streamer {
             batch.clear();
           }
         } catch (IOException e) {
-          errorHandler.accept(StreamError.io("Failed to read chapter: " + chapter.fileName(), e, cur));
+          errorHandler.accept(
+              StreamError.io("Failed to read chapter: " + chapter.fileName(), e, cur));
         }
       }
 
@@ -174,14 +188,11 @@ public final class SampleSourceStreamer implements Streamer {
       InputStream is = getClass().getResourceAsStream(resourceName);
       if (is != null) {
         String content;
-        try (BufferedReader reader = new BufferedReader(
-                new InputStreamReader(is, StandardCharsets.UTF_8))) {
+        try (BufferedReader reader =
+            new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
           content = reader.lines().collect(Collectors.joining("\n"));
         }
-        chapters.add(new ChapterResource(
-            Path.of(resourceName),
-            "ch%d.md".formatted(i),
-            content));
+        chapters.add(new ChapterResource(Path.of(resourceName), "ch%d.md".formatted(i), content));
       }
     }
 
@@ -201,10 +212,7 @@ public final class SampleSourceStreamer implements Streamer {
         if (Files.isRegularFile(entry)) {
           String fileName = entry.getFileName().toString();
           if (CHAPTER_PATTERN.matcher(fileName).matches()) {
-            chapters.add(new ChapterResource(
-                entry,
-                fileName,
-                null));
+            chapters.add(new ChapterResource(entry, fileName, null));
           }
         }
       }
@@ -237,7 +245,8 @@ public final class SampleSourceStreamer implements Streamer {
     return null;
   }
 
-  private void detectMissingChapters(List<ChapterResource> chapters, StreamCursor cursor, Consumer<StreamError> errorHandler) {
+  private void detectMissingChapters(
+      List<ChapterResource> chapters, StreamCursor cursor, Consumer<StreamError> errorHandler) {
     Set<Integer> foundChapters = new TreeSet<>();
     for (ChapterResource ch : chapters) {
       Integer chapterNum = extractChapterNumber(ch.fileName());
@@ -262,9 +271,7 @@ public final class SampleSourceStreamer implements Streamer {
     if (!missingChapters.isEmpty()) {
       String message = String.format(
           "Missing chapter(s): %s. Expected sequence 1-%d, found: %s",
-          missingChapters,
-          maxChapter,
-          foundChapters);
+          missingChapters, maxChapter, foundChapters);
 
       log.warn(message);
       errorHandler.accept(StreamError.parse(message, null, cursor));
@@ -273,7 +280,7 @@ public final class SampleSourceStreamer implements Streamer {
 
   private ChapterParseResult parseChapterHeader(String fullContent) {
     int firstMarker = fullContent.indexOf("---");
-    if (firstMarker == -1 || firstMarker > 50) { // Allow some whitespace at start
+    if (firstMarker == -1 || firstMarker > 50) {
       return new ChapterParseResult(null, fullContent.trim());
     }
 
@@ -323,7 +330,7 @@ public final class SampleSourceStreamer implements Streamer {
       Duration timeout) {
 
     static ChapterHeader fromMap(Map<String, Object> map) {
-      String timeout = String.valueOf(map.get("timeout"));
+      String timeout = Objects.toString(map.get("timeout"), null);
       var duration = CommonCompiler.INSTANCE.compileDuration(timeout);
       return new ChapterHeader(
           getString(map, "title"),
@@ -331,17 +338,14 @@ public final class SampleSourceStreamer implements Streamer {
           getString(map, "age_rating"),
           getList(map, "content_warnings"),
           getList(map, "defects"),
-          duration.get()
-      );
+          duration.get());
     }
 
     @SuppressWarnings("unchecked")
     private static List<String> getList(Map<String, Object> map, String key) {
       Object value = map.get(key);
       if (value instanceof List) {
-        return ((List<Object>) value).stream()
-            .map(Object::toString)
-            .toList();
+        return ((List<Object>) value).stream().map(Object::toString).toList();
       }
       return List.of();
     }
@@ -365,6 +369,5 @@ public final class SampleSourceStreamer implements Streamer {
       }
       return null;
     }
-
   }
 }

@@ -3,5 +3,4 @@ machinum.tool.RandomErrorTool
 machinum.tool.TestTool
 machinum.tool.NoOpTool
 machinum.tool.ChapterWriterTool
-machinum.tool.SaveContentTool
 machinum.workspace.WorkspaceInitializerTool

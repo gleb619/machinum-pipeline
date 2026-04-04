@@ -234,10 +234,10 @@ ls examples/sample-test/.mt/state/
 
 ### Available Examples
 
-| Example            | Purpose                                      |
-|--------------------|----------------------------------------------|
-| `setup-test`       | Test setup/download/bootstrap commands       |
-| `expression-test`  | Test expression resolver and Groovy scripts  |
-| `sample-test`      | Test sample chapters with `samples://default` source, nooptool, testtool, save-content |
+| Example           | Purpose                                                                  |
+|-------------------|--------------------------------------------------------------------------|
+| `setup-test`      | Test setup/download/bootstrap commands                                   |
+| `expression-test` | Test expression resolver and Groovy scripts                              |
+| `sample-test`     | Test sample chapters with `samples://default` source, nooptool, testtool |
 
 See [CLI Commands](cli-commands.md) for command reference.

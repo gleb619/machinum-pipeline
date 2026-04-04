@@ -24,13 +24,13 @@ public interface ToolsManifestCompiler extends YamlCompiler<ToolsManifest, Tools
 
   ToolsManifestCompiler INSTANCE = Mappers.getMapper(ToolsManifestCompiler.class);
 
-  @Mapping(target = "labels", source = "labels", qualifiedByName = "simpleMap")
-  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "simpleMap")
+  @Mapping(target = "labels", qualifiedByName = "simpleMap")
+  @Mapping(target = "metadata", qualifiedByName = "simpleMap")
   ToolsDefinition compile(ToolsManifest source, @Context CompilationContext ctx);
 
-  @Mapping(target = "registry", source = "registry", qualifiedByName = "compileString")
-  @Mapping(target = "tools", source = "tools", qualifiedByName = "tools")
-  @Mapping(target = "bootstrap", source = "bootstrap", qualifiedByName = "compileBootstrap")
+  @Mapping(target = "registry", qualifiedByName = "compileString")
+  @Mapping(target = "tools", qualifiedByName = "tools")
+  @Mapping(target = "bootstrap", qualifiedByName = "compileBootstrap")
   ToolsBodyDefinition compileToolsBody(ToolsBody source, @Context CompilationContext ctx);
 
   @Named("compileToolsBody")
@@ -50,9 +50,9 @@ public interface ToolsManifestCompiler extends YamlCompiler<ToolsManifest, Tools
         .collect(Collectors.toList());
   }
 
-  @Mapping(target = "name", source = "name", qualifiedByName = "compileString")
-  @Mapping(target = "description", source = "description", qualifiedByName = "compileString")
-  @Mapping(target = "config", source = "config", qualifiedByName = "compileObjectMap")
+  @Mapping(target = "name", qualifiedByName = "compileString")
+  @Mapping(target = "description", qualifiedByName = "compileString")
+  @Mapping(target = "config", qualifiedByName = "compileObjectMap")
   BootstrapToolDefinition compileBootstrapTool(
       BootstrapToolManifest source, @Context CompilationContext ctx);
 
@@ -67,11 +67,11 @@ public interface ToolsManifestCompiler extends YamlCompiler<ToolsManifest, Tools
         .collect(Collectors.toList());
   }
 
-  @Mapping(target = "name", source = "name", qualifiedByName = "compileString")
-  @Mapping(target = "description", source = "description", qualifiedByName = "compileString")
+  @Mapping(target = "name", qualifiedByName = "compileString")
+  @Mapping(target = "description", qualifiedByName = "compileString")
   ToolDefinition compileCustomRegistryTool(ToolManifest source, @Context CompilationContext ctx);
 
-  @Mapping(target = "params", source = "params", qualifiedByName = "compileObjectMap")
+  @Mapping(target = "params", qualifiedByName = "compileObjectMap")
   ToolConfigDefinition compileToolConfig(
       ToolConfigManifest source, @Context CompilationContext ctx);
 }

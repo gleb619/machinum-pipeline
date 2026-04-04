@@ -50,7 +50,6 @@ public class OneStepRunner implements PipelineRunner {
     }
 
     runLogger.stateTransition(itemId, stateIndex > 0 ? "previous" : "-", stateName);
-    context.updateContext(context.getCurrentItem(), convertToMap(state), Map.of());
 
     List<PipelineToolDefinition> tools = state.tools();
     for (PipelineToolDefinition toolDef : tools) {
@@ -63,8 +62,6 @@ public class OneStepRunner implements PipelineRunner {
       throws Exception {
 
     String toolName = toolDef.name().get();
-    context.updateContext(
-        context.getCurrentItem(), context.getCurrentState(), Map.of("name", toolName));
 
     Instant toolStart = Instant.now();
     runLogger.toolStart(itemId, stateName, toolName);
@@ -98,8 +95,8 @@ public class OneStepRunner implements PipelineRunner {
       switch (strategy) {
         case retry -> {
           if (attempt < maxAttempts) {
-            Duration delay = errorStrategyResolver.calculateBackoffDelay(attempt,
-                fallbackConfig != null ? fallbackConfig.retryConfig() : null);
+            Duration delay = errorStrategyResolver.calculateBackoffDelay(
+                attempt, fallbackConfig != null ? fallbackConfig.retryConfig() : null);
             log.debug("Retrying tool {} after {}ms", toolName, delay);
             Thread.sleep(delay);
           }
@@ -128,8 +125,6 @@ public class OneStepRunner implements PipelineRunner {
       String condition, ExecutionContext context, PipelineStateDefinition state) {
 
     try {
-      context.updateContext(context.getCurrentItem(), convertToMap(state), Map.of());
-
       ExpressionContext exprCtx = ExpressionContext.builder()
           .item(context.getCurrentItem())
           .text(getTextContent(context))
@@ -158,9 +153,5 @@ public class OneStepRunner implements PipelineRunner {
 
   private String getTextContent(ExecutionContext context) {
     return context.getTextContent();
-  }
-
-  private Map<String, Object> convertToMap(PipelineStateDefinition state) {
-    return Map.of("name", state.name().get());
   }
 }

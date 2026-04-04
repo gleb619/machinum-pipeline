@@ -26,7 +26,7 @@ ls examples/
 # Run a pipeline
 ./gradlew :cli:run --args="run -p setup-test-pipeline -w ./examples/sample-test"
 
-# Test sample chapters with chapter-writer, nooptool, testtool, save-content
+# Test sample chapters with writer, nooptool, testtool
 ./gradlew :cli:run --args="setup -w ./examples/sample-test"
 ./gradlew :cli:run --args="run -p sample-pipeline -w ./examples/sample-test"
 
@@ -237,6 +237,6 @@ See [Project Structure §1](project-structure.md#1-workspace-directory-structure
 
 ---
 
-**Document Version:** 2.4
-**Last Updated:** 2026-04-01
-**Status:** Developing Phase 1
+**Document Version:** 2.5
+**Last Updated:** 2026-04-04
+**Status:** Under active development

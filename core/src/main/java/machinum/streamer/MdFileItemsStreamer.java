@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import machinum.definition.PipelineDefinition.ItemsDefinition;
@@ -84,7 +85,7 @@ public final class MdFileItemsStreamer implements Streamer {
           String fileName = file.getFileName().toString();
 
           StreamItem item = StreamItem.builder()
-              .file(file)
+              .file(Optional.ofNullable(file))
               .index(index)
               .content(content)
               .meta("type", items.type().get().name())

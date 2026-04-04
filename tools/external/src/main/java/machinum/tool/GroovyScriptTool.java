@@ -48,7 +48,7 @@ public class GroovyScriptTool implements Tool {
       script = getScript(scriptPath, sandboxed);
     } catch (IOException e) {
       log.error("Failed to load script {}: {}", scriptPath, e.getMessage(), e);
-      return ToolResult.failure("Failed to load Groovy script: " + e.getMessage());
+      return ToolResult.failure(context, "Failed to load Groovy script: " + e.getMessage());
     }
 
     Binding binding = createBinding(context);
@@ -58,16 +58,18 @@ public class GroovyScriptTool implements Tool {
     try {
       result = script.run();
     } catch (Exception e) {
-      return ToolResult.failure("Groovy script execution failed: " + e.getMessage());
+      return ToolResult.failure(context, "Groovy script execution failed: " + e.getMessage());
     }
 
     if (returnType != null && !returnType.isInstance(result)) {
-      return ToolResult.failure("Script returned %s, expected %s"
-          .formatted(result.getClass().getSimpleName(), returnType.getSimpleName()));
+      return ToolResult.failure(
+          context,
+          "Script returned %s, expected %s"
+              .formatted(result.getClass().getSimpleName(), returnType.getSimpleName()));
     }
 
     Map<String, Object> outputs = convertToMap(result);
-    return ToolResult.success(outputs);
+    return ToolResult.success(context, outputs);
   }
 
   @Override

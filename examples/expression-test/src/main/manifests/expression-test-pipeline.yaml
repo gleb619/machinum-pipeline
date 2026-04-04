@@ -11,6 +11,7 @@ body:
     window: 5
     cooldown: 5s
     override: false
+    async: false
 
   # Test source
   source:

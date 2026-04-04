@@ -7,6 +7,6 @@ body:
 
   # `body.states` optional, we can declare tools to execute without any state
   tools:
-    - nooptool
-    - tool: testtool
+    - tool: mytool
+      extends: testtool
       input: "{{text}}"

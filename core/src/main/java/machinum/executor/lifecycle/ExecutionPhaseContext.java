@@ -15,11 +15,8 @@ public class ExecutionPhaseContext implements PhaseContext {
 
   @Override
   public LifecyclePhase[] getPhases() {
-    return new LifecyclePhase[]{
-        LifecyclePhase.RUN,
-        LifecyclePhase.PAUSE,
-        LifecyclePhase.RESUME,
-        LifecyclePhase.SUSPEND,
+    return new LifecyclePhase[] {
+      LifecyclePhase.RUN, LifecyclePhase.PAUSE, LifecyclePhase.RESUME, LifecyclePhase.SUSPEND,
     };
   }
 }

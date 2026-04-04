@@ -93,9 +93,8 @@ public class ToolsExecutor {
             .force(force)
             .build();
 
-        ctx.registerContext(BootstrapPhaseContext.builder()
-                .context(bootstrapContext)
-            .build());
+        ctx.registerContext(
+            BootstrapPhaseContext.builder().context(bootstrapContext).build());
 
         toolRegistry.bootstrapAll(bootstrapContext, targetTools);
         log.info("All tools installed successfully");

@@ -8,7 +8,21 @@ import java.util.concurrent.ConcurrentHashMap;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import machinum.streamer.StreamItem;
 
+/**
+ * Execution context passed through the pipeline during tool execution.
+ *
+ * <p>Holds the current {@link StreamItem}, variables, environment, and text analysis helpers. The
+ * currentItem flows through states and is updated by the executor per item batch.
+ *
+ * @see <a href="https://docs/technical-design.md#32-core-interfaces">Technical Design §3.2 Core
+ *     Interfaces</a>
+ * @see <a href="https://docs/technical-design.md#62-available-bindings">Technical Design §6.2
+ *     Available Bindings</a>
+ * @see <a href="https://docs/core-architecture.md#3-checkpointing--state-management">Core
+ *     Architecture §3 Checkpointing & State Management</a>
+ */
 @Data
 @AllArgsConstructor
 @Builder(toBuilder = true)
@@ -24,14 +38,10 @@ public class ExecutionContext {
   @Builder.Default
   private Map<String, String> environment = new ConcurrentHashMap<>();
 
-  @Builder.Default
-  private Map<String, Object> currentItem = new ConcurrentHashMap<>();
+  private StreamItem currentItem;
 
   @Builder.Default
   private Map<String, Object> currentState = new ConcurrentHashMap<>();
-
-  @Builder.Default
-  private Map<String, Object> currentTool = new ConcurrentHashMap<>();
 
   @Builder.Default
   private int currentIndex = 0;
@@ -44,31 +54,15 @@ public class ExecutionContext {
 
   private String aggregationText;
 
-  // TODO: Change api, we need type object here, not just HashMap
-  @Deprecated(forRemoval = true)
-  public void updateContext(
-      Map<String, Object> item, Map<String, Object> state, Map<String, Object> tool) {
-    this.currentItem = item != null ? item : new ConcurrentHashMap<>();
-    this.currentState = state != null ? state : new ConcurrentHashMap<>();
-    this.currentTool = tool != null ? tool : new ConcurrentHashMap<>();
+  /** Update the current item being processed. Called by the executor when streaming a new batch. */
+  public void updateItem(StreamItem item) {
+    this.currentItem = item;
+    this.currentIndex = item != null && item.index() != null ? item.index() : 0;
   }
 
-  // TODO: Change api, we need type object here, not just HashMap
-  @Deprecated(forRemoval = true)
-  public void updateItem(Map<String, Object> item, int index) {
-    this.currentItem = item != null ? item : new ConcurrentHashMap<>();
-    this.currentIndex = index;
-  }
-
+  /** Update the retry attempt counter before retrying a failed tool. */
   public void updateRetryAttempt(int attempt) {
     this.retryAttempt = attempt;
-  }
-
-  // TODO: Unused
-  @Deprecated(forRemoval = true)
-  public void updateAggregation(int index, String text) {
-    this.aggregationIndex = index;
-    this.aggregationText = text;
   }
 
   public String get(String name, String defaultValue) {
@@ -83,33 +77,8 @@ public class ExecutionContext {
     return new HashMap<>(variables);
   }
 
-  // TODO: Unused
-  @Deprecated(forRemoval = true)
-  public boolean hasVariable(String name) {
-    return variables.containsKey(name);
-  }
-
-  // TODO: Unused
-  @Deprecated(forRemoval = true)
-  public ExecutionContext createChildContext() {
-    return toBuilder().variables(new ConcurrentHashMap<>(variables)).build();
-  }
-
   public String getTextContent() {
-    if (currentItem == null || currentItem.isEmpty()) {
-      return "";
-    }
-    Object content = currentItem.get("content");
-    if (content instanceof String s) {
-      return s;
-    }
-    for (String field : new String[] {"text", "body", "data"}) {
-      Object value = currentItem.get(field);
-      if (value instanceof String s) {
-        return s;
-      }
-    }
-    return "";
+    return currentItem != null && currentItem.content() != null ? currentItem.content() : "";
   }
 
   public int getTextLength() {

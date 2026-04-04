@@ -12,7 +12,7 @@ public interface ItemsCompiler extends YamlCompiler<ItemsManifest, ItemsDefiniti
 
   ItemsCompiler INSTANCE = Mappers.getMapper(ItemsCompiler.class);
 
-  @Mapping(target = "type", qualifiedByName = "compileConstant")
+  @Mapping(target = "type", qualifiedByName = "compile")
   @Mapping(target = "path", qualifiedByName = "compileString")
   @Mapping(target = "customExtractor", qualifiedByName = "compileString")
   @Mapping(target = "variables", qualifiedByName = "compileMap")

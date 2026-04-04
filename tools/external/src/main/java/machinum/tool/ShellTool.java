@@ -112,7 +112,7 @@ public class ShellTool implements Tool {
 
     if (!completed) {
       process.destroyForcibly();
-      return ToolResult.failure("Shell script timed out after " + timeout);
+      return ToolResult.failure(context, "Shell script timed out after " + timeout);
     }
 
     StringBuilder outputBuilder = new StringBuilder();
@@ -131,7 +131,7 @@ public class ShellTool implements Tool {
     int exitCode = process.exitValue();
     if (exitCode != 0) {
       return ToolResult.failure(
-          "Shell script exited with code %d. Output: %s".formatted(exitCode, output));
+          context, "Shell script exited with code %d. Output: %s".formatted(exitCode, output));
     }
 
     try {
@@ -139,9 +139,10 @@ public class ShellTool implements Tool {
       @SuppressWarnings("unchecked")
       Map<String, Object> outputs =
           (Map<String, Object>) objectMapper.convertValue(resultNode, Map.class);
-      return ToolResult.success(outputs);
+      return ToolResult.success(context, outputs);
     } catch (Exception e) {
-      return ToolResult.failure("Invalid JSON output from shell script: " + e.getMessage());
+      return ToolResult.failure(
+          context, "Invalid JSON output from shell script: " + e.getMessage());
     }
   }
 

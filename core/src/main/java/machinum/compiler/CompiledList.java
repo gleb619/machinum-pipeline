@@ -3,7 +3,6 @@ package machinum.compiler;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -30,13 +29,7 @@ public class CompiledList<T> implements Compiled<List<Compiled<T>>> {
     List<Compiled<Object>> compiled = new ArrayList<>();
 
     for (Object value : raw) {
-      var compiledValue = switch (value) {
-        case String s -> Compiled.of(s, context, resolver);
-        case Map map -> CompiledMap.of(map, context, resolver);
-        case List list -> CompiledList.of(list, context, resolver);
-        case null, default -> CompiledConstant.of(value);
-      };
-
+      var compiledValue = Compiled.of(value, context, resolver);
       compiled.add(compiledValue);
     }
 

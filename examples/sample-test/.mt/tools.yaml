@@ -1,0 +1,18 @@
+# Sample Tools Manifest
+# Defines writer, nooptool, testtool for the sample pipeline
+# See: docs/yaml-schema.md#3-tools-yaml-mttoolsyaml
+
+version: 1.0.0
+type: tools
+name: "Sample Tools"
+description: "Tools for sample-test pipeline: writer, nooptool, testtool"
+body:
+  # Use built-in tool registry (classpath scanning)
+  # See: docs/yaml-schema.md#3-tools-yaml-mttoolsyaml
+  registry: classpath://default
+
+  # Tools to bootstrap during setup phase
+  # See: docs/yaml-schema.md#31-tool-lifecycle
+  bootstrap:
+    - writer
+

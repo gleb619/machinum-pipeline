@@ -16,9 +16,6 @@ public record RootManifest(
     implements Manifest {
 
   public static RootManifest empty() {
-    return RootManifest.builder()
-        .body(RootBody.empty())
-        .build();
+    return RootManifest.builder().body(RootBody.empty()).build();
   }
-
 }

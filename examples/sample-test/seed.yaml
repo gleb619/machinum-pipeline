@@ -1,0 +1,11 @@
+# Sample Test Project
+# Tests pipeline with sample chapters copied from classpath resources
+# See: docs/yaml-schema.md#2-root-pipeline-yaml-rootyml
+
+version: 1.0.0
+type: root
+name: "sample-test-project"
+description: "Root config for sample chapter test pipeline"
+body:
+  variables:
+    book_id: sample-test

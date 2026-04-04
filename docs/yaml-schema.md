@@ -108,6 +108,7 @@ body:
     window: 5
     cooldown: 5s
     override: false
+    async: false
   cleanup:
     pass: 5d
     fail: 7d
@@ -197,13 +198,11 @@ body:
 
 ### 3.0 Shorthand Forms
 
-All fields in `tools.yaml` support **shorthand string forms** for concise configuration:
+Only next fields in `tools.yaml` support **shorthand string forms** for concise configuration:
 
 | Field         | Shorthand                       | Object Form                             | Example                                                                               |
 |---------------|---------------------------------|-----------------------------------------|---------------------------------------------------------------------------------------|
-| `registry`    | `registry: classpath://default` | `registry: classpath://default`         | [`examples/shorthand-test/.mt/tools.yaml`](../examples/shorthand-test/.mt/tools.yaml) |
 | `bootstrap[]` | `- tool-name`                   | `- name: tool-name, description: "..."` | See below                                                                             |
-| `tools[]`     | `- tool-name`                   | `- name: tool-name, config: {...}`      | See below                                                                             |
 
 **Complete Shorthand Example:**
 
@@ -223,7 +222,7 @@ body:
       config:
         config-file: ".eslintrc"
   
-  # Tools list shorthand
+  # Tools list doen't support shorthand
   tools:
     - name: translator          # object form: full config
       description: "Translate text"
@@ -479,21 +478,8 @@ body:
     window: 5
     cooldown: 5s
     override: false
-    execution:
-      snapshot:
-        mode: reference
-      mode: sequential           # sequential|parallel
-      concurrency: 4
-    runner:
-      type: one_step             # one_step|batch_step|batch_step_over
-      options:
-        batch: 5
-        async:
-          enabled: true
-          max_in_flight: 1       # MVP default for one_step
-        checkpoint_cursor:
-          state_index: 0
-          item_offset: 0
+    snapshot: reference        # copy | reference
+    runner: one_step             # one_step|batch_step|batch_step_over
 
   variables:
     book_name: my first book

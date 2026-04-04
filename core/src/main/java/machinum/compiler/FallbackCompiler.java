@@ -32,7 +32,7 @@ public interface FallbackCompiler extends YamlCompiler<FallbackManifest, Fallbac
     if (retry == null) {
       throw new IllegalArgumentException("Retry can't be null");
     }
-    Compiled<Integer> maxAttempts = CommonCompiler.INSTANCE.compileConstant(retry.maxAttempts());
+    Compiled<Integer> maxAttempts = CommonCompiler.INSTANCE.compile(retry.maxAttempts(), ctx);
     BackoffDefinition backoff = compileBackoff(retry.backoff(), ctx);
     return new RetryDefinition(maxAttempts, backoff);
   }
@@ -43,13 +43,12 @@ public interface FallbackCompiler extends YamlCompiler<FallbackManifest, Fallbac
     if (backoff == null) {
       throw new IllegalArgumentException("Backoff can't be null");
     }
-    Compiled<PipelineBody.BackoffType> type =
-        CommonCompiler.INSTANCE.compileConstant(backoff.type());
+    Compiled<PipelineBody.BackoffType> type = CommonCompiler.INSTANCE.compile(backoff.type(), ctx);
     Compiled<Duration> initialDelay =
         CommonCompiler.INSTANCE.compileDuration(backoff.initialDelay());
     Compiled<Duration> maxDelay = CommonCompiler.INSTANCE.compileDuration(backoff.maxDelay());
-    Compiled<Double> multiplier = CommonCompiler.INSTANCE.compileConstant(backoff.multiplier());
-    Compiled<Double> jitter = CommonCompiler.INSTANCE.compileConstant(backoff.jitter());
+    Compiled<Double> multiplier = CommonCompiler.INSTANCE.compile(backoff.multiplier(), ctx);
+    Compiled<Double> jitter = CommonCompiler.INSTANCE.compile(backoff.jitter(), ctx);
     return BackoffDefinition.builder()
         .type(type)
         .initialDelay(initialDelay)
@@ -67,7 +66,7 @@ public interface FallbackCompiler extends YamlCompiler<FallbackManifest, Fallbac
     }
     Compiled<String> exception = CommonCompiler.INSTANCE.compileString(strategy.exception(), ctx);
     Compiled<PipelineBody.ErrorStrategy> errorStrategy =
-        CommonCompiler.INSTANCE.compileConstant(strategy.strategy());
+        CommonCompiler.INSTANCE.compile(strategy.strategy(), ctx);
     return new ErrorStrategyDefinition(exception, errorStrategy);
   }
 

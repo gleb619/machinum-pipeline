@@ -85,7 +85,8 @@ public class YamlManifestLoader {
     }
   }
 
-  //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+  // TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of
+  // hardcode
   private Path findRootManifest(Path workspaceDir) {
     Path seedPath = resolveYamlFile(workspaceDir, "seed");
     if (Files.exists(seedPath)) {
@@ -103,7 +104,8 @@ public class YamlManifestLoader {
         .orElse(null);
   }
 
-  //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+  // TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of
+  // hardcode
   private Path findToolsManifest(Path workspaceDir) {
     Path toolsPath = resolveYamlFile(workspaceDir, ".mt/tools");
     if (Files.exists(toolsPath)) {
@@ -117,7 +119,8 @@ public class YamlManifestLoader {
         .orElse(null);
   }
 
-  //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+  // TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of
+  // hardcode
   @Deprecated
   private Path findPipelineManifest(Path workspaceDir, String pipelineName) {
     Path manifestsDir = workspaceDir.resolve("src/main/manifests");
@@ -152,7 +155,7 @@ public class YamlManifestLoader {
     var path1 = workspaceDir.resolve(name + ".yml");
     var path2 = workspaceDir.resolve(name + ".yaml");
 
-    if(Files.exists(path1)) {
+    if (Files.exists(path1)) {
       return path1;
     }
 

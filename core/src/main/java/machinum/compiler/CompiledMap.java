@@ -2,7 +2,6 @@ package machinum.compiler;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.Data;
@@ -33,13 +32,7 @@ public class CompiledMap<T> implements Compiled<Map<String, Compiled<T>>> {
 
     for (Map.Entry<String, U> entry : raw.entrySet()) {
       var value = entry.getValue();
-      var compiledValue = switch (value) {
-        case String s -> Compiled.of(s, context, resolver);
-        case Map map -> CompiledMap.of(map, context, resolver);
-        case List list -> CompiledList.of(list, context, resolver);
-        case null, default -> CompiledConstant.of(value);
-      };
-
+      var compiledValue = Compiled.<U>of(value, context, resolver);
       compiled.put(entry.getKey(), compiledValue);
     }
 

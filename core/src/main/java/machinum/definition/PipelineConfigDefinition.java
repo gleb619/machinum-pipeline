@@ -11,4 +11,5 @@ public record PipelineConfigDefinition(
     Compiled<Integer> windowBatchSize,
     Compiled<Duration> cooldown,
     Compiled<Boolean> allowOverrideMode,
+    Compiled<Boolean> async,
     ManifestSnapshot snapshot) {}

@@ -31,9 +31,7 @@ public record RootDefinition(
 
   @Builder
   public record RootExecutionDefinition(
-      Compiled<Boolean> parallel,
-      Compiled<Integer> maxConcurrency
-  ) {}
+      Compiled<Boolean> parallel, Compiled<Integer> maxConcurrency) {}
 
   @Builder
   public record RootCleanupDefinition(

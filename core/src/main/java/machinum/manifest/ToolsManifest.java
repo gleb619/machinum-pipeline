@@ -16,8 +16,6 @@ public record ToolsManifest(
     implements Manifest {
 
   public static ToolsManifest empty() {
-    return ToolsManifest.builder()
-        .body(ToolsBody.empty())
-        .build();
+    return ToolsManifest.builder().body(ToolsBody.empty()).build();
   }
 }

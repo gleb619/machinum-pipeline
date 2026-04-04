@@ -28,7 +28,8 @@ public class StatusCommand implements Callable<Integer> {
   @Deprecated
   public Integer call() throws Exception {
     Path workspaceDir = Path.of(workspace).toAbsolutePath();
-    //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+    // TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of
+    // hardcode
     Path checkpointDir = workspaceDir.resolve(".mt/state");
 
     CheckpointStore checkpointStore = coreConfig().fileCheckpointStore(checkpointDir);

@@ -13,10 +13,10 @@ public interface PipelineConfigCompiler
 
   PipelineConfigCompiler INSTANCE = Mappers.getMapper(PipelineConfigCompiler.class);
 
-  @Mapping(target = "batchSize", qualifiedByName = "compileConstant")
-  @Mapping(target = "windowBatchSize", qualifiedByName = "compileConstant")
+  @Mapping(target = "batchSize", qualifiedByName = "compile")
+  @Mapping(target = "windowBatchSize", qualifiedByName = "compile")
   @Mapping(target = "cooldown", qualifiedByName = "compileDuration")
-  @Mapping(target = "allowOverrideMode", qualifiedByName = "compileConstant")
+  @Mapping(target = "allowOverrideMode", qualifiedByName = "compile")
+  @Mapping(target = "async", qualifiedByName = "compile")
   PipelineConfigDefinition compile(PipelineConfigManifest source, @Context CompilationContext ctx);
-
 }

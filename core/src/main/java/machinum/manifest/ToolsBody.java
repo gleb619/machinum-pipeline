@@ -33,7 +33,9 @@ public record ToolsBody(
   @Builder
   @JsonDeserialize(using = BootstrapToolManifestDeserializer.class)
   public record BootstrapToolManifest(
-      String name, String description, @Singular("configItem") Map<String, Object> config) {}
+      String name,
+      String description,
+      @Singular("configItem") Map<String, Object> config) {}
 
   @Builder
   @JsonDeserialize(using = ToolManifestDeserializer.class)
@@ -46,8 +48,7 @@ public record ToolsBody(
       @JsonAnySetter @Singular Map<String, Object> params) {
 
     public static ToolConfigManifest empty() {
-      return ToolConfigManifest.builder()
-          .build();
+      return ToolConfigManifest.builder().build();
     }
   }
 

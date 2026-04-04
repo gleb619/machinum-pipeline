@@ -11,7 +11,7 @@ public interface Tool {
   ToolInfo info();
 
   default ToolResult execute(ExecutionContext context) {
-    return ToolResult.empty();
+    return ToolResult.empty(context);
   }
 
   default void bootstrap(BootstrapContext context) {
@@ -35,22 +35,24 @@ public interface Tool {
   }
 
   @Builder
-  record ToolResult(boolean success, Map<String, Object> outputs, String errorMessage) {
+  record ToolResult(
+      ExecutionContext context, boolean success, Map<String, Object> outputs, String errorMessage) {
 
-    public static ToolResult empty() {
-      return success(Map.of());
+    public static ToolResult empty(ExecutionContext ctx) {
+      return success(ctx, Map.of());
     }
 
-    public static ToolResult success(Map<String, Object> outputs) {
-      return new ToolResult(Boolean.TRUE, outputs, null);
+    public static ToolResult success(ExecutionContext ctx, Map<String, Object> outputs) {
+      return new ToolResult(ctx, Boolean.TRUE, outputs, null);
     }
 
-    public static ToolResult failure(String errorMessage) {
-      return failure(errorMessage, Map.of());
+    public static ToolResult failure(ExecutionContext ctx, String errorMessage) {
+      return failure(ctx, errorMessage, Map.of());
     }
 
-    public static ToolResult failure(String errorMessage, Map<String, Object> outputs) {
-      return new ToolResult(Boolean.FALSE, outputs, errorMessage);
+    public static ToolResult failure(
+        ExecutionContext ctx, String errorMessage, Map<String, Object> outputs) {
+      return new ToolResult(ctx, Boolean.FALSE, outputs, errorMessage);
     }
   }
 }

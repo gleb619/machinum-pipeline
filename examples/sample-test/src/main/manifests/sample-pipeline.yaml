@@ -1,0 +1,35 @@
+# Sample Pipeline
+# Processes sample chapters streamed from classpath resources via samples://default
+# See: docs/yaml-schema.md#4-pipeline-declaration-yaml-srcmainmanifestspipelineyaml
+
+version: 1.0.0
+type: pipeline
+name: "sample-pipeline"
+description: "Pipeline that processes sample chapters streamed from classpath resources"
+body:
+  # Source: stream defective sample chapters from classpath /sample/ resources
+  # See: docs/yaml-schema.md#41-source-uri-schema (samples://default)
+  # See: docs/technical-design.md#34-stream-lifecycle-management
+  source:
+    uri: "samples://default"
+
+  # States: process each chapter through tools
+  # See: docs/yaml-schema.md#4x-source-vs-items--data-acquisition-layer
+  states:
+    - name: PROCESS
+      tools:
+        # No-operation tool (passes through without changes)
+        # See: tools/internal/src/main/java/machinum/tool/NoOpTool.java
+        - nooptool
+        # Test tool (appends [processed-by-testtool] to content)
+        # See: tools/internal/src/main/java/machinum/tool/TestTool.java
+        - tool: testtool
+          input: "{{text}}"
+
+    - name: SAVE
+      tools:
+        # Save processed content to src/main/chapters directory
+        # See: tools/internal/src/main/java/machinum/tool/SaveContentTool.java
+        - tool: writer
+          outputDir: "src/main/chapters"
+          fileNamePattern: "{id}-processed.md"

@@ -80,7 +80,8 @@ public class CoreConfig implements SingletonSupport {
     return singleton(() -> new HttpToolRegistry(workspaceRoot, baseUrl, refreshStrategy).init());
   }
 
-  //TODO: Replace code at `core/src/main/java/machinum/executor/PipelineExecutor.java`, we need to use `CoreConfig`
+  // TODO: Replace code at `core/src/main/java/machinum/executor/PipelineExecutor.java`, we need to
+  // use `CoreConfig`
   //  // instead of static creation
   @Deprecated
   public RunLogger runLogger(String runId) {
@@ -91,7 +92,8 @@ public class CoreConfig implements SingletonSupport {
     return singleton(ErrorStrategyResolver::new);
   }
 
-  //TODO: replace code at `core/src/main/java/machinum/executor/PipelineExecutor.java`, we need to use `CoreConfig`
+  // TODO: replace code at `core/src/main/java/machinum/executor/PipelineExecutor.java`, we need to
+  // use `CoreConfig`
   // instead of contructor creation
   @Deprecated
   public PipelineRunner oneStepRunner(Path workspaceRoot, RunLogger runLogger) {
@@ -192,7 +194,7 @@ public class CoreConfig implements SingletonSupport {
       case VOID -> new VoidSourceStreamer();
       case SAMPLES -> new SampleSourceStreamer(source, DEFAULT_BATCH_SIZE);
       case FILE -> {
-        //TODO: redo, just check extension, work on *.jsonl
+        // TODO: redo, just check extension, work on *.jsonl
         String format = parsed.getQueryParam("format", "folder");
         if ("jsonl".equals(format)) {
           yield new JsonlSourceStreamer(source, objectMapper(), DEFAULT_BATCH_SIZE);

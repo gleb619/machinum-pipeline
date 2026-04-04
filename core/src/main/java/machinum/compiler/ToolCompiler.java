@@ -18,10 +18,10 @@ public interface ToolCompiler extends YamlCompiler<PipelineToolManifest, Pipelin
 
   @Mapping(target = "name", qualifiedByName = "compileString")
   @Mapping(target = "description", qualifiedByName = "compileString")
-  @Mapping(target = "async", qualifiedByName = "compileConstant")
+  @Mapping(target = "async", qualifiedByName = "compile")
   @Mapping(target = "input", qualifiedByName = "compileString")
   @Mapping(target = "output", qualifiedByName = "compileString")
-  @Mapping(target = "tools", source = "tools", qualifiedByName = "compileNestedTools")
+  @Mapping(target = "tools", qualifiedByName = "compileNestedTools")
   PipelineToolDefinition compile(PipelineToolManifest source, @Context CompilationContext ctx);
 
   @Named("compileNestedTools")

@@ -38,47 +38,41 @@ class SampleSourceStreamerTest {
     MockitoAnnotations.openMocks(this);
     when(mockSource.uri()).thenReturn(mockUri);
     when(mockUri.get()).thenReturn("samples://default");
-    // Use production constructor (classpath mode) for default setup
     streamer = new SampleSourceStreamer(mockSource);
   }
 
   @Test
   void streamsAllChapterBodiesWithoutHeaders(@TempDir Path tempDir) throws IOException {
-    // Create sample directory and chapter files with YAML headers
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    createChapterFile(sampleDir, "ch1.md",
-        """
+    createChapterFile(sampleDir, "ch1.md", """
             ---
             title: Chapter 1
             word_count: 100
             ---
-            
+
             # Chapter 1
             Body content here""");
-    createChapterFile(sampleDir, "ch2.md",
-        """
+    createChapterFile(sampleDir, "ch2.md", """
             ---
             title: Chapter 2
             word_count: 200
             ---
-            
+
             # Chapter 2
             More body content""");
-    createChapterFile(sampleDir, "ch3.md",
-        """
+    createChapterFile(sampleDir, "ch3.md", """
             ---
             title: Chapter 3
             word_count: 300
             ---
-            
+
             # Chapter 3
             Final body content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
 
-    // Use test constructor to read from filesystem
     SampleSourceStreamer fsStreamer = new SampleSourceStreamer(mockSource, sampleDir);
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback);
 
@@ -86,8 +80,7 @@ class SampleSourceStreamerTest {
     assertThat(capturedItems.get(0).content()).isEqualTo("# Chapter 1\nBody content here");
     assertThat(capturedItems.get(1).content()).isEqualTo("# Chapter 2\nMore body content");
     assertThat(capturedItems.get(2).content()).isEqualTo("# Chapter 3\nFinal body content");
-    
-    // Verify no YAML markers in content
+
     for (StreamItem item : capturedItems) {
       assertThat(item.content()).doesNotContain("---");
     }
@@ -97,8 +90,7 @@ class SampleSourceStreamerTest {
   void extractsMetadataFromYamlHeaders(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    createChapterFile(sampleDir, "ch1.md",
-        """
+    createChapterFile(sampleDir, "ch1.md", """
             ---
             title: "Chapter 1: Salvage"
             word_count: 620
@@ -108,7 +100,7 @@ class SampleSourceStreamerTest {
               - typo
               - missing punctuation
             ---
-            
+
             # Chapter 1
             Body content""");
 
@@ -120,13 +112,14 @@ class SampleSourceStreamerTest {
 
     assertThat(capturedItems).hasSize(1);
     StreamItem item = capturedItems.get(0);
-    
+
     assertThat(item.meta("chapterNumber")).isEqualTo(1);
     assertThat(item.meta("fileName")).isEqualTo("ch1.md");
     assertThat(item.meta("title")).isEqualTo("Chapter 1: Salvage");
     assertThat(item.meta("wordCount")).isEqualTo(620);
     assertThat(item.meta("ageRating")).isEqualTo("18+");
-    assertThat(item.meta("contentWarnings")).isEqualTo(List.of("mild swearing", "implied poverty violence"));
+    assertThat(item.meta("contentWarnings"))
+        .isEqualTo(List.of("mild swearing", "implied poverty violence"));
     assertThat(item.meta("defects")).isEqualTo(List.of("typo", "missing punctuation"));
     assertThat(item.meta("hasHeader")).isEqualTo(true);
     assertThat(item.meta("format")).isEqualTo("md");
@@ -137,33 +130,32 @@ class SampleSourceStreamerTest {
   void sortsFilesInNaturalNumericOrder(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create files in non-alphabetic order
     createChapterFile(sampleDir, "ch11.md", """
         ---
         title: Chapter 11
         ---
-        
+
         # Chapter 11
         Content""");
     createChapterFile(sampleDir, "ch2.md", """
         ---
         title: Chapter 2
         ---
-        
+
         # Chapter 2
         Content""");
     createChapterFile(sampleDir, "ch1.md", """
         ---
         title: Chapter 1
         ---
-        
+
         # Chapter 1
         Content""");
     createChapterFile(sampleDir, "ch9.md", """
         ---
         title: Chapter 9
         ---
-        
+
         # Chapter 9
         Content""");
 
@@ -174,7 +166,6 @@ class SampleSourceStreamerTest {
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback);
 
     assertThat(capturedItems).hasSize(4);
-    // Verify natural numeric ordering: ch1, ch2, ch9, ch11
     assertThat(capturedItems.get(0).meta("chapterNumber")).isEqualTo(1);
     assertThat(capturedItems.get(1).meta("chapterNumber")).isEqualTo(2);
     assertThat(capturedItems.get(2).meta("chapterNumber")).isEqualTo(9);
@@ -185,23 +176,20 @@ class SampleSourceStreamerTest {
   void detectsMissingChapter10(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create chapters 1-9 and 11, missing chapter 10
     for (int i = 1; i <= 9; i++) {
-      createChapterFile(sampleDir, "ch%d.md".formatted(i),
-          """
+      createChapterFile(sampleDir, "ch%d.md".formatted(i), """
           ---
           title: Chapter %d
           ---
-          
+
           # Chapter %d
           Content""".formatted(i, i));
     }
-    createChapterFile(sampleDir, "ch11.md",
-        """
+    createChapterFile(sampleDir, "ch11.md", """
             ---
             title: Chapter 11
             ---
-            
+
             # Chapter 11
             Content""");
 
@@ -213,36 +201,31 @@ class SampleSourceStreamerTest {
     SampleSourceStreamer fsStreamer = new SampleSourceStreamer(mockSource, sampleDir);
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback, errorHandler);
 
-    // Verify error was emitted for missing chapter 10
     assertThat(capturedError.get()).isNotNull();
     assertThat(capturedError.get().type()).isEqualTo(StreamError.ErrorType.PARSE);
     assertThat(capturedError.get().message()).contains("Missing chapter(s): [10]");
-    
-    // Verify streaming continued despite missing chapter
-    assertThat(capturedItems).hasSize(10); // chapters 1-9 and 11
+
+    assertThat(capturedItems).hasSize(10);
   }
 
   @Test
   void continuesStreamingAfterMissingChapter(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create chapters 1-9 and 11, missing chapter 10
     for (int i = 1; i <= 9; i++) {
-      createChapterFile(sampleDir, "ch%d.md".formatted(i),
-          """
+      createChapterFile(sampleDir, "ch%d.md".formatted(i), """
           ---
           title: Chapter %d
           ---
-          
+
           # Chapter %d
           Content""".formatted(i, i));
     }
-    createChapterFile(sampleDir, "ch11.md",
-        """
+    createChapterFile(sampleDir, "ch11.md", """
             ---
             title: Chapter 11
             ---
-            
+
             # Chapter 11
             Content""");
 
@@ -252,7 +235,6 @@ class SampleSourceStreamerTest {
     SampleSourceStreamer fsStreamer = new SampleSourceStreamer(mockSource, sampleDir);
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback);
 
-    // Verify all chapters except missing one were streamed
     assertThat(capturedItems).hasSize(10);
     assertThat(capturedItems.get(8).meta("chapterNumber")).isEqualTo(9);
     assertThat(capturedItems.get(9).meta("chapterNumber")).isEqualTo(11);
@@ -262,23 +244,21 @@ class SampleSourceStreamerTest {
   void respectsBatchSize(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create 5 chapter files
     for (int i = 1; i <= 5; i++) {
-      createChapterFile(sampleDir, "ch%d.md".formatted(i),
-          """
+      createChapterFile(sampleDir, "ch%d.md".formatted(i), """
           ---
           title: Chapter %d
           ---
-          
+
           # Chapter %d
           Content""".formatted(i, i));
     }
 
     SampleSourceStreamer batchedStreamer = new SampleSourceStreamer(mockSource, sampleDir, 2);
-    
+
     AtomicInteger batchCount = new AtomicInteger(0);
     List<Integer> batchSizes = new ArrayList<>();
-    
+
     StreamerCallback callback = new StreamerCallback() {
       @Override
       public boolean onBatch(List<StreamItem> items, StreamCursor cursor) {
@@ -290,7 +270,7 @@ class SampleSourceStreamerTest {
 
     batchedStreamer.stream(tempDir, StreamCursor.initial(), callback);
 
-    assertThat(batchCount.get()).isEqualTo(3); // 2 + 2 + 1
+    assertThat(batchCount.get()).isEqualTo(3);
     assertThat(batchSizes).containsExactly(2, 2, 1);
   }
 
@@ -298,14 +278,12 @@ class SampleSourceStreamerTest {
   void resumesFromCursorOffset(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create 5 chapter files
     for (int i = 1; i <= 5; i++) {
-      createChapterFile(sampleDir, "ch%d.md".formatted(i),
-          """
+      createChapterFile(sampleDir, "ch%d.md".formatted(i), """
           ---
           title: Chapter %d
           ---
-          
+
           # Chapter %d
           Content""".formatted(i, i));
     }
@@ -313,7 +291,6 @@ class SampleSourceStreamerTest {
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
 
-    // Start from offset 2 (skip first 2 chapters)
     StreamCursor offsetCursor = new StreamCursor(0, 2, 0);
     SampleSourceStreamer fsStreamer = new SampleSourceStreamer(mockSource, sampleDir);
     fsStreamer.stream(tempDir, offsetCursor, callback);
@@ -328,7 +305,6 @@ class SampleSourceStreamerTest {
   void handlesFileWithoutValidHeader(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create file without YAML header
     createChapterFile(sampleDir, "ch1.md", "# Chapter 1\nJust body content, no header");
 
     List<StreamItem> capturedItems = new ArrayList<>();
@@ -339,8 +315,7 @@ class SampleSourceStreamerTest {
 
     assertThat(capturedItems).hasSize(1);
     StreamItem item = capturedItems.get(0);
-    
-    // Entire file should be treated as body
+
     assertThat(item.content()).isEqualTo("# Chapter 1\nJust body content, no header");
     assertThat(item.meta("hasHeader")).isEqualTo(false);
     assertThat(item.meta("title")).isNull();
@@ -348,7 +323,6 @@ class SampleSourceStreamerTest {
 
   @Test
   void errorHandlerReceivesIoErrors(@TempDir Path tempDir) {
-    // Use empty sample directory (no files)
     Path emptySampleDir = tempDir.resolve("empty-sample");
 
     AtomicReference<StreamError> capturedError = new AtomicReference<>();
@@ -374,14 +348,11 @@ class SampleSourceStreamerTest {
 
     Consumer<StreamError> errorHandler = error -> capturedError.set(error);
 
-    // Create streamer with non-existent sample dir
     SampleSourceStreamer fsStreamer = new SampleSourceStreamer(mockSource, emptySampleDir);
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback, errorHandler);
 
-    // With empty/non-existent dir, no chapters found, stream completes normally
     assertThat(streamStarted.get()).isTrue();
     assertThat(streamEnded.get()).isTrue();
-    // No IO error emitted because directory just has no matching files
     assertThat(capturedError.get()).isNull();
   }
 
@@ -393,7 +364,7 @@ class SampleSourceStreamerTest {
         ---
         title: Chapter 1
         ---
-        
+
         # Chapter 1
         Content""");
 
@@ -428,15 +399,12 @@ class SampleSourceStreamerTest {
   void handlesMalformedYamlHeader(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create file with malformed YAML
-    createChapterFile(sampleDir, "ch1.md",
-        """
+    createChapterFile(sampleDir, "ch1.md", """
             ---
             title: Chapter 1
             word_count: invalid_number
             age_rating: 18+
             ---
-            
             # Chapter 1
             Content""");
 
@@ -448,31 +416,29 @@ class SampleSourceStreamerTest {
 
     assertThat(capturedItems).hasSize(1);
     StreamItem item = capturedItems.get(0);
-    
-    // Should gracefully handle malformed YAML
+
     assertThat(item.content()).isEqualTo("# Chapter 1\nContent");
-    assertThat(item.meta("hasHeader")).isEqualTo(true); // Header found but partially parsed
+    assertThat(item.meta("hasHeader")).isEqualTo(true);
     assertThat(item.meta("title")).isEqualTo("Chapter 1");
-    assertThat(item.meta("wordCount")).isNull(); // Failed to parse invalid number
+    assertThat(item.meta("wordCount")).isNull();
   }
 
   @Test
   void skipsNonChapterFiles(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    // Create chapter files and other files
     createChapterFile(sampleDir, "ch1.md", """
         ---
         title: Chapter 1
         ---
-        
+
         # Chapter 1
         Content""");
     createChapterFile(sampleDir, "ch2.md", """
         ---
         title: Chapter 2
         ---
-        
+
         # Chapter 2
         Content""");
     createChapterFile(sampleDir, "README.md", "# README\nNot a chapter");
@@ -485,7 +451,6 @@ class SampleSourceStreamerTest {
     SampleSourceStreamer fsStreamer = new SampleSourceStreamer(mockSource, sampleDir);
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback);
 
-    // Should only process chapter files
     assertThat(capturedItems).hasSize(2);
     assertThat(capturedItems.get(0).meta("fileName")).isEqualTo("ch1.md");
     assertThat(capturedItems.get(1).meta("fileName")).isEqualTo("ch2.md");
@@ -510,13 +475,12 @@ class SampleSourceStreamerTest {
   void extractsTimeoutFromHeader(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    createChapterFile(sampleDir, "ch1.md",
-        """
+    createChapterFile(sampleDir, "ch1.md", """
             ---
             title: Chapter 1
             timeout: 1s
             ---
-            
+
             # Chapter 1
             Content""");
 
@@ -534,12 +498,11 @@ class SampleSourceStreamerTest {
   void defaultTimeoutIsZeroWhenAbsent(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    createChapterFile(sampleDir, "ch1.md",
-        """
+    createChapterFile(sampleDir, "ch1.md", """
             ---
             title: Chapter 1
             ---
-            
+
             # Chapter 1
             Content""");
 
@@ -557,13 +520,12 @@ class SampleSourceStreamerTest {
   void respectsTimeoutWait(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    createChapterFile(sampleDir, "ch1.md",
-        """
+    createChapterFile(sampleDir, "ch1.md", """
             ---
             title: Chapter 1
             timeout: 1s
             ---
-            
+
             # Chapter 1
             Content""");
 
@@ -575,7 +537,7 @@ class SampleSourceStreamerTest {
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback);
     long elapsed = System.currentTimeMillis() - start;
 
-    assertThat(elapsed).isGreaterThanOrEqualTo(950); // Allow 50ms tolerance
+    assertThat(elapsed).isGreaterThanOrEqualTo(950);
     assertThat(capturedItems).hasSize(1);
     assertThat(capturedItems.get(0).meta("timeout")).isEqualTo(Duration.ofSeconds(1));
   }

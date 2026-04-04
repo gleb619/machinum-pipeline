@@ -16,8 +16,6 @@ public record PipelineManifest(
     implements Manifest {
 
   public static PipelineManifest empty() {
-    return PipelineManifest.builder()
-        .body(PipelineBody.empty())
-        .build();
+    return PipelineManifest.builder().body(PipelineBody.empty()).build();
   }
 }

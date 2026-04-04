@@ -9,6 +9,7 @@ public record PipelineConfigManifest(
     @JsonAlias("window") Integer windowBatchSize,
     String cooldown,
     @JsonAlias("override") Boolean allowOverrideMode,
+    Boolean async,
     ManifestSnapshot snapshot) {
 
   public static PipelineConfigManifest empty() {
@@ -22,10 +23,7 @@ public record PipelineConfigManifest(
   }
 
   public enum ManifestSnapshot {
-
     copy,
     reference,
-
   }
-
 }

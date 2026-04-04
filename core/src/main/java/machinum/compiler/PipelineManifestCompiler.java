@@ -24,14 +24,14 @@ import org.mapstruct.factory.Mappers;
       StateCompiler.class,
       FallbackCompiler.class
     })
-//TODO: Add support of `snapshot`
+// TODO: Add support of `snapshot`
 public interface PipelineManifestCompiler
     extends YamlCompiler<PipelineManifest, PipelineDefinition> {
 
   PipelineManifestCompiler INSTANCE = Mappers.getMapper(PipelineManifestCompiler.class);
 
-  @Mapping(target = "labels", source = "labels", qualifiedByName = "simpleMap")
-  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "simpleMap")
+  @Mapping(target = "labels", qualifiedByName = "simpleMap")
+  @Mapping(target = "metadata", qualifiedByName = "simpleMap")
   @Mapping(target = "body", expression = "java(createBody(source, ctx))")
   PipelineDefinition compile(PipelineManifest source, @Context CompilationContext ctx);
 

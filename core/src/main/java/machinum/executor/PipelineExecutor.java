@@ -4,7 +4,6 @@ import static machinum.config.CoreConfig.coreConfig;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,9 +52,7 @@ public class PipelineExecutor {
         pipelineVariables);
 
     ExecutionContext execCtx = buildExecutionContext(ctx, pipeline);
-    ctx.registerContext(ExecutionPhaseContext.builder()
-            .context(execCtx)
-        .build());
+    ctx.registerContext(ExecutionPhaseContext.builder().context(execCtx).build());
 
     AtomicInteger processed = new AtomicInteger();
     AtomicInteger failed = new AtomicInteger();
@@ -79,22 +76,6 @@ public class PipelineExecutor {
     log.info("RUN lifecycle completed: processed={}, failed={}", processed.get(), failed.get());
 
     return ctx.toBuilder().currentPhase(LifecyclePhase.COMPLETE).build();
-  }
-
-  private Map<String, Object> toItemMap(StreamItem item) {
-    Map<String, Object> map = new ConcurrentHashMap<>();
-    map.put("content", item.content());
-    map.put("index", item.index());
-    if (item.file() != null) {
-      map.put("file", item.file().toString());
-    }
-    if (item.subIndex() != null) {
-      map.put("subIndex", item.subIndex());
-    }
-    if (item.metadata() != null) {
-      map.putAll(item.metadata());
-    }
-    return map;
   }
 
   private Streamer createStreamer(PipelineDefinition pipeline) {
@@ -129,9 +110,14 @@ public class PipelineExecutor {
     private final AtomicInteger processed;
     private int totalItems;
 
-    public PipelineCallback(LifecycleContext ctx, ExecutionContext execCtx, RunLogger runLogger,
+    public PipelineCallback(
+        LifecycleContext ctx,
+        ExecutionContext execCtx,
+        RunLogger runLogger,
         PipelineDefinition pipeline,
-        OneStepRunner runner, AtomicInteger failed, AtomicInteger processed) {
+        OneStepRunner runner,
+        AtomicInteger failed,
+        AtomicInteger processed) {
       this.ctx = ctx;
       this.execCtx = execCtx;
       this.runLogger = runLogger;
@@ -157,7 +143,7 @@ public class PipelineExecutor {
 
       for (StreamItem item : items) {
         String itemId = item.metaOrDefault("id", "item-" + item.index()).toString();
-        execCtx.updateItem(toItemMap(item), item.index());
+        execCtx.updateItem(item);
 
         log.debug("Processing item {}: {}", item.index(), itemId);
         runLogger.itemInfo(itemId, "Starting processing");

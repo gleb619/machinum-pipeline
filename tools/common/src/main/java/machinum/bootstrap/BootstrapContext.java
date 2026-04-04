@@ -25,5 +25,4 @@ public class BootstrapContext {
 
   @Builder.Default
   private Boolean force = Boolean.FALSE;
-
 }

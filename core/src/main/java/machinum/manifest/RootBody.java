@@ -31,8 +31,7 @@ public record RootBody(
 
   @Builder
   public record RootExecutionManifest(
-      Boolean parallel,
-      @JsonAlias("concurrency") Integer maxConcurrency) {
+      Boolean parallel, @JsonAlias("concurrency") Integer maxConcurrency) {
 
     public static RootExecutionManifest empty() {
       return RootExecutionManifest.builder()

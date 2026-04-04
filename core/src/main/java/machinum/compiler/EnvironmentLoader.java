@@ -20,10 +20,7 @@ public class EnvironmentLoader {
   private Map<String, String> environment = new ConcurrentHashMap<>();
 
   public EnvironmentLoader loadFromDirectory(Path dir) {
-    return loadFromPaths(
-      dir.resolve(".env"),
-      dir.resolve(".ENV")
-    );
+    return loadFromPaths(dir.resolve(".env"), dir.resolve(".ENV"));
   }
 
   public EnvironmentLoader loadFromPaths(Path... paths) {
@@ -68,5 +65,4 @@ public class EnvironmentLoader {
   public Map<String, String> getAll() {
     return new HashMap<>(environment);
   }
-
 }

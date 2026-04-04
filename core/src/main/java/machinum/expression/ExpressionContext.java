@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import machinum.definition.PipelineStateDefinition;
 import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
+import machinum.streamer.StreamItem;
 
 @Data
 @AllArgsConstructor
@@ -16,8 +17,7 @@ import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
 @NoArgsConstructor(access = AccessLevel.PUBLIC)
 public class ExpressionContext {
 
-  @Builder.Default
-  private Map<String, Object> item = new ConcurrentHashMap<>();
+  private StreamItem item;
 
   @Builder.Default
   private String text = "";

@@ -15,15 +15,11 @@ body: {}                 # Required - Pipeline configuration
 
 ```yaml
 config:
-  batch: number              # Default: 10
+  batch: number        # Default: 10
   window: number       # Default: 5
-  cooldown: duration               # Default: 5s
+  cooldown: duration   # Default: 5s
   override: boolean    # Default: false
-  execution:
-    mode: sequential|parallel     # Default: sequential
-    concurrency: number       # Default: 4
-    runner:
-      type: one_step|batch_step|batch_step_over
+  async: boolean       # Default: false
 ```
 
 ### variables

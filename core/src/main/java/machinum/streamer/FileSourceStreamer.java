@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
@@ -89,7 +90,7 @@ public final class FileSourceStreamer implements Streamer {
           String fileName = file.getFileName().toString();
 
           StreamItem item = StreamItem.builder()
-              .file(file)
+              .file(Optional.ofNullable(file))
               .index(index)
               .content(content)
               .meta("type", "source")

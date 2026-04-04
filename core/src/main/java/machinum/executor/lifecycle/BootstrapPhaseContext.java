@@ -15,10 +15,6 @@ public class BootstrapPhaseContext implements PhaseContext {
 
   @Override
   public LifecyclePhase[] getPhases() {
-    return new LifecyclePhase[] {
-        LifecyclePhase.BOOTSTRAP,
-        LifecyclePhase.AFTER_BOOTSTRAP
-    };
+    return new LifecyclePhase[] {LifecyclePhase.BOOTSTRAP, LifecyclePhase.AFTER_BOOTSTRAP};
   }
-
 }

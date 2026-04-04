@@ -15,7 +15,8 @@ import machinum.cleanup.CleanupPolicy.RunStatus;
 
 @Slf4j
 @RequiredArgsConstructor
-//TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+// TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of
+// hardcode
 @Deprecated
 public class RunScanner {
 

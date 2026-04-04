@@ -39,8 +39,8 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
 
   RootManifestCompiler INSTANCE = Mappers.getMapper(RootManifestCompiler.class);
 
-  @Mapping(target = "labels", source = "labels", qualifiedByName = "simpleMap")
-  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "simpleMap")
+  @Mapping(target = "labels", qualifiedByName = "simpleMap")
+  @Mapping(target = "metadata", qualifiedByName = "simpleMap")
   @Mapping(target = "body", expression = "java(compileBody(source, ctx))")
   RootDefinition compile(RootManifest source, @Context CompilationContext ctx);
 
@@ -115,9 +115,8 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     if (exec == null) {
       return null;
     }
-    Compiled<Boolean> parallel = CommonCompiler.INSTANCE.compileConstant(exec.parallel());
-    Compiled<Integer> maxConcurrency =
-        CommonCompiler.INSTANCE.compileConstant(exec.maxConcurrency());
+    Compiled<Boolean> parallel = CommonCompiler.INSTANCE.compile(exec.parallel(), ctx);
+    Compiled<Integer> maxConcurrency = CommonCompiler.INSTANCE.compile(exec.maxConcurrency(), ctx);
 
     return RootExecutionDefinition.builder()
         .parallel(parallel)
@@ -131,12 +130,10 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
       return null;
     }
 
-    Compiled<Integer> batchSize = CommonCompiler.INSTANCE.compileConstant(cfg.batchSize());
-    Compiled<Integer> windowBatchSize =
-        CommonCompiler.INSTANCE.compileConstant(cfg.windowBatchSize());
+    Compiled<Integer> batchSize = CommonCompiler.INSTANCE.compile(cfg.batchSize(), ctx);
+    Compiled<Integer> windowBatchSize = CommonCompiler.INSTANCE.compile(cfg.windowBatchSize(), ctx);
     Compiled<Duration> cooldown = CommonCompiler.INSTANCE.compileDuration(cfg.cooldown());
-    Compiled<Boolean> allowOverrideMode =
-        CommonCompiler.INSTANCE.compileConstant(cfg.allowOverrideMode());
+    Compiled<Boolean> allowOverrideMode = CommonCompiler.INSTANCE.compile(cfg.allowOverrideMode(), ctx);
 
     return PipelineConfigDefinition.builder()
         .batchSize(batchSize)
@@ -152,8 +149,8 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     if (cleanup == null) {
       return null;
     }
-    var successRuns = CommonCompiler.INSTANCE.compileConstant(cleanup.successRuns());
-    var failedRuns = CommonCompiler.INSTANCE.compileConstant(cleanup.failedRuns());
+    var successRuns = CommonCompiler.INSTANCE.compile(cleanup.successRuns(), ctx);
+    var failedRuns = CommonCompiler.INSTANCE.compile(cleanup.failedRuns(), ctx);
     return RootCleanupDefinition.builder()
         .pass(CommonCompiler.INSTANCE.compileDuration(cleanup.pass()))
         .fail(CommonCompiler.INSTANCE.compileDuration(cleanup.fail()))
@@ -182,7 +179,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     if (retry == null) {
       return null;
     }
-    Compiled<Integer> maxAttempts = CommonCompiler.INSTANCE.compileConstant(retry.maxAttempts());
+    Compiled<Integer> maxAttempts = CommonCompiler.INSTANCE.compile(retry.maxAttempts(), ctx);
     BackoffDefinition backoff = compileBackoff(retry.backoff(), ctx);
     return RetryDefinition.builder().maxAttempts(maxAttempts).backoff(backoff).build();
   }
@@ -193,11 +190,11 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
       return null;
     }
     return BackoffDefinition.builder()
-        .type(CommonCompiler.INSTANCE.compileConstant(backoff.type()))
+        .type(CommonCompiler.INSTANCE.compile(backoff.type(), ctx))
         .initialDelay(CommonCompiler.INSTANCE.compileDuration(backoff.initialDelay()))
         .maxDelay(CommonCompiler.INSTANCE.compileDuration(backoff.maxDelay()))
-        .multiplier(CommonCompiler.INSTANCE.compileConstant(backoff.multiplier()))
-        .jitter(CommonCompiler.INSTANCE.compileConstant(backoff.jitter()))
+        .multiplier(CommonCompiler.INSTANCE.compile(backoff.multiplier(), ctx))
+        .jitter(CommonCompiler.INSTANCE.compile(backoff.jitter(), ctx))
         .build();
   }
 
@@ -208,7 +205,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     }
     return ErrorStrategyDefinition.builder()
         .exception(CommonCompiler.INSTANCE.compileString(strategy.exception(), ctx))
-        .strategy(CommonCompiler.INSTANCE.compileConstant(strategy.strategy()))
+        .strategy(CommonCompiler.INSTANCE.compile(strategy.strategy(), ctx))
         .build();
   }
 }

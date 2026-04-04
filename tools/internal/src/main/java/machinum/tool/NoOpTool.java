@@ -15,6 +15,6 @@ public class NoOpTool implements Tool {
 
   @Override
   public ToolResult execute(ExecutionContext context) {
-    return ToolResult.success(Map.of());
+    return ToolResult.success(context, Map.of());
   }
 }

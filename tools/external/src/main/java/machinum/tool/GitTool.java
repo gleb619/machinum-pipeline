@@ -13,7 +13,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 
 @Slf4j
-//TODO: Add gitignore and gitattributes on bootstrap
+// TODO: Add gitignore and gitattributes on bootstrap
 public class GitTool implements Tool {
 
   private static final String GITHOOKS_DIR = ".githooks";
@@ -42,10 +42,10 @@ public class GitTool implements Tool {
       git.commit().setMessage(message).call();
 
       log.info("Commit created: {}", message);
-      return ToolResult.success(Map.of("commitMessage", message));
+      return ToolResult.success(context, Map.of("commitMessage", message));
     } catch (GitAPIException | IOException e) {
       log.error("Failed to create commit", e);
-      return ToolResult.failure("Failed to create commit: " + e.getMessage());
+      return ToolResult.failure(context, "Failed to create commit: " + e.getMessage());
     }
   }
 

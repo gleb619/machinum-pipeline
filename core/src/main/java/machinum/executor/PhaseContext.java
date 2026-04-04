@@ -23,5 +23,4 @@ public interface PhaseContext {
     SUSPEND,
     COMPLETE
   }
-
 }

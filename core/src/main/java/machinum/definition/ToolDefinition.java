@@ -11,5 +11,7 @@ public record ToolDefinition(
 
   @Builder
   public record ToolConfigDefinition(
-      Map<String, Object> inputSchema, Map<String, Object> outputSchema, CompiledMap<Object> params) {}
+      Map<String, Object> inputSchema,
+      Map<String, Object> outputSchema,
+      CompiledMap<Object> params) {}
 }

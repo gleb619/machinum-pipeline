@@ -31,7 +31,7 @@ public interface StateCompiler
   @Mapping(target = "description", qualifiedByName = "compileString")
   @Mapping(target = "condition", qualifiedByName = "compileString")
   @Mapping(target = "waitFor", qualifiedByName = "compileString")
-  @Mapping(target = "tools", source = "tools", qualifiedByName = "compileStateTools")
+  @Mapping(target = "tools", qualifiedByName = "compileStateTools")
   PipelineStateDefinition compile(PipelineStateManifest source, @Context CompilationContext ctx);
 
   @Mapping(target = "type", qualifiedByName = "compileString")
@@ -40,11 +40,11 @@ public interface StateCompiler
 
   @Mapping(target = "groupBy", qualifiedByName = "compileString")
   @Mapping(target = "output", qualifiedByName = "compileString")
-  @Mapping(target = "tools", source = "tools", qualifiedByName = "compileStateTools")
+  @Mapping(target = "tools", qualifiedByName = "compileStateTools")
   WindowAggregationDefinition compileAggregation(
       WindowAggregationManifest source, @Context CompilationContext ctx);
 
-  @Mapping(target = "branches", source = "branches", qualifiedByName = "compileBranches")
+  @Mapping(target = "branches", qualifiedByName = "compileBranches")
   ForkDefinition compileFork(ForkManifest source, @Context CompilationContext ctx);
 
   @Named("compileBranches")
@@ -57,7 +57,7 @@ public interface StateCompiler
   }
 
   @Mapping(target = "name", qualifiedByName = "compileString")
-  @Mapping(target = "states", source = "states", qualifiedByName = "compileNestedStates")
+  @Mapping(target = "states", qualifiedByName = "compileNestedStates")
   ForkBranchDefinition compileBranch(ForkBranchManifest source, @Context CompilationContext ctx);
 
   @Named("compileNestedStates")

@@ -33,5 +33,4 @@ public record LifecycleContext(
   public void registerContext(PhaseContext context) {
     data.put(currentPhase, context);
   }
-
 }

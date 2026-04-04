@@ -21,7 +21,8 @@ public class ToolManifestDeserializer extends ValueDeserializer<ToolManifest> {
     }
 
     if (node.isString()) {
-      return ToolsBody.ToolManifest.builder().name(node.asString())
+      return ToolsBody.ToolManifest.builder()
+          .name(node.asString())
           .config(ToolConfigManifest.empty())
           .build();
     }

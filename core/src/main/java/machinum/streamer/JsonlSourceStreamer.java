@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import machinum.definition.PipelineDefinition.SourceDefinition;
@@ -134,7 +135,7 @@ public final class JsonlSourceStreamer implements Streamer {
     }
 
     StreamItem.StreamItemBuilder builder =
-        StreamItem.builder().file(sourceFile).index(index).content(content);
+        StreamItem.builder().file(Optional.ofNullable(sourceFile)).index(index).content(content);
 
     if (id != null) {
       builder.meta("id", id);
