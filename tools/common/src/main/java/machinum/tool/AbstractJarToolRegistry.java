@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.ServiceLoader;
@@ -44,7 +45,6 @@ public abstract class AbstractJarToolRegistry implements ToolRegistry {
         return;
       }
 
-      // Load all JARs into a single shared classloader
       List<URL> jarUrls = jarPaths.stream()
           .map(p -> {
             try {
@@ -85,7 +85,7 @@ public abstract class AbstractJarToolRegistry implements ToolRegistry {
   public void register(Tool tool) {
     String name = tool.info().name();
     tools.put(name, tool);
-    log.debug("Registered tool: {}", name);
+    log.trace("Registered tool: {}", name);
   }
 
   @Override
@@ -154,7 +154,7 @@ public abstract class AbstractJarToolRegistry implements ToolRegistry {
           }
           return tool;
         })
-        .filter(tool -> tool != null)
+        .filter(Objects::nonNull)
         .toList();
 
     List<Tool> sortedTools = sortTools(selected);

@@ -78,8 +78,7 @@ immutable run-specific config.
 
 Controlled by root config:
 
-- `body.config.execution.snapshot.enabled: true` (default)
-- `body.config.execution.snapshot.mode: copy|reference` (`copy` default)
+- `body.config.snapshot: copy|reference` (`copy` default)
 
 For `batch_step_over`/`batch`, checkpoint MUST include a deterministic cursor:
 
@@ -216,7 +215,7 @@ All JAR-based registries (`BuiltInToolRegistry`, `FileToolRegistry`) maintain cl
 
 ### 5.4 Registry Auto-Detection
 
-When `registry` is `null` in `tools.yaml`, the system auto-detects based on precedence:
+When `registry` is missing in `tools.yaml`, the system auto-detects based on precedence:
 
 1. `MT_BUILTIN_TOOLS_ENABLED` environment variable
 2. `machinum.builtin.tools` system property

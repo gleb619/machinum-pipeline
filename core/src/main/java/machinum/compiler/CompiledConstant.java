@@ -1,5 +1,6 @@
 package machinum.compiler;
 
+import java.util.Objects;
 import lombok.Builder;
 
 @Builder
@@ -12,5 +13,10 @@ public record CompiledConstant<T>(T constant) implements Compiled<T> {
   @Override
   public T get() {
     return constant;
+  }
+
+  @Override
+  public String toString() {
+    return Objects.toString(constant);
   }
 }

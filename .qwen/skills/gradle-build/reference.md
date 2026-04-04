@@ -4,7 +4,7 @@
 
 Based on current project layout:
 
-- Root: `/home/boris/WORKSPACE/machinum-pipeline/`
+- Root: `./`
 - Modules: `core/`, `cli/`, `server/`
 - Gradle files: `gradle/libs.versions.toml`, `settings.gradle`
 

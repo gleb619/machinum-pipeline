@@ -1,5 +1,6 @@
 package machinum.definition;
 
+import java.time.Duration;
 import java.util.Map;
 import lombok.Builder;
 import machinum.compiler.Compiled;
@@ -13,14 +14,14 @@ public record RootDefinition(
     String type,
     String name,
     String description,
-    Map<String, Object> labels,
-    Map<String, Object> metadata,
+    Map<String, String> labels,
+    Map<String, String> metadata,
     RootBodyDefinition body)
     implements Definition {
 
   @Builder
   public record RootBodyDefinition(
-      CompiledMap variables,
+      CompiledMap<String> variables,
       RootExecutionDefinition execution,
       FallbackDefinition fallback,
       PipelineConfigDefinition config,
@@ -31,14 +32,13 @@ public record RootDefinition(
   @Builder
   public record RootExecutionDefinition(
       Compiled<Boolean> parallel,
-      Compiled<Integer> maxConcurrency,
-      Compiled<Boolean> manifestSnapshotEnabled,
-      Compiled<String> manifestSnapshotMode) {}
+      Compiled<Integer> maxConcurrency
+  ) {}
 
   @Builder
   public record RootCleanupDefinition(
-      Compiled<String> success,
-      Compiled<String> failed,
-      Compiled<String> successRuns,
-      Compiled<String> failedRuns) {}
+      Compiled<Duration> pass,
+      Compiled<Duration> fail,
+      Compiled<Integer> successRuns,
+      Compiled<Integer> failedRuns) {}
 }

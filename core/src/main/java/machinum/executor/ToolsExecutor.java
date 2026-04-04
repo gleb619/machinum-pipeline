@@ -10,6 +10,7 @@ import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import machinum.bootstrap.BootstrapContext;
+import machinum.executor.lifecycle.BootstrapPhaseContext;
 import machinum.manifest.ToolsBody.BootstrapToolManifest;
 import machinum.manifest.ToolsBody.ToolRegistryType;
 import machinum.tool.HttpToolRegistry;
@@ -76,7 +77,7 @@ public class ToolsExecutor {
       }
 
       try {
-        Map<String, Object> variables = ctx.root().body().variables().get();
+        Map<String, String> variables = ctx.root().body().variables().asMap();
         Map<String, String> secrets = ctx.root().body().secrets().asMap();
 
         List<String> targetTools = toolsManifest.body().bootstrap() != null
@@ -91,6 +92,10 @@ public class ToolsExecutor {
             .data(new HashMap<>(variables))
             .force(force)
             .build();
+
+        ctx.registerContext(BootstrapPhaseContext.builder()
+                .context(bootstrapContext)
+            .build());
 
         toolRegistry.bootstrapAll(bootstrapContext, targetTools);
         log.info("All tools installed successfully");
@@ -117,7 +122,7 @@ public class ToolsExecutor {
       }
 
       try {
-        Map<String, Object> variables = ctx.root().body().variables().get();
+        Map<String, String> variables = ctx.root().body().variables().asMap();
         Map<String, String> secrets = ctx.root().body().secrets().asMap();
 
         List<String> targetTools = toolsManifest.body().bootstrap() != null

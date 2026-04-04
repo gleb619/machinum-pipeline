@@ -11,9 +11,9 @@ public interface Definition {
 
   String description();
 
-  Map<String, Object> labels();
+  Map<String, String> labels();
 
-  Map<String, Object> metadata();
+  Map<String, String> metadata();
 
   BodyDefinition body();
 }

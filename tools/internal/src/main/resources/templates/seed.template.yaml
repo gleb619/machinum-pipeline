@@ -21,17 +21,17 @@ body:
       max: 3
       backoff:
         type: fixed
-        start: 2s
+        start: 1s
 
   # Cleanup policy
   cleanup:
-    success: 7d
-    failed: 14d
-    success-runs: 5
-    failed-runs: 10
+    pass: 7d
+    fail: 14d
+    passes: 5
+    fails: 10
 
   # Environment variables
-  env-files:
+  secrets:
     - ".env"
   env:
     # Add your environment variables here

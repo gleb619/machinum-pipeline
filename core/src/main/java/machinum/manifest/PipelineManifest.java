@@ -13,4 +13,11 @@ public record PipelineManifest(
     @Singular Map<String, String> labels,
     @Singular("metadata") Map<String, String> metadata,
     PipelineBody body)
-    implements Manifest {}
+    implements Manifest {
+
+  public static PipelineManifest empty() {
+    return PipelineManifest.builder()
+        .body(PipelineBody.empty())
+        .build();
+  }
+}

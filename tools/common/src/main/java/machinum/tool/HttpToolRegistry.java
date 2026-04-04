@@ -76,7 +76,6 @@ public class HttpToolRegistry implements ToolRegistry {
 
       log.info("Tools downloaded and cached to: {}", cacheFile);
 
-      // Re-initialize the delegate so it scans the cacheDirectory for downloaded jars
       this.delegate = new FileToolRegistry(this.cacheDirectory);
 
     } catch (Exception e) {

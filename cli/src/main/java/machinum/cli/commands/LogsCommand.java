@@ -24,8 +24,10 @@ public class LogsCommand implements Callable<Integer> {
   private String workspace;
 
   @Override
+  @Deprecated
   public Integer call() throws Exception {
     Path workspaceDir = Path.of(workspace).toAbsolutePath();
+    //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
     Path logDir = workspaceDir.resolve(".mt/logs").resolve(runId);
 
     if (!Files.exists(logDir)) {

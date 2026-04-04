@@ -195,7 +195,7 @@ The [`examples/`](../examples/) folder at the project root contains working exam
 
 ```
 examples/
-├── setup-test/                        # Test setup/download/bootstrap commands
+├── sample-test/                       # Test setup/download/bootstrap commands
 │   ├── seed.yaml                      # Root configuration
 │   ├── .mt/
 │   │   └── tools.yaml                 # Tool definitions
@@ -203,7 +203,7 @@ examples/
 │       ├── chapters/
 │       │   └── 1.md                   # Sample input
 │       └── manifests/
-│           └── setup-test-pipeline.yaml  # Test pipeline
+│           └── pipeline.yaml          # Test pipeline
 └── expression-test/                   # Test expression resolver integration
     ├── seed.yaml
     ├── .mt/
@@ -222,14 +222,14 @@ Each example is a self-contained workspace that can be run independently:
 
 ```bash
 # Setup example workspace
-./gradlew :cli:run --args="setup -w ./examples/setup-test"
+./gradlew :cli:run --args="setup -w ./examples/sample-test"
 
 # Run pipeline
-./gradlew :cli:run --args="run -p setup-test-pipeline -w ./examples/setup-test"
+./gradlew :cli:run --args="run -p setup-test-pipeline -w ./examples/sample-test"
 
 # Check results
-ls examples/setup-test/build/
-ls examples/setup-test/.mt/state/
+ls examples/sample-test/build/
+ls examples/sample-test/.mt/state/
 ```
 
 ### Available Examples
@@ -238,5 +238,6 @@ ls examples/setup-test/.mt/state/
 |--------------------|----------------------------------------------|
 | `setup-test`       | Test setup/download/bootstrap commands       |
 | `expression-test`  | Test expression resolver and Groovy scripts  |
+| `sample-test`      | Test sample chapters with `samples://default` source, nooptool, testtool, save-content |
 
 See [CLI Commands](cli-commands.md) for command reference.

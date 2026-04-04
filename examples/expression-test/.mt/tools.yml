@@ -8,16 +8,18 @@ body:
   tools:
     # Example: Internal tool (SPI-based)
     - name: peek
+      extends: nooptool
       description: "Log input for debugging"
       config:
         log-level: info
 
     # Example: External shell script
     - name: uppercase-transformer
+      extends: shell
       description: "Convert text to uppercase"
       config:
-        work-dir: "{{rootDir}}"
         runtime: shell
+        work-dir: "{{rootDir}}"
         source:
           type: file
           url: ".mt/scripts/transformers/uppercase.sh"
@@ -25,9 +27,9 @@ body:
 
     # Example: External Groovy script
     - name: text-validator
+      extends: groovy
       description: "Validate text content"
       config:
-        return-type: Boolean
         runtime: groovy
         source:
           type: file

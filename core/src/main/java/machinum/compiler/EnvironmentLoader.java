@@ -20,9 +20,10 @@ public class EnvironmentLoader {
   private Map<String, String> environment = new ConcurrentHashMap<>();
 
   public EnvironmentLoader loadFromDirectory(Path dir) {
-    loadEnvFile(dir.resolve(".env"));
-    loadEnvFile(dir.resolve(".ENV"));
-    return this;
+    return loadFromPaths(
+      dir.resolve(".env"),
+      dir.resolve(".ENV")
+    );
   }
 
   public EnvironmentLoader loadFromPaths(Path... paths) {
@@ -34,7 +35,7 @@ public class EnvironmentLoader {
 
   void loadEnvFile(Path path) {
     if (!Files.exists(path)) {
-      log.debug("Env file not found (optional): {}", path);
+      log.trace("Env file not found (optional): {}", path);
       return;
     }
 
@@ -68,7 +69,4 @@ public class EnvironmentLoader {
     return new HashMap<>(environment);
   }
 
-  public void set(String name, String value) {
-    environment.put(name, value);
-  }
 }

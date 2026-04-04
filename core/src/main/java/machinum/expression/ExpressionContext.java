@@ -53,7 +53,7 @@ public class ExpressionContext {
   private Map<String, String> env = new ConcurrentHashMap<>();
 
   @Builder.Default
-  private Map<String, Object> variables = new ConcurrentHashMap<>();
+  private Map<String, String> variables = new ConcurrentHashMap<>();
 
   private ScriptRegistry scripts;
 }

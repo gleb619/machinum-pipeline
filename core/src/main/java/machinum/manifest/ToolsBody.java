@@ -33,7 +33,7 @@ public record ToolsBody(
   @Builder
   @JsonDeserialize(using = BootstrapToolManifestDeserializer.class)
   public record BootstrapToolManifest(
-      String name, String description, Map<String, Object> config) {}
+      String name, String description, @Singular("configItem") Map<String, Object> config) {}
 
   @Builder
   @JsonDeserialize(using = ToolManifestDeserializer.class)
@@ -41,9 +41,15 @@ public record ToolsBody(
 
   @Builder
   public record ToolConfigManifest(
-      @JsonAlias("input-schema") Map<String, Object> inputSchema,
-      @JsonAlias("output-schema") Map<String, Object> outputSchema,
-      @JsonAnySetter Map<String, Object> params) {}
+      @JsonAlias("input") @Singular("input") Map<String, Object> inputSchema,
+      @JsonAlias("output") @Singular("output") Map<String, Object> outputSchema,
+      @JsonAnySetter @Singular Map<String, Object> params) {
+
+    public static ToolConfigManifest empty() {
+      return ToolConfigManifest.builder()
+          .build();
+    }
+  }
 
   public enum ToolRegistryType {
     file,

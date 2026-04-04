@@ -3,23 +3,20 @@ package machinum.compiler;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 
-public final class CompiledSecret {
+public final class CompiledSecret extends CompiledMap<String> {
 
-  private final Map<String, Compiled<String>> internal;
-
-  private CompiledSecret(Map<String, Compiled<String>> internal) {
-    this.internal = internal;
+  private CompiledSecret(Map<String, Compiled<String>> compiledValues) {
+    super(compiledValues);
   }
 
   public static CompiledSecret empty() {
     return new CompiledSecret(Collections.emptyMap());
   }
 
-  public static CompiledSecret of(
+  public static CompiledSecret from(
       Map<String, String> raw, ExpressionContext context, ExpressionResolver resolver) {
     if (raw == null || raw.isEmpty()) {
       return new CompiledSecret(Collections.emptyMap());
@@ -32,25 +29,8 @@ public final class CompiledSecret {
     return new CompiledSecret(Collections.unmodifiableMap(map));
   }
 
-  public Optional<String> get(String key) {
-    Compiled<String> val = internal.get(key);
-    return val != null ? Optional.ofNullable(val.get()) : Optional.empty();
-  }
-
-  public boolean isEmpty() {
-    return internal.isEmpty();
-  }
-
-  public Map<String, String> asMap() {
-    Map<String, String> result = new LinkedHashMap<>();
-    for (Map.Entry<String, Compiled<String>> entry : internal.entrySet()) {
-      result.put(entry.getKey(), entry.getValue().get());
-    }
-    return result;
-  }
-
   @Override
   public String toString() {
-    return "CompiledSecret{size=" + internal.size() + "}";
+    return "CompiledSecret{size=%d}".formatted(compiledValues.size());
   }
 }

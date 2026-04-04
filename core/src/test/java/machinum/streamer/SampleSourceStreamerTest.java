@@ -48,11 +48,32 @@ class SampleSourceStreamerTest {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
     createChapterFile(sampleDir, "ch1.md",
-        "---\ntitle: Chapter 1\nword_count: 100\n---\n\n# Chapter 1\nBody content here");
+        """
+            ---
+            title: Chapter 1
+            word_count: 100
+            ---
+            
+            # Chapter 1
+            Body content here""");
     createChapterFile(sampleDir, "ch2.md",
-        "---\ntitle: Chapter 2\nword_count: 200\n---\n\n# Chapter 2\nMore body content");
+        """
+            ---
+            title: Chapter 2
+            word_count: 200
+            ---
+            
+            # Chapter 2
+            More body content""");
     createChapterFile(sampleDir, "ch3.md",
-        "---\ntitle: Chapter 3\nword_count: 300\n---\n\n# Chapter 3\nFinal body content");
+        """
+            ---
+            title: Chapter 3
+            word_count: 300
+            ---
+            
+            # Chapter 3
+            Final body content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
@@ -77,9 +98,19 @@ class SampleSourceStreamerTest {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
     createChapterFile(sampleDir, "ch1.md",
-        "---\ntitle: \"Chapter 1: Salvage\"\nword_count: 620\nage_rating: \"18+\"\n" +
-        "content_warnings: [\"mild swearing\", \"implied poverty violence\"]\n" +
-        "defects:\n  - typo\n  - missing punctuation\n---\n\n# Chapter 1\nBody content");
+        """
+            ---
+            title: "Chapter 1: Salvage"
+            word_count: 620
+            age_rating: "18+"
+            content_warnings: ["mild swearing", "implied poverty violence"]
+            defects:
+              - typo
+              - missing punctuation
+            ---
+            
+            # Chapter 1
+            Body content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
@@ -107,10 +138,34 @@ class SampleSourceStreamerTest {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
     // Create files in non-alphabetic order
-    createChapterFile(sampleDir, "ch11.md", "---\ntitle: Chapter 11\n---\n\n# Chapter 11\nContent");
-    createChapterFile(sampleDir, "ch2.md", "---\ntitle: Chapter 2\n---\n\n# Chapter 2\nContent");
-    createChapterFile(sampleDir, "ch1.md", "---\ntitle: Chapter 1\n---\n\n# Chapter 1\nContent");
-    createChapterFile(sampleDir, "ch9.md", "---\ntitle: Chapter 9\n---\n\n# Chapter 9\nContent");
+    createChapterFile(sampleDir, "ch11.md", """
+        ---
+        title: Chapter 11
+        ---
+        
+        # Chapter 11
+        Content""");
+    createChapterFile(sampleDir, "ch2.md", """
+        ---
+        title: Chapter 2
+        ---
+        
+        # Chapter 2
+        Content""");
+    createChapterFile(sampleDir, "ch1.md", """
+        ---
+        title: Chapter 1
+        ---
+        
+        # Chapter 1
+        Content""");
+    createChapterFile(sampleDir, "ch9.md", """
+        ---
+        title: Chapter 9
+        ---
+        
+        # Chapter 9
+        Content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
@@ -132,11 +187,23 @@ class SampleSourceStreamerTest {
     Files.createDirectories(sampleDir);
     // Create chapters 1-9 and 11, missing chapter 10
     for (int i = 1; i <= 9; i++) {
-      createChapterFile(sampleDir, "ch" + i + ".md",
-          "---\ntitle: Chapter " + i + "\n---\n\n# Chapter " + i + "\nContent");
+      createChapterFile(sampleDir, "ch%d.md".formatted(i),
+          """
+          ---
+          title: Chapter %d
+          ---
+          
+          # Chapter %d
+          Content""".formatted(i, i));
     }
     createChapterFile(sampleDir, "ch11.md",
-        "---\ntitle: Chapter 11\n---\n\n# Chapter 11\nContent");
+        """
+            ---
+            title: Chapter 11
+            ---
+            
+            # Chapter 11
+            Content""");
 
     AtomicReference<StreamError> capturedError = new AtomicReference<>();
     List<StreamItem> capturedItems = new ArrayList<>();
@@ -161,11 +228,23 @@ class SampleSourceStreamerTest {
     Files.createDirectories(sampleDir);
     // Create chapters 1-9 and 11, missing chapter 10
     for (int i = 1; i <= 9; i++) {
-      createChapterFile(sampleDir, "ch" + i + ".md",
-          "---\ntitle: Chapter " + i + "\n---\n\n# Chapter " + i + "\nContent");
+      createChapterFile(sampleDir, "ch%d.md".formatted(i),
+          """
+          ---
+          title: Chapter %d
+          ---
+          
+          # Chapter %d
+          Content""".formatted(i, i));
     }
     createChapterFile(sampleDir, "ch11.md",
-        "---\ntitle: Chapter 11\n---\n\n# Chapter 11\nContent");
+        """
+            ---
+            title: Chapter 11
+            ---
+            
+            # Chapter 11
+            Content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
@@ -185,8 +264,14 @@ class SampleSourceStreamerTest {
     Files.createDirectories(sampleDir);
     // Create 5 chapter files
     for (int i = 1; i <= 5; i++) {
-      createChapterFile(sampleDir, "ch" + i + ".md",
-          "---\ntitle: Chapter " + i + "\n---\n\n# Chapter " + i + "\nContent");
+      createChapterFile(sampleDir, "ch%d.md".formatted(i),
+          """
+          ---
+          title: Chapter %d
+          ---
+          
+          # Chapter %d
+          Content""".formatted(i, i));
     }
 
     SampleSourceStreamer batchedStreamer = new SampleSourceStreamer(mockSource, sampleDir, 2);
@@ -215,8 +300,14 @@ class SampleSourceStreamerTest {
     Files.createDirectories(sampleDir);
     // Create 5 chapter files
     for (int i = 1; i <= 5; i++) {
-      createChapterFile(sampleDir, "ch" + i + ".md",
-          "---\ntitle: Chapter " + i + "\n---\n\n# Chapter " + i + "\nContent");
+      createChapterFile(sampleDir, "ch%d.md".formatted(i),
+          """
+          ---
+          title: Chapter %d
+          ---
+          
+          # Chapter %d
+          Content""".formatted(i, i));
     }
 
     List<StreamItem> capturedItems = new ArrayList<>();
@@ -298,7 +389,13 @@ class SampleSourceStreamerTest {
   void onStreamStartAndOnStreamEndCalled(@TempDir Path tempDir) throws IOException {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
-    createChapterFile(sampleDir, "ch1.md", "---\ntitle: Chapter 1\n---\n\n# Chapter 1\nContent");
+    createChapterFile(sampleDir, "ch1.md", """
+        ---
+        title: Chapter 1
+        ---
+        
+        # Chapter 1
+        Content""");
 
     AtomicBoolean streamStarted = new AtomicBoolean(false);
     AtomicBoolean streamEnded = new AtomicBoolean(false);
@@ -333,7 +430,15 @@ class SampleSourceStreamerTest {
     Files.createDirectories(sampleDir);
     // Create file with malformed YAML
     createChapterFile(sampleDir, "ch1.md",
-        "---\ntitle: Chapter 1\nword_count: invalid_number\nage_rating: 18+\n---\n\n# Chapter 1\nContent");
+        """
+            ---
+            title: Chapter 1
+            word_count: invalid_number
+            age_rating: 18+
+            ---
+            
+            # Chapter 1
+            Content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
@@ -356,8 +461,20 @@ class SampleSourceStreamerTest {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
     // Create chapter files and other files
-    createChapterFile(sampleDir, "ch1.md", "---\ntitle: Chapter 1\n---\n\n# Chapter 1\nContent");
-    createChapterFile(sampleDir, "ch2.md", "---\ntitle: Chapter 2\n---\n\n# Chapter 2\nContent");
+    createChapterFile(sampleDir, "ch1.md", """
+        ---
+        title: Chapter 1
+        ---
+        
+        # Chapter 1
+        Content""");
+    createChapterFile(sampleDir, "ch2.md", """
+        ---
+        title: Chapter 2
+        ---
+        
+        # Chapter 2
+        Content""");
     createChapterFile(sampleDir, "README.md", "# README\nNot a chapter");
     createChapterFile(sampleDir, "notes.txt", "Some notes");
     createChapterFile(sampleDir, "extra.md", "# Extra\nNot matching pattern");
@@ -394,7 +511,14 @@ class SampleSourceStreamerTest {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
     createChapterFile(sampleDir, "ch1.md",
-        "---\ntitle: Chapter 1\ntimeout: 5s\n---\n\n# Chapter 1\nContent");
+        """
+            ---
+            title: Chapter 1
+            timeout: 1s
+            ---
+            
+            # Chapter 1
+            Content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
@@ -403,7 +527,7 @@ class SampleSourceStreamerTest {
     fsStreamer.stream(tempDir, StreamCursor.initial(), callback);
 
     assertThat(capturedItems).hasSize(1);
-    assertThat(capturedItems.get(0).meta("timeout")).isEqualTo(Duration.ofSeconds(5));
+    assertThat(capturedItems.get(0).meta("timeout")).isEqualTo(Duration.ofSeconds(1));
   }
 
   @Test
@@ -411,7 +535,13 @@ class SampleSourceStreamerTest {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
     createChapterFile(sampleDir, "ch1.md",
-        "---\ntitle: Chapter 1\n---\n\n# Chapter 1\nContent");
+        """
+            ---
+            title: Chapter 1
+            ---
+            
+            # Chapter 1
+            Content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);
@@ -428,7 +558,14 @@ class SampleSourceStreamerTest {
     Path sampleDir = tempDir.resolve("sample");
     Files.createDirectories(sampleDir);
     createChapterFile(sampleDir, "ch1.md",
-        "---\ntitle: Chapter 1\ntimeout: 1s\n---\n\n# Chapter 1\nContent");
+        """
+            ---
+            title: Chapter 1
+            timeout: 1s
+            ---
+            
+            # Chapter 1
+            Content""");
 
     List<StreamItem> capturedItems = new ArrayList<>();
     StreamerCallback callback = createCapturingCallback(capturedItems);

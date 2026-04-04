@@ -1,5 +1,7 @@
 package machinum.tool;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.ServiceLoader;
 import lombok.extern.slf4j.Slf4j;
 
@@ -7,11 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 public class BuiltInToolRegistry extends AbstractJarToolRegistry {
 
   public BuiltInToolRegistry init() {
-    int classpathTools = loadToolsFromClasspath();
-    log.info("Loaded {} tools from classpath", classpathTools);
-
+    loadToolsFromClasspath();
     if (tools.isEmpty()) {
-      log.info("No tools found on classpath, scanning Gradle build output...");
+      log.warn("No tools found on classpath, scanning Gradle build output...");
     }
 
     if (tools.isEmpty()) {
@@ -26,18 +26,17 @@ public class BuiltInToolRegistry extends AbstractJarToolRegistry {
     return this;
   }
 
-  private int loadToolsFromClasspath() {
-    int count = 0;
+  private void loadToolsFromClasspath() {
     ServiceLoader<Tool> loader = ServiceLoader.load(Tool.class);
+    List<String> names = new ArrayList<>();
     for (Tool tool : loader) {
       try {
         register(tool);
-        count++;
-        log.debug("Loaded tool '{}' from classpath", tool.info().name());
+        names.add(tool.info().name());
       } catch (Exception e) {
         log.error("Failed to register tool from classpath: {}", tool.info().name(), e);
       }
     }
-    return count;
+    log.debug("Loaded tools from classpath: ({}) {}", names.size(), names);
   }
 }

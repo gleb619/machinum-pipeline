@@ -21,10 +21,14 @@ The fastest way to get started is to explore the working examples in the [`examp
 ls examples/
 
 # Run setup for the setup-test example
-./gradlew :cli:run --args="setup -w ./examples/setup-test"
+./gradlew :cli:run --args="setup -w ./examples/sample-test"
 
 # Run a pipeline
-./gradlew :cli:run --args="run -p setup-test-pipeline -w ./examples/setup-test"
+./gradlew :cli:run --args="run -p setup-test-pipeline -w ./examples/sample-test"
+
+# Test sample chapters with chapter-writer, nooptool, testtool, save-content
+./gradlew :cli:run --args="setup -w ./examples/sample-test"
+./gradlew :cli:run --args="run -p sample-pipeline -w ./examples/sample-test"
 
 # Test empty/minimal body configurations
 ./gradlew :cli:run --args="setup -w ./examples/empty-body-test"
@@ -115,8 +119,8 @@ body:
   tools:
     - name: mock-processor
       description: "Mock processor for demo"
+      extends: shell
       config: 
-        type: shell
         script: "./.mt/scripts/stub.sh"
 ```
 

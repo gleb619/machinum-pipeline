@@ -13,8 +13,8 @@ public record ToolsDefinition(
     String type,
     String name,
     String description,
-    Map<String, Object> labels,
-    Map<String, Object> metadata,
+    Map<String, String> labels,
+    Map<String, String> metadata,
     ToolsBodyDefinition body)
     implements Definition {
 
@@ -27,5 +27,5 @@ public record ToolsDefinition(
 
   @Builder
   public record BootstrapToolDefinition(
-      Compiled<String> name, Compiled<String> description, CompiledMap config) {}
+      Compiled<String> name, Compiled<String> description, CompiledMap<Object> config) {}
 }

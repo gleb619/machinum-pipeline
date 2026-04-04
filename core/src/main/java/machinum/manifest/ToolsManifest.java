@@ -13,4 +13,11 @@ public record ToolsManifest(
     @Singular Map<String, String> labels,
     @Singular("metadata") Map<String, String> metadata,
     ToolsBody body)
-    implements Manifest {}
+    implements Manifest {
+
+  public static ToolsManifest empty() {
+    return ToolsManifest.builder()
+        .body(ToolsBody.empty())
+        .build();
+  }
+}

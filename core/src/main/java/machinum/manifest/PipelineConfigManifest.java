@@ -9,14 +9,23 @@ public record PipelineConfigManifest(
     @JsonAlias("window") Integer windowBatchSize,
     String cooldown,
     @JsonAlias("override") Boolean allowOverrideMode,
-    PipelineExecution execution) {
+    ManifestSnapshot snapshot) {
 
-  @Builder
-  public record PipelineExecution(
-      @JsonAlias("snapshot") ManifestSnapshotConfig manifestSnapshot,
-      String mode,
-      @JsonAlias("concurrency") Integer maxConcurrency) {}
+  public static PipelineConfigManifest empty() {
+    return PipelineConfigManifest.builder()
+        .batchSize(10)
+        .windowBatchSize(5)
+        .cooldown("5s")
+        .allowOverrideMode(Boolean.TRUE)
+        .snapshot(ManifestSnapshot.copy)
+        .build();
+  }
 
-  @Builder
-  public record ManifestSnapshotConfig(Boolean enabled, String mode) {}
+  public enum ManifestSnapshot {
+
+    copy,
+    reference,
+
+  }
+
 }

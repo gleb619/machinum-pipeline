@@ -13,4 +13,12 @@ public record RootManifest(
     @Singular Map<String, String> labels,
     @Singular("metadata") Map<String, String> metadata,
     RootBody body)
-    implements Manifest {}
+    implements Manifest {
+
+  public static RootManifest empty() {
+    return RootManifest.builder()
+        .body(RootBody.empty())
+        .build();
+  }
+
+}

@@ -13,6 +13,7 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 
 @Slf4j
+//TODO: Add gitignore and gitattributes on bootstrap
 public class GitTool implements Tool {
 
   private static final String GITHOOKS_DIR = ".githooks";
@@ -33,7 +34,7 @@ public class GitTool implements Tool {
 
   @Override
   public ToolResult execute(ExecutionContext context) {
-    String message = (String) context.get("commitMessage", "feat: update");
+    String message = context.get("commitMessage", "feat: update");
     Path workspaceRoot = Path.of("").normalize().toAbsolutePath();
 
     try (Git git = Git.open(workspaceRoot.toFile())) {
@@ -82,7 +83,6 @@ public class GitTool implements Tool {
     Path githooksDir = workspaceRoot.resolve(GITHOOKS_DIR);
     Files.createDirectories(githooksDir);
 
-    // Create commit-msg hook (validates message format and runs Node script)
     Path commitMsgHook = githooksDir.resolve(COMMIT_MSG_HOOK);
     if (Files.notExists(commitMsgHook)) {
       String hookContent = loadCommitMsgHookContent();

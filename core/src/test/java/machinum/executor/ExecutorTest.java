@@ -10,7 +10,7 @@ import machinum.compiler.PipelineManifestCompiler;
 import machinum.compiler.RootManifestCompiler;
 import machinum.compiler.ToolsManifestCompiler;
 import machinum.definition.PipelineDefinition;
-import machinum.executor.LifecycleContext.LifecyclePhase;
+import machinum.executor.PhaseContext.LifecyclePhase;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;

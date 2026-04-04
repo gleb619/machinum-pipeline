@@ -26,8 +26,8 @@ registry:
   - name: string         # Required - Tool identifier
     config:
       # Tool-specific configuration
-      input-schema: {}    # JSON Schema for external tools
-      output-schema: {}   # JSON Schema for external tools
+      input: {}    # JSON Schema for external tools
+      output: {}   # JSON Schema for external tools
       any-key: any-value  # A @JsonAnySetter captor, that handle all values
 ```
 
@@ -86,14 +86,14 @@ cache:
 
 ```yaml
 config:
-  input-schema:
+  input:
     type: object
     properties:
       content:
         type: string
         minLength: 1
     required: [content]
-  output-schema:
+  output:
     type: object
     properties:
       result:

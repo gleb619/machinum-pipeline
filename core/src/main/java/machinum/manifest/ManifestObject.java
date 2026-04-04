@@ -8,6 +8,7 @@ public record ManifestObject(Path filepath, Type type) {
     root,
     tools,
     pipeline,
+    registry,
     unknown,
   }
 }

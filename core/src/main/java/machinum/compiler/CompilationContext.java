@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
+import machinum.executor.PhaseContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 
@@ -13,11 +14,20 @@ public record CompilationContext(
 
     ScriptRegistry scriptRegistry,
 
-    @Singular Map<String, Object> variables,
+    @Singular Map<String, String> variables,
 
     @Singular("env") Map<String, String> environment,
 
     Path workspaceDir,
 
     // TODO: Remove extra, it's a runtime info, that can't acquired at compile time
-    @Deprecated(forRemoval = true) String runId) {}
+    @Deprecated(forRemoval = true) String runId) implements PhaseContext {
+
+  @Override
+  public LifecyclePhase[] getPhases() {
+    return new LifecyclePhase[] {
+        LifecyclePhase.COMPILE
+    };
+  }
+
+}

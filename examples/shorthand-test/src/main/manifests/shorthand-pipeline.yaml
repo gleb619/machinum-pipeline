@@ -2,9 +2,10 @@ version: 1.0.0
 type: pipeline
 name: "shorthand-pipeline"
 body:
-  items:
-    type: chapter
-    path: "src/main/chapters"
+  source:
+    uri: samples://default
+
+  # `body.states` optional, we can declare tools to execute without any state
   tools:
     - nooptool
     - tool: testtool

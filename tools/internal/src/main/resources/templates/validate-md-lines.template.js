@@ -34,7 +34,7 @@ enFiles.forEach(file => {
 
       if (enLine !== ruLine) {
         diffCount++;
-        if (diffCount <= 5) { // Show first 5 mismatches
+        if (diffCount <= 5) {
           console.log(`  Line ${i+1}:`);
           console.log(`    en: "${enLine.substring(0, 80)}${enLine.length > 80 ? '...' : ''}"`);
           console.log(`    ru: "${ruLine.substring(0, 80)}${ruLine.length > 80 ? '...' : ''}"`);

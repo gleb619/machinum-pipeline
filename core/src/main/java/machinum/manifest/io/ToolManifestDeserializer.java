@@ -1,6 +1,7 @@
 package machinum.manifest.io;
 
 import machinum.manifest.ToolsBody;
+import machinum.manifest.ToolsBody.ToolConfigManifest;
 import machinum.manifest.ToolsBody.ToolManifest;
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.JsonParser;
@@ -20,7 +21,9 @@ public class ToolManifestDeserializer extends ValueDeserializer<ToolManifest> {
     }
 
     if (node.isString()) {
-      return ToolsBody.ToolManifest.builder().name(node.asString()).build();
+      return ToolsBody.ToolManifest.builder().name(node.asString())
+          .config(ToolConfigManifest.empty())
+          .build();
     }
 
     if (node.isObject()) {

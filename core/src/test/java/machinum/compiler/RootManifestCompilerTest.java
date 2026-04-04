@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import javax.script.ScriptEngineManager;
@@ -17,7 +18,6 @@ import machinum.manifest.PipelineBody.ErrorStrategy;
 import machinum.manifest.PipelineBody.ErrorStrategyManifest;
 import machinum.manifest.PipelineBody.FallbackManifest;
 import machinum.manifest.PipelineConfigManifest;
-import machinum.manifest.PipelineConfigManifest.ManifestSnapshotConfig;
 import machinum.manifest.RootBody;
 import machinum.manifest.RootBody.RootCleanupManifest;
 import machinum.manifest.RootBody.RootExecutionManifest;
@@ -77,21 +77,19 @@ class RootManifestCompilerTest {
     void testStoresPrivateValues() {
       ExpressionContext exprCtx = ExpressionContext.builder().build();
       CompiledSecret secret =
-          CompiledSecret.of(Map.of("DB_PASS", "s3cret", "API_KEY", "abc123"), exprCtx, resolver);
+          CompiledSecret.from(Map.of("DB_PASS", "s3cret", "API_KEY", "abc123"), exprCtx, resolver);
 
       assertThat(secret.get("DB_PASS")).isEqualTo(Optional.of("s3cret"));
       assertThat(secret.get("API_KEY")).isEqualTo(Optional.of("abc123"));
       assertThat(secret.get("MISSING")).isEmpty();
-      assertThat(secret.isEmpty()).isFalse();
     }
 
     @Test
     @DisplayName("handles empty map")
     void testEmptySecret() {
       ExpressionContext exprCtx = ExpressionContext.builder().build();
-      CompiledSecret secret = CompiledSecret.of(Map.of(), exprCtx, resolver);
+      CompiledSecret secret = CompiledSecret.from(Map.of(), exprCtx, resolver);
 
-      assertThat(secret.isEmpty()).isTrue();
       assertThat(secret.get("ANY")).isEmpty();
     }
 
@@ -99,7 +97,7 @@ class RootManifestCompilerTest {
     @DisplayName("compiles lazily via get()")
     void testLazyEvaluation() {
       ExpressionContext exprCtx = ExpressionContext.builder().build();
-      CompiledSecret secret = CompiledSecret.of(Map.of("STATIC", "value1"), exprCtx, resolver);
+      CompiledSecret secret = CompiledSecret.from(Map.of("STATIC", "value1"), exprCtx, resolver);
 
       assertThat(secret.get("STATIC")).isEqualTo(Optional.of("value1"));
     }
@@ -175,10 +173,6 @@ class RootManifestCompilerTest {
               .execution(RootExecutionManifest.builder()
                   .parallel(true)
                   .maxConcurrency(4)
-                  .manifestSnapshot(ManifestSnapshotConfig.builder()
-                      .enabled(true)
-                      .mode("copy")
-                      .build())
                   .build())
               .build())
           .build();
@@ -189,8 +183,6 @@ class RootManifestCompilerTest {
       assertThat(def.body().execution()).isNotNull();
       assertThat(def.body().execution().parallel().get()).isTrue();
       assertThat(def.body().execution().maxConcurrency().get()).isEqualTo(4);
-      assertThat(def.body().execution().manifestSnapshotEnabled().get()).isTrue();
-      assertThat(def.body().execution().manifestSnapshotMode().get()).isEqualTo("copy");
     }
 
     @Test
@@ -201,7 +193,7 @@ class RootManifestCompilerTest {
           .type("root")
           .name("test")
           .body(RootBody.builder()
-              .config(PipelineConfigManifest.builder()
+              .pipelineConfig(PipelineConfigManifest.builder()
                   .batchSize(10)
                   .windowBatchSize(5)
                   .cooldown("5s")
@@ -216,7 +208,7 @@ class RootManifestCompilerTest {
       assertThat(def.body().config()).isNotNull();
       assertThat(def.body().config().batchSize().get()).isEqualTo(10);
       assertThat(def.body().config().windowBatchSize().get()).isEqualTo(5);
-      assertThat(def.body().config().cooldown().get()).isEqualTo("5s");
+      assertThat(def.body().config().cooldown().get()).isEqualTo(Duration.ofSeconds(5));
       assertThat(def.body().config().allowOverrideMode().get()).isFalse();
     }
 
@@ -229,8 +221,8 @@ class RootManifestCompilerTest {
           .name("test")
           .body(RootBody.builder()
               .cleanup(RootCleanupManifest.builder()
-                  .success("5d")
-                  .failed("7d")
+                  .pass("5d")
+                  .fail("7d")
                   .successRuns("5")
                   .failedRuns("10")
                   .build())
@@ -241,8 +233,8 @@ class RootManifestCompilerTest {
       RootDefinition def = RootManifestCompiler.INSTANCE.compile(manifest, ctx);
 
       assertThat(def.body().cleanup()).isNotNull();
-      assertThat(def.body().cleanup().success().get()).isEqualTo("5d");
-      assertThat(def.body().cleanup().failed().get()).isEqualTo("7d");
+      assertThat(def.body().cleanup().pass().get()).isEqualTo(Duration.ofDays(5));
+      assertThat(def.body().cleanup().fail().get()).isEqualTo(Duration.ofDays(7));
     }
 
     @Test
@@ -254,7 +246,6 @@ class RootManifestCompilerTest {
           .name("test")
           .body(RootBody.builder()
               .fallback(FallbackManifest.builder()
-                  .defaultStrategy("retry")
                   .strategy(ErrorStrategyManifest.builder()
                       .exception("TimeoutException")
                       .strategy(ErrorStrategy.retry)
@@ -267,7 +258,6 @@ class RootManifestCompilerTest {
       RootDefinition def = RootManifestCompiler.INSTANCE.compile(manifest, ctx);
 
       assertThat(def.body().fallback()).isNotNull();
-      assertThat(def.body().fallback().defaultStrategy().get()).isEqualTo("retry");
     }
 
     @Test

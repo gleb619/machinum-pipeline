@@ -3,11 +3,13 @@
 > **Part of:** [Technical Design Document Index](tdd.md)
 
 > **Examples:** See [`examples/`](../examples/) folder for working YAML configurations:
-> - [`examples/setup-test/seed.yaml`](../examples/setup-test/seed.yaml) - Root configuration example
-> - [`examples/setup-test/.mt/tools.yaml`](../examples/setup-test/.mt/tools.yaml) - Tools manifest example
-> - [`examples/setup-test/src/main/manifests/setup-test-pipeline.yaml`](../examples/setup-test/src/main/manifests/setup-test-pipeline.yaml) - Pipeline manifest example
-> - [`examples/empty-body-test/`](../examples/empty-body-test/) - Minimal configurations with empty body
+> - [`examples/empty-body-test/empty`](../examples/empty-body-test/empty) - Configuration without body field
+> - [`examples/empty-body-test/minimal`](../examples/empty-body-test/minimal) - Configuration with `body: {}`
+> - [`examples/empty-body-test/partial`](../examples/empty-body-test/partial) - Configuration with some data in file
 > - [`examples/fully-empty-folder/`](../examples/fully-empty-folder/) - Empty folder with no manifests (defaults applied)
+> - [`examples/sample-test/`](../examples/sample-test/) - Basic example with folder structure
+> - [`examples/expression-test/`](../examples/expression-test/) - Basic example with {{ expression }} usage
+> - [`examples/shorthand-test/`](../examples/shorthand-test/) - Basic example with short declaration form
 
 ## 1. Common Base Structure
 
@@ -15,31 +17,29 @@ All YAML files share this base:
 
 ```yaml
 version: 1.0.0
-type: pipeline|tools|root     # Discriminator
+type: pipeline|tools|root|manifest     # Discriminator
 name: string
-description: string           # Optional
+description: string                    # Optional
 labels:
   key: value
 metadata:
   author: string
   created: timestamp
-body: { }                      # Type-specific payload (optional - defaults to empty)
+body: { }                              # Type-specific payload (optional - defaults to empty)
 ```
 
 **Note:** The `body` field is **optional**. When omitted or empty, default values are applied:
 - Maps default to empty maps
 - Lists default to empty lists
-- Objects default to null (runtime uses system defaults)
+- Objects default to empty instances (runtime uses system defaults), not nulls
 
 **Default Application:**
 
 When manifests are missing entirely (empty folder), defaults are applied automatically by [`Executor.setDefaults()`](../core/src/main/java/machinum/executor/Executor.java#L72-L91):
 - Missing `seed.yaml` → [`RootBody.empty()`](../core/src/main/java/machinum/manifest/RootBody.java#L34-L40)
 - Missing `.mt/tools.yaml` → [`ToolsBody.empty()`](../core/src/main/java/machinum/manifest/ToolsBody.java#L36-L41)
-- Missing pipeline → loaded on-demand during `run` command
-
-See [`examples/empty-body-test/`](../examples/empty-body-test/) for working examples of minimal configurations.
-See [`examples/fully-empty-folder/`](../examples/fully-empty-folder/) for empty folder setup example.
+- Missing pipeline → If name specified, then loaded on-demand during `run` command. By default, the oldest file 
+  will be used(by creation date) or → [`PipelineBody.empty()`](../core/src/main/java/machinum/manifest/PipelineBody.java#L24-L33).
 
 ---
 
@@ -58,11 +58,11 @@ name: "Minimal Root"
 
 When `body` is omitted or empty:
 - `variables` → empty map
-- `execution` → `null` (runtime uses defaults: parallel=false, concurrency=4)
-- `fallback` → `null` (runtime uses default strategy)
-- `config` → `null` (runtime uses default batch sizes)
-- `cleanup` → `null` (runtime uses default retention)
-- `env-files` → empty list
+- `execution` → `empty` (runtime uses defaults: parallel=false, concurrency=4)
+- `fallback` → `empty` (runtime uses default strategy)
+- `config` → `empty` (runtime uses default batch sizes)
+- `cleanup` → `empty` (runtime uses default retention)
+- `secrets` → empty list
 - `env` → empty map
 
 Applied via [`RootBody.empty()`](../core/src/main/java/machinum/manifest/RootBody.java#L34-L40).
@@ -83,17 +83,16 @@ body:
     book_id: my_book_123
   execution:
     parallel: false              # default
-    concurrency: 4           # default
+    concurrency: 4               # default
     resume: true                 # default
     snapshot:
-      enabled: true              # default
       mode: copy                 # copy|reference; default: copy
   fallback:
     retry:
       max: 3
       backoff:
         type: fixed              # fixed|linear|exponential; default: fixed
-        start: 2s
+        start: 1s
         max: 30s
         multiplier: 2.0
         jitter: 0.15
@@ -104,17 +103,17 @@ body:
         strategy: skip
       - exception: ".*"
         strategy: stop
-  pipeline-config:
+  config:
     batch: 10
     window: 5
     cooldown: 5s
     override: false
   cleanup:
-    success: 5d
-    failed: 7d
-    success-runs: 5
-    failed-runs: 10
-  env-files:
+    pass: 5d
+    fail: 7d
+    passes: 5
+    fails: 10
+  secrets:
     - ".env"
     - ".ENV"
   env:
@@ -140,7 +139,7 @@ name: "Minimal Tools"
 ### Default Values
 
 When `body` is omitted or empty:
-- `registry` → `null` (auto-detect: builtin if dev mode, http otherwise)
+- `registry` → `builtin` (auto-detect: builtin if dev mode, http otherwise)
 - `bootstrap` → empty list (no tools bootstrapped)
 - `tools` → empty list (no custom tools defined)
 
@@ -187,8 +186,8 @@ body:
     # Groovy script tool
     - name: text-validator
       description: "Validates text content"
+      extends: groovy
       config:
-        type: groovy
         script: "./.mt/scripts/validate.groovy"
 
     # Git tool - initializes repo and creates commits
@@ -226,7 +225,6 @@ body:
   
   # Tools list shorthand
   tools:
-    - qwen-summary              # shorthand: name only
     - name: translator          # object form: full config
       description: "Translate text"
       config:
@@ -297,13 +295,13 @@ name: "minimal-pipeline"
 
 When `body` is omitted or empty:
 - `variables` → empty map
-- `config` → `null` (runtime uses default batch sizes, no cooldown)
-- `source` → `null` (must be provided for execution)
-- `items` → `null` (must be provided for execution)
+- `config` → `empty` (runtime uses default batch sizes, no cooldown)
+- `source` → `void` (must be provided for execution)
+- `items` → `none` (must be provided for execution)
 - `states` → empty list (no processing states)
 - `tools` → empty list (no stateless tools)
 - `listeners` → empty map (no lifecycle listeners)
-- `fallback` → `null` (runtime uses default error strategy)
+- `fallback` → `default` (runtime uses default error strategy)
 
 Applied via [`PipelineBody.empty()`](../core/src/main/java/machinum/manifest/PipelineBody.java#L35-L41).
 
@@ -348,13 +346,14 @@ The `source.uri` field uses URI syntax to define data source type and configurat
 
 **Supported URI Schemas:**
 
-| Schema     | Purpose                    | Example                                          | Streamer                           |
-|------------|----------------------------|--------------------------------------------------|------------------------------------|
-| `file://`  | Local files/folders        | `file://src/main/chapters?format=md`             | `FileSourceStreamer`               |
-| `http://`  | HTTP endpoint              | `http://example.com/data.json`                   | `HttpSourceStreamer`               |
-| `https://` | Secure HTTP endpoint       | `https://api.example.com/items`                  | `HttpSourceStreamer`               |
-| `void://`  | No-op source               | `void://`                                        | `VoidSourceStreamer`               |
-| `script://`| Custom Groovy loader       | `script://.mt/scripts/custom-loader.groovy`      | Post-MVP (throws error for now)    |
+| Schema       | Purpose              | Example                                     | Streamer                        |
+|--------------|----------------------|---------------------------------------------|---------------------------------|
+| `file://`    | Local files/folders  | `file://src/main/chapters?format=md`        | `FileSourceStreamer`            |
+| `http://`    | HTTP endpoint        | `http://example.com/data.json`              | `HttpSourceStreamer`            |
+| `https://`   | Secure HTTP endpoint | `https://api.example.com/items`             | `HttpSourceStreamer`            |
+| `samples://` | Classpath resources  | `samples://default`                         | `SampleSourceStreamer`          |
+| `void://`    | No-op source         | `void://`                                   | `VoidSourceStreamer`            |
+| `script://`  | Custom Groovy loader | `script://.mt/scripts/custom-loader.groovy` | Post-MVP (throws error for now) |
 
 **Query Parameters:**
 
@@ -411,6 +410,36 @@ body:
 
 The pipeline runs successfully with 0 items processed. See [Technical Design §3.4](technical-design.md#34-stream-lifecycle-management).
 
+**Samples Source (`samples://`):**
+
+Use `samples://default` to stream defective sample chapters from classpath resources (`/sample/`).
+These chapters contain intentional defects for testing pipeline robustness. Useful for:
+- Testing pipeline configuration without external data
+- Validating defect detection and handling
+- Learning Machinum Pipeline with built-in test data
+
+```yaml
+# Samples pipeline example
+version: 1.0.0
+type: pipeline
+name: "samples-test"
+body:
+  source:
+    uri: "samples://default"
+  states:
+    - name: PROCESS
+      tools:
+        - nooptool
+        - tool: testtool
+          input: "{{text}}"
+```
+
+The `SampleSourceStreamer` streams chapters like `ch1.md` through `ch11.md` (chapter 10 missing).
+Each chapter has YAML frontmatter with metadata (title, defects, timeout, age_rating).
+See [core/src/main/resources/sample/README.md](../core/src/main/resources/sample/README.md) for the complete defect list.
+See [SampleSourceStreamer](../core/src/main/java/machinum/streamer/SampleSourceStreamer.java) for implementation.
+See [examples/sample-test/](../examples/sample-test/) for a working example.
+
 ### 4.x `source` vs `items` — Data Acquisition Layer
 
 The pipeline manifest accepts **exactly one** of two mutually exclusive data acquisition modes:
@@ -418,13 +447,16 @@ The pipeline manifest accepts **exactly one** of two mutually exclusive data acq
 | Mode     | Purpose                                                                                                     | Typical Use                                                                                                |
 |----------|-------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
 | `source` | **Preprocessor** — acquires raw data from external locations and converts it into pipeline-compatible items | FTP extraction, archive decompression, HTTP download, S3 fetch, git clone, or any custom acquisition logic |
-| `items`  | **Direct collection** — references items already available in the workspace as POJOs/chapters               | Pre-downloaded chapters, local JSON/JSONL files, workspace-resident documents                              |
+| `items`  | **Direct collection** — references items already available in the workspace as POJOs/chapters               | Pre-downloaded chapters, local MD/MDX files, workspace-resident documents                                  |
 
 **When to use `source`:**
-Use a preprocessor when data must be fetched, extracted, or transformed before the pipeline can consume it. The `source.uri` field defines *where* and *how* to acquire items using URI syntax — file paths, URLs, archives, or custom loader scripts that convert external formats (PDF, DOCX, remote APIs) into the pipeline's internal item representation.
+Use a preprocessor when data must be fetched, extracted, or transformed before the pipeline can consume it. The
+`source.uri` field defines *where* and *how* to acquire items using URI syntax — file paths, URLs, archives, or custom
+loader scripts that convert external formats (PDF, DOCX, remote APIs) into the pipeline's internal item representation.
 
 **When to use `items`:**
-Use direct items when your data already exists in the expected format within the workspace. No acquisition step is needed — the pipeline reads items directly from `src/main/chapters/` or similar locations.
+Use direct items when your data already exists in the expected format within the workspace. No acquisition step is
+needed — the pipeline reads items directly from `src/main/chapters/` or similar locations.
 
 **Flow:**
 ```
@@ -449,21 +481,9 @@ body:
     override: false
     execution:
       snapshot:
-        enabled: true
+        mode: reference
       mode: sequential           # sequential|parallel
       concurrency: 4
-      runner:
-        type: one_step           # one_step|batch_step|batch_step_over
-        batch: "{{config.batch}}"
-        step_over_cursor_key: "{{run.cursor.state_item_index}}"
-      listeners:
-        - name: run-log-listener
-        - name: webhook-listener
-          type: script
-          path: "{{scripts/listeners/webhook-listener.groovy}}"
-      interceptors:
-        - name: validation-interceptor
-        - name: metrics-interceptor
     runner:
       type: one_step             # one_step|batch_step|batch_step_over
       options:
@@ -584,19 +604,24 @@ body:
     - name: FINISHED
       wait-for: "{{config.cooldown}}"
 
+  interceptors:
+    # Shorthand form
+    - validation-interceptor
+    - tool: metrics-interceptor
+
   listeners:
-    on_item_complete:
-      - tool: md-formatter
+    after:
+      # Shorthand form
+      - md-formatter
       - tool: metrics-collector
         # non-blocking logging, because there no other tool that await the result
         async: true
-    on_pipeline_complete:
+    finish:
       - tool: notify-webhook
         input: "{{translated_text}}"
       - log-summary                # Shorthand form
 
   fallback:
-    default: retry
     retry:
       max: 3
       backoff: exponential
@@ -655,30 +680,3 @@ The root `body` fields are deserialized into typed Java records in `machinum.man
 | `tool`             | Current tool descriptor                      |
 | `retryAttempt`     | Current retry number for the tool            |
 
----
-
-## 5. Runtime Compilation
-
-> **Note:** All string values supporting `{{...}}` expressions are compiled to `CompiledValue<T>` at load time. See [Value Compilers](value-compilers.md) for details.
-
-**Compilation Process:**
-1. YAML loaded → Raw POJO (e.g., `ToolDefinition`)
-2. Compiler transforms → Compiled POJO (e.g., `CompiledToolDefinition`)
-3. String fields → `CompiledValue<String>` wrappers
-4. Map fields → `CompiledMap` wrappers
-5. At runtime: `CompiledValue.get()` evaluates Groovy expression
-
-**Example:**
-```yaml
-# YAML
-condition: "{{ item.size() > 0 }}"
-tools:
-  - tool: "{{env.DEFAULT_TOOL}}"
-```
-
-```java
-// Compiled
-CompiledStateDefinition state = compiler.compile(rawState, ctx);
-boolean shouldRun = state.evaluateCondition();  // Evaluates: item.size() > 0
-String toolName = state.getStateTools().get(0).getNameValue();  // Evaluates: {{env.DEFAULT_TOOL}}
-```

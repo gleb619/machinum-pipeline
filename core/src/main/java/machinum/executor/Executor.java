@@ -1,6 +1,9 @@
 package machinum.executor;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -13,17 +16,14 @@ import machinum.compiler.ToolsManifestCompiler;
 import machinum.definition.PipelineDefinition;
 import machinum.definition.RootDefinition;
 import machinum.definition.ToolsDefinition;
-import machinum.executor.LifecycleContext.LifecyclePhase;
+import machinum.executor.PhaseContext.LifecyclePhase;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
-import machinum.manifest.PipelineBody;
 import machinum.manifest.PipelineManifest;
-import machinum.manifest.RootBody;
 import machinum.manifest.RootManifest;
-import machinum.manifest.ToolsBody;
 import machinum.manifest.ToolsManifest;
-import machinum.pipeline.ErrorHandler;
-import machinum.tool.FileToolRegistry;
+import machinum.pipeline.ErrorStrategyResolver;
+import machinum.tool.ToolRegistry;
 import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
@@ -34,8 +34,8 @@ public class Executor {
   private final RootManifestCompiler rootCompiler;
   private final ToolsManifestCompiler toolsCompiler;
   private final PipelineManifestCompiler pipelineCompiler;
-  private final ErrorHandler errorHandler;
-  private final FileToolRegistry toolRegistry;
+  private final ErrorStrategyResolver errorStrategyResolver;
+  private final ToolRegistry toolRegistry;
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
   private final ToolsExecutor toolsExecutor;
@@ -49,6 +49,8 @@ public class Executor {
     log.info("Finding manifests in {}", workspaceDir);
 
     String runId = UUID.randomUUID().toString();
+    //TODO: move to compilation phase
+    @Deprecated(forRemoval = true)
     CompilationContext compilationContext =
         CompilationContext.builder().runId(runId).workspaceDir(workspaceDir).build();
 
@@ -56,11 +58,13 @@ public class Executor {
     Optional<ToolsManifest> toolsManifest = manifestLoader.loadToolsManifest(workspaceDir);
     Optional<PipelineManifest> pipelineManifest = manifestLoader.loadAnyPipeline(workspaceDir);
 
+    LifecyclePhase phase = LifecyclePhase.FIND;
     LifecycleContext ctx = LifecycleContext.builder()
         .workspaceDir(workspaceDir)
         .compilationContext(compilationContext)
         .runId(runId)
-        .currentPhase(LifecyclePhase.FIND)
+        .data(new LinkedHashMap<>(Map.of(phase, PhaseContext.empty(phase))))
+        .currentPhase(phase)
         .rootManifest(rootManifest)
         .toolsManifest(toolsManifest)
         .pipelineManifest(pipelineManifest)
@@ -73,18 +77,19 @@ public class Executor {
   }
 
   public LifecycleContext setDefaults(LifecycleContext ctx) {
+    log.info("Set defaults manifests");
     var newCtx = ctx.toBuilder();
     if (ctx.rootManifest().isEmpty()) {
       newCtx.rootManifest(
-          Optional.of(RootManifest.builder().body(RootBody.empty()).build()));
+          Optional.of(RootManifest.empty()));
     }
     if (ctx.toolsManifest().isEmpty()) {
       newCtx.toolsManifest(
-          Optional.of(ToolsManifest.builder().body(ToolsBody.empty()).build()));
+          Optional.of(ToolsManifest.empty()));
     }
     if (ctx.pipelineManifest().isEmpty()) {
       newCtx.pipelineManifest(
-          Optional.of(PipelineManifest.builder().body(PipelineBody.empty()).build()));
+          Optional.of(PipelineManifest.empty()));
     }
 
     return newCtx.build();
@@ -110,7 +115,7 @@ public class Executor {
         .tools(tools)
         .build();
 
-    log.info("Compiled manifests: root={}, tools={}", root, tools != null);
+    log.info("Compiled manifests: root={}, hasTools={}", root, tools != null);
 
     return compiledCtx;
   }
@@ -120,26 +125,39 @@ public class Executor {
   }
 
   public LifecycleContext executeBootstrap(LifecycleContext ctx, boolean force) {
-    return toolsExecutor.executeBootstrap(ctx, force);
+    return toolsExecutor.executeBootstrap(ctx.toBuilder()
+        .currentPhase(LifecyclePhase.BOOTSTRAP)
+        .build(), force);
   }
 
   public LifecycleContext executeAfterBootstrap(LifecycleContext ctx) {
-    return toolsExecutor.executeAfterBootstrap(ctx);
+    return toolsExecutor.executeAfterBootstrap(ctx.toBuilder()
+        .currentPhase(LifecyclePhase.AFTER_BOOTSTRAP)
+        .build());
   }
 
-  private PipelineDefinition loadPipeline(
-      Path workspaceDir, String pipelineName, CompilationContext ctx) {
-    Optional<PipelineManifest> manifest =
-        manifestLoader.loadPipelineManifest(workspaceDir, pipelineName);
-    if (manifest.isEmpty()) {
-      log.debug("No pipeline manifest found for name '{}' in {}", pipelineName, workspaceDir);
-      return null;
+  //TODO: USe `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` here
+  public LifecycleContext verify(LifecycleContext ctx) {
+    Path workspaceDir = ctx.workspaceDir();
+    log.debug("Verifying tools are bootstrapped in {}", workspaceDir);
+
+    Path mtDir = workspaceDir.resolve(".mt");
+    if (Files.notExists(mtDir)) {
+      log.warn("No .mt directory found in {} - run 'setup' first", workspaceDir);
+      throw new IllegalStateException("Work dir doesn't found, please run `setup` command first");
     }
 
-    log.info("Loading pipeline manifest '{}' from {}", pipelineName, workspaceDir);
-    return pipelineCompiler.compile(manifest.get(), ctx);
+    Optional<ToolsManifest> toolsManifest = manifestLoader.loadToolsManifest(workspaceDir);
+    if (toolsManifest.isEmpty()) {
+      log.warn("No tools manifest (.mt/tools.yaml) found in {}", workspaceDir);
+      throw new IllegalStateException("tools manifest doesn't found, please run `setup` command first");
+    }
+
+    log.debug("Tools verification passed for {}", workspaceDir);
+    return ctx;
   }
 
+  //TODO: Add support of resume
   public LifecycleContext executePipeline(
       String pipelineName, Path workspaceDir, boolean resume, String runId) {
 
@@ -164,10 +182,12 @@ public class Executor {
           "Pipeline manifest for '" + pipelineName + "' not found in " + workspaceDir);
     }
 
-    log.info("Pipeline '{}' loaded successfully, ready for execution", pipelineName);
-    return ctx;
+    log.info("Pipeline '{}' loaded successfully, executing run", pipelineName);
+    
+    return executeRun(pipelineName, workspaceDir);
   }
 
+  //TODO: Update method, accept `LifecycleContext` with `PhaseContext` for details
   public LifecycleContext executeRun(String pipelineName, Path workspaceDir) {
     log.info("Starting RUN lifecycle: pipeline={} in {}", pipelineName, workspaceDir);
 
@@ -181,12 +201,27 @@ public class Executor {
       throw new IllegalStateException(
           "Pipeline manifest for '" + pipelineName + "' not found in " + workspaceDir);
     }
-    ctx = ctx.toBuilder().pipeline(pipeline).build();
+    ctx = ctx.toBuilder().pipeline(pipeline)
+        .currentPhase(LifecyclePhase.RUN)
+        .build();
 
     // TODO: Use `core/src/main/java/machinum/config/CoreConfig.java` here
     PipelineExecutor pipelineExecutor = new PipelineExecutor(
-        toolRegistry, expressionResolver, scriptRegistry, errorHandler, objectMapper);
+        toolRegistry, expressionResolver, scriptRegistry, errorStrategyResolver, objectMapper);
     return pipelineExecutor.executeRun(ctx, pipeline);
+  }
+
+  private PipelineDefinition loadPipeline(
+      Path workspaceDir, String pipelineName, CompilationContext ctx) {
+    Optional<PipelineManifest> manifest =
+        manifestLoader.loadPipelineManifest(workspaceDir, pipelineName);
+    if (manifest.isEmpty()) {
+      log.debug("No pipeline manifest found for name '{}' in {}", pipelineName, workspaceDir);
+      return null;
+    }
+
+    log.info("Loading pipeline manifest '{}' from {}", pipelineName, workspaceDir);
+    return pipelineCompiler.compile(manifest.get(), ctx);
   }
 
   @RequiredArgsConstructor
@@ -228,6 +263,19 @@ public class Executor {
 
     public ExecutorChain executeAfterBootstrap() {
       context.set(executor.executeAfterBootstrap(context.get()));
+
+      return this;
+    }
+
+    public ExecutorChain verify() {
+      context.set(executor.verify(context.get()));
+
+      return this;
+    }
+
+    public ExecutorChain executePipeline() {
+      //TODO: update `executePipeline` method first
+      //context.set(executor.executePipeline(context.get()));
 
       return this;
     }

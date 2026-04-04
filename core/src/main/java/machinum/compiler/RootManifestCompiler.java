@@ -3,6 +3,7 @@ package machinum.compiler;
 import static machinum.config.CoreConfig.coreConfig;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -11,7 +12,6 @@ import machinum.definition.BackoffDefinition;
 import machinum.definition.PipelineConfigDefinition;
 import machinum.definition.PipelineDefinition.ErrorStrategyDefinition;
 import machinum.definition.PipelineDefinition.FallbackDefinition;
-import machinum.definition.PipelineExecutionDefinition;
 import machinum.definition.RetryDefinition;
 import machinum.definition.RootDefinition;
 import machinum.definition.RootDefinition.RootBodyDefinition;
@@ -24,8 +24,6 @@ import machinum.manifest.PipelineBody.ErrorStrategyManifest;
 import machinum.manifest.PipelineBody.FallbackManifest;
 import machinum.manifest.PipelineBody.RetryManifest;
 import machinum.manifest.PipelineConfigManifest;
-import machinum.manifest.PipelineConfigManifest.ManifestSnapshotConfig;
-import machinum.manifest.PipelineConfigManifest.PipelineExecution;
 import machinum.manifest.RootBody;
 import machinum.manifest.RootBody.RootCleanupManifest;
 import machinum.manifest.RootBody.RootExecutionManifest;
@@ -41,8 +39,8 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
 
   RootManifestCompiler INSTANCE = Mappers.getMapper(RootManifestCompiler.class);
 
-  @Mapping(target = "labels", source = "labels", qualifiedByName = "compileSimpleMap")
-  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "compileSimpleMap")
+  @Mapping(target = "labels", source = "labels", qualifiedByName = "simpleMap")
+  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "simpleMap")
   @Mapping(target = "body", expression = "java(compileBody(source, ctx))")
   RootDefinition compile(RootManifest source, @Context CompilationContext ctx);
 
@@ -59,9 +57,9 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     ExpressionContext exprCtx = CommonCompiler.INSTANCE.createExpressionContext(ctx);
     ExpressionResolver resolver = ctx.resolver();
 
-    CompiledMap variables = CommonCompiler.INSTANCE.compileMap(body.variables(), ctx);
+    CompiledMap<String> variables = CommonCompiler.INSTANCE.compileMap(body.variables(), ctx);
     RootExecutionDefinition execution = compileExecution(body.execution(), ctx);
-    PipelineConfigDefinition config = compileConfig(body.config(), ctx);
+    PipelineConfigDefinition config = compileConfig(body.pipelineConfig(), ctx);
     RootCleanupDefinition cleanup = compileCleanup(body.cleanup(), ctx);
     FallbackDefinition fallback = compileFallback(body.fallback(), ctx);
     CompiledSecret secrets = compileSecrets(body, ctx, exprCtx, resolver);
@@ -90,7 +88,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
       if (workspaceDir != null) {
         loader.loadFromDirectory(workspaceDir);
       }
-      return CompiledSecret.of(loader.getAll(), exprCtx, resolver);
+      return CompiledSecret.from(loader.getAll(), exprCtx, resolver);
     }
 
     List<String> envFiles = body.envFiles();
@@ -109,7 +107,7 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
       merged.putAll(inlineEnv);
     }
 
-    return CompiledSecret.of(merged, exprCtx, resolver);
+    return CompiledSecret.from(merged, exprCtx, resolver);
   }
 
   default RootExecutionDefinition compileExecution(
@@ -121,19 +119,9 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     Compiled<Integer> maxConcurrency =
         CommonCompiler.INSTANCE.compileConstant(exec.maxConcurrency());
 
-    ManifestSnapshotConfig snapshot = exec.manifestSnapshot();
-    Compiled<Boolean> snapshotEnabled = snapshot != null
-        ? CommonCompiler.INSTANCE.compileConstant(snapshot.enabled())
-        : CompiledConstant.of(null);
-    Compiled<String> snapshotMode = snapshot != null
-        ? CommonCompiler.INSTANCE.compileString(snapshot.mode(), ctx)
-        : CompiledConstant.of(null);
-
     return RootExecutionDefinition.builder()
         .parallel(parallel)
         .maxConcurrency(maxConcurrency)
-        .manifestSnapshotEnabled(snapshotEnabled)
-        .manifestSnapshotMode(snapshotMode)
         .build();
   }
 
@@ -146,43 +134,16 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     Compiled<Integer> batchSize = CommonCompiler.INSTANCE.compileConstant(cfg.batchSize());
     Compiled<Integer> windowBatchSize =
         CommonCompiler.INSTANCE.compileConstant(cfg.windowBatchSize());
-    Compiled<String> cooldown = CommonCompiler.INSTANCE.compileString(cfg.cooldown(), ctx);
+    Compiled<Duration> cooldown = CommonCompiler.INSTANCE.compileDuration(cfg.cooldown());
     Compiled<Boolean> allowOverrideMode =
         CommonCompiler.INSTANCE.compileConstant(cfg.allowOverrideMode());
-
-    PipelineExecutionDefinition execution = compilePipelineExecution(cfg.execution(), ctx);
 
     return PipelineConfigDefinition.builder()
         .batchSize(batchSize)
         .windowBatchSize(windowBatchSize)
         .cooldown(cooldown)
         .allowOverrideMode(allowOverrideMode)
-        .execution(execution)
-        .build();
-  }
-
-  default PipelineExecutionDefinition compilePipelineExecution(
-      PipelineExecution exec, @Context CompilationContext ctx) {
-    if (exec == null) {
-      return null;
-    }
-
-    ManifestSnapshotConfig snapshot = exec.manifestSnapshot();
-    Compiled<Boolean> snapshotEnabled = snapshot != null
-        ? CommonCompiler.INSTANCE.compileConstant(snapshot.enabled())
-        : CompiledConstant.of(null);
-    Compiled<String> snapshotMode = snapshot != null
-        ? CommonCompiler.INSTANCE.compileString(snapshot.mode(), ctx)
-        : CompiledConstant.of(null);
-    Compiled<String> mode = CommonCompiler.INSTANCE.compileString(exec.mode(), ctx);
-    Compiled<Integer> maxConcurrency =
-        CommonCompiler.INSTANCE.compileConstant(exec.maxConcurrency());
-
-    return PipelineExecutionDefinition.builder()
-        .manifestSnapshotEnabled(snapshotEnabled)
-        .manifestSnapshotMode(snapshotMode)
-        .mode(mode)
-        .maxConcurrency(maxConcurrency)
+        .snapshot(cfg.snapshot())
         .build();
   }
 
@@ -191,11 +152,13 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     if (cleanup == null) {
       return null;
     }
+    var successRuns = CommonCompiler.INSTANCE.compileConstant(cleanup.successRuns());
+    var failedRuns = CommonCompiler.INSTANCE.compileConstant(cleanup.failedRuns());
     return RootCleanupDefinition.builder()
-        .success(CommonCompiler.INSTANCE.compileConstant(cleanup.success()))
-        .failed(CommonCompiler.INSTANCE.compileConstant(cleanup.failed()))
-        .successRuns(CommonCompiler.INSTANCE.compileConstant(cleanup.successRuns()))
-        .failedRuns(CommonCompiler.INSTANCE.compileConstant(cleanup.failedRuns()))
+        .pass(CommonCompiler.INSTANCE.compileDuration(cleanup.pass()))
+        .fail(CommonCompiler.INSTANCE.compileDuration(cleanup.fail()))
+        .successRuns(CompiledConstant.of(Integer.parseInt(successRuns.get())))
+        .failedRuns(CompiledConstant.of(Integer.parseInt(failedRuns.get())))
         .build();
   }
 
@@ -204,15 +167,12 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
       return null;
     }
 
-    Compiled<String> defaultStrategy =
-        CommonCompiler.INSTANCE.compileString(eh.defaultStrategy(), ctx);
     RetryDefinition retryConfig = compileRetry(eh.retryConfig(), ctx);
     List<ErrorStrategyDefinition> strategies = eh.strategies() != null
         ? eh.strategies().stream().map(s -> compileStrategy(s, ctx)).toList()
         : Collections.emptyList();
 
     return FallbackDefinition.builder()
-        .defaultStrategy(defaultStrategy)
         .retryConfig(retryConfig)
         .strategies(strategies)
         .build();
@@ -234,8 +194,8 @@ public interface RootManifestCompiler extends YamlCompiler<RootManifest, RootDef
     }
     return BackoffDefinition.builder()
         .type(CommonCompiler.INSTANCE.compileConstant(backoff.type()))
-        .initialDelay(CommonCompiler.INSTANCE.compileString(backoff.initialDelay(), ctx))
-        .maxDelay(CommonCompiler.INSTANCE.compileString(backoff.maxDelay(), ctx))
+        .initialDelay(CommonCompiler.INSTANCE.compileDuration(backoff.initialDelay()))
+        .maxDelay(CommonCompiler.INSTANCE.compileDuration(backoff.maxDelay()))
         .multiplier(CommonCompiler.INSTANCE.compileConstant(backoff.multiplier()))
         .jitter(CommonCompiler.INSTANCE.compileConstant(backoff.jitter()))
         .build();

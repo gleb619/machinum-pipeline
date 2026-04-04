@@ -17,7 +17,7 @@ body:
       max: 3
       backoff:
         type: fixed
-        start: 2s
+        start: 1s
         max: 30s
         multiplier: 2.0
         jitter: 0.15
@@ -28,16 +28,16 @@ body:
         strategy: skip
       - exception: ".*"
         strategy: stop
-  pipeline-config:
+  config:
     batch: 10
     window: 5
     cooldown: 5s
     override: false
   cleanup:
-    success: 5d
-    failed: 7d
-    success-runs: 5
-    failed-runs: 10
+    pass: 5d
+    fail: 7d
+    passes: 5
+    fails: 10
   env:
     API_KEY: "test-api-key-123"
     AWS_REGION: "us-east-1"

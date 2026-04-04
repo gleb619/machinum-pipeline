@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import lombok.Builder;
 import lombok.Singular;
-import machinum.definition.PipelineLifecycleEvent;
 
 @Builder
 public record PipelineBody(
@@ -34,12 +33,27 @@ public record PipelineBody(
 
   @Builder
   public record FallbackManifest(
-      @JsonAlias("default") String defaultStrategy,
       @JsonAlias("retry") RetryManifest retryConfig,
-      @Singular List<ErrorStrategyManifest> strategies) {}
+      @Singular List<ErrorStrategyManifest> strategies) {
+
+    public static FallbackManifest empty() {
+      return FallbackManifest.builder()
+          .retryConfig(RetryManifest.empty())
+          .strategy(ErrorStrategyManifest.empty())
+          .build();
+    }
+  }
 
   @Builder
-  public record RetryManifest(@JsonAlias("max") Integer maxAttempts, BackoffManifest backoff) {}
+  public record RetryManifest(@JsonAlias("max") Integer maxAttempts, BackoffManifest backoff) {
+
+    public static RetryManifest empty() {
+      return RetryManifest.builder()
+          .maxAttempts(3)
+          .backoff(BackoffManifest.empty())
+          .build();
+    }
+  }
 
   @Builder
   public record BackoffManifest(
@@ -47,13 +61,37 @@ public record PipelineBody(
       @JsonAlias("start") String initialDelay,
       @JsonAlias("max") String maxDelay,
       Double multiplier,
-      Double jitter) {}
+      Double jitter) {
+
+    public static BackoffManifest empty() {
+      return BackoffManifest.builder()
+          .type(BackoffType.exponential)
+          .initialDelay("1s")
+          .maxDelay("30s")
+          .multiplier(2.0)
+          .jitter(0.15)
+          .build();
+    }
+  }
 
   @Builder
-  public record ErrorStrategyManifest(String exception, ErrorStrategy strategy) {}
+  public record ErrorStrategyManifest(String exception, ErrorStrategy strategy) {
+
+    public static ErrorStrategyManifest empty() {
+      return ErrorStrategyManifest.builder()
+          .exception(".*")
+          .strategy(ErrorStrategy.stop)
+          .build();
+    }
+  }
 
   @Builder
   public record ListenerItemManifest(String tool, Boolean async, Map<String, Object> input) {}
+
+  public enum PipelineLifecycleEvent {
+    after,
+    finish
+  }
 
   public enum BackoffType {
     fixed,

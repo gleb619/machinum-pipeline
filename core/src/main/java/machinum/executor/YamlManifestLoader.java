@@ -56,9 +56,10 @@ public class YamlManifestLoader {
         readManifest(manifestPath, PipelineManifest.class, "Pipeline manifest"));
   }
 
-  // TODO: Sort by date, load first one by date creation
   public Optional<PipelineManifest> loadAnyPipeline(Path workspaceDir) {
-    return loadPipelineManifests(workspaceDir).stream().findFirst();
+    return loadPipelineManifest(workspaceDir, "pipeline")
+        // TODO: Sort by date, load first one by date creation
+        .or(() -> loadPipelineManifests(workspaceDir).stream().findFirst());
   }
 
   public List<PipelineManifest> loadPipelineManifests(Path workspaceDir) {
@@ -84,10 +85,15 @@ public class YamlManifestLoader {
     }
   }
 
+  //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
   private Path findRootManifest(Path workspaceDir) {
-    Path seedPath = workspaceDir.resolve("seed.yaml");
+    Path seedPath = resolveYamlFile(workspaceDir, "seed");
     if (Files.exists(seedPath)) {
       return seedPath;
+    }
+    Path rootPath = resolveYamlFile(workspaceDir, "root");
+    if (Files.exists(rootPath)) {
+      return rootPath;
     }
 
     return scanManifests(workspaceDir).stream()
@@ -97,8 +103,9 @@ public class YamlManifestLoader {
         .orElse(null);
   }
 
+  //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
   private Path findToolsManifest(Path workspaceDir) {
-    Path toolsPath = workspaceDir.resolve(".mt/tools.yaml");
+    Path toolsPath = resolveYamlFile(workspaceDir, ".mt/tools");
     if (Files.exists(toolsPath)) {
       return toolsPath;
     }
@@ -110,6 +117,8 @@ public class YamlManifestLoader {
         .orElse(null);
   }
 
+  //TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+  @Deprecated
   private Path findPipelineManifest(Path workspaceDir, String pipelineName) {
     Path manifestsDir = workspaceDir.resolve("src/main/manifests");
     if (Files.isDirectory(manifestsDir)) {
@@ -137,6 +146,17 @@ public class YamlManifestLoader {
         .filter(m -> m.type() == Type.pipeline)
         .map(ManifestObject::filepath)
         .toList();
+  }
+
+  private Path resolveYamlFile(Path workspaceDir, String name) {
+    var path1 = workspaceDir.resolve(name + ".yml");
+    var path2 = workspaceDir.resolve(name + ".yaml");
+
+    if(Files.exists(path1)) {
+      return path1;
+    }
+
+    return path2;
   }
 
   @SneakyThrows

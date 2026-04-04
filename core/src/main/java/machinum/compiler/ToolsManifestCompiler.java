@@ -24,8 +24,8 @@ public interface ToolsManifestCompiler extends YamlCompiler<ToolsManifest, Tools
 
   ToolsManifestCompiler INSTANCE = Mappers.getMapper(ToolsManifestCompiler.class);
 
-  @Mapping(target = "labels", source = "labels", qualifiedByName = "compileSimpleMap")
-  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "compileSimpleMap")
+  @Mapping(target = "labels", source = "labels", qualifiedByName = "simpleMap")
+  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "simpleMap")
   ToolsDefinition compile(ToolsManifest source, @Context CompilationContext ctx);
 
   @Mapping(target = "registry", source = "registry", qualifiedByName = "compileString")

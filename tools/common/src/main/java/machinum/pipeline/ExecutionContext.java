@@ -1,5 +1,6 @@
 package machinum.pipeline;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -15,11 +16,10 @@ public class ExecutionContext {
 
   private final String runId;
 
-  @Builder.Default
-  private Map<String, Object> variables = new ConcurrentHashMap<>();
+  private Path workspaceRoot;
 
   @Builder.Default
-  private Map<String, Object> metadata = new ConcurrentHashMap<>();
+  private Map<String, String> variables = new ConcurrentHashMap<>();
 
   @Builder.Default
   private Map<String, String> environment = new ConcurrentHashMap<>();
@@ -43,21 +43,6 @@ public class ExecutionContext {
   private int aggregationIndex = 0;
 
   private String aggregationText;
-
-  @Deprecated(forRemoval = true)
-  public Optional<Object> getVariable(String name) {
-    return Optional.ofNullable(variables.get(name));
-  }
-
-  @Deprecated(forRemoval = true)
-  public Optional<String> getEnvironment(String name) {
-    return Optional.ofNullable(environment.get(name));
-  }
-
-  @Deprecated(forRemoval = true)
-  public void setVariable(String name, Object value) {
-    variables.put(name, value);
-  }
 
   // TODO: Change api, we need type object here, not just HashMap
   @Deprecated(forRemoval = true)
@@ -86,7 +71,7 @@ public class ExecutionContext {
     this.aggregationText = text;
   }
 
-  public Object get(String name, Object defaultValue) {
+  public String get(String name, String defaultValue) {
     return variables.getOrDefault(name, defaultValue);
   }
 

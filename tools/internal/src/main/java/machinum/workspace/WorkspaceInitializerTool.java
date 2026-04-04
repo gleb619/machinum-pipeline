@@ -48,27 +48,23 @@ public class WorkspaceInitializerTool implements Tool {
       generateSeedYaml(layout, force);
       generateToolsYaml(layout, force);
     } else if (force) {
-      // Force regeneration: overwrite config files even when workspace is initialized
       generateSeedYaml(layout, true);
       generateToolsYaml(layout, true);
     } else {
       log.info("Workspace already initialized, skipping creation");
     }
 
-    // Generate package.json if tools.yaml exists
     jsProjectHelper.generatePackageJsonIfToolsExist(layout, force);
 
-    // Create git hook for commit message validation
     folderStructureHelper.createGitHook(layout);
 
-    // Generate validate-md-lines.js script
     jsProjectHelper.generateValidateMdScript(layout);
 
     log.info("Bootstrap complete!");
   }
 
   private void generateSeedYaml(WorkspaceLayout layout, boolean force) throws IOException {
-    Path seedPath = layout.getWorkspaceRoot().resolve("seed.yaml");
+    Path seedPath = layout.getRootFile();
 
     if (Files.exists(seedPath) && !force) {
       log.debug("seed.yaml already exists, skipping (use --force to overwrite)");
@@ -80,7 +76,7 @@ public class WorkspaceInitializerTool implements Tool {
   }
 
   private void generateToolsYaml(WorkspaceLayout layout, boolean force) throws IOException {
-    Path toolsPath = layout.getWorkDir().resolve("tools.yaml");
+    Path toolsPath = layout.getToolsFile();
 
     if (Files.exists(toolsPath) && !force) {
       log.debug("tools.yaml already exists, skipping (use --force to overwrite)");

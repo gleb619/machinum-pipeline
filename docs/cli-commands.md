@@ -54,9 +54,12 @@ machinum setup bootstrap
 machinum install qwen-summary translator
 
 # Try with examples folder
-./gradlew :cli:run --args="setup -w ./examples/setup-test"
+./gradlew :cli:run --args="setup -w ./examples/sample-test"
 ./gradlew :cli:run --args="setup download -w ./examples/expression-test"
-./gradlew :cli:run --args="setup bootstrap -w ./examples/setup-test"
+./gradlew :cli:run --args="setup bootstrap -w ./examples/sample-test"
+
+# Setup sample-test (copies sample chapters from resources)
+./gradlew :cli:run --args="setup -w ./examples/sample-test"
 
 # Setup on empty folder (no manifests - defaults applied)
 ./gradlew :cli:run --args="setup -w ./examples/fully-empty-folder"

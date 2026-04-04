@@ -1,18 +1,19 @@
 package machinum.pipeline.runner;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import machinum.definition.PipelineDefinition.FallbackDefinition;
 import machinum.definition.PipelineStateDefinition;
 import machinum.definition.PipelineStateDefinition.PipelineToolDefinition;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
-import machinum.pipeline.ErrorHandler;
-import machinum.pipeline.ErrorHandler.ErrorStrategy;
+import machinum.manifest.PipelineBody.ErrorStrategy;
+import machinum.pipeline.ErrorStrategyResolver;
 import machinum.pipeline.ExecutionContext;
 import machinum.pipeline.RunLogger;
 import machinum.tool.Tool.ToolResult;
@@ -26,9 +27,10 @@ public class OneStepRunner implements PipelineRunner {
   private final ToolRegistry toolRegistry;
   private final ExpressionResolver expressionResolver;
   private final ScriptRegistry scriptRegistry;
-  private final ErrorHandler errorHandler;
+  private final ErrorStrategyResolver errorStrategyResolver;
+  private final FallbackDefinition fallbackConfig;
   private final Map<String, String> environmentVariables;
-  private final Map<String, Object> pipelineVariables;
+  private final Map<String, String> pipelineVariables;
 
   @Override
   public void executeState(
@@ -67,13 +69,14 @@ public class OneStepRunner implements PipelineRunner {
     Instant toolStart = Instant.now();
     runLogger.toolStart(itemId, stateName, toolName);
 
-    int maxAttempts = 3;
-    AtomicInteger attempt = new AtomicInteger();
+    int maxAttempts = errorStrategyResolver.getMaxAttempts(
+        fallbackConfig != null ? fallbackConfig.retryConfig() : null);
+    int attempt = 0;
     Exception lastException = null;
 
-    while (attempt.get() < maxAttempts) {
-      attempt.getAndIncrement();
-      context.updateRetryAttempt(attempt.get());
+    while (attempt < maxAttempts) {
+      attempt++;
+      context.updateRetryAttempt(attempt);
 
       try {
         ToolResult result = toolRegistry.execute(toolName, context);
@@ -91,24 +94,26 @@ public class OneStepRunner implements PipelineRunner {
         log.warn("Tool {} failed on attempt {}: {}", toolName, attempt, e.getMessage());
       }
 
-      ErrorStrategy strategy = errorHandler.resolveStrategy(lastException);
+      ErrorStrategy strategy = errorStrategyResolver.resolveStrategy(lastException, fallbackConfig);
       switch (strategy) {
-        case RETRY -> {
-          if (attempt.get() < maxAttempts) {
-            long delay = errorHandler.calculateBackoffDelay(attempt.get());
+        case retry -> {
+          if (attempt < maxAttempts) {
+            Duration delay = errorStrategyResolver.calculateBackoffDelay(attempt,
+                fallbackConfig != null ? fallbackConfig.retryConfig() : null);
             log.debug("Retrying tool {} after {}ms", toolName, delay);
             Thread.sleep(delay);
           }
         }
-        case SKIP -> {
+        case skip -> {
           log.warn("Skipping tool {} due to error: {}", toolName, lastException.getMessage());
           return;
         }
-        case STOP -> {
+        case stop -> {
           runLogger.toolError(itemId, stateName, toolName, lastException);
           throw lastException;
         }
-        default -> {
+        case fallback -> {
+          log.warn("Fallback not yet implemented for tool {}", toolName);
           runLogger.toolError(itemId, stateName, toolName, lastException);
           throw lastException;
         }

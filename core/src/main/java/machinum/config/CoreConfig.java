@@ -22,8 +22,7 @@ import machinum.expression.DefaultExpressionResolver;
 import machinum.expression.ExpressionResolver;
 import machinum.expression.ScriptRegistry;
 import machinum.manifest.ToolsBody.ToolRegistryType;
-import machinum.pipeline.ErrorHandler;
-import machinum.pipeline.ErrorHandler.FallbackConfig;
+import machinum.pipeline.ErrorStrategyResolver;
 import machinum.pipeline.RunLogger;
 import machinum.pipeline.runner.OneStepRunner;
 import machinum.pipeline.runner.PipelineRunner;
@@ -88,8 +87,8 @@ public class CoreConfig implements SingletonSupport {
     return singleton(runId, () -> RunLogger.of(runId));
   }
 
-  public ErrorHandler errorHandler() {
-    return singleton(() -> new ErrorHandler(FallbackConfig.defaultConfig()));
+  public ErrorStrategyResolver errorStrategyResolver() {
+    return singleton(ErrorStrategyResolver::new);
   }
 
   //TODO: replace code at `core/src/main/java/machinum/executor/PipelineExecutor.java`, we need to use `CoreConfig`
@@ -101,7 +100,8 @@ public class CoreConfig implements SingletonSupport {
         fileToolRegistry(workspaceRoot),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
-        errorHandler(),
+        errorStrategyResolver(),
+        null,
         Map.of(),
         Map.of()));
   }
@@ -140,8 +140,8 @@ public class CoreConfig implements SingletonSupport {
         rootManifestCompiler(),
         toolsManifestCompiler(),
         pipelineManifestCompiler(),
-        errorHandler(),
-        fileToolRegistry(workspaceRoot),
+        errorStrategyResolver(),
+        builtInToolRegistry(),
         expressionResolver(),
         scriptRegistry(Path.of("./scripts")),
         toolsExecutor(ToolRegistryType.builtin),

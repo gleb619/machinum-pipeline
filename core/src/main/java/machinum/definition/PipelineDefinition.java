@@ -11,19 +11,20 @@ import machinum.manifest.ItemsManifest;
 import machinum.manifest.PipelineBody;
 
 @Builder
+//TODO: Add support of `snapshot`
 public record PipelineDefinition(
     String version,
     String type,
     String name,
     String description,
-    @Singular Map<String, Object> labels,
-    @Singular("metadata") Map<String, Object> metadata,
+    @Singular Map<String, String> labels,
+    @Singular("metadata") Map<String, String> metadata,
     PipelineBodyDefinition body)
     implements Definition {
 
   @Builder
   public record PipelineBodyDefinition(
-      CompiledMap variables,
+      CompiledMap<String> variables,
       PipelineConfigDefinition pipelineConfig,
       SourceDefinition source,
       ItemsDefinition items,
@@ -37,7 +38,7 @@ public record PipelineDefinition(
       Compiled<ItemsManifest.Type> type,
       Compiled<String> path,
       Compiled<String> customExtractor,
-      CompiledMap variables) {
+      CompiledMap<String> variables) {
 
     // TODO: redo items to uri format, like source
     public boolean isEmpty() {
@@ -46,7 +47,7 @@ public record PipelineDefinition(
   }
 
   @Builder
-  public record SourceDefinition(Compiled<String> uri, CompiledMap variables) {
+  public record SourceDefinition(Compiled<String> uri, CompiledMap<String> variables) {
 
     public boolean isEmpty() {
       return Objects.equals(uri().get(), "void://");
@@ -55,7 +56,6 @@ public record PipelineDefinition(
 
   @Builder
   public record FallbackDefinition(
-      Compiled<String> defaultStrategy,
       RetryDefinition retryConfig,
       @Singular List<ErrorStrategyDefinition> strategies) {}
 

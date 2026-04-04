@@ -19,27 +19,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import machinum.compiler.CommonCompiler;
 import machinum.definition.PipelineDefinition.SourceDefinition;
 import org.yaml.snakeyaml.Yaml;
 
-/**
- * Streams sample chapter files from classpath resources ({@code /sample/}).
- * <p>
- * Reads deliberately defective sample chapters used for testing book-processing pipelines.
- * Each chapter contains YAML frontmatter metadata followed by markdown body content.
- * <p>
- * <b>URI format:</b> {@code samples://default}
- * <p>
- * <b>Timeout Support:</b> Chapters may include a {@code timeout} field in their YAML header
- * (e.g., {@code timeout: 3s}). When present, the streamer simulates a deadline by sleeping
- * for the specified duration before emitting the item. This enables testing pipeline deadline
- * handling. Default value is {@code Duration.ZERO} (no wait).
- *
- * @see <a href="yaml-schema.md#41-source-uri-schema">YAML Schema §4.1 — Source URI</a>
- * @see <a href="technical-design.md#34-stream-lifecycle-management">Technical Design §3.4 — Stream Lifecycle</a>
- * @see <a href="core-architecture.md#1-base-models-mvp">Core Architecture §1 — Base Models</a>
- * @see <a href="create-sample-streamer-task.md">Sample SourceStreamer Task</a>
- */
 @Slf4j
 public final class SampleSourceStreamer implements Streamer {
 
@@ -50,33 +33,22 @@ public final class SampleSourceStreamer implements Streamer {
 
   private final SourceDefinition source;
   private final int batchSize;
-  // Nullable — when set, reads from filesystem instead of classpath (test-only)
   private final Path testSampleDir;
 
-  /** Production constructor — reads from classpath resources. */
   public SampleSourceStreamer(SourceDefinition source) {
     this(source, DEFAULT_BATCH_SIZE);
   }
 
-  /** Production constructor with custom batch size — reads from classpath resources. */
   public SampleSourceStreamer(SourceDefinition source, int batchSize) {
     this(source, null, batchSize);
   }
 
-  /**
-   * Test-only constructor — reads sample files from a filesystem directory.
-   *
-   * @param source     source definition (URI used for metadata only)
-   * @param testSampleDir directory containing ch*.md files
-   * @param batchSize  batch size for streaming
-   */
   SampleSourceStreamer(SourceDefinition source, Path testSampleDir, int batchSize) {
     this.source = source;
     this.batchSize = batchSize;
     this.testSampleDir = testSampleDir;
   }
 
-  /** Convenience test constructor with default batch size. */
   SampleSourceStreamer(SourceDefinition source, Path testSampleDir) {
     this(source, testSampleDir, DEFAULT_BATCH_SIZE);
   }
@@ -107,13 +79,10 @@ public final class SampleSourceStreamer implements Streamer {
     callback.onStreamStart(cur);
 
     try {
-      // Collect and sort chapter resources (classpath or filesystem)
       List<ChapterResource> chapters = collectChapters();
 
-      // Detect missing chapters and emit error if needed
       detectMissingChapters(chapters, cur, errorHandler);
 
-      // Stream chapters
       List<StreamItem> batch = new ArrayList<>();
       int index = 0;
 
@@ -124,18 +93,15 @@ public final class SampleSourceStreamer implements Streamer {
         }
 
         try {
-          // Read content and parse header
           String fullContent = chapter.readContent();
           ChapterParseResult parseResult = parseChapterHeader(fullContent);
 
-          // Extract chapter number from filename
           Integer chapterNumber = extractChapterNumber(chapter.fileName());
           if (chapterNumber == null) {
             log.warn("Skipping file with invalid chapter format: {}", chapter.fileName());
             continue;
           }
 
-          // Build StreamItem with body-only content
           StreamItem item = StreamItem.builder()
               .file(chapter.path())
               .index(index)
@@ -180,7 +146,6 @@ public final class SampleSourceStreamer implements Streamer {
         }
       }
 
-      // Flush remaining batch
       if (!batch.isEmpty()) {
         cur = cur.advance(batch.size());
         callback.onBatch(List.copyOf(batch), cur);
@@ -194,10 +159,6 @@ public final class SampleSourceStreamer implements Streamer {
     }
   }
 
-  /**
-   * Collects chapter resources from classpath or filesystem (test mode).
-   * Files are sorted by natural numeric chapter order.
-   */
   private List<ChapterResource> collectChapters() throws IOException {
     if (testSampleDir != null) {
       return collectFromFilesystem(testSampleDir);
@@ -205,7 +166,6 @@ public final class SampleSourceStreamer implements Streamer {
     return collectFromClasspath();
   }
 
-  /** Scans classpath /sample/ for ch*.md resources. */
   private List<ChapterResource> collectFromClasspath() throws IOException {
     List<ChapterResource> chapters = new ArrayList<>();
 
@@ -213,7 +173,6 @@ public final class SampleSourceStreamer implements Streamer {
       String resourceName = SAMPLE_CLASSPATH_DIR + "/ch" + i + ".md";
       InputStream is = getClass().getResourceAsStream(resourceName);
       if (is != null) {
-        // Read content eagerly and store as string, so stream can be closed
         String content;
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(is, StandardCharsets.UTF_8))) {
@@ -221,7 +180,7 @@ public final class SampleSourceStreamer implements Streamer {
         }
         chapters.add(new ChapterResource(
             Path.of(resourceName),
-            "ch" + i + ".md",
+            "ch%d.md".formatted(i),
             content));
       }
     }
@@ -230,7 +189,6 @@ public final class SampleSourceStreamer implements Streamer {
     return chapters;
   }
 
-  /** Scans a filesystem directory for ch*.md files (test mode). */
   private List<ChapterResource> collectFromFilesystem(Path sampleDir) throws IOException {
     List<ChapterResource> chapters = new ArrayList<>();
 
@@ -246,7 +204,7 @@ public final class SampleSourceStreamer implements Streamer {
             chapters.add(new ChapterResource(
                 entry,
                 fileName,
-                null /* read from filesystem */));
+                null));
           }
         }
       }
@@ -314,19 +272,16 @@ public final class SampleSourceStreamer implements Streamer {
   }
 
   private ChapterParseResult parseChapterHeader(String fullContent) {
-    // Find the first --- (must be at or near line 1)
     int firstMarker = fullContent.indexOf("---");
     if (firstMarker == -1 || firstMarker > 50) { // Allow some whitespace at start
       return new ChapterParseResult(null, fullContent.trim());
     }
 
-    // Find the closing --- (second occurrence)
     int secondMarker = fullContent.indexOf("---", firstMarker + 3);
     if (secondMarker == -1) {
       return new ChapterParseResult(null, fullContent.trim());
     }
 
-    // Extract YAML block between the markers
     String yamlBlock = fullContent.substring(firstMarker + 3, secondMarker).trim();
     String bodyContent = fullContent.substring(secondMarker + 3).trim();
 
@@ -347,7 +302,6 @@ public final class SampleSourceStreamer implements Streamer {
     }
   }
 
-  /** Represents a chapter resource, either from classpath (pre-loaded string) or filesystem. */
   private record ChapterResource(Path path, String fileName, String classpathContent) {
 
     String readContent() throws IOException {
@@ -369,13 +323,15 @@ public final class SampleSourceStreamer implements Streamer {
       Duration timeout) {
 
     static ChapterHeader fromMap(Map<String, Object> map) {
+      String timeout = String.valueOf(map.get("timeout"));
+      var duration = CommonCompiler.INSTANCE.compileDuration(timeout);
       return new ChapterHeader(
           getString(map, "title"),
           getInteger(map, "word_count"),
           getString(map, "age_rating"),
           getList(map, "content_warnings"),
           getList(map, "defects"),
-          getDuration(map, "timeout")
+          duration.get()
       );
     }
 
@@ -410,33 +366,5 @@ public final class SampleSourceStreamer implements Streamer {
       return null;
     }
 
-    private static Duration getDuration(Map<String, Object> map, String key) {
-      Object value = map.get(key);
-      if (value == null) return Duration.ZERO;
-      if (value instanceof Duration) return (Duration) value;
-      String str = value.toString().trim();
-      if (str.isEmpty()) return Duration.ZERO;
-      // Parse simple duration formats: "3s", "500ms", "1m", "2m30s"
-      if (str.matches("^\\d+$")) {
-        // Plain number treated as seconds
-        return Duration.ofSeconds(Long.parseLong(str));
-      }
-      if (str.matches("^\\d+ms$")) {
-        return Duration.ofMillis(Long.parseLong(str.replace("ms", "")));
-      }
-      if (str.matches("^\\d+s$")) {
-        return Duration.ofSeconds(Long.parseLong(str.replace("s", "")));
-      }
-      if (str.matches("^\\d+m$")) {
-        return Duration.ofMinutes(Long.parseLong(str.replace("m", "")));
-      }
-      if (str.matches("^\\d+m\\d+s$")) {
-        String[] parts = str.split("[ms]");
-        return Duration.ofMinutes(Long.parseLong(parts[0]))
-            .plusSeconds(Long.parseLong(parts[1]));
-      }
-      log.warn("Unrecognized timeout format: '{}', defaulting to ZERO", str);
-      return Duration.ZERO;
-    }
   }
 }

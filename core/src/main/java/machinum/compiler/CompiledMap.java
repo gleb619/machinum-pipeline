@@ -2,41 +2,43 @@ package machinum.compiler;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Supplier;
-import lombok.RequiredArgsConstructor;
+import lombok.Data;
 import machinum.expression.ExpressionContext;
 import machinum.expression.ExpressionResolver;
 
-@RequiredArgsConstructor
-public class CompiledMap implements Supplier<Map<String, Object>> {
+@Data
+@SuppressWarnings("unchecked")
+public class CompiledMap<T> implements Compiled<Map<String, Compiled<T>>> {
 
-  private final Map<String, Compiled<Object>> compiledValues;
+  protected final Map<String, Compiled<Object>> compiledValues;
 
-  public static CompiledMap empty() {
-    return new CompiledMap(Collections.emptyMap());
+  public CompiledMap(Map<String, Compiled<T>> compiledValues) {
+    this.compiledValues = new LinkedHashMap<>((Map) compiledValues);
   }
 
-  public static CompiledMap of(
-      Map<String, Object> raw, ExpressionContext context, ExpressionResolver resolver) {
+  public static <U> CompiledMap<U> empty() {
+    return new CompiledMap<>(Collections.emptyMap());
+  }
+
+  public static <U> CompiledMap<U> of(
+      Map<String, U> raw, ExpressionContext context, ExpressionResolver resolver) {
     if (raw == null || raw.isEmpty()) {
-      return new CompiledMap(Collections.emptyMap());
+      return new CompiledMap<>(Collections.emptyMap());
     }
 
-    Map<String, Compiled<Object>> compiled = new LinkedHashMap<>();
+    var compiled = new LinkedHashMap<String, Compiled<U>>();
 
-    for (Map.Entry<String, Object> entry : raw.entrySet()) {
-      Object value = entry.getValue();
-      Compiled compiledValue;
-
-      if (value instanceof String s) {
-        compiledValue = Compiled.of(s, context, resolver);
-      } else if (value instanceof Map) {
-        throw new IllegalArgumentException("Not supported for now!");
-      } else {
-        throw new IllegalArgumentException("Not supported!");
-      }
+    for (Map.Entry<String, U> entry : raw.entrySet()) {
+      var value = entry.getValue();
+      var compiledValue = switch (value) {
+        case String s -> Compiled.of(s, context, resolver);
+        case Map map -> CompiledMap.of(map, context, resolver);
+        case List list -> CompiledList.of(list, context, resolver);
+        case null, default -> CompiledConstant.of(value);
+      };
 
       compiled.put(entry.getKey(), compiledValue);
     }
@@ -44,29 +46,20 @@ public class CompiledMap implements Supplier<Map<String, Object>> {
     return new CompiledMap(compiled);
   }
 
-  public Optional<Object> get(String key) {
-    Compiled<Object> value = compiledValues.get(key);
-    return value != null ? Optional.ofNullable(value.get()) : Optional.empty();
-  }
-
-  @SuppressWarnings("unchecked")
-  public <T> T get(String key, Class<T> type) {
-    Object value = get(key);
-    if (value == null) {
-      return null;
-    }
-    if (type.isInstance(value)) {
-      return (T) value;
-    }
-    throw new ClassCastException("Value for key '%s' is %s, expected %s"
-        .formatted(key, value.getClass().getSimpleName(), type.getSimpleName()));
+  public Optional<T> get(String key) {
+    var value = compiledValues.get(key);
+    return value != null ? Optional.ofNullable((T) value.get()) : Optional.empty();
   }
 
   @Override
-  public Map<String, Object> get() {
-    Map<String, Object> result = new LinkedHashMap<>();
-    for (Map.Entry<String, Compiled<Object>> entry : compiledValues.entrySet()) {
-      result.put(entry.getKey(), entry.getValue().get());
+  public Map<String, Compiled<T>> get() {
+    return new LinkedHashMap<>((Map) compiledValues);
+  }
+
+  public Map<String, T> asMap() {
+    var result = new LinkedHashMap<String, T>();
+    for (var entry : compiledValues.entrySet()) {
+      result.put(entry.getKey(), (T) entry.getValue().get());
     }
     return result;
   }

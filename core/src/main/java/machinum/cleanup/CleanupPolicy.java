@@ -16,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+//TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+@Deprecated
 public class CleanupPolicy {
 
   @Builder.Default

@@ -27,4 +27,9 @@ public record CompiledValue<T>(
 
     return (T) resolver.resolveTemplate(expression, context);
   }
+
+  @Override
+  public String toString() {
+    return expression;
+  }
 }

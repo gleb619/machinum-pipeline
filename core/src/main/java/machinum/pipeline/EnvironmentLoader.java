@@ -19,6 +19,8 @@ public class EnvironmentLoader {
   @Builder.Default
   private Map<String, String> environment = new ConcurrentHashMap<>();
 
+  //TODO: Unused
+  @Deprecated(forRemoval = true)
   public EnvironmentLoader loadFromDirectory(Path dir) {
     loadEnvFile(dir.resolve(".env"));
     loadEnvFile(dir.resolve(".ENV"));
@@ -61,7 +63,4 @@ public class EnvironmentLoader {
     return new HashMap<>(environment);
   }
 
-  public void set(String name, String value) {
-    environment.put(name, value);
-  }
 }

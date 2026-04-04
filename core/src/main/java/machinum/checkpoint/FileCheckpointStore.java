@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
 
 @RequiredArgsConstructor
+//TODO: Use `tools/common/src/main/java/machinum/workspace/WorkspaceLayout.java` instead of hardcode
+@Deprecated(forRemoval = true)
 public class FileCheckpointStore implements CheckpointStore {
 
   private static final String CHECKPOINT_FILE = "checkpoint.json";

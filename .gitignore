@@ -35,11 +35,13 @@ replay_pid*
 .DS_Store
 Thumbs.db
 /.gradle/
+*.ignore.*
+examples/fully-empty-folder/*
+
 /build/
 /cli/build/
 /core/build/
 /server/build/
-*.ignore.*
 /tools/common/build/
 /tools/external/build/
 /tools/internal/build/

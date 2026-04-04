@@ -68,10 +68,10 @@ states:
 
 ```yaml
 listeners:
-  on_item_complete:
+  after:
     - tool: string
       async: boolean       # Optional
-  on_pipeline_complete:
+  finish:
     - tool: string
 ```
 
@@ -79,7 +79,6 @@ listeners:
 
 ```yaml
 fallback:
-  default: retry|skip|stop|fallback
   retry:
     max: number
     backoff: fixed|linear|exponential

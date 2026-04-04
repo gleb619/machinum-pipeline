@@ -38,11 +38,11 @@ body:
       - exception: ".*"
         strategy: stop
   cleanup:
-    success: 7d
-    failed: 14d
-    success-runs: 10
-    failed-runs: 5
-  env-files:
+    pass: 7d
+    fail: 14d
+    passes: 10
+    fails: 5
+  secrets:
     - ".env"
     - ".ENV.local"
   env:
@@ -155,7 +155,7 @@ body:
           output: analysis
 
   listeners:
-    on_item_complete:
+    after:
       - tool: markdown-formatter
         input:
           content: "{{summary}}"
@@ -164,14 +164,13 @@ body:
       - tool: metrics-collector
         async: true
 
-    on_pipeline_complete:
+    finish:
       - tool: notification-sender
         input:
           message: "Document processing completed"
           count: "{{items.length}}"
 
   fallback:
-    default: retry
     retry:
       max: 2
       backoff: fixed

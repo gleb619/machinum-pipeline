@@ -51,7 +51,7 @@ body:
       max: 3
       backoff:
         type: fixed              # fixed|linear|exponential; default: fixed
-        start: 2s
+        start: 1s
         max: 30s
         multiplier: 2.0
         jitter: 0.15
@@ -62,7 +62,7 @@ body:
         strategy: skip
       - exception: ".*"
         strategy: stop
-  env-files:
+  secrets:
     - ".env"
     - ".ENV"
   env:
@@ -85,11 +85,11 @@ body:
       config:
         model: qwen2.5-72b
         temperature: 0.7
-        input-schema:            # JSON Schema; validation for external tools only
+        input:            # JSON Schema; validation for external tools only
           type: object
           properties:
             content: { type: string }
-        output-schema:
+        output:
           type: object
           properties:
             summary: { type: string }
@@ -147,9 +147,9 @@ body:
           output: summary
 
   listeners:
-    on_item_complete:
+    after:
       - tool: md-formatter
-    on_pipeline_complete:
+    finish:
       - tool: notify-webhook
 ```
 

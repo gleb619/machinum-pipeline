@@ -1,5 +1,6 @@
 package machinum.compiler;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -21,7 +22,6 @@ public interface FallbackCompiler extends YamlCompiler<FallbackManifest, Fallbac
 
   FallbackCompiler INSTANCE = Mappers.getMapper(FallbackCompiler.class);
 
-  @Mapping(target = "defaultStrategy", qualifiedByName = "compileString")
   @Mapping(target = "retryConfig", qualifiedByName = "compileRetry")
   @Mapping(target = "strategies", qualifiedByName = "compileStrategies")
   FallbackDefinition compile(FallbackManifest source, @Context CompilationContext ctx);
@@ -45,12 +45,18 @@ public interface FallbackCompiler extends YamlCompiler<FallbackManifest, Fallbac
     }
     Compiled<PipelineBody.BackoffType> type =
         CommonCompiler.INSTANCE.compileConstant(backoff.type());
-    Compiled<String> initialDelay =
-        CommonCompiler.INSTANCE.compileString(backoff.initialDelay(), ctx);
-    Compiled<String> maxDelay = CommonCompiler.INSTANCE.compileString(backoff.maxDelay(), ctx);
+    Compiled<Duration> initialDelay =
+        CommonCompiler.INSTANCE.compileDuration(backoff.initialDelay());
+    Compiled<Duration> maxDelay = CommonCompiler.INSTANCE.compileDuration(backoff.maxDelay());
     Compiled<Double> multiplier = CommonCompiler.INSTANCE.compileConstant(backoff.multiplier());
     Compiled<Double> jitter = CommonCompiler.INSTANCE.compileConstant(backoff.jitter());
-    return new BackoffDefinition(type, initialDelay, maxDelay, multiplier, jitter);
+    return BackoffDefinition.builder()
+        .type(type)
+        .initialDelay(initialDelay)
+        .maxDelay(maxDelay)
+        .multiplier(multiplier)
+        .jitter(jitter)
+        .build();
   }
 
   @Named("compileStrategy")

@@ -20,7 +20,9 @@ public class PipelineToolManifestDeserializer extends ValueDeserializer<Pipeline
     }
 
     if (node.isString()) {
-      return PipelineToolManifest.builder().name(node.asString()).build();
+      return PipelineToolManifest.builder().name(node.asString())
+          .async(Boolean.FALSE)
+          .build();
     }
 
     if (node.isObject()) {
@@ -41,10 +43,12 @@ public class PipelineToolManifestDeserializer extends ValueDeserializer<Pipeline
       }
 
       if (node.has("input")) {
+        //TODO: Add support of object here
         builder.input(node.get("input").asString());
       }
 
       if (node.has("output")) {
+        //TODO: Add support of object here
         builder.output(node.get("output").asString());
       }
 

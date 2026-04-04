@@ -24,17 +24,14 @@ import org.mapstruct.factory.Mappers;
       StateCompiler.class,
       FallbackCompiler.class
     })
+//TODO: Add support of `snapshot`
 public interface PipelineManifestCompiler
     extends YamlCompiler<PipelineManifest, PipelineDefinition> {
 
   PipelineManifestCompiler INSTANCE = Mappers.getMapper(PipelineManifestCompiler.class);
 
-  @Mapping(target = "version", source = "version")
-  @Mapping(target = "type", source = "type")
-  @Mapping(target = "name", source = "name")
-  @Mapping(target = "description", source = "description")
-  @Mapping(target = "labels", source = "labels", qualifiedByName = "compileSimpleMap")
-  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "compileSimpleMap")
+  @Mapping(target = "labels", source = "labels", qualifiedByName = "simpleMap")
+  @Mapping(target = "metadata", source = "metadata", qualifiedByName = "simpleMap")
   @Mapping(target = "body", expression = "java(createBody(source, ctx))")
   PipelineDefinition compile(PipelineManifest source, @Context CompilationContext ctx);
 
@@ -43,7 +40,7 @@ public interface PipelineManifestCompiler
     validate(source);
 
     var body = source.body();
-    CompiledMap variables = CommonCompiler.INSTANCE.compileMap(body.variables(), ctx);
+    CompiledMap<String> variables = CommonCompiler.INSTANCE.compileMap(body.variables(), ctx);
     PipelineConfigDefinition pipelineConfig =
         PipelineConfigCompiler.INSTANCE.compile(body.config(), ctx);
     SourceDefinition compiledSource = SourceCompiler.INSTANCE.compile(body.source(), ctx);
