@@ -1,5 +1,5 @@
 ---
-globs: ["docs/**/*.md", "README.md", "AGENTS.md", "CLAUDE.md", "WARP.md"]
+globs: ["docs/**/*.md", "README.md", "AGENTS.md", "CLAUDE.md", "WARP.md", "QWEN.md"]
 ---
 # Docs & Bootstrap Rules
 - Treat `docs/tdd.md` as design intent, not guaranteed implementation.

@@ -182,7 +182,7 @@ public class CoreConfig implements SingletonSupport {
 
   private static final int DEFAULT_BATCH_SIZE = 10;
 
-  public Streamer sourceStreamer(SourceDefinition source) {
+  public Streamer sourceStreamer(SourceDefinition source, CheckpointStore checkpointStore) {
     String uri = source.uri() != null ? source.uri().get() : null;
     if (uri == null || uri.isBlank()) {
       throw new IllegalArgumentException("Source URI cannot be empty");
@@ -192,23 +192,23 @@ public class CoreConfig implements SingletonSupport {
 
     return switch (parsed.type()) {
       case VOID -> new VoidSourceStreamer();
-      case SAMPLES -> new SampleSourceStreamer(source, DEFAULT_BATCH_SIZE);
+      case SAMPLES -> new SampleSourceStreamer(source, checkpointStore, DEFAULT_BATCH_SIZE);
       case FILE -> {
         // TODO: redo, just check extension, work on *.jsonl
         String format = parsed.getQueryParam("format", "folder");
         if ("jsonl".equals(format)) {
-          yield new JsonlSourceStreamer(source, objectMapper(), DEFAULT_BATCH_SIZE);
+          yield new JsonlSourceStreamer(source, objectMapper(), checkpointStore, DEFAULT_BATCH_SIZE);
         }
-        yield new FileSourceStreamer(source, DEFAULT_BATCH_SIZE);
+        yield new FileSourceStreamer(source, checkpointStore, DEFAULT_BATCH_SIZE);
       }
-      case HTTP -> new HttpSourceStreamer(source, objectMapper(), DEFAULT_BATCH_SIZE);
+      case HTTP -> new HttpSourceStreamer(source, objectMapper(), checkpointStore, DEFAULT_BATCH_SIZE);
       case SCRIPT ->
         throw new IllegalArgumentException("Custom script loaders not yet supported. URI: " + uri);
     };
   }
 
-  public Streamer itemsStreamer(ItemsDefinition items) {
-    return new MdFileItemsStreamer(items, DEFAULT_BATCH_SIZE);
+  public Streamer itemsStreamer(ItemsDefinition items, CheckpointStore checkpointStore) {
+    return new MdFileItemsStreamer(items, checkpointStore, DEFAULT_BATCH_SIZE);
   }
 
   @Getter

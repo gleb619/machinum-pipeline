@@ -13,6 +13,7 @@
       "Bash(xargs *)",
       "Bash(chmod *)",
       "Bash(tail *)",
+      "Bash(rm *)",
       "Read(**/*.java)",
       "Read(**/*.gradle)",
       "Read(**/*.properties)",
@@ -29,8 +30,7 @@
       "Write(**/*.yml)",
       "Write(**/*.yaml)",
       "Write(**/*.sh)",
-      "Write(**/*.md)",
-      "Bash(rm *)"
+      "Write(**/*.md)"
     ],
     "deny": [
       "Write(.env)",

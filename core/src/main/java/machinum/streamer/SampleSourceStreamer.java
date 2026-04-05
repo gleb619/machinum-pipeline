@@ -1,5 +1,7 @@
 package machinum.streamer;
 
+import static org.apache.commons.lang3.compare.ComparableUtils.min;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,6 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import machinum.checkpoint.CheckpointStore;
 import machinum.compiler.CommonCompiler;
 import machinum.definition.PipelineDefinition.SourceDefinition;
 import org.yaml.snakeyaml.Yaml;
@@ -35,141 +39,156 @@ public final class SampleSourceStreamer implements Streamer {
   private static final int MAX_CHAPTER_SCAN = 200;
 
   private final SourceDefinition source;
+  private final CheckpointStore checkpointStore;
   private final int batchSize;
   private final Path testSampleDir;
 
-  public SampleSourceStreamer(SourceDefinition source) {
-    this(source, DEFAULT_BATCH_SIZE);
+  public SampleSourceStreamer(SourceDefinition source, CheckpointStore checkpointStore) {
+    this(source, checkpointStore, DEFAULT_BATCH_SIZE);
   }
 
-  public SampleSourceStreamer(SourceDefinition source, int batchSize) {
-    this(source, null, batchSize);
+  public SampleSourceStreamer(SourceDefinition source, CheckpointStore checkpointStore, int batchSize) {
+    this(source, checkpointStore, null, batchSize);
   }
 
-  SampleSourceStreamer(SourceDefinition source, Path testSampleDir, int batchSize) {
+  SampleSourceStreamer(
+      SourceDefinition source, CheckpointStore checkpointStore, Path testSampleDir, int batchSize) {
     this.source = source;
+    this.checkpointStore = checkpointStore;
     this.batchSize = batchSize;
     this.testSampleDir = testSampleDir;
   }
 
-  SampleSourceStreamer(SourceDefinition source, Path testSampleDir) {
-    this(source, testSampleDir, DEFAULT_BATCH_SIZE);
+  SampleSourceStreamer(SourceDefinition source, CheckpointStore checkpointStore, Path testSampleDir) {
+    this(source, checkpointStore, testSampleDir, DEFAULT_BATCH_SIZE);
   }
 
   @Override
-  public void stream(Path workspaceDir, StreamCursor cursor, StreamerCallback callback) {
-    stream(
-        workspaceDir,
-        cursor,
-        callback,
-        error -> log.error(
-            "Stream error at cursor {}: {}",
-            error.cursorAtError(),
-            error.message(),
-            error.cause()));
+  public StreamResult stream(Path workspaceDir, String runId) {
+    StreamCursor initialCursor = loadCursor(runId);
+    return new SampleStreamResult(initialCursor);
   }
 
-  @Override
-  public void stream(
-      Path workspaceDir,
-      StreamCursor cursor,
-      StreamerCallback callback,
-      Consumer<StreamError> errorHandler) {
-
-    StreamCursor cur = cursor != null ? cursor : StreamCursor.initial();
-    int offset = cur.itemOffset();
-
-    callback.onStreamStart(cur);
-
+  private StreamCursor loadCursor(String runId) {
+    if (runId == null || checkpointStore == null) {
+      return StreamCursor.initial();
+    }
     try {
-      List<ChapterResource> chapters = collectChapters();
+      return checkpointStore.load(runId)
+          .map(snapshot -> {
+            int offset = (int) snapshot.runContext().getOrDefault("itemOffset", 0);
+            int windowId = (int) snapshot.runContext().getOrDefault("windowId", 0);
+            return new StreamCursor(snapshot.currentStateIndex(), offset, windowId);
+          })
+          .orElse(StreamCursor.initial());
+    } catch (Exception e) {
+      log.error("Failed to load checkpoint for runId={}", runId, e);
+      return StreamCursor.initial();
+    }
+  }
 
-      detectMissingChapters(chapters, cur, errorHandler);
+  private class SampleStreamResult extends AbstractStreamResult {
+    private final List<ChapterResource> chapters;
+    private int nextChapterIndex;
 
-      List<StreamItem> batch = new ArrayList<>();
-      int index = 0;
+    public SampleStreamResult(StreamCursor initialCursor) {
+      this.cursor.set(initialCursor);
+      this.chapters = new ArrayList<>();
+      init();
+    }
 
-      for (ChapterResource chapter : chapters) {
-        if (index < offset) {
-          index++;
-          continue;
-        }
+    private void init() {
+      try {
+        chapters.addAll(collectChapters());
+        detectMissingChapters(chapters, currentCursor(), error -> setError(error));
+        this.nextChapterIndex = currentCursor().itemOffset();
+      } catch (IOException e) {
+        setError(StreamError.io("Failed to collect sample chapters", e, currentCursor()));
+      }
+    }
 
-        try {
-          String fullContent = chapter.readContent();
-          ChapterParseResult parseResult = parseChapterHeader(fullContent);
+    @Override
+    public Iterator<List<StreamItem>> iterator() {
+      return new SampleStreamerIterator();
+    }
 
-          Integer chapterNumber = extractChapterNumber(chapter.fileName());
-          if (chapterNumber == null) {
-            log.warn("Skipping file with invalid chapter format: {}", chapter.fileName());
-            continue;
-          }
+    private class SampleStreamerIterator implements Iterator<List<StreamItem>> {
 
-          StreamItem item = StreamItem.builder()
-              .file(Optional.ofNullable(chapter.path()))
-              .index(index)
-              .content(parseResult.bodyContent())
-              .meta("chapterNumber", chapterNumber)
-              .meta("fileName", chapter.fileName())
-              .meta("title", parseResult.header() != null ? parseResult.header().title() : null)
-              .meta(
-                  "wordCount",
-                  parseResult.header() != null ? parseResult.header().wordCount() : null)
-              .meta(
-                  "ageRating",
-                  parseResult.header() != null ? parseResult.header().ageRating() : null)
-              .meta(
-                  "contentWarnings",
-                  parseResult.header() != null ? parseResult.header().contentWarnings() : List.of())
-              .meta(
-                  "defects",
-                  parseResult.header() != null ? parseResult.header().defects() : List.of())
-              .meta("hasHeader", parseResult.header() != null)
-              .meta("format", "md")
-              .meta("type", "chapter")
-              .meta(
-                  "timeout",
-                  parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO)
-              .build();
-
-          Duration timeout =
-              parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO;
-          if (!timeout.isZero() && !timeout.isNegative()) {
-            log.debug("Simulating timeout of {} for chapter {}", timeout, chapter.fileName());
-            try {
-              Thread.sleep(timeout.toMillis());
-            } catch (InterruptedException ie) {
-              Thread.currentThread().interrupt();
-              throw new IOException("Stream interrupted during timeout simulation", ie);
-            }
-          }
-
-          batch.add(item);
-          index++;
-
-          if (batch.size() >= batchSize) {
-            cur = cur.advance(batch.size());
-            if (!callback.onBatch(List.copyOf(batch), cur)) {
-              return;
-            }
-            batch.clear();
-          }
-        } catch (IOException e) {
-          errorHandler.accept(
-              StreamError.io("Failed to read chapter: " + chapter.fileName(), e, cur));
-        }
+      @Override
+      public boolean hasNext() {
+        return nextChapterIndex < chapters.size() && error.get() == null;
       }
 
-      if (!batch.isEmpty()) {
-        cur = cur.advance(batch.size());
-        callback.onBatch(List.copyOf(batch), cur);
+      @Override
+      public List<StreamItem> next() {
+        List<StreamItem> batch = new ArrayList<>();
+        for (int i = 0; i < batchSize && nextChapterIndex < chapters.size(); i++) {
+          ChapterResource chapter = chapters.get(nextChapterIndex);
+          try {
+            String fullContent = chapter.readContent();
+            ChapterParseResult parseResult = parseChapterHeader(fullContent);
+
+            Integer chapterNumber = extractChapterNumber(chapter.fileName());
+            if (chapterNumber == null) {
+              log.warn("Skipping file with invalid chapter format: {}", chapter.fileName());
+              nextChapterIndex++;
+              i--;
+              continue;
+            }
+
+            StreamItem item = StreamItem.builder()
+                .file(Optional.ofNullable(chapter.path()))
+                .index(nextChapterIndex)
+                .content(parseResult.bodyContent())
+                .meta("chapterNumber", chapterNumber)
+                .meta("fileName", chapter.fileName())
+                .meta("title", parseResult.header() != null ? parseResult.header().title() : null)
+                .meta(
+                    "wordCount",
+                    parseResult.header() != null ? parseResult.header().wordCount() : null)
+                .meta(
+                    "ageRating",
+                    parseResult.header() != null ? parseResult.header().ageRating() : null)
+                .meta(
+                    "contentWarnings",
+                    parseResult.header() != null
+                        ? parseResult.header().contentWarnings()
+                        : List.of())
+                .meta(
+                    "defects",
+                    parseResult.header() != null ? parseResult.header().defects() : List.of())
+                .meta("hasHeader", parseResult.header() != null)
+                .meta("format", "md")
+                .meta("type", "chapter")
+                .meta(
+                    "timeout",
+                    parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO)
+                .build();
+
+            Duration timeout =
+                parseResult.header() != null ? parseResult.header().timeout() : Duration.ZERO;
+            if (!timeout.isZero() && !timeout.isNegative()) {
+              log.debug("Simulating timeout of {} for chapter {}", timeout, chapter.fileName());
+              try {
+                Thread.sleep(timeout.toMillis());
+              } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Stream interrupted during timeout simulation", ie);
+              }
+            }
+
+            batch.add(item);
+            nextChapterIndex++;
+          } catch (Exception e) {
+            setError(StreamError.io("Failed to process chapter: " + chapter.fileName(), e, currentCursor()));
+            break;
+          }
+        }
+        if (!batch.isEmpty()) {
+          updateCursor(currentCursor().advance(batch.size()));
+        }
+        return List.copyOf(batch);
       }
-
-      callback.onStreamEnd(cur);
-
-    } catch (IOException e) {
-      errorHandler.accept(StreamError.io("Failed to process sample resources", e, cur));
-      callback.onStreamEnd(cur);
     }
   }
 
@@ -330,15 +349,16 @@ public final class SampleSourceStreamer implements Streamer {
       Duration timeout) {
 
     static ChapterHeader fromMap(Map<String, Object> map) {
-      String timeout = Objects.toString(map.get("timeout"), null);
-      var duration = CommonCompiler.INSTANCE.compileDuration(timeout);
+      String timeoutRaw = Objects.toString(map.get("timeout"), null);
+      var duration = CommonCompiler.INSTANCE.compileDuration(timeoutRaw);
+      var timeout = min(duration.get(), Duration.ofMinutes(1));
       return new ChapterHeader(
           getString(map, "title"),
           getInteger(map, "word_count"),
           getString(map, "age_rating"),
           getList(map, "content_warnings"),
           getList(map, "defects"),
-          duration.get());
+          timeout);
     }
 
     @SuppressWarnings("unchecked")

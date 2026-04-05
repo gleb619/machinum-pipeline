@@ -6,10 +6,10 @@ include(
     "server",
     "tools:common",
     "tools:internal",
-    "tools:external"
+    "tools:external",
+    "server:admin-backend",
+    "server:http-streamer",
 )
 
 // Faster configuration caching
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
-include 'server:admin-backend'
-include 'server:http-streamer'

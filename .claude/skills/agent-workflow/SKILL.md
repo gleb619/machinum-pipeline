@@ -264,9 +264,3 @@ See `examples/` directory for workflow scenarios.
 - `.claude/agents/code-reviewer.md` - Review criteria
 - `.claude/agents/tester.md` - Testing requirements
 - `docs/tdd.md` - Technical design and TDD principles
-- `docs/plan.md` - Task tracking and dependencies
-
-## Qwen Reference
-
-This skill is also available in Qwen format at:
-`.qwen/skills/agent-workflow/SKILL.md`

@@ -2,11 +2,14 @@ package machinum.executor;
 
 import static machinum.config.CoreConfig.coreConfig;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import machinum.checkpoint.CheckpointSnapshot;
+import machinum.checkpoint.CheckpointStore;
 import machinum.definition.PipelineDefinition;
 import machinum.definition.PipelineDefinition.FallbackDefinition;
 import machinum.executor.PhaseContext.LifecyclePhase;
@@ -20,7 +23,6 @@ import machinum.pipeline.runner.OneStepRunner;
 import machinum.streamer.StreamCursor;
 import machinum.streamer.StreamItem;
 import machinum.streamer.Streamer;
-import machinum.streamer.StreamerCallback;
 import machinum.tool.ToolRegistry;
 import tools.jackson.databind.ObjectMapper;
 
@@ -54,38 +56,64 @@ public class PipelineExecutor {
     ExecutionContext execCtx = buildExecutionContext(ctx, pipeline);
     ctx.registerContext(ExecutionPhaseContext.builder().context(execCtx).build());
 
-    AtomicInteger processed = new AtomicInteger();
-    AtomicInteger failed = new AtomicInteger();
+    AtomicInteger processedCount = new AtomicInteger();
+    AtomicInteger failedCount = new AtomicInteger();
 
-    Streamer streamer = createStreamer(pipeline);
-    StreamCursor cursor = StreamCursor.initial();
+    var checkpointStore = coreConfig().checkpointStore(ctx.workspaceDir().resolve(".machinum/checkpoints"));
+    Streamer streamer = createStreamer(pipeline, checkpointStore);
 
-    streamer.stream(
-        ctx.workspaceDir(),
-        cursor,
-        new PipelineCallback(ctx, execCtx, runLogger, pipeline, runner, failed, processed),
-        error -> {
-          log.error(
-              "Stream error at offset {}: {}",
-              error.cursorAtError().itemOffset(),
-              error.message(),
-              error.cause());
-          runLogger.runError("Stream error: " + error.message(), error.cause());
-        });
+    log.info("Stream processing started: runId={}", ctx.runId());
 
-    log.info("RUN lifecycle completed: processed={}, failed={}", processed.get(), failed.get());
+    try (var streamResult = streamer.stream(ctx.workspaceDir(), ctx.runId())) {
+      for (List<StreamItem> batch : streamResult) {
+        log.info("Processing batch of {} items", batch.size());
 
-    return ctx.toBuilder().currentPhase(LifecyclePhase.COMPLETE).build();
-  }
+        for (StreamItem item : batch) {
+          String itemId = item.metaOrDefault("id", "item-" + item.index()).toString();
+          execCtx.updateItem(item);
 
-  private Streamer createStreamer(PipelineDefinition pipeline) {
-    if (!pipeline.body().source().isEmpty()) {
-      return coreConfig().sourceStreamer(pipeline.body().source());
-    } else if (!pipeline.body().items().isEmpty()) {
-      return coreConfig().itemsStreamer(pipeline.body().items());
+          log.debug("Processing item {}: {}", item.index(), itemId);
+          runLogger.itemInfo(itemId, "Starting processing");
+
+          boolean itemFailed = false;
+          for (int stateIndex = 0; stateIndex < pipeline.body().states().size(); stateIndex++) {
+            var state = pipeline.body().states().get(stateIndex);
+            try {
+              runner.executeState(state, stateIndex, itemId, execCtx);
+            } catch (Exception e) {
+              log.error("Item {} failed at state {}", itemId, state.name().get(), e);
+              runLogger.itemError(itemId, "Failed at state: " + state.name().get(), e);
+              itemFailed = true;
+              failedCount.incrementAndGet();
+              break;
+            }
+          }
+
+          if (!itemFailed) {
+            processedCount.incrementAndGet();
+            runLogger.itemInfo(itemId, "Processing completed");
+          }
+        }
+
+        // Save checkpoint after each batch
+        saveCheckpoint(checkpointStore, ctx.runId(), streamResult.currentCursor());
+      }
+
+      if (streamResult.error().isPresent()) {
+        var error = streamResult.error().get();
+        log.error("Stream finished with error at offset {}: {}", 
+            error.cursorAtError().itemOffset(), error.message());
+        runLogger.runError("Stream error: " + error.message(), error.cause());
+      }
+
+    } catch (Exception e) {
+      log.error("Execution failed", e);
+      runLogger.runError("Execution failed: " + e.getMessage(), e);
     }
 
-    throw new IllegalStateException("Pipeline must have either 'source' or 'items'");
+    log.info("RUN lifecycle completed: processed={}, failed={}", processedCount.get(), failedCount.get());
+
+    return ctx.toBuilder().currentPhase(LifecyclePhase.COMPLETE).build();
   }
 
   private ExecutionContext buildExecutionContext(
@@ -99,82 +127,31 @@ public class PipelineExecutor {
         .build();
   }
 
-  private class PipelineCallback implements StreamerCallback {
+  private void saveCheckpoint(CheckpointStore store, String runId, StreamCursor cursor) {
+    try {
+      var snapshot = CheckpointSnapshot.builder()
+          .runId(runId)
+          .currentStateIndex(cursor.stateIndex())
+          .status(CheckpointSnapshot.RunStatus.RUNNING)
+          .runContext(Map.of(
+              "itemOffset", cursor.itemOffset(),
+              "windowId", cursor.windowId()
+          ))
+          .build();
+      store.save(snapshot);
+      log.debug("Checkpoint saved for runId={} at offset={}", runId, cursor.itemOffset());
+    } catch (IOException e) {
+      log.error("Failed to save checkpoint for runId={}", runId, e);
+    }
+  }
 
-    private final LifecycleContext ctx;
-    private final ExecutionContext execCtx;
-    private final RunLogger runLogger;
-    private final PipelineDefinition pipeline;
-    private final OneStepRunner runner;
-    private final AtomicInteger failed;
-    private final AtomicInteger processed;
-    private int totalItems;
-
-    public PipelineCallback(
-        LifecycleContext ctx,
-        ExecutionContext execCtx,
-        RunLogger runLogger,
-        PipelineDefinition pipeline,
-        OneStepRunner runner,
-        AtomicInteger failed,
-        AtomicInteger processed) {
-      this.ctx = ctx;
-      this.execCtx = execCtx;
-      this.runLogger = runLogger;
-      this.pipeline = pipeline;
-      this.runner = runner;
-      this.failed = failed;
-      this.processed = processed;
-      totalItems = 0;
+  private Streamer createStreamer(PipelineDefinition pipeline, CheckpointStore checkpointStore) {
+    if (!pipeline.body().source().isEmpty()) {
+      return coreConfig().sourceStreamer(pipeline.body().source(), checkpointStore);
+    } else if (!pipeline.body().items().isEmpty()) {
+      return coreConfig().itemsStreamer(pipeline.body().items(), checkpointStore);
     }
 
-    @Override
-    public void onStreamStart(StreamCursor initialCursor) {
-      log.info("Stream started: runId={}", ctx.runId());
-    }
-
-    @Override
-    public boolean onBatch(List<StreamItem> items, StreamCursor cur) {
-      log.info(
-          "Processing batch of {} items (offset={}, total={})",
-          items.size(),
-          cur.itemOffset(),
-          totalItems);
-
-      for (StreamItem item : items) {
-        String itemId = item.metaOrDefault("id", "item-" + item.index()).toString();
-        execCtx.updateItem(item);
-
-        log.debug("Processing item {}: {}", item.index(), itemId);
-        runLogger.itemInfo(itemId, "Starting processing");
-
-        boolean itemFailed = false;
-        for (int stateIndex = 0; stateIndex < pipeline.body().states().size(); stateIndex++) {
-          var state = pipeline.body().states().get(stateIndex);
-          try {
-            runner.executeState(state, stateIndex, itemId, execCtx);
-          } catch (Exception e) {
-            log.error("Item {} failed at state {}", itemId, state.name().get(), e);
-            runLogger.itemError(itemId, "Failed at state: " + state.name().get(), e);
-            itemFailed = true;
-            failed.incrementAndGet();
-            break;
-          }
-        }
-
-        if (!itemFailed) {
-          processed.incrementAndGet();
-          runLogger.itemInfo(itemId, "Processing completed");
-        }
-      }
-
-      totalItems += items.size();
-      return true;
-    }
-
-    @Override
-    public void onStreamEnd(StreamCursor finalCursor) {
-      log.info("Stream ended: runId={}, totalItems={}", ctx.runId(), totalItems);
-    }
+    throw new IllegalStateException("Pipeline must have either 'source' or 'items'");
   }
 }

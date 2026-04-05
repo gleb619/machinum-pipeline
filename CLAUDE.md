@@ -5,6 +5,9 @@ Before starting work, read `docs/tdd.md`.
 Treat `docs/tdd.md` as a high-level design guide, not an implementation document.
 Code structure, APIs, and names do not need exact 1:1 matching.
 
+## Active Technologies
+- Java 25 + Gradle 9.4.1, Picocli 4.7+, Jooby 4.1, SnakeYAML 2.0+, Jackson 3.1+, Groovy 4.0+, SLF4J + Logback
+
 ## Mandatory development process (TDD)
 - All development MUST go through TDD (Test-Driven Development).
 - Follow red → green → refactor for each behavior change:

@@ -5,10 +5,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
+import machinum.checkpoint.CheckpointStore;
 import machinum.definition.PipelineDefinition.SourceDefinition;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -20,106 +22,153 @@ public final class JsonlSourceStreamer implements Streamer {
 
   private final SourceDefinition source;
   private final ObjectMapper objectMapper;
+  private final CheckpointStore checkpointStore;
   private final int batchSize;
 
-  public JsonlSourceStreamer(SourceDefinition source, ObjectMapper objectMapper) {
-    this(source, objectMapper, DEFAULT_BATCH_SIZE);
+  public JsonlSourceStreamer(SourceDefinition source, ObjectMapper objectMapper, CheckpointStore checkpointStore) {
+    this(source, objectMapper, checkpointStore, DEFAULT_BATCH_SIZE);
   }
 
-  public JsonlSourceStreamer(SourceDefinition source, ObjectMapper objectMapper, int batchSize) {
+  public JsonlSourceStreamer(SourceDefinition source, ObjectMapper objectMapper, CheckpointStore checkpointStore, int batchSize) {
     this.source = source;
     this.objectMapper = objectMapper;
+    this.checkpointStore = checkpointStore;
     this.batchSize = batchSize;
   }
 
   @Override
-  public void stream(Path workspaceDir, StreamCursor cursor, StreamerCallback callback) {
-    stream(
-        workspaceDir,
-        cursor,
-        callback,
-        error -> log.error(
-            "Stream error at cursor {}: {}",
-            error.cursorAtError(),
-            error.message(),
-            error.cause()));
+  public StreamResult stream(Path workspaceDir, String runId) {
+    StreamCursor initialCursor = loadCursor(runId);
+    return new JsonlStreamResult(workspaceDir, initialCursor);
   }
 
-  @Override
-  public void stream(
-      Path workspaceDir,
-      StreamCursor cursor,
-      StreamerCallback callback,
-      Consumer<StreamError> errorHandler) {
+  private StreamCursor loadCursor(String runId) {
+    if (runId == null || checkpointStore == null) {
+      return StreamCursor.initial();
+    }
+    try {
+      return checkpointStore.load(runId)
+          .map(snapshot -> {
+            int offset = (int) snapshot.runContext().getOrDefault("itemOffset", 0);
+            int windowId = (int) snapshot.runContext().getOrDefault("windowId", 0);
+            return new StreamCursor(snapshot.currentStateIndex(), offset, windowId);
+          })
+          .orElse(StreamCursor.initial());
+    } catch (Exception e) {
+      log.error("Failed to load checkpoint for runId={}", runId, e);
+      return StreamCursor.initial();
+    }
+  }
 
-    StreamCursor cur = cursor != null ? cursor : StreamCursor.initial();
-    int offset = cur.itemOffset();
+  private class JsonlStreamResult extends AbstractStreamResult {
+    private final Path workspaceDir;
+    private final int offset;
+    private BufferedReader reader;
+    private Path jsonlFile;
+    private int index = 0;
 
-    String uri = source.uri().get();
-    if (uri == null || uri.isBlank()) {
-      log.warn("Source URI is empty, nothing to stream");
-      callback.onStreamStart(cur);
-      callback.onStreamEnd(cur);
-      return;
+    public JsonlStreamResult(Path workspaceDir, StreamCursor initialCursor) {
+      this.workspaceDir = workspaceDir;
+      this.cursor.set(initialCursor);
+      this.offset = initialCursor.itemOffset();
+      init();
     }
 
-    SourceUriParser.ParsedSourceUri parsed = SourceUriParser.parse(uri);
-    Path jsonlFile = workspaceDir.resolve(parsed.path());
+    private void init() {
+      String uri = source.uri().get();
+      if (uri == null || uri.isBlank()) {
+        log.warn("Source URI is empty, nothing to stream");
+        return;
+      }
 
-    if (!Files.exists(jsonlFile)) {
-      errorHandler.accept(StreamError.io("JSONL file not found: " + jsonlFile, null, cur));
-      callback.onStreamStart(cur);
-      callback.onStreamEnd(cur);
-      return;
+      SourceUriParser.ParsedSourceUri parsed = SourceUriParser.parse(uri);
+      this.jsonlFile = workspaceDir.resolve(parsed.path());
+
+      if (!Files.exists(jsonlFile)) {
+        setError(StreamError.io("JSONL file not found: " + jsonlFile, null, currentCursor()));
+        return;
+      }
+
+      try {
+        this.reader = Files.newBufferedReader(jsonlFile);
+      } catch (IOException e) {
+        setError(StreamError.io("Failed to open JSONL file: " + jsonlFile, e, currentCursor()));
+      }
     }
 
-    callback.onStreamStart(cur);
+    @Override
+    public Iterator<List<StreamItem>> iterator() {
+      return new JsonlStreamerIterator();
+    }
 
-    try (BufferedReader reader = Files.newBufferedReader(jsonlFile)) {
-      List<StreamItem> batch = new ArrayList<>();
-      int index = 0;
-      String line;
-
-      while ((line = reader.readLine()) != null) {
-        if (index < offset) {
-          index++;
-          continue;
-        }
-
-        if (line.isBlank()) {
-          index++;
-          continue;
-        }
-
+    @Override
+    public void close() {
+      if (reader != null) {
         try {
-          JsonNode node = objectMapper.readTree(line);
-          StreamItem item = parseJsonLine(node, jsonlFile, index);
-          batch.add(item);
-          index++;
-
-          if (batch.size() >= batchSize) {
-            cur = cur.advance(batch.size());
-            if (!callback.onBatch(List.copyOf(batch), cur)) {
-              return;
-            }
-            batch.clear();
-          }
-        } catch (Exception e) {
-          errorHandler.accept(StreamError.parse(
-              "Failed to parse JSONL line " + index + ": " + e.getMessage(), e, cur));
+          reader.close();
+        } catch (IOException e) {
+          log.error("Failed to close JSONL reader", e);
         }
       }
+    }
 
-      if (!batch.isEmpty()) {
-        cur = cur.advance(batch.size());
-        callback.onBatch(List.copyOf(batch), cur);
+    private class JsonlStreamerIterator implements Iterator<List<StreamItem>> {
+
+      private List<StreamItem> nextBatch = null;
+
+      @Override
+      public boolean hasNext() {
+        if (reader == null || error.get() != null) {
+          return false;
+        }
+        if (nextBatch != null) {
+          return true;
+        }
+
+        nextBatch = fetchBatch();
+        return nextBatch != null;
       }
 
-      callback.onStreamEnd(cur);
+      @Override
+      public List<StreamItem> next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        List<StreamItem> batch = nextBatch;
+        nextBatch = null;
+        updateCursor(currentCursor().advance(batch.size()));
+        return batch;
+      }
 
-    } catch (IOException e) {
-      errorHandler.accept(StreamError.io("Failed to read JSONL file: " + jsonlFile, e, cur));
-      callback.onStreamEnd(cur);
+      private List<StreamItem> fetchBatch() {
+        List<StreamItem> batch = new ArrayList<>();
+        try {
+          String line;
+          while (batch.size() < batchSize && (line = reader.readLine()) != null) {
+            if (index < offset) {
+              index++;
+              continue;
+            }
+            if (line.isBlank()) {
+              index++;
+              continue;
+            }
+
+            try {
+              JsonNode node = objectMapper.readTree(line);
+              StreamItem item = parseJsonLine(node, jsonlFile, index);
+              batch.add(item);
+              index++;
+            } catch (Exception e) {
+              setError(StreamError.parse("Failed to parse JSONL line " + index, e, currentCursor()));
+              break;
+            }
+          }
+        } catch (IOException e) {
+          setError(StreamError.io("Failed to read JSONL file", e, currentCursor()));
+        }
+        return batch.isEmpty() ? null : batch;
+      }
     }
   }
 

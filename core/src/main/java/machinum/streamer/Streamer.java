@@ -1,17 +1,16 @@
 package machinum.streamer;
 
 import java.nio.file.Path;
-import java.util.function.Consumer;
 
+/**
+ * Interface for streaming items from a source or collection.
+ * Pull-based and integrated with the check-point system.
+ */
 public interface Streamer {
 
-  void stream(Path workspaceDir, StreamCursor cursor, StreamerCallback callback);
-
-  default void stream(
-      Path workspaceDir,
-      StreamCursor cursor,
-      StreamerCallback callback,
-      Consumer<StreamError> errorHandler) {
-    stream(workspaceDir, cursor, callback);
-  }
+  /**
+   * Creates a result from the specified workspace directory and run identifier.
+   * If runId is provided, the streamer will automatically resume from the last saved checkpoint.
+   */
+  StreamResult stream(Path workspaceDir, String runId);
 }

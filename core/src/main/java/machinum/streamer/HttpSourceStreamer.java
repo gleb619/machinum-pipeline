@@ -2,15 +2,17 @@ package machinum.streamer;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import machinum.checkpoint.CheckpointStore;
 import machinum.definition.PipelineDefinition.SourceDefinition;
 import machinum.http.HttpStreamer;
 import tools.jackson.databind.JsonNode;
@@ -25,6 +27,7 @@ public final class HttpSourceStreamer implements Streamer {
 
   private final SourceDefinition source;
   private final ObjectMapper objectMapper;
+  private final CheckpointStore checkpointStore;
   // TODO: Handle batch size based on current runner settings
   private final int batchSize;
 
@@ -34,101 +37,120 @@ public final class HttpSourceStreamer implements Streamer {
   private final AtomicReference<Runnable> httpServerShutdown = new AtomicReference<>();
 
   @Override
-  public void stream(Path workspaceDir, StreamCursor cursor, StreamerCallback callback) {
-    stream(
-        workspaceDir,
-        cursor,
-        callback,
-        error -> log.error(
-            "Stream error at cursor {}: {}",
-            error.cursorAtError(),
-            error.message(),
-            error.cause()));
+  public StreamResult stream(Path workspaceDir, String runId) {
+    startHttpServer();
+    StreamCursor initialCursor = loadCursor(runId);
+    return new HttpStreamResult(initialCursor);
   }
 
-  @Override
-  public void stream(
-      Path workspaceDir,
-      StreamCursor cursor,
-      StreamerCallback callback,
-      Consumer<StreamError> errorHandler) {
-
-    startHttpServer();
-
-    StreamCursor cur = cursor != null ? cursor : StreamCursor.initial();
-    int offset = cur.itemOffset();
-    int index = 0;
-    int idleCount = 0;
-    List<StreamItem> batch = new ArrayList<>();
-
-    log.info("HTTP SourceStreamer started, waiting for HTTP messages...");
-    callback.onStreamStart(cur);
-
+  private StreamCursor loadCursor(String runId) {
+    if (runId == null || checkpointStore == null) {
+      return StreamCursor.initial();
+    }
     try {
-      while (true) {
-        JsonNode payload = incomingQueue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+      return checkpointStore.load(runId)
+          .map(snapshot -> {
+            int offset = (int) snapshot.runContext().getOrDefault("itemOffset", 0);
+            int windowId = (int) snapshot.runContext().getOrDefault("windowId", 0);
+            return new StreamCursor(snapshot.currentStateIndex(), offset, windowId);
+          })
+          .orElse(StreamCursor.initial());
+    } catch (Exception e) {
+      log.error("Failed to load checkpoint for runId={}", runId, e);
+      return StreamCursor.initial();
+    }
+  }
 
-        if (payload == null) {
-          idleCount++;
-          if (idleCount >= MAX_IDLE_POLLS) {
-            log.info(
-                "HTTP streamer idle timeout ({}ms), ending stream",
-                QUEUE_POLL_TIMEOUT_MS * MAX_IDLE_POLLS);
-            if (!batch.isEmpty()) {
-              cur = cur.advance(batch.size());
-              callback.onBatch(List.copyOf(batch), cur);
-              batch.clear();
-            }
-            callback.onStreamEnd(cur);
-            return;
-          }
+  private class HttpStreamResult extends AbstractStreamResult {
+    private final int offset;
+    private int index;
+    private boolean closed = false;
 
-          if (!batch.isEmpty()) {
-            cur = cur.advance(batch.size());
-            if (!callback.onBatch(List.copyOf(batch), cur)) {
-              callback.onStreamEnd(cur);
-              return;
-            }
-            batch.clear();
-          }
-          continue;
-        }
+    public HttpStreamResult(StreamCursor initialCursor) {
+      this.cursor.set(initialCursor);
+      this.offset = initialCursor.itemOffset();
+      this.index = 0;
+    }
 
-        idleCount = 0;
+    @Override
+    public Iterator<List<StreamItem>> iterator() {
+      return new HttpStreamerIterator();
+    }
 
-        if (index < offset) {
-          index++;
-          continue;
-        }
-
-        try {
-          StreamItem item = parseHttpPayload(payload, index);
-          batch.add(item);
-          index++;
-
-          if (batch.size() >= batchSize) {
-            cur = cur.advance(batch.size());
-            if (!callback.onBatch(List.copyOf(batch), cur)) {
-              callback.onStreamEnd(cur);
-              return;
-            }
-            batch.clear();
-          }
-        } catch (Exception e) {
-          errorHandler.accept(
-              StreamError.parse("Failed to parse HTTP payload: " + e.getMessage(), e, cur));
-        }
-      }
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      log.info("HTTP SourceStreamer interrupted");
-      if (!batch.isEmpty()) {
-        cur = cur.advance(batch.size());
-        callback.onBatch(List.copyOf(batch), cur);
-      }
-      callback.onStreamEnd(cur);
-    } finally {
+    @Override
+    public void close() {
+      closed = true;
       stopHttpServer();
+    }
+
+    private class HttpStreamerIterator implements Iterator<List<StreamItem>> {
+
+      private List<StreamItem> nextBatch = null;
+      private int idleCount = 0;
+
+      @Override
+      public boolean hasNext() {
+        if (closed || error.get() != null) {
+          return false;
+        }
+        if (nextBatch != null) {
+          return true;
+        }
+
+        nextBatch = fetchBatch();
+        return nextBatch != null;
+      }
+
+      @Override
+      public List<StreamItem> next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        List<StreamItem> batch = nextBatch;
+        nextBatch = null;
+        updateCursor(currentCursor().advance(batch.size()));
+        return batch;
+      }
+
+      private List<StreamItem> fetchBatch() {
+        List<StreamItem> batch = new ArrayList<>();
+        while (batch.size() < batchSize) {
+          try {
+            JsonNode payload = incomingQueue.poll(QUEUE_POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
+
+            if (payload == null) {
+              idleCount++;
+              if (idleCount >= MAX_IDLE_POLLS) {
+                log.info(
+                    "HTTP streamer idle timeout ({}ms), ending stream",
+                    QUEUE_POLL_TIMEOUT_MS * MAX_IDLE_POLLS);
+                return batch.isEmpty() ? null : batch;
+              }
+              return batch.isEmpty() ? null : batch;
+            }
+
+            idleCount = 0;
+
+            if (index < offset) {
+              index++;
+              continue;
+            }
+
+            StreamItem item = parseHttpPayload(payload, index);
+            batch.add(item);
+            index++;
+          } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.info("HTTP SourceStreamer interrupted");
+            closed = true;
+            return batch.isEmpty() ? null : batch;
+          } catch (Exception e) {
+            setError(StreamError.parse("Failed to parse HTTP payload: " + e.getMessage(), e, currentCursor()));
+            return batch.isEmpty() ? null : batch;
+          }
+        }
+        return batch;
+      }
     }
   }
 
