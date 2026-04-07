@@ -1,1 +1,1 @@
-.claude/skills/agent-workflow/SKILL.md
+../../../.claude/skills/agent-workflow/SKILL.md

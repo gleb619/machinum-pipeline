@@ -112,12 +112,10 @@ machinum-pipeline/
 │   │   ├── glossary/
 │   │   └── notify/
 │   └── external/                        # External wrappers (shell/docker/ssh)
-├── ui/                                  # Planned
-│   ├── admin-ui/
-│   ├── vscode-extension/
-│   └── shared-components/
-└── mcp/
-    └── src/main/java/machinum/mcp/
+└── ui/                                  # Planned
+    ├── admin-ui/
+    ├── vscode-extension/
+    └── shared-components/
 ```
 
 ---

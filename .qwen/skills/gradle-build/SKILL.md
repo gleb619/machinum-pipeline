@@ -1,1 +1,1 @@
-.claude/skills/gradle-build/SKILL.md
+../../../.claude/skills/gradle-build/SKILL.md

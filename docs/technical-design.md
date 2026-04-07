@@ -56,7 +56,6 @@ graph TD
         Install["install"]
         Run["run"]
         Serve["serve"]
-        MCP["mcp/cli"]
         Help["help"]
     end
 

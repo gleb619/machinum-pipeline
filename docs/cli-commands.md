@@ -19,9 +19,6 @@ machinum
 ├── serve                                # Start HTTP server
 │   ├── --port 7070
 │   └── --ui                             # Enable admin UI
-├── mcp                                  # MCP mode
-│   ├── --command                        # No daemon mode
-│   └── --server                         # Server mode
 ├── status                               # Show app status
 │   └── --run-id <run-id>
 ├── logs                                 # Show app logs

@@ -1,1 +1,1 @@
-.claude/skills/yaml-config/SKILL.md
+../../../.claude/skills/yaml-config/SKILL.md
