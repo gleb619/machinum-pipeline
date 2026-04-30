@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { rm } from 'node:fs/promises'
 import { Store } from '../store.js'
 
 /**
@@ -95,9 +96,9 @@ export class Cache {
    * Clear all cache entries.
    */
   async clear(): Promise<void> {
-    // Note: Store doesn't have recursive delete yet
-    // For now, this is a placeholder
     const cacheDir = this.store.resolve('cache')
-    // In practice, use fs.rm with recursive: true
+    // Remove entire cache directory, then re-create
+    await rm(cacheDir, { recursive: true, force: true })
+    await this.store.ensureDir('cache')
   }
 }

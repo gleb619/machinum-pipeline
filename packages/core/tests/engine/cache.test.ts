@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Cache } from '../../src/engine/cache.js'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -86,5 +86,25 @@ describe('Cache', () => {
 
     const result = await cache.get(key)
     expect(result).toBeUndefined()
+  })
+
+  it('clears all cache entries', async () => {
+    const key1 = cache.computeKey({ toolName: 't1', version: '1.0.0', input: { a: 1 } })
+    const key2 = cache.computeKey({ toolName: 't2', version: '1.0.0', input: { b: 2 } })
+
+    await cache.set(key1, { toolName: 't1', version: '1.0.0', input: { a: 1 } }, 'value1')
+    await cache.set(key2, { toolName: 't2', version: '1.0.0', input: { b: 2 } }, 'value2')
+
+    expect(await cache.has(key1)).toBe(true)
+    expect(await cache.has(key2)).toBe(true)
+
+    await cache.clear()
+
+    expect(await cache.has(key1)).toBe(false)
+    expect(await cache.has(key2)).toBe(false)
+
+    // Cache dir still exists after clear
+    await cache.set(key1, { toolName: 't1', version: '1.0.0', input: { a: 1 } }, 'value1')
+    expect(await cache.get(key1)).toEqual('value1')
   })
 })
