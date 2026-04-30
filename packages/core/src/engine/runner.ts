@@ -12,6 +12,7 @@ import { createRootCheckpoint, findFirstNonDone, findNode, markDone, markFailed,
 import { withRetry } from './retry.js'
 import { Cache } from './cache.js'
 import { runChildProcess } from './child-process.js'
+import { writeDeadLetter } from './dead-letter.js'
 
 /**
  * Runner — executes a pipeline definition, manages state machine, checkpointing, and logging.
@@ -145,6 +146,7 @@ export class Runner {
           const sourceStream = stream ?? createEmptyStream()
           const cache = this.cache
           const logger = this.logger()
+          const store = this.store
 
           stream = (async function* () {
             for await (const env of sourceStream) {
@@ -195,7 +197,22 @@ export class Runner {
                 yield output
               } catch (error) {
                 logger.error(`Tool ${toolName} failed after retries: ${error}`)
-                if (onError === 'fail-run') throw error
+                if (onError === 'fail-run') {
+                  throw error
+                }
+                if (onError === 'dead-letter') {
+                  await writeDeadLetter(
+                    store,
+                    runContext.runId,
+                    env,
+                    error as Error,
+                    stepId
+                  )
+                  logger.warn(`Tool ${toolName} failed, written to dead-letter queue: ${error}`)
+                }
+                if (onError === 'skip-item') {
+                  logger.warn(`Tool ${toolName} failed, skipping item: ${error}`)
+                }
               }
             }
           })()
