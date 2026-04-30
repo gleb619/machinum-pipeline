@@ -2,6 +2,10 @@
 import { fileURLToPath } from 'node:url'
 import { initCommand } from './commands/init.js'
 import { runCommand } from './commands/run.js'
+import { resumeCommand } from './commands/resume.js'
+import { listRunsCommand } from './commands/list.js'
+import { inspectCommand } from './commands/inspect.js'
+import { toolCommand } from './commands/tool.js'
 
 export async function main(): Promise<void> {
   const args = process.argv.slice(2)
@@ -15,21 +19,22 @@ export async function main(): Promise<void> {
       await runCommand(args.slice(1))
       break
     case 'resume':
-      console.error('mt resume — not yet implemented')
-      process.exit(1)
+      await resumeCommand(args.slice(1))
+      break
     case 'ls':
       if (args[1] === 'runs') {
-        console.error('mt ls runs — not yet implemented')
+        await listRunsCommand(args.slice(2))
       } else {
         console.error('Usage: mt ls runs')
+        process.exit(1)
       }
-      process.exit(1)
+      break
     case 'inspect':
-      console.error('mt inspect — not yet implemented')
-      process.exit(1)
+      await inspectCommand(args.slice(1))
+      break
     case 'tool':
-      console.error('mt tool — not yet implemented')
-      process.exit(1)
+      await toolCommand(args.slice(1))
+      break
     case 'serve':
       console.error('mt serve — not yet implemented')
       process.exit(1)

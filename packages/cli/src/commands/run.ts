@@ -32,6 +32,12 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // Create and start runner
   const runner = new Runner(pipeline, globalContext)
+  
+  process.on('SIGINT', async () => {
+    logger.warn('SIGINT received: exiting...')
+    console.log(`\n\u274c Pipeline aborted. Run ID: ${runner.getRunId()}`)
+    process.exit(0)
+  })
 
   try {
     const runContext = await runner.start()

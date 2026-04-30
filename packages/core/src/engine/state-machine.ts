@@ -11,7 +11,7 @@ import type { RunState } from '../types.js'
  */
 const TRANSITIONS: Record<RunState, RunState[]> = {
   pending: ['running'],
-  running: ['checkpoint', 'done', 'failed'],
+  running: ['checkpoint', 'done', 'failed', 'paused'],
   checkpoint: ['running', 'paused', 'done', 'failed'],
   paused: ['resumed'],
   resumed: ['running'],

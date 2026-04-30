@@ -1,5 +1,5 @@
 
-import { RetryPolicy } from '../../types.js';
+import { RetryPolicy } from '../contexts.js';
 
 export async function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

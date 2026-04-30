@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { main } from '../src/index.js'
 import { initCommand } from '../src/commands/init.js'
 import { runCommand } from '../src/commands/run.js'
+import { listRunsCommand } from '../src/commands/list.js'
+import { inspectCommand } from '../src/commands/inspect.js'
 
 vi.mock('../src/commands/init.js', () => ({
   initCommand: vi.fn()
@@ -9,6 +11,14 @@ vi.mock('../src/commands/init.js', () => ({
 
 vi.mock('../src/commands/run.js', () => ({
   runCommand: vi.fn()
+}))
+
+vi.mock('../src/commands/list.js', () => ({
+  listRunsCommand: vi.fn()
+}))
+
+vi.mock('../src/commands/inspect.js', () => ({
+  inspectCommand: vi.fn()
 }))
 
 describe('CLI entry point', () => {
@@ -40,6 +50,18 @@ describe('CLI entry point', () => {
     expect(runCommand).toHaveBeenCalledWith(['pipeline.ts'])
   })
 
+  it('calls ls runs command', async () => {
+    process.argv = ['node', 'mt', 'ls', 'runs']
+    await main()
+    expect(listRunsCommand).toHaveBeenCalledWith([])
+  })
+
+  it('calls inspect command', async () => {
+    process.argv = ['node', 'mt', 'inspect', 'run-123']
+    await main()
+    expect(inspectCommand).toHaveBeenCalledWith(['run-123'])
+  })
+
   it('shows help for --help', async () => {
     process.argv = ['node', 'mt', '--help']
     await main()
@@ -56,11 +78,5 @@ describe('CLI entry point', () => {
     process.argv = ['node', 'mt', 'unknown']
     await expect(main()).rejects.toThrow('process.exit called with 1')
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Unknown command: unknown'))
-  })
-
-  it('fails for unimplemented commands', async () => {
-    process.argv = ['node', 'mt', 'resume']
-    await expect(main()).rejects.toThrow('process.exit called with 1')
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('not yet implemented'))
   })
 })
