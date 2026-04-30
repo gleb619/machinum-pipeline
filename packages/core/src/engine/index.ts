@@ -3,6 +3,7 @@ export { Runner } from './runner.js'
 export { Cache } from './cache.js'
 export type { CacheOptions, CacheEntry } from './cache.js'
 export { writeDeadLetter } from './dead-letter.js'
+export { autoCommit, execGit } from './git.js'
 export {
   createRootCheckpoint,
   findNode,

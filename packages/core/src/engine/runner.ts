@@ -13,6 +13,7 @@ import { withRetry } from './retry.js'
 import { Cache } from './cache.js'
 import { runChildProcess } from './child-process.js'
 import { writeDeadLetter } from './dead-letter.js'
+import { autoCommit } from './git.js'
 
 /**
  * Runner — executes a pipeline definition, manages state machine, checkpointing, and logging.
@@ -228,6 +229,13 @@ export class Runner {
             await target.write(env, { run: runContext })
           }
           await target.close({ run: runContext })
+
+          // Check for auto-commit on close
+          const parsed = registry.parse(uri)
+          if (parsed.query.commit === 'on-close') {
+            this.logger().info(`Auto-committing changes in: ${runContext.global.project.root}`)
+            await autoCommit(runContext.global.project.root)
+          }
           break
         }
         case 'flatmap': {
