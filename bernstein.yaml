@@ -1,7 +1,6 @@
 # Bernstein Configuration for Machinum-Pipeline
 # Pluggable document processing orchestration engine
 
-# Project metadata
 project:
   name: machinum-pipeline
   description: Document processing engine with state machine pipelines
@@ -11,66 +10,33 @@ project:
   workspace_patterns:
     - "packages/*/package.json"
 
-# Workspace repos configuration
 workspace:
   repos:
     - name: machinum-pipeline
       path: .
 
-# Worktree setup for agent isolation
 worktree_setup:
   setup_command: "/bin/bash -c 'source /home/boris/.nvm/nvm.sh && nvm use v22.20.0 && pnpm install'"
 
-# Internal scheduler LLM - codex for planning/decomposition
 internal_llm_provider: codex
 
-# Goal (required by bernstein seed parser)
 goal: "Implement Git worktree isolation for Source and Target (T023)"
 
-# Budget
 budget: "$10"
 
-# Per-role agent configuration - user-defined assignments
-# Forbidden agents: claude, kimi (never referenced here)
+# User-defined agent assignments, inline format (best for Bernstein parsing)
+# Forbidden: claude, kimi
 role_model_policy:
-  architect:
-    cli: codex
-    effort: high
+  architect:   {cli: codex, effort: high}
+  backend:     {cli: blackbox, effort: high}
+  frontend:    {cli: opencode, effort: high}
+  qa:          {cli: qwen, effort: medium}
+  docs:        {cli: kilo, effort: medium}
+  editing:     {cli: gemini, model: gemini-2.5-flash, effort: medium}
+  security:    {cli: goose, effort: high}
+  reviewer:    {cli: goose, effort: medium}
+  boilerplate: {cli: pi, effort: low}
 
-  backend:
-    cli: blackbox
-    effort: high
-
-  frontend:
-    cli: opencode
-    effort: high
-
-  qa:
-    cli: qwen
-    effort: medium
-
-  docs:
-    cli: kilo
-    effort: medium
-
-  editing:
-    cli: gemini
-    model: gemini-2.5-flash
-    effort: medium
-
-  security:
-    cli: goose
-    effort: high
-
-  reviewer:
-    cli: goose
-    effort: medium
-
-  boilerplate:
-    cli: pi
-    effort: low
-
-# Quality gates - verification before merge
 quality_gates:
   enabled: true
   gates:
@@ -78,35 +44,28 @@ quality_gates:
       command: pnpm test
       required: true
       timeout_seconds: 120
-
     - type: types
       command: pnpm type-check
       required: true
       timeout_seconds: 60
-
     - type: lint
       command: pnpm lint
       required: true
       timeout_seconds: 60
-
     - type: build
       command: pnpm build
       required: true
       timeout_seconds: 180
-
   require_approval_for_unsafe: true
 
-# Storage configuration
 storage:
   backend: memory
   retention_days: 30
 
-# Git configuration
 git:
   auto_push: false
   rebase_before_merge: true
 
-# Constraints passed to all agents
 constraints:
   - "Node.js v22.20.0"
   - "TypeScript strict mode"
