@@ -50,7 +50,7 @@ export class Store {
   }
 
   async writeJson(data: unknown, ...parts: string[]): Promise<string> {
-    return this.write(JSON.stringify(data, null, 2) + '\n', ...parts)
+    return this.write(`${JSON.stringify(data, null, 2)}\n`, ...parts)
   }
 
   async remove(...parts: string[]): Promise<void> {
@@ -68,6 +68,6 @@ export class Store {
   }
 
   async appendLines(lines: string[], ...parts: string[]): Promise<string> {
-    return this.append(lines.map((l) => JSON.stringify(l)).join('\n') + '\n', ...parts)
+    return this.append(`${lines.map((l) => JSON.stringify(l)).join('\n')}\n`, ...parts)
   }
 }

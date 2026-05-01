@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import type { Pipeline, Tool } from '../../src/types.js'
-import type { GlobalContext } from '../../src/contexts.js'
-import { mkdtemp } from 'node:fs/promises'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 
 describe('runner caching', () => {
   let tempDir: string
@@ -25,6 +25,8 @@ describe('runner caching', () => {
 
     const pipeline: Pipeline = {
       id: 'p1',
+      retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+      onError: 'fail-run',
       steps: [
         {
           type: 'tool',
@@ -39,11 +41,16 @@ describe('runner caching', () => {
 
     const globalContext: GlobalContext = {
       project: { name: 'test', root: tempDir },
-      defaults: { retry: { max: 0, backoffMs: 0, strategy: 'fixed' }, onError: 'fail-run', concurrency: 1 },
+      defaults: {
+        retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+        onError: 'fail-run',
+        concurrency: 1,
+      },
+      env: {},
     }
 
     const runner1 = new Runner(pipeline, globalContext)
-    
+
     // First run - should call invoke
     await runner1.start()
     expect(mockTool.invoke).toHaveBeenCalledTimes(1)
@@ -51,7 +58,7 @@ describe('runner caching', () => {
     // Second run with a fresh runner instance
     const runner2 = new Runner(pipeline, globalContext)
     await runner2.start()
-    
+
     // In second run, tool.invoke should NOT be called again
     expect(mockTool.invoke).toHaveBeenCalledTimes(1)
   })

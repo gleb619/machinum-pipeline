@@ -1,14 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  createRootCheckpoint,
-  findNode,
-  findFirstNonDone,
   addChild,
+  countByState,
+  createRootCheckpoint,
+  findFirstNonDone,
+  findNode,
+  isAllDone,
   markDone,
   markFailed,
   markInProgress,
-  isAllDone,
-  countByState,
 } from '../../src/engine/checkpoint.js'
 
 describe('checkpoint tree', () => {

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Store } from '../../src/store.js'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeDeadLetter } from '../../src/engine/dead-letter.js'
+import { Store } from '../../src/store.js'
 import type { Envelope } from '../../src/types.js'
 
 describe('writeDeadLetter', () => {
@@ -27,7 +27,7 @@ describe('writeDeadLetter', () => {
     const lines = content.trim().split('\n')
     expect(lines.length).toBe(1)
 
-    const entry = JSON.parse(lines[0])
+    const entry = JSON.parse(lines[0] as string)
     expect(entry.timestamp).toBeDefined()
     expect(entry.envelope).toEqual(envelope)
     expect(entry.error).toEqual({
@@ -49,8 +49,8 @@ describe('writeDeadLetter', () => {
     const lines = content.trim().split('\n')
     expect(lines.length).toBe(2)
 
-    const entry1 = JSON.parse(lines[0])
-    const entry2 = JSON.parse(lines[1])
+    const entry1 = JSON.parse(lines[0] as string)
+    const entry2 = JSON.parse(lines[1] as string)
     expect(entry1.error.message).toBe('Error 1')
     expect(entry2.error.message).toBe('Error 2')
   })

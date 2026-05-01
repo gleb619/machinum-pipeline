@@ -1,18 +1,16 @@
-import type { Envelope, Pipeline, PipelineStep, Tool, Source, Target } from './types.js'
 import type { ToolContext } from './contexts.js'
+import type { Envelope, Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
 
 /**
  * DSL builder for defining a pipeline.
  * Chain: .from(source).use(tool).to(target)
  */
-export function definePipeline<I = unknown, O = unknown>(
-  config: {
-    id: string
-    retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
-    onError: 'fail-run' | 'skip-item' | 'dead-letter'
-  },
-): PipelineBuilder<I, O> {
+export function definePipeline<I = unknown, O = unknown>(config: {
+  id: string
+  retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
+  onError: 'fail-run' | 'skip-item' | 'dead-letter'
+}): PipelineBuilder<I, O> {
   return new PipelineBuilder<I, O>(config)
 }
 
@@ -40,9 +38,12 @@ export class PipelineBuilder<I, O> {
     return this as unknown as PipelineBuilder<T, O>
   }
 
-  use<T, R>(tool: Tool<T, R>, overrides?: {
-    retry?: { max?: number; backoffMs?: number; strategy?: 'fixed' | 'linear' | 'exp' }
-  }): PipelineBuilder<R, O> {
+  use<T, R>(
+    tool: Tool<T, R>,
+    overrides?: {
+      retry?: { max?: number; backoffMs?: number; strategy?: 'fixed' | 'linear' | 'exp' }
+    },
+  ): PipelineBuilder<R, O> {
     this.steps.push({
       type: 'tool',
       config: {

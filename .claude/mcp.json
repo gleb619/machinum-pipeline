@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bernstein": {
+      "command": "/home/boris/.local/share/pipx/venvs/bernstein/bin/python",
+      "args": ["-m", "bernstein.mcp.server"]
+    }
+  }
+}

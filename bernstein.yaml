@@ -45,7 +45,7 @@ quality_gates:
       required: true
       timeout_seconds: 120
     - type: types
-      command: pnpm type-check
+      command: pnpm typecheck
       required: true
       timeout_seconds: 60
     - type: lint

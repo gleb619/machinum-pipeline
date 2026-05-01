@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
-import type { Envelope } from '../types.ts'
 import type { ToolContext } from '../contexts.ts'
+import type { Envelope } from '../types.ts'
 
 /**
  * Options for spawning a child process tool.
@@ -54,7 +54,7 @@ export async function* streamChildProcess<I, O>(
   const writePromise = (async () => {
     try {
       for await (const env of envelopes) {
-        const line = JSON.stringify(env) + '\n'
+        const line = `${JSON.stringify(env)}\n`
         if (!child.stdin.write(line, 'utf8')) {
           await new Promise<void>((resolve) => child.stdin.once('drain', resolve))
         }
@@ -106,7 +106,7 @@ export async function* streamChildProcess<I, O>(
 /**
  * Spawn a child process and communicate via stdio JSON (one-shot).
  */
-async function spawnChildProcess<I, O>(
+async function spawnChildProcess<I, _O>(
   options: ChildProcessOptions,
   envelope: Envelope<I>,
   toolContext: ToolContext,

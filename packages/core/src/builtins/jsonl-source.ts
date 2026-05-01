@@ -1,8 +1,8 @@
 import { createReadStream, createWriteStream } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
-import type { Envelope, Source, Target } from '../types.js'
 import type { SourceContext, TargetContext } from '../contexts.js'
+import type { Envelope, Source, Target } from '../types.js'
 import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
 
@@ -17,7 +17,7 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(_ctx: SourceContext): AsyncIterable<Envelope<T>> {
       const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
       const rl = createInterface({ input: fileStream, crlfDelay: Number.POSITIVE_INFINITY })
 
@@ -49,7 +49,7 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
         yield env
       }
     },
-    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(_ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
       const cursorLine = cursor as number
       const content = await readFile(filePath, 'utf-8')
       const lines = content.split('\n').slice(cursorLine)
@@ -80,7 +80,7 @@ export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
       if (!writeStream) {
         throw new Error('Target not opened. Call open() before write().')
       }
-      writeStream.write(JSON.stringify(env) + '\n')
+      writeStream.write(`${JSON.stringify(env)}\n`)
     },
     async close(_ctx: TargetContext): Promise<void> {
       if (writeStream) {

@@ -1,5 +1,5 @@
-import type { Envelope } from '../types.js'
 import type { Store } from '../store.js'
+import type { Envelope } from '../types.js'
 
 /**
  * Dead-letter entry written to .mt/runs/<runId>/dead-letter.jsonl
@@ -29,7 +29,7 @@ export async function writeDeadLetter(
   runId: string,
   envelope: Envelope<unknown>,
   error: Error,
-  stepId: string
+  stepId: string,
 ): Promise<void> {
   const entry: DeadLetterEntry = {
     timestamp: new Date().toISOString(),
@@ -42,5 +42,5 @@ export async function writeDeadLetter(
   }
 
   await store.ensureDir('runs', runId)
-  await store.append(JSON.stringify(entry) + '\n', 'runs', runId, 'dead-letter.jsonl')
+  await store.append(`${JSON.stringify(entry)}\n`, 'runs', runId, 'dead-letter.jsonl')
 }

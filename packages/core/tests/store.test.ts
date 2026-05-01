@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
-import { mkdtempSync, existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
 import { Store } from '../src/store.js'
 
 describe('Store', () => {

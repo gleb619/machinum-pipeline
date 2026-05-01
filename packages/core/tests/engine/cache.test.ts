@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { Cache } from '../../src/engine/cache.js'
-import { mkdtemp, rm, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { Cache } from '../../src/engine/cache.js'
 
 describe('Cache', () => {
   let cache: Cache
@@ -52,7 +52,11 @@ describe('Cache', () => {
       version: '1.0.0',
       input: { text: 'hello world' },
     })
-    await cache.set(key, { toolName: 'fixTypos', version: '1.0.0', input: { text: 'hello world' } }, { result: 'hello world' })
+    await cache.set(
+      key,
+      { toolName: 'fixTypos', version: '1.0.0', input: { text: 'hello world' } },
+      { result: 'hello world' },
+    )
 
     const result = await cache.get(key)
     expect(result).toEqual({ result: 'hello world' })
@@ -68,7 +72,11 @@ describe('Cache', () => {
     const existsBefore = await cache.has(key)
     expect(existsBefore).toBe(false)
 
-    await cache.set(key, { toolName: 'fixTypos', version: '1.0.0', input: { text: 'hello' } }, { result: 'ok' })
+    await cache.set(
+      key,
+      { toolName: 'fixTypos', version: '1.0.0', input: { text: 'hello' } },
+      { result: 'ok' },
+    )
 
     const existsAfter = await cache.has(key)
     expect(existsAfter).toBe(true)
@@ -80,7 +88,11 @@ describe('Cache', () => {
       version: '1.0.0',
       input: { text: 'hello' },
     })
-    await cache.set(key, { toolName: 'fixTypos', version: '1.0.0', input: { text: 'hello' } }, { result: 'ok' })
+    await cache.set(
+      key,
+      { toolName: 'fixTypos', version: '1.0.0', input: { text: 'hello' } },
+      { result: 'ok' },
+    )
 
     await cache.delete(key)
 

@@ -1,6 +1,6 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import type { Envelope, Source } from '../types.js'
+import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
 import type { SourceContext } from '../contexts.js'
+import type { Envelope, Source } from '../types.js'
 import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
 
@@ -10,9 +10,7 @@ import { registry } from '../uri.js'
  */
 export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   // Parse port from uri.query.port (default 8080)
-  const port = uri.query.port
-    ? Number.parseInt(uri.query.port, 10)
-    : 8080
+  const port = uri.query.port ? Number.parseInt(uri.query.port, 10) : 8080
 
   // The URI path is the ingest endpoint
   const ingestPath = uri.path || '/ingest'
@@ -76,7 +74,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
           buffer.length = 0 // Clear buffer
 
           // Set up delivery for new envelopes
-          const deliveryHandler = (envelope: Envelope<T>) => {
+          const _deliveryHandler = (envelope: Envelope<T>) => {
             try {
               sendEnvelope(envelope)
             } catch {
@@ -86,7 +84,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
 
           // Add temporary handler for SSE delivery
           // Note: We store a reference to remove it later
-          const originalWaiting = [...waiting]
+          const _originalWaiting = [...waiting]
 
           req.on('close', () => {
             // Handler removed via wrapper
@@ -114,7 +112,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
 
             res.writeHead(200, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ received: true }))
-          } catch (err) {
+          } catch (_err) {
             res.writeHead(400, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ error: 'Invalid JSON' }))
           }
@@ -128,7 +126,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
 
       // Start server on 127.0.0.1 to avoid IPv6 issues in tests
       await new Promise<void>((resolve) => {
-        server!.listen(port, '127.0.0.1', () => {
+        server?.listen(port, '127.0.0.1', () => {
           resolve()
         })
       })
@@ -157,7 +155,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
         // Clean up server
         if (server) {
           await new Promise<void>((resolve) => {
-            server!.close(() => {
+            server?.close(() => {
               resolve()
             })
           })

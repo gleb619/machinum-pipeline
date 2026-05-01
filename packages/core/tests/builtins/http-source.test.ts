@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
-import { createServer, type Server } from 'node:http'
+import { type Server, createServer } from 'node:http'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createHttpSource } from '../../src/builtins/http-source.js'
 import type { Envelope } from '../../src/types.js'
 import type { ParsedUri } from '../../src/uri.js'
@@ -57,9 +57,12 @@ describe('http-source', () => {
 
     // Start the generator — it'll log the port then block waiting for an envelope
     const nextPromise = iterator.next()
-    await vi.waitFor(() => {
-      expect(ctx.run.logger.info).toHaveBeenCalled()
-    }, { timeout: 3000, interval: 20 })
+    await vi.waitFor(
+      () => {
+        expect(ctx.run.logger.info).toHaveBeenCalled()
+      },
+      { timeout: 3000, interval: 20 },
+    )
 
     const serverUrl = `http://localhost:${port}`
 
@@ -77,7 +80,7 @@ describe('http-source', () => {
     expect((result.value as any).item).toEqual({ message: 'hello' })
 
     // Cleanup
-    await iterator.return!()
+    await iterator.return?.()
   })
 
   it('should yield multiple envelopes from multiple POSTs', async () => {
@@ -86,9 +89,12 @@ describe('http-source', () => {
     const source = createHttpSource<{ id: number }>(makeUri(port))
     const iterator = source.start(ctx as any)[Symbol.asyncIterator]()
     const nextPromise = iterator.next()
-    await vi.waitFor(() => {
-      expect(ctx.run.logger.info).toHaveBeenCalled()
-    }, { timeout: 3000, interval: 20 })
+    await vi.waitFor(
+      () => {
+        expect(ctx.run.logger.info).toHaveBeenCalled()
+      },
+      { timeout: 3000, interval: 20 },
+    )
 
     const serverUrl = `http://localhost:${port}`
 
@@ -114,7 +120,7 @@ describe('http-source', () => {
     expect((envelopes[1] as any).item).toEqual({ id: 2 })
     expect((envelopes[2] as any).item).toEqual({ id: 3 })
 
-    await iterator.return!()
+    await iterator.return?.()
   })
 
   it('should return 200 for health endpoint', async () => {
@@ -125,18 +131,21 @@ describe('http-source', () => {
 
     // Fire and forget the generator — it'll log then block
     iterator.next().catch(() => {})
-    await vi.waitFor(() => {
-      expect(ctx.run.logger.info).toHaveBeenCalled()
-    }, { timeout: 3000, interval: 20 })
+    await vi.waitFor(
+      () => {
+        expect(ctx.run.logger.info).toHaveBeenCalled()
+      },
+      { timeout: 3000, interval: 20 },
+    )
 
     const healthRes = await fetch(`http://localhost:${port}/health`)
     expect(healthRes.ok).toBe(true)
-    const data = await healthRes.json() as Record<string, unknown>
+    const data = (await healthRes.json()) as Record<string, unknown>
     expect(data).toEqual({ status: 'ok' })
 
     // Unblock the generator by POSTing, then return it
     await fetch(`http://localhost:${port}/ingest`, { method: 'POST', body: '{}' }).catch(() => {})
-    await iterator.return!()
+    await iterator.return?.()
   })
 
   it('should stop cleanly when iterator returns', async () => {
@@ -146,17 +155,22 @@ describe('http-source', () => {
     const iterator = source.start(ctx as any)[Symbol.asyncIterator]()
 
     iterator.next().catch(() => {})
-    await vi.waitFor(() => {
-      expect(ctx.run.logger.info).toHaveBeenCalled()
-    }, { timeout: 3000, interval: 20 })
+    await vi.waitFor(
+      () => {
+        expect(ctx.run.logger.info).toHaveBeenCalled()
+      },
+      { timeout: 3000, interval: 20 },
+    )
 
     // Unblock the generator by POSTing to /ingest, then return the iterator
-    await fetch(`http://localhost:${port}/ingest`, { method: 'POST', body: '{"done":true}' }).catch(() => {})
+    await fetch(`http://localhost:${port}/ingest`, { method: 'POST', body: '{"done":true}' }).catch(
+      () => {},
+    )
     // Wait for the next() to resolve (don't care about the value)
     await new Promise((r) => setTimeout(r, 100))
 
     // Now iterator.return() should work without hanging
-    await iterator.return!()
+    await iterator.return?.()
 
     // Verify server is stopped
     const healthRes = await fetch(`http://localhost:${port}/health`).catch(() => null)

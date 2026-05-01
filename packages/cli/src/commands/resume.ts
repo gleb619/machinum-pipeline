@@ -1,8 +1,8 @@
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Runner } from '@mt/core'
 import type { GlobalContext } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
-import { readFile } from 'node:fs/promises'
 
 /**
  * `mt resume <runId>` — resume a previous run.
@@ -48,7 +48,7 @@ export async function resumeCommand(args: string[]): Promise<void> {
 /**
  * Load a pipeline module from a file path.
  */
-async function loadPipeline(filePath: string): Promise<any> {
+async function loadPipeline(filePath: string): Promise<import('@mt/core').Pipeline> {
   const resolvedPath = join(process.cwd(), filePath)
   const mod = await import(resolvedPath)
   const pipeline = mod.default ?? mod.pipeline

@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { exec as execSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { execGit, autoCommit } from '../../src/engine/git.js'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { autoCommit, execGit } from '../../src/engine/git.js'
 
 describe('git', () => {
   let tempDir: string

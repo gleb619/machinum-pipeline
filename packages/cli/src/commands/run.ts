@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { Runner } from '@mt/core'
-import type { Pipeline, GlobalContext } from '@mt/core'
+import type { GlobalContext, Pipeline } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
 
 /**
@@ -32,7 +32,7 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // Create and start runner
   const runner = new Runner(pipeline, globalContext)
-  
+
   process.on('SIGINT', async () => {
     logger.warn('SIGINT received: exiting...')
     console.log(`\n\u274c Pipeline aborted. Run ID: ${runner.getRunId()}`)

@@ -1,8 +1,8 @@
-import { describe, it, expect, vi } from 'vitest'
-import { Runner } from '../../src/engine/runner.js'
-import type { Pipeline } from '../../src/types.js'
+import { describe, expect, it, vi } from 'vitest'
 import type { GlobalContext } from '../../src/contexts.js'
+import { Runner } from '../../src/engine/runner.js'
 import { Store } from '../../src/store.js'
+import type { Pipeline } from '../../src/types.js'
 
 vi.mock('../../src/store.js', () => {
   return {
@@ -28,18 +28,21 @@ describe('Runner Concurrency', () => {
       id: 'test-concurrency',
       retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
       onError: 'fail-run',
-      steps: [
-        { type: 'tool', config: { name: 'test-tool', concurrency: '2' } }
-      ],
+      steps: [{ type: 'tool', config: { name: 'test-tool', concurrency: '2' } }],
     }
 
     const globalContext: GlobalContext = {
       project: { name: 'test', root: '/tmp' },
-      defaults: { retry: { max: 0, backoffMs: 0, strategy: 'fixed' }, onError: 'fail-run', concurrency: 4 },
+      defaults: {
+        retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+        onError: 'fail-run',
+        concurrency: 4,
+      },
+      env: {},
     }
 
     const runner = new Runner(pipeline, globalContext)
-    // Spy on the console or logger to verify execution if needed, 
+    // Spy on the console or logger to verify execution if needed,
     // but here we just check if it runs without errors.
     await expect(runner.start()).resolves.toBeDefined()
   })

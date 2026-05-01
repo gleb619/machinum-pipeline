@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { inspectCommand } from '../../src/commands/inspect.js'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { inspectCommand } from '../../src/commands/inspect.js'
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>()
@@ -14,7 +14,7 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 describe('inspectCommand', () => {
   const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
   const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-  const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => ({} as never))
+  const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => ({}) as never)
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -45,13 +45,13 @@ describe('inspectCommand', () => {
         state: 'done',
         children: [
           { stepId: 'source-1', state: 'done' },
-          { 
-            stepId: 'tool-1', 
+          {
+            stepId: 'tool-1',
             state: 'in-progress',
-            children: [{ stepId: 'fork-1', state: 'pending' }]
-          }
-        ]
-      }
+            children: [{ stepId: 'fork-1', state: 'pending' }],
+          },
+        ],
+      },
     }
 
     vi.mocked(readFile).mockImplementation(async (path: any) => {

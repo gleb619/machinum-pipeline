@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RunStateData } from '@mt/core'
 
@@ -7,7 +7,7 @@ import type { RunStateData } from '@mt/core'
  */
 export async function listRunsCommand(_args: string[]): Promise<void> {
   const runsDir = join(process.cwd(), '.mt', 'runs')
-  
+
   try {
     const runIds = await readdir(runsDir)
     const runs: RunStateData[] = []
@@ -40,7 +40,7 @@ export async function listRunsCommand(_args: string[]): Promise<void> {
       })),
     )
   } catch (err) {
-    if ((err as any).code === 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       console.log('No runs found.')
     } else {
       console.error('Error listing runs:', err)

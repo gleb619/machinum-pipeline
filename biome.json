@@ -23,15 +23,12 @@
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 100,
-    "quoteStyle": "single",
-    "trailingCommas": "all",
-    "semicolons": "never"
+    "lineWidth": 100
   },
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
-      "semicolons": "never",
+      "semicolons": "asNeeded",
       "trailingCommas": "all"
     }
   },

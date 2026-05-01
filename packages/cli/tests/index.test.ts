@@ -1,24 +1,24 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { main } from '../src/index.js'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initCommand } from '../src/commands/init.js'
-import { runCommand } from '../src/commands/run.js'
-import { listRunsCommand } from '../src/commands/list.js'
 import { inspectCommand } from '../src/commands/inspect.js'
+import { listRunsCommand } from '../src/commands/list.js'
+import { runCommand } from '../src/commands/run.js'
+import { main } from '../src/index.js'
 
 vi.mock('../src/commands/init.js', () => ({
-  initCommand: vi.fn()
+  initCommand: vi.fn(),
 }))
 
 vi.mock('../src/commands/run.js', () => ({
-  runCommand: vi.fn()
+  runCommand: vi.fn(),
 }))
 
 vi.mock('../src/commands/list.js', () => ({
-  listRunsCommand: vi.fn()
+  listRunsCommand: vi.fn(),
 }))
 
 vi.mock('../src/commands/inspect.js', () => ({
-  inspectCommand: vi.fn()
+  inspectCommand: vi.fn(),
 }))
 
 describe('CLI entry point', () => {

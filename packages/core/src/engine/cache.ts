@@ -47,7 +47,7 @@ export class Cache {
    * Get a cached value if present.
    */
   async get<T>(key: string): Promise<T | undefined> {
-    const filePath = this.store.resolve('cache', `${key}.json`)
+    const _filePath = this.store.resolve('cache', `${key}.json`)
     const exists = await this.store.exists('cache', `${key}.json`)
     if (!exists) return undefined
 

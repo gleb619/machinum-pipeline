@@ -19,7 +19,7 @@ export async function initCommand(args: string[]): Promise<void> {
   // Create mt.json
   const configPath = join(projectRoot, 'mt.json')
   const { writeFile: fsWriteFile, mkdir } = await import('node:fs/promises')
-  await fsWriteFile(configPath, JSON.stringify(config, null, 2) + '\n', 'utf-8')
+  await fsWriteFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf-8')
   console.log(`Created ${configPath}`)
 
   // Create .mt/ directories

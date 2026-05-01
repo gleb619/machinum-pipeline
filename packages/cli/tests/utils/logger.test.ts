@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DuplexLogger, createConsoleLogger } from '../../src/utils/logger.js'
 
 describe('DuplexLogger', () => {
@@ -24,10 +24,12 @@ describe('DuplexLogger', () => {
     const logger = new DuplexLogger(testDir)
     logger.info('test info', { key: 'value' })
 
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('[INFO] test info {"key":"value"}'))
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('[INFO] test info {"key":"value"}'),
+    )
 
     // Wait a bit for file write (it's 'voided' in DuplexLogger)
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     const logContent = await readFile(join(testDir, 'run.log'), 'utf-8')
     expect(logContent).toContain('[INFO] test info {"key":"value"}')
@@ -39,7 +41,7 @@ describe('DuplexLogger', () => {
 
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('[ERROR] test error'))
 
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
 
     const logContent = await readFile(join(testDir, 'run.log'), 'utf-8')
     expect(logContent).toContain('[ERROR] test error')
@@ -56,9 +58,9 @@ describe('DuplexLogger', () => {
     process.env.MT_DEBUG = '1'
     logger.debug('test debug')
     expect(console.debug).toHaveBeenCalledWith(expect.stringContaining('[DEBUG] test debug'))
-    delete process.env.MT_DEBUG
+    process.env.MT_DEBUG = undefined
 
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await new Promise((resolve) => setTimeout(resolve, 50))
     const logContent = await readFile(join(testDir, 'run.log'), 'utf-8')
     expect(logContent).toContain('[DEBUG] test debug')
   })
