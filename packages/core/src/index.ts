@@ -59,3 +59,4 @@ export {
 } from './engine/checkpoint.js'
 export { runChildProcess, streamChildProcess } from './engine/child-process.js'
 export type { ChildProcessOptions, ChildProcessResult } from './engine/child-process.js'
+export { truncateString } from './utils/string.js'
