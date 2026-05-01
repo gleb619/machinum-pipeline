@@ -19,7 +19,7 @@ workspace:
 
 # Worktree setup for agent isolation
 worktree_setup:
-  setup_command: "source /home/boris/.nvm/nvm.sh && nvm use v22.20.0 && pnpm install"
+  setup_command: "/bin/bash -c 'source /home/boris/.nvm/nvm.sh && nvm use v22.20.0 && pnpm install'"
 
 # Internal scheduler LLM - codex for planning/decomposition
 internal_llm_provider: codex
