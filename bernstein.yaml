@@ -28,7 +28,7 @@ budget: "$10"
 # Forbidden: claude, kimi
 role_model_policy:
   architect:   {cli: codex, effort: high}
-  backend:     {cli: blackbox, effort: high}
+  backend:     {cli: opencode, effort: high}
   frontend:    {cli: opencode, effort: high}
   qa:          {cli: qwen, effort: medium}
   docs:        {cli: kilo, effort: medium}
