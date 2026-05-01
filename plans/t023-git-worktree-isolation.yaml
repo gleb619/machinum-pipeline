@@ -5,6 +5,7 @@ stages:
   - name: design
     steps:
       - id: design-arch
+        title: "Design Git worktree isolation architecture"
         role: architect
         description: >
           Design the Git worktree isolation architecture for Source/Target in machinum-pipeline.
@@ -35,6 +36,7 @@ stages:
     depends_on: [design]
     steps:
       - id: impl-git-worktree-engine
+        title: "Implement git worktree engine module"
         role: backend
         description: >
           Implement the git worktree engine module at packages/core/src/engine/git-worktree.ts.
@@ -59,6 +61,7 @@ stages:
     depends_on: [implement-core]
     steps:
       - id: impl-git-worktree-builtins
+        title: "Implement GitWorktreeSource and GitWorktreeTarget wrappers"
         role: backend
         description: >
           Implement GitWorktreeSource and GitWorktreeTarget wrappers at:
@@ -93,6 +96,7 @@ stages:
     depends_on: [implement-source-target]
     steps:
       - id: impl-uri-composite
+        title: "Implement URI composite scheme integration"
         role: backend
         description: >
           Update packages/core/src/uri.ts to support the git+ composite scheme.
@@ -119,6 +123,7 @@ stages:
     depends_on: [implement-uri-integration]
     steps:
       - id: test-worktree
+        title: "Write comprehensive tests for git worktree isolation"
         role: qa
         description: >
           Write comprehensive tests for the git worktree isolation feature at:
@@ -148,6 +153,7 @@ stages:
     depends_on: [testing]
     steps:
       - id: docs-worktree
+        title: "Document git worktree isolation feature"
         role: docs
         description: >
           Create documentation for the git worktree isolation feature at:
