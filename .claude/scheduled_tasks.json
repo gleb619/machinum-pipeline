@@ -4,7 +4,7 @@
       "id": "hc-backend-",
       "cron": "*/5 * * * *",
       "prompt": "Self-check: Are you making progress on your assigned tasks? If stuck for >2 minutes, use the bernstein MCP tool to report your status. If token budget is >80% consumed, commit your work and wrap up.",
-      "createdAt": 1777644736542,
+      "createdAt": 1777645608204,
       "recurring": true
     }
   ]
