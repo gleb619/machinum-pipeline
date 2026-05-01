@@ -1,13 +1,116 @@
-# Bernstein orchestration config
-# Uncomment and edit the goal, then run: bernstein
+# Bernstein Configuration for Machinum-Pipeline
+# Pluggable document processing orchestration engine
 
-# goal: "Describe what you want the agents to build or improve"
+# Project metadata
+project:
+  name: machinum-pipeline
+  description: Document processing engine with state machine pipelines
+  language: typescript
+  package_manager: pnpm
+  monorepo: true
+  workspace_patterns:
+    - "packages/*/package.json"
 
-cli: auto  # Bernstein picks the best agent per task
-team: auto
+# Workspace repos configuration
+workspace:
+  repos:
+    - name: machinum-pipeline
+      path: .
+
+# Worktree setup for agent isolation
+worktree_setup:
+  setup_command: "source /home/boris/.nvm/nvm.sh && nvm use v22.20.0 && pnpm install"
+
+# Internal scheduler LLM - codex for planning/decomposition
+internal_llm_provider: codex
+
+# Goal (required by bernstein seed parser)
+goal: "Implement Git worktree isolation for Source and Target (T023)"
+
+# Budget
 budget: "$10"
 
+# Per-role agent configuration - user-defined assignments
+# Forbidden agents: claude, kimi (never referenced here)
+role_model_policy:
+  architect:
+    cli: codex
+    effort: high
+
+  backend:
+    cli: blackbox
+    effort: high
+
+  frontend:
+    cli: opencode
+    effort: high
+
+  qa:
+    cli: qwen
+    effort: medium
+
+  docs:
+    cli: kilo
+    effort: medium
+
+  editing:
+    cli: gemini
+    model: gemini-2.5-flash
+    effort: medium
+
+  security:
+    cli: goose
+    effort: high
+
+  reviewer:
+    cli: goose
+    effort: medium
+
+  boilerplate:
+    cli: pi
+    effort: low
+
+# Quality gates - verification before merge
+quality_gates:
+  enabled: true
+  gates:
+    - type: tests
+      command: pnpm test
+      required: true
+      timeout_seconds: 120
+
+    - type: types
+      command: pnpm type-check
+      required: true
+      timeout_seconds: 60
+
+    - type: lint
+      command: pnpm lint
+      required: true
+      timeout_seconds: 60
+
+    - type: build
+      command: pnpm build
+      required: true
+      timeout_seconds: 180
+
+  require_approval_for_unsafe: true
+
+# Storage configuration
+storage:
+  backend: memory
+  retention_days: 30
+
+# Git configuration
+git:
+  auto_push: false
+  rebase_before_merge: true
+
+# Constraints passed to all agents
 constraints:
-  - "Node.js"
-  - "TypeScript preferred"
-  - "vitest or jest for tests"
+  - "Node.js v22.20.0"
+  - "TypeScript strict mode"
+  - "vitest for tests"
+  - "Biome for lint/format"
+  - "Follow existing code patterns in packages/"
+  - "No claude, no kimi"

@@ -1,0 +1,173 @@
+name: t023-git-worktree-isolation
+goal: "Implement Git worktree isolation for Source and Target per UC-24"
+
+stages:
+  - name: design
+    steps:
+      - id: design-arch
+        role: architect
+        description: >
+          Design the Git worktree isolation architecture for Source/Target in machinum-pipeline.
+          Read existing code: packages/core/src/engine/git.ts (has execGit, autoCommit), 
+          packages/core/src/uri.ts (has UriRegistry, ParsedUri, composite resolvers),
+          packages/core/src/types.ts (Source/Target interfaces),
+          packages/core/src/builtins/jsonl-source.ts (built-in pattern).
+
+          Design must support:
+          1. Composite scheme: git+jsonl://path?branch=work-branch to create git-worktree:// wrapper
+          2. Query parameter ?git=worktree on any URI to trigger worktree isolation
+          3. GitWorktreeSource: creates worktree from repo HEAD, then delegates to inner Source
+          4. GitWorktreeTarget: creates worktree, delegates to inner Target, then on close 
+             auto-commits (if commit=on-close) and optionally merges to main
+          5. Cleanup/discard if pipeline fails
+          6. Reuse existing execGit function from engine/git.ts
+
+          Output: Write design document as docs/design/git-worktree-isolation.md with
+          architecture diagram (text), interfaces, data flow, error handling, and implementation steps.
+        owned_files:
+          - docs/design/git-worktree-isolation.md
+        acceptance_criteria:
+          - "Design doc exists at docs/design/git-worktree-isolation.md"
+          - "Covers composite scheme, Source/Target wrappers, cleanup, error handling"
+          - "References existing code patterns correctly"
+
+  - name: implement-core
+    depends_on: [design]
+    steps:
+      - id: impl-git-worktree-engine
+        role: backend
+        description: >
+          Implement the git worktree engine module at packages/core/src/engine/git-worktree.ts.
+
+          Required functions (reusing execGit from git.ts):
+          - createWorktree(repoRoot, branchName) → worktreePath: creates git worktree with `git worktree add --detach`
+          - removeWorktree(worktreePath): cleans up with `git worktree remove --force`
+          - mergeWorktreeToMain(repoRoot, worktreePath, commitMessage?): rebases worktree branch onto main, then fast-forward merges
+          - getRepoRoot(cwd): finds git root directory
+
+          Follow existing code patterns: async/await, typed interfaces, no external deps beyond node builtins.
+          Export all new functions from packages/core/src/engine/index.ts.
+        owned_files:
+          - packages/core/src/engine/git-worktree.ts
+          - packages/core/src/engine/index.ts
+        acceptance_criteria:
+          - "TypeScript compiles without errors"
+          - "All functions exported from engine/index.ts"
+          - "Follows existing async/await patterns"
+
+  - name: implement-source-target
+    depends_on: [implement-core]
+    steps:
+      - id: impl-git-worktree-builtins
+        role: backend
+        description: >
+          Implement GitWorktreeSource and GitWorktreeTarget wrappers at:
+          packages/core/src/builtins/git-worktree-source.ts
+
+          GitWorktreeSource<T>(innerSource: Source<T>, worktreePath: string):
+          - Delegates start() to innerSource.start() inside the worktree directory
+          - Delegates resume() to innerSource.resume() inside the worktree directory
+          - Sets lifestyle from inner source
+
+          GitWorktreeTarget<T>(innerTarget: Target<T>, repoRoot: string, worktreePath: string, commitOnClose: boolean):
+          - open(): calls innerTarget.open() in worktree context, creates worktree
+          - write(): delegates to innerTarget.write()
+          - close(): calls innerTarget.close(), then if commitOnClose:
+            1. auto-commits in worktree with `autoCommit(worktreePath)`
+            2. merges worktree to main with mergeWorktreeToMain()
+            3. cleans up worktree
+          - If close fails, clean up worktree anyway
+
+          Also update packages/core/src/builtins/index.ts to export new modules.
+
+          Follow jsonl-source.ts pattern: factory functions from ParsedUri, register in registry.
+        owned_files:
+          - packages/core/src/builtins/git-worktree-source.ts
+          - packages/core/src/builtins/index.ts
+        acceptance_criteria:
+          - "TypeScript compiles without errors"
+          - "GitWorktreeSource exported"
+          - "GitWorktreeTarget exported"
+
+  - name: implement-uri-integration
+    depends_on: [implement-source-target]
+    steps:
+      - id: impl-uri-composite
+        role: backend
+        description: >
+          Update packages/core/src/uri.ts to support the git+ composite scheme.
+
+          Add a composite resolver for 'git+':
+          - Parse git+jsonl://path?branch=work → create git worktree, delegate to jsonl
+          - Parse git+http://host/path → create git worktree, delegate to http
+          - Supports ?commit=on-close and ?git=worktree query parameters
+
+          Also add a general mechanism: when any URI has ?git=worktree in its query params,
+          the resolveSource/resolveTarget methods should wrap the result in GitWorktreeSource/Target.
+
+          Register the composite resolver in the registry constructor or a setup function.
+
+          Import and register in packages/core/src/builtins/git-worktree-source.ts (or a new register file).
+        owned_files:
+          - packages/core/src/uri.ts
+        acceptance_criteria:
+          - "Composite resolver registered for git+ prefix"
+          - "?git=worktree query param triggers worktree wrapping"
+          - "TypeScript compiles without errors"
+
+  - name: testing
+    depends_on: [implement-uri-integration]
+    steps:
+      - id: test-worktree
+        role: qa
+        description: >
+          Write comprehensive tests for the git worktree isolation feature at:
+          packages/core/tests/engine/git-worktree.test.ts
+
+          Test cases (using vitest, mock git repo):
+          1. createWorktree creates a new worktree directory
+          2. removeWorktree cleans up properly
+          3. mergeWorktreeToMain rebases and fast-forwards
+          4. GitWorktreeSource delegates to inner source in worktree context
+          5. GitWorktreeTarget creates worktree, writes, commits on close
+          6. GitWorktreeTarget cleans up on failure
+          7. Composite URI git+jsonl:// resolves correctly
+          8. ?git=worktree query param triggers wrapping
+          9. Error handling — git not installed, conflict on merge
+
+          Use describe/it from vitest. Create temporary git repos for tests.
+          Do NOT write Python or ML code. Do NOT do SHAP analysis.
+        owned_files:
+          - packages/core/tests/engine/git-worktree.test.ts
+        acceptance_criteria:
+          - "At least 8 test cases covering the scenarios listed above"
+          - "All tests pass with pnpm test"
+          - "Uses vitest describe/it pattern"
+
+  - name: documentation
+    depends_on: [testing]
+    steps:
+      - id: docs-worktree
+        role: docs
+        description: >
+          Create documentation for the git worktree isolation feature at:
+          docs/features/git-worktree-isolation.md
+
+          Document:
+          1. What is git worktree isolation — purpose and benefits
+          2. How to use: git+jsonl://path?branch=work, git+http://... URIs
+          3. Query parameters: git=worktree, commit=on-close
+          4. How it works under the hood: worktree creation, delegation, merge/cleanup
+          5. Error scenarios and recovery
+          6. Example pipeline using git worktree isolation
+
+          Also add a brief section to docs/README.md or create docs/features/README.md 
+          listing the feature with a link.
+
+          Keep documentation clear and practical. Reference UC-24 and UC-25.
+        owned_files:
+          - docs/features/git-worktree-isolation.md
+        acceptance_criteria:
+          - "Documentation file exists with all 6 sections"
+          - "Includes usage examples"
+          - "References UC-24 and UC-25"
