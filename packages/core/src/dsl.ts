@@ -42,6 +42,7 @@ export class PipelineBuilder<I, O> {
 
   use<T, R>(tool: Tool<T, R>, overrides?: {
     retry?: { max?: number; backoffMs?: number; strategy?: 'fixed' | 'linear' | 'exp' }
+    onError?: 'fail-run' | 'skip-item' | 'dead-letter'
   }): PipelineBuilder<R, O> {
     this.steps.push({
       type: 'tool',
@@ -49,6 +50,7 @@ export class PipelineBuilder<I, O> {
         name: tool.name,
         version: tool.version,
         retry: overrides?.retry,
+        onError: overrides?.onError,
       },
     })
     return this as unknown as PipelineBuilder<R, O>
