@@ -23,16 +23,18 @@
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
-    "lineWidth": 100,
-    "quoteStyle": "single",
-    "trailingCommas": "all",
-    "semicolons": "never"
+    "lineWidth": 100
   },
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
-      "semicolons": "never",
-      "trailingCommas": "all"
+      "trailingCommas": "all",
+      "semicolons": "asNeeded"
+    }
+  },
+  "json": {
+    "formatter": {
+      "trailingCommas": "none"
     }
   },
   "vcs": {

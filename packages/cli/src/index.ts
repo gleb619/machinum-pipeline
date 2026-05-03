@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { fileURLToPath } from 'node:url'
 import { initCommand } from './commands/init.js'
-import { runCommand } from './commands/run.js'
-import { resumeCommand } from './commands/resume.js'
-import { listRunsCommand } from './commands/list.js'
 import { inspectCommand } from './commands/inspect.js'
+import { listRunsCommand } from './commands/list.js'
+import { resumeCommand } from './commands/resume.js'
+import { runCommand } from './commands/run.js'
+import { serveCommand } from './commands/serve.js'
 import { toolCommand } from './commands/tool.js'
 
 export async function main(): Promise<void> {
@@ -36,14 +37,16 @@ export async function main(): Promise<void> {
       await toolCommand(args.slice(1))
       break
     case 'serve':
-      console.error('mt serve — not yet implemented')
-      process.exit(1)
+      await serveCommand(args.slice(1))
+      break
     case 'router':
       console.error('mt router — not yet implemented')
       process.exit(1)
+      break
     case 'mcp':
       console.error('mt mcp — not yet implemented')
       process.exit(1)
+      break
     case '--help':
     case '-h':
     case '':
