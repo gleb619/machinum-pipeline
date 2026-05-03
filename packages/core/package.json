@@ -1,0 +1,68 @@
+{
+  "name": "@mt/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./config.js": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
+    "./store.js": {
+      "types": "./dist/store.d.ts",
+      "import": "./dist/store.js"
+    },
+    "./types.js": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./domain.js": {
+      "types": "./dist/domain.d.ts",
+      "import": "./dist/domain.js"
+    },
+    "./dsl.js": {
+      "types": "./dist/dsl.d.ts",
+      "import": "./dist/dsl.js"
+    },
+    "./contexts.js": {
+      "types": "./dist/contexts.d.ts",
+      "import": "./dist/contexts.js"
+    },
+    "./uri.js": {
+      "types": "./dist/uri.d.ts",
+      "import": "./dist/uri.js"
+    },
+    "./engine/*.js": {
+      "types": "./dist/engine/*.d.ts",
+      "import": "./dist/engine/*.js"
+    },
+    "./builtins/*.js": {
+      "types": "./dist/builtins/*.d.ts",
+      "import": "./dist/builtins/*.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist .turbo"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "p-limit": "^7.3.0"
+  }
+}
