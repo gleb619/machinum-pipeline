@@ -1,7 +1,7 @@
 # Implementation Plan
 
 > **Last Updated:** 2026-05-03
-> **Active Phase:** 2 — CLI Completion — `in-progress`
+> **Active Phase:** 3 — Admin UI & Policies — `todo`
 > **Agent:** Hermes Agent (hand-applied)
 
 ## Status Legend
@@ -38,6 +38,11 @@
 | T028 | Implement skip-item onError strategy                                            | `done` | `S`  | core        | UC-18  | —          | —      | —                                                          |
 | T029 | Start backend detached (`mt serve -d`)                                          | `done`  | `L`  | cli         | UC-27  | T025       | —      | —                                                          |
 | T030 | Discover pipelines from mt.json                                                 | `done`  | `M`  | core        | UC-48  | —          | —      | —                                                          |
+| T031 | Start Run from Admin UI                                                        | `todo`  | `M`  | backend,ui  | UC-28  | T025       | —      | —                                                          |
+| T032 | Pause/Resume Run from Admin UI                                                 | `todo`  | `M`  | backend,ui  | UC-31  | T031       | —      | —                                                          |
+| T033 | Configure retry/onError policies per pipeline/tool                             | `todo`  | `M`  | core        | UC-47  | —          | —      | —                                                          |
+| T034 | Persist intermediate artifacts under Run dir                                   | `todo`  | `M`  | core        | UC-52  | —          | —      | —                                                          |
+| T035 | Mirror runs to SQLite (schema scaffold)                                        | `todo`  | `M`  | backend     | UC-54  | T025       | —      | —                                                          |
 
 > `UC ref` column which contains an ID of the use case, located at `docs/uc.md`
 
@@ -45,4 +50,5 @@
 | Phase                 | Status        | Tasks     | Documentation                          |
 |-----------------------|---------------|-----------|----------------------------------------|
 | 1 — Engine Spine (M1) | `done`        | T001–T010 | [uc.md](uc.md), [steering/](steering/) |
-| 2 — CLI Completion    | `in-progress` | T011–T030 | [uc.md](uc.md)                         |
+| 2 — CLI Completion    | `done`        | T011–T030 | [uc.md](uc.md)                         |
+| 3 — Admin UI & Policies | `todo`     | T031–T035 | [uc.md](uc.md)                         |
