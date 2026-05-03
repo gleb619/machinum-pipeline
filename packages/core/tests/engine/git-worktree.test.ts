@@ -58,6 +58,7 @@ function makeSourceContext(): SourceContext {
       },
       checkpoint: { stepId: 's1', depth: 0, path: [] },
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      artifactsDir: '/tmp/.mt/runs/test-run/artifacts',
     },
   }
 }
@@ -75,6 +76,7 @@ function makeTargetContext(): TargetContext {
       },
       checkpoint: { stepId: 's1', depth: 0, path: [] },
       logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      artifactsDir: '/tmp/.mt/runs/test-run/artifacts',
     },
   }
 }

@@ -26,8 +26,8 @@
 |------|-------------------------------------------------------|--------|------|----------------|--------|------------|--------|--------------------------------------------------------------|
 | T031 | Start Run from Admin UI                               | `done` | `M`  | backend,ui     | UC-28  | T025       | T032   | —                                                            |
 | T032 | Pause/Resume Run from Admin UI                        | `done` | `M`  | backend,ui     | UC-31  | T031       | —      | —                                                            |
-| T033 | Configure retry/onError policies per pipeline/tool    | `todo` | `M`  | core           | UC-47  | —          | —      | —                                                            |
-| T034 | Persist intermediate artifacts under Run dir          | `todo` | `M`  | core           | UC-52  | —          | —      | —                                                            |
+| T033 | Configure retry/onError policies per pipeline/tool    | `done` | `M`  | core           | UC-47  | —          | —      | —                                                            |
+| T034 | Persist intermediate artifacts under Run dir          | `in-progress` | `M`  | core           | UC-52  | —          | —      | —                                                            |
 | T035 | Mirror runs to SQLite (schema scaffold)               | `todo` | `M`  | backend        | UC-54  | T025       | —      | —                                                            |
 | T036 | Architectural tests — Project Setup & Discovery       | `todo` | `M`  | cli,core       | —      | —          | —      | [plans/project-setup.md](plans/project-setup.md)             |
 | T037 | Architectural tests — DSL Authoring & Extensibility   | `todo` | `M`  | core           | —      | —          | —      | [plans/dsl-authoring.md](plans/dsl-authoring.md)             |

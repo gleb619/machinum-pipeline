@@ -391,6 +391,7 @@ export class Runner {
     }
 
     await this.store.ensureDir('runs', this.runId)
+    await this.store.ensureDir('runs', this.runId, 'artifacts')
     await this.store.writeJson(stateData, 'runs', this.runId, 'state.json')
     await this.store.writeJson(this.runContext ?? {}, 'runs', this.runId, 'context.json')
   }
@@ -399,8 +400,9 @@ export class Runner {
    * Create a run context for this execution.
    */
   private createRunContext(): RunContext {
+    const runId = this.runId ?? randomUUID()
     return {
-      runId: this.runId ?? randomUUID(),
+      runId,
       pipelineId: this.pipeline.id,
       startedAt: new Date().toISOString(),
       global: this.globalContext,
@@ -410,6 +412,7 @@ export class Runner {
         path: [this.checkpoint.stepId],
       },
       logger: this.logger(),
+      artifactsDir: join(this.globalContext.project.root, '.mt', 'runs', runId, 'artifacts'),
     }
   }
 

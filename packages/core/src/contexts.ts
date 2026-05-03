@@ -29,6 +29,8 @@ export interface RunContext {
   global: GlobalContext
   checkpoint: CheckpointHandle
   logger: Logger
+  /** Absolute path to .mt/runs/<runId>/artifacts/ — for persisting intermediate outputs */
+  artifactsDir: string
 }
 
 /**
