@@ -39,6 +39,8 @@ export {
 export { registry, UriRegistry } from './uri.js'
 export type { ParsedUri, SourceFactory, TargetFactory, CompositeResolver } from './uri.js'
 export { createJsonlSource, createJsonlTarget } from './builtins/jsonl-source.js'
+export { discoverPipelines } from './discovery.js'
+export type { DiscoveredPipeline } from './discovery.js'
 
 // Engine exports
 export { RunStateMachine } from './engine/state-machine.js'
