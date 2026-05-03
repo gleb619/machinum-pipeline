@@ -1,19 +1,27 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import pLimit from 'p-limit'
-import type { Logger, Pipeline, PipelineStep, RunStateData } from '../types.js'
 import type { GlobalContext, RunContext } from '../contexts.js'
 import { Store } from '../store.js'
+import type { Logger, Pipeline, PipelineStep, RunStateData } from '../types.js'
 import { registry } from '../uri.js'
 // Side-effect import: triggers builtin source/target registration
 import '../builtins/jsonl-source.js'
-import { RunStateMachine } from './state-machine.js'
-import { createRootCheckpoint, findFirstNonDone, findNode, markDone, markFailed, markInProgress, serializeTree } from './checkpoint.js'
-import { withRetry } from './retry.js'
 import { Cache } from './cache.js'
+import {
+  createRootCheckpoint,
+  findFirstNonDone,
+  findNode,
+  markDone,
+  markFailed,
+  markInProgress,
+  serializeTree,
+} from './checkpoint.js'
 import { runChildProcess } from './child-process.js'
 import { writeDeadLetter } from './dead-letter.js'
 import { autoCommit } from './git.js'
+import { withRetry } from './retry.js'
+import { RunStateMachine } from './state-machine.js'
 
 /**
  * Runner — executes a pipeline definition, manages state machine, checkpointing, and logging.
@@ -122,11 +130,11 @@ export class Runner {
       while (this.stateMachine.current === 'paused') {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
-      
+
       if (this.stateMachine.current !== 'running') break
 
       const stepId = `${step.type}-${step.config.name ?? step.type}-${Date.now()}`
-      
+
       this.logger().info(`Configuring pipeline stream for step: ${step.type} (${stepId})`)
 
       switch (step.type) {
@@ -139,82 +147,111 @@ export class Runner {
         case 'tool': {
           const toolName = step.config.name as string
           const tool = step.config.tool as import('../types.js').Tool<unknown, unknown> | undefined
-          
-          const concurrency = Number.parseInt((step.config.concurrency as string) ?? this.globalContext.defaults.concurrency.toString(), 10)
-          const retryPolicy = (step.config.retry as any) ?? this.pipeline.retry ?? this.globalContext.defaults.retry
-          const onError = (step.config.onError as any) ?? this.pipeline.onError ?? this.globalContext.defaults.onError
+
+          const concurrency = Number.parseInt(
+            (step.config.concurrency as string) ??
+              this.globalContext.defaults.concurrency.toString(),
+            10,
+          )
+          const retryPolicy =
+            (step.config.retry as any) ?? this.pipeline.retry ?? this.globalContext.defaults.retry
+          const onError =
+            (step.config.onError as any) ??
+            this.pipeline.onError ??
+            this.globalContext.defaults.onError
 
           const sourceStream = stream ?? createEmptyStream()
           const cache = this.cache
           const logger = this.logger()
           const store = this.store
+          const limit = pLimit(concurrency)
 
           stream = (async function* () {
+            const batch: Promise<import('../types.js').Envelope<unknown>>[] = []
+
             for await (const env of sourceStream) {
               if (!tool) {
                 yield env
                 continue
               }
 
-              const cacheKey = (tool.cacheable) ? cache.computeKey({
-                toolName: tool.name,
-                version: tool.version,
-                input: env,
-                context: step.config.context as Record<string, unknown>
-              }) : null
+              const task = limit(async (): Promise<import('../types.js').Envelope<unknown>> => {
+                const cacheKey = tool.cacheable
+                  ? cache.computeKey({
+                      toolName: tool.name,
+                      version: tool.version,
+                      input: env,
+                      context: step.config.context as Record<string, unknown>,
+                    })
+                  : null
 
-              if (cacheKey && await cache.has(cacheKey)) {
-                logger.info(`Cache hit for tool ${tool.name}`)
-                yield await cache.get(cacheKey)
-                continue
-              }
-
-              try {
-                const output = await withRetry(
-                  async () => {
-                    if (tool.exec && tool.exec !== 'inproc') {
-                      return await runChildProcess(
-                        { command: tool.exec, args: [tool.name] },
-                        env,
-                        { run: runContext, step: { stepId } }
-                      )
-                    }
-                    return await tool.invoke(env, { run: runContext, step: { stepId } })
-                  },
-                  retryPolicy,
-                  (err, attempt) => {
-                    logger.warn(`Tool ${toolName} failed (attempt ${attempt + 1}): ${err}`)
-                  }
-                )
-
-                if (cacheKey && output !== undefined) {
-                  await cache.set(cacheKey, {
-                    toolName: tool.name,
-                    version: tool.version,
-                    input: env,
-                    context: step.config.context as Record<string, unknown>
-                  }, output)
+                if (cacheKey && (await cache.has(cacheKey))) {
+                  logger.info(`Cache hit for tool ${tool.name}`)
+                  return await cache.get(cacheKey)
                 }
-                yield output
-              } catch (error) {
-                logger.error(`Tool ${toolName} failed after retries: ${error}`)
-                if (onError === 'fail-run') {
-                  throw error
-                }
-                if (onError === 'dead-letter') {
-                  await writeDeadLetter(
-                    store,
-                    runContext.runId,
-                    env,
-                    error as Error,
-                    stepId
+
+                try {
+                  const output = await withRetry(
+                    async () => {
+                      if (tool.exec && tool.exec !== 'inproc') {
+                        return await runChildProcess(
+                          { command: tool.exec, args: [tool.name] },
+                          env,
+                          { run: runContext, step: { stepId } },
+                        )
+                      }
+                      return await tool.invoke(env, { run: runContext, step: { stepId } })
+                    },
+                    retryPolicy,
+                    (err, attempt) => {
+                      logger.warn(`Tool ${toolName} failed (attempt ${attempt + 1}): ${err}`)
+                    },
                   )
-                  logger.warn(`Tool ${toolName} failed, written to dead-letter queue: ${error}`)
+
+                  if (cacheKey && output !== undefined) {
+                    await cache.set(
+                      cacheKey,
+                      {
+                        toolName: tool.name,
+                        version: tool.version,
+                        input: env,
+                        context: step.config.context as Record<string, unknown>,
+                      },
+                      output,
+                    )
+                  }
+                  return output
+                } catch (error) {
+                  logger.error(`Tool ${toolName} failed after retries: ${error}`)
+                  if (onError === 'fail-run') {
+                    throw error
+                  }
+                  if (onError === 'dead-letter') {
+                    await writeDeadLetter(store, runContext.runId, env, error as Error, stepId)
+                    logger.warn(`Tool ${toolName} failed, written to dead-letter queue: ${error}`)
+                  }
+                  if (onError === 'skip-item') {
+                    logger.warn(`Tool ${toolName} failed, skipping item: ${error}`)
+                  }
+                  // Return undefined for dead-letter/skip-item — will be filtered
+                  return undefined as unknown as import('../types.js').Envelope<unknown>
                 }
-                if (onError === 'skip-item') {
-                  logger.warn(`Tool ${toolName} failed, skipping item: ${error}`)
-                }
-              }
+              })
+
+              batch.push(task)
+
+              // Yield results from completed tasks
+              const settled = await Promise.any(
+                batch.map(async (p, i) => ({ result: await p.catch(() => undefined), index: i })),
+              )
+              yield settled.result
+              batch.splice(settled.index, 1)
+            }
+
+            // Drain remaining batch
+            const remaining = await Promise.all(batch)
+            for (const result of remaining) {
+              yield result
             }
           })()
           break
@@ -223,7 +260,7 @@ export class Runner {
           const uri = step.config.uri as string
           const target = registry.resolveTarget(uri)
           if (!stream) throw new Error('Target step requires a preceding stream')
-          
+
           await target.open({ run: runContext })
           try {
             for await (const env of stream) {
@@ -261,10 +298,15 @@ export class Runner {
           this.logger().info(`Configuring fork step: ${stepId}`)
           stream = (async function* () {
             for await (const env of sourceStream) {
-              let subStream: AsyncIterable<import('../types.js').Envelope<unknown>> = (async function* () { yield env })()
+              let subStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
+                (async function* () {
+                  yield env
+                })()
               for (const childStep of subPipeline.steps) {
                 if (childStep.type === 'tool') {
-                  const tool = childStep.config.tool as import('../types.js').Tool<unknown, unknown> | undefined
+                  const tool = childStep.config.tool as
+                    | import('../types.js').Tool<unknown, unknown>
+                    | undefined
                   if (tool) {
                     subStream = (async function* () {
                       for await (const e of subStream) {
@@ -297,7 +339,7 @@ export class Runner {
           this.logger().warn(`Unsupported pipeline step type in stream: ${step.type}`)
       }
     }
-    
+
     // Drain stream if we ended without a target
     if (stream) {
       for await (const _ of stream) {
@@ -312,7 +354,6 @@ export class Runner {
   private async executeStep(step: PipelineStep, stepId: string): Promise<void> {
     throw new Error('executeStep is deprecated. Use executeSteps stream flow instead.')
   }
-
 
   /**
    * Persist the current run state to disk.
