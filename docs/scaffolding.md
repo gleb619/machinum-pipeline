@@ -45,6 +45,11 @@
 | T049 | Architectural tests — Chrome Extension                | `todo` | `M`  | chrome,backend | —      | —          | —      | [plans/chrome-extension.md](plans/chrome-extension.md)       |
 | T050 | Architectural tests — VSCode Extension                | `todo` | `M`  | vscode         | —      | —          | —      | [plans/vscode-extension.md](plans/vscode-extension.md)       |
 | T051 | Architectural tests — Storage & Logging               | `todo` | `M`  | core,cli       | —      | —          | —      | [plans/storage-logging.md](plans/storage-logging.md)         |
+| T052 | Router module — LLM proxy + dashboard + cost tracking  | `todo` | `L`  | router         | UC-32,UC-33,UC-34,UC-35,UC-36 | —          | T047   | —                                                            |
+| T053 | MCP server — list/run/inspect pipelines + tool invoke  | `todo` | `L`  | mcp            | UC-37,UC-38,UC-39,UC-40,UC-41 | —          | T048   | —                                                            |
+| T054 | Chrome extension — scrape chapters + auto-upload       | `todo` | `L`  | chrome         | UC-42,UC-43  | —          | T049   | —                                                            |
+| T055 | VSCode extension — validation + hover DSL + code lens  | `todo` | `L`  | vscode         | UC-44,UC-45,UC-46 | —          | T050   | —                                                            |
+| T056 | Complete HTTP Source — backend integration + SSE push  | `todo` | `M`  | backend,core   | UC-23        | T035       | —      | —                                                            |
 
 > `UC ref` column which contains an ID of the use case, located at `docs/uc.md`
 
@@ -55,3 +60,4 @@
 | 2 — CLI Completion      | `done` | T011–T030 | [uc.md](uc.md)                         |
 | 3 — Admin UI & Policies | `done` | T031–T035 | [uc.md](uc.md)                         |
 | 4 — Architectural Tests | `todo` | T036–T051 | [plans/](plans/)                         |
+| 5 — Module Ecosystem    | `todo` | T052–T056 | [uc.md](uc.md)                         |
