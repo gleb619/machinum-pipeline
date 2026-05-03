@@ -79,6 +79,21 @@ export class Runner {
   }
 
   /**
+   * Unpause a paused runner (in-memory, without reloading state).
+   * Transitions paused → resumed → running so the executeSteps loop continues.
+   */
+  async unpause(): Promise<void> {
+    if (this.stateMachine.current !== 'paused') return
+    if (this.stateMachine.canTransition('resumed')) {
+      this.stateMachine.transition('resumed')
+    }
+    if (this.stateMachine.canTransition('running')) {
+      this.stateMachine.transition('running')
+    }
+    await this.persistState()
+  }
+
+  /**
    * Resume execution from a saved state.
    */
   async resume(runId: string): Promise<RunContext> {

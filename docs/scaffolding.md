@@ -24,8 +24,8 @@
 ## Task Table
 | ID   | Title                                                 | Status | Size | Module         | UC ref | Blocked By | Blocks | Plan Link                                                    |
 |------|-------------------------------------------------------|--------|------|----------------|--------|------------|--------|--------------------------------------------------------------|
-| T031 | Start Run from Admin UI                               | `in-progress` | `M`  | backend,ui     | UC-28  | T025       | —      | —                                                            |
-| T032 | Pause/Resume Run from Admin UI                        | `todo` | `M`  | backend,ui     | UC-31  | T031       | —      | —                                                            |
+| T031 | Start Run from Admin UI                               | `done` | `M`  | backend,ui     | UC-28  | T025       | T032   | —                                                            |
+| T032 | Pause/Resume Run from Admin UI                        | `in-progress` | `M`  | backend,ui     | UC-31  | T031       | —      | —                                                            |
 | T033 | Configure retry/onError policies per pipeline/tool    | `todo` | `M`  | core           | UC-47  | —          | —      | —                                                            |
 | T034 | Persist intermediate artifacts under Run dir          | `todo` | `M`  | core           | UC-52  | —          | —      | —                                                            |
 | T035 | Mirror runs to SQLite (schema scaffold)               | `todo` | `M`  | backend        | UC-54  | T025       | —      | —                                                            |
