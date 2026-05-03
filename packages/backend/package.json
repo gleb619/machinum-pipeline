@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@mt/core": "workspace:*",
+    "better-sqlite3": "^9.6.0",
     "nitropack": "^2.10.0",
     "h3": "^1.13.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
