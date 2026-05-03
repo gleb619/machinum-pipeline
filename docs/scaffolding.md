@@ -22,33 +22,36 @@
 | `XL`   | Days, architectural | requirements -> design -> tasks skills |
 
 ## Task Table
-| ID   | Title                                                                           | Status | Size | Module      | UC ref | Blocked By | Blocks | Plan Link                                                  |
-|------|---------------------------------------------------------------------------------|--------|------|-------------|--------|------------|--------|------------------------------------------------------------|
-| T016 | Implement `.flatMap` DSL operator                                               | `done` | `M`  | core        | UC-13  | —          | T017   | [plan](plans/2026-04-30_184800-T016-T020-dsl-operators.md) |
-| T017 | Implement `.fork` DSL operator for nested pipelines                             | `done` | `L`  | core        | UC-14  | T016       | —      | [plan](plans/2026-04-30_184800-T016-T020-dsl-operators.md) |
-| T018 | Implement `.tap` DSL operator                                                   | `done` | `S`  | core        | —      | T017       | —      | [plan](plans/2026-04-30_184800-T016-T020-dsl-operators.md) |
-| T019 | Support child-process tools (`npx`/`deno`/`bun`) — stdio JSON envelope handling | `done` | `L`  | core        | UC-11  | T017       | —      | [plan](plans/2026-04-30_184800-T016-T020-dsl-operators.md) |
-| T021 | Route failures to dead-letter queue (`dead-letter.jsonl`)                       | `done` | `M`  | core        | UC-19  | —          | T022   | —                                                          |
-| T022 | Implement long-lived HTTP Source                                                | `done` | `L`  | core        | UC-23  | T021       | T023   | [plan](plans/T022-http-source.md)                          |
-| T023 | Support Git worktree isolation for Source/Target                                | `done` | `XL` | core        | UC-24  | —          | —      | —                                                          |
-| T024 | Auto-commit results on Target close                                             | `done` | `L`  | core        | UC-25  | T023       | —      | —                                                          |
-| T025 | Implement `mt serve` backend with SSE progress                                  | `done` | `L`  | cli,backend | UC-26  | —          | —      | —                                                          |
-| T026 | Pause running Run via CLI signal (SIGINT)                                       | `done` | `S`  | cli         | UC-07  | —          | —      | —                                                          |
-| T027 | Process items in parallel with concurrency limiter                              | `done` | `M`  | core        | UC-12  | —          | —      | —                                                          |
-| T028 | Implement skip-item onError strategy                                            | `done` | `S`  | core        | UC-18  | —          | —      | —                                                          |
-| T029 | Start backend detached (`mt serve -d`)                                          | `done`  | `L`  | cli         | UC-27  | T025       | —      | —                                                          |
-| T030 | Discover pipelines from mt.json                                                 | `done`  | `M`  | core        | UC-48  | —          | —      | —                                                          |
-| T031 | Start Run from Admin UI                                                        | `todo`  | `M`  | backend,ui  | UC-28  | T025       | —      | —                                                          |
-| T032 | Pause/Resume Run from Admin UI                                                 | `todo`  | `M`  | backend,ui  | UC-31  | T031       | —      | —                                                          |
-| T033 | Configure retry/onError policies per pipeline/tool                             | `todo`  | `M`  | core        | UC-47  | —          | —      | —                                                          |
-| T034 | Persist intermediate artifacts under Run dir                                   | `todo`  | `M`  | core        | UC-52  | —          | —      | —                                                          |
-| T035 | Mirror runs to SQLite (schema scaffold)                                        | `todo`  | `M`  | backend     | UC-54  | T025       | —      | —                                                          |
+| ID   | Title                                                 | Status | Size | Module         | UC ref | Blocked By | Blocks | Plan Link                                                    |
+|------|-------------------------------------------------------|--------|------|----------------|--------|------------|--------|--------------------------------------------------------------|
+| T031 | Start Run from Admin UI                               | `in-progress` | `M`  | backend,ui     | UC-28  | T025       | —      | —                                                            |
+| T032 | Pause/Resume Run from Admin UI                        | `todo` | `M`  | backend,ui     | UC-31  | T031       | —      | —                                                            |
+| T033 | Configure retry/onError policies per pipeline/tool    | `todo` | `M`  | core           | UC-47  | —          | —      | —                                                            |
+| T034 | Persist intermediate artifacts under Run dir          | `todo` | `M`  | core           | UC-52  | —          | —      | —                                                            |
+| T035 | Mirror runs to SQLite (schema scaffold)               | `todo` | `M`  | backend        | UC-54  | T025       | —      | —                                                            |
+| T036 | Architectural tests — Project Setup & Discovery       | `todo` | `M`  | cli,core       | —      | —          | —      | [plans/project-setup.md](plans/project-setup.md)             |
+| T037 | Architectural tests — DSL Authoring & Extensibility   | `todo` | `M`  | core           | —      | —          | —      | [plans/dsl-authoring.md](plans/dsl-authoring.md)             |
+| T038 | Architectural tests — CLI Execution & Lifecycle       | `todo` | `M`  | cli,core       | —      | —          | —      | [plans/cli-execution.md](plans/cli-execution.md)             |
+| T039 | Architectural tests — Child-Process Tool Execution    | `todo` | `M`  | core           | —      | —          | —      | [plans/child-process-tools.md](plans/child-process-tools.md) |
+| T040 | Architectural tests — Parallelism, Batching & Forking | `todo` | `M`  | core           | —      | —          | —      | [plans/parallelism.md](plans/parallelism.md)                 |
+| T041 | Architectural tests — Engine Resilience               | `todo` | `M`  | core           | —      | —          | —      | [plans/engine-resilience.md](plans/engine-resilience.md)     |
+| T042 | Architectural tests — Item Routing                    | `todo` | `S`  | core           | —      | —          | —      | [plans/item-routing.md](plans/item-routing.md)               |
+| T043 | Architectural tests — Built-in Sources & Targets      | `todo` | `M`  | core           | —      | —          | —      | [plans/builtin-io.md](plans/builtin-io.md)                   |
+| T044 | Architectural tests — Git Worktrees & URI Composition | `todo` | `M`  | core           | —      | —          | —      | [plans/git-uri-composition.md](plans/git-uri-composition.md) |
+| T045 | Architectural tests — Background Serving              | `todo` | `M`  | cli,backend    | —      | —          | —      | [plans/background-serve.md](plans/background-serve.md)       |
+| T046 | Architectural tests — Admin UI, SSE & Backend API     | `todo` | `L`  | backend,ui     | —      | —          | —      | [plans/admin-backend.md](plans/admin-backend.md)             |
+| T047 | Architectural tests — LLM Router Proxy                | `todo` | `L`  | router         | —      | —          | —      | [plans/llm-router.md](plans/llm-router.md)                   |
+| T048 | Architectural tests — MCP Server                      | `todo` | `L`  | mcp            | —      | —          | —      | [plans/mcp-server.md](plans/mcp-server.md)                   |
+| T049 | Architectural tests — Chrome Extension                | `todo` | `M`  | chrome,backend | —      | —          | —      | [plans/chrome-extension.md](plans/chrome-extension.md)       |
+| T050 | Architectural tests — VSCode Extension                | `todo` | `M`  | vscode         | —      | —          | —      | [plans/vscode-extension.md](plans/vscode-extension.md)       |
+| T051 | Architectural tests — Storage & Logging               | `todo` | `M`  | core,cli       | —      | —          | —      | [plans/storage-logging.md](plans/storage-logging.md)         |
 
 > `UC ref` column which contains an ID of the use case, located at `docs/uc.md`
 
 ## Phase Summary
-| Phase                 | Status        | Tasks     | Documentation                          |
-|-----------------------|---------------|-----------|----------------------------------------|
-| 1 — Engine Spine (M1) | `done`        | T001–T010 | [uc.md](uc.md), [steering/](steering/) |
-| 2 — CLI Completion    | `done`        | T011–T030 | [uc.md](uc.md)                         |
-| 3 — Admin UI & Policies | `todo`     | T031–T035 | [uc.md](uc.md)                         |
+| Phase                   | Status | Tasks     | Documentation                          |
+|-------------------------|--------|-----------|----------------------------------------|
+| 1 — Engine Spine (M1)   | `done` | T001–T010 | [uc.md](uc.md), [steering/](steering/) |
+| 2 — CLI Completion      | `done` | T011–T030 | [uc.md](uc.md)                         |
+| 3 — Admin UI & Policies | `todo` | T031–T035 | [uc.md](uc.md)                         |
+| 4 — Architectural Tests | `todo` | T036–T051 | [plans/](plans/)                         |

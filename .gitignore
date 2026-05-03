@@ -36,3 +36,4 @@ build
 .orchestry
 .aider*
 .claude/mcp.json
+.blackboxcli/
