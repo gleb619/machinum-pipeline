@@ -240,18 +240,22 @@ export class Runner {
 
               batch.push(task)
 
-              // Yield results from completed tasks
+              // Yield results from completed tasks, skipping failed/skipped items
               const settled = await Promise.any(
                 batch.map(async (p, i) => ({ result: await p.catch(() => undefined), index: i })),
               )
-              yield settled.result
+              if (settled.result !== undefined) {
+                yield settled.result
+              }
               batch.splice(settled.index, 1)
             }
 
-            // Drain remaining batch
+            // Drain remaining batch, filter out undefined (skipped items)
             const remaining = await Promise.all(batch)
             for (const result of remaining) {
-              yield result
+              if (result !== undefined) {
+                yield result
+              }
             }
           })()
           break
