@@ -33,7 +33,7 @@
 | T023 | Support Git worktree isolation for Source/Target                                | `done` | `XL` | core   | UC-24  | —          | —      | —                                                          |
 | T024 | Auto-commit results on Target close                                             | `done` | `L`  | core   | UC-25  | T023       | —      | —                                                          |
 | T025 | Implement `mt serve` backend with SSE progress                                  | `done` | `L`  | cli,backend | UC-26  | —          | —      | —                                                          |
-| T026 | Pause running Run via CLI signal (SIGINT)                                       | `todo` | `S`  | cli    | UC-07  | —          | —      | —                                                          |
+| T026 | Pause running Run via CLI signal (SIGINT)                                       | `done` | `S`  | cli    | UC-07  | —          | —      | —                                                          |
 | T027 | Process items in parallel with concurrency limiter                              | `todo` | `M`  | core   | UC-12  | —          | —      | —                                                          |
 | T028 | Implement skip-item onError strategy                                            | `todo` | `S`  | core   | UC-18  | —          | —      | —                                                          |
 | T029 | Start backend detached (`mt serve -d`)                                          | `todo` | `L`  | cli    | UC-27  | T025       | —      | —                                                          |
