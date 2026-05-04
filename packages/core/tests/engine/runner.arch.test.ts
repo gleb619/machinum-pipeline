@@ -46,3 +46,47 @@ describe('UC-11 — Runner dispatches to child-process tool (architectural)', ()
     expect(tool.exec).toBeUndefined()
   })
 })
+
+describe('UC-12/UC-13/UC-14 — Concurrency, Batching & Forking (architectural)', () => {
+  it('Envelope supports items array for batched output', () => {
+    const env: import('../../src/types.js').Envelope = {
+      item: { x: 1 },
+      items: [{ x: 1 }, { x: 2 }],
+      meta: {},
+    }
+    expect(Array.isArray(env.items)).toBe(true)
+    expect(env.items?.length).toBe(2)
+  })
+
+  it('PipelineStep.type union includes fork for nested pipelines', () => {
+    // The runner switch handles case 'fork' — verify the type system permits it
+    const types: Array<import('../../src/types.js').PipelineStep['type']> = [
+      'source',
+      'tool',
+      'target',
+      'fork',
+      'batch',
+      'window',
+      'flatmap',
+      'tap',
+    ]
+    expect(types).toContain('fork')
+    expect(types).toContain('batch')
+    expect(types).toContain('window')
+  })
+
+  it('GlobalContext.defaults.concurrency exists as a number', () => {
+    // The runner reads concurrency from step config, falling back to global defaults
+    const ctx: import('../../src/contexts.js').GlobalContext = {
+      project: { name: 'test', root: '/tmp/test' },
+      defaults: {
+        retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
+        onError: 'fail-run',
+        concurrency: 10,
+      },
+      env: {},
+    }
+    expect(typeof ctx.defaults.concurrency).toBe('number')
+    expect(ctx.defaults.concurrency).toBe(10)
+  })
+})

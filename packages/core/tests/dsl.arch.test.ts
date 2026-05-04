@@ -114,3 +114,97 @@ describe('UC-47 — Configure retry/onError policies (architectural)', () => {
     expect(toolStep?.config.onError).toBe('skip-item')
   })
 })
+
+describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural)', () => {
+  const makePipeline = () =>
+    definePipeline({
+      id: 'test',
+      retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
+      onError: 'fail-run',
+    })
+
+  it('.batch(size) pushes a step with type batch and config.size', () => {
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .batch(5)
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const batchStep = p.steps.find((s) => s.type === 'batch')
+    expect(batchStep).toBeDefined()
+    expect(batchStep?.config.size).toBe(5)
+  })
+
+  it('.window(size) pushes a step with type window and config.size', () => {
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .window(3)
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const windowStep = p.steps.find((s) => s.type === 'window')
+    expect(windowStep).toBeDefined()
+    expect(windowStep?.config.size).toBe(3)
+  })
+
+  it('.fork(subPipeline) pushes a step with type fork and config.pipeline', () => {
+    const subPipeline = makePipeline()
+      .from({ uri: 'jsonl://./sub-in.jsonl' } as never)
+      .to({ uri: 'jsonl://./sub-out.jsonl' } as never)
+
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .fork(subPipeline)
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const forkStep = p.steps.find((s) => s.type === 'fork')
+    expect(forkStep).toBeDefined()
+    expect(forkStep?.config.pipeline).toBe(subPipeline)
+  })
+
+  it('.flatMap(fn) pushes a step with type flatmap and config.fn', () => {
+    const fn = async (item: unknown) => [item]
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .flatMap(fn)
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const flatmapStep = p.steps.find((s) => s.type === 'flatmap')
+    expect(flatmapStep).toBeDefined()
+    expect(typeof flatmapStep?.config.fn).toBe('function')
+  })
+
+  it('.tap(fn) pushes a step with type tap and config.fn', () => {
+    const fn = async (_item: unknown) => {}
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .tap(fn)
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const tapStep = p.steps.find((s) => s.type === 'tap')
+    expect(tapStep).toBeDefined()
+    expect(typeof tapStep?.config.fn).toBe('function')
+  })
+
+  it('PipelineStep.type union includes batch, window, fork, flatmap, tap', () => {
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .batch(5)
+      .window(3)
+      .flatMap(async (item) => [item])
+      .tap(async () => {})
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const types = p.steps.map((s) => s.type)
+    expect(types).toContain('source')
+    expect(types).toContain('batch')
+    expect(types).toContain('window')
+    expect(types).toContain('flatmap')
+    expect(types).toContain('tap')
+    expect(types).toContain('target')
+  })
+})
