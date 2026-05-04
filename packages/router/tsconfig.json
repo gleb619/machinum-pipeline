@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "."
+  },
+  "include": ["server/**/*.ts", "nitro.config.ts"],
+  "references": [{ "path": "../core" }]
+}
