@@ -1,11 +1,11 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { initCommand } from './commands/init.js'
 import { inspectCommand } from './commands/inspect.js'
 import { listRunsCommand } from './commands/list.js'
 import { resumeCommand } from './commands/resume.js'
 import { runCommand } from './commands/run.js'
-import { serveCommand } from './commands/serve.js'
 import { toolCommand } from './commands/tool.js'
 
 export async function main(): Promise<void> {
@@ -36,9 +36,12 @@ export async function main(): Promise<void> {
     case 'tool':
       await toolCommand(args.slice(1))
       break
-    case 'serve':
+    case 'serve': {
+      // Lazy-load serve command to avoid importing nitropack unless needed
+      const { serveCommand } = await import('./commands/serve.js')
       await serveCommand(args.slice(1))
       break
+    }
     case 'router':
       console.error('mt router — not yet implemented')
       process.exit(1)
@@ -81,7 +84,7 @@ Options:
   }
 }
 
-const isMain = process.argv[1] === fileURLToPath(import.meta.url)
+const isMain = realpathSync(process.argv[1]!) === realpathSync(fileURLToPath(import.meta.url))
 if (isMain) {
   main().catch((err: unknown) => {
     console.error('Fatal error:', err instanceof Error ? err.message : String(err))

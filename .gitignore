@@ -25,15 +25,18 @@ build
 /gradlew.bat
 /gradle.properties
 
-# Ignore bernstein data
-/templates/
-/.sdd/
-
-/docs/scaffolding.md
-/docs/plans/*
-
 # Orchestry state
 .orchestry
 .aider*
 .claude/mcp.json
 .blackboxcli/
+/docs/scaffolding.md
+/docs/plans/*
+
+/tmp-packs/
+/samples/sample1/vendor/
+/samples/sample1/package-lock.json
+/samples/sample1/runner.log
+/samples/sample1/mt-run.log
+/packages/core/vendor/
+/packages/cli/vendor/

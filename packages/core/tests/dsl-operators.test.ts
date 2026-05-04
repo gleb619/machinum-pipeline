@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createJsonlSource, createJsonlTarget } from '../src/builtins/jsonl-source.js'
+import { createJsonlSource, createJsonlTarget } from '../src/builtins/jsonl.js'
 import { definePipeline, source, target } from '../src/dsl.js'
 import type { Pipeline } from '../src/types.js'
 import { registry } from '../src/uri.js'

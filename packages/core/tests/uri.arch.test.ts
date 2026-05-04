@@ -4,7 +4,7 @@ import type { Envelope, Source, SourceContext, Target, TargetContext } from '../
 import { registry } from '../src/uri.js'
 
 // Register builtins for URI resolution
-import '../src/builtins/jsonl-source.js'
+import '../src/builtins/jsonl.js'
 
 describe('UC-04 — Define custom Source/Target (architectural)', () => {
   it('Source<T> conforms to interface shape', () => {

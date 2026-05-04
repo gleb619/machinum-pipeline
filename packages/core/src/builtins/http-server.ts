@@ -7,10 +7,24 @@ import { registry } from '../uri.js'
 /**
  * Built-in HTTP Source — long-lived HTTP server that receives envelopes via POST.
  * Supports POST /<path> for ingest, GET /health for health check, and GET /events for SSE.
+ *
+ * Scheme aliases:
+ *   - `http://host:port/path?query`  (legacy)
+ *   - `hs://host:port/path?query`    ("http server" shorthand)
  */
 export function createHttpSource<T>(uri: ParsedUri): Source<T> {
-  // Parse port from uri.query.port (default 8080)
-  const port = uri.query.port ? Number.parseInt(uri.query.port, 10) : 8080
+  // Parse port from host (e.g. localhost:9876) or query.port (default 8080)
+  let displayHost = uri.host || '127.0.0.1'
+  let port = uri.query.port ? Number.parseInt(uri.query.port, 10) : 8080
+
+  if (displayHost.includes(':')) {
+    const [h, p] = displayHost.split(':')
+    displayHost = h!
+    const parsedPort = Number.parseInt(p!, 10)
+    if (!Number.isNaN(parsedPort)) {
+      port = parsedPort
+    }
+  }
 
   // The URI path is the ingest endpoint
   const ingestPath = uri.path || '/ingest'
@@ -73,21 +87,8 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
           }
           buffer.length = 0 // Clear buffer
 
-          // Set up delivery for new envelopes
-          const deliveryHandler = (envelope: Envelope<T>) => {
-            try {
-              sendEnvelope(envelope)
-            } catch {
-              // Client disconnected
-            }
-          }
-
-          // Add temporary handler for SSE delivery
-          // Note: We store a reference to remove it later
-          const originalWaiting = [...waiting]
-
           req.on('close', () => {
-            // Handler removed via wrapper
+            // Client disconnected — nothing else to clean up
           })
 
           return
@@ -166,5 +167,6 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   }
 }
 
-// Register built-in HTTP source
+// Register built-in HTTP source under both legacy and shorthand schemes
 registry.registerSource('http', createHttpSource)
+registry.registerSource('hs', createHttpSource)

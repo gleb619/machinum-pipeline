@@ -1,6 +1,13 @@
 import { join } from 'node:path'
 import { Runner } from '@mt/core'
 import type { GlobalContext, Pipeline } from '@mt/core'
+
+// Ensure built-in sources/targets are registered before resolving URIs
+//TODO: add registry object and/or use `packages/core/src/builtins/index.ts`
+import '@mt/core/builtins/http-source.js'
+import '@mt/core/builtins/jsonl-source.js'
+import '@mt/core/builtins/git-worktree-source.js'
+
 import { DuplexLogger } from '../utils/logger.js'
 
 /**
@@ -44,11 +51,11 @@ export async function runCommand(args: string[]): Promise<void> {
   try {
     const runContext = await runner.start()
     logger.info(`Pipeline completed successfully (runId: ${runContext.runId})`)
-    console.log(`\n\u2705 Pipeline complete. Run ID: ${runContext.runId}`)
+    console.log(`\n✅ Pipeline complete. Run ID: ${runContext.runId}`)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logger.error(`Pipeline failed: ${errorMessage}`)
-    console.error(`\n\u274c Pipeline failed: ${errorMessage}`)
+    console.error(`\n❌ Pipeline failed: ${errorMessage}`)
     process.exit(1)
   }
 }

@@ -1,0 +1,14 @@
+{
+  "project": {
+    "name": "sample1"
+  },
+  "defaults": {
+    "retry": {
+      "max": 3,
+      "backoffMs": 1000,
+      "strategy": "exp"
+    },
+    "onError": "fail-run",
+    "concurrency": 4
+  }
+}

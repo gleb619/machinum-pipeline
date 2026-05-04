@@ -6,7 +6,7 @@ import { Store } from '../store.js'
 import type { Logger, Pipeline, PipelineStep, RunStateData } from '../types.js'
 import { registry } from '../uri.js'
 // Side-effect import: triggers builtin source/target registration
-import '../builtins/jsonl-source.js'
+import '../builtins/jsonl.js'
 import { Cache } from './cache.js'
 import {
   createRootCheckpoint,

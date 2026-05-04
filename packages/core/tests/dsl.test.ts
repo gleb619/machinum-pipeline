@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool, source, target } from '../src/dsl.js'
 import type { Book, Chapter, Envelope, Line, Paragraph } from '../src/index.js'
 // Ensure builtins are registered for tests
-import '../src/builtins/jsonl-source.js'
+import '../src/builtins/jsonl.js'
 
 describe('DSL', () => {
   it('T002-02: definePipeline returns a PipelineBuilder', () => {

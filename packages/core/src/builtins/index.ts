@@ -1,7 +1,10 @@
 /**
  * Re-export built-in JSONL source and target.
  */
-export { createJsonlSource, createJsonlTarget } from './jsonl-source.js'
+export { createJsonlSource, createJsonlTarget } from './jsonl.js'
+
+// Markdown read/write
+export { createMdSource, createMdTarget } from './md.js'
 
 // Git worktree wrappers
 export {
@@ -9,8 +12,9 @@ export {
   GitWorktreeTarget,
   createGitWorktreeSource,
   createGitWorktreeTarget,
-} from './git-worktree-source.js'
+} from './git-worktree.js'
 
 // Side-effect imports to register
-import './http-source.js'
-import './git-worktree-source.js' // registers git+ composite via registry
+import './http-server.js'
+import './git-worktree.js' // registers git+ composite via registry
+import './md.js'

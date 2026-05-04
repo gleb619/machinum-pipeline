@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createHttpSource } from '../../src/builtins/http-source.js'
+import { createHttpSource } from '../../src/builtins/http-server.js'
 import { registry } from '../../src/uri.js'
 
 // Register on import
-import '../../src/builtins/http-source.js'
+import '../../src/builtins/http-server.js'
 
 describe('UC-22 — HTTP Source (architectural)', () => {
   it('createHttpSource is exported as a function', () => {

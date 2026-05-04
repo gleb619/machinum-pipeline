@@ -1,0 +1,19 @@
+{
+  "name": "sample0",
+  "version": "1.0.0",
+  "description": "Machinum Pipeline sample — mt init integration test",
+  "type": "module",
+  "scripts": {
+    "test": "tsx run-test.ts"
+  },
+  "dependencies": {
+    "@mt/core": "file:./vendor/mt-core-0.1.0.tgz",
+    "@mt/cli": "file:./vendor/mt-cli-0.1.0.tgz"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

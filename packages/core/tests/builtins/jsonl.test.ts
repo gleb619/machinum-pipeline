@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as readline from 'node:readline'
 import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
-import { createJsonlSource } from '../../src/builtins/jsonl-source.js'
+import { createJsonlSource } from '../../src/builtins/jsonl.js'
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
@@ -21,7 +21,7 @@ vi.mock('node:readline', async (importOriginal) => {
   }
 })
 
-describe('jsonl-source', () => {
+describe('jsonl', () => {
   it('should emit items from source', async () => {
     const mockReadStream = new Readable()
     vi.mocked(fs.createReadStream).mockReturnValue(mockReadStream as any)

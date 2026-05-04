@@ -1,6 +1,6 @@
 import { type Server, createServer } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createHttpSource } from '../../src/builtins/http-source.js'
+import { createHttpSource } from '../../src/builtins/http-server.js'
 import type { Envelope } from '../../src/types.js'
 import type { ParsedUri } from '../../src/uri.js'
 
@@ -42,7 +42,7 @@ function makeMockContext() {
   }
 }
 
-describe('http-source', () => {
+describe('http-server', () => {
   it('should return a source with lifestyle long-lived', () => {
     const source = createHttpSource(makeUri(8080))
     expect(source.lifestyle).toBe('long-lived')
