@@ -39,7 +39,7 @@
 | T043 | Architectural tests — Built-in Sources & Targets      | `done` | `M`  | core           | —                             | —          | —      | [plans/builtin-io.md](plans/builtin-io.md)                   |
 | T044 | Architectural tests — Git Worktrees & URI Composition | `done` | `M`  | core           | —                             | —          | —      | [plans/git-uri-composition.md](plans/git-uri-composition.md) |
 | T045 | Architectural tests — Background Serving              | `done` | `M`  | cli,backend    | —                             | —          | —      | [plans/background-serve.md](plans/background-serve.md)       |
-| T046 | Architectural tests — Admin UI, SSE & Backend API     | `todo` | `L`  | backend,ui     | —                             | —          | —      | [plans/admin-backend.md](plans/admin-backend.md)             |
+| T046 | Architectural tests — Admin UI, SSE & Backend API     | `done` | `L`  | backend,ui     | —                             | —          | —      | [plans/admin-backend.md](plans/admin-backend.md)             |
 | T047 | Architectural tests — LLM Router Proxy                | `todo` | `L`  | router         | —                             | —          | —      | [plans/llm-router.md](plans/llm-router.md)                   |
 | T048 | Architectural tests — MCP Server                      | `todo` | `L`  | mcp            | —                             | —          | —      | [plans/mcp-server.md](plans/mcp-server.md)                   |
 | T049 | Architectural tests — Chrome Extension                | `todo` | `M`  | chrome,backend | —                             | —          | —      | [plans/chrome-extension.md](plans/chrome-extension.md)       |
