@@ -98,11 +98,16 @@ function clearToast() {
 
 function stateColor(state: string): string {
   switch (state) {
-    case 'running': return 'text-green-400'
-    case 'paused': return 'text-yellow-400'
-    case 'done': return 'text-blue-400'
-    case 'failed': return 'text-red-400'
-    default: return 'text-gray-500'
+    case 'running':
+      return 'text-green-400'
+    case 'paused':
+      return 'text-yellow-400'
+    case 'done':
+      return 'text-blue-400'
+    case 'failed':
+      return 'text-red-400'
+    default:
+      return 'text-gray-500'
   }
 }
 

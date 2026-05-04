@@ -1,10 +1,15 @@
-import { join, basename } from 'node:path'
-import type { Envelope, Source, Target, Lifecycle } from '../types.js'
+import { basename, join } from 'node:path'
 import type { SourceContext, TargetContext } from '../contexts.js'
+import {
+  createWorktree,
+  getRepoRoot,
+  mergeWorktreeToMain,
+  removeWorktree,
+} from '../engine/git-worktree.js'
+import { autoCommit } from '../engine/git.js'
+import type { Envelope, Lifecycle, Source, Target } from '../types.js'
 import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
-import { createWorktree, removeWorktree, mergeWorktreeToMain, getRepoRoot } from '../engine/git-worktree.js'
-import { autoCommit } from '../engine/git.js'
 
 /**
  * GitWorktreeSource wraps an inner Source, delegating all operations
@@ -178,7 +183,12 @@ export function createGitWorktreeTarget<T>(uri: ParsedUri): Target<T> {
   const repoRoot = uri.query.root || process.cwd()
   const commitOnClose = uri.query.commit === 'on-close'
 
-  return new GitWorktreeTarget(innerTarget, repoRoot, join(repoRoot, 'worktrees', branchName), commitOnClose)
+  return new GitWorktreeTarget(
+    innerTarget,
+    repoRoot,
+    join(repoRoot, 'worktrees', branchName),
+    commitOnClose,
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -192,9 +202,12 @@ export function createGitWorktreeTarget<T>(uri: ParsedUri): Target<T> {
  * Parses the inner scheme and injects it as _inner_scheme query param
  * so that createGitWorktreeSource / createGitWorktreeTarget can use it.
  */
-registry.registerComposite('git+', (_schemes: string[], rest: string): import('../uri.js').ParsedUri => {
-  // rest looks like: jsonl://data.jsonl?branch=feat&commit=on-close
-  const parsed = registry.parse(rest)
-  parsed.query._inner_scheme = parsed.scheme
-  return parsed
-})
+registry.registerComposite(
+  'git+',
+  (_schemes: string[], rest: string): import('../uri.js').ParsedUri => {
+    // rest looks like: jsonl://data.jsonl?branch=feat&commit=on-close
+    const parsed = registry.parse(rest)
+    parsed.query._inner_scheme = parsed.scheme
+    return parsed
+  },
+)

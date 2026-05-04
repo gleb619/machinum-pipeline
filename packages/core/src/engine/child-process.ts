@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
-import type { Envelope } from '../types.ts'
 import type { ToolContext } from '../contexts.ts'
+import type { Envelope } from '../types.ts'
 
 /**
  * Options for spawning a child process tool.

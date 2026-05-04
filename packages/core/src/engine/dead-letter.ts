@@ -1,5 +1,5 @@
-import type { Envelope } from '../types.js'
 import type { Store } from '../store.js'
+import type { Envelope } from '../types.js'
 
 /**
  * Dead-letter entry written to .mt/runs/<runId>/dead-letter.jsonl
@@ -29,7 +29,7 @@ export async function writeDeadLetter(
   runId: string,
   envelope: Envelope<unknown>,
   error: Error,
-  stepId: string
+  stepId: string,
 ): Promise<void> {
   const entry: DeadLetterEntry = {
     timestamp: new Date().toISOString(),

@@ -4,8 +4,13 @@
 export { createJsonlSource, createJsonlTarget } from './jsonl-source.js'
 
 // Git worktree wrappers
-export { GitWorktreeSource, GitWorktreeTarget, createGitWorktreeSource, createGitWorktreeTarget } from './git-worktree-source.js'
+export {
+  GitWorktreeSource,
+  GitWorktreeTarget,
+  createGitWorktreeSource,
+  createGitWorktreeTarget,
+} from './git-worktree-source.js'
 
 // Side-effect imports to register
 import './http-source.js'
-import './git-worktree-source.js'  // registers git+ composite via registry
+import './git-worktree-source.js' // registers git+ composite via registry

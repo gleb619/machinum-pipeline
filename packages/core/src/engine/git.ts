@@ -23,7 +23,7 @@ export async function execGit(cwd: string, args: string[]): Promise<GitResult> {
       resolve({
         stdout: stdout ?? '',
         stderr: stderr ?? '',
-        exitCode: typeof code === 'number' ? code : (error ? 1 : 0),
+        exitCode: typeof code === 'number' ? code : error ? 1 : 0,
       })
     })
   })

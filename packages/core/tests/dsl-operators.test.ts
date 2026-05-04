@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeAll } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { createJsonlSource, createJsonlTarget } from '../src/builtins/jsonl-source.js'
 import { definePipeline, source, target } from '../src/dsl.js'
 import type { Pipeline } from '../src/types.js'
 import { registry } from '../src/uri.js'
-import { createJsonlSource, createJsonlTarget } from '../src/builtins/jsonl-source.js'
 
 beforeAll(() => {
   registry.registerSource('jsonl', createJsonlSource)
@@ -25,19 +25,21 @@ describe('DSL Operators: flatMap, fork, tap', () => {
       onError: 'fail-run',
     })
       .from(source('jsonl://book.jsonl'))
-      .tap(async (item) => { console.log('Tap', item) })
+      .tap(async (item) => {
+        console.log('Tap', item)
+      })
       .flatMap(async (item) => [item, item])
       .fork(forkPipeline)
       .to(target('jsonl://final.jsonl'))
 
-    expect(pipeline.steps.map(s => s.type)).toEqual([
+    expect(pipeline.steps.map((s) => s.type)).toEqual([
       'source',
       'tap',
       'flatmap',
       'fork',
-      'target'
+      'target',
     ])
-    
-    expect(pipeline.steps.find(s => s.type === 'fork')?.config.pipeline).toBeDefined()
+
+    expect(pipeline.steps.find((s) => s.type === 'fork')?.config.pipeline).toBeDefined()
   })
 })

@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { runCommand } from '../../src/commands/run.js'
+import { join } from 'node:path'
 import { Runner } from '@mt/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runCommand } from '../../src/commands/run.js'
 
 vi.mock('@mt/core', () => ({
   Runner: vi.fn(),
-  definePipeline: vi.fn()
+  definePipeline: vi.fn(),
 }))
 
 describe('run command', () => {
@@ -21,9 +21,12 @@ describe('run command', () => {
     process.chdir(testDir)
 
     mockStart = vi.fn().mockResolvedValue({ runId: 'test-run-id' })
-    vi.mocked(Runner).mockImplementation(() => ({
-      start: mockStart
-    }) as any)
+    vi.mocked(Runner).mockImplementation(
+      () =>
+        ({
+          start: mockStart,
+        }) as any,
+    )
 
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -48,36 +51,41 @@ describe('run command', () => {
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
 
     vi.doMock(pipelinePath, () => ({
-        default: { id: 'test-pipeline' }
+      default: { id: 'test-pipeline' },
     }))
 
     await runCommand(['pipeline.ts'])
 
     expect(mockStart).toHaveBeenCalled()
-    expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Pipeline complete. Run ID: test-run-id'))
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('Pipeline complete. Run ID: test-run-id'),
+    )
   })
 
   it('loads global context from mt.json if present', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
     vi.doMock(pipelinePath, () => ({
-        default: { id: 'test-pipeline' }
+      default: { id: 'test-pipeline' },
     }))
 
     const mtJsonPath = join(testDir, 'mt.json')
-    await writeFile(mtJsonPath, JSON.stringify({
+    await writeFile(
+      mtJsonPath,
+      JSON.stringify({
         project: { name: 'custom-project' },
-        defaults: { concurrency: 10 }
-    }))
+        defaults: { concurrency: 10 },
+      }),
+    )
 
     await runCommand(['pipeline.ts'])
 
     expect(Runner).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'test-pipeline' }),
-        expect.objectContaining({
-            project: expect.objectContaining({ name: 'custom-project' }),
-            defaults: expect.objectContaining({ concurrency: 10 })
-        })
+      expect.objectContaining({ id: 'test-pipeline' }),
+      expect.objectContaining({
+        project: expect.objectContaining({ name: 'custom-project' }),
+        defaults: expect.objectContaining({ concurrency: 10 }),
+      }),
     )
   })
 
@@ -85,12 +93,14 @@ describe('run command', () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
     vi.doMock(pipelinePath, () => ({
-        default: { id: 'test-pipeline' }
+      default: { id: 'test-pipeline' },
     }))
 
     mockStart.mockRejectedValue(new Error('Runner failed'))
 
     await expect(runCommand(['pipeline.ts'])).rejects.toThrow('EXIT 1')
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Pipeline failed: Runner failed'))
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Pipeline failed: Runner failed'),
+    )
   })
 })

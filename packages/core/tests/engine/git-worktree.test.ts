@@ -1,24 +1,24 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { execSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import {
-  createWorktree,
-  removeWorktree,
-  mergeWorktreeToMain,
-  getRepoRoot,
-} from '../../src/engine/git-worktree.js'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   GitWorktreeSource,
   GitWorktreeTarget,
   createGitWorktreeSource,
   createGitWorktreeTarget,
 } from '../../src/builtins/git-worktree-source.js'
-import { execGit, autoCommit } from '../../src/engine/git.js'
-import { registry } from '../../src/uri.js'
-import type { Source, Target, Envelope, Lifecycle } from '../../src/types.js'
 import type { SourceContext, TargetContext } from '../../src/contexts.js'
+import {
+  createWorktree,
+  getRepoRoot,
+  mergeWorktreeToMain,
+  removeWorktree,
+} from '../../src/engine/git-worktree.js'
+import { autoCommit, execGit } from '../../src/engine/git.js'
+import type { Envelope, Lifecycle, Source, Target } from '../../src/types.js'
+import { registry } from '../../src/uri.js'
 import type { ParsedUri } from '../../src/uri.js'
 
 // ---------------------------------------------------------------------------
@@ -53,7 +53,11 @@ function makeSourceContext(): SourceContext {
       startedAt: new Date().toISOString(),
       global: {
         project: { name: 'test', root: '/tmp' },
-        defaults: { retry: { max: 3, backoffMs: 100, strategy: 'fixed' }, onError: 'fail-run', concurrency: 1 },
+        defaults: {
+          retry: { max: 3, backoffMs: 100, strategy: 'fixed' },
+          onError: 'fail-run',
+          concurrency: 1,
+        },
         env: {},
       },
       checkpoint: { stepId: 's1', depth: 0, path: [] },
@@ -71,7 +75,11 @@ function makeTargetContext(): TargetContext {
       startedAt: new Date().toISOString(),
       global: {
         project: { name: 'test', root: '/tmp' },
-        defaults: { retry: { max: 3, backoffMs: 100, strategy: 'fixed' }, onError: 'fail-run', concurrency: 1 },
+        defaults: {
+          retry: { max: 3, backoffMs: 100, strategy: 'fixed' },
+          onError: 'fail-run',
+          concurrency: 1,
+        },
         env: {},
       },
       checkpoint: { stepId: 's1', depth: 0, path: [] },
@@ -102,9 +110,15 @@ function mockTarget<T>(): Target<T> & { written: Envelope<T>[]; opened: boolean;
     written: [] as Envelope<T>[],
     opened: false,
     closed: false,
-    async open(_ctx: TargetContext): Promise<void> { t.opened = true },
-    async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> { t.written.push(env) },
-    async close(_ctx: TargetContext): Promise<void> { t.closed = true },
+    async open(_ctx: TargetContext): Promise<void> {
+      t.opened = true
+    },
+    async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+      t.written.push(env)
+    },
+    async close(_ctx: TargetContext): Promise<void> {
+      t.closed = true
+    },
   }
   return t
 }
@@ -122,7 +136,11 @@ describe('git-worktree engine', () => {
   })
 
   afterEach(() => {
-    try { rmSync(repoRoot, { recursive: true, force: true }) } catch { /* ignore */ }
+    try {
+      rmSync(repoRoot, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
   })
 
   // -- getRepoRoot ----------------------------------------------------------
@@ -165,7 +183,9 @@ describe('git-worktree engine', () => {
 
     it('throws when branch name contains path traversal', async () => {
       // git should reject invalid ref names
-      await expect(createWorktree(repoRoot, '../../../etc')).rejects.toThrow(/Failed to create worktree/)
+      await expect(createWorktree(repoRoot, '../../../etc')).rejects.toThrow(
+        /Failed to create worktree/,
+      )
     })
 
     it('creates worktree at the HEAD commit of main', async () => {
@@ -195,7 +215,9 @@ describe('git-worktree engine', () => {
     })
 
     it('throws for non-existent worktree path', async () => {
-      await expect(removeWorktree('/tmp/nonexistent-worktree-99999')).rejects.toThrow(/Failed to remove worktree/)
+      await expect(removeWorktree('/tmp/nonexistent-worktree-99999')).rejects.toThrow(
+        /Failed to remove worktree/,
+      )
     })
   })
 
@@ -268,7 +290,11 @@ describe('GitWorktreeSource', () => {
   })
 
   afterEach(() => {
-    try { rmSync(repoRoot, { recursive: true, force: true }) } catch { /* ignore */ }
+    try {
+      rmSync(repoRoot, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
   })
 
   it('delegates start() to the inner source inside the worktree directory', async () => {
@@ -310,14 +336,18 @@ describe('GitWorktreeSource', () => {
     const inner: Source<string> = {
       uri: 'mock://no-resume',
       lifestyle: 'long-lived',
-      async *start(_ctx: SourceContext) { yield { item: 'x', meta: {} } },
+      async *start(_ctx: SourceContext) {
+        yield { item: 'x', meta: {} }
+      },
       // no resume()
     }
     const wrapper = new GitWorktreeSource(inner, worktreePath)
 
     await expect(
       (async () => {
-        for await (const _ of wrapper.resume!(makeSourceContext(), {})) { /* noop */ }
+        for await (const _ of wrapper.resume!(makeSourceContext(), {})) {
+          /* noop */
+        }
       })(),
     ).rejects.toThrow(/does not support resume/)
   })
@@ -337,7 +367,9 @@ describe('GitWorktreeSource', () => {
 
     await expect(
       (async () => {
-        for await (const _ of wrapper.start(makeSourceContext())) { /* noop */ }
+        for await (const _ of wrapper.start(makeSourceContext())) {
+          /* noop */
+        }
       })(),
     ).rejects.toThrow('inner source boom')
 
@@ -372,12 +404,21 @@ describe('GitWorktreeTarget', () => {
   })
 
   afterEach(() => {
-    try { rmSync(repoRoot, { recursive: true, force: true }) } catch { /* ignore */ }
+    try {
+      rmSync(repoRoot, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
   })
 
   it('creates worktree on open(), delegates writes, commits+merges on close()', async () => {
     const inner = mockTarget<string>()
-    const target = new GitWorktreeTarget(inner, repoRoot, join(repoRoot, 'worktrees', 'tgt-branch'), true)
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'tgt-branch'),
+      true,
+    )
     const ctx = makeTargetContext()
 
     // Open: should create worktree
@@ -405,7 +446,12 @@ describe('GitWorktreeTarget', () => {
 
   it('does NOT commit/merge when commitOnClose is false', async () => {
     const inner = mockTarget<string>()
-    const target = new GitWorktreeTarget(inner, repoRoot, join(repoRoot, 'worktrees', 'no-commit-br'), false)
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'no-commit-br'),
+      false,
+    )
     const ctx = makeTargetContext()
 
     await target.open(ctx)
@@ -426,7 +472,12 @@ describe('GitWorktreeTarget', () => {
     // mergeWorktreeToMain will throw on detached HEAD,
     // but worktree cleanup should still happen.
     const inner = mockTarget<string>()
-    const target = new GitWorktreeTarget(inner, repoRoot, join(repoRoot, 'worktrees', 'fail-merge-br'), true)
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'fail-merge-br'),
+      true,
+    )
     const ctx = makeTargetContext()
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
@@ -445,7 +496,12 @@ describe('GitWorktreeTarget', () => {
 
   it('throws when write() called before open()', async () => {
     const inner = mockTarget<string>()
-    const target = new GitWorktreeTarget(inner, repoRoot, join(repoRoot, 'worktrees', 'no-open-br'), true)
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'no-open-br'),
+      true,
+    )
 
     await expect(target.write({ item: 'x', meta: {} }, makeTargetContext())).rejects.toThrow(
       /Target not opened/,
@@ -454,7 +510,12 @@ describe('GitWorktreeTarget', () => {
 
   it('close() is a no-op when not opened', async () => {
     const inner = mockTarget<string>()
-    const target = new GitWorktreeTarget(inner, repoRoot, join(repoRoot, 'worktrees', 'not-open-br'), true)
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'not-open-br'),
+      true,
+    )
 
     await target.close(makeTargetContext())
     expect(inner.opened).toBe(false)
@@ -463,7 +524,12 @@ describe('GitWorktreeTarget', () => {
 
   it('exposes uri with branch name', () => {
     const inner = mockTarget<string>()
-    const target = new GitWorktreeTarget(inner, repoRoot, join(repoRoot, 'worktrees', 'my-branch'), true)
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'my-branch'),
+      true,
+    )
     expect(target.uri).toContain('git=worktree')
     expect(target.uri).toContain('my-branch')
   })
@@ -485,7 +551,11 @@ describe('createGitWorktreeSource (composite URI)', () => {
   })
 
   afterEach(() => {
-    try { rmSync(repoRoot, { recursive: true, force: true }) } catch { /* ignore */ }
+    try {
+      rmSync(repoRoot, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
     // Restore original factory (best effort)
     if (originalSourceFactory) {
       registry.registerSource('jsonl', originalSourceFactory)
@@ -503,7 +573,9 @@ describe('createGitWorktreeSource (composite URI)', () => {
       path: '/data/test.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'composite-test', root: repoRoot },
       fragment: '',
-      raw: 'jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=composite-test&root=' + encodeURIComponent(repoRoot),
+      raw:
+        'jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=composite-test&root=' +
+        encodeURIComponent(repoRoot),
     }
 
     const source = createGitWorktreeSource<string>(uri)
@@ -567,7 +639,11 @@ describe('createGitWorktreeTarget (composite URI)', () => {
   })
 
   afterEach(() => {
-    try { rmSync(repoRoot, { recursive: true, force: true }) } catch { /* ignore */ }
+    try {
+      rmSync(repoRoot, { recursive: true, force: true })
+    } catch {
+      /* ignore */
+    }
     if (originalTargetFactory) {
       registry.registerTarget('jsonl', originalTargetFactory)
     }
@@ -584,9 +660,17 @@ describe('createGitWorktreeTarget (composite URI)', () => {
       scheme: 'jsonl',
       host: '',
       path: '/out.jsonl',
-      query: { _inner_scheme: 'jsonl', branch: 'target-branch', root: repoRoot, commit: 'on-close' },
+      query: {
+        _inner_scheme: 'jsonl',
+        branch: 'target-branch',
+        root: repoRoot,
+        commit: 'on-close',
+      },
       fragment: '',
-      raw: 'jsonl://out.jsonl?_inner_scheme=jsonl&branch=target-branch&root=' + encodeURIComponent(repoRoot) + '&commit=on-close',
+      raw:
+        'jsonl://out.jsonl?_inner_scheme=jsonl&branch=target-branch&root=' +
+        encodeURIComponent(repoRoot) +
+        '&commit=on-close',
     }
 
     const target = createGitWorktreeTarget<string>(uri)
@@ -604,7 +688,10 @@ describe('createGitWorktreeTarget (composite URI)', () => {
       path: '/out.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'no-commit', root: repoRoot, commit: 'never' },
       fragment: '',
-      raw: 'jsonl://out.jsonl?_inner_scheme=jsonl&branch=no-commit&root=' + encodeURIComponent(repoRoot) + '&commit=never',
+      raw:
+        'jsonl://out.jsonl?_inner_scheme=jsonl&branch=no-commit&root=' +
+        encodeURIComponent(repoRoot) +
+        '&commit=never',
     }
 
     const target = createGitWorktreeTarget<string>(uri) as GitWorktreeTarget<string>

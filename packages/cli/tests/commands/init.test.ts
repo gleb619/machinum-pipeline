@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, rm, readFile, access } from 'node:fs/promises'
-import { join } from 'node:path'
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initCommand } from '../../src/commands/init.js'
 
 describe('init command (T001)', () => {
@@ -79,7 +79,7 @@ describe('init command (T001)', () => {
     // In real integration tests we would load it via tsx
     const content = await readFile(pipelinePath, 'utf-8')
     expect(content).toMatch(/export default definePipeline/)
-    expect(content).toContain('id: \'example\'')
+    expect(content).toContain("id: 'example'")
     expect(content).toContain('retry: { max: 3')
   })
 

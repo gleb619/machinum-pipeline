@@ -1,8 +1,8 @@
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Runner } from '@mt/core'
 import type { GlobalContext } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
-import { readFile } from 'node:fs/promises'
 
 /**
  * `mt resume <runId>` — resume a previous run.

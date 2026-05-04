@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Mt Pipeline Runner",
+  "version": "0.1.0",
+  "description": "Scrape and upload content to Mt pipelines",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost:7777/*"],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Mt Pipeline"
+  },
+  "background": {
+    "service_worker": "src/background/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/content.js"]
+    }
+  ]
+}

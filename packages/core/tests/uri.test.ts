@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { registry, UriRegistry } from '../src/uri.js'
+import { describe, expect, it } from 'vitest'
+import { UriRegistry, registry } from '../src/uri.js'
 
 describe('UriRegistry', () => {
   it('parses a simple URI', () => {

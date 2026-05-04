@@ -34,7 +34,11 @@ export class DuplexLogger implements Logger {
     void this.writeToFile('DEBUG', message, meta)
   }
 
-  private async writeToFile(level: string, message: string, meta?: Record<string, unknown>): Promise<void> {
+  private async writeToFile(
+    level: string,
+    message: string,
+    meta?: Record<string, unknown>,
+  ): Promise<void> {
     try {
       await mkdir(this.logDir, { recursive: true })
       const logFile = join(this.logDir, 'run.log')

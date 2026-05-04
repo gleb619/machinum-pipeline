@@ -1,8 +1,8 @@
 import { createReadStream, createWriteStream } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
-import type { Envelope, Source, Target } from '../types.js'
 import type { SourceContext, TargetContext } from '../contexts.js'
+import type { Envelope, Source, Target } from '../types.js'
 import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
 

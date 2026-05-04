@@ -42,13 +42,13 @@
 | T046 | Architectural tests — Admin UI, SSE & Backend API     | `done`    | `L`  | backend,ui     | —                             | —          | —      | [plans/admin-backend.md](plans/admin-backend.md)             |
 | T047 | Architectural tests — LLM Router Proxy                | `todo`    | `L`  | router         | —                             | —          | —      | [plans/llm-router.md](plans/llm-router.md)                   |
 | T048 | Architectural tests — MCP Server                      | `todo`    | `L`  | mcp            | —                             | —          | —      | [plans/mcp-server.md](plans/mcp-server.md)                   |
-| T049 | Architectural tests — Chrome Extension                | `blocked` | `M`  | chrome,backend | —                             | T054       | —      | [plans/chrome-extension.md](plans/chrome-extension.md)       |
-| T050 | Architectural tests — VSCode Extension                | `blocked` | `M`  | vscode         | —                             | T055       | —      | [plans/vscode-extension.md](plans/vscode-extension.md)       |
+| T049 | Architectural tests — Chrome Extension                | `todo`    | `M`  | chrome,backend | —                             | —          | —      | [plans/chrome-extension.md](plans/chrome-extension.md)       |
+| T050 | Architectural tests — VSCode Extension                | `todo`    | `M`  | vscode         | —                             | —          | —      | [plans/vscode-extension.md](plans/vscode-extension.md)       |
 | T051 | Architectural tests — Storage & Logging               | `done`    | `M`  | core,cli       | —                             | —          | —      | [plans/storage-logging.md](plans/storage-logging.md)         |
 | T052 | Router module — LLM proxy + dashboard + cost tracking | `done`    | `L`  | router         | UC-32,UC-33,UC-34,UC-35,UC-36 | —          | T047   | —                                                            |
 | T053 | MCP server — list/run/inspect pipelines + tool invoke | `done`    | `L`  | mcp            | UC-37,UC-38,UC-39,UC-40,UC-41 | —          | T048   | —                                                            |
-| T054 | Chrome extension — scrape chapters + auto-upload      | `todo`    | `L`  | chrome         | UC-42,UC-43                   | —          | T049   | —                                                            |
-| T055 | VSCode extension — validation + hover DSL + code lens | `todo`    | `L`  | vscode         | UC-44,UC-45,UC-46             | —          | T050   | —                                                            |
+| T054 | Chrome extension — scrape chapters + auto-upload      | `done`    | `L`  | chrome         | UC-42,UC-43                   | —          | T049   | —                                                            |
+| T055 | VSCode extension — validation + hover DSL + code lens | `done`    | `L`  | vscode         | UC-44,UC-45,UC-46             | —          | T050   | —                                                            |
 | T056 | Complete HTTP Source — backend integration + SSE push | `todo`    | `M`  | backend,core   | UC-23                         | T035       | —      | —                                                            |
 
 > `UC ref` column which contains an ID of the use case, located at `docs/uc.md`

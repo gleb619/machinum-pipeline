@@ -117,7 +117,11 @@ export function deserializeTree(data: CheckpointNode): CheckpointNode {
 /**
  * Walk the tree depth-first, calling a visitor for each node.
  */
-export function walkTree(root: CheckpointNode, visitor: (node: CheckpointNode, depth: number) => void, depth = 0): void {
+export function walkTree(
+  root: CheckpointNode,
+  visitor: (node: CheckpointNode, depth: number) => void,
+  depth = 0,
+): void {
   visitor(root, depth)
   for (const child of root.children ?? []) {
     walkTree(child, visitor, depth + 1)

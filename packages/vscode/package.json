@@ -1,0 +1,41 @@
+{
+  "name": "mt-vscode",
+  "version": "0.1.0",
+  "displayName": "Mt Pipeline",
+  "description": "Validate mt.json, hover DSL info, and run pipelines from VSCode",
+  "publisher": "mt",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onLanguage:typescript", "workspaceContains:mt.json"],
+  "main": "./dist/src/extension.js",
+  "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "mt.json",
+        "url": "./schemas/mt.schema.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "jsonc",
+        "extensions": [".json"]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

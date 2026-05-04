@@ -99,9 +99,7 @@ export async function mergeWorktreeToMain(
 
   const branchName = branchResult.stdout.trim()
   if (branchName === 'HEAD') {
-    throw new Error(
-      'Worktree is in detached HEAD state; cannot determine branch name for merge',
-    )
+    throw new Error('Worktree is in detached HEAD state; cannot determine branch name for merge')
   }
 
   // Detach the worktree so the branch is no longer "checked out" and can be deleted later

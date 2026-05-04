@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "types": ["chrome", "node"],
+    "moduleResolution": "bundler",
+    "module": "ESNext"
+  },
+  "include": ["src/**/*.ts", "manifest.json"]
+}

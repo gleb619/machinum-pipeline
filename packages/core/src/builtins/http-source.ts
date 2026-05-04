@@ -1,6 +1,6 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
-import type { Envelope, Source } from '../types.js'
+import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
 import type { SourceContext } from '../contexts.js'
+import type { Envelope, Source } from '../types.js'
 import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
 
@@ -10,9 +10,7 @@ import { registry } from '../uri.js'
  */
 export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   // Parse port from uri.query.port (default 8080)
-  const port = uri.query.port
-    ? Number.parseInt(uri.query.port, 10)
-    : 8080
+  const port = uri.query.port ? Number.parseInt(uri.query.port, 10) : 8080
 
   // The URI path is the ingest endpoint
   const ingestPath = uri.path || '/ingest'

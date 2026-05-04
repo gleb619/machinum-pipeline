@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
-import { definePipeline, defineTool, source, target, PipelineBuilder } from '../src/dsl.js'
-import type { Envelope, Book, Chapter, Paragraph, Line } from '../src/index.js'
+import { describe, expect, it } from 'vitest'
+import { PipelineBuilder, definePipeline, defineTool, source, target } from '../src/dsl.js'
+import type { Book, Chapter, Envelope, Line, Paragraph } from '../src/index.js'
 // Ensure builtins are registered for tests
 import '../src/builtins/jsonl-source.js'
 
@@ -139,18 +139,18 @@ describe('DSL', () => {
       .to(target('jsonl://./output.jsonl'))
 
     expect(pipeline.steps.length).toBe(5)
-    expect(pipeline.steps.map(s => s.type)).toEqual([
+    expect(pipeline.steps.map((s) => s.type)).toEqual([
       'source',
       'tool',
       'batch',
       'window',
-      'target'
+      'target',
     ])
   })
 
   it('T002-09: defineSource and defineTarget resolve correctly', () => {
     const testUri = 'jsonl://./test.jsonl'
-    
+
     const src = source(testUri)
     const tgt = target(testUri)
 

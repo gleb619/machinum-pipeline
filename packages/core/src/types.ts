@@ -1,4 +1,4 @@
-import type { ToolContext, SourceContext, TargetContext } from './contexts.js'
+import type { SourceContext, TargetContext, ToolContext } from './contexts.js'
 
 /**
  * Lifecycle type for sources.
@@ -85,7 +85,14 @@ export interface PipelineStep {
 /**
  * Run state enumeration.
  */
-export type RunState = 'pending' | 'running' | 'checkpoint' | 'paused' | 'done' | 'failed' | 'resumed'
+export type RunState =
+  | 'pending'
+  | 'running'
+  | 'checkpoint'
+  | 'paused'
+  | 'done'
+  | 'failed'
+  | 'resumed'
 
 /**
  * Checkpoint tree node.

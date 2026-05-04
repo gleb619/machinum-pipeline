@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Store } from '../../src/store.js'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { writeDeadLetter } from '../../src/engine/dead-letter.js'
+import { Store } from '../../src/store.js'
 import type { Envelope } from '../../src/types.js'
 
 describe('writeDeadLetter', () => {

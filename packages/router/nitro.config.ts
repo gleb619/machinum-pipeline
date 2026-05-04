@@ -7,7 +7,7 @@ export default defineNitroConfig({
   runtimeConfig: {
     routerPort: 7777,
     logDir: '~/.mt/router',
-    dailyBudget: 5.00,
+    dailyBudget: 5.0,
     retentionDays: 30,
   },
   routeRules: {

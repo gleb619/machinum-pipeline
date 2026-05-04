@@ -101,7 +101,9 @@ class UriRegistry {
     }
 
     // Standard parsing: scheme://host/path?query#fragment
-    const match = uri.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/)
+    const match = uri.match(
+      /^([a-zA-Z][a-zA-Z0-9+\-.]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/,
+    )
     if (!match) {
       // Support scheme:path (without //)
       const simpleMatch = uri.match(/^([a-zA-Z][a-zA-Z0-9+\-.]*):([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/)

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { toolCommand } from '../../src/commands/tool.js'
 
 describe('toolCommand', () => {
@@ -10,7 +10,7 @@ describe('toolCommand', () => {
 
     await expect(toolCommand([])).rejects.toThrow('process.exit: 1')
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Usage: mt tool <name>'))
-    
+
     consoleSpy.mockRestore()
     exitSpy.mockRestore()
   })

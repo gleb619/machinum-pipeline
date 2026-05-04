@@ -13,7 +13,7 @@ export async function toolCommand(args: string[]): Promise<void> {
 
   // NOTE: This assumes tools are discoverable/imported into a global registry.
   // In v1, this may require a dynamic import or registry pre-registration.
-  
+
   // Read stdin for the envelope
   const input = readFileSync(0, 'utf8')
   const envelope = JSON.parse(input)
