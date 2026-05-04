@@ -1,7 +1,7 @@
 # Implementation Plan
 
 > **Last Updated:** 2026-05-04
-> **Active Phase:** 4 — Architectural Tests — `todo`
+> **Active Phase:** 6 — uc-ingest — `todo`
 > **Agent:** Hermes Agent (hand-applied)
 
 ## Status Legend
@@ -40,10 +40,10 @@
 | T044 | Architectural tests — Git Worktrees & URI Composition | `done`    | `M`  | core           | —                             | —          | —      | [plans/git-uri-composition.md](plans/git-uri-composition.md) |
 | T045 | Architectural tests — Background Serving              | `done`    | `M`  | cli,backend    | —                             | —          | —      | [plans/background-serve.md](plans/background-serve.md)       |
 | T046 | Architectural tests — Admin UI, SSE & Backend API     | `done`    | `L`  | backend,ui     | —                             | —          | —      | [plans/admin-backend.md](plans/admin-backend.md)             |
-| T047 | Architectural tests — LLM Router Proxy                | `todo`    | `L`  | router         | —                             | —          | —      | [plans/llm-router.md](plans/llm-router.md)                   |
-| T048 | Architectural tests — MCP Server                      | `todo`    | `L`  | mcp            | —                             | —          | —      | [plans/mcp-server.md](plans/mcp-server.md)                   |
-| T049 | Architectural tests — Chrome Extension                | `todo`    | `M`  | chrome,backend | —                             | —          | —      | [plans/chrome-extension.md](plans/chrome-extension.md)       |
-| T050 | Architectural tests — VSCode Extension                | `todo`    | `M`  | vscode         | —                             | —          | —      | [plans/vscode-extension.md](plans/vscode-extension.md)       |
+| T047 | Architectural tests — LLM Router Proxy                | `done`    | `L`  | router         | —                             | —          | —      | [plans/llm-router.md](plans/llm-router.md)                   |
+| T048 | Architectural tests — MCP Server                      | `done`    | `L`  | mcp            | —                             | —          | —      | [plans/mcp-server.md](plans/mcp-server.md)                   |
+| T049 | Architectural tests — Chrome Extension                | `done`    | `M`  | chrome,backend | —                             | —          | —      | [plans/chrome-extension.md](plans/chrome-extension.md)       |
+| T050 | Architectural tests — VSCode Extension                | `done`    | `M`  | vscode         | —                             | —          | —      | [plans/vscode-extension.md](plans/vscode-extension.md)       |
 | T051 | Architectural tests — Storage & Logging               | `done`    | `M`  | core,cli       | —                             | —          | —      | [plans/storage-logging.md](plans/storage-logging.md)         |
 | T052 | Router module — LLM proxy + dashboard + cost tracking | `done`    | `L`  | router         | UC-32,UC-33,UC-34,UC-35,UC-36 | —          | T047   | —                                                            |
 | T053 | MCP server — list/run/inspect pipelines + tool invoke | `done`    | `L`  | mcp            | UC-37,UC-38,UC-39,UC-40,UC-41 | —          | T048   | —                                                            |
@@ -59,5 +59,5 @@
 | 1 — Engine Spine (M1)   | `done` | T001–T010 | [uc.md](uc.md), [steering/](steering/) |
 | 2 — CLI Completion      | `done` | T011–T030 | [uc.md](uc.md)                         |
 | 3 — Admin UI & Policies | `done` | T031–T035 | [uc.md](uc.md)                         |
-| 4 — Architectural Tests | `todo` | T036–T051 | [plans/](plans/)                         |
+| 4 — Architectural Tests | `done` | T036–T051 | [plans/](plans/)                         |
 | 5 — Module Ecosystem    | `done` | T052–T056 | [uc.md](uc.md)                         |
