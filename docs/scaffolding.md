@@ -32,7 +32,7 @@
 | T036 | Architectural tests — Project Setup & Discovery       | `done` | `M`  | cli,core       | —                             | —          | —      | [plans/project-setup.md](plans/project-setup.md)             |
 | T037 | Architectural tests — DSL Authoring & Extensibility   | `done` | `M`  | core           | —                             | —          | —      | [plans/dsl-authoring.md](plans/dsl-authoring.md)             |
 | T038 | Architectural tests — CLI Execution & Lifecycle       | `done` | `M`  | cli,core       | —                             | —          | —      | [plans/cli-execution.md](plans/cli-execution.md)             |
-| T039 | Architectural tests — Child-Process Tool Execution    | `todo` | `M`  | core           | —                             | —          | —      | [plans/child-process-tools.md](plans/child-process-tools.md) |
+| T039 | Architectural tests — Child-Process Tool Execution    | `done` | `M`  | core           | —                             | —          | —      | [plans/child-process-tools.md](plans/child-process-tools.md) |
 | T040 | Architectural tests — Parallelism, Batching & Forking | `todo` | `M`  | core           | —                             | —          | —      | [plans/parallelism.md](plans/parallelism.md)                 |
 | T041 | Architectural tests — Engine Resilience               | `todo` | `M`  | core           | —                             | —          | —      | [plans/engine-resilience.md](plans/engine-resilience.md)     |
 | T042 | Architectural tests — Item Routing                    | `todo` | `S`  | core           | —                             | —          | —      | [plans/item-routing.md](plans/item-routing.md)               |
