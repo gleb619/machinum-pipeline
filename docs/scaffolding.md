@@ -37,8 +37,8 @@
 | T041 | Architectural tests — Engine Resilience               | `done` | `M`  | core           | —                             | —          | —      | [plans/engine-resilience.md](plans/engine-resilience.md)     |
 | T042 | Architectural tests — Item Routing                    | `done` | `S`  | core           | —                             | —          | —      | [plans/item-routing.md](plans/item-routing.md)               |
 | T043 | Architectural tests — Built-in Sources & Targets      | `done` | `M`  | core           | —                             | —          | —      | [plans/builtin-io.md](plans/builtin-io.md)                   |
-| T044 | Architectural tests — Git Worktrees & URI Composition | `todo` | `M`  | core           | —                             | —          | —      | [plans/git-uri-composition.md](plans/git-uri-composition.md) |
-| T045 | Architectural tests — Background Serving              | `todo` | `M`  | cli,backend    | —                             | —          | —      | [plans/background-serve.md](plans/background-serve.md)       |
+| T044 | Architectural tests — Git Worktrees & URI Composition | `done` | `M`  | core           | —                             | —          | —      | [plans/git-uri-composition.md](plans/git-uri-composition.md) |
+| T045 | Architectural tests — Background Serving              | `done` | `M`  | cli,backend    | —                             | —          | —      | [plans/background-serve.md](plans/background-serve.md)       |
 | T046 | Architectural tests — Admin UI, SSE & Backend API     | `todo` | `L`  | backend,ui     | —                             | —          | —      | [plans/admin-backend.md](plans/admin-backend.md)             |
 | T047 | Architectural tests — LLM Router Proxy                | `todo` | `L`  | router         | —                             | —          | —      | [plans/llm-router.md](plans/llm-router.md)                   |
 | T048 | Architectural tests — MCP Server                      | `todo` | `L`  | mcp            | —                             | —          | —      | [plans/mcp-server.md](plans/mcp-server.md)                   |
