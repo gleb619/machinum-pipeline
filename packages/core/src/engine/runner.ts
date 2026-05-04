@@ -150,7 +150,7 @@ export class Runner {
 
       const stepId = `${step.type}-${step.config.name ?? step.type}-${Date.now()}`
 
-      this.logger().info(`Configuring pipeline stream for step: ${step.type} (${stepId})`)
+      this.logger(stepId).info(`Configuring pipeline stream for step: ${step.type} (${stepId})`)
 
       switch (step.type) {
         case 'source': {
@@ -177,7 +177,7 @@ export class Runner {
 
           const sourceStream = stream ?? createEmptyStream()
           const cache = this.cache
-          const logger = this.logger()
+          const logger = this.logger(stepId)
           const store = this.store
           const limit = pLimit(concurrency)
 
@@ -292,7 +292,9 @@ export class Runner {
           // Check for auto-commit on close
           const parsed = registry.parse(uri)
           if (parsed.query.commit === 'on-close') {
-            this.logger().info(`Auto-committing changes in: ${runContext.global.project.root}`)
+            this.logger('commit').info(
+              `Auto-committing changes in: ${runContext.global.project.root}`,
+            )
             await autoCommit(runContext.global.project.root)
           }
           break
@@ -300,7 +302,7 @@ export class Runner {
         case 'flatmap': {
           const fn = step.config.fn as (item: unknown) => Promise<unknown[]>
           const sourceStream = stream ?? createEmptyStream()
-          this.logger().info(`Configuring flatMap step: ${stepId}`)
+          this.logger(stepId).info(`Configuring flatMap step: ${stepId}`)
           stream = (async function* () {
             for await (const env of sourceStream) {
               const items = await fn(env.item)
@@ -314,7 +316,7 @@ export class Runner {
         case 'fork': {
           const subPipeline = step.config.pipeline as import('../types.js').Pipeline
           const sourceStream = stream ?? createEmptyStream()
-          this.logger().info(`Configuring fork step: ${stepId}`)
+          this.logger(stepId).info(`Configuring fork step: ${stepId}`)
           stream = (async function* () {
             for await (const env of sourceStream) {
               let subStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
@@ -345,7 +347,7 @@ export class Runner {
         case 'tap': {
           const fn = step.config.fn as (item: unknown) => Promise<void>
           const sourceStream = stream ?? createEmptyStream()
-          this.logger().info(`Configuring tap step: ${stepId}`)
+          this.logger(stepId).info(`Configuring tap step: ${stepId}`)
           stream = (async function* () {
             for await (const env of sourceStream) {
               await fn(env.item)
@@ -355,7 +357,7 @@ export class Runner {
           break
         }
         default:
-          this.logger().warn(`Unsupported pipeline step type in stream: ${step.type}`)
+          this.logger(stepId).warn(`Unsupported pipeline step type in stream: ${step.type}`)
       }
     }
 
@@ -370,7 +372,7 @@ export class Runner {
   /**
    * Execute a single pipeline step.
    */
-  private async executeStep(step: PipelineStep, stepId: string): Promise<void> {
+  private async executeStep(_step: PipelineStep, _stepId: string): Promise<void> {
     throw new Error('executeStep is deprecated. Use executeSteps stream flow instead.')
   }
 
@@ -417,24 +419,44 @@ export class Runner {
   }
 
   /**
+   * Write a log entry to the per-step log file.
+   */
+  private async logStep(
+    stepId: string,
+    level: string,
+    message: string,
+    meta?: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.runId) return
+    const ts = new Date().toISOString()
+    const line = `[${ts}] [${level.toUpperCase()}] ${message}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`
+    await this.store.ensureDir('runs', this.runId, 'logs')
+    await this.store.append(line, 'runs', this.runId, 'logs', `${stepId}.log`)
+  }
+
+  /**
    * Get or create the logger.
    */
-  private logger(): Logger {
+  private logger(stepId?: string): Logger {
     // Default console logger
     return {
       info: (message: string, meta?: Record<string, unknown>) => {
         console.log(`[${new Date().toISOString()}] [INFO] ${message}`, meta ?? '')
+        if (stepId) void this.logStep(stepId, 'info', message, meta)
       },
       warn: (message: string, meta?: Record<string, unknown>) => {
         console.warn(`[${new Date().toISOString()}] [WARN] ${message}`, meta ?? '')
+        if (stepId) void this.logStep(stepId, 'warn', message, meta)
       },
       error: (message: string, meta?: Record<string, unknown>) => {
         console.error(`[${new Date().toISOString()}] [ERROR] ${message}`, meta ?? '')
+        if (stepId) void this.logStep(stepId, 'error', message, meta)
       },
       debug: (message: string, meta?: Record<string, unknown>) => {
         if (process.env.MT_DEBUG) {
           console.debug(`[${new Date().toISOString()}] [DEBUG] ${message}`, meta ?? '')
         }
+        if (stepId) void this.logStep(stepId, 'debug', message, meta)
       },
     }
   }
