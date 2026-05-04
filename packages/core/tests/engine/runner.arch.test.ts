@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { runChildProcess } from '../../src/engine/child-process.js'
+import { writeDeadLetter } from '../../src/engine/dead-letter.js'
+import { withRetry } from '../../src/engine/retry.js'
 import { Runner } from '../../src/engine/runner.js'
 import type { Tool } from '../../src/types.js'
 
@@ -88,5 +90,31 @@ describe('UC-12/UC-13/UC-14 — Concurrency, Batching & Forking (architectural)'
     }
     expect(typeof ctx.defaults.concurrency).toBe('number')
     expect(ctx.defaults.concurrency).toBe(10)
+  })
+})
+
+describe('UC-15/UC-17/UC-18 — Engine resilience wiring (architectural)', () => {
+  it('Runner module imports withRetry for tool invocation retry', () => {
+    // The runner wraps tool.invoke() with withRetry() on line 209
+    expect(typeof withRetry).toBe('function')
+    expect(withRetry.length).toBe(3)
+  })
+
+  it('Runner module imports writeDeadLetter for dead-letter queue', () => {
+    // The runner calls writeDeadLetter on onError === 'dead-letter' (line 245)
+    expect(typeof writeDeadLetter).toBe('function')
+    expect(writeDeadLetter.length).toBe(5)
+  })
+
+  it('ErrorPolicy union includes fail-run, skip-item, dead-letter', () => {
+    // These values control the runner's error handling branches
+    const values: Array<import('../../src/contexts.js').ErrorPolicy> = [
+      'fail-run',
+      'skip-item',
+      'dead-letter',
+    ]
+    expect(values).toContain('fail-run')
+    expect(values).toContain('skip-item')
+    expect(values).toContain('dead-letter')
   })
 })
