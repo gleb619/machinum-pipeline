@@ -49,7 +49,7 @@
 | T053 | MCP server — list/run/inspect pipelines + tool invoke | `done`    | `L`  | mcp            | UC-37,UC-38,UC-39,UC-40,UC-41 | —          | T048   | —                                                            |
 | T054 | Chrome extension — scrape chapters + auto-upload      | `done`    | `L`  | chrome         | UC-42,UC-43                   | —          | T049   | —                                                            |
 | T055 | VSCode extension — validation + hover DSL + code lens | `done`    | `L`  | vscode         | UC-44,UC-45,UC-46             | —          | T050   | —                                                            |
-| T056 | Complete HTTP Source — backend integration + SSE push | `todo`    | `M`  | backend,core   | UC-23                         | T035       | —      | —                                                            |
+| T056 | Complete HTTP Source — backend integration + SSE push | `done`    | `M`  | backend,core   | UC-23                         | T035       | —      | —                                                            |
 
 > `UC ref` column which contains an ID of the use case, located at `docs/uc.md`
 
@@ -60,4 +60,4 @@
 | 2 — CLI Completion      | `done` | T011–T030 | [uc.md](uc.md)                         |
 | 3 — Admin UI & Policies | `done` | T031–T035 | [uc.md](uc.md)                         |
 | 4 — Architectural Tests | `todo` | T036–T051 | [plans/](plans/)                         |
-| 5 — Module Ecosystem    | `todo` | T052–T056 | [uc.md](uc.md)                         |
+| 5 — Module Ecosystem    | `done` | T052–T056 | [uc.md](uc.md)                         |
