@@ -36,7 +36,7 @@
 | T040 | Architectural tests — Parallelism, Batching & Forking | `done` | `M`  | core           | —                             | —          | —      | [plans/parallelism.md](plans/parallelism.md)                 |
 | T041 | Architectural tests — Engine Resilience               | `done` | `M`  | core           | —                             | —          | —      | [plans/engine-resilience.md](plans/engine-resilience.md)     |
 | T042 | Architectural tests — Item Routing                    | `done` | `S`  | core           | —                             | —          | —      | [plans/item-routing.md](plans/item-routing.md)               |
-| T043 | Architectural tests — Built-in Sources & Targets      | `todo` | `M`  | core           | —                             | —          | —      | [plans/builtin-io.md](plans/builtin-io.md)                   |
+| T043 | Architectural tests — Built-in Sources & Targets      | `done` | `M`  | core           | —                             | —          | —      | [plans/builtin-io.md](plans/builtin-io.md)                   |
 | T044 | Architectural tests — Git Worktrees & URI Composition | `todo` | `M`  | core           | —                             | —          | —      | [plans/git-uri-composition.md](plans/git-uri-composition.md) |
 | T045 | Architectural tests — Background Serving              | `todo` | `M`  | cli,backend    | —                             | —          | —      | [plans/background-serve.md](plans/background-serve.md)       |
 | T046 | Architectural tests — Admin UI, SSE & Backend API     | `todo` | `L`  | backend,ui     | —                             | —          | —      | [plans/admin-backend.md](plans/admin-backend.md)             |
