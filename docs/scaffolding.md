@@ -50,6 +50,7 @@
 | T054 | Chrome extension — scrape chapters + auto-upload      | `done`    | `L`  | chrome         | UC-42,UC-43                   | —          | T049   | —                                                            |
 | T055 | VSCode extension — validation + hover DSL + code lens | `done`    | `L`  | vscode         | UC-44,UC-45,UC-46             | —          | T050   | —                                                            |
 | T056 | Complete HTTP Source — backend integration + SSE push | `done`    | `M`  | backend,core   | UC-23                         | T035       | —      | —                                                            |
+| T057 | Forward console logs to `.mt` per-step                 | `todo`    | `M`  | core           | UC-53                         | —          | —      | —                                                            |
 
 > `UC ref` column which contains an ID of the use case, located at `docs/uc.md`
 
@@ -61,3 +62,4 @@
 | 3 — Admin UI & Policies | `done` | T031–T035 | [uc.md](uc.md)                         |
 | 4 — Architectural Tests | `done` | T036–T051 | [plans/](plans/)                         |
 | 5 — Module Ecosystem    | `done` | T052–T056 | [uc.md](uc.md)                         |
+| 6 — Polish & Remaining  | `todo` | T057–T057 | [uc.md](uc.md)                         |
