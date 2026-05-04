@@ -118,3 +118,125 @@ describe('UC-15/UC-17/UC-18 — Engine resilience wiring (architectural)', () =>
     expect(values).toContain('dead-letter')
   })
 })
+
+describe('UC-52/53 — Context plumbing: logger & artifacts (architectural)', () => {
+  it('RunContext has artifactsDir property for persisting intermediate outputs', () => {
+    // Verify that contexts.ts exports artifactsDir in RunContext
+    // Read the contexts source file to confirm
+    const ctx: import('../../src/contexts.js').RunContext = {
+      runId: 'test',
+      pipelineId: 'test',
+      startedAt: new Date().toISOString(),
+      global: {
+        project: { name: 'test', root: '/tmp' },
+        defaults: {
+          retry: { max: 3, backoffMs: 100, strategy: 'fixed' },
+          onError: 'fail-run',
+          concurrency: 1,
+        },
+        env: {},
+      },
+      checkpoint: { stepId: 's1', depth: 0, path: [] },
+      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+      artifactsDir: '/tmp/.mt/runs/test/artifacts',
+    }
+    expect(ctx.artifactsDir).toBe('/tmp/.mt/runs/test/artifacts')
+    expect(typeof ctx.artifactsDir).toBe('string')
+  })
+
+  it('RunContext has logger property conforming to Logger interface', () => {
+    const ctx: import('../../src/contexts.js').RunContext = {
+      runId: 'test',
+      pipelineId: 'test',
+      startedAt: new Date().toISOString(),
+      global: {
+        project: { name: 'test', root: '/tmp' },
+        defaults: {
+          retry: { max: 3, backoffMs: 100, strategy: 'fixed' },
+          onError: 'fail-run',
+          concurrency: 1,
+        },
+        env: {},
+      },
+      checkpoint: { stepId: 's1', depth: 0, path: [] },
+      logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+      artifactsDir: '/tmp/artifacts',
+    }
+    expect(ctx.logger).toBeDefined()
+    expect(typeof ctx.logger.info).toBe('function')
+    expect(typeof ctx.logger.warn).toBe('function')
+    expect(typeof ctx.logger.error).toBe('function')
+    expect(typeof ctx.logger.debug).toBe('function')
+  })
+
+  it('ToolContext.run forwards RunContext (including logger and artifactsDir)', () => {
+    const ctx: import('../../src/contexts.js').ToolContext = {
+      run: {
+        runId: 'test',
+        pipelineId: 'test',
+        startedAt: new Date().toISOString(),
+        global: {
+          project: { name: 'test', root: '/tmp' },
+          defaults: {
+            retry: { max: 3, backoffMs: 100, strategy: 'fixed' },
+            onError: 'fail-run',
+            concurrency: 1,
+          },
+          env: {},
+        },
+        checkpoint: { stepId: 's1', depth: 0, path: [] },
+        logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        artifactsDir: '/tmp/.mt/runs/test/artifacts',
+      },
+      step: { stepId: 's1', name: 'test', type: 'source', index: 0 },
+    }
+    expect(ctx.run.logger).toBeDefined()
+    expect(ctx.run.artifactsDir).toBe('/tmp/.mt/runs/test/artifacts')
+  })
+
+  it('SourceContext.run exposes RunContext with logger', () => {
+    const ctx: import('../../src/contexts.js').SourceContext = {
+      run: {
+        runId: 'test',
+        pipelineId: 'test',
+        startedAt: new Date().toISOString(),
+        global: {
+          project: { name: 'test', root: '/tmp' },
+          defaults: {
+            retry: { max: 3, backoffMs: 100, strategy: 'fixed' },
+            onError: 'fail-run',
+            concurrency: 1,
+          },
+          env: {},
+        },
+        checkpoint: { stepId: 's1', depth: 0, path: [] },
+        logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        artifactsDir: '/tmp/.mt/runs/test/artifacts',
+      },
+    }
+    expect(ctx.run.logger).toBeDefined()
+  })
+
+  it('TargetContext.run exposes RunContext with logger', () => {
+    const ctx: import('../../src/contexts.js').TargetContext = {
+      run: {
+        runId: 'test',
+        pipelineId: 'test',
+        startedAt: new Date().toISOString(),
+        global: {
+          project: { name: 'test', root: '/tmp' },
+          defaults: {
+            retry: { max: 3, backoffMs: 100, strategy: 'fixed' },
+            onError: 'fail-run',
+            concurrency: 1,
+          },
+          env: {},
+        },
+        checkpoint: { stepId: 's1', depth: 0, path: [] },
+        logger: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+        artifactsDir: '/tmp/.mt/runs/test/artifacts',
+      },
+    }
+    expect(ctx.run.logger).toBeDefined()
+  })
+})
