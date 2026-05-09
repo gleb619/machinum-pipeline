@@ -14,10 +14,10 @@ function parseArgs(args: string[]): ServeOptions {
   const options: ServeOptions = { port: 3000, host: 'localhost', detach: false }
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--port' && i + 1 < args.length) {
-      options.port = Number.parseInt(args[i + 1], 10)
+      options.port = Number.parseInt(args[i + 1]!, 10)
       i++
     } else if (args[i] === '--host' && i + 1 < args.length) {
-      options.host = args[i + 1]
+      options.host = args[i + 1]!
       i++
     } else if (args[i] === '-d' || args[i] === '--detach') {
       options.detach = true

@@ -34,9 +34,18 @@ build
 /docs/plans/*
 
 /tmp-packs/
+/packages/core/vendor/
+/packages/cli/vendor/
+/packages/backend/.nitro/*
+/packages/backend/.output/*
+/packages/router/.nitro/*
+/packages/router/.output/*
+
+/samples/sample0/vendor/
+/samples/sample0/package-lock.json
+/samples/sample0/runner.log
+/samples/sample0/mt-run.log
 /samples/sample1/vendor/
 /samples/sample1/package-lock.json
 /samples/sample1/runner.log
 /samples/sample1/mt-run.log
-/packages/core/vendor/
-/packages/cli/vendor/

@@ -23,7 +23,8 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@mt/core": "workspace:*"
+    "@mt/core": "workspace:*",
+    "nitropack": "^2.10.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -1,19 +1,17 @@
 {
   "name": "sample1",
   "version": "1.0.0",
-  "description": "Machinum Pipeline sample — HTTP → JSONL integration test",
+  "description": "Machinum Pipeline sample — HTTP to JSONL integration test",
   "type": "module",
   "scripts": {
     "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/http-to-jsonl.ts",
     "simulate": "tsx simulation1.ts",
-    "test": "tsx run-test.ts"
-  },
-  "dependencies": {
-    "@mt/core": "file:./vendor/mt-core-0.1.0.tgz",
-    "@mt/cli": "file:./vendor/mt-cli-0.1.0.tgz"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
   },
   "engines": {
     "node": ">=22.0.0"

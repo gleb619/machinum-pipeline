@@ -17,7 +17,7 @@ describe('UC-26 - Background Serving CLI (architectural)', () => {
     const indexPath = join(__dirname, '..', '..', 'src', 'index.ts')
     const source = await readFile(indexPath, 'utf-8')
     expect(source).toMatch(/serveCommand/)
-    expect(source).toMatch(/from '\.\/commands\/serve\.js'/)
+    expect(source).toMatch(/import\(.*commands\/serve\.js/)
   })
 
   it('serve.ts exports serveCommand as async function', async () => {

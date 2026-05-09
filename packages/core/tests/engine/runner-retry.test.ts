@@ -15,6 +15,7 @@ vi.mock('../../src/store.js', () => {
         state: 'running',
         checkpoint: { stepId: 'root', state: 'done' },
       })
+      append = vi.fn().mockResolvedValue('')
     },
   }
 })
