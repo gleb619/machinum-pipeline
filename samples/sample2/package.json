@@ -1,0 +1,19 @@
+{
+  "name": "sample2",
+  "version": "1.0.0",
+  "description": "Machinum Pipeline sample — JSONL to MD with multi-tool pipeline",
+  "type": "module",
+  "scripts": {
+    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
+    "prepare-input": "tsx prepare-input.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

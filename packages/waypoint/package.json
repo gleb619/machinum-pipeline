@@ -1,11 +1,8 @@
 {
-  "name": "@mt/cli",
+  "name": "@mt/waypoint",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "mt": "./dist/index.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -24,8 +21,10 @@
   },
   "dependencies": {
     "@mt/core": "workspace:*",
-    "@mt/waypoint": "workspace:*",
-    "nitropack": "^2.10.0"
+    "gray-matter": "^4.0.3",
+    "unified": "^11.0.0",
+    "remark-parse": "^11.0.0",
+    "remark-stringify": "^11.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

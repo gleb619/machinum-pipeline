@@ -38,8 +38,6 @@ export {
 } from './dsl.js'
 export { registry, UriRegistry } from './uri.js'
 export type { ParsedUri, SourceFactory, TargetFactory, CompositeResolver } from './uri.js'
-export { createJsonlSource, createJsonlTarget } from './builtins/jsonl.js'
-export { createMdSource, createMdTarget } from './builtins/md.js'
 export { discoverPipelines } from './discovery.js'
 export type { DiscoveredPipeline } from './discovery.js'
 
@@ -62,9 +60,5 @@ export {
 } from './engine/checkpoint.js'
 export { runChildProcess, streamChildProcess } from './engine/child-process.js'
 export type { ChildProcessOptions, ChildProcessResult } from './engine/child-process.js'
-
-// Register built-in sources and targets as a side effect
-//TODO: add registry object and/or use `packages/core/src/builtins/index.ts`
-import './builtins/http-server.js'
-import './builtins/git-worktree.js'
-import './builtins/md.js'
+// Built-in source/target registration moved to @mt/waypoint package.
+// Import '@mt/waypoint' to register jsonl, md, http, hs, git+ schemes.

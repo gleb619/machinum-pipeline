@@ -1,8 +1,8 @@
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
-import type { SourceContext } from '../contexts.js'
-import type { Envelope, Source } from '../types.js'
-import type { ParsedUri } from '../uri.js'
-import { registry } from '../uri.js'
+import type { SourceContext } from '@mt/core'
+import type { Envelope, Source } from '@mt/core'
+import type { ParsedUri } from '@mt/core'
+import { registry } from '@mt/core'
 
 /**
  * Built-in HTTP Source — long-lived HTTP server that receives envelopes via POST.

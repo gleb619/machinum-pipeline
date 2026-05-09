@@ -39,10 +39,6 @@
     "./engine/*.js": {
       "types": "./dist/engine/*.d.ts",
       "import": "./dist/engine/*.js"
-    },
-    "./builtins/*.js": {
-      "types": "./dist/builtins/*.d.ts",
-      "import": "./dist/builtins/*.js"
     }
   },
   "main": "./dist/index.js",

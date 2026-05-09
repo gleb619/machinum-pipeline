@@ -5,8 +5,6 @@ import type { GlobalContext, RunContext, StepInfo } from '../contexts.js'
 import { Store } from '../store.js'
 import type { Logger, Pipeline, PipelineStep, RunStateData } from '../types.js'
 import { registry } from '../uri.js'
-// Side-effect import: triggers builtin source/target registration
-import '../builtins/jsonl.js'
 import { Cache } from './cache.js'
 import {
   createRootCheckpoint,
@@ -333,8 +331,9 @@ export class Runner {
                     | import('../types.js').Tool<unknown, unknown>
                     | undefined
                   if (tool) {
+                    const prevStream = subStream
                     subStream = (async function* () {
-                      for await (const e of subStream) {
+                      for await (const e of prevStream) {
                         yield await tool.invoke(e, { run: runContext, step: forkStepInfo })
                       }
                     })()

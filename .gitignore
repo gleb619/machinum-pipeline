@@ -40,6 +40,15 @@ build
 /packages/backend/.output/*
 /packages/router/.nitro/*
 /packages/router/.output/*
+/packages/core/tests/*.test.d.ts
+/packages/core/tests/*.test.d.ts.map
+/packages/core/tests/*.js.map
+/packages/core/tests/engine/*.test.d.ts
+/packages/core/tests/engine/*.test.d.ts.map
+/packages/core/tests/engine/*.test.js.map
+/packages/core/tests/builtins/*.test.d.ts
+/packages/core/tests/builtins/*.test.d.ts.map
+/packages/core/tests/builtins/*.test.js.map
 
 /samples/sample0/vendor/
 /samples/sample0/package-lock.json
@@ -49,3 +58,4 @@ build
 /samples/sample1/package-lock.json
 /samples/sample1/runner.log
 /samples/sample1/mt-run.log
+

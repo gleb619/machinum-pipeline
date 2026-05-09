@@ -1,9 +1,9 @@
 import { createWriteStream } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import type { SourceContext, TargetContext } from '../contexts.js'
-import type { Envelope, Source, Target } from '../types.js'
-import type { ParsedUri } from '../uri.js'
-import { registry } from '../uri.js'
+import type { SourceContext, TargetContext } from '@mt/core'
+import type { Envelope, Source, Target } from '@mt/core'
+import type { ParsedUri } from '@mt/core'
+import { registry } from '@mt/core'
 
 /**
  * Built-in Markdown Source — reads a .md file and yields a single envelope

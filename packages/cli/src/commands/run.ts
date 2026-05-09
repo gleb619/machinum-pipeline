@@ -3,10 +3,7 @@ import { Runner } from '@mt/core'
 import type { GlobalContext, Pipeline } from '@mt/core'
 
 // Ensure built-in sources/targets are registered before resolving URIs
-//TODO: add registry object and/or use `packages/core/src/builtins/index.ts`
-import '@mt/core/builtins/http-source.js'
-import '@mt/core/builtins/jsonl-source.js'
-import '@mt/core/builtins/git-worktree-source.js'
+import '@mt/waypoint'
 
 import { DuplexLogger } from '../utils/logger.js'
 
@@ -17,7 +14,7 @@ import { DuplexLogger } from '../utils/logger.js'
  */
 export async function runCommand(args: string[]): Promise<void> {
   if (args.length === 0) {
-    console.error('Usage: mt run <pipeline.ts>')
+    console.error('Usage: mt run <pipeline.ts> [--pipeline <name>]')
     console.error('  Execute a pipeline file (foreground; logs to console + .mt)')
     process.exit(1)
   }
@@ -25,8 +22,17 @@ export async function runCommand(args: string[]): Promise<void> {
   const pipelineFile = args[0] as string
   const projectRoot = process.cwd()
 
+  // Parse --pipeline <name> flag
+  let pipelineName: string | undefined
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === '--pipeline' && args[i + 1]) {
+      pipelineName = args[i + 1]
+      break
+    }
+  }
+
   // Load pipeline module
-  const pipeline = await loadPipeline(pipelineFile)
+  const pipeline = await loadPipeline(pipelineFile, pipelineName)
 
   // Build global context from mt.json
   const globalContext = await buildGlobalContext(projectRoot)
@@ -64,14 +70,15 @@ export async function runCommand(args: string[]): Promise<void> {
  * Load a pipeline module from a file path.
  * Uses dynamic import (tsx/jiti compatible).
  */
-async function loadPipeline(filePath: string): Promise<Pipeline> {
+async function loadPipeline(filePath: string, name?: string): Promise<Pipeline> {
   const resolvedPath = join(process.cwd(), filePath)
   const mod = await import(resolvedPath)
-  const pipeline = mod.default ?? mod.pipeline
+  const pipeline = name ? (mod[name] as Pipeline | undefined) : (mod.default ?? mod.pipeline)
 
   if (!pipeline || typeof pipeline.id !== 'string') {
+    const hint = name ? ` (named export '${name}' not found or invalid)` : ''
     throw new Error(
-      `Invalid pipeline module: ${filePath}. Expected default export from definePipeline().`,
+      `Invalid pipeline module: ${filePath}. Expected ${name ? `export const ${name}` : 'default export'} from definePipeline().${hint}`,
     )
   }
 
