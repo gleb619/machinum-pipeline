@@ -347,6 +347,40 @@ export class Runner {
           })()
           break
         }
+        case 'subflow': {
+          const subPipeline = step.config.pipeline as import('../types.js').Pipeline
+          const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
+            stream ?? createEmptyStream()
+          const subflowStepInfo: StepInfo = { stepId, name: step.config.name as string, type: 'subflow', index: 0 }
+          this.logger(stepId).info(`Configuring subflow step: ${stepId}`)
+          stream = (async function* () {
+            for await (const env of sourceStream) {
+              let subStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
+                (async function* () {
+                  yield env
+                })()
+              for (const childStep of subPipeline.steps) {
+                if (childStep.type === 'tool') {
+                  const tool = childStep.config.tool as
+                    | import('../types.js').Tool<unknown, unknown>
+                    | undefined
+                  if (tool) {
+                    const prevStream = subStream
+                    subStream = (async function* () {
+                      for await (const e of prevStream) {
+                        yield await tool.invoke(e, { run: runContext, step: subflowStepInfo })
+                      }
+                    })()
+                  }
+                }
+              }
+              for await (const e of subStream) {
+                yield e
+              }
+            }
+          })()
+          break
+        }
         case 'tap': {
           const fn = step.config.fn as (item: unknown) => Promise<void>
           const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =

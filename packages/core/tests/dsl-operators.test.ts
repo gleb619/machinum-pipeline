@@ -1,12 +1,21 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createJsonlSource, createJsonlTarget } from '../src/builtins/jsonl.js'
 import { definePipeline, source, target } from '../src/dsl.js'
 import type { Pipeline } from '../src/types.js'
 import { registry } from '../src/uri.js'
 
 beforeAll(() => {
-  registry.registerSource('jsonl', createJsonlSource)
-  registry.registerTarget('jsonl', createJsonlTarget)
+  registry.registerSource('jsonl', (uri: any) => ({
+    uri: uri.raw,
+    lifestyle: 'resumable',
+    async *start() { yield { item: {}, meta: {} } },
+    async *resume() { yield { item: {}, meta: {} } },
+  }))
+  registry.registerTarget('jsonl', (uri: any) => ({
+    uri: uri.raw,
+    async open() {},
+    async write() {},
+    async close() {},
+  }))
 })
 
 describe('DSL Operators: flatMap, fork, tap', () => {

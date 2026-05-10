@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
 const CLI_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'cli')
+const WAYPOINT_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'waypoint')
 
 let tempDir: string
 
@@ -18,6 +19,7 @@ beforeAll(async () => {
 
   execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
   execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
 
   const pkgJson = {
     name: 'sample0-test',
@@ -25,11 +27,12 @@ beforeAll(async () => {
     dependencies: {
       '@mt/core': 'file:./vendor/mt-core-0.1.0.tgz',
       '@mt/cli': 'file:./vendor/mt-cli-0.1.0.tgz',
+      '@mt/waypoint': 'file:./vendor/mt-waypoint-0.1.0.tgz',
     },
   }
   await writeFile(join(tempDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
   execSync('npm install --no-audit --no-fund', { cwd: tempDir, stdio: 'pipe' })
-}, 60_000)
+}, 180_000)
 
 afterAll(async () => {
   if (tempDir) {

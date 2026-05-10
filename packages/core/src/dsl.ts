@@ -47,6 +47,7 @@ function getCallerFileId(): string {
 /**
  * DSL builder for defining a pipeline.
  * Chain: .from(source).use(tool).to(target)
+ * Also supports .fork() and .subflow() for branching logic.
  * 
  * @param config - Optional configuration. If omitted, uses defaults:
  *   - id: derived from filename (e.g., 'my-pipeline' from 'my-pipeline.ts')
@@ -170,6 +171,11 @@ export class PipelineBuilder<I, O> {
 
   fork(pipeline: Pipeline<I, any>): PipelineBuilder<I, O> {
     this.steps.push({ type: 'fork', config: { pipeline } })
+    return this
+  }
+
+  subflow(pipeline: Pipeline<I, any>): PipelineBuilder<I, O> {
+    this.steps.push({ type: 'subflow', config: { pipeline } })
     return this
   }
 

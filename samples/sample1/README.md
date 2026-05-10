@@ -15,7 +15,6 @@ This sample demonstrates a complete end-to-end pipeline that ingests Markdown ch
 samples/sample1/
 ├── pipelines/http-to-jsonl.ts   # Pipeline definition
 ├── simulation1.ts               # Client simulation (reads books/book1 chapter-*.en.md)
-├── run-test.ts                  # Full integration test
 ├── mt.json                      # Project configuration
 ├── jsonl/                       # Created at runtime — holds output.jsonl
 └── vendor/                      # Created at runtime — local tarballs
@@ -44,7 +43,3 @@ pnpm run simulate
 # 5. Check the output
 cat jsonl/output.jsonl
 ```
-
-## How the test works
-
-`run-test.ts` automates the steps above, then verifies that `jsonl/output.jsonl` contains all three English chapter titles from `books/book1`.

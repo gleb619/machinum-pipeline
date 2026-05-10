@@ -4,11 +4,11 @@ import {
   GitWorktreeTarget,
   createGitWorktreeSource,
   createGitWorktreeTarget,
-} from '../../src/builtins/git-worktree.js'
-import { createJsonlSource } from '../../src/builtins/jsonl.js'
+} from '../../src/git-worktree.js'
+import { createJsonlSource } from '../../src/jsonl.js'
 
 // Register builtins on import
-import '../../src/builtins/jsonl.js'
+import '../../src/jsonl.js'
 
 describe('UC-23 — Git Worktree Source (architectural)', () => {
   it('createGitWorktreeSource is exported as a function', () => {

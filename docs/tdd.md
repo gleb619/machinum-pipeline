@@ -223,7 +223,7 @@ export default definePipeline({
   .to(target('jsonl://./out.jsonl?git=worktree'));
 ```
 
-DSL operators: `.from`, `.to`, `.use`, `.batch(n)`, `.window(n)`, `.flatMap(fn)`, `.fork(subPipeline)`, `.tap(fn)`.
+DSL operators: `.from`, `.to`, `.use`, `.batch(n)`, `.window(n)`, `.flatMap(fn)`, `.fork(subPipeline)`, `.subflow(subPipeline)`, `.tap(fn)`.
 
 **Pipelines are real TS modules.** `console.log`, conditionals, imports — all execute. The DSL is the *grammar* for
 orchestration; everything else is plain TS.
@@ -282,6 +282,7 @@ Coarse states are persisted to `.mt/runs/<id>/state.json`. Fine-grained progress
   - One-shot: `echo '<env+ctx-json>' | npx some-tool` → stdout JSON.
   - Streaming: NDJSON over stdio for tools that consume many items.
 - **Forks**: `.fork(subPipeline)` creates a nested Run rooted in the parent's checkpoint tree.
+- **Subflows**: `.subflow(subPipeline)` is the in-process lightweight variant; it reuses the same Runner with nested checkpoint scope instead of spawning a child Run.
 
 ### 7.3 Checkpoint tree
 
@@ -437,7 +438,7 @@ Capabilities exposed:
 
 ### 9.8 `vscode-extension`
 - JSON schema for `mt.json` (validation + completion)
-- DSL hover info on `definePipeline`, `.use`, `.fork`, etc.
+- DSL hover info on `definePipeline`, `.use`, `.fork`, `.subflow`, etc.
 - "Run this pipeline" code lens on default-exported pipeline files
 - Syntax/semantic highlighting for the DSL chain
 
@@ -452,7 +453,7 @@ Capabilities exposed:
 4. `Runner.start(plan)` mints `runId`, writes initial `state.json` (`pending → running`).
 5. Source begins emitting envelopes; Runner walks DSL ops, executing tools.
 6. Each step boundary: append to `events.jsonl`, update `checkpoint.json` atomically.
-7. On `.fork`, Runner instantiates a child Runner sharing parent context, registers it as a checkpoint subtree.
+7. On `.fork` / `.subflow`, Runner instantiates a child Runner sharing parent context, registers it as a checkpoint subtree.
 8. On signal (SIGINT) or error per policy: transition `running → checkpoint → paused/failed`.
 9. On success: `running → done`, Targets close (e.g. git commit if `commit=on-close`).
 

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
 const CLI_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'cli')
+const WAYPOINT_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'waypoint')
 
 const CHAPTERS = [
   { title: 'Chapter 1: The Road from Thornhaven', body: 'Sir Aldric tightened the strap.' },
@@ -26,6 +27,7 @@ beforeAll(async () => {
 
   execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
   execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
 
   const pkgJson = {
     name: 'sample1-jsonl-to-md-test',
@@ -33,6 +35,7 @@ beforeAll(async () => {
     dependencies: {
       '@mt/core': 'file:./vendor/mt-core-0.1.0.tgz',
       '@mt/cli': 'file:./vendor/mt-cli-0.1.0.tgz',
+      '@mt/waypoint': 'file:./vendor/mt-waypoint-0.1.0.tgz',
       'tsx': '^4.19.0',
     },
   }
@@ -44,7 +47,7 @@ beforeAll(async () => {
 
   const jsonlContent = CHAPTERS.map((ch) => JSON.stringify({ item: ch })).join('\n') + '\n'
   await writeFile(join(workDir, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
-}, 60_000)
+}, 180_000)
 
 afterAll(async () => {
   if (workDir) {

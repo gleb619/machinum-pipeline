@@ -2,10 +2,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { createMdSource, createMdTarget } from '../../src/builtins/md.js'
+import { createMdSource, createMdTarget } from '../../src/md.js'
 
 // Register builtins on import
-import '../../src/builtins/md.js'
+import '../../src/md.js'
 
 describe('md source', () => {
   let tempDir: string

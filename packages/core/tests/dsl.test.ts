@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool, source, target } from '../src/dsl.js'
 import type { Book, Chapter, Envelope, Line, Paragraph } from '../src/index.js'
-// Ensure builtins are registered for tests
-import '../src/builtins/jsonl.js'
+import { registry } from '../src/uri.js'
+
+// Register jsonl scheme for tests
+registry.registerSource('jsonl', (uri) => ({
+  uri: uri.raw,
+  lifestyle: 'resumable',
+  async *start() { yield { item: {}, meta: {} } },
+  async *resume() { yield { item: {}, meta: {} } },
+}))
+registry.registerTarget('jsonl', (uri) => ({
+  uri: uri.raw,
+  async open() {},
+  async write() {},
+  async close() {},
+}))
 
 describe('DSL', () => {
   it('T002-02: definePipeline returns a PipelineBuilder', () => {

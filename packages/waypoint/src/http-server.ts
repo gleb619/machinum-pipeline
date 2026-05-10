@@ -29,6 +29,9 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   // The URI path is the ingest endpoint
   const ingestPath = uri.path || '/ingest'
 
+  // Optional envelope count limit (for tests)
+  const maxCount = uri.query.count ? Number.parseInt(uri.query.count, 10) : undefined
+
   return {
     uri: uri.raw,
     lifestyle: 'long-lived',
@@ -39,6 +42,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
       const waiting: ((value: Envelope<T>) => void)[] = []
 
       let server: Server | null = null
+      let receivedCount = 0
 
       const deliverEnvelope = (envelope: Envelope<T>): void => {
         if (waiting.length > 0) {
@@ -108,6 +112,13 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
               meta: {},
             }
 
+            receivedCount++
+            if (maxCount !== undefined && receivedCount > maxCount) {
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify({ received: true }))
+              return
+            }
+
             // Producer-consumer: deliver to waiting consumer or buffer
             deliverEnvelope(envelope)
 
@@ -136,6 +147,8 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
       const actualPort = (server.address() as { port: number }).port
       ctx.run.logger.info(`HTTP source started on port ${actualPort}, ingest path: ${ingestPath}`)
 
+      let yieldedCount = 0
+
       try {
         // Yield envelopes as they arrive
         while (true) {
@@ -151,6 +164,10 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
           })
 
           yield envelope
+          yieldedCount++
+          if (maxCount !== undefined && yieldedCount >= maxCount) {
+            break
+          }
         }
       } finally {
         // Clean up server

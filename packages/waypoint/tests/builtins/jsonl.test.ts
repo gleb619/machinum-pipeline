@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as readline from 'node:readline'
 import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
-import { createJsonlSource } from '../../src/builtins/jsonl.js'
+import { createJsonlSource } from '../../src/jsonl.js'
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()

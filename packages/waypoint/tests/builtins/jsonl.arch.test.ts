@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createJsonlSource, createJsonlTarget } from '../../src/builtins/jsonl.js'
-import type { Source, Target } from '../../src/types.js'
-import { registry } from '../../src/uri.js'
+import { createJsonlSource, createJsonlTarget } from '../../src/jsonl.js'
+import type { Source, Target } from '@mt/core'
+import { registry } from '@mt/core'
 
 // Register on import
-import '../../src/builtins/jsonl.js'
+import '../../src/jsonl.js'
 
 describe('UC-21 — JSONL Source (architectural)', () => {
   it('createJsonlSource is exported as a function', () => {

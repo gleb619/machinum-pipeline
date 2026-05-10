@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { createMdSource, createMdTarget } from '../../src/builtins/md.js'
-import type { Source, Target } from '../../src/types.js'
-import { registry } from '../../src/uri.js'
+import { createMdSource, createMdTarget } from '../../src/md.js'
+import type { Source, Target } from '@mt/core'
+import { registry } from '@mt/core'
 
 // Register on import
-import '../../src/builtins/md.js'
+import '../../src/md.js'
 
 describe('UC-26 — Markdown Source (architectural)', () => {
   it('createMdSource is exported as a function', () => {

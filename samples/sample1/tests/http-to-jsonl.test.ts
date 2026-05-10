@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
 const CLI_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'cli')
+const WAYPOINT_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'waypoint')
 const BOOKS_DIR = resolve(SAMPLE_DIR, '..', '..', 'books', 'book1')
 const HEALTH_URL = 'http://127.0.0.1:9876/health'
 
@@ -40,6 +41,7 @@ beforeAll(async () => {
 
   execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, { stdio: 'pipe' })
   execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, { stdio: 'pipe' })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, { stdio: 'pipe' })
 
   const pkgJson = {
     name: 'sample1-test',
@@ -47,6 +49,7 @@ beforeAll(async () => {
     dependencies: {
       '@mt/core': 'file:./vendor/mt-core-0.1.0.tgz',
       '@mt/cli': 'file:./vendor/mt-cli-0.1.0.tgz',
+      '@mt/waypoint': 'file:./vendor/mt-waypoint-0.1.0.tgz',
       'tsx': '^4.19.0',
     },
   }
@@ -56,6 +59,12 @@ beforeAll(async () => {
   await cp(join(SAMPLE_DIR, 'mt.json'), join(workDir, 'mt.json'))
   await cp(join(SAMPLE_DIR, 'pipelines'), join(workDir, 'pipelines'), { recursive: true })
   await cp(join(SAMPLE_DIR, 'simulation1.ts'), join(workDir, 'simulation1.ts'))
+
+  // Patch pipeline to limit HTTP source to 3 envelopes so the runner exits
+  const pipelinePath = join(workDir, 'pipelines', 'http-to-jsonl.ts')
+  let pipelineSrc = await readFile(pipelinePath, 'utf-8')
+  pipelineSrc = pipelineSrc.replace('hs://localhost:9876/', 'hs://localhost:9876/?count=3')
+  await writeFile(pipelinePath, pipelineSrc, 'utf-8')
 
   // simulation1.ts resolves books via ../../books/book1 relative to its own location
   const simBooksDir = resolve(workDir, '..', '..', 'books', 'book1')
@@ -76,7 +85,7 @@ beforeAll(async () => {
   runnerProc.stderr?.on('data', () => {})
 
   await waitForHealth()
-}, 60_000)
+}, 180_000)
 
 afterAll(async () => {
   if (runnerProc && !runnerProc.killed) {

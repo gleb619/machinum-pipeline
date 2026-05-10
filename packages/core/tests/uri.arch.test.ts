@@ -3,8 +3,19 @@ import { source, target } from '../src/dsl.js'
 import type { Envelope, Source, SourceContext, Target, TargetContext } from '../src/index.js'
 import { registry } from '../src/uri.js'
 
-// Register builtins for URI resolution
-import '../src/builtins/jsonl.js'
+// Register jsonl scheme for URI resolution tests
+registry.registerSource('jsonl', (uri) => ({
+  uri: uri.raw,
+  lifestyle: 'resumable',
+  async *start() { yield { item: {}, meta: {} } },
+  async *resume() { yield { item: {}, meta: {} } },
+}))
+registry.registerTarget('jsonl', (uri) => ({
+  uri: uri.raw,
+  async open() {},
+  async write() {},
+  async close() {},
+}))
 
 describe('UC-04 — Define custom Source/Target (architectural)', () => {
   it('Source<T> conforms to interface shape', () => {

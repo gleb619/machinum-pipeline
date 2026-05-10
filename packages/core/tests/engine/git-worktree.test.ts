@@ -8,7 +8,7 @@ import {
   GitWorktreeTarget,
   createGitWorktreeSource,
   createGitWorktreeTarget,
-} from '../../src/builtins/git-worktree.js'
+} from '../../../waypoint/src/git-worktree.ts'
 import type { SourceContext, TargetContext } from '../../src/contexts.js'
 import {
   createWorktree,

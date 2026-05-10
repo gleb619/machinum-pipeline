@@ -8,6 +8,16 @@ import { runCommand } from '../../src/commands/run.js'
 vi.mock('@mt/core', () => ({
   Runner: vi.fn(),
   definePipeline: vi.fn(),
+  registry: {
+    resolveSource: vi.fn(),
+    resolveTarget: vi.fn(),
+    registerSource: vi.fn(),
+    registerTarget: vi.fn(),
+    registerComposite: vi.fn(),
+    parse: vi.fn(),
+    getSourceFactory: vi.fn(),
+    getTargetFactory: vi.fn(),
+  },
 }))
 
 describe('run command', () => {
