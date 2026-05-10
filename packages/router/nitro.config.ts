@@ -12,5 +12,6 @@ export default defineNitroConfig({
   },
   routeRules: {
     '/api/chat/completions': { cors: true },
+    '/api/translate': { cors: true },
   },
 })

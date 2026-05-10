@@ -42,7 +42,7 @@ export default definePipeline()
   })
   .use(wordCounter)
   .use(chapterIndexer)
-  .fork(schemaToolsFragment)
+  .subflow(schemaToolsFragment)
   .batch(3)
   .to('md://./md/output.md')
 

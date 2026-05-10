@@ -87,15 +87,15 @@ describe('jsonl-to-md-multi pipeline', () => {
     expect(idx3).toBeGreaterThan(idx2)
   })
 
-  it('fork enriches output.md with meta fields', () => {
+  it('subflow enriches output.md with meta fields', () => {
     const content = readFileSync(join(workDir, 'md', 'output.md'), 'utf-8')
-    // After fork, output.md contains merged markdown with all 3 chapters
+    // After subflow, output.md contains merged markdown with all 3 chapters
     for (const ch of CHAPTERS) {
       expect(content).toContain(ch.title)
     }
   })
 
-  it('fork does not lose items — all 3 chapter titles in order', () => {
+  it('subflow does not lose items — all 3 chapter titles in order', () => {
     const content = readFileSync(join(workDir, 'md', 'output.md'), 'utf-8')
     const idx1 = content.indexOf('Chapter 1')
     const idx2 = content.indexOf('Chapter 2')

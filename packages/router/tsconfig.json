@@ -4,6 +4,6 @@
     "outDir": "./dist",
     "rootDir": "."
   },
-  "include": ["server/**/*.ts", "nitro.config.ts"],
-  "references": [{ "path": "../core" }]
+  "include": ["server/**/*.ts", "nitro.config.ts", "server/types/**/*.d.ts"],
+  "references": [{ "path": "../core" }, { "path": "../tools" }]
 }

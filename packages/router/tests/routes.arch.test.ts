@@ -37,6 +37,10 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
     expect(await fileExists('../server/routes/api/dashboard.ts')).toBe(true)
   })
 
+  it('translate route exists', async () => {
+    expect(await fileExists('../server/routes/api/translate.ts')).toBe(true)
+  })
+
   it('chat completions route exports default function', async () => {
     const content = await readFile(
       join(__dirname, '../server/routes/api/chat/completions.ts'),

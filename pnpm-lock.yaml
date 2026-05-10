@@ -157,6 +157,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@mt/tools':
+        specifier: workspace:*
+        version: link:../tools
       h3:
         specifier: ^1.13.0
         version: 1.15.11
