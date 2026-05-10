@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { summaryTool, entitiesTool, schemaTool } from './schema-doc.js'
+import { entitiesTool, schemaTool, summaryTool } from './schema-doc.js'
 
 describe('summaryTool', () => {
   it('should have correct name and version', () => {

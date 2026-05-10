@@ -1,5 +1,8 @@
 import { basename, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
+import type { Envelope, Lifecycle, Source, Target } from '@mt/core'
+import type { ParsedUri } from '@mt/core'
+import { registry } from '@mt/core'
 import {
   createWorktree,
   getRepoRoot,
@@ -7,9 +10,6 @@ import {
   removeWorktree,
 } from '@mt/core/engine/git-worktree.js'
 import { autoCommit } from '@mt/core/engine/git.js'
-import type { Envelope, Lifecycle, Source, Target } from '@mt/core'
-import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
 
 /**
  * GitWorktreeSource wraps an inner Source, delegating all operations

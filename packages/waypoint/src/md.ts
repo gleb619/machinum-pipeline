@@ -15,11 +15,11 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(_ctx: SourceContext): AsyncIterable<Envelope<T>> {
       const content = await readFile(filePath, 'utf-8')
       yield { item: content as T, meta: {} }
     },
-    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(_ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
       const content = await readFile(filePath, 'utf-8')
       yield { item: content as T, meta: {} }
     },
@@ -44,7 +44,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
         throw new Error('Target not opened. Call open() before write().')
       }
       const text = String(env.item)
-      writeStream.write(text + '\n')
+      writeStream.write(`${text}\n`)
     },
     async close(_ctx: TargetContext): Promise<void> {
       if (writeStream) {

@@ -1,5 +1,5 @@
 import { definePipeline, defineTool } from '@mt/core'
-import { summaryTool, entitiesTool, schemaTool } from '@mt/tools'
+import { entitiesTool, schemaTool, summaryTool } from '@mt/tools'
 import '@mt/waypoint'
 
 // Tool 1: Word counter — counts words in markdown content and adds to envelope meta
@@ -19,17 +19,14 @@ const chapterIndexer = defineTool<string, string>({
   version: '1.0.0',
   invoke: async (env, _ctx) => {
     const chapterMatch = (env.item as string).match(/^#\s*Chapter\s*(\d+)/m)
-    const chapterNum = chapterMatch ? parseInt(chapterMatch[1], 10) : 0
+    const chapterNum = chapterMatch ? Number.parseInt(chapterMatch[1], 10) : 0
     return { ...env, meta: { ...env.meta, chapterNum } }
   },
   exec: 'inproc',
 })
 
 // Schema tools fragment (tools-only pipeline for fork)
-const schemaToolsFragment = definePipeline()
-  .use(summaryTool)
-  .use(entitiesTool)
-  .use(schemaTool)
+const schemaToolsFragment = definePipeline().use(summaryTool).use(entitiesTool).use(schemaTool)
 
 // Primary pipeline — JSONL → Markdown chapters → fork(schema tools) → batch → output.md
 export default definePipeline()

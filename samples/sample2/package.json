@@ -10,6 +10,8 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@mt/tools": "workspace:*",
+    "@mt/waypoint": "workspace:*",
     "tsx": "^4.19.0",
     "vitest": "^3.0.0"
   },

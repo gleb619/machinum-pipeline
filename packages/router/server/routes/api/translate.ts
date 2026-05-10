@@ -2,6 +2,7 @@ import { createError, defineEventHandler, getHeader, readBody, getQuery } from '
 import { OpenRouterPool } from '@mt/tools'
 import { isMockMode } from '../../plugins/mock-mode.js'
 import { logCall } from '../../utils/cost-tracker.js'
+import { poolSupplier } from '../../utils/openrouter-pool-supplier.js'
 
 interface TranslateRequest {
   text: string | string[]
@@ -53,6 +54,7 @@ function buildSystemPrompt(targetLang: string, sourceLang?: string): string {
 }
 
 async function callOpenRouter(
+  pool: OpenRouterPool,
   client: ReturnType<OpenRouterPool['getAvailableClient']>,
   body: OpenRouterChatRequest,
 ): Promise<OpenRouterChatResponse> {
@@ -75,10 +77,7 @@ async function callOpenRouter(
   if (response.status === 429) {
     const retryAfter = response.headers.get('retry-after')
     const retryMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60_000
-    const pool = globalThis.__openRouterPool as OpenRouterPool | undefined
-    if (pool) {
-      pool.handleRateLimitError(client, retryMs)
-    }
+    pool.handleRateLimitError(client, retryMs)
     throw createError({
       statusCode: 429,
       statusMessage: 'Rate limited by OpenRouter',
@@ -86,10 +85,7 @@ async function callOpenRouter(
   }
 
   if (response.status === 402) {
-    const pool = globalThis.__openRouterPool as OpenRouterPool | undefined
-    if (pool) {
-      pool.handle402Error(client)
-    }
+    pool.handle402Error(client)
     throw createError({
       statusCode: 402,
       statusMessage: 'Payment required / DDoS block',
@@ -108,28 +104,17 @@ async function callOpenRouter(
 }
 
 function getOrCreatePool(apiKeys?: string[]): OpenRouterPool {
-  const keys = apiKeys?.length
-    ? apiKeys.map((k) => ({ apiKey: k }))
-    : (process.env.OPENROUTER_API_KEYS ?? process.env.OPENROUTER_API_KEY ?? '')
-        .split(',')
-        .map((k) => k.trim())
-        .filter(Boolean)
-        .map((k) => ({ apiKey: k }))
+  if (apiKeys?.length) {
+    return new OpenRouterPool({ clients: apiKeys.map((k) => ({ apiKey: k })) })
+  }
 
-  if (!keys.length) {
+  const pool = poolSupplier.getPool()
+  if (pool.availableSize() === 0) {
     throw createError({
       statusCode: 500,
       statusMessage: 'No OpenRouter API keys configured',
     })
   }
-
-  const existing = globalThis.__openRouterPool as OpenRouterPool | undefined
-  if (existing && !existing.isExpired()) {
-    return existing
-  }
-
-  const pool = new OpenRouterPool({ clients: keys })
-  globalThis.__openRouterPool = pool
   return pool
 }
 
@@ -168,7 +153,7 @@ export default defineEventHandler(async (event) => {
     }
 
     try {
-      const data = await callOpenRouter(client, chatBody)
+      const data = await callOpenRouter(pool, client, chatBody)
       const translatedText = data.choices?.[0]?.message?.content ?? ''
       const tokens = data.usage?.total_tokens ?? 0
 
@@ -188,7 +173,7 @@ export default defineEventHandler(async (event) => {
       ) {
         const nextClient = pool.getAvailableClient(model)
         if (nextClient) {
-          const data = await callOpenRouter(nextClient, chatBody)
+          const data = await callOpenRouter(pool, nextClient, chatBody)
           const translatedText = data.choices?.[0]?.message?.content ?? ''
           const tokens = data.usage?.total_tokens ?? 0
 

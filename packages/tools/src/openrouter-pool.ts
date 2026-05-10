@@ -84,9 +84,13 @@ export class OpenRouterPool {
   /** Count of clients that are currently available */
   availableSize(): number {
     const now = Date.now()
-    return this.clients.filter(
-      (c) => !c.disabled && (!c.blockedUntil || c.blockedUntil <= now),
-    ).length
+    return this.clients.filter((c) => !c.disabled && (!c.blockedUntil || c.blockedUntil <= now))
+      .length
+  }
+
+  /** Total number of clients in the pool (including disabled/blocked) */
+  totalSize(): number {
+    return this.clients.length
   }
 
   /** Whether the pool has exceeded its TTL */
