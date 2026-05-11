@@ -1,8 +1,8 @@
 import { definePipeline } from '@mt/core'
+import { chapterDoc } from '@mt/tools'
+import '@mt/waypoint'
 
 export default definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (item: any) => {
-    return [`# ${item.title}\n\n${item.body}\n`]
-  })
-  .to('md://./md/output.md')
+  .use(chapterDoc)
+  .to('md://./chapters/en')

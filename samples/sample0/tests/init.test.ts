@@ -1,9 +1,9 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { execSync } from 'node:child_process'
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
@@ -18,9 +18,18 @@ beforeAll(async () => {
   const vendorDir = join(tempDir, 'vendor')
   await mkdir(vendorDir, { recursive: true })
 
-  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
-  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
-  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
+  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
 
   const pkgJson = {
     name: 'sample0-test',

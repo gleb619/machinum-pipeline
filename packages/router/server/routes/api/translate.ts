@@ -1,5 +1,5 @@
-import { createError, defineEventHandler, getHeader, readBody, getQuery } from 'h3'
 import { OpenRouterPool } from '@mt/tools'
+import { createError, defineEventHandler, getHeader, getQuery, readBody } from 'h3'
 import { isMockMode } from '../../plugins/mock-mode.js'
 import { logCall } from '../../utils/cost-tracker.js'
 import { poolSupplier } from '../../utils/openrouter-pool-supplier.js'
@@ -76,7 +76,7 @@ async function callOpenRouter(
 
   if (response.status === 429) {
     const retryAfter = response.headers.get('retry-after')
-    const retryMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 60_000
+    const retryMs = retryAfter ? Number.parseInt(retryAfter, 10) * 1000 : 60_000
     pool.handleRateLimitError(client, retryMs)
     throw createError({
       statusCode: 429,
@@ -133,7 +133,7 @@ export default defineEventHandler(async (event) => {
     }))
     return query.batch
       ? { results }
-      : results[0] ?? { translatedText: '', model: 'mock', tokens: 0 }
+      : (results[0] ?? { translatedText: '', model: 'mock', tokens: 0 })
   }
 
   const pool = getOrCreatePool(body.apiKeys)
@@ -165,12 +165,7 @@ export default defineEventHandler(async (event) => {
       results.push({ translatedText, model, tokens })
     } catch (err) {
       // If rate-limited, retry once with next client
-      if (
-        err &&
-        typeof err === 'object' &&
-        'statusCode' in err &&
-        err.statusCode === 429
-      ) {
+      if (err && typeof err === 'object' && 'statusCode' in err && err.statusCode === 429) {
         const nextClient = pool.getAvailableClient(model)
         if (nextClient) {
           const data = await callOpenRouter(pool, nextClient, chatBody)

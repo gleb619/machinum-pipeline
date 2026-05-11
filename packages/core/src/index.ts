@@ -25,6 +25,7 @@ export type {
   RunState,
   CheckpointNode,
   RunStateData,
+  MdOutputEntry,
 } from './types.js'
 export type { Book, Chapter, Paragraph, Line } from './domain.js'
 export {

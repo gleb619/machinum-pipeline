@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
-import { createMdSource, createMdTarget } from '../../src/md.js'
 import type { Source, Target } from '@mt/core'
 import { registry } from '@mt/core'
+import { describe, expect, it } from 'vitest'
+import { createMdSource, createMdTarget } from '../../src/md.js'
 
 // Register on import
 import '../../src/md.js'

@@ -118,3 +118,10 @@ export interface RunStateData {
   checkpoint: CheckpointNode
   contextRef: string
 }
+
+export interface MdOutputEntry {
+  name: string
+  dir: string
+  filename: string
+  content: string
+}

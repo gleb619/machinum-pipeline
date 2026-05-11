@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { readFile, readdir, stat as fsStat } from 'node:fs/promises'
+import { stat as fsStat, readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 
 import { defineTool } from '@mt/core'
@@ -78,7 +78,11 @@ function resolveOptions(opts?: FormatOptions): Required<FormatOptions> {
 /**
  * Build the mdfmt CLI argument list from resolved options and paths.
  */
-function buildArgs(paths: string | string[], options: Required<FormatOptions>, write: boolean): string[] {
+function buildArgs(
+  paths: string | string[],
+  options: Required<FormatOptions>,
+  write: boolean,
+): string[] {
   const args: string[] = []
 
   args.push('--width', String(options.width))
@@ -140,7 +144,9 @@ function spawnMdfmt(args: string[], input?: string): Promise<SpawnResult> {
 
     child.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'ENOENT') {
-        reject(new Error(`mdfmt binary not found at ${bin}. Ensure @rewdy/md-formatter is installed.`))
+        reject(
+          new Error(`mdfmt binary not found at ${bin}. Ensure @rewdy/md-formatter is installed.`),
+        )
       } else {
         reject(new Error(`Failed to spawn mdfmt: ${err.message}`))
       }
@@ -201,7 +207,9 @@ export async function formatMarkdown(
 
   if (pathList.length === 1 && pathList[0] === '-') {
     // Stdin mode — caller provides input
-    throw new Error('stdin mode (-) requires input to be piped. Use formatString() for programmatic formatting.')
+    throw new Error(
+      'stdin mode (-) requires input to be piped. Use formatString() for programmatic formatting.',
+    )
   }
 
   // Collect all markdown file contents
@@ -215,12 +223,22 @@ export async function formatMarkdown(
   const results: string[] = []
   for (const { filePath: _fp, content } of contents) {
     const result = await spawnMdfmt(
-      ['--width', String(resolved.width), '--wrap', resolved.wrapMode, '--ordered-list', resolved.orderedList, '-'],
+      [
+        '--width',
+        String(resolved.width),
+        '--wrap',
+        resolved.wrapMode,
+        '--ordered-list',
+        resolved.orderedList,
+        '-',
+      ],
       content,
     )
 
     if (result.exitCode !== 0) {
-      throw new Error(`mdfmt failed for stdin input with exit code ${result.exitCode}: ${result.stderr}`)
+      throw new Error(
+        `mdfmt failed for stdin input with exit code ${result.exitCode}: ${result.stderr}`,
+      )
     }
 
     results.push(result.stdout)
@@ -233,14 +251,19 @@ export async function formatMarkdown(
  * Format a single markdown string using mdfmt via stdin.
  * This is the programmatic equivalent of `echo "$md" | mdfmt -`.
  */
-export async function formatString(
-  input: string,
-  options?: FormatOptions,
-): Promise<FormatResult> {
+export async function formatString(input: string, options?: FormatOptions): Promise<FormatResult> {
   const resolved = resolveOptions(options)
 
   const result = await spawnMdfmt(
-    ['--width', String(resolved.width), '--wrap', resolved.wrapMode, '--ordered-list', resolved.orderedList, '-'],
+    [
+      '--width',
+      String(resolved.width),
+      '--wrap',
+      resolved.wrapMode,
+      '--ordered-list',
+      resolved.orderedList,
+      '-',
+    ],
     input,
   )
 

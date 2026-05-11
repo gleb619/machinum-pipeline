@@ -1,7 +1,7 @@
+import { basename, dirname } from 'path'
 import type { ToolContext } from './contexts.js'
 import type { Envelope, Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
-import { basename, dirname } from 'path'
 
 /**
  * Default retry configuration
@@ -19,7 +19,7 @@ function getCallerFileId(): string {
     Error.prepareStackTrace = (_, stack) => stack
     const err = new Error()
     const stack = err.stack as unknown as NodeJS.CallSite[]
-    
+
     // Find the caller (skip this function, getCallerFileId, and the definePipeline call)
     for (let i = 2; i < stack.length; i++) {
       const caller = stack[i]
@@ -95,10 +95,18 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   private readonly _onError: 'fail-run' | 'skip-item' | 'dead-letter'
   private readonly _steps: PipelineStep[] = []
 
-  get id(): string { return this._id }
-  get retry(): { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' } { return this._retry }
-  get onError(): 'fail-run' | 'skip-item' | 'dead-letter' { return this._onError }
-  get steps(): PipelineStep[] { return this._steps }
+  get id(): string {
+    return this._id
+  }
+  get retry(): { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' } {
+    return this._retry
+  }
+  get onError(): 'fail-run' | 'skip-item' | 'dead-letter' {
+    return this._onError
+  }
+  get steps(): PipelineStep[] {
+    return this._steps
+  }
 
   constructor(config: {
     id: string

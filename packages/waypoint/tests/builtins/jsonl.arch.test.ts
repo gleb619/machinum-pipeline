@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { createJsonlSource, createJsonlTarget } from '../../src/jsonl.js'
 import type { Source, Target } from '@mt/core'
 import { registry } from '@mt/core'
+import { afterEach, describe, expect, it } from 'vitest'
+import { createJsonlSource, createJsonlTarget } from '../../src/jsonl.js'
 
 // Register on import
 import '../../src/jsonl.js'

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { readFile, stat } from 'node:fs/promises'
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -16,12 +16,7 @@ vi.mock('node:fs/promises', () => ({
 
 // ── Imports (after mocks so they see the mocked modules) ────────────────────
 
-import {
-  formatMarkdown,
-  formatString,
-  mdFormatter,
-  mdFormatterTool,
-} from '../src/md-formatter.js'
+import { formatMarkdown, formatString, mdFormatter, mdFormatterTool } from '../src/md-formatter.js'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -106,9 +101,7 @@ describe('formatString', () => {
 
   it('should format a simple markdown string', async () => {
     const input = '# Hello\n\nThis is a test.'
-    vi.mocked(spawn).mockReturnValue(
-      makeMockChild('# Hello\n\nThis is a test.') as any,
-    )
+    vi.mocked(spawn).mockReturnValue(makeMockChild('# Hello\n\nThis is a test.') as any)
 
     const result = await formatString(input)
     expect(result).toHaveProperty('formatted')

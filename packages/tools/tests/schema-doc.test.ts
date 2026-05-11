@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  type SchemaDocEnvelope,
+  type SchemaDocMetadata,
   entitiesTool,
   metadataTool,
   readDoc,
@@ -7,8 +9,6 @@ import {
   summaryTool,
   vocabularyTool,
   writeDoc,
-  type SchemaDocEnvelope,
-  type SchemaDocMetadata,
 } from '../src/schema-doc.js'
 
 function createFullEnvelope(): SchemaDocEnvelope {

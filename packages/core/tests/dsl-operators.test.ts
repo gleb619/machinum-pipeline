@@ -7,8 +7,12 @@ beforeAll(() => {
   registry.registerSource('jsonl', (uri: any) => ({
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start() { yield { item: {}, meta: {} } },
-    async *resume() { yield { item: {}, meta: {} } },
+    async *start() {
+      yield { item: {}, meta: {} }
+    },
+    async *resume() {
+      yield { item: {}, meta: {} }
+    },
   }))
   registry.registerTarget('jsonl', (uri: any) => ({
     uri: uri.raw,

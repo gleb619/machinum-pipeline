@@ -1,5 +1,7 @@
 import { definePipeline, defineTool } from '@mt/core'
 import {
+  chapterDoc,
+  chapterIndexer,
   chapterValidator,
   entitiesTool,
   entityNormalizer,
@@ -8,6 +10,7 @@ import {
   markdownFormatter,
   mdFormatter,
   paragraphTranslator,
+  schemaDocWriter,
   schemaTool,
   summaryTool,
   titleTranslator,
@@ -15,7 +18,6 @@ import {
   typoDetector,
   typoFixer,
   wordCounter,
-  chapterIndexer,
 } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -27,18 +29,31 @@ const stubTranslator = defineTool<string, string>({
   invoke: async (env, _ctx) => {
     const text = env.item as string
     // Simple stub: wrap paragraphs in [ru]...[/ru] markers
-    const translated = text.split('\n\n').map((p) => `[ru]${p}[/ru]`).join('\n\n')
+    const translated = text
+      .split('\n\n')
+      .map((p) => `[ru]${p}[/ru]`)
+      .join('\n\n')
     return { ...env, item: translated, meta: { ...env.meta, translated: true } }
+  },
+})
+
+// === Helper: convert JSONL record to plain markdown for schema-doc tools ===
+//TODO: remove `toMarkdown` tool
+//@depricated
+const toMarkdown = defineTool<{ title: string; body: string }, string>({
+  name: 'to-markdown',
+  version: '1.0.0',
+  exec: 'inproc',
+  invoke: async (env, _ctx) => {
+    const record = env.item as { title: string; body: string }
+    return { ...env, item: `# ${record.title}\n\n${record.body}` }
   },
 })
 
 // === Flow 1: JSONL → Verified MD ===
 const verifyFlow = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (item: unknown) => {
-    const record = item as { title: string; body: string }
-    return [`# ${record.title}\n\n${record.body}\n`]
-  })
+  .use(chapterDoc)
   .use(wordCounter)
   .use(chapterIndexer)
   .use(chapterValidator)
@@ -49,20 +64,15 @@ const verifyFlow = definePipeline()
     const meta = (item as { meta?: { warnings?: unknown } }).meta
     console.log('[verify] warnings:', meta?.warnings)
   })
-  .to('md://./md/output.md')
+  .to('md://./chapters/en')
 
 // === Flow 2: MD(EN) → MD(RU) translation ===
 const translateFlow = definePipeline()
-  .from('md://./md/output.md')
+  .from('md://./chapters/en')
   .use(wordCounter)
   .use(chapterIndexer)
   .use(stubTranslator)
   .to('chapter-output://./chapters')
-
-// === Default: orchestration pipeline (subflow-only) ===
-export default definePipeline()
-  .subflow(verifyFlow)
-  .subflow(translateFlow)
 
 // === Named exports: each uses ephemeral:// source/target ===
 export const smokeTestPipeline = definePipeline()
@@ -89,16 +99,14 @@ export const collectWarningsPipeline = definePipeline()
 
 export const schemaDocPipeline = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (item: unknown) => {
-    const record = item as { title: string; body: string }
-    return [`# ${record.title}\n\n${record.body}\n`]
-  })
+  .use(toMarkdown)
   .use(chapterIndexer)
   .use(summaryTool)
   .use(entitiesTool)
   .use(schemaTool)
   .use(mdFormatter)
-  .to('schema-doc://./chapters/schema')
+  .use(schemaDocWriter)
+  .to('md://./chapters')
 
 export const fixChapterPipeline = definePipeline()
   .from('ephemeral://fix-input')
@@ -123,3 +131,15 @@ export const translateChapterPipeline = definePipeline()
   })
   .use(paragraphTranslator)
   .to('ephemeral://translate-output')
+
+// === Default: orchestration pipeline (subflow-only) ===
+export default definePipeline()
+  .subflow(verifyFlow)
+  .subflow(schemaDocPipeline)
+  .subflow(smokeTestPipeline)
+  .subflow(splitChaptersPipeline)
+  .subflow(collectWarningsPipeline)
+  .subflow(fixChapterPipeline)
+  .subflow(translateTitlesPipeline)
+  .subflow(translateChapterPipeline)
+  .subflow(translateFlow)

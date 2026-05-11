@@ -1,8 +1,8 @@
 import { type Server, createServer } from 'node:http'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createHttpSource } from '../../src/http-server.js'
 import type { Envelope } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createHttpSource } from '../../src/http-server.js'
 
 /**
  * Helper: find a free port by binding to port 0, then releasing it.

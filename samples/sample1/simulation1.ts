@@ -6,11 +6,7 @@ const TIMEOUT_MS = 5000
 
 const BOOK_DIR = join(import.meta.dirname, '..', '..', 'books', 'book1')
 
-const files: string[] = [
-  'chapter-1.en.md',
-  'chapter-2.en.md',
-  'chapter-3.en.md',
-]
+const files: string[] = ['chapter-1.en.md', 'chapter-2.en.md', 'chapter-3.en.md']
 
 function extractTitle(content: string): string {
   const match = content.match(/^#\s+(.+)$/m)

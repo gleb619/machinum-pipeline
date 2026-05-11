@@ -1,10 +1,10 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { mkdir, readFile, rm, cp, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
@@ -15,7 +15,7 @@ const WAYPOINT_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'waypoint')
 const CHAPTERS = [
   { title: 'Chapter 1: The Road from Thornhaven', body: 'Sir Aldric tightened the strap.' },
   { title: 'Chapter 2: Ambush in the Darkwood', body: 'The trees closed in like witnesses.' },
-  { title: "Chapter 3: The Duke\u2019s Tribunal", body: 'Upon the third day, Sir Aldric arrived.' },
+  { title: 'Chapter 3: The Duke\u2019s Tribunal', body: 'Upon the third day, Sir Aldric arrived.' },
 ]
 
 let workDir: string
@@ -26,13 +26,25 @@ beforeAll(async () => {
   const vendorDir = join(workDir, 'vendor')
   await mkdir(vendorDir, { recursive: true })
   await mkdir(join(workDir, 'jsonl'), { recursive: true })
-  await mkdir(join(workDir, 'md'), { recursive: true })
+  await mkdir(join(workDir, 'chapters', 'en'), { recursive: true })
   await mkdir(join(workDir, 'chapters', 'schema'), { recursive: true })
 
-  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
-  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
-  execSync(`pnpm -C "${TOOLS_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
-  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
+  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${TOOLS_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
 
   const pkgJson = {
     name: 'sample2-test',
@@ -42,7 +54,7 @@ beforeAll(async () => {
       '@mt/cli': 'file:./vendor/mt-cli-0.1.0.tgz',
       '@mt/tools': 'file:./vendor/mt-tools-0.1.0.tgz',
       '@mt/waypoint': 'file:./vendor/mt-waypoint-0.1.0.tgz',
-      'tsx': '^4.19.0',
+      tsx: '^4.19.0',
     },
   }
   await writeFile(join(workDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
@@ -81,39 +93,33 @@ describe('jsonl-to-md-multi pipeline', () => {
     })
   })
 
-  it('output.md contains all 3 chapter titles and bodies', async () => {
-    const content = await readFile(join(workDir, 'md', 'output.md'), 'utf-8')
-    for (const ch of CHAPTERS) {
-      expect(content).toContain(ch.title)
+  it('writes individual chapter files to chapters/en', async () => {
+    for (let i = 0; i < CHAPTERS.length; i++) {
+      const content = await readFile(join(workDir, 'chapters', 'en', `chapter${i + 1}.md`), 'utf-8')
+      expect(content).toContain(CHAPTERS[i].title)
+      expect(content).toContain(CHAPTERS[i].body)
     }
   })
 
-  it('output.md chapters are in correct order (chapter 1 before chapter 2 before chapter 3)', () => {
-    const content = readFileSync(join(workDir, 'md', 'output.md'), 'utf-8')
-    const idx1 = content.indexOf('Chapter 1')
-    const idx2 = content.indexOf('Chapter 2')
-    const idx3 = content.indexOf('Chapter 3')
-    expect(idx1).toBeGreaterThan(-1)
-    expect(idx2).toBeGreaterThan(idx1)
-    expect(idx3).toBeGreaterThan(idx2)
-  })
-
-  it('subflow enriches output.md with meta fields', () => {
-    const content = readFileSync(join(workDir, 'md', 'output.md'), 'utf-8')
-    // After subflow, output.md contains merged markdown with all 3 chapters
-    for (const ch of CHAPTERS) {
-      expect(content).toContain(ch.title)
+  it('chapters are in correct order on disk (chapter 1 before chapter 2 before chapter 3)', async () => {
+    for (let i = 0; i < CHAPTERS.length; i++) {
+      const content = await readFile(join(workDir, 'chapters', 'en', `chapter${i + 1}.md`), 'utf-8')
+      expect(content).toContain(`Chapter ${i + 1}`)
     }
   })
 
-  it('subflow does not lose items — all 3 chapter titles in order', () => {
-    const content = readFileSync(join(workDir, 'md', 'output.md'), 'utf-8')
-    const idx1 = content.indexOf('Chapter 1')
-    const idx2 = content.indexOf('Chapter 2')
-    const idx3 = content.indexOf('Chapter 3')
-    expect(idx1).toBeGreaterThan(-1)
-    expect(idx2).toBeGreaterThan(idx1)
-    expect(idx3).toBeGreaterThan(idx2)
+  it('subflow enriches chapters with meta fields', async () => {
+    for (let i = 0; i < CHAPTERS.length; i++) {
+      const content = await readFile(join(workDir, 'chapters', 'en', `chapter${i + 1}.md`), 'utf-8')
+      expect(content).toContain(CHAPTERS[i].title)
+    }
+  })
+
+  it('subflow does not lose items — all 3 chapter titles present', async () => {
+    for (let i = 0; i < CHAPTERS.length; i++) {
+      const content = await readFile(join(workDir, 'chapters', 'en', `chapter${i + 1}.md`), 'utf-8')
+      expect(content).toContain(`Chapter ${i + 1}`)
+    }
   })
 })
 
@@ -145,25 +151,40 @@ describe('schema-doc pipeline', () => {
   })
 
   it('schema-doc output contains YAML frontmatter', async () => {
-    const content = await readFile(join(workDir, 'chapters', 'schema', 'chapter1.schema.md'), 'utf-8')
+    const content = await readFile(
+      join(workDir, 'chapters', 'schema', 'chapter1.schema.md'),
+      'utf-8',
+    )
     expect(content).toContain('---')
     expect(content).toContain('# ')
   })
 
   it('schema-doc output contains chapter titles', async () => {
     // Each chapter file should contain its own title
-    const content1 = await readFile(join(workDir, 'chapters', 'schema', 'chapter1.schema.md'), 'utf-8')
+    const content1 = await readFile(
+      join(workDir, 'chapters', 'schema', 'chapter1.schema.md'),
+      'utf-8',
+    )
     expect(content1).toContain('Chapter 1')
 
-    const content2 = await readFile(join(workDir, 'chapters', 'schema', 'chapter2.schema.md'), 'utf-8')
+    const content2 = await readFile(
+      join(workDir, 'chapters', 'schema', 'chapter2.schema.md'),
+      'utf-8',
+    )
     expect(content2).toContain('Chapter 2')
 
-    const content3 = await readFile(join(workDir, 'chapters', 'schema', 'chapter3.schema.md'), 'utf-8')
+    const content3 = await readFile(
+      join(workDir, 'chapters', 'schema', 'chapter3.schema.md'),
+      'utf-8',
+    )
     expect(content3).toContain('Chapter 3')
   })
 
   it('schema-doc output contains Metadata, Summary, and Entities sections', async () => {
-    const content = await readFile(join(workDir, 'chapters', 'schema', 'chapter1.schema.md'), 'utf-8')
+    const content = await readFile(
+      join(workDir, 'chapters', 'schema', 'chapter1.schema.md'),
+      'utf-8',
+    )
     expect(content).toContain('## Metadata')
     expect(content).toContain('| chapter | wordCount | tokenCount | charLength |')
     expect(content).toContain('## Summary')

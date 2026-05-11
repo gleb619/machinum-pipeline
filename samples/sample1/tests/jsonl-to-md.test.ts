@@ -9,6 +9,7 @@ const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
 const CLI_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'cli')
 const WAYPOINT_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'waypoint')
+const TOOLS_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'tools')
 
 const CHAPTERS = [
   { title: 'Chapter 1: The Road from Thornhaven', body: 'Sir Aldric tightened the strap.' },
@@ -24,7 +25,7 @@ beforeAll(async () => {
   const vendorDir = join(workDir, 'vendor')
   await mkdir(vendorDir, { recursive: true })
   await mkdir(join(workDir, 'jsonl'), { recursive: true })
-  await mkdir(join(workDir, 'md'), { recursive: true })
+  await mkdir(join(workDir, 'chapters', 'en'), { recursive: true })
 
   execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, {
     stdio: 'pipe',
@@ -38,6 +39,10 @@ beforeAll(async () => {
     stdio: 'pipe',
     timeout: 30_000,
   })
+  execSync(`pnpm -C "${TOOLS_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
 
   const pkgJson = {
     name: 'sample1-jsonl-to-md-test',
@@ -46,6 +51,7 @@ beforeAll(async () => {
       '@mt/core': 'file:./vendor/mt-core-0.1.0.tgz',
       '@mt/cli': 'file:./vendor/mt-cli-0.1.0.tgz',
       '@mt/waypoint': 'file:./vendor/mt-waypoint-0.1.0.tgz',
+      '@mt/tools': 'file:./vendor/mt-tools-0.1.0.tgz',
       tsx: '^4.19.0',
     },
   }
@@ -87,10 +93,11 @@ describe('jsonl-to-md pipeline', () => {
   })
 
   it('output.md contains stringified chapter data', async () => {
-    const content = await readFile(join(workDir, 'md', 'output.md'), 'utf-8')
-    for (const ch of CHAPTERS) {
-      expect(content).toContain(ch.title)
-      expect(content).toContain(ch.body)
+    for (let i = 0; i < CHAPTERS.length; i++) {
+      const content = await readFile(join(workDir, 'chapters', 'en', `chapter${i + 1}.md`), 'utf-8')
+      expect(content).toContain(CHAPTERS[i].title)
+      expect(content).toContain(CHAPTERS[i].body)
+      expect(content).toContain('---')
     }
   })
 })

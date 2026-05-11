@@ -52,9 +52,7 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
 
       // Extract title from the markdown item
       const firstLine = (env.item as string).trim().split('\n')[0] || ''
-      const title = firstLine.startsWith('# ')
-        ? firstLine.slice(2).trim()
-        : `Chapter ${chapterNum}`
+      const title = firstLine.startsWith('# ') ? firstLine.slice(2).trim() : `Chapter ${chapterNum}`
 
       const filename = `chapter${chapterNum}.schema.md`
       const filePath = join(baseDir, filename)
@@ -214,20 +212,13 @@ function parseSchemaDoc(text: string): SchemaDocEnvelope {
         for (let rowIdx = 1; rowIdx < tableNode.children.length; rowIdx++) {
           const row = tableNode.children[rowIdx]
           if (!row) continue
-          const cells = row.children.map((c) =>
-            extractTextContent(c as MdastPhrasable),
-          )
+          const cells = row.children.map((c) => extractTextContent(c as MdastPhrasable))
           if (cells.length >= 4) {
             const chapterCell = cells[0]
             const wordCountCell = cells[1]
             const tokenCountCell = cells[2]
             const charLengthCell = cells[3]
-            if (
-              chapterCell &&
-              wordCountCell &&
-              tokenCountCell &&
-              charLengthCell
-            ) {
+            if (chapterCell && wordCountCell && tokenCountCell && charLengthCell) {
               metadata = {
                 chapter: Number.parseInt(chapterCell, 10) || 0,
                 wordCount: Number.parseInt(wordCountCell, 10) || 0,

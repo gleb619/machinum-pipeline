@@ -6,6 +6,7 @@ export {
   schemaTool,
   metadataTool,
   vocabularyTool,
+  schemaDocWriter,
   type SchemaDocEnvelope,
   type SchemaDocMetadata,
 } from './schema-doc.js'
@@ -69,3 +70,10 @@ export {
   type MdFormatterInput,
   type MdFormatterOutput,
 } from './md-formatter.js'
+
+export {
+  readChapterDoc,
+  writeChapterDoc,
+  chapterDoc,
+  type ChapterDoc,
+} from './chapter-doc.js'

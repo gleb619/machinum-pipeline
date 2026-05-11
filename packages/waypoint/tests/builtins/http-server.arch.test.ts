@@ -1,6 +1,6 @@
+import { registry } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import { createHttpSource } from '../../src/http-server.js'
-import { registry } from '@mt/core'
 
 // Register on import
 import '../../src/http-server.js'

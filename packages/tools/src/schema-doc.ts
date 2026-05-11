@@ -1,7 +1,7 @@
 import { md } from '@markschema/mdshape'
 import type { TypeMdIssue } from '@markschema/mdshape'
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import type { Envelope, MdOutputEntry, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
 export interface SchemaDocMetadata {
@@ -138,8 +138,7 @@ export function readDoc(markdown: string): SchemaDocEnvelope {
     throw new Error(`Failed to parse schema-doc markdown:\n${formatted}`)
   }
 
-  const { title, summary, metadata, entities, vocabulary, schemaSection } =
-    data ?? {}
+  const { title, summary, metadata, entities, vocabulary, schemaSection } = data ?? {}
 
   const metaRow = metadata?.[0]
   if (!metaRow) {
@@ -174,8 +173,7 @@ export function readDoc(markdown: string): SchemaDocEnvelope {
     entities: parsedEntities,
     vocabulary: parsedVocabulary,
     schema: schemaSection?.[0]?.code,
-    frontmatter:
-      Object.keys(frontmatterData).length > 0 ? frontmatterData : undefined,
+    frontmatter: Object.keys(frontmatterData).length > 0 ? frontmatterData : undefined,
   }
 }
 
@@ -302,6 +300,76 @@ export const vocabularyTool = defineTool<string, string>({
         ...env.meta,
         vocabulary: newWords,
         knownWords: updatedKnownSet,
+      },
+    }
+  },
+})
+
+function extractTitleFromInput(item: unknown, chapterNum: number): string {
+  if (typeof item === 'string') {
+    const firstLine = item.trim().split('\n')[0] || ''
+    if (firstLine.startsWith('# ')) {
+      return firstLine.slice(2).trim()
+    }
+  }
+  const record = item as Record<string, unknown> | undefined
+  if (record && typeof record.title === 'string') {
+    return record.title
+  }
+  return `Chapter ${chapterNum}`
+}
+
+/** Tool: builds a schema-doc markdown from meta and sets meta.mdOutputs for schema-doc writes */
+export const schemaDocWriter = defineTool<unknown, string>({
+  name: 'schema-doc-writer',
+  version: '1.0.0',
+  exec: 'inproc',
+  async invoke(env: Envelope<unknown>, _ctx: ToolContext): Promise<Envelope<string>> {
+    const meta = (env.meta || {}) as Record<string, unknown>
+    const chapterNum = (meta.chapterNum as number) || (meta.chapter as number) || 1
+    const summary = (meta.summary as string) || ''
+    const entities = (meta.entities as { index: number; name: string }[]) || []
+    const vocabulary = (meta.vocabulary as string[]) || []
+    const schema = meta.schema as string | undefined
+    const wordCount = (meta.wordCount as number) || 0
+    const tokenCount = (meta.tokenCount as number) || 0
+    const charLength =
+      (meta.charLength as number) || (typeof env.item === 'string' ? env.item.length : 0)
+
+    const title = extractTitleFromInput(env.item, chapterNum)
+
+    const doc: SchemaDocEnvelope = {
+      title,
+      metadata: {
+        chapter: chapterNum,
+        wordCount,
+        tokenCount,
+        charLength,
+      },
+      summary,
+      entities,
+      vocabulary,
+      schema,
+    }
+
+    const schemaDocMarkdown = writeDoc(doc)
+
+    const existing = (env.meta.mdOutputs as MdOutputEntry[] | undefined) ?? []
+    const mdOutputs: MdOutputEntry[] = [
+      ...existing,
+      {
+        name: 'schema-doc',
+        dir: 'chapters/schema',
+        filename: `chapter${chapterNum}.schema.md`,
+        content: schemaDocMarkdown,
+      },
+    ]
+
+    return {
+      item: schemaDocMarkdown,
+      meta: {
+        ...env.meta,
+        mdOutputs,
       },
     }
   },

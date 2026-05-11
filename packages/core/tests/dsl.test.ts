@@ -7,8 +7,12 @@ import { registry } from '../src/uri.js'
 registry.registerSource('jsonl', (uri) => ({
   uri: uri.raw,
   lifestyle: 'resumable',
-  async *start() { yield { item: {}, meta: {} } },
-  async *resume() { yield { item: {}, meta: {} } },
+  async *start() {
+    yield { item: {}, meta: {} }
+  },
+  async *resume() {
+    yield { item: {}, meta: {} }
+  },
 }))
 registry.registerTarget('jsonl', (uri) => ({
   uri: uri.raw,
