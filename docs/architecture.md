@@ -225,6 +225,10 @@ export default definePipeline({
 
 DSL operators: `.from`, `.to`, `.use`, `.batch(n)`, `.window(n)`, `.flatMap(fn)`, `.fork(subPipeline)`, `.subflow(subPipeline)`, `.tap(fn)`.
 
+**`.subflow()` contract**: the sub-pipeline passed to `.subflow()` must be a complete pipeline with its own `.from()`
+and `.to()`. Use `ephemeral://` source/target for transform mode (data flows from parent through sub-pipeline and back);
+use any other URI for orchestration mode (sub-pipeline runs independently).
+
 **Pipelines are real TS modules.** `console.log`, conditionals, imports — all execute. The DSL is the *grammar* for
 orchestration; everything else is plain TS.
 
@@ -282,7 +286,9 @@ Coarse states are persisted to `.mt/runs/<id>/state.json`. Fine-grained progress
   - One-shot: `echo '<env+ctx-json>' | npx some-tool` → stdout JSON.
   - Streaming: NDJSON over stdio for tools that consume many items.
 - **Forks**: `.fork(subPipeline)` creates a nested Run rooted in the parent's checkpoint tree.
-- **Subflows**: `.subflow(subPipeline)` is the in-process lightweight variant; it reuses the same Runner with nested checkpoint scope instead of spawning a child Run.
+- **Subflows**: `.subflow(subPipeline)` is the in-process lightweight variant. Two modes selected by the sub-pipeline's declared source/target:
+  - **Ephemeral transform** — sub-pipeline declares `from('ephemeral://...')` + `to('ephemeral://...')`. For each parent envelope the runner writes it into the ephemeral input buffer, starts a sub-Runner that reads/processes/writes the ephemeral output buffer, then yields the results back into the parent stream. Data flows through the sub-pipeline without touching the filesystem.
+  - **Orchestration** — sub-pipeline declares any non-ephemeral (or no) source/target. The runner executes it as a fully self-contained child pipeline and leaves the parent stream unchanged. Used to chain independent pipelines sequentially (e.g. verify → translate).
 
 ### 7.3 Checkpoint tree
 

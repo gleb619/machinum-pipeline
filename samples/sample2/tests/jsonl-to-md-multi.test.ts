@@ -46,7 +46,7 @@ beforeAll(async () => {
     },
   }
   await writeFile(join(workDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
-  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe', timeout: 30_000 })
+  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe', timeout: 120_000 })
 
   await cp(join(SAMPLE_DIR, 'mt.json'), join(workDir, 'mt.json'))
   await cp(join(SAMPLE_DIR, 'pipelines'), join(workDir, 'pipelines'), { recursive: true })
@@ -162,9 +162,13 @@ describe('schema-doc pipeline', () => {
     expect(content3).toContain('Chapter 3')
   })
 
-  it('schema-doc output contains Summary and Entities sections', async () => {
+  it('schema-doc output contains Metadata, Summary, and Entities sections', async () => {
     const content = await readFile(join(workDir, 'chapters', 'schema', 'chapter1.schema.md'), 'utf-8')
+    expect(content).toContain('## Metadata')
+    expect(content).toContain('| chapter | wordCount | tokenCount | charLength |')
     expect(content).toContain('## Summary')
     expect(content).toContain('## Entities')
+    expect(content).toContain('```csv')
+    expect(content).toContain('index,name')
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { translateText } from './translate-text.js'
+import { translateText } from '../src/translate-text.js'
 
 describe('translateText', () => {
   it('should have correct name and version', () => {

@@ -22,6 +22,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@markschema/mdshape": "^1.0.0",
     "@mt/core": "workspace:*",
     "@rewdy/md-formatter": "^0.4.1",
     "gpt-tokenizer": "^2.5.0",

@@ -21,7 +21,7 @@ import {
   formatString,
   mdFormatter,
   mdFormatterTool,
-} from './md-formatter.js'
+} from '../src/md-formatter.js'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 

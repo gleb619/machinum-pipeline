@@ -38,7 +38,7 @@ cd samples/sample1
 npm run cleanup
 ```
 
-This removes `jsonl/output.jsonl`, `vendor/`, `node_modules/`, `package-lock.json`,
+This removes `jsonl/output.jsonl`, `.mt/`, `vendor/`, `node_modules/`, `package-lock.json`,
 and any temporary `pipelines/http-to-jsonl-example.ts` created by the example.
 
 ## How to run manually (no cleanup)

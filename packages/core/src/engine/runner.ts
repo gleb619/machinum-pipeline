@@ -317,7 +317,12 @@ export class Runner {
           const subPipeline = step.config.pipeline as import('../types.js').Pipeline
           const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
             stream ?? createEmptyStream()
-          const forkStepInfo: StepInfo = { stepId, name: step.config.name as string, type: 'fork', index: 0 }
+          const forkStepInfo: StepInfo = {
+            stepId,
+            name: step.config.name as string,
+            type: 'fork',
+            index: 0,
+          }
           this.logger(stepId).info(`Configuring fork step: ${stepId}`)
           stream = (async function* () {
             for await (const env of sourceStream) {
@@ -349,126 +354,42 @@ export class Runner {
         }
         case 'subflow': {
           const subPipeline = step.config.pipeline as import('../types.js').Pipeline
-          const hasOwnSource = subPipeline.steps.some((s) => s.type === 'source')
+          const globalCtx = this.globalContext
+          const stepLogger = this.logger(stepId)
 
-          if (hasOwnSource) {
-            // Mode 2: Orchestration — sub-pipeline has its own source/target.
-            // Run it as an independent pipeline with its own Runner.
-            this.logger(stepId).info(`Running orchestration sub-pipeline: ${subPipeline.id}`)
-            const subRunner = new Runner(subPipeline, this.globalContext)
-            await subRunner.start()
-            this.logger(stepId).info(`Orchestration sub-pipeline completed: ${subPipeline.id}`)
-            // No stream modification — sub-pipeline is self-contained
-          } else {
-            // Mode 1: Inline transform — apply sub-pipeline steps to each
-            // envelope in the parent stream. Handles: tool, flatmap, tap,
-            // batch, fork (recursive). Skips source/target.
+          const sourceStep = subPipeline.steps.find((s) => s.type === 'source')
+          const targetStep = subPipeline.steps.find((s) => s.type === 'target')
+          const inputUri = (sourceStep?.config.uri as string) ?? ''
+          const outputUri = (targetStep?.config.uri as string) ?? ''
+
+          if (inputUri.startsWith('ephemeral://') && outputUri.startsWith('ephemeral://')) {
+            // Mode A: Ephemeral transform — feed parent envelopes through sub-pipeline via ephemeral buffers
             const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
               stream ?? createEmptyStream()
-            const subflowStepInfo: StepInfo = { stepId, name: step.config.name as string, type: 'subflow', index: 0 }
-            this.logger(stepId).info(`Configuring inline subflow step: ${stepId}`)
-
-            // Helper: apply a list of pipeline steps to a stream of envelopes.
-            // Skips source and target steps (those trigger orchestration mode).
-            const applyInlineSteps = (
-              inputStream: AsyncIterable<import('../types.js').Envelope<unknown>>,
-              steps: import('../types.js').PipelineStep[],
-              stepInfo: StepInfo,
-            ): AsyncIterable<import('../types.js').Envelope<unknown>> => {
-              let result = inputStream
-              for (const childStep of steps) {
-                switch (childStep.type) {
-                  case 'tool': {
-                    const tool = childStep.config.tool as
-                      | import('../types.js').Tool<unknown, unknown>
-                      | undefined
-                    if (tool) {
-                      const prev = result
-                      result = (async function* () {
-                        for await (const e of prev) {
-                          yield await tool.invoke(e, { run: runContext, step: stepInfo })
-                        }
-                      })()
-                    }
-                    break
-                  }
-                  case 'flatmap': {
-                    const fn = childStep.config.fn as (item: unknown) => Promise<unknown[]>
-                    const prev = result
-                    result = (async function* () {
-                      for await (const e of prev) {
-                        const items = await fn(e.item)
-                        for (const item of items) {
-                          yield { item, meta: e.meta }
-                        }
-                      }
-                    })()
-                    break
-                  }
-                  case 'tap': {
-                    const fn = childStep.config.fn as (item: unknown) => Promise<void>
-                    const prev = result
-                    result = (async function* () {
-                      for await (const e of prev) {
-                        await fn(e.item)
-                        yield e
-                      }
-                    })()
-                    break
-                  }
-                  case 'batch': {
-                    const size = (childStep.config.size as number) ?? 10
-                    const prev = result
-                    result = (async function* () {
-                      let buffer: import('../types.js').Envelope<unknown>[] = []
-                      for await (const e of prev) {
-                        buffer.push(e)
-                        if (buffer.length >= size) {
-                          const items = buffer.map((b) => b.item)
-                          yield { item: items, items, meta: { ...buffer[0]?.meta, batch: true } }
-                          buffer = []
-                        }
-                      }
-                      if (buffer.length > 0) {
-                        const items = buffer.map((b) => b.item)
-                        yield { item: items, items, meta: { ...buffer[0]?.meta, batch: true } }
-                      }
-                    })()
-                    break
-                  }
-                  case 'fork': {
-                    const forkPipeline = childStep.config.pipeline as import('../types.js').Pipeline
-                    const prev = result
-                    result = (async function* () {
-                      for await (const e of prev) {
-                        let forkStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-                          (async function* () { yield e })()
-                        forkStream = applyInlineSteps(forkStream, forkPipeline.steps, stepInfo)
-                        for await (const fe of forkStream) yield fe
-                      }
-                    })()
-                    break
-                  }
-                  // Skip source, target, subflow in inline mode
-                  default:
-                    break
-                }
-              }
-              return result
-            }
+            stepLogger.info(`Configuring ephemeral subflow step: ${stepId}`)
 
             stream = (async function* () {
               for await (const env of sourceStream) {
-                let subStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-                  (async function* () {
-                    yield env
-                  })()
-                subStream = applyInlineSteps(subStream, subPipeline.steps, subflowStepInfo)
-                for await (const e of subStream) {
+                const inputTarget = registry.resolveTarget(inputUri)
+                await inputTarget.open({ run: runContext })
+                await inputTarget.write(env, { run: runContext })
+                await inputTarget.close({ run: runContext })
+
+                const subRunner = new Runner(subPipeline, globalCtx)
+                await subRunner.start()
+
+                const outputSource = registry.resolveSource(outputUri)
+                for await (const e of outputSource.start({ run: runContext })) {
                   yield e
                 }
               }
             })()
+          } else {
+            // Mode B: Orchestration — run sub-pipeline independently
+            stepLogger.info(`Running orchestration sub-pipeline: ${subPipeline.id}`)
+            const subRunner = new Runner(subPipeline, this.globalContext)
+            await subRunner.start()
+            stepLogger.info(`Orchestration sub-pipeline completed: ${subPipeline.id}`)
           }
           break
         }

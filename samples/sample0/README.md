@@ -33,7 +33,7 @@ cd samples/sample0
 npm run cleanup
 ```
 
-This removes the scaffolded `sample-project` directory, `vendor/`, `package-lock.json`, and `node_modules/`.
+This removes the scaffolded `sample-project` directory, `.mt/`, `vendor/`, `package-lock.json`, and `node_modules/`.
 
 ## How to run manually (no cleanup)
 

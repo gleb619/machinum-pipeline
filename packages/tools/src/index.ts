@@ -1,8 +1,13 @@
 export {
+  readDoc,
+  writeDoc,
   summaryTool,
   entitiesTool,
   schemaTool,
+  metadataTool,
+  vocabularyTool,
   type SchemaDocEnvelope,
+  type SchemaDocMetadata,
 } from './schema-doc.js'
 
 export {

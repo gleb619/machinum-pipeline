@@ -73,7 +73,7 @@ npm run cleanup
 ```
 
 This removes `md/output.md`, `chapters/schema/*.schema.md`, `jsonl/input.jsonl`,
-`vendor/`, `node_modules/`, and `package-lock.json`.
+`.mt/`, `vendor/`, `node_modules/`, and `package-lock.json`.
 
 ## How to run manually
 

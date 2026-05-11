@@ -9,10 +9,19 @@ import matter from 'gray-matter'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 
+export interface SchemaDocMetadata {
+  chapter: number
+  wordCount: number
+  tokenCount: number
+  charLength: number
+}
+
 export interface SchemaDocEnvelope {
   title: string
+  metadata: SchemaDocMetadata
   summary: string
   entities: { index: number; name: string }[]
+  vocabulary: string[]
   schema?: string
   frontmatter?: Record<string, unknown>
 }
@@ -38,30 +47,65 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
       const summary = (meta.summary as string) || ''
       const entities = (meta.entities as { index: number; name: string }[]) || []
       const schema = meta.schema as string | undefined
+      const vocabulary = (meta.vocabulary as string[]) || []
+      const metadata = meta.metadata as SchemaDocMetadata | undefined
 
       // Extract title from the markdown item
-      const titleMatch = env.item.match(/^#\s*(.+)/m)
-      const title = titleMatch ? titleMatch[1] : `Chapter ${chapterNum}`
+      const firstLine = (env.item as string).trim().split('\n')[0] || ''
+      const title = firstLine.startsWith('# ')
+        ? firstLine.slice(2).trim()
+        : `Chapter ${chapterNum}`
 
       const filename = `chapter${chapterNum}.schema.md`
       const filePath = join(baseDir, filename)
       mkdirSync(dirname(filePath), { recursive: true })
 
+      const metaTable = metadata ?? {
+        chapter: chapterNum,
+        wordCount: (meta.wordCount as number) || 0,
+        tokenCount: (meta.tokenCount as number) || 0,
+        charLength: (env.item as string).length,
+      }
+
       const lines: string[] = []
       lines.push(`# ${title}`)
+      lines.push('')
+      lines.push('## Metadata')
+      lines.push('')
+      lines.push('| chapter | wordCount | tokenCount | charLength |')
+      lines.push('|---------|-----------|------------|------------|')
+      lines.push(
+        `| ${metaTable.chapter} | ${metaTable.wordCount} | ${metaTable.tokenCount} | ${metaTable.charLength} |`,
+      )
       lines.push('')
       lines.push('## Summary')
       lines.push('')
       lines.push(summary)
       lines.push('')
-      lines.push('## Entities')
-      lines.push('')
-      lines.push('| Index | Name |')
-      lines.push('|:------|------|')
-      for (const entity of entities) {
-        lines.push(`| ${entity.index} | ${entity.name} |`)
+
+      if (entities.length > 0) {
+        lines.push('## Entities')
+        lines.push('')
+        lines.push('```csv')
+        lines.push('index,name')
+        for (const entity of entities) {
+          lines.push(`${entity.index},${entity.name}`)
+        }
+        lines.push('```')
+        lines.push('')
       }
-      lines.push('')
+
+      if (vocabulary.length > 0) {
+        lines.push('## Vocabulary')
+        lines.push('')
+        lines.push('```csv')
+        lines.push('word')
+        for (const word of vocabulary) {
+          lines.push(word)
+        }
+        lines.push('```')
+        lines.push('')
+      }
 
       if (schema) {
         lines.push('## Schema')
@@ -136,7 +180,9 @@ function parseSchemaDoc(text: string): SchemaDocEnvelope {
   let title = ''
   let summary = ''
   const entities: { index: number; name: string }[] = []
+  const vocabulary: string[] = []
   let schema: string | undefined
+  let metadata: SchemaDocMetadata | undefined
 
   let currentSection = ''
   const children = tree.children
@@ -162,22 +208,65 @@ function parseSchemaDoc(text: string): SchemaDocEnvelope {
         const text = extractTextContent(node as MdastPhrasable)
         summary += (summary ? '\n\n' : '') + text
       }
-    } else if (currentSection === 'entities') {
+    } else if (currentSection === 'metadata') {
       if (node.type === 'table') {
         const tableNode = node as unknown as MdastTable
         for (let rowIdx = 1; rowIdx < tableNode.children.length; rowIdx++) {
           const row = tableNode.children[rowIdx]
           if (!row) continue
-          const cell0 = row.children[0]
-          const cell1 = row.children[1]
-          if (cell0 && cell1) {
-            const indexText = extractTextContent(cell0)
-            const nameText = extractTextContent(cell1)
-            const index = Number.parseInt(indexText, 10)
-            if (!Number.isNaN(index)) {
-              entities.push({ index, name: nameText })
+          const cells = row.children.map((c) =>
+            extractTextContent(c as MdastPhrasable),
+          )
+          if (cells.length >= 4) {
+            const chapterCell = cells[0]
+            const wordCountCell = cells[1]
+            const tokenCountCell = cells[2]
+            const charLengthCell = cells[3]
+            if (
+              chapterCell &&
+              wordCountCell &&
+              tokenCountCell &&
+              charLengthCell
+            ) {
+              metadata = {
+                chapter: Number.parseInt(chapterCell, 10) || 0,
+                wordCount: Number.parseInt(wordCountCell, 10) || 0,
+                tokenCount: Number.parseInt(tokenCountCell, 10) || 0,
+                charLength: Number.parseInt(charLengthCell, 10) || 0,
+              }
             }
           }
+        }
+      }
+    } else if (currentSection === 'entities') {
+      if (node.type === 'code' && node.lang === 'csv') {
+        const csvText = (node as { value: string }).value
+        const rows = csvText.trim().split('\n')
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r]
+          if (!row) continue
+          const cols = row.split(',')
+          if (cols.length >= 2) {
+            const idxCell = cols[0]
+            const nameCell = cols[1]
+            if (idxCell && nameCell) {
+              const idx = Number.parseInt(idxCell.trim(), 10)
+              if (!Number.isNaN(idx)) {
+                entities.push({ index: idx, name: nameCell.trim() })
+              }
+            }
+          }
+        }
+      }
+    } else if (currentSection === 'vocabulary') {
+      if (node.type === 'code' && node.lang === 'csv') {
+        const csvText = (node as { value: string }).value
+        const rows = csvText.trim().split('\n')
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r]
+          if (!row) continue
+          const word = row.trim()
+          if (word) vocabulary.push(word)
         }
       }
     } else if (currentSection === 'schema') {
@@ -189,8 +278,10 @@ function parseSchemaDoc(text: string): SchemaDocEnvelope {
 
   return {
     title,
+    metadata: metadata ?? { chapter: 0, wordCount: 0, tokenCount: 0, charLength: 0 },
     summary: summary.trim(),
     entities,
+    vocabulary,
     schema,
     frontmatter: frontmatter as Record<string, unknown>,
   }
