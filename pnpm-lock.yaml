@@ -182,6 +182,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@rewdy/md-formatter':
+        specifier: ^0.4.1
+        version: 0.4.1
       gpt-tokenizer:
         specifier: ^2.5.0
         version: 2.9.0
@@ -1087,6 +1090,59 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
+
+  '@rewdy/md-formatter-darwin-arm64@0.4.1':
+    resolution: {integrity: sha512-q24YlxNxsjjzQcP+8X09/1HCbQodWIVj/RJfyjO7lySsodlPamJ4L1iFItHs7E7iinnMVs9SXfatY/hjkSlcXQ==}
+    engines: {node: '>= 16'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@rewdy/md-formatter-darwin-x64@0.4.1':
+    resolution: {integrity: sha512-IL2vRhp3MsUuA1VtqHZtixaNI3XNlT/Rq4bgNicCT4SWUhZk3zyRkQJPC/QEVK5ykkLBKSSsKBpCt/yggyVqPQ==}
+    engines: {node: '>= 16'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@rewdy/md-formatter-linux-arm64-gnu@0.4.1':
+    resolution: {integrity: sha512-/uNAm8Ko9yEbEmRZbMbP+4JJ8/t9A9cbGGMvVQcOKhvZlquZ83GK80mFvhO3wSXL/8Panv17RVrYl9F3sR55mQ==}
+    engines: {node: '>= 16'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@rewdy/md-formatter-linux-arm64-musl@0.4.1':
+    resolution: {integrity: sha512-k1ETFz9r0IfHX/zEYr30C5hbTQKQ9oJP0O82O8xNPvRpCms7Wp5HI3F9yw/h3faguGh0RHh87QhRI6Mf5KNJeA==}
+    engines: {node: '>= 16'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@rewdy/md-formatter-linux-x64-gnu@0.4.1':
+    resolution: {integrity: sha512-AQaSiMiLfB79YhPo1s6RgFpQsQyGo9xa8vpn/YCmRYnZmzQx3eCb0KGZlctW8bNidQOPFFZPzv4u0nohCA8aGA==}
+    engines: {node: '>= 16'}
+    cpu: [x64]
+    os: [linux]
+
+  '@rewdy/md-formatter-linux-x64-musl@0.4.1':
+    resolution: {integrity: sha512-PJjW7POl0rUGcr4cEbXXqFy0Z+oRcJpHzQiSKsmIf7zGAG/TiUtrGAhjD7EqTc0Ufb5ClZ+vN+YaKdFy63kM6A==}
+    engines: {node: '>= 16'}
+    cpu: [x64]
+    os: [linux]
+
+  '@rewdy/md-formatter-win32-arm64-msvc@0.4.1':
+    resolution: {integrity: sha512-8bPufAAAw28cyAei+yxB1DeoxyDq3AYydYx8MZRC92sxl5YnRZesMZoCNLpMoTDbqESQ4o2jA6L9dzwRKSFI1w==}
+    engines: {node: '>= 16'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@rewdy/md-formatter-win32-x64-msvc@0.4.1':
+    resolution: {integrity: sha512-vrgsr9MQqXW0GBETXyDmyXk88LMN8TKWUE7OfzGAoeS26NGtoeA2eWNo3d8YkN4SKRfCe1oLgNlkxEtF2nKekw==}
+    engines: {node: '>= 16'}
+    cpu: [x64]
+    os: [win32]
+
+  '@rewdy/md-formatter@0.4.1':
+    resolution: {integrity: sha512-iraf9xwQvmieKEQ0w17R1KIaBxvlJhjPilc9+Kgr8vilyFyaI1TMOc4IRIQHNQxuyNNWzwduFvq0KrqsOd1Ksg==}
+    engines: {node: '>= 16'}
+    hasBin: true
 
   '@rollup/plugin-alias@6.0.0':
     resolution: {integrity: sha512-tPCzJOtS7uuVZd+xPhoy5W4vThe6KWXNmsFCNktaAh5RTqcLiSfT4huPQIXkgJ6YCOjJHvecOAzQxLFhPxKr+g==}
@@ -3822,6 +3878,41 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
+
+  '@rewdy/md-formatter-darwin-arm64@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter-darwin-x64@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter-linux-arm64-gnu@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter-linux-arm64-musl@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter-linux-x64-gnu@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter-linux-x64-musl@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter-win32-arm64-msvc@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter-win32-x64-msvc@0.4.1':
+    optional: true
+
+  '@rewdy/md-formatter@0.4.1':
+    optionalDependencies:
+      '@rewdy/md-formatter-darwin-arm64': 0.4.1
+      '@rewdy/md-formatter-darwin-x64': 0.4.1
+      '@rewdy/md-formatter-linux-arm64-gnu': 0.4.1
+      '@rewdy/md-formatter-linux-arm64-musl': 0.4.1
+      '@rewdy/md-formatter-linux-x64-gnu': 0.4.1
+      '@rewdy/md-formatter-linux-x64-musl': 0.4.1
+      '@rewdy/md-formatter-win32-arm64-msvc': 0.4.1
+      '@rewdy/md-formatter-win32-x64-msvc': 0.4.1
 
   '@rollup/plugin-alias@6.0.0(rollup@4.60.2)':
     optionalDependencies:

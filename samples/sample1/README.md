@@ -20,7 +20,28 @@ samples/sample1/
 └── vendor/                      # Created at runtime — local tarballs
 ```
 
-## How to run (no cleanup)
+## How to run
+
+```bash
+cd samples/sample1
+npm run example
+```
+
+This packs local dependencies, installs them, starts the HTTP-to-JSONL pipeline runner,
+waits for the health endpoint, runs the simulation client that POSTs 3 chapters,
+and waits for the runner to finish.
+
+## How to clean up
+
+```bash
+cd samples/sample1
+npm run cleanup
+```
+
+This removes `jsonl/output.jsonl`, `vendor/`, `node_modules/`, `package-lock.json`,
+and any temporary `pipelines/http-to-jsonl-example.ts` created by the example.
+
+## How to run manually (no cleanup)
 
 If you want to run the sample manually and inspect artifacts:
 

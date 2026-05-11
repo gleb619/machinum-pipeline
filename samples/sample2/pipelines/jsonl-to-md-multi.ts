@@ -1,57 +1,125 @@
 import { definePipeline, defineTool } from '@mt/core'
-import { entitiesTool, schemaTool, summaryTool } from '@mt/tools'
+import {
+  chapterValidator,
+  entitiesTool,
+  entityNormalizer,
+  forbiddenCharDetector,
+  grammarWarnings,
+  markdownFormatter,
+  mdFormatter,
+  paragraphTranslator,
+  schemaTool,
+  summaryTool,
+  titleTranslator,
+  tokenSplitter,
+  typoDetector,
+  typoFixer,
+  wordCounter,
+  chapterIndexer,
+} from '@mt/tools'
 import '@mt/waypoint'
 
-// Tool 1: Word counter — counts words in markdown content and adds to envelope meta
-const wordCounter = defineTool<string, string>({
-  name: 'word-counter',
+// === Stub translation tool (in-memory, no API call) ===
+const stubTranslator = defineTool<string, string>({
+  name: 'stub-translator',
   version: '1.0.0',
-  invoke: async (env, _ctx) => {
-    const wordCount = (env.item as string).split(/\s+/).filter(Boolean).length
-    return { ...env, meta: { ...env.meta, wordCount } }
-  },
   exec: 'inproc',
+  invoke: async (env, _ctx) => {
+    const text = env.item as string
+    // Simple stub: wrap paragraphs in [ru]...[/ru] markers
+    const translated = text.split('\n\n').map((p) => `[ru]${p}[/ru]`).join('\n\n')
+    return { ...env, item: translated, meta: { ...env.meta, translated: true } }
+  },
 })
 
-// Tool 2: Chapter indexer — extracts chapter number from heading and adds to meta
-const chapterIndexer = defineTool<string, string>({
-  name: 'chapter-indexer',
-  version: '1.0.0',
-  invoke: async (env, _ctx) => {
-    const chapterMatch = (env.item as string).match(/^#\s*Chapter\s*(\d+)/m)
-    const chapterNum = chapterMatch ? Number.parseInt(chapterMatch[1], 10) : 0
-    return { ...env, meta: { ...env.meta, chapterNum } }
-  },
-  exec: 'inproc',
-})
-
-// Schema tools fragment (tools-only pipeline for fork)
-const schemaToolsFragment = definePipeline().use(summaryTool).use(entitiesTool).use(schemaTool)
-
-// Primary pipeline — JSONL → Markdown chapters → fork(schema tools) → batch → output.md
-export default definePipeline()
+// === Flow 1: JSONL → Verified MD ===
+const verifyFlow = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (item: any) => {
-    return [`# ${item.title}\n\n${item.body}\n`]
-  })
-  .tap(async (item) => {
-    console.log(`[tap] Processing: ${item.slice(0, 60)}...`)
+  .flatMap(async (item: unknown) => {
+    const record = item as { title: string; body: string }
+    return [`# ${record.title}\n\n${record.body}\n`]
   })
   .use(wordCounter)
   .use(chapterIndexer)
-  .subflow(schemaToolsFragment)
-  .batch(3)
+  .use(chapterValidator)
+  .use(typoDetector)
+  .use(forbiddenCharDetector)
+  .use(grammarWarnings)
+  .tap(async (item: unknown) => {
+    const meta = (item as { meta?: { warnings?: unknown } }).meta
+    console.log('[verify] warnings:', meta?.warnings)
+  })
   .to('md://./md/output.md')
 
-// Schema-doc pipeline — JSONL → Markdown → focused tools → per-chapter schema-doc output
-// Demonstrates focused tools (summary/entities/schema) + @mt/waypoint schema-doc:// target
-export const schemaPipeline = definePipeline()
+// === Flow 2: MD(EN) → MD(RU) translation ===
+const translateFlow = definePipeline()
+  .from('md://./md/output.md')
+  .use(wordCounter)
+  .use(chapterIndexer)
+  .use(stubTranslator)
+  .to('chapter-output://./chapters')
+
+// === Default: orchestration pipeline (subflow-only) ===
+export default definePipeline()
+  .subflow(verifyFlow)
+  .subflow(translateFlow)
+
+// === Named exports: each uses ephemeral:// source/target ===
+export const smokeTestPipeline = definePipeline()
+  .from('ephemeral://smoke-input')
+  .use(chapterValidator)
+  .tap(async (_item: unknown) => console.log('[smoke] chapter valid'))
+  .to('ephemeral://smoke-output')
+
+export const splitChaptersPipeline = definePipeline()
+  .from('ephemeral://split-input')
+  .use(tokenSplitter)
+  .to('ephemeral://split-output')
+
+export const collectWarningsPipeline = definePipeline()
+  .from('ephemeral://warnings-input')
+  .use(typoDetector)
+  .use(forbiddenCharDetector)
+  .use(grammarWarnings)
+  .tap(async (item: unknown) => {
+    const meta = (item as { meta?: { warnings?: unknown } }).meta
+    console.log('[warnings]', meta?.warnings)
+  })
+  .to('ephemeral://warnings-output')
+
+export const schemaDocPipeline = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (item: any) => {
-    return [`# ${item.title}\n\n${item.body}\n`]
+  .flatMap(async (item: unknown) => {
+    const record = item as { title: string; body: string }
+    return [`# ${record.title}\n\n${record.body}\n`]
   })
   .use(chapterIndexer)
   .use(summaryTool)
   .use(entitiesTool)
   .use(schemaTool)
+  .use(mdFormatter)
   .to('schema-doc://./chapters/schema')
+
+export const fixChapterPipeline = definePipeline()
+  .from('ephemeral://fix-input')
+  .use(typoFixer)
+  .use(entityNormalizer)
+  .use(markdownFormatter)
+  .to('ephemeral://fix-output')
+
+export const translateTitlesPipeline = definePipeline()
+  .from('ephemeral://titles-input')
+  .batch(5)
+  .use(titleTranslator)
+  .flatMap(async (items: unknown) => (items as unknown[]) ?? [])
+  .to('ephemeral://titles-output')
+
+export const translateChapterPipeline = definePipeline()
+  .from('ephemeral://translate-input')
+  .flatMap(async (item: unknown) => {
+    const record = item as { body: string; [k: string]: unknown }
+    const paragraphs = record.body.split('\n\n')
+    return paragraphs.map((p) => ({ ...record, body: p }))
+  })
+  .use(paragraphTranslator)
+  .to('ephemeral://translate-output')

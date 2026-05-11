@@ -23,11 +23,12 @@
   },
   "dependencies": {
     "@mt/core": "workspace:*",
+    "@rewdy/md-formatter": "^0.4.1",
     "gpt-tokenizer": "^2.5.0",
     "gray-matter": "^4.0.3",
-    "unified": "^11.0.0",
     "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",
+    "unified": "^11.0.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

@@ -1,6 +1,6 @@
-# `tdd.md` — Mt: Pluggable Document Processing Orchestration Engine
+# Technical Design Document: — Mt: Pluggable Document Processing Orchestration Engine
 
-> **Status:** Draft v0.1
+> **Status:** Draft v1
 > **Audience:** Core engineering, contributors, integrators
 > **Scope:** Architecture, module boundaries, data model, runtime semantics, milestones
 

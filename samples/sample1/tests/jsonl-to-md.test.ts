@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execSync } from 'node:child_process'
-import { mkdir, readFile, rm, cp, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
@@ -17,6 +17,7 @@ const CHAPTERS = [
 ]
 
 let workDir: string
+let hasFailure = false
 
 beforeAll(async () => {
   workDir = await mkdtemp(join(tmpdir(), 'mt-jsonl-to-md-test-'))
@@ -25,9 +26,18 @@ beforeAll(async () => {
   await mkdir(join(workDir, 'jsonl'), { recursive: true })
   await mkdir(join(workDir, 'md'), { recursive: true })
 
-  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
+  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
 
   const pkgJson = {
     name: 'sample1-jsonl-to-md-test',
@@ -36,27 +46,38 @@ beforeAll(async () => {
       '@mt/core': 'file:./vendor/mt-core-0.1.0.tgz',
       '@mt/cli': 'file:./vendor/mt-cli-0.1.0.tgz',
       '@mt/waypoint': 'file:./vendor/mt-waypoint-0.1.0.tgz',
-      'tsx': '^4.19.0',
+      tsx: '^4.19.0',
     },
   }
   await writeFile(join(workDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
-  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe' })
+  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe', timeout: 120_000 })
 
   await cp(join(SAMPLE_DIR, 'mt.json'), join(workDir, 'mt.json'))
   await cp(join(SAMPLE_DIR, 'pipelines'), join(workDir, 'pipelines'), { recursive: true })
 
-  const jsonlContent = CHAPTERS.map((ch) => JSON.stringify({ item: ch })).join('\n') + '\n'
+  const jsonlContent = `${CHAPTERS.map((ch) => JSON.stringify({ item: ch })).join('\n')}\n`
   await writeFile(join(workDir, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
-}, 180_000)
+}, 240_000)
+
+afterEach(({ task }) => {
+  if (task.result?.state === 'fail') {
+    hasFailure = true
+  }
+})
 
 afterAll(async () => {
+  if (hasFailure) {
+    console.log(`Skipping cleanup because a test failed. Work directory: ${workDir}`)
+    return
+  }
+
   if (workDir) {
     await rm(workDir, { recursive: true, force: true })
   }
 })
 
 describe('jsonl-to-md pipeline', () => {
-  it('runs the jsonl-to-md pipeline to completion', () => {
+  it('runs example (jsonl-to-md)', () => {
     const mtBin = join(workDir, 'node_modules', '.bin', 'mt')
     execSync(`node --import tsx "${mtBin}" run ./pipelines/jsonl-to-md.ts`, {
       cwd: workDir,

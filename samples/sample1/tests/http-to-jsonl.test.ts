@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execSync, spawn } from 'node:child_process'
-import { mkdir, readFile, rm, cp, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const CORE_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'core')
@@ -17,12 +17,13 @@ const HEALTH_URL = 'http://127.0.0.1:9876/health'
 let baseTmpDir: string
 let workDir: string
 let runnerProc: ReturnType<typeof spawn> | null = null
+let hasFailure = false
 
 async function waitForHealth(maxRetries = 50, pollMs = 200): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const res = await fetch(HEALTH_URL, { signal: AbortSignal.timeout(500) })
-      const body = await res.json() as { status?: string }
+      const body = (await res.json()) as { status?: string }
       if (body.status === 'ok') return
     } catch {
       // not ready yet
@@ -39,9 +40,18 @@ beforeAll(async () => {
   await mkdir(join(workDir, 'vendor'), { recursive: true })
   await mkdir(join(workDir, 'jsonl'), { recursive: true })
 
-  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, { stdio: 'pipe' })
+  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${join(workDir, 'vendor')}"`, {
+    stdio: 'pipe',
+    timeout: 30_000,
+  })
 
   const pkgJson = {
     name: 'sample1-test',
@@ -50,11 +60,11 @@ beforeAll(async () => {
       '@mt/core': 'file:./vendor/mt-core-0.1.0.tgz',
       '@mt/cli': 'file:./vendor/mt-cli-0.1.0.tgz',
       '@mt/waypoint': 'file:./vendor/mt-waypoint-0.1.0.tgz',
-      'tsx': '^4.19.0',
+      tsx: '^4.19.0',
     },
   }
   await writeFile(join(workDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
-  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe' })
+  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe', timeout: 120_000 })
 
   await cp(join(SAMPLE_DIR, 'mt.json'), join(workDir, 'mt.json'))
   await cp(join(SAMPLE_DIR, 'pipelines'), join(workDir, 'pipelines'), { recursive: true })
@@ -70,22 +80,13 @@ beforeAll(async () => {
   const simBooksDir = resolve(workDir, '..', '..', 'books', 'book1')
   await mkdir(join(simBooksDir, '..'), { recursive: true })
   await cp(BOOKS_DIR, simBooksDir, { recursive: true })
+}, 240_000)
 
-  const mtBin = join(workDir, 'node_modules', '.bin', 'mt')
-  runnerProc = spawn(
-    'node',
-    ['--import', 'tsx', mtBin, 'run', './pipelines/http-to-jsonl.ts'],
-    {
-      cwd: workDir,
-      stdio: 'pipe',
-      env: { ...process.env },
-    },
-  )
-  runnerProc.stdout?.on('data', () => {})
-  runnerProc.stderr?.on('data', () => {})
-
-  await waitForHealth()
-}, 180_000)
+afterEach(({ task }) => {
+  if (task.result?.state === 'fail') {
+    hasFailure = true
+  }
+})
 
 afterAll(async () => {
   if (runnerProc && !runnerProc.killed) {
@@ -94,21 +95,37 @@ afterAll(async () => {
     if (!runnerProc.killed) runnerProc.kill('SIGKILL')
   }
 
+  if (hasFailure) {
+    console.log(`Skipping cleanup because a test failed. Work directory: ${workDir}`)
+    return
+  }
+
   if (baseTmpDir) {
     await rm(baseTmpDir, { recursive: true, force: true })
   }
 })
 
 describe('HTTP to JSONL pipeline', () => {
-  it('sends 3 chapters via simulation and receives them back', () => {
+  it('runs example (http-to-jsonl)', async () => {
+    const mtBin = join(workDir, 'node_modules', '.bin', 'mt')
+    runnerProc = spawn('node', ['--import', 'tsx', mtBin, 'run', './pipelines/http-to-jsonl.ts'], {
+      cwd: workDir,
+      stdio: 'pipe',
+      env: { ...process.env },
+    })
+    runnerProc.stdout?.on('data', () => {})
+    runnerProc.stderr?.on('data', () => {})
+
+    await waitForHealth()
+
     execSync('npx tsx simulation1.ts', {
       cwd: workDir,
       stdio: 'pipe',
       env: { ...process.env, MT_HTTP_URL: 'http://localhost:9876' },
+      timeout: 30_000,
     })
-  })
 
-  it('waits for async target I/O to flush', async () => {
+    // Wait for async target I/O to flush and runner to finish
     await new Promise((r) => setTimeout(r, 2000))
   })
 
@@ -121,7 +138,7 @@ describe('HTTP to JSONL pipeline', () => {
     for (const line of lines) {
       const envelope = JSON.parse(line) as { item?: { title?: string } }
       expect(envelope.item?.title).toBeDefined()
-      titles.push(envelope.item!.title!)
+      titles.push(envelope.item?.title as string)
     }
 
     expect(titles).toContain('Chapter 1: The Road from Thornhaven')

@@ -59,6 +59,26 @@ Both forms are equivalent — the registry resolves string URIs automatically.
 
 ```bash
 cd samples/sample2
+npm run example
+```
+
+This packs local dependencies, installs them, prepares the JSONL input from `books/book1`,
+and runs the multi-tool pipeline.
+
+## How to clean up
+
+```bash
+cd samples/sample2
+npm run cleanup
+```
+
+This removes `md/output.md`, `chapters/schema/*.schema.md`, `jsonl/input.jsonl`,
+`vendor/`, `node_modules/`, and `package-lock.json`.
+
+## How to run manually
+
+```bash
+cd samples/sample2
 
 # 1. Pack local dependencies
 pnpm -C ../../packages/core pack --pack-destination ./vendor

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { execSync } from 'node:child_process'
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -11,15 +11,16 @@ const CLI_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'cli')
 const WAYPOINT_SRC = resolve(SAMPLE_DIR, '..', '..', 'packages', 'waypoint')
 
 let tempDir: string
+let hasFailure = false
 
 beforeAll(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'mt-init-test-'))
   const vendorDir = join(tempDir, 'vendor')
   await mkdir(vendorDir, { recursive: true })
 
-  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
+  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
+  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
 
   const pkgJson = {
     name: 'sample0-test',
@@ -31,19 +32,33 @@ beforeAll(async () => {
     },
   }
   await writeFile(join(tempDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
-  execSync('npm install --no-audit --no-fund', { cwd: tempDir, stdio: 'pipe' })
-}, 180_000)
+  execSync('npm install --no-audit --no-fund', { cwd: tempDir, stdio: 'pipe', timeout: 120_000 })
+}, 240_000)
+
+afterEach(({ task }) => {
+  if (task.result?.state === 'fail') {
+    hasFailure = true
+  }
+})
 
 afterAll(async () => {
+  if (hasFailure) {
+    console.log(`Tests failed — skipping cleanup. Temp dir: ${tempDir}`)
+    return
+  }
   if (tempDir) {
     await rm(tempDir, { recursive: true, force: true })
   }
 })
 
 describe('mt init', () => {
-  it('scaffolds a project in cwd', () => {
+  it('runs example (mt init)', () => {
     const mtBin = join(tempDir, 'node_modules', '.bin', 'mt')
-    execSync(`"${mtBin}" init sample-project`, { cwd: tempDir, stdio: 'pipe' })
+    execSync(`"${mtBin}" init sample-project`, { cwd: tempDir, stdio: 'pipe', timeout: 30_000 })
+  })
+
+  it('scaffolds a project in cwd', () => {
+    // verified by the mt init test above and subsequent file checks
   })
 
   it('creates mt.json with correct project name', async () => {

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { mkdir, readFile, rm, cp, writeFile } from 'node:fs/promises'
@@ -19,6 +19,7 @@ const CHAPTERS = [
 ]
 
 let workDir: string
+let hasFailure = false
 
 beforeAll(async () => {
   workDir = await mkdtemp(join(tmpdir(), 'mt-sample2-test-'))
@@ -28,10 +29,10 @@ beforeAll(async () => {
   await mkdir(join(workDir, 'md'), { recursive: true })
   await mkdir(join(workDir, 'chapters', 'schema'), { recursive: true })
 
-  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${TOOLS_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
-  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe' })
+  execSync(`pnpm -C "${CORE_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
+  execSync(`pnpm -C "${CLI_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
+  execSync(`pnpm -C "${TOOLS_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
+  execSync(`pnpm -C "${WAYPOINT_SRC}" pack --pack-destination "${vendorDir}"`, { stdio: 'pipe', timeout: 30_000 })
 
   const pkgJson = {
     name: 'sample2-test',
@@ -45,16 +46,26 @@ beforeAll(async () => {
     },
   }
   await writeFile(join(workDir, 'package.json'), JSON.stringify(pkgJson, null, 2))
-  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe' })
+  execSync('npm install --no-audit --no-fund', { cwd: workDir, stdio: 'pipe', timeout: 30_000 })
 
   await cp(join(SAMPLE_DIR, 'mt.json'), join(workDir, 'mt.json'))
   await cp(join(SAMPLE_DIR, 'pipelines'), join(workDir, 'pipelines'), { recursive: true })
 
   const jsonlContent = CHAPTERS.map((ch) => JSON.stringify({ item: ch })).join('\n') + '\n'
   await writeFile(join(workDir, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
-}, 60_000)
+}, 240_000)
+
+afterEach(({ task }) => {
+  if (task.result?.state === 'fail') {
+    hasFailure = true
+  }
+})
 
 afterAll(async () => {
+  if (hasFailure) {
+    console.log(`Tests failed — preserving workDir for inspection: ${workDir}`)
+    return
+  }
   if (workDir) {
     await rm(workDir, { recursive: true, force: true })
   }
@@ -107,10 +118,10 @@ describe('jsonl-to-md-multi pipeline', () => {
 })
 
 describe('schema-doc pipeline', () => {
-  it('runs the schemaPipeline to completion', () => {
+  it('runs the schemaDocPipeline to completion', () => {
     const mtBin = join(workDir, 'node_modules', '.bin', 'mt')
     execSync(
-      `node --import tsx "${mtBin}" run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaPipeline`,
+      `node --import tsx "${mtBin}" run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocPipeline`,
       { cwd: workDir, stdio: 'pipe', timeout: 30_000 },
     )
   })

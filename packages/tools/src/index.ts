@@ -21,6 +21,10 @@ export {
 
 export { chapterValidator } from './chapter-validator.js'
 
+export { wordCounter } from './word-counter.js'
+
+export { chapterIndexer } from './chapter-indexer.js'
+
 export { tokenSplitter } from './token-splitter.js'
 
 export {
@@ -49,3 +53,14 @@ export {
   type ParagraphTranslatorInput,
   type ParagraphTranslatorOutput,
 } from './chapter-translator.js'
+
+export {
+  formatMarkdown,
+  formatString,
+  mdFormatter,
+  mdFormatterTool,
+  type FormatOptions,
+  type FormatResult,
+  type MdFormatterInput,
+  type MdFormatterOutput,
+} from './md-formatter.js'

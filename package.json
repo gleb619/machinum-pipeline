@@ -9,7 +9,7 @@
     "lint": "biome check .",
     "format": "biome check --write .",
     "typecheck": "turbo typecheck",
-    "test": "turbo test && pnpm -C samples/sample0 run test && pnpm -C samples/sample1 run test",
+    "test": "turbo test && pnpm -C samples/sample0 run test && pnpm -C samples/sample1 run test && pnpm -C samples/sample2 run test",
     "clean": "turbo clean"
   },
   "devDependencies": {

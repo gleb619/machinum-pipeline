@@ -52,6 +52,8 @@ build
 /packages/waypoint/tests/builtins/*.test.d.ts
 /packages/waypoint/tests/builtins/*.test.d.ts.map
 /packages/waypoint/tests/builtins/*.test.js.map
+/packages/tools/vendor/*
+/packages/waypoint/vendor/*
 
 /samples/sample0/vendor/
 /samples/sample0/package-lock.json
@@ -61,3 +63,7 @@ build
 /samples/sample1/package-lock.json
 /samples/sample1/runner.log
 /samples/sample1/mt-run.log
+/samples/sample2/vendor/
+/samples/sample2/package-lock.json
+/samples/sample2/runner.log
+/samples/sample2/mt-run.log

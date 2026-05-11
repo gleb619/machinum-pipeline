@@ -8,6 +8,7 @@ export { createJsonlSource, createJsonlTarget } from './jsonl.js'
 export { createMdSource, createMdTarget } from './md.js'
 export { createSchemaDocSource, createSchemaDocTarget } from './schema-doc.js'
 export { createChapterOutputSource, createChapterOutputTarget } from './chapter-output.js'
+export { createEphemeralSource, createEphemeralTarget } from './ephemeral.js'
 export {
   GitWorktreeSource,
   GitWorktreeTarget,
@@ -22,3 +23,4 @@ import './schema-doc.js'
 import './http-server.js'
 import './git-worktree.js'
 import './chapter-output.js'
+import './ephemeral.js'

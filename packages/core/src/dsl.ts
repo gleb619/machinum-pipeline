@@ -47,26 +47,29 @@ function getCallerFileId(): string {
 /**
  * DSL builder for defining a pipeline.
  * Chain: .from(source).use(tool).to(target)
- * Also supports .fork() and .subflow() for branching logic.
- * 
+ * Also supports .fork(), .subflow(), .flatMap(), .batch(), .window(), .tap()
+ * for branching, orchestration, and transformation logic.
+ *
+ * PipelineBuilder implements Pipeline directly — it can be used as a
+ * default export without calling .to() (subflow-only orchestration mode).
+ *
  * @param config - Optional configuration. If omitted, uses defaults:
  *   - id: derived from filename (e.g., 'my-pipeline' from 'my-pipeline.ts')
  *   - retry: { max: 3, backoffMs: 1000, strategy: 'exp' }
  *   - onError: 'fail-run'
- * 
+ *
  * @example
- * // Full config
- * definePipeline({
- *   id: 'my-pipeline',
- *   retry: { max: 5, backoffMs: 2000, strategy: 'linear' },
- *   onError: 'skip-item'
- * })
- * 
- * @example
- * // With defaults (id derived from filename)
- * definePipeline()
+ * // Full pipeline with source/target
+ * definePipeline({ id: 'my-pipeline' })
  *   .from('jsonl://./input.jsonl')
+ *   .use(myTool)
  *   .to('md://./output.md')
+ *
+ * @example
+ * // Subflow-only orchestration (no .to() needed — builder IS a Pipeline)
+ * export default definePipeline()
+ *   .subflow(verifyFlow)
+ *   .subflow(translateFlow)
  */
 export function definePipeline<I = unknown, O = unknown>(config?: {
   id?: string
@@ -81,38 +84,47 @@ export function definePipeline<I = unknown, O = unknown>(config?: {
 
 /**
  * Builder class for constructing a pipeline definition via a fluent API.
+ *
+ * Implements Pipeline directly so it can be exported as a module default
+ * without requiring a terminal .to() call. When .to() is called,
+ * it returns the same builder cast to Pipeline (the terminal step).
  */
-export class PipelineBuilder<I, O> {
-  private readonly id: string
-  private readonly retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
-  private readonly onError: 'fail-run' | 'skip-item' | 'dead-letter'
-  private readonly steps: PipelineStep[] = []
+export class PipelineBuilder<I, O> implements Pipeline<I, O> {
+  private readonly _id: string
+  private readonly _retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
+  private readonly _onError: 'fail-run' | 'skip-item' | 'dead-letter'
+  private readonly _steps: PipelineStep[] = []
+
+  get id(): string { return this._id }
+  get retry(): { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' } { return this._retry }
+  get onError(): 'fail-run' | 'skip-item' | 'dead-letter' { return this._onError }
+  get steps(): PipelineStep[] { return this._steps }
 
   constructor(config: {
     id: string
     retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
     onError: 'fail-run' | 'skip-item' | 'dead-letter'
   }) {
-    this.id = config.id
-    this.retry = config.retry
-    this.onError = config.onError
+    this._id = config.id
+    this._retry = config.retry
+    this._onError = config.onError
   }
 
   /**
    * Set the source for the pipeline.
    * @param source - Source instance OR URI string (sugar)
-   * 
+   *
    * @example
    * // Using Source instance
    * .from(source('jsonl://./input.jsonl'))
-   * 
+   *
    * @example
    * // Using URI string (sugar)
    * .from('jsonl://./input.jsonl')
    */
   from<T>(source: Source<T> | string): PipelineBuilder<T, O> {
     const resolvedSource = typeof source === 'string' ? registry.resolveSource<T>(source) : source
-    this.steps.push({ type: 'source', config: { uri: resolvedSource.uri } })
+    this._steps.push({ type: 'source', config: { uri: resolvedSource.uri } })
     return this as unknown as PipelineBuilder<T, O>
   }
 
@@ -123,7 +135,7 @@ export class PipelineBuilder<I, O> {
       onError?: 'fail-run' | 'skip-item' | 'dead-letter'
     },
   ): PipelineBuilder<R, O> {
-    this.steps.push({
+    this._steps.push({
       type: 'tool',
       config: {
         name: tool.name,
@@ -138,59 +150,52 @@ export class PipelineBuilder<I, O> {
 
   /**
    * Set the target for the pipeline.
+   * Terminates the builder — returns the completed Pipeline.
+   *
    * @param target - Target instance OR URI string (sugar)
-   * 
+   *
    * @example
    * // Using Target instance
    * .to(target('md://./output.md'))
-   * 
+   *
    * @example
    * // Using URI string (sugar)
    * .to('md://./output.md')
    */
   to<T>(target: Target<T> | string): Pipeline<I, O> {
     const resolvedTarget = typeof target === 'string' ? registry.resolveTarget<T>(target) : target
-    this.steps.push({ type: 'target', config: { uri: resolvedTarget.uri } })
-    return this.build()
+    this._steps.push({ type: 'target', config: { uri: resolvedTarget.uri } })
+    return this
   }
 
   batch(size: number): PipelineBuilder<I[], O> {
-    this.steps.push({ type: 'batch', config: { size } })
+    this._steps.push({ type: 'batch', config: { size } })
     return this as unknown as PipelineBuilder<I[], O>
   }
 
   window(size: number): PipelineBuilder<I[], O> {
-    this.steps.push({ type: 'window', config: { size } })
+    this._steps.push({ type: 'window', config: { size } })
     return this as unknown as PipelineBuilder<I[], O>
   }
 
   flatMap<R>(fn: (item: I) => Promise<R[]>): PipelineBuilder<R, O> {
-    this.steps.push({ type: 'flatmap', config: { fn } })
+    this._steps.push({ type: 'flatmap', config: { fn } })
     return this as unknown as PipelineBuilder<R, O>
   }
 
   fork(pipeline: Pipeline<I, any>): PipelineBuilder<I, O> {
-    this.steps.push({ type: 'fork', config: { pipeline } })
+    this._steps.push({ type: 'fork', config: { pipeline } })
     return this
   }
 
   subflow(pipeline: Pipeline<I, any>): PipelineBuilder<I, O> {
-    this.steps.push({ type: 'subflow', config: { pipeline } })
+    this._steps.push({ type: 'subflow', config: { pipeline } })
     return this
   }
 
   tap(fn: (item: I) => Promise<void>): PipelineBuilder<I, O> {
-    this.steps.push({ type: 'tap', config: { fn } })
+    this._steps.push({ type: 'tap', config: { fn } })
     return this
-  }
-
-  private build(): Pipeline<I, O> {
-    return {
-      id: this.id,
-      retry: this.retry,
-      onError: this.onError,
-      steps: this.steps,
-    }
   }
 }
 

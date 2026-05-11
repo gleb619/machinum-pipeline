@@ -6,6 +6,8 @@
   "scripts": {
     "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/http-to-jsonl.ts",
     "simulate": "tsx simulation1.ts",
+    "example": "mkdir -p vendor && pnpm -C ../../packages/core pack --pack-destination \"$(pwd)/vendor\" && pnpm -C ../../packages/cli pack --pack-destination \"$(pwd)/vendor\" && pnpm -C ../../packages/waypoint pack --pack-destination \"$(pwd)/vendor\" && npm install --no-save --no-audit --no-fund file:./vendor/mt-core-0.1.0.tgz file:./vendor/mt-cli-0.1.0.tgz file:./vendor/mt-waypoint-0.1.0.tgz && tsx run-example.ts",
+    "cleanup": "rm -rf jsonl/output.jsonl vendor package-lock.json node_modules pipelines/http-to-jsonl-example.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

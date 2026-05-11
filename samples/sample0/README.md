@@ -17,6 +17,24 @@ samples/sample0/
         └── vendor/                      # Created at runtime — local tarballs
 ```
 
+## How to run
+
+```bash
+cd samples/sample0
+npm run example
+```
+
+This packs local dependencies, installs them, and runs `mt init sample-project`.
+
+## How to clean up
+
+```bash
+cd samples/sample0
+npm run cleanup
+```
+
+This removes the scaffolded `sample-project` directory, `vendor/`, `package-lock.json`, and `node_modules/`.
+
 ## How to run manually (no cleanup)
 
 ```bash
