@@ -1,31 +1,28 @@
-import type { H3Event } from 'h3'
-import type { NitroApp } from 'nitropack'
+import { defineEventHandler } from 'h3'
 import { getDailyCost } from '../utils/cost-tracker.js'
 
-export default function rateLimitPlugin(nitroApp: NitroApp): void {
-  nitroApp.use('/api/chat/completions', async (event: H3Event) => {
-    if (event.method !== 'POST') return
+export default defineEventHandler(async (event) => {
+  if (event.path !== '/api/chat/completions' || event.method !== 'POST') return
 
-    const dailyBudget = Number.parseFloat(process.env.MT_DAILY_BUDGET || '5.00')
-    const today = new Date().toISOString().split('T')[0] as string
-    const usage = await getDailyCost(today)
+  const dailyBudget = Number.parseFloat(process.env.MT_DAILY_BUDGET || '5.00')
+  const today = new Date().toISOString().split('T')[0] as string
+  const usage = await getDailyCost(today)
 
-    const remaining = Math.max(0, dailyBudget - usage.totalCost)
+  const remaining = Math.max(0, dailyBudget - usage.totalCost)
 
-    event.node.res.setHeader('X-RateLimit-Remaining', remaining.toFixed(4))
+  event.node.res.setHeader('X-RateLimit-Remaining', remaining.toFixed(4))
 
-    if (remaining <= 0) {
-      event.node.res.statusCode = 429
-      event.node.res.setHeader('Content-Type', 'application/json')
-      event.node.res.end(
-        JSON.stringify({
-          error: 'Daily budget exceeded',
-          retryAfter: getSecondsUntilMidnight(),
-        }),
-      )
-    }
-  })
-}
+  if (remaining <= 0) {
+    event.node.res.statusCode = 429
+    event.node.res.setHeader('Content-Type', 'application/json')
+    event.node.res.end(
+      JSON.stringify({
+        error: 'Daily budget exceeded',
+        retryAfter: getSecondsUntilMidnight(),
+      }),
+    )
+  }
+})
 
 function getSecondsUntilMidnight(): number {
   const now = new Date()
