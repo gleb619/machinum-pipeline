@@ -26,12 +26,16 @@ build
 /gradle.properties
 
 # Orchestry state
+.playwright-cli/
 .orchestry
 .aider*
 .claude/mcp.json
 .blackboxcli/
+.codegraph/
+.cursor/
 /docs/scaffolding.md
 /docs/plans/*
+/docs/superpowers/*
 
 /tmp-packs/
 /packages/core/vendor/
@@ -59,13 +63,18 @@ build
 /samples/sample0/package-lock.json
 /samples/sample0/runner.log
 /samples/sample0/mt-run.log
+/samples/sample0/pipelines/example.ts
 /samples/sample1/vendor/
 /samples/sample1/package-lock.json
 /samples/sample1/runner.log
 /samples/sample1/mt-run.log
 /samples/sample1/jsonl/output.jsonl
+/samples/sample1/jsonl/input.jsonl
 /samples/sample1/chapters/en/*.md
+/samples/sample1/pipelines/http-to-jsonl-test.ts
 /samples/sample2/vendor/
 /samples/sample2/package-lock.json
 /samples/sample2/runner.log
 /samples/sample2/mt-run.log
+/samples/sample2/chapters/en/*.md
+/samples/sample2/chapters/ru/*.md

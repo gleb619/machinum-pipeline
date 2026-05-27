@@ -11,7 +11,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
@@ -23,8 +25,12 @@
     "@markschema/mdshape": "^1.0.0",
     "@mt/core": "workspace:*",
     "@rewdy/md-formatter": "^0.4.1",
+    "cspell-lib": "^8.0.0",
     "gpt-tokenizer": "^2.5.0",
     "gray-matter": "^4.0.3",
+    "remark": "^15.0.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",
     "unified": "^11.0.0",

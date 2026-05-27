@@ -4,9 +4,7 @@ import {
   chapterIndexer,
   chapterValidator,
   entitiesTool,
-  entityNormalizer,
   forbiddenCharDetector,
-  grammarWarnings,
   markdownFormatter,
   mdFormatter,
   paragraphTranslator,
@@ -15,7 +13,6 @@ import {
   summaryTool,
   titleTranslator,
   tokenSplitter,
-  typoDetector,
   typoFixer,
   wordCounter,
 } from '@mt/tools'
@@ -57,9 +54,7 @@ const verifyFlow = definePipeline()
   .use(wordCounter)
   .use(chapterIndexer)
   .use(chapterValidator)
-  .use(typoDetector)
   .use(forbiddenCharDetector)
-  .use(grammarWarnings)
   .tap(async (item: unknown) => {
     const meta = (item as { meta?: { warnings?: unknown } }).meta
     console.log('[verify] warnings:', meta?.warnings)
@@ -88,9 +83,7 @@ export const splitChaptersPipeline = definePipeline()
 
 export const collectWarningsPipeline = definePipeline()
   .from('ephemeral://warnings-input')
-  .use(typoDetector)
   .use(forbiddenCharDetector)
-  .use(grammarWarnings)
   .tap(async (item: unknown) => {
     const meta = (item as { meta?: { warnings?: unknown } }).meta
     console.log('[warnings]', meta?.warnings)
@@ -111,7 +104,6 @@ export const schemaDocPipeline = definePipeline()
 export const fixChapterPipeline = definePipeline()
   .from('ephemeral://fix-input')
   .use(typoFixer)
-  .use(entityNormalizer)
   .use(markdownFormatter)
   .to('ephemeral://fix-output')
 

@@ -2,6 +2,8 @@ import { defineTool } from '@mt/core'
 import type { Envelope, MdOutputEntry, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
+import { formatString } from './md-formatter.js'
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -135,8 +137,11 @@ function normalizeBody(input: unknown): ChapterDocParagraph[] {
  * Next paragraph
  * next line
  * ```
+ *
+ * Note: frontmatter is kept as raw YAML (not fed to remark) to preserve
+ * exact formatting. Only the body + title are run through formatString.
  */
-export function writeChapterDoc(doc: ChapterDoc): string {
+export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
   const parts: string[] = []
 
   parts.push(serializeFrontmatter(doc))
@@ -146,11 +151,22 @@ export function writeChapterDoc(doc: ChapterDoc): string {
   for (const paragraph of doc.body) {
     if (paragraph.lines.length === 0) continue
     parts.push('')
-    parts.push(paragraph.lines.join('  \n'))
+    parts.push(paragraph.lines.join('\n'))
   }
 
   parts.push('')
-  return parts.join('\n')
+  // Only format the body (not the frontmatter YAML block, which remark would mangle)
+  const bodyStart = parts.indexOf(`# ${doc.title}`)
+  const frontmatterLines = parts.slice(0, bodyStart)
+  const bodyLines = parts.slice(bodyStart)
+  const rawFrontmatter = frontmatterLines.join('\n')
+  const rawBody = bodyLines.join('\n')
+
+  const formattedBodyResult = await formatString(rawBody)
+  const formattedBody = formattedBodyResult.formatted
+
+  // Remove leading blank line that formatString may add before the heading
+  return rawFrontmatter + '\n' + formattedBody
 }
 
 // ---------------------------------------------------------------------------
@@ -253,7 +269,7 @@ export const chapterDoc = defineTool<ChapterDocToolInput, string>({
       body: normalizeBody(input.body),
     }
 
-    const formatted = writeChapterDoc(doc)
+    const formatted = await writeChapterDoc(doc)
 
     const existing = (env.meta?.mdOutputs as MdOutputEntry[] | undefined) ?? []
     const mdOutputs: MdOutputEntry[] | undefined =

@@ -1,56 +1,6 @@
-import { spawn } from 'node:child_process'
-import { readFile, stat } from 'node:fs/promises'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-// ── Mocks ───────────────────────────────────────────────────────────────────
-
-vi.mock('node:child_process', () => ({
-  spawn: vi.fn(),
-}))
-
-vi.mock('node:fs/promises', () => ({
-  stat: vi.fn(),
-  readFile: vi.fn(),
-  readdir: vi.fn(),
-}))
-
-// ── Imports (after mocks so they see the mocked modules) ────────────────────
-
-import { formatMarkdown, formatString, mdFormatter, mdFormatterTool } from '../src/md-formatter.js'
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
-
-/** Build a mock child process object that fires data/close events synchronously. */
-function makeMockChild(stdoutData?: string, exitCode = 0): any {
-  return {
-    stdout: {
-      on: vi.fn((event: string, cb: (chunk: Buffer) => void) => {
-        if (event === 'data' && stdoutData !== undefined) {
-          cb(Buffer.from(stdoutData))
-        }
-      }),
-    },
-    stderr: {
-      on: vi.fn(),
-    },
-    on: vi.fn((event: string, cb: (...args: any[]) => void) => {
-      if (event === 'close') {
-        cb(exitCode)
-      }
-    }),
-    stdin: {
-      write: vi.fn(),
-      end: vi.fn(),
-    },
-  }
-}
-
-/** Reset all mocks before each test. */
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
-// ── Tests ───────────────────────────────────────────────────────────────────
+import { formatString, mdFormatter, mdFormatterTool } from '../src/md-formatter.js'
 
 // ---------------------------------------------------------------------------
 // mdFormatter tool definition
@@ -91,192 +41,74 @@ describe('mdFormatterTool', () => {
 })
 
 // ---------------------------------------------------------------------------
-// formatString
+// formatString — real remark pipeline
 // ---------------------------------------------------------------------------
 
 describe('formatString', () => {
-  beforeEach(() => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild() as any)
-  })
-
-  it('should format a simple markdown string', async () => {
+  it('should format simple markdown', async () => {
     const input = '# Hello\n\nThis is a test.'
-    vi.mocked(spawn).mockReturnValue(makeMockChild('# Hello\n\nThis is a test.') as any)
-
     const result = await formatString(input)
-    expect(result).toHaveProperty('formatted')
-    expect(result).toHaveProperty('alreadyFormatted')
+    expect(result.formatted).toBeTruthy()
     expect(typeof result.formatted).toBe('string')
-    expect(typeof result.alreadyFormatted).toBe('boolean')
+    expect(result.formatted.length).toBeGreaterThan(0)
   })
 
-  it('should detect when output matches input (already formatted)', async () => {
-    const input = '# Title\n\nBody text.'
-    vi.mocked(spawn).mockReturnValue(makeMockChild(input) as any)
-
+  it('should preserve already-formatted markdown', async () => {
+    const input = '# Title\n\nBody text.\n'
     const result = await formatString(input)
     expect(result.formatted).toBe(input)
     expect(result.alreadyFormatted).toBe(true)
   })
 
-  it('should detect when formatter changed the content', async () => {
+  it('should reformat unformatted markdown', async () => {
     const input = '# Title\n\nBody text.'
-    const formatted = '# Title\n\nBody text.\n'
-    vi.mocked(spawn).mockReturnValue(makeMockChild(formatted) as any)
-
     const result = await formatString(input)
-    expect(result.formatted).toBe(formatted)
+    expect(result.formatted).not.toBe(input)
     expect(result.alreadyFormatted).toBe(false)
   })
 })
 
 // ---------------------------------------------------------------------------
-// Width clamping (80–120)
-// ---------------------------------------------------------------------------
-
-describe('width clamping', () => {
-  it('should clamp width below 80 up to 80', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('test') as any)
-
-    await formatString('test', { width: 50 })
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined
-    const widthIdx = args?.indexOf('--width') ?? -1
-    expect(args?.[widthIdx + 1]).toBe('80')
-  })
-
-  it('should clamp width above 120 down to 120', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('test') as any)
-
-    await formatString('test', { width: 200 })
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined
-    const widthIdx = args?.indexOf('--width') ?? -1
-    expect(args?.[widthIdx + 1]).toBe('120')
-  })
-
-  it('should pass width within range unchanged', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('test') as any)
-
-    await formatString('test', { width: 100 })
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined
-    const widthIdx = args?.indexOf('--width') ?? -1
-    expect(args?.[widthIdx + 1]).toBe('100')
-  })
-
-  it('should use default width 100 when not specified', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('test') as any)
-
-    await formatString('test')
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined
-    const widthIdx = args?.indexOf('--width') ?? -1
-    expect(args?.[widthIdx + 1]).toBe('100')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// --wrap never option
-// ---------------------------------------------------------------------------
-
-describe('--wrap never option', () => {
-  it('should pass --wrap never when wrapMode is never', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('test') as any)
-
-    await formatString('test', { wrapMode: 'never' })
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined
-    const wrapIdx = args?.indexOf('--wrap') ?? -1
-    expect(wrapIdx).toBeGreaterThanOrEqual(0)
-    expect(args?.[wrapIdx + 1]).toBe('never')
-  })
-
-  it('should pass --wrap always by default', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('test') as any)
-
-    await formatString('test')
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined
-    const wrapIdx = args?.indexOf('--wrap') ?? -1
-    expect(wrapIdx).toBeGreaterThanOrEqual(0)
-    expect(args?.[wrapIdx + 1]).toBe('always')
-  })
-
-  it('should pass --wrap preserve when wrapMode is preserve', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('test') as any)
-
-    await formatString('test', { wrapMode: 'preserve' })
-    const args = vi.mocked(spawn).mock.calls[0]?.[1] as string[] | undefined
-    const wrapIdx = args?.indexOf('--wrap') ?? -1
-    expect(args?.[wrapIdx + 1]).toBe('preserve')
-  })
-})
-
-// ---------------------------------------------------------------------------
-// Empty input handling
+// Empty input
 // ---------------------------------------------------------------------------
 
 describe('empty input', () => {
-  it('should handle empty string input without throwing', async () => {
-    vi.mocked(spawn).mockReturnValue(makeMockChild('') as any)
-
+  it('should handle empty string', async () => {
     const result = await formatString('')
-    expect(result).toBeDefined()
     expect(result.formatted).toBe('')
-    expect(result.alreadyFormatted).toBe(true)
-  })
-
-  it('should handle whitespace-only input', async () => {
-    const input = '   \n\n  '
-    vi.mocked(spawn).mockReturnValue(makeMockChild(input) as any)
-
-    const result = await formatString(input)
-    expect(result).toBeDefined()
-    expect(typeof result.formatted).toBe('string')
   })
 })
 
 // ---------------------------------------------------------------------------
-// Non-.md file skipping (formatMarkdown read mode)
+// Tool invoke — real remark pipeline
 // ---------------------------------------------------------------------------
 
-describe('non-.md files', () => {
-  it('should skip non-.md files gracefully and return empty string', async () => {
-    // Mock stat to return a regular file (not directory)
-    vi.mocked(stat).mockResolvedValue({
-      isDirectory: () => false,
-      isFile: () => true,
-      isBlockDevice: () => false,
-      isCharacterDevice: () => false,
-      isFIFO: () => false,
-      isSocket: () => false,
-      isSymbolicLink: () => false,
-    } as any)
-
-    const result = await formatMarkdown('test.txt')
-    expect(result).toBe('')
+describe('mdFormatter tool invoke', () => {
+  it('should format envelope item', async () => {
+    const result = await mdFormatter.invoke({ item: '# Test\n\nContent.', meta: {} }, {} as any)
+    expect(result.item).toBeTruthy()
+    expect(typeof result.item).toBe('string')
+    expect(result.meta.mdFormatted).toBe(true)
   })
 
-  it('should collect and format .md files', async () => {
-    vi.mocked(stat).mockResolvedValue({
-      isDirectory: () => false,
-      isFile: () => true,
-      isBlockDevice: () => false,
-      isCharacterDevice: () => false,
-      isFIFO: () => false,
-      isSocket: () => false,
-      isSymbolicLink: () => false,
-    } as any)
-    vi.mocked(readFile).mockResolvedValue('# Hello\n\nWorld')
-    vi.mocked(spawn).mockReturnValue(makeMockChild('# Hello\n\nWorld') as any)
-
-    const result = await formatMarkdown('test.md')
-    // Should contain formatted content, not empty
-    expect(result).toBeTruthy()
-    expect(typeof result).toBe('string')
-    expect((result as string).length).toBeGreaterThan(0)
+  it('should set mdAlreadyFormatted true when no change needed', async () => {
+    const input = '# Title\n\nBody text.\n'
+    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as any)
+    expect(result.meta.mdAlreadyFormatted).toBe(true)
   })
 
-  it('should skip paths that throw during stat', async () => {
-    vi.mocked(stat).mockRejectedValue(new Error('ENOENT'))
+  it('should set mdAlreadyFormatted false when reformatted', async () => {
+    const input = '# Title\n\nBody text.'
+    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as any)
+    expect(result.meta.mdAlreadyFormatted).toBe(false)
+  })
 
-    const result = await formatMarkdown('nonexistent.md')
-    // Non-existent path is caught and skipped, returns empty
-    expect(result).toBe('')
+  it('should use per-envelope options from meta.mdFormatOptions', async () => {
+    const result = await mdFormatter.invoke(
+      { item: 'test', meta: { mdFormatOptions: { wrapMode: 'never' } } },
+      {} as any,
+    )
+    expect(result.item).toBeTruthy()
+    expect(result.meta.mdFormatted).toBe(true)
   })
 })

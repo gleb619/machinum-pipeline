@@ -41,7 +41,16 @@ describe('CLI entry point', () => {
   it('calls init command', async () => {
     process.argv = ['node', 'mt', 'init', 'my-project']
     await main()
-    expect(initCommand).toHaveBeenCalledWith(['my-project'])
+    expect(initCommand).toHaveBeenCalledWith({ projectName: 'my-project' })
+  })
+
+  it('calls init command with settings', async () => {
+    process.argv = ['node', 'mt', 'init', '--settings', '{"model":"gpt-4"}']
+    await main()
+    expect(initCommand).toHaveBeenCalledWith({
+      projectName: undefined,
+      settings: { model: 'gpt-4' },
+    })
   })
 
   it('calls run command', async () => {

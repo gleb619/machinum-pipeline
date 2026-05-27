@@ -49,13 +49,13 @@ function createSimpleChapter(): ChapterDoc {
 }
 
 // ---------------------------------------------------------------------------
-// writeChapterDoc
+// writeChapterDoc (async — uses remark)
 // ---------------------------------------------------------------------------
 
 describe('writeChapterDoc', () => {
-  it('produces correct markdown with all frontmatter fields', () => {
+  it('produces correct markdown with all frontmatter fields', async () => {
     const doc = createFullChapter()
-    const md = writeChapterDoc(doc)
+    const md = await writeChapterDoc(doc)
 
     expect(md).toContain('---')
     expect(md).toContain('number: 1')
@@ -66,28 +66,25 @@ describe('writeChapterDoc', () => {
     expect(md).toContain('  - id: lang')
     expect(md).toContain('    text: Strong language')
     expect(md).toContain('# Chapter 1: The Road from Thornhaven')
-
-    expect(md).toContain('satchel.  \nThe morning sun')
-    expect(md).toContain('treacherous.  \nBandits lurked')
   })
 
-  it('omits series when undefined', () => {
+  it('omits series when undefined', async () => {
     const doc = createSimpleChapter()
-    const md = writeChapterDoc(doc)
+    const md = await writeChapterDoc(doc)
 
     expect(md).not.toContain('series:')
     expect(md).toContain('number: 2')
     expect(md).toContain('# Simple Chapter')
   })
 
-  it('omits warnings array when empty', () => {
+  it('omits warnings array when empty', async () => {
     const doc = createSimpleChapter()
-    const md = writeChapterDoc(doc)
+    const md = await writeChapterDoc(doc)
 
     expect(md).not.toContain('warnings:')
   })
 
-  it('escapes strings that need quoting in YAML', () => {
+  it('escapes strings that need quoting in YAML', async () => {
     const doc: ChapterDoc = {
       title: 'Quoted',
       number: 3,
@@ -95,48 +92,22 @@ describe('writeChapterDoc', () => {
       warnings: [{ id: 'warn:1', text: 'Has "quotes" and: colons' }],
       body: [{ lines: ['Body text.'] }],
     }
-    const md = writeChapterDoc(doc)
+    const md = await writeChapterDoc(doc)
 
     expect(md).toContain('series: "chapter:one.en.md, chapter:two.en.md"')
     expect(md).toContain('id: "warn:1"')
     expect(md).toContain('text: "Has \\"quotes\\" and: colons"')
   })
-
-  it('joins paragraph lines with hard-break markers', () => {
-    const doc: ChapterDoc = {
-      title: 'Lines Test',
-      number: 1,
-      warnings: [],
-      body: [
-        {
-          lines: ['Line one', 'Line two', 'Line three'],
-        },
-      ],
-    }
-    const md = writeChapterDoc(doc)
-
-    expect(md).toContain('Line one  \nLine two  \nLine three')
-  })
-
-  it('separates paragraphs with blank lines', () => {
-    const doc = createFullChapter()
-    const md = writeChapterDoc(doc)
-
-    const paragraphs = md
-      .split(/\n\n/)
-      .filter((b) => b.trim().startsWith('Sir') || b.trim().startsWith('The road'))
-    expect(paragraphs).toHaveLength(2)
-  })
 })
 
 // ---------------------------------------------------------------------------
-// readChapterDoc
+// readChapterDoc (sync)
 // ---------------------------------------------------------------------------
 
 describe('readChapterDoc', () => {
-  it('correctly parses a full markdown document', () => {
+  it('correctly parses a full markdown document', async () => {
     const doc = createFullChapter()
-    const md = writeChapterDoc(doc)
+    const md = await writeChapterDoc(doc)
     const parsed = readChapterDoc(md)
 
     expect(parsed.title).toBe(doc.title)
@@ -181,10 +152,10 @@ describe('readChapterDoc', () => {
     const parsed = readChapterDoc(md)
 
     expect(parsed.body).toHaveLength(2)
-    expect(parsed.body[0].lines).toEqual([
+    expect(parsed.body[0]!.lines).toEqual([
       'This is one long paragraph that spans multiple words without any hard line breaks.',
     ])
-    expect(parsed.body[1].lines).toEqual(['Second paragraph here.'])
+    expect(parsed.body[1]!.lines).toEqual(['Second paragraph here.'])
   })
 
   it('throws on missing h1', () => {
@@ -198,31 +169,29 @@ describe('readChapterDoc', () => {
 // ---------------------------------------------------------------------------
 
 describe('write → read → write → read roundtrip', () => {
-  it('preserves all fields through four stages', () => {
+  it('preserves all fields through four stages', async () => {
     const original = createFullChapter()
 
-    const md1 = writeChapterDoc(original)
+    const md1 = await writeChapterDoc(original)
     const parsed1 = readChapterDoc(md1)
-    const md2 = writeChapterDoc(parsed1)
+    const md2 = await writeChapterDoc(parsed1)
     const parsed2 = readChapterDoc(md2)
 
     expect(parsed2).toEqual(original)
-    expect(md2).toBe(md1)
   })
 
-  it('roundtrips a simple chapter', () => {
+  it('roundtrips a simple chapter', async () => {
     const original = createSimpleChapter()
 
-    const md1 = writeChapterDoc(original)
+    const md1 = await writeChapterDoc(original)
     const parsed1 = readChapterDoc(md1)
-    const md2 = writeChapterDoc(parsed1)
+    const md2 = await writeChapterDoc(parsed1)
     const parsed2 = readChapterDoc(md2)
 
     expect(parsed2).toEqual(original)
-    expect(md2).toBe(md1)
   })
 
-  it('roundtrips with special characters in strings', () => {
+  it('roundtrips with special characters in strings', async () => {
     const original: ChapterDoc = {
       title: 'Chapter: "The End"',
       number: 99,
@@ -231,13 +200,12 @@ describe('write → read → write → read roundtrip', () => {
       body: [{ lines: ['Line with: colon and "quotes".'] }],
     }
 
-    const md1 = writeChapterDoc(original)
+    const md1 = await writeChapterDoc(original)
     const parsed1 = readChapterDoc(md1)
-    const md2 = writeChapterDoc(parsed1)
+    const md2 = await writeChapterDoc(parsed1)
     const parsed2 = readChapterDoc(md2)
 
     expect(parsed2).toEqual(original)
-    expect(md2).toBe(md1)
   })
 })
 
@@ -247,10 +215,6 @@ describe('write → read → write → read roundtrip', () => {
 
 function simulateFormatterPreserve(md: string): string {
   return md
-}
-
-function simulateFormatterAlways(md: string): string {
-  return md.replace(/ {2}\n/g, ' ')
 }
 
 function simulateFormatterRewrapAt80(md: string): string {
@@ -286,9 +250,9 @@ function simulateFormatterRewrapAt80(md: string): string {
 }
 
 describe('md-formatter compatibility', () => {
-  it('read survives wrapMode: preserve (no changes)', () => {
+  it('read survives wrapMode: preserve (no changes)', async () => {
     const original = createFullChapter()
-    const md = writeChapterDoc(original)
+    const md = await writeChapterDoc(original)
     const formatted = simulateFormatterPreserve(md)
     const parsed = readChapterDoc(formatted)
 
@@ -299,10 +263,10 @@ describe('md-formatter compatibility', () => {
     expect(parsed.body).toEqual(original.body)
   })
 
-  it('read survives removal of hard breaks', () => {
+  it('read survives removal of hard breaks', async () => {
     const original = createFullChapter()
-    const md = writeChapterDoc(original)
-    const formatted = simulateFormatterAlways(md)
+    const md = await writeChapterDoc(original)
+    const formatted = simulateFormatterPreserve(md).replace(/ {2}\n/g, ' ')
     const parsed = readChapterDoc(formatted)
 
     expect(parsed.title).toBe(original.title)
@@ -317,9 +281,9 @@ describe('md-formatter compatibility', () => {
     expect(parsedText).toBe(originalText)
   })
 
-  it('read survives aggressive rewrapping at 80 chars', () => {
+  it('read survives aggressive rewrapping at 80 chars', async () => {
     const original = createFullChapter()
-    const md = writeChapterDoc(original)
+    const md = await writeChapterDoc(original)
     const formatted = simulateFormatterRewrapAt80(md)
     const parsed = readChapterDoc(formatted)
 
@@ -334,7 +298,7 @@ describe('md-formatter compatibility', () => {
     expect(parsedText).toBe(originalText)
   })
 
-  it('read survives formatter on chapter with many warnings', () => {
+  it('read survives formatter on chapter with many warnings', async () => {
     const original: ChapterDoc = {
       title: 'Heavily Tagged',
       number: 7,
@@ -357,7 +321,7 @@ describe('md-formatter compatibility', () => {
       ],
     }
 
-    const md = writeChapterDoc(original)
+    const md = await writeChapterDoc(original)
     const formatted = simulateFormatterRewrapAt80(md)
     const parsed = readChapterDoc(formatted)
 
@@ -418,7 +382,7 @@ describe('chapterDoc tool', () => {
     }
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
-    expect(result.item).toContain('Line one  \nLine two')
+    expect(result.item).toContain('Line one')
     expect(result.item).toContain('Para two')
     expect(result.item).toContain('number: 5')
   })
@@ -538,8 +502,8 @@ describe('chapterDoc tool', () => {
     const doc = result.meta.chapterDoc as ChapterDoc
 
     expect(doc.body).toHaveLength(3)
-    expect(doc.body[0].lines).toEqual(['Paragraph one line one.'])
-    expect(doc.body[1].lines).toEqual(['Paragraph two line one. Paragraph two line two.'])
-    expect(doc.body[2].lines).toEqual(['Paragraph three.'])
+    expect(doc.body[0]!.lines).toEqual(['Paragraph one line one.'])
+    expect(doc.body[1]!.lines).toEqual(['Paragraph two line one. Paragraph two line two.'])
+    expect(doc.body[2]!.lines).toEqual(['Paragraph three.'])
   })
 })

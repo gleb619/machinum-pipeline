@@ -1,11 +1,11 @@
 import { execSync, spawn } from 'node:child_process'
-import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const SAMPLE_DIR = import.meta.dirname
 const HEALTH_URL = 'http://127.0.0.1:9876/health'
 
-async function waitForHealth(maxRetries = 50, pollMs = 200): Promise<void> {
+async function waitForHealth(maxRetries = 30, pollMs = 100): Promise<void> {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const res = await fetch(HEALTH_URL, { signal: AbortSignal.timeout(500) })
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     cwd: SAMPLE_DIR,
     stdio: 'inherit',
     env: { ...process.env, MT_HTTP_URL: 'http://localhost:9876' },
-    timeout: 30_000,
+    timeout: 15_000,
   })
 
   // Wait for runner to exit
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
         clearTimeout(killTimer)
         resolve()
       })
-    }, 10_000)
+    }, 5000)
 
     runnerProc?.on('exit', (code) => {
       clearTimeout(timer)
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
   execSync('npm run runner:md', {
     cwd: SAMPLE_DIR,
     stdio: 'inherit',
-    timeout: 30_000,
+    timeout: 15_000,
   })
 }
 

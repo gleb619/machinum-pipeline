@@ -12,9 +12,8 @@ This sample verifies that `mt init` correctly scaffolds a new project.
 ```
 samples/sample0/
         ├── tests/init.test.ts           # Vitest integration test
-        ├── mt.json                      # Project configuration
-        ├── vitest.config.ts             # Vitest config
-        └── vendor/                      # Created at runtime — local tarballs
+        ├── mt.json                      # Project configuration (created by mt init)
+        └── vitest.config.ts             # Vitest config
 ```
 
 ## How to run
@@ -24,7 +23,7 @@ cd samples/sample0
 npm run example
 ```
 
-This packs local dependencies, installs them, and runs `mt init sample-project`.
+This runs `mt init sample-project` directly using the workspace-linked dependencies.
 
 ## How to clean up
 
@@ -33,32 +32,24 @@ cd samples/sample0
 npm run cleanup
 ```
 
-This removes the scaffolded `sample-project` directory, `.mt/`, `vendor/`, `package-lock.json`, and `node_modules/`.
+This removes the scaffolded `sample-project` directory, `.mt/`, and `node_modules/`.
 
-## How to run manually (no cleanup)
+## How to run manually
 
 ```bash
 cd samples/sample0
 
-# 1. Pack local dependencies
-pnpm -C ../../packages/core pack --pack-destination ./vendor
-pnpm -C ../../packages/cli pack --pack-destination ./vendor
+# 1. Run mt init
+npx mt init sample-project
 
-# 2. Install them
-npm install --no-audit --no-fund
-
-# 3. Run mt init in a temp directory
-npx mt init sample-project --out /tmp/mt-init-test
-
-# 4. Inspect the output
-ls -la /tmp/mt-init-test/
-cat /tmp/mt-init-test/mt.json
-ls -la /tmp/mt-init-test/.mt/
-cat /tmp/mt-init-test/pipelines/example.ts
+# 2. Inspect the output
+cat mt.json
+ls -la .mt/
+cat pipelines/example.ts
 ```
 
 ## How the test works
 
-The vitest test (`tests/init.test.ts`) automates the steps above:
-packs core and CLI, installs them, runs `mt init`, then asserts that `mt.json`, `.mt/runs/`, `.mt/cache/`, and
-`pipelines/example.ts` all exist with correct content. Cleanup runs automatically in `afterAll`.
+The vitest test (`tests/init.test.ts`) runs `mt init` in the sample directory,
+then asserts that `mt.json`, `.mt/runs/`, `.mt/cache/`, and `pipelines/example.ts`
+all exist with correct content. Cleanup runs automatically in `afterAll`.

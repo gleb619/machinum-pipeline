@@ -78,19 +78,13 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
   })
 
   it('logs route exports default handler', async () => {
-    const content = await readFile(
-      join(__dirname, '../server/routes/api/logs.ts'),
-      'utf-8',
-    )
+    const content = await readFile(join(__dirname, '../server/routes/api/logs.ts'), 'utf-8')
     expect(content).toContain('export default')
     expect(content).toContain('defineEventHandler')
   })
 
   it('pool route exports default handler', async () => {
-    const content = await readFile(
-      join(__dirname, '../server/routes/api/pool.ts'),
-      'utf-8',
-    )
+    const content = await readFile(join(__dirname, '../server/routes/api/pool.ts'), 'utf-8')
     expect(content).toContain('export default')
     expect(content).toContain('defineEventHandler')
   })

@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
 import type { Envelope, ToolContext } from '@mt/core'
+import { type ChapterDoc, readChapterDoc, writeChapterDoc } from './chapter-doc.js'
 import { translateText } from './translate-text.js'
 
 // ---------------------------------------------------------------------------
@@ -33,41 +34,11 @@ export interface ParagraphTranslatorOutput {
 // ---------------------------------------------------------------------------
 
 /**
- * Extract the title from a chapter body.
- * The title is the first H1 heading line, or the first non-empty line
- * if no H1 is found.
- */
-function extractTitle(text: string): { title: string; rest: string } {
-  const lines = text.split('\n')
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] as string
-    const h1 = line.match(/^#\s+(.+)/)
-    if (h1) {
-      const title = h1[1] as string
-      const rest = lines.slice(i + 1).join('\n')
-      return { title, rest }
-    }
-  }
-  // Fallback: first non-empty line
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] as string
-    if (line.trim()) {
-      const rest = lines.slice(i + 1).join('\n')
-      return { title: line, rest }
-    }
-  }
-  return { title: '', rest: text }
-}
-
-/**
  * Split text into paragraphs separated by double-newlines.
  * Preserves the blank-line structure.
  */
 function splitParagraphs(text: string): string[] {
-  // Split on \n\n (one or more blank lines)
   const raw = text.split(/\n{2,}/)
-  // Re-attach the trailing newlines that were consumed by split
-  // We keep paragraphs as-is; reassembly adds back double-newlines
   return raw.filter((p) => p.trim().length > 0)
 }
 
@@ -89,35 +60,88 @@ export const titleTranslator = defineTool<TitleTranslatorInput, TitleTranslatorO
 
     for (const input of inputs) {
       const { text, targetLang, sourceLang } = input
-      const { title, rest } = extractTitle(text)
 
-      if (!title.trim()) {
-        results.push({ text, titleTranslated: false })
-        continue
+      try {
+        const doc = readChapterDoc(text)
+
+        if (!doc.title.trim()) {
+          results.push({ text, titleTranslated: false })
+          continue
+        }
+
+        const translateResult = await translateText.invoke(
+          {
+            item: { text: doc.title, targetLang, sourceLang },
+            meta: env.meta,
+          },
+          ctx,
+        )
+
+        const translatedTitle = translateResult.item.translatedText
+
+        const rebuilt = await writeChapterDoc({ ...doc, title: translatedTitle })
+
+        results.push({ text: rebuilt, titleTranslated: true })
+      } catch {
+        // Fallback to legacy regex-based extraction
+        const lines = text.split('\n')
+        let found = false
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i] as string
+          const h1 = line.match(/^#\s+(.+)/)
+          if (h1) {
+            const title = h1[1] as string
+            const rest = lines.slice(i + 1).join('\n')
+
+            const translateResult = await translateText.invoke(
+              {
+                item: { text: title, targetLang, sourceLang },
+                meta: env.meta,
+              },
+              ctx,
+            )
+
+            const cleanH1 = `# ${translateResult.item.translatedText.trim()}`
+            const rebuilt = `${cleanH1}\n${rest}`
+
+            results.push({ text: rebuilt, titleTranslated: true })
+            found = true
+            break
+          }
+        }
+
+        if (!found) {
+          // Fallback: first non-empty line
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i] as string
+            if (line.trim()) {
+              const rest = lines.slice(i + 1).join('\n')
+
+              const translateResult = await translateText.invoke(
+                {
+                  item: { text: line, targetLang, sourceLang },
+                  meta: env.meta,
+                },
+                ctx,
+              )
+
+              const rebuilt = `${translateResult.item.translatedText.trim()}\n${rest}`
+
+              results.push({ text: rebuilt, titleTranslated: true })
+              found = true
+              break
+            }
+          }
+        }
+
+        if (!found) {
+          results.push({ text, titleTranslated: false })
+        }
       }
-
-      // Reconstruct the H1 line to translate just the title portion
-      const h1Line = `# ${title}`
-
-      const translateResult = await translateText.invoke(
-        {
-          item: { text: h1Line, targetLang, sourceLang },
-          meta: env.meta,
-        },
-        ctx,
-      )
-
-      const translatedH1 = translateResult.item.translatedText
-      // Strip any extra whitespace/newlines the translation may have added
-      const cleanH1 = translatedH1.replace(/^#\s*/, '# ').trim()
-
-      const rebuilt = `${cleanH1}\n${rest}`
-
-      results.push({ text: rebuilt, titleTranslated: true })
     }
 
     const firstResult = results[0]
-    const output = env.items ? results : (firstResult ?? { translatedText: '' })
+    const output = env.items ? results : (firstResult ?? { text: '', titleTranslated: false })
 
     return {
       item: output as TitleTranslatorOutput,
@@ -144,37 +168,60 @@ export const paragraphTranslator = defineTool<ParagraphTranslatorInput, Paragrap
     ctx: ToolContext,
   ): Promise<Envelope<ParagraphTranslatorOutput>> {
     const { text, targetLang, sourceLang } = env.item
-    const paragraphs = splitParagraphs(text)
 
-    if (paragraphs.length === 0) {
-      return {
-        item: { text, paragraphsTranslated: 0 },
-        meta: env.meta,
+    try {
+      const doc = readChapterDoc(text)
+      const translatedBody: ChapterDoc['body'] = []
+
+      for (const paragraph of doc.body) {
+        const paraText = paragraph.lines.join(' ')
+
+        const translateResult = await translateText.invoke(
+          {
+            item: { text: paraText, targetLang, sourceLang },
+            meta: env.meta,
+          },
+          ctx,
+        )
+
+        const lines = translateResult.item.translatedText.split('\n').filter((l) => l.length > 0)
+        translatedBody.push({ lines })
       }
-    }
 
-    const translatedParagraphs: string[] = []
+      const rebuilt = await writeChapterDoc({ ...doc, body: translatedBody })
 
-    for (const para of paragraphs) {
-      const translateResult = await translateText.invoke(
-        {
-          item: { text: para, targetLang, sourceLang },
-          meta: env.meta,
+      return {
+        item: { text: rebuilt, paragraphsTranslated: translatedBody.length },
+        meta: {
+          ...env.meta,
+          paragraphsTranslated: translatedBody.length,
         },
-        ctx,
-      )
-      translatedParagraphs.push(translateResult.item.translatedText)
-    }
+      }
+    } catch {
+      // Fallback to legacy paragraph splitting
+      const paragraphs = splitParagraphs(text)
+      const translatedParagraphs: string[] = []
 
-    // Reassemble with double-newline separators
-    const reassembled = translatedParagraphs.join('\n\n')
+      for (const para of paragraphs) {
+        const translateResult = await translateText.invoke(
+          {
+            item: { text: para, targetLang, sourceLang },
+            meta: env.meta,
+          },
+          ctx,
+        )
+        translatedParagraphs.push(translateResult.item.translatedText)
+      }
 
-    return {
-      item: { text: reassembled, paragraphsTranslated: translatedParagraphs.length },
-      meta: {
-        ...env.meta,
-        paragraphsTranslated: translatedParagraphs.length,
-      },
+      const reassembled = translatedParagraphs.join('\n\n')
+
+      return {
+        item: { text: reassembled, paragraphsTranslated: translatedParagraphs.length },
+        meta: {
+          ...env.meta,
+          paragraphsTranslated: translatedParagraphs.length,
+        },
+      }
     }
   },
 })

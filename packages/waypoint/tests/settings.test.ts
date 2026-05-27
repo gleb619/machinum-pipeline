@@ -1,6 +1,6 @@
+import type { ParsedUri } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import { resolveWaypointPath } from '../src/settings.js'
-import type { ParsedUri } from '@mt/core'
 
 function makeUri(path: string, host = ''): ParsedUri {
   return {

@@ -12,6 +12,16 @@ export {
 } from './schema-doc.js'
 
 export {
+  chatCompletion,
+  runPrompt,
+  type ChatMessage,
+  type ChatCompletionInput,
+  type ChatCompletionOutput,
+  type PromptInput,
+  type PromptOutput,
+} from './openrouter-tool.js'
+
+export {
   translateText,
   type TranslateInput,
   type TranslateOutput,
@@ -19,37 +29,29 @@ export {
 } from './translate-text.js'
 
 export {
-  OpenRouterPool,
-  OpenRouterPoolSupplier,
-  type OpenRouterClient,
-  type OpenRouterPoolConfig,
-} from './openrouter-pool.js'
+  chapterValidator,
+  forbiddenCharDetector,
+  typoFinder,
+  markdownFormatter,
+  type FinderInput,
+  type FinderOutput,
+  type EntityNormalizerInput,
+  type EntityNormalizerOutput,
+  type MarkdownFormatterInput,
+  type MarkdownFormatterOutput,
+} from './chapter-validator.js'
 
-export { chapterValidator } from './chapter-validator.js'
+import type { FinderInput as FI, FinderOutput as FO } from './chapter-validator.js'
+/** @deprecated use FinderInput */
+export type FixerInput = FI
+/** @deprecated use FinderOutput */
+export type FixerOutput = FO
 
 export { wordCounter } from './word-counter.js'
 
 export { chapterIndexer } from './chapter-indexer.js'
 
 export { tokenSplitter } from './token-splitter.js'
-
-export {
-  typoDetector,
-  forbiddenCharDetector,
-  grammarWarnings,
-} from './chapter-warnings.js'
-
-export {
-  typoFixer,
-  entityNormalizer,
-  markdownFormatter,
-  type FixerInput,
-  type FixerOutput,
-  type EntityNormalizerInput,
-  type EntityNormalizerOutput,
-  type MarkdownFormatterInput,
-  type MarkdownFormatterOutput,
-} from './chapter-fixer.js'
 
 export {
   titleTranslator,
@@ -76,4 +78,6 @@ export {
   writeChapterDoc,
   chapterDoc,
   type ChapterDoc,
+  type ChapterDocWarning,
+  type ChapterDocParagraph,
 } from './chapter-doc.js'

@@ -1,6 +1,10 @@
-import { createApp, ref, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
-
-// ── composables ──────────────────────────────────────────────────
+import {
+  computed,
+  createApp,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
 
 function useDashboard() {
   const data = ref(null)
@@ -51,23 +55,23 @@ function useLogs() {
   return { data, error, refresh }
 }
 
-// ── helpers ──────────────────────────────────────────────────────
-
 function fmtCost(v) {
   return v == null ? '—' : `$${Number(v).toFixed(4)}`
 }
 
 function fmtTime(iso) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return new Date(iso).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 function truncate(s, n = 8) {
   if (!s) return '—'
   return s.length > n ? s.slice(0, n) + '…' : s
 }
-
-// ── components ───────────────────────────────────────────────────
 
 const SummaryCard = {
   props: ['label', 'value', 'sub'],
@@ -77,7 +81,7 @@ const SummaryCard = {
       <span class="text-2xl font-bold text-white">{{ value ?? '—' }}</span>
       <span v-if="sub" class="text-slate-500 text-xs">{{ sub }}</span>
     </div>
-  `
+  `,
 }
 
 const BudgetGauge = {
@@ -92,7 +96,9 @@ const BudgetGauge = {
       if (this.pct < 80) return 'bg-amber-400'
       return 'bg-red-500'
     },
-    remaining() { return Math.max(0, (this.limit ?? 0) - (this.used ?? 0)) }
+    remaining() {
+      return Math.max(0, (this.limit ?? 0) - (this.used ?? 0))
+    },
   },
   template: `
     <div class="bg-slate-800 rounded-xl p-4 flex flex-col gap-2">
@@ -105,7 +111,7 @@ const BudgetGauge = {
       </div>
     </div>
   `,
-  methods: { fmtCost }
+  methods: { fmtCost },
 }
 
 const PoolStatus = {
@@ -116,7 +122,7 @@ const PoolStatus = {
       if (this.pool.activeKeys === 0) return 'bg-red-500'
       if (this.pool.rateLimitedKeys > 0 || this.pool.blockedKeys > 0) return 'bg-amber-400'
       return 'bg-emerald-500'
-    }
+    },
   },
   template: `
     <div class="bg-slate-800 rounded-xl p-4 flex items-center gap-4 flex-wrap">
@@ -129,7 +135,7 @@ const PoolStatus = {
       <span class="text-sm text-red-400" v-if="pool?.blockedKeys">{{ pool.blockedKeys }} blocked</span>
       <span class="text-sm text-slate-500">{{ pool?.totalKeys ?? '—' }} total keys</span>
     </div>
-  `
+  `,
 }
 
 const ModelTable = {
@@ -156,7 +162,7 @@ const ModelTable = {
       </table>
     </div>
   `,
-  methods: { fmtCost }
+  methods: { fmtCost },
 }
 
 const LogsTable = {
@@ -193,10 +199,8 @@ const LogsTable = {
       </div>
     </div>
   `,
-  methods: { fmtCost, fmtTime, truncate }
+  methods: { fmtCost, fmtTime, truncate },
 }
-
-// ── root app ─────────────────────────────────────────────────────
 
 const App = {
   components: { SummaryCard, BudgetGauge, PoolStatus, ModelTable, LogsTable },
@@ -261,7 +265,7 @@ const App = {
       <LogsTable :entries="logs.data.value" />
 
     </div>
-  `
+  `,
 }
 
 createApp(App).mount('#app')

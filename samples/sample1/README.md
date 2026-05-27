@@ -17,7 +17,7 @@ samples/sample1/
 ├── simulation1.ts               # Client simulation (reads books/book1 chapter-*.en.md)
 ├── mt.json                      # Project configuration
 ├── jsonl/                       # Created at runtime — holds output.jsonl
-└── vendor/                      # Created at runtime — local tarballs
+└── chapters/                    # Created at runtime — holds .md output
 ```
 
 ## How to run
@@ -27,9 +27,8 @@ cd samples/sample1
 npm run example
 ```
 
-This packs local dependencies, installs them, starts the HTTP-to-JSONL pipeline runner,
-waits for the health endpoint, runs the simulation client that POSTs 3 chapters,
-and waits for the runner to finish.
+This starts the HTTP-to-JSONL pipeline runner, waits for the health endpoint,
+runs the simulation client that POSTs 3 chapters, and waits for the runner to finish.
 
 ## How to clean up
 
@@ -38,29 +37,20 @@ cd samples/sample1
 npm run cleanup
 ```
 
-This removes `jsonl/output.jsonl`, `.mt/`, `vendor/`, `node_modules/`, `package-lock.json`,
+This removes `jsonl/output.jsonl`, `.mt/`, `node_modules/`, `package-lock.json`,
 and any temporary `pipelines/http-to-jsonl-example.ts` created by the example.
 
-## How to run manually (no cleanup)
-
-If you want to run the sample manually and inspect artifacts:
+## How to run manually
 
 ```bash
 cd samples/sample1
 
-# 1. Pack local dependencies
-pnpm -C ../../packages/core pack --pack-destination ./vendor
-pnpm -C ../../packages/cli pack --pack-destination ./vendor
+# 1. Start the pipeline runner in one terminal
+pnpm run runner:http
 
-# 2. Install them
-npm install --no-audit --no-fund
-
-# 3. Start the pipeline runner in one terminal
-pnpm run runner
-
-# 4. In another terminal, send the chapters
+# 2. In another terminal, send the chapters
 pnpm run simulate
 
-# 5. Check the output
+# 3. Check the output
 cat jsonl/output.jsonl
 ```

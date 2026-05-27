@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const BASE_URL = process.env.MT_HTTP_URL || 'http://localhost:9876'
-const TIMEOUT_MS = 5000
+const TIMEOUT_MS = 3000
 
 const BOOK_DIR = join(import.meta.dirname, '..', '..', 'books', 'book1')
 
@@ -49,10 +49,9 @@ async function sendFile(file: string): Promise<boolean> {
     if (response.ok) {
       console.log(`${file} sent successfully (status: ${response.status})`)
       return true
-    } else {
-      console.error(`${file} failed with status: ${response.status}`)
-      return false
     }
+    console.error(`${file} failed with status: ${response.status}`)
+    return false
   } catch (err) {
     if ((err as Error).name === 'AbortError') {
       console.error(`${file} timed out after ${TIMEOUT_MS}ms`)

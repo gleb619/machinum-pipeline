@@ -13,9 +13,12 @@ export async function main(): Promise<void> {
   const command = args[0] ?? ''
 
   switch (command) {
-    case 'init':
-      await initCommand(args.slice(1))
+    case 'init': {
+      const { parseInitArgs } = await import('./utils/args.js')
+      const initOptions = parseInitArgs(args.slice(1))
+      await initCommand(initOptions)
       break
+    }
     case 'run':
       await runCommand(args.slice(1))
       break

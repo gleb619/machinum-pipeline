@@ -22,9 +22,8 @@ samples/sample2/
 ├── jsonl/                           # Created at runtime — holds input.jsonl
 │   └── .gitkeep
 ├── md/                              # Created at runtime — holds output.md
-├── tests/
-│   └── jsonl-to-md-multi.test.ts    # Integration test
-└── vendor/                          # Created at runtime — local tarballs
+└── tests/
+    └── jsonl-to-md-multi.test.ts    # Integration test
 ```
 
 ## Pipeline flow
@@ -62,8 +61,7 @@ cd samples/sample2
 npm run example
 ```
 
-This packs local dependencies, installs them, prepares the JSONL input from `books/book1`,
-and runs the multi-tool pipeline.
+This prepares the JSONL input from `books/book1` and runs the multi-tool pipeline.
 
 ## How to clean up
 
@@ -73,27 +71,20 @@ npm run cleanup
 ```
 
 This removes `md/output.md`, `chapters/schema/*.schema.md`, `jsonl/input.jsonl`,
-`.mt/`, `vendor/`, `node_modules/`, and `package-lock.json`.
+`.mt/`, `node_modules/`, and `package-lock.json`.
 
 ## How to run manually
 
 ```bash
 cd samples/sample2
 
-# 1. Pack local dependencies
-pnpm -C ../../packages/core pack --pack-destination ./vendor
-pnpm -C ../../packages/cli pack --pack-destination ./vendor
-
-# 2. Install them
-npm install --no-audit --no-fund
-
-# 3. Prepare the JSONL input from books/book1
+# 1. Prepare the JSONL input from books/book1
 pnpm run prepare-input
 
-# 4. Run the pipeline
+# 2. Run the pipeline
 pnpm run runner
 
-# 5. Check the output
+# 3. Check the output
 cat md/output.md
 ```
 
@@ -101,11 +92,9 @@ cat md/output.md
 
 The vitest test (`tests/jsonl-to-md-multi.test.ts`):
 
-1. Creates a temporary directory with the pipeline definition, mt.json, and test data.
-2. Packs and installs `@mt/core` and `@mt/cli` from the monorepo.
-3. Writes a JSONL input file with 3 test chapters (simulating the prepare-input step).
-4. Runs the pipeline via `mt run ./pipelines/jsonl-to-md-multi.ts`.
-5. Verifies the output Markdown file contains all 3 chapter titles in the correct order.
+1. Writes a JSONL input file with 3 test chapters (simulating the prepare-input step).
+2. Runs the pipeline via `mt run ./pipelines/jsonl-to-md-multi.ts`.
+3. Verifies the output Markdown file contains all 3 chapter titles in the correct order.
 
 ## Tools
 

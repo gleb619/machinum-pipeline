@@ -1,6 +1,97 @@
 import { defineTool } from '@mt/core'
 import type { Envelope, ToolContext } from '@mt/core'
-import matter from 'gray-matter'
+import { spellCheckDocument } from 'cspell-lib'
+import { remark } from 'remark'
+import remarkGfm from 'remark-gfm'
+import { type ChapterDoc, readChapterDoc } from './chapter-doc.js'
+
+export interface ChapterDocWarning {
+  id: string
+  text: string
+}
+
+export interface FinderInput {
+  text: string
+}
+
+export interface FinderOutput {
+  text: string
+  issues: ChapterDocWarning[]
+}
+
+export interface EntityNormalizerInput {
+  text: string
+}
+
+export interface EntityNormalizerOutput {
+  text: string
+  replacements: number
+}
+
+export interface MarkdownFormatterInput {
+  text: string
+}
+
+export interface MarkdownFormatterOutput {
+  text: string
+  fixes: number
+}
+
+// ---------------------------------------------------------------------------
+// Tool 1: Forbidden Char Detector
+// ---------------------------------------------------------------------------
+
+interface ForbiddenEntry {
+  char: string
+  codePoint: number
+  pos: number
+  line: number
+}
+
+const ZERO_WIDTH_RANGES: [number, number][] = [
+  [0x200b, 0x200d],
+  [0xfeff, 0xfeff],
+]
+
+function isZeroWidth(codePoint: number): boolean {
+  return ZERO_WIDTH_RANGES.some(([lo, hi]) => codePoint >= lo && codePoint <= hi)
+}
+
+function isForbiddenControl(codePoint: number): boolean {
+  return codePoint <= 0x1f && codePoint !== 0x09 && codePoint !== 0x0a && codePoint !== 0x0d
+}
+
+export const forbiddenCharDetector = defineTool<string, string>({
+  name: 'forbidden-char-detector',
+  version: '1.0.0',
+  exec: 'inproc',
+  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
+    const text = env.item
+    const lines = text.split('\n')
+    const forbidden: ForbiddenEntry[] = []
+    let globalPos = 0
+
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx] as string
+      for (let col = 0; col < line.length; col++) {
+        const char = line[col] as string
+        const codePoint = char.codePointAt(0)
+        if (codePoint === undefined) continue
+
+        if (isZeroWidth(codePoint) || isForbiddenControl(codePoint)) {
+          forbidden.push({ char, codePoint, pos: globalPos + col, line: lineIdx + 1 })
+        }
+      }
+      globalPos += line.length + 1
+    }
+
+    return { item: env.item, meta: { ...env.meta, forbidden } }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Tool 2: Chapter Validator
+// ---------------------------------------------------------------------------
 
 /**
  * Check 1: At least one H1 heading (line starting with "# ").
@@ -13,26 +104,7 @@ function checkH1(text: string): string | null {
 }
 
 /**
- * Check 2: Frontmatter is valid if present.
- * gray-matter throws on malformed YAML in strict mode; we catch and report.
- */
-function checkFrontmatter(text: string): string | null {
-  // Only validate if frontmatter delimiters are present
-  if (!text.startsWith('---')) return null
-  try {
-    // gray-matter is lenient by default but can throw on unclosed delimiters
-    const parsed = matter(text)
-    // If data is empty but delimiters existed, that's fine (empty frontmatter)
-    void parsed
-    return null
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return `Invalid frontmatter: ${msg}`
-  }
-}
-
-/**
- * Check 3: No heading level skips.
+ * Check 2: No heading level skips.
  * Each heading can increase depth by at most 1 level.
  */
 function checkHeadingSkips(text: string): string[] {
@@ -42,7 +114,6 @@ function checkHeadingSkips(text: string): string[] {
   let prevLevel = 0
 
   for (const line of lines) {
-    // Track fenced code blocks
     if (/^```/.test(line)) {
       inCodeBlock = !inCodeBlock
       continue
@@ -66,33 +137,12 @@ function checkHeadingSkips(text: string): string[] {
 }
 
 /**
- * Check 4: Fenced code blocks should have a language tag.
+ * Check 3: Fenced code blocks should have a language tag.
  */
 function checkCodeBlockLanguages(text: string): string[] {
   const errors: string[] = []
   const lines = text.split('\n')
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i] as string
-    const match = line.match(/^```(\s*)$/)
-    // Match opening fence with NO language (just backticks + optional trailing whitespace)
-    if (match) {
-      // This could be a closing fence. Check if we're inside a block.
-      // We'll track open/close properly.
-      continue
-    }
-    // Match opening fence: ```lang  (non-empty language)
-    const langMatch = line.match(/^```(\S+)/)
-    if (langMatch) continue // has language, good
-
-    // Line starts with ``` but no non-whitespace language
-    const bareFence = line.match(/^```(\s*)$/)
-    if (bareFence) {
-      // This could be opening OR closing. We'll do a proper block-tracking pass.
-    }
-  }
-
-  // Better approach: parse blocks tracking state
   let inBlock = false
   let blockStartLine = 0
 
@@ -102,15 +152,13 @@ function checkCodeBlockLanguages(text: string): string[] {
 
     if (fenceMatch) {
       if (!inBlock) {
-        // Opening fence
         inBlock = true
-        blockStartLine = i + 1 // 1-indexed
+        blockStartLine = i + 1
         const lang = (fenceMatch[1] as string).trim()
         if (!lang) {
           errors.push(`Code block at line ${blockStartLine} is missing a language tag`)
         }
       } else {
-        // Closing fence
         inBlock = false
       }
     }
@@ -124,14 +172,13 @@ function checkCodeBlockLanguages(text: string): string[] {
 }
 
 /**
- * Check 5: No broken markdown link references.
+ * Check 4: No broken markdown link references.
  * - [text][]  (empty reference — always broken)
  * - [text][ref] where [ref] is never defined with [ref]: url
  */
 function checkBrokenLinks(text: string): string[] {
   const errors: string[] = []
 
-  // Find [text][] patterns — empty reference
   const emptyRefPattern = /\[([^\]]+)\]\[\]/g
   let match = emptyRefPattern.exec(text)
   while (match !== null) {
@@ -139,20 +186,15 @@ function checkBrokenLinks(text: string): string[] {
     match = emptyRefPattern.exec(text)
   }
 
-  // Find [text][ref] patterns and compare against [ref]: definitions
   const refLinkPattern = /\[([^\]]+)\]\[([^\]]+)\]/g
   const refLinks: Array<{ text: string; ref: string }> = []
   while ((match = refLinkPattern.exec(text)) !== null) {
     const ref = match[2] as string
-    // Skip if it looks like an inline link [text](url) — those start with [
-    // but our pattern catches [text][ref]. However, [text][] was already caught.
-    // Also skip [text][!ref] or weird patterns
     if (ref && !ref.startsWith('!')) {
       refLinks.push({ text: match[1] as string, ref })
     }
   }
 
-  // Find all [ref]: url definitions
   const defPattern = /^\[([^\]]+)\]:\s*\S/gm
   const definedRefs = new Set<string>()
   while ((match = defPattern.exec(text)) !== null) {
@@ -178,21 +220,18 @@ export const chapterValidator = defineTool<string, string>({
     const text = env.item
     const errors: string[] = []
 
-    // Check 1: H1 present
+    try {
+      readChapterDoc(text)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      errors.push(msg)
+    }
+
     const h1Error = checkH1(text)
     if (h1Error) errors.push(h1Error)
 
-    // Check 2: Frontmatter validity
-    const fmError = checkFrontmatter(text)
-    if (fmError) errors.push(fmError)
-
-    // Check 3: Heading level skips
     errors.push(...checkHeadingSkips(text))
-
-    // Check 4: Code block language tags
     errors.push(...checkCodeBlockLanguages(text))
-
-    // Check 5: Broken link references
     errors.push(...checkBrokenLinks(text))
 
     return {
@@ -205,3 +244,129 @@ export const chapterValidator = defineTool<string, string>({
     }
   },
 })
+
+// ---------------------------------------------------------------------------
+// Tool 3: Typo Finder
+// ---------------------------------------------------------------------------
+
+export const typoFinder = defineTool<FinderInput, FinderOutput>({
+  name: 'typo-finder',
+  version: '2.0.0',
+  exec: 'inproc',
+
+  async invoke(env: Envelope<FinderInput>, _ctx: ToolContext): Promise<Envelope<FinderOutput>> {
+    const { text } = env.item
+
+    const document = {
+      uri: 'input.txt',
+      text,
+      languageId: 'plaintext',
+      locale: 'en',
+    }
+    const options = { generateSuggestions: true }
+    const settings = { suggestionsTimeout: 2000 }
+
+    const checkResult = await spellCheckDocument(document, options, settings)
+
+    const issues: ChapterDocWarning[] = []
+
+    for (const issue of checkResult.issues) {
+      if (
+        issue.issueType === 0 /* IssueType.spelling */ &&
+        issue.suggestions?.length &&
+        issue.text
+      ) {
+        const wrong = issue.text
+        const correct = issue.suggestions[0]
+        if (!correct) continue
+        const context = (issue as unknown as { context?: { startLine: number; startCol: number } })
+          .context
+        issues.push({
+          id: `typo-${context?.startLine ?? 0}-${context?.startCol ?? 0}`,
+          text: `Typo on line ${context?.startLine ?? '?'}: \`${wrong}\` → \`${correct}\``,
+        })
+      }
+    }
+
+    const existingWarnings = (env.meta?.warnings as ChapterDocWarning[] | undefined) ?? []
+    const allWarnings: ChapterDocWarning[] = [...existingWarnings, ...issues]
+
+    return {
+      item: { text, issues },
+      meta: {
+        ...env.meta,
+        typoWarned: true,
+        warnings: allWarnings,
+      },
+    }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Tool 4: Markdown Formatter
+// ---------------------------------------------------------------------------
+
+export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownFormatterOutput>({
+  name: 'markdown-formatter',
+  version: '1.0.0',
+  exec: 'inproc',
+
+  async invoke(
+    env: Envelope<MarkdownFormatterInput>,
+    _ctx: ToolContext,
+  ): Promise<Envelope<MarkdownFormatterOutput>> {
+    const { text } = env.item
+    let fixes = 0
+
+    const listMatches = text.match(/^(\s*)[*+]\s/gm)
+    const listFixCount = listMatches ? listMatches.length : 0
+
+    let tabFixCount = 0
+    const lines = text.split('\n')
+    let inFence = false
+    for (const line of lines) {
+      if (/^```/.test(line)) {
+        inFence = !inFence
+        continue
+      }
+      if (!inFence && line.includes('\t')) {
+        tabFixCount++
+      }
+    }
+
+    let fenceFixCount = 0
+    for (let i = 0; i < lines.length; i++) {
+      if (/^```/.test(lines[i] ?? '')) {
+        if (i > 0 && lines[i - 1]?.trim() !== '') {
+          fenceFixCount++
+        }
+        if (i < lines.length - 1 && lines[i + 1]?.trim() !== '' && !/^```/.test(lines[i + 1]!)) {
+          fenceFixCount++
+        }
+      }
+    }
+
+    const processor = remark().use(remarkGfm)
+    const result = await processor.process(text)
+    const formatted = String(result)
+
+    fixes = listFixCount + tabFixCount + fenceFixCount
+
+    return {
+      item: { text: formatted, fixes },
+      meta: {
+        ...env.meta,
+        formatted: true,
+        fixes,
+      },
+    }
+  },
+})
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}

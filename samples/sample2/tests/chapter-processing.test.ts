@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  entityNormalizer,
   markdownFormatter,
   typoFixer,
 } from '../../../packages/tools/src/chapter-fixer.js'
@@ -11,11 +10,7 @@ import {
 } from '../../../packages/tools/src/chapter-translator.js'
 // Import tools directly from source (sample2 has no workspace resolution for @mt/tools)
 import { chapterValidator } from '../../../packages/tools/src/chapter-validator.js'
-import {
-  forbiddenCharDetector,
-  grammarWarnings,
-  typoDetector,
-} from '../../../packages/tools/src/chapter-warnings.js'
+import { forbiddenCharDetector } from '../../../packages/tools/src/chapter-validator.js'
 import { tokenSplitter } from '../../../packages/tools/src/token-splitter.js'
 
 const sampleChapter = `---
@@ -48,18 +43,6 @@ const longChapter = Array(500)
     'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.\n\n',
   )
   .join('')
-
-const chapterWithTypos = `# Chapter One
-
-Sir Aldric recieved the message late in the evening.
-He definately needed to respond quickly.
-The goverment officials were waiting for his reply.
-It was a seperate incident.
-
-## The Meeting
-
-The the plan was simple and straightforward.
-`
 
 describe('chapterValidator', () => {
   it('validates a well-formed chapter', async () => {
@@ -104,15 +87,6 @@ describe('tokenSplitter', () => {
   })
 })
 
-describe('typoDetector', () => {
-  it('detects common misspellings', async () => {
-    const ctx = { run: { global: {} } } as any
-    const result = await typoDetector.invoke({ item: chapterWithTypos, meta: {} }, ctx)
-    expect(result.meta.typos).toBeDefined()
-    expect(result.meta.typos.length).toBeGreaterThan(0)
-  })
-})
-
 describe('forbiddenCharDetector', () => {
   it('passes clean text', async () => {
     const ctx = { run: { global: {} } } as any
@@ -129,16 +103,6 @@ describe('forbiddenCharDetector', () => {
   })
 })
 
-describe('grammarWarnings', () => {
-  it('detects repeated words', async () => {
-    const ctx = { run: { global: {} } } as any
-    const text = 'This is a test of the the system.'
-    const result = await grammarWarnings.invoke({ item: text, meta: {} }, ctx)
-    expect(result.meta.grammarIssues).toBeDefined()
-    expect(result.meta.grammarIssues.some((i: any) => i.type === 'repeated-word')).toBe(true)
-  })
-})
-
 describe('typoFixer', () => {
   it('fixes common typos', async () => {
     const ctx = { run: { global: {} } } as any
@@ -147,17 +111,6 @@ describe('typoFixer', () => {
       ctx,
     )
     expect(result.item.text.toLowerCase()).not.toContain('recieve')
-  })
-})
-
-describe('entityNormalizer', () => {
-  it('normalizes entity names', async () => {
-    const ctx = { run: { global: {} } } as any
-    const result = await entityNormalizer.invoke(
-      { item: { text: 'Jon went to the store.' }, meta: { entityMap: { Jon: 'John' } } },
-      ctx,
-    )
-    expect(result.item.text).toContain('John')
   })
 })
 
