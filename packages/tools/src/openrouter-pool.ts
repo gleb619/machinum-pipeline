@@ -93,6 +93,24 @@ export class OpenRouterPool {
     return this.clients.length
   }
 
+  /** Breakdown of client states */
+  statusCounts(): { total: number; available: number; rateLimited: number; disabled: number } {
+    const now = Date.now()
+    let available = 0
+    let rateLimited = 0
+    let disabled = 0
+    for (const c of this.clients) {
+      if (c.disabled) {
+        disabled++
+      } else if (c.blockedUntil && c.blockedUntil > now) {
+        rateLimited++
+      } else {
+        available++
+      }
+    }
+    return { total: this.clients.length, available, rateLimited, disabled }
+  }
+
   /** Whether the pool has exceeded its TTL */
   isExpired(): boolean {
     return Date.now() - this.createdAt > this.poolTtlMs

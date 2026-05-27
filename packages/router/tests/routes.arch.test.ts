@@ -47,16 +47,17 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
       'utf-8',
     )
     expect(content).toContain('export default')
-    expect(content).toContain('OPENROUTER_API_KEY')
-    expect(content).toContain('openrouter.ai')
+    expect(content).toContain('poolSupplier')
+    expect(content).toContain('client.apiKey')
   })
 
-  it('router proxies to OpenRouter', async () => {
+  it('router proxies to OpenRouter via pool', async () => {
     const content = await readFile(
       join(__dirname, '../server/routes/api/chat/completions.ts'),
       'utf-8',
     )
-    expect(content).toContain("fetch('https://openrouter.ai/api/v1/chat/completions")
+    expect(content).toContain('chat/completions')
+    expect(content).toContain('client.apiUrl')
   })
 
   it('router uses h3 imports', async () => {
@@ -65,6 +66,32 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
       'utf-8',
     )
     expect(content).toContain("from 'h3'")
+    expect(content).toContain('defineEventHandler')
+  })
+
+  it('logs route exists', async () => {
+    expect(await fileExists('../server/routes/api/logs.ts')).toBe(true)
+  })
+
+  it('pool route exists', async () => {
+    expect(await fileExists('../server/routes/api/pool.ts')).toBe(true)
+  })
+
+  it('logs route exports default handler', async () => {
+    const content = await readFile(
+      join(__dirname, '../server/routes/api/logs.ts'),
+      'utf-8',
+    )
+    expect(content).toContain('export default')
+    expect(content).toContain('defineEventHandler')
+  })
+
+  it('pool route exports default handler', async () => {
+    const content = await readFile(
+      join(__dirname, '../server/routes/api/pool.ts'),
+      'utf-8',
+    )
+    expect(content).toContain('export default')
     expect(content).toContain('defineEventHandler')
   })
 })
