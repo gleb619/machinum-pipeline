@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import { Store } from '../../src/store.js'
-import type { GlobalContext, Pipeline } from '../../src/types.js'
+import type { Pipeline } from '../../src/types.js'
 
 vi.mock('../../src/store.js', () => ({
   Store: class {
@@ -15,9 +16,14 @@ describe('runner', () => {
   it('should initialize and start', async () => {
     const pipeline: Pipeline = { id: 'p1', steps: [] }
     const globalContext: GlobalContext = {
-      project: { root: '/tmp' },
-      engine: { retry: 0, backoff: 0, concurrency: 1 },
-      paths: { cache: '/tmp/.mt/cache', runs: '/tmp/.mt/runs' },
+      project: { name: 'test', root: '/tmp' },
+      defaults: {
+        retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+        onError: 'fail-run',
+        concurrency: 1,
+      },
+      settings: {},
+      env: {},
     }
 
     const runner = new Runner(pipeline, globalContext)

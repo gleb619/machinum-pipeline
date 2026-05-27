@@ -95,7 +95,7 @@ describe('jsonl-to-md pipeline', () => {
   it('output.md contains stringified chapter data', async () => {
     for (let i = 0; i < CHAPTERS.length; i++) {
       const content = await readFile(join(workDir, 'chapters', 'en', `chapter${i + 1}.md`), 'utf-8')
-      expect(content).toContain(CHAPTERS[i].title)
+      expect(content.split(`# ${CHAPTERS[i].title}`).length).toBe(2)
       expect(content).toContain(CHAPTERS[i].body)
       expect(content).toContain('---')
     }

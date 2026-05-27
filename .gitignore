@@ -63,6 +63,8 @@ build
 /samples/sample1/package-lock.json
 /samples/sample1/runner.log
 /samples/sample1/mt-run.log
+/samples/sample1/jsonl/output.jsonl
+/samples/sample1/chapters/en/*.md
 /samples/sample2/vendor/
 /samples/sample2/package-lock.json
 /samples/sample2/runner.log

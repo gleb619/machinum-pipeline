@@ -8,6 +8,7 @@ import { registry } from '@mt/core'
 import matter from 'gray-matter'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
+import { resolveWaypointPath } from './settings.js'
 
 export interface SchemaDocMetadata {
   chapter: number
@@ -33,13 +34,13 @@ export interface SchemaDocEnvelope {
  * Content is assembled from meta fields (title from item, summary/entities/schema from meta).
  */
 export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
-  const baseDir = uri.path || uri.host
-  mkdirSync(baseDir, { recursive: true })
+  let baseDir = ''
 
   return {
     uri: uri.raw,
-    async open(_ctx: TargetContext): Promise<void> {
-      // Directory already created in constructor
+    async open(ctx: TargetContext): Promise<void> {
+      baseDir = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
+      mkdirSync(baseDir, { recursive: true })
     },
     async write(env: Envelope<string>, _ctx: TargetContext): Promise<void> {
       const meta = (env.meta || {}) as Record<string, unknown>
@@ -132,20 +133,20 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
  * its parsed content.
  */
 export function createSchemaDocSource(uri: ParsedUri): Source<SchemaDocEnvelope> {
-  const filePath = uri.path || uri.host
-
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(_ctx: SourceContext): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+    async *start(ctx: SourceContext): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+      const filePath = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
       const text = await readFile(filePath, 'utf-8')
       const doc = parseSchemaDoc(text)
       yield { item: doc, meta: {} }
     },
     async *resume(
-      _ctx: SourceContext,
+      ctx: SourceContext,
       _cursor: unknown,
     ): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+      const filePath = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
       const text = await readFile(filePath, 'utf-8')
       const doc = parseSchemaDoc(text)
       yield { item: doc, meta: {} }

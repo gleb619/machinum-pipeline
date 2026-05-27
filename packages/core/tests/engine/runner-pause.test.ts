@@ -24,6 +24,7 @@ describe('Runner Pause', () => {
         onError: 'fail-run',
         concurrency: 1,
       },
+      settings: {},
       env: {},
     }
 

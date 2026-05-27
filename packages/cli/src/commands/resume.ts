@@ -71,6 +71,7 @@ async function buildGlobalContext(projectRoot: string): Promise<GlobalContext> {
     const project = config.project as Record<string, unknown> | undefined
     const defaults = config.defaults as Record<string, unknown> | undefined
     const retryDef = defaults?.retry as Record<string, unknown> | undefined
+    const settings = (config.settings as Record<string, unknown>) ?? {}
 
     return {
       project: {
@@ -86,6 +87,7 @@ async function buildGlobalContext(projectRoot: string): Promise<GlobalContext> {
         onError: (defaults?.onError as 'fail-run' | 'skip-item' | 'dead-letter') ?? 'fail-run',
         concurrency: (defaults?.concurrency as number) ?? 4,
       },
+      settings,
       env: {},
     }
   } catch {
@@ -99,6 +101,7 @@ async function buildGlobalContext(projectRoot: string): Promise<GlobalContext> {
         onError: 'fail-run',
         concurrency: 4,
       },
+      settings: {},
       env: {},
     }
   }

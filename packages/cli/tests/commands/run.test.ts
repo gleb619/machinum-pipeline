@@ -95,6 +95,39 @@ describe('run command', () => {
       expect.objectContaining({
         project: expect.objectContaining({ name: 'custom-project' }),
         defaults: expect.objectContaining({ concurrency: 10 }),
+        settings: {},
+      }),
+    )
+  })
+
+  it('passes settings from mt.json to global context', async () => {
+    const pipelinePath = join(testDir, 'pipeline.ts')
+    await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    vi.doMock(pipelinePath, () => ({
+      default: { id: 'test-pipeline' },
+    }))
+
+    const mtJsonPath = join(testDir, 'mt.json')
+    await writeFile(
+      mtJsonPath,
+      JSON.stringify({
+        project: { name: 'custom-project' },
+        settings: {
+          'waypoint.jsonl.defaultFolder': './custom/jsonl',
+          'tool.translator.model': 'gpt-4',
+        },
+      }),
+    )
+
+    await runCommand(['pipeline.ts'])
+
+    expect(Runner).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        settings: {
+          'waypoint.jsonl.defaultFolder': './custom/jsonl',
+          'tool.translator.model': 'gpt-4',
+        },
       }),
     )
   })

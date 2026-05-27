@@ -122,7 +122,9 @@ describe('writeChapterDoc', () => {
     const doc = createFullChapter()
     const md = writeChapterDoc(doc)
 
-    const paragraphs = md.split(/\n\n/).filter((b) => b.trim().startsWith('Sir') || b.trim().startsWith('The road'))
+    const paragraphs = md
+      .split(/\n\n/)
+      .filter((b) => b.trim().startsWith('Sir') || b.trim().startsWith('The road'))
     expect(paragraphs).toHaveLength(2)
   })
 })
@@ -152,10 +154,7 @@ describe('readChapterDoc', () => {
     expect(parsed.number).toBe(1)
     expect(parsed.series).toBeUndefined()
     expect(parsed.warnings).toEqual([])
-    expect(parsed.body).toEqual([
-      { lines: ['First paragraph.'] },
-      { lines: ['Second paragraph.'] },
-    ])
+    expect(parsed.body).toEqual([{ lines: ['First paragraph.'] }, { lines: ['Second paragraph.'] }])
   })
 
   it('reads warnings from frontmatter', () => {
@@ -177,7 +176,8 @@ describe('readChapterDoc', () => {
   })
 
   it('handles paragraphs without hard breaks', () => {
-    const md = '# Title\n\nThis is one long paragraph that spans multiple words without any hard line breaks.\n\nSecond paragraph here.'
+    const md =
+      '# Title\n\nThis is one long paragraph that spans multiple words without any hard line breaks.\n\nSecond paragraph here.'
     const parsed = readChapterDoc(md)
 
     expect(parsed.body).toHaveLength(2)
@@ -250,11 +250,11 @@ function simulateFormatterPreserve(md: string): string {
 }
 
 function simulateFormatterAlways(md: string): string {
-  return md.replace(/  \n/g, ' ')
+  return md.replace(/ {2}\n/g, ' ')
 }
 
 function simulateFormatterRewrapAt80(md: string): string {
-  let result = md.replace(/  \n/g, ' ')
+  const result = md.replace(/ {2}\n/g, ' ')
   const lines = result.split('\n')
   const out: string[] = []
   for (const line of lines) {
@@ -262,7 +262,14 @@ function simulateFormatterRewrapAt80(md: string): string {
       out.push(line)
       continue
     }
-    if (line.startsWith('#') || line.startsWith('---') || line.startsWith('number:') || line.startsWith('series:') || line.startsWith('warnings:') || line.startsWith('  -')) {
+    if (
+      line.startsWith('#') ||
+      line.startsWith('---') ||
+      line.startsWith('number:') ||
+      line.startsWith('series:') ||
+      line.startsWith('warnings:') ||
+      line.startsWith('  -')
+    ) {
       out.push(line)
       continue
     }
@@ -340,7 +347,13 @@ describe('md-formatter compatibility', () => {
       body: [
         { lines: ['First line of first paragraph.', 'Second line of first paragraph.'] },
         { lines: ['Only line of second paragraph.'] },
-        { lines: ['Third paragraph line one.', 'Third paragraph line two.', 'Third paragraph line three.'] },
+        {
+          lines: [
+            'Third paragraph line one.',
+            'Third paragraph line two.',
+            'Third paragraph line three.',
+          ],
+        },
       ],
     }
 
@@ -499,6 +512,17 @@ describe('chapterDoc tool', () => {
       filename: 'chapter3.md',
       content: result.item,
     })
+  })
+
+  it('does not duplicate h1 title when string body starts with "# Title"', async () => {
+    const env = {
+      item: { title: 'Test Title', body: '# Test Title\n\nBody text here.' },
+      meta: { chapterNum: 1 },
+    }
+
+    const result = await chapterDoc.invoke(env, {} as ToolContext)
+    const matches = result.item.match(/^# Test Title$/gm)
+    expect(matches).toHaveLength(1)
   })
 
   it('splits string body by blank lines into paragraphs', async () => {

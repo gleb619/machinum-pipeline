@@ -112,6 +112,7 @@ const globalContext: GlobalContext = {
     onError: 'fail-run' as const,
     concurrency: 1,
   },
+  settings: {},
   env: {},
 }
 

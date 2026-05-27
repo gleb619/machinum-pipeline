@@ -1,4 +1,5 @@
 import type { Book } from './domain.js'
+import type { Settings } from './settings.js'
 import type { Logger } from './types.js'
 
 /**
@@ -15,6 +16,7 @@ export interface GlobalContext {
     onError: ErrorPolicy
     concurrency: number
   }
+  settings: Settings
   routerUrl?: string
   env: Record<string, string>
 }

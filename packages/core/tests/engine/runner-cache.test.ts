@@ -44,6 +44,8 @@ describe('runner caching', () => {
         onError: 'fail-run',
         concurrency: 1,
       },
+      settings: {},
+      env: {},
     }
 
     const runner1 = new Runner(pipeline, globalContext)

@@ -41,6 +41,8 @@ describe('Runner Retry Integration', () => {
         onError: 'fail-run',
         concurrency: 1,
       },
+      settings: {},
+      env: {},
     }
 
     const runner = new Runner(pipeline, globalContext)

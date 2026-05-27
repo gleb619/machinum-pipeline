@@ -31,8 +31,9 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
+    const ctx = { run: { global: { settings: {} } } } as any
     const results = []
-    for await (const env of source.start({} as any)) {
+    for await (const env of source.start(ctx)) {
       results.push(env)
     }
 
@@ -52,8 +53,9 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
+    const ctx = { run: { global: { settings: {} } } } as any
     const results = []
-    for await (const env of source.resume!({} as any, 0)) {
+    for await (const env of source.resume!(ctx, 0)) {
       results.push(env)
     }
 
@@ -76,8 +78,9 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
+    const ctx = { run: { global: { settings: {} } } } as any
     const results = []
-    for await (const env of source.start({} as any)) {
+    for await (const env of source.start(ctx)) {
       results.push(env)
     }
 
@@ -115,10 +118,11 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    await target.open({} as any)
-    await target.write({ item: '# Line 1', meta: {} }, {} as any)
-    await target.write({ item: '# Line 2', meta: {} }, {} as any)
-    await target.close({} as any)
+    const ctx = { run: { global: { settings: {} } } } as any
+    await target.open(ctx)
+    await target.write({ item: '# Line 1', meta: {} }, ctx)
+    await target.write({ item: '# Line 2', meta: {} }, ctx)
+    await target.close(ctx)
 
     const content = readFileSync(filePath, 'utf-8')
     expect(content).toBe('# Line 1\n# Line 2\n')
@@ -133,7 +137,8 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    await expect(target.write({ item: 'x', meta: {} }, {} as any)).rejects.toThrow(
+    const ctx = { run: { global: { settings: {} } } } as any
+    await expect(target.write({ item: 'x', meta: {} }, ctx)).rejects.toThrow(
       'Target not opened. Call open() before write().',
     )
   })
@@ -148,10 +153,11 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    await target.open({} as any)
-    await target.write({ item: '# Chapter 1', meta: {} }, {} as any)
-    await target.write({ item: '# Chapter 2', meta: {} }, {} as any)
-    await target.close({} as any)
+    const ctx = { run: { global: { settings: {} } } } as any
+    await target.open(ctx)
+    await target.write({ item: '# Chapter 1', meta: {} }, ctx)
+    await target.write({ item: '# Chapter 2', meta: {} }, ctx)
+    await target.close(ctx)
 
     expect(readFileSync(join(dir, 'chapter1.md'), 'utf-8')).toBe('# Chapter 1')
     expect(readFileSync(join(dir, 'chapter2.md'), 'utf-8')).toBe('# Chapter 2')
@@ -167,10 +173,11 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    await target.open({} as any)
-    await target.write({ item: '# First', meta: { chapterNum: 5 } }, {} as any)
-    await target.write({ item: '# Second', meta: { chapter: 10 } }, {} as any)
-    await target.close({} as any)
+    const ctx = { run: { global: { settings: {} } } } as any
+    await target.open(ctx)
+    await target.write({ item: '# First', meta: { chapterNum: 5 } }, ctx)
+    await target.write({ item: '# Second', meta: { chapter: 10 } }, ctx)
+    await target.close(ctx)
 
     expect(readFileSync(join(dir, 'chapter5.md'), 'utf-8')).toBe('# First')
     expect(readFileSync(join(dir, 'chapter10.md'), 'utf-8')).toBe('# Second')
@@ -187,7 +194,8 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    await target.open({} as any)
+    const ctx = { run: { global: { settings: {} } } } as any
+    await target.open(ctx)
     await target.write(
       {
         item: 'should be ignored',
@@ -198,9 +206,9 @@ describe('md target', () => {
           ],
         },
       },
-      {} as any,
+      ctx,
     )
-    await target.close({} as any)
+    await target.close(ctx)
 
     expect(readFileSync(join(targetDir, 'intro.md'), 'utf-8')).toBe('# Custom Intro')
     expect(readFileSync(join(targetDir, 'outro.md'), 'utf-8')).toBe('# Custom Outro')

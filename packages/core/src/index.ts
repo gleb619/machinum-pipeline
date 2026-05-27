@@ -13,6 +13,8 @@ export type {
   ErrorPolicy,
   RetryStrategy,
 } from './contexts.js'
+export type { Settings } from './settings.js'
+export { getSetting } from './settings.js'
 export type {
   Source,
   Tool,

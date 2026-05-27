@@ -39,6 +39,8 @@ describe('Runner Concurrency', () => {
         onError: 'fail-run',
         concurrency: 4,
       },
+      settings: {},
+      env: {},
     }
 
     const runner = new Runner(pipeline, globalContext)

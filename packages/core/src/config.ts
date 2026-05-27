@@ -1,3 +1,5 @@
+import type { Settings } from './settings.js'
+
 /**
  * mt.json project configuration shape.
  */
@@ -31,6 +33,7 @@ export interface MtConfig {
     onError?: 'fail-run' | 'skip-item' | 'dead-letter'
     concurrency?: number
   }
+  settings?: Settings
   pipelines?: string[]
 }
 

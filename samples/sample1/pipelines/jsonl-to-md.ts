@@ -3,6 +3,6 @@ import { chapterDoc } from '@mt/tools'
 import '@mt/waypoint'
 
 export default definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
+  .from('jsonl://./jsonl/*.jsonl')
   .use(chapterDoc)
   .to('md://./chapters/en')

@@ -5,6 +5,7 @@ import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { registry } from '@mt/core'
+import { resolveWaypointPath } from './settings.js'
 
 async function discoverMarkdownFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true })
@@ -21,12 +22,11 @@ async function discoverMarkdownFiles(dir: string): Promise<string[]> {
 }
 
 export function createMdSource<T>(uri: ParsedUri): Source<T> {
-  const filePath = uri.path || uri.host
-
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(_ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+      const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
       const stats = await stat(filePath)
       if (stats.isFile()) {
         const content = await readFile(filePath, 'utf-8')
@@ -39,7 +39,8 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
         }
       }
     },
-    async *resume(_ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
+      const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
       const stats = await stat(filePath)
       if (stats.isFile()) {
         const content = await readFile(filePath, 'utf-8')
@@ -56,20 +57,25 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
 }
 
 export function createMdTarget<T>(uri: ParsedUri): Target<T> {
-  const filePath = uri.path || uri.host
-  const isFileMode = filePath.endsWith('.md')
   let writeStream: ReturnType<typeof createWriteStream> | null = null
   let autoIndex = 0
+  let filePath = ''
+  let isFileMode = false
 
   return {
     uri: uri.raw,
-    async open(_ctx: TargetContext): Promise<void> {
+    async open(ctx: TargetContext): Promise<void> {
       autoIndex = 0
+      filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
+      isFileMode = filePath.endsWith('.md')
       if (isFileMode) {
         writeStream = createWriteStream(filePath, { encoding: 'utf-8', flags: 'a' })
       }
     },
     async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+      if (!filePath) {
+        throw new Error('Target not opened. Call open() before write().')
+      }
       if (isFileMode) {
         if (!writeStream) {
           throw new Error('Target not opened. Call open() before write().')

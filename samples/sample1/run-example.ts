@@ -1,5 +1,5 @@
 import { execSync, spawn } from 'node:child_process'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const SAMPLE_DIR = import.meta.dirname
@@ -34,22 +34,17 @@ async function main(): Promise<void> {
   await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
 
   // Start runner
-  const mtBin = join(SAMPLE_DIR, 'node_modules', '.bin', 'mt')
-  runnerProc = spawn(
-    'node',
-    ['--import', 'tsx', mtBin, 'run', './pipelines/http-to-jsonl-example.ts'],
-    {
-      cwd: SAMPLE_DIR,
-      stdio: 'inherit',
-      env: { ...process.env },
-    },
-  )
+  runnerProc = spawn('npm', ['run', 'runner:http'], {
+    cwd: SAMPLE_DIR,
+    stdio: 'inherit',
+    env: { ...process.env },
+  })
 
   // Wait for health
   await waitForHealth()
 
   // Run simulation
-  execSync('npx tsx simulation1.ts', {
+  execSync('npm run simulate', {
     cwd: SAMPLE_DIR,
     stdio: 'inherit',
     env: { ...process.env, MT_HTTP_URL: 'http://localhost:9876' },
@@ -86,6 +81,13 @@ async function main(): Promise<void> {
       clearTimeout(timer)
       reject(err)
     })
+  })
+
+  // Run md pipeline (reads all *.jsonl in the jsonl folder)
+  execSync('npm run runner:md', {
+    cwd: SAMPLE_DIR,
+    stdio: 'inherit',
+    timeout: 30_000,
   })
 }
 

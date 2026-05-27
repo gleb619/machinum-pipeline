@@ -31,7 +31,7 @@ function yamlEscapeString(value: string): string {
   if (
     value.includes('\n') ||
     value.includes('"') ||
-    value.includes(":") ||
+    value.includes(':') ||
     value.includes("'") ||
     value.startsWith(' ') ||
     value.endsWith(' ') ||
@@ -81,7 +81,12 @@ function normalizeWarnings(input: unknown): ChapterDocWarning[] {
 
 function normalizeBody(input: unknown): ChapterDocParagraph[] {
   if (typeof input === 'string') {
-    const paragraphs = input.split(/\n\s*\n/).filter((p) => p.trim().length > 0)
+    let text = input
+    if (text.startsWith('# ')) {
+      const newlineIdx = text.indexOf('\n')
+      text = newlineIdx >= 0 ? text.slice(newlineIdx + 1) : ''
+    }
+    const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim().length > 0)
     return paragraphs.map((p) => ({ lines: [p.trim().replace(/\s+/g, ' ')] }))
   }
 
@@ -124,10 +129,10 @@ function normalizeBody(input: unknown): ChapterDocParagraph[] {
  *
  * # Title
  *
- * Line one  
+ * Line one
  * Line two
  *
- * Next paragraph  
+ * Next paragraph
  * next line
  * ```
  */
@@ -191,7 +196,7 @@ function parseBody(content: string, bodyStartLine: number): ChapterDocParagraph[
 
 function finishParagraph(block: string[]): ChapterDocParagraph {
   const lines = block
-    .map((line) => line.replace(/  $/, '').trim())
+    .map((line) => line.replace(/ {2}$/, '').trim())
     .filter((line) => line.length > 0)
   return { lines }
 }
@@ -227,10 +232,7 @@ export const chapterDoc = defineTool<ChapterDocToolInput, string>({
   version: '1.0.0',
   exec: 'inproc',
 
-  async invoke(
-    env: Envelope<ChapterDocToolInput>,
-    _ctx: ToolContext,
-  ): Promise<Envelope<string>> {
+  async invoke(env: Envelope<ChapterDocToolInput>, _ctx: ToolContext): Promise<Envelope<string>> {
     const input = env.item
 
     const number =
@@ -241,9 +243,7 @@ export const chapterDoc = defineTool<ChapterDocToolInput, string>({
 
     const series = input.series ?? (env.meta?.chapterSeries as string | undefined)
 
-    const warnings =
-      input.warnings ??
-      normalizeWarnings(env.meta?.warnings)
+    const warnings = input.warnings ?? normalizeWarnings(env.meta?.warnings)
 
     const doc: ChapterDoc = {
       title: input.title,

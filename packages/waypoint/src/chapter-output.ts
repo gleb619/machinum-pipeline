@@ -6,6 +6,7 @@ import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { registry } from '@mt/core'
+import { resolveWaypointPath } from './settings.js'
 
 /**
  * Chapter Output Target — writes chapters to chapters/{lang}/chapter{N}.md.
@@ -23,14 +24,15 @@ import { registry } from '@mt/core'
  * Template: chapters/{lang}/chapter{num}.md
  */
 export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
-  const baseDir = uri.path || uri.host
-  mkdirSync(baseDir, { recursive: true })
   let chapterIndex = 0
+  let baseDir = ''
 
   return {
     uri: uri.raw,
-    async open(_ctx: TargetContext): Promise<void> {
+    async open(ctx: TargetContext): Promise<void> {
       chapterIndex = 0
+      baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
+      mkdirSync(baseDir, { recursive: true })
     },
     async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
       const meta = (env.meta || {}) as Record<string, unknown>
@@ -65,12 +67,11 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
  *   - filePath: full path to the chapter file
  */
 export function createChapterOutputSource<T>(uri: ParsedUri): Source<T> {
-  const baseDir = uri.path || uri.host
-
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(_ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+      const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
       const files = await discoverChapterFiles(baseDir)
       for (const file of files) {
         const content = await readFile(file.path, 'utf-8')
@@ -84,7 +85,8 @@ export function createChapterOutputSource<T>(uri: ParsedUri): Source<T> {
         }
       }
     },
-    async *resume(_ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
+      const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
       const files = await discoverChapterFiles(baseDir)
       for (const file of files) {
         const content = await readFile(file.path, 'utf-8')
