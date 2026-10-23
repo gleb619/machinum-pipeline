@@ -52,8 +52,8 @@ definePipeline()
 ### `uri.ts` — `UriRegistry`
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.
 Composite schemes (e.g. `git://`) wrap another scheme. Named URI aliases from mt.json (`"uris": { "en": "md://./chapters/en" }`)
-expand bare scheme-less strings at resolution time (in `resolveSource`/`resolveTarget` via optional settings, and in the
-Runner, which has `GlobalContext.settings`). Registered schemes win over alias keys; alias chains are capped at
+expand `'@name'` strings (e.g. `.to('@en')`) at resolution time (in `resolveSource`/`resolveTarget` via optional settings, and in the
+Runner, which has `GlobalContext.settings`). Alias chains are capped at
 `MAX_URI_ALIAS_DEPTH` (10) with cycle detection.
 
 ### `engine/runner.ts` — `Runner`

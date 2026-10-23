@@ -5,10 +5,9 @@ import type { Source, Target } from './types.ts'
  * URI registry — maps URI schemes to Source/Target factories.
  * Supports composite schemes (e.g. git+http://) via registered combinators.
  *
- * Also resolves named URI shortcuts (aliases): bare strings without a scheme
- * separator are looked up in the project's "uris" table from mt.json settings.
- * Registered schemes always win — a string is only treated as an alias when it
- * has no "://" and no registered "scheme:" prefix.
+ * Also resolves named URI shortcuts (aliases): strings starting with '@'
+ * (e.g. '@en') are looked up in the project's "uris" table from mt.json
+ * settings. Everything else is treated as a plain URI.
  */
 
 /**
@@ -51,7 +50,7 @@ export interface UriAliases {
  */
 export const MAX_URI_ALIAS_DEPTH = 10
 
-const SCHEME_PREFIX_RE = /^([a-zA-Z][a-zA-Z0-9+\-.]*):/
+const ALIAS_PREFIX = '@'
 
 /**
  * URI registry singleton.
@@ -85,8 +84,8 @@ class UriRegistry {
 
   /**
    * Resolve a URI string to a Source.
-   * Bare alias strings (no scheme separator) are expanded via the project's
-   * "uris" table in settings before lookup.
+   * Alias strings (starting with '@', e.g. '@en') are expanded via the
+   * project's "uris" table in settings before lookup.
    */
   resolveSource<T>(uri: string, settings?: Settings): Source<T> {
     const resolvedUri = this.expandAliases(uri, settings)
@@ -100,8 +99,8 @@ class UriRegistry {
 
   /**
    * Resolve a URI string to a Target.
-   * Bare alias strings (no scheme separator) are expanded via the project's
-   * "uris" table in settings before lookup.
+   * Alias strings (starting with '@', e.g. '@en') are expanded via the
+   * project's "uris" table in settings before lookup.
    */
   resolveTarget<T>(uri: string, settings?: Settings): Target<T> {
     const resolvedUri = this.expandAliases(uri, settings)
@@ -128,19 +127,15 @@ class UriRegistry {
   }
 
   /**
-   * True when a URI string has no scheme of its own and may be an alias:
-   * no "://" separator, and no "scheme:" prefix matching a registered scheme.
-   * Registered schemes always win over aliases.
+   * True when a URI string is an alias reference: it starts with '@'.
+   * Everything else — real URIs with a scheme — is never an alias.
    */
   isAliasCandidate(uri: string): boolean {
-    if (uri.includes('://')) return false
-    const schemeMatch = uri.match(SCHEME_PREFIX_RE)
-    if (schemeMatch && this.hasScheme(schemeMatch[1] ?? '')) return false
-    return true
+    return uri.startsWith(ALIAS_PREFIX)
   }
 
   /**
-   * Expand a named URI alias through the project's "uris" table.
+   * Expand a '@name' URI alias through the project's "uris" table (mt.json).
    * Alias values may themselves be aliases (chained, up to MAX_URI_ALIAS_DEPTH).
    * Returns the input unchanged when it is not an alias candidate.
    */
@@ -158,23 +153,17 @@ class UriRegistry {
           `URI alias chain exceeds ${MAX_URI_ALIAS_DEPTH} hops: ${[...chain, current].join(' → ')}`,
         )
       }
-      const next = aliases[current]
-      if (next === undefined) {
+      const next = aliases[current.slice(ALIAS_PREFIX.length)]
+      if (typeof next !== 'string') {
         throw new Error(
           `Unknown URI alias '${current}'${chain.length > 0 ? ` (chained from '${uri}')` : ''}. ` +
-            `Define it in mt.json: "uris": { "${current}": "<scheme>://..." }`,
+            `Define it in mt.json: "uris": { "${current.slice(ALIAS_PREFIX.length)}": "<scheme>://..." }`,
         )
       }
       chain.push(current)
       current = next
     }
     return current
-  }
-
-  private hasScheme(scheme: string): boolean {
-    return (
-      this.sources.has(scheme) || this.targets.has(scheme) || this.compositeResolvers.has(scheme)
-    )
   }
 
   /**

@@ -19,6 +19,12 @@ import {
 } from '@mt/tools'
 import '@mt/waypoint'
 
+// === URI shortcuts (aliases) ===
+// Source/target URIs can be written as '@name' shortcuts instead of full URIs.
+// Shortcuts are defined in this sample's mt.json under "uris", e.g.:
+//   "uris": { "en": "md://./chapters/en", "ru": "chapter-output://./chapters" }
+// They are resolved at pipeline run time; full URIs still work unchanged.
+
 // === Stub translation tool (in-memory, no API call) ===
 const stubTranslator = defineTool<string, string>({
   name: 'stub-translator',
@@ -47,15 +53,15 @@ const verifyFlow = definePipeline()
     const meta = (item as { meta?: { errors?: unknown } }).meta
     console.log('[verify] errors:', meta?.errors)
   })
-  .to('en')
+  .to('@en')
 
 // === Flow 2: MD(EN) → MD(RU) translation ===
 const translateFlow = definePipeline()
-  .from('en')
+  .from('@en')
   .use(wordCounter)
   .use(chapterIndexer)
   .use(stubTranslator)
-  .to('ru')
+  .to('@ru')
 
 // === Named exports: each uses ephemeral:// source/target ===
 export const smokeTestPipeline = definePipeline()
