@@ -13,6 +13,9 @@ import {
   summaryTool,
   titleTranslator,
   toMarkdown,
+  tokenCounter,
+  tokenCounterBatch,
+  tokenCounterBatchCached,
   tokenSplitter,
   typoFinder,
   wordCounter,
@@ -49,6 +52,7 @@ const verifyFlow = definePipeline()
   .use(chapterIndexer)
   .use(chapterValidator)
   .use(forbiddenCharDetector)
+  .use(tokenCounter)
   .tap(async (item: unknown) => {
     const meta = (item as { meta?: { errors?: unknown } }).meta
     console.log('[verify] errors:', meta?.errors)
@@ -62,6 +66,24 @@ const translateFlow = definePipeline()
   .use(chapterIndexer)
   .use(stubTranslator)
   .to('@ru')
+
+// === Flow 3: token counting demo (batch-optimized tools) ===
+// Batch tools consume a batched envelope (after `.batch(n)`); meta here is
+// batch-level, so this flow targets ephemeral:// (no per-item file keying).
+const countTokensFlow = definePipeline()
+  .from('jsonl://./jsonl/input.jsonl')
+  .flatMap(async (item: unknown) => {
+    const record = item as { title: string; body: string }
+    return [record.title, record.body]
+  })
+  .batch(5)
+  .use(tokenCounterBatch)
+  .tap(async (batch: unknown) => {
+    const meta = (batch as { meta?: { tokenCount?: unknown } }).meta
+    console.log('[tokens] batch total:', meta?.tokenCount)
+  })
+  .use(tokenCounterBatchCached)
+  .to('ephemeral://tokens-output')
 
 // === Named exports: each uses ephemeral:// source/target ===
 export const smokeTestPipeline = definePipeline()
@@ -125,6 +147,7 @@ export default definePipeline()
   .subflow(smokeTestPipeline)
   .subflow(splitChaptersPipeline)
   .subflow(collectWarningsPipeline)
+  .subflow(countTokensFlow)
   .subflow(fixChapterPipeline)
   .subflow(translateTitlesPipeline)
   .subflow(translateChapterPipeline)
