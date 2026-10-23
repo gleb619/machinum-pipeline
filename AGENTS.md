@@ -27,7 +27,7 @@ Steering files live in `docs/steering/` (also mirrored to `.kiro/steering/`) and
 **machinum-pipeline** (package name: `mt`) is a TypeScript ETL engine for processing long-form text (primarily books)
 through composable, checkpointable, partially-out-of-process tool chains. It is pre-implementation / active
 development — not yet published. The architecture is fully specified in [docs/tdd.md](docs/tdd.md), use cases
-in [docs/uc.md](docs/uc.md), and the implementation roadmap in [docs/scaffolding.md](docs/scaffolding.md).
+in [docs/uc.md](docs/uc.md), and the implementation roadmap in [docs/kanban.md](docs/kanban.md).
 
 ---
 
@@ -215,8 +215,35 @@ Secrets are loaded from `.env` in the consumer project (configured via `mt.json 
 
 ---
 
+## Change workflow (state machine)
+
+Every code change follows this lifecycle — no exceptions:
+
+```
+NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMIT ──► SAMPLES IT ──► FF-MERGE ──► CLEANUP
+                                        │ fail           │ fail           │ fail
+                                        ▼                ▼                ▼
+                                     fix, redo        no merge,        stay on branch,
+                                                       stay on branch   fix, re-run
+```
+
+1. **Worktree + branch** — never code on `main`. Create a git worktree + feature branch
+   (e.g. `../<repo>-<id>` on `feat/<id>`).
+2. **Code** — do the change, scoped to the task.
+3. **Pre-commit gate** — run `pnpm test` + `pnpm lint` (scoped to the change) **before** committing.
+   Red → fix, do not commit.
+4. **Commit** — only when the pre-commit gate is green.
+5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
+   (`samples/sample*/tests/`). Red → stay on branch, fix, re-run.
+6. **Merge + cleanup** — merge → FF only (`git merge --ff-only`) → delete branch + worktree.
+
+A merge is allowed only when both gates are green. Any failure returns to the branch, never to main.
+
+---
+
 ## Implementation status
 
-All phases through Phase 7 (sample projects) are `done`. See [docs/scaffolding.md](docs/scaffolding.md) for the full
-task table and plan links. Architecture spec: [docs/tdd.md](docs/tdd.md). Use cases: [docs/uc.md](docs/uc.md). Tool
+All phases through Phase 7 (sample projects) are `done`. The task board lives in [docs/kanban.md](docs/kanban.md)
+(managed via `at kanban`) with per-task plan links in [plans/](plans/). High-level architecture:
+[docs/architecture.md](docs/architecture.md), details in [docs/steering/](docs/steering/). Use cases: [docs/uc.md](docs/uc.md). Tool
 catalogue: [docs/tools.md](docs/tools.md).

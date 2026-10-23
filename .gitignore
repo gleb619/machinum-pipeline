@@ -79,3 +79,4 @@ build
 /samples/sample2/mt-run.log
 /samples/sample2/chapters/en/*.md
 /samples/sample2/chapters/ru/*.md
+/docs/docs/plans/

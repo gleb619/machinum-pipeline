@@ -1,5 +1,7 @@
 # @mt/core
 
+← [Architecture](../architecture.md)
+
 Path: `packages/core/`
 
 Core is the engine library — it contains all types, the DSL, the URI registry, and the Runner. Nothing in `core/` may import from any other `@mt/*` package.
@@ -80,3 +82,34 @@ Atomic file I/O under `.mt/`. All writes: write to temp file → `fs.rename()`. 
 ## Dependency Rule
 
 `core/` has **zero** external runtime dependencies beyond Node.js stdlib. No `axios`, no `zod`, no framework deps.
+
+---
+
+## Checkpoint Tree Replay Rules
+
+The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The first non-done node is resumed. Sibling forks are sequential by status: a later fork (e.g. `fork:2`) is **not** started until all earlier siblings (`fork:0`, `fork:1`) reach a terminal state (`done` or `failed`). This prevents out-of-order side effects across branches.
+
+## Concurrency Primitives
+
+- **In-process**: per-step limiter (`p-limit`-style), configurable via URI query param (`concurrency`), DSL, or global defaults.
+- **Out-of-process**: tools with `exec: 'npx' | 'deno' | 'bun'` are invoked as child processes via stdio JSON (one-shot or NDJSON streaming).
+- **Fork (`.fork`)**: creates a nested `Run` rooted in the parent's checkpoint tree; registered as a subtree.
+- **Subflow (`.subflow`)**: in-process lightweight variant. Two modes selected by the sub-pipeline's declared source/target:
+  - **Ephemeral transform** — sub-pipeline uses `ephemeral://` source + target. For each parent envelope, data flows through the sub-Runner and yields back into the parent stream.
+  - **Orchestration** — sub-pipeline uses any non-ephemeral source/target. It runs as a fully self-contained child pipeline; the parent stream is unchanged.
+
+## Retry & Error Policy
+
+```typescript
+type RetryStrategy = 'fixed' | 'linear' | 'exp';
+interface RetryPolicy { max: number; backoffMs: number; strategy: RetryStrategy; }
+type ErrorPolicy = 'fail-run' | 'skip-item' | 'dead-letter';
+```
+
+Merge order (highest wins): **tool step > pipeline > global (`mt.json`)**.
+
+`dead-letter` writes the offending envelope + error to `.mt/runs/<id>/dead-letter.jsonl`.
+
+## Caching
+
+When `tool.cacheable === true`, output is memoised by `hash(toolName + version + input + relevantContext)` at `.mt/cache/<hash>.json`. Replay reads the cached envelope and skips invocation. Cache is project-scoped and never required for correctness — it is a performance optimization only.

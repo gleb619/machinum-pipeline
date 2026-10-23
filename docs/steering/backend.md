@@ -1,4 +1,5 @@
 # @mt/backend
+← [Architecture](../architecture.md)
 
 Path: `packages/backend/`
 

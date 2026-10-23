@@ -1,4 +1,5 @@
 # @mt/mcp
+← [Architecture](../architecture.md)
 
 Path: `packages/mcp/`
 

@@ -1,4 +1,5 @@
 # @mt/router
+← [Architecture](../architecture.md)
 
 Path: `packages/router/`
 

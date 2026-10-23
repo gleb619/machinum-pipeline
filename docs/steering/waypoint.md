@@ -1,4 +1,5 @@
 # @mt/waypoint
+← [Architecture](../architecture.md)
 
 Path: `packages/waypoint/`
 

@@ -1,4 +1,5 @@
 # @mt/tools
+← [Architecture](../architecture.md)
 
 Path: `packages/tools/`
 

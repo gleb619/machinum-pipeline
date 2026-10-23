@@ -1,4 +1,5 @@
 # @mt/cli
+← [Architecture](../architecture.md)
 
 Path: `packages/cli/`
 

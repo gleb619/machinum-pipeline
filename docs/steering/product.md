@@ -1,5 +1,7 @@
 # Product Overview
 
+← [Architecture](../architecture.md)
+
 **machinum-pipeline** (`mt`) is a TypeScript ETL engine for processing long-form text — primarily books — through composable, checkpointable, partially-out-of-process tool chains.
 
 Consumers write pipelines as real `.ts` files using a thin DSL, declare project metadata in `mt.json`, and invoke the engine via the `mt` CLI. Mt persists all run state under `.mt/` and produces artifacts (jsonl, md, schema-docs, translations).
@@ -86,3 +88,41 @@ npx invocation of a Tool (out-of-process)
 - **Out-of-process tools**: tools can run as child processes (npx/deno/bun) via stdio JSON
 - **Real pipeline files**: consumers write plain TypeScript, no config DSL lock-in
 - **URI-addressed I/O**: sources and targets are pluggable via scheme registry (`jsonl://`, `md://`, `git://`, `hs://`, …)
+
+---
+
+## Milestones
+
+| Milestone | Focus |
+|---|---|
+| M1 — Engine spine | `core` types/DSL, `jsonl` source/target, in-proc tools, file-based checkpoints, `cli`: `init`/`run`/`resume`/`inspect` |
+| M2 — Forks & out-of-process | `.fork()` with nested checkpoints, child-process tools (`npx`/`deno`/`bun`), cache layer, git worktree source/target |
+| M3 — Backend & frontend MVP | Nuxt backend, SSE event tail, runs list + detail + pipelines registry, `serve` in-process/detached, SQLite indicator |
+| M4 — Router & integrations | Router Nuxt app, cost/usage tracking, mock mode, rolling logs; MCP server; long-lived HTTP source |
+| M5 — Extensions & polish | VS Code extension, Chrome extension, VitePress docs site, frontend post-MVP screens |
+
+---
+
+## Open Questions / Deferred
+
+- Schedules (`.mt/schedules/`): folder reserved; semantics deferred.
+- Distributed runs across machines: out of scope.
+- Hot-reload of running pipelines: out of scope.
+- SQLite schema for backend search: deferred to post-MVP.
+- Auth model for backend & router admin UIs: assumed localhost-only in v1; revisit before remote deploy.
+
+---
+
+## Glossary
+
+- **Source** — Producer of envelopes; `long-lived` or `resumable`.
+- **Tool** — Pure `Envelope<I> → Envelope<O>`; in-proc or child process.
+- **Target** — Sink with `open/write/close` lifecycle.
+- **Pipeline** — Real `.ts` module exporting a DSL chain.
+- **Run** — One resumable execution instance.
+- **Checkpoint tree** — Persisted replay graph.
+- **Envelope** — `{ item, items?, meta }` transport unit.
+- **`.mt/`** — Per-project filesystem source of truth.
+- **`mt.json`** — Project configuration root.
+
+← [Architecture Overview](../architecture.md)

@@ -1,4 +1,5 @@
 # Extensions
+← [Architecture](../architecture.md)
 
 ## Chrome Extension
 

@@ -1,4 +1,5 @@
 # Tech Stack & Code Style
+← [Architecture](../architecture.md)
 
 ## Runtime & Toolchain
 

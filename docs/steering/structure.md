@@ -1,4 +1,5 @@
 # Project Structure
+← [Architecture](../architecture.md)
 
 ## Workspace Layout
 
@@ -23,7 +24,7 @@ machinum-pipeline/
 │   ├── tdd.md       — Architecture spec
 │   ├── uc.md        — 54 use cases
 │   ├── tools.md     — Tool catalogue
-│   ├── scaffolding.md — Implementation roadmap
+│   ├── kanban.md — Implementation roadmap (managed via `at kanban`)
 │   ├── steering/    — docs/steering/ (legacy; Kiro steering is in .kiro/steering/)
 │   └── plans/       — Per-feature implementation plans
 ├── biome.json

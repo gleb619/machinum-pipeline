@@ -17,6 +17,7 @@ Lightweight planner for `at` implementation tasks. Machine-mutated by `at kanban
 
 ## Task Board
 
-| ID   | Status  | Title                                  | Description | Priority | Owner | Blocks | Blocked By | Plan File                  |
-| :--- | :------ | :------------------------------------- | :---------- | :------- | :---- | :----- | :--------- | :------------------------- |
-| T069 | Backlog | Implement plot diagram generation tool | -           | High     | loop  | -      | -          | docs/plans/plot-diagram.md |
+| ID   | Status  | Title                                  | Description | Priority | Owner | Blocks | Blocked By | Plan File                      |
+| :--- | :------ | :------------------------------------- | :---------- | :------- | :---- | :----- | :--------- | :----------------------------- |
+| T069 | Backlog | Implement plot diagram generation tool | -           | High     | loop  | -      | -          | docs/plans/plot-diagram.md     |
+| T070 | Backlog | Implement image generation tool        | -           | High     | loop  | -      | -          | docs/plans/image-generation.md |
