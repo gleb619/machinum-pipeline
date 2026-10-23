@@ -44,8 +44,8 @@ const verifyFlow = definePipeline()
   .use(chapterValidator)
   .use(forbiddenCharDetector)
   .tap(async (item: unknown) => {
-    const meta = (item as { meta?: { warnings?: unknown } }).meta
-    console.log('[verify] warnings:', meta?.warnings)
+    const meta = (item as { meta?: { errors?: unknown } }).meta
+    console.log('[verify] errors:', meta?.errors)
   })
   .to('md://./chapters/en')
 
@@ -73,8 +73,8 @@ export const collectWarningsPipeline = definePipeline()
   .from('ephemeral://warnings-input')
   .use(forbiddenCharDetector)
   .tap(async (item: unknown) => {
-    const meta = (item as { meta?: { warnings?: unknown } }).meta
-    console.log('[warnings]', meta?.warnings)
+    const meta = (item as { meta?: { errors?: unknown } }).meta
+    console.log('[errors]', meta?.errors)
   })
   .to('ephemeral://warnings-output')
 
