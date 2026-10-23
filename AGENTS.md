@@ -112,7 +112,9 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
 ## Hard rules
 
 - **Change workflow** - never code on `main`; worktree + branch → code → test/lint gate → commit → samples IT gate →
-  FF-merge only → cleanup. Full state machine: [docs/change-workflow.md](docs/change-workflow.md).
+  rebase onto `main`, then FF-merge only (`git merge --ff-only`) → cleanup.
+  **Regular merge commits are forbidden** — never use `git merge --no-ff` or merge without rebase.
+  Full state machine: [docs/change-workflow.md](docs/change-workflow.md).
 - **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse); `frontend/` → backend API only;
   `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
 - **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
