@@ -6,6 +6,8 @@
 | sample1 | `samples/sample1` | HTTP → JSONL pipeline (`hs://` source, `jsonl://` target)     |
 | sample2 | `samples/sample2` | Multi-tool pipeline: JSONL → tools → fork → batch → MD output |
 
+Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
+
 Integration tests for samples live under `samples/sample*/tests/` and are part of the
 pre-merge gate (see [change-workflow.md](change-workflow.md)).
 

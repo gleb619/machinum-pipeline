@@ -37,6 +37,7 @@ Full context lives in docs - read on demand:
 | [docs/kanban.md](docs/kanban.md) | Task board / roadmap (managed via `at kanban`; plans in [docs/plans/](docs/plans/)) |
 | [docs/change-workflow.md](docs/change-workflow.md) | Mandatory worktree → branch → gates → FF-merge lifecycle |
 | [docs/samples.md](docs/samples.md) | Sample projects + how to run them manually |
+| [docs/adding-a-sample.md](docs/adding-a-sample.md) | How to add a new sample (layout, scripts, IT pattern, checklist) |
 
 ## Steering files
 
