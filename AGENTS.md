@@ -8,10 +8,10 @@ The following skills MUST be invoked (via the `skills` tool) before any work on 
 
 - `caveman` - ultra-terse communication style
 - `i-have-adhd` - ADHD-friendly planning/output style
-- `codegraph` - code graph navigation for the codebase
+- `codegraph` (optional) - code graph navigation for the codebase, only if mentioned directly for code context
 - `delegate-with-at` (optional) - delegate code changes to a sub-agent via `at` while focusing on reasoning/coordination
 
-Invoke the first three at the start of every task. Do not skip.
+Invoke the first two at the start of every task. Do not skip. The optional ones may be invoked when useful.
 
 **Delegation mechanisms - pick one per task, never both for the same work:** prefer the host's built-in/native
 subagents (for example architect / coder / qa via the Agent tool) over `delegate-with-at` (`at` agents). If a task is
