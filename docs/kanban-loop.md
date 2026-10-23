@@ -83,6 +83,10 @@ Entered on a tick where `at compose jobs` shows `loop` exited. `at kanban list`:
 
 - Row `Blocked`: read `~/.at/compose/<id lowercase>/outcome.md`, report the cause. Retry at most once
   (`at kanban status <ID> Backlog`), second block → leave it for a human.
+- Log shows `merge feat/<id>: FAILED DIRTY_WORKTREE` (task finished but changes uncommitted), or any worktree/gate
+  env problem: finish it yourself in the worktree — commit only task files (never `node_modules`, stray generated
+  files), `git rebase main`, run the gate, `git merge --ff-only` from main, remove worktree + branch, then
+  `at kanban status <ID> Done` and restart the job. Do not stop for env problems.
 - Row newly `Done`: on main run `<LINT>` and `<TEST>`. Failure →
   `at feedback add -k bug "<ID> broke main: <output tail>"`, **STOP** (`LOOP: MAIN BROKEN`).
 

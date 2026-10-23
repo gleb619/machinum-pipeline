@@ -80,5 +80,6 @@ build
 /samples/sample2/jsonl/*.jsonl
 /samples/sample2/chapters/en/*.md
 /samples/sample2/chapters/ru/*.md
+/samples/sample2/chapters/schema/*.md
 /docs/docs/plans/
 /docs/locks/*
