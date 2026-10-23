@@ -1,22 +1,52 @@
-# Mt — Product Overview
+# Product Overview
 
-**Mt** is a TypeScript library + CLI for building ETL-style pipelines that process long-form text (primarily books) through composable, checkpointable, partially-out-of-process tool chains. It is consumed as a dev dependency in another TS project — authors write pipelines as real `.ts` files using a thin DSL, declare project metadata in `mt.json`, and invoke the engine via the `mt` CLI. Mt produces artifacts (jsonl, md, pdf, epub) and persists run state under `.mt/`.
+**machinum-pipeline** (`mt`) is a TypeScript ETL engine for processing long-form text — primarily books — through composable, checkpointable, partially-out-of-process tool chains.
 
-Key differentiators: pluggable Source/Tool/Target interfaces, per-step checkpoint tree for crash recovery, fork-join parallelism over chapters/paragraphs/lines, and an optional Nuxt-based admin server for live monitoring.
+Consumers write pipelines as real `.ts` files using a thin DSL, declare project metadata in `mt.json`, and invoke the engine via the `mt` CLI. Mt persists all run state under `.mt/` and produces artifacts (jsonl, md, schema-docs, translations).
+
+## What it is not
+
+- Not a general-purpose workflow engine (it is book/chapter-centric)
+- Not a cloud service (fully local; the LLM router is an optional proxy)
+- Not yet published to npm (pre-release, active development)
 
 ## Core Concepts
 
-| Entity              | Role                                                                                                                                                           |
-|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Source**          | Producer of Envelopes; can be `long-lived` (HTTP server) or `resumable` (file cursor). Addressed via URI (e.g. `jsonl://`, `http://`, `fs://`).                |
-| **Tool**            | Pure function `Envelope<I> => Envelope<O>`; runs in-process or as a child process (`npx`/`deno`/`bun`). May be `cacheable` (content-hash memoisation).         |
-| **Target**          | Sink that persists Envelopes; has open/write/close lifecycle (e.g. git commit on close). Addressed via URI.                                                    |
-| **Pipeline**        | TS module exporting a DSL chain (`definePipeline().from().use().fork().to()`). Real code with real imports, no build step required.                            |
-| **Run**             | One execution instance of a Pipeline, managed by a state machine: `pending -> running -> [checkpoint -> paused -> resumed ->] done/failed`. Fully resumable.   |
-| **Checkpoint Tree** | Persisted execution graph — every step and fork tracked. On resume, engine walks tree depth-first, skips `done` nodes, continues from the first non-done node. |
-| **Envelope**        | Transport unit: `{ item, items?, meta }`. Cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).                                      |
-| **`.mt/`**          | Per-project state directory. Contains runs, cache, logs, checkpoints — the file system is the source of truth.                                                 |
-| **`mt.json`**       | Project configuration root — declares book metadata, pipeline paths, secrets env file, router URL, model defaults, retry/error/concurrency policies.           |
+| Entity | Role |
+|---|---|
+| **Source** | Produces `Envelope<T>` items; `resumable` (file cursor) or `long-lived` (HTTP). Addressed via URI. |
+| **Tool** | Pure async function `Envelope<I> → Envelope<O>`; in-process or child process via stdio JSON. |
+| **Target** | Sink with `open/write/close` lifecycle (e.g. git commit on close). Addressed via URI. |
+| **Pipeline** | TS module exporting a DSL chain. Real code — plain imports and logic work inside. |
+| **Run** | One execution: `pending → running → [checkpoint → paused →] done / failed`. Fully resumable. |
+| **Checkpoint tree** | Persisted execution graph. Resume = depth-first walk, skip `done` nodes, continue first non-done. |
+| **Envelope** | `{ item: T, items?: T[], meta }`. Cardinality changes only via DSL ops (`.batch`, `.flatMap`, `.window`). |
+| **`.mt/`** | Per-project runtime state directory (runs, cache, events, dead-letter). Filesystem is source of truth. |
+| **`mt.json`** | Project config: book metadata, pipeline paths, secrets env file, model defaults, retry/concurrency. |
+
+## Domain Model
+
+Books are structured as `Book → Chapter → Paragraph → Line`. All domain entities are plain interfaces. Sources provide stable IDs — the engine never mints domain entity IDs.
+
+## Data Flow
+
+```
+Source (URI) → [Tool → Tool → …] → Target (URI)
+```
+
+All data travels in Envelopes. The pipeline DSL describes the shape; the Runner executes it.
+
+## Services
+
+| Service | Description |
+|---|---|
+| `mt` CLI | Binary entrypoint; `init`, `run`, `resume`, `ls runs`, `inspect`, `tool`, `serve`, `router`, `mcp` |
+| Backend (Nuxt/Nitro) | Admin REST API + SSE event stream; serves bundled Vue frontend |
+| Frontend (Vue 3) | Admin UI: runs list, detail, pipelines registry, router link |
+| Router (standalone Nuxt) | OpenRouter proxy with key pool, cost tracking, rate limiting, mock mode |
+| MCP server | stdio-only; wraps core/cli, no HTTP |
+| Chrome extension | MV3; scrape chapters from tab, auto-upload to web editors |
+| VS Code extension | `mt.json` schema, DSL hover, "Run pipeline" code lens |
 
 ## Execution Flow
 
@@ -50,16 +80,9 @@ npx invocation of a Tool (out-of-process)
 → Validates output shape, emits downstream
 ```
 
-## Services
+## Key Differentiators
 
-| Service                   | Port               | Description                                                                                                                                       |
-|---------------------------|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
-| CLI (`mt`)                | —                  | Binary entrypoint; orchestrates engine, loads pipelines, exposes `init`, `run`, `resume`, `ls runs`, `inspect`, `serve`, `router`, `mcp` commands |
-| Backend (Nuxt/Nitro)      | Dynamic            | Serves admin UI, REST API for runs/pipelines, SSE stream tailing `events.jsonl`; optional SQLite for future search queries                        |
-| Frontend (Vue + Tailwind) | Bundled in backend | Admin UI: runs list, run detail, pipelines registry, router dashboard link                                                                        |
-| Router (standalone Nuxt)  | Configurable       | OpenAI-compatible proxy in front of OpenRouter with per-Run cost/usage tracking, rate limiting, retry, mock mode                                  |
-| MCP Server                | stdio (no HTTP)    | Exposes `pipelines.list`, `pipelines.run`, `runs.list`, `runs.inspect`, `runs.pause`, `runs.resume`, `tools.invoke`, `book.read`, `chapter.read`  |
-
-## Status
-
-**Design / Draft — pre-implementation.** Milestones span M1 (engine spine, no UI) through M5 (extensions & polish). The architecture, domain model, execution semantics, and CLI surface are fully specified in `tdd.md`; all 54 use cases are documented in `uc.md`.
+- **Crash recovery**: checkpoint tree enables full resume from any failure point
+- **Out-of-process tools**: tools can run as child processes (npx/deno/bun) via stdio JSON
+- **Real pipeline files**: consumers write plain TypeScript, no config DSL lock-in
+- **URI-addressed I/O**: sources and targets are pluggable via scheme registry (`jsonl://`, `md://`, `git://`, `hs://`, …)

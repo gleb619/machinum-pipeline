@@ -1,189 +1,93 @@
-# Mt — Tech Stack
+# Tech Stack & Code Style
 
-## Backend (Engine + CLI + Admin)
+## Runtime & Toolchain
 
-| Layer              | Technology                                        |
-|--------------------|---------------------------------------------------|
-| Language           | TypeScript (strict mode)                          |
-| Monorepo           | pnpm workspaces + Turborepo                       |
-| Pipeline loading   | `tsx` / `jiti` (no build step for consumers)      |
-| Lint/Format        | Biome (no ESLint/Prettier)                        |
-| Frontend framework | Vue 3 + Tailwind CSS                              |
-| Frontend build     | Vite (lib pieces), Nuxt (backend + router)        |
-| Server framework   | Nuxt / Nitro                                      |
-| Engine storage     | Filesystem under `.mt/` (source of truth)         |
-| Backend storage    | SQLite (v1: indicator only; future: search index) |
-| Docs               | VitePress                                         |
-| LLM gateway        | Custom Nuxt proxy in front of OpenRouter          |
+| Layer | Technology |
+|---|---|
+| Language | TypeScript 5, strict mode, `noUncheckedIndexedAccess: true` |
+| Runtime | Node.js (engine); pipelines loaded via `tsx` / `jiti` — no consumer build step |
+| Monorepo | pnpm workspaces + Turborepo |
+| Lint / Format | **Biome only** — no ESLint, no Prettier |
+| Test runner | **Vitest** — test files co-located in `src/` with `.test.ts` suffix |
+| Server framework | Nuxt / Nitro (backend and router packages) |
+| Frontend | Vue 3 + Tailwind CSS + Vite |
+| DB | SQLite (backend only, v1: indicator; future: search index) |
 
-## Frontend (Admin UI)
-
-| Layer     | Technology                |
-|-----------|---------------------------|
-| Language  | TypeScript                |
-| Framework | Vue 3                     |
-| Styling   | Tailwind CSS              |
-| Bundling  | Vite (lib) + Nuxt (app)   |
-| Real-time | SSE (tail `events.jsonl`) |
-
-## Router (LLM Proxy)
-
-| Layer        | Technology                                                                         |
-|--------------|------------------------------------------------------------------------------------|
-| Language     | TypeScript                                                                         |
-| Framework    | Nuxt (standalone)                                                                  |
-| Proxy target | OpenRouter                                                                         |
-| Log storage  | Rolling files at `~/.mt/router/<YYYY-MM-DD>/log.json` (5 MB roll, retained N days) |
-| Offline mode | Mock provider for deterministic tests                                              |
-
-## Build System
-
-**pnpm workspaces** (`pnpm-workspace.yaml`) with **Turborepo** (`turbo.json`) for orchestration. Explicit `workspace:*` deps between packages. `tsconfig.base.json` uses strict mode with project references; each package has its own `tsconfig.json` extending the base.
-
-- `core` published as ESM-first dual package
-- `cli` ships compiled but loads consumer pipelines via `tsx`/`jiti` at runtime
-
-## Common Commands
-
-### Install & Setup
-
-```bash
-# Install all workspace dependencies
-pnpm install
-
-# Type-check all packages
-pnpm typecheck
-
-# Lint and format
-pnpm lint
-pnpm format
-pnpm lint --fix
-
-# Build all packages
-pnpm build
-
-# Dev mode (watch mode for specific package)
-pnpm dev --filter=core
-```
-
-### Testing
-
-```bash
-# Run all tests across workspace
-pnpm test
-
-# Run core tests with file watch
-pnpm test --filter=core -- --watch
-
-# Run single test file
-pnpm test --filter=core -- src/engine/runner.test.ts
-
-# Coverage
-pnpm test -- --coverage
-```
-
-### CLI Usage (Consumer Perspective)
-
-```bash
-# Initialize a consumer project
-mt init
-
-# Run a pipeline (foreground, logs to console + .mt)
-mt run ./pipelines/fix-typos.ts
-
-# Resume a crashed/paused run
-mt resume <runId>
-
-# List all runs
-mt ls runs
-
-# Inspect a specific run
-mt inspect <runId>
-
-# Invoke a tool standalone (pipe JSON envelope)
-echo '{...}' | mt tool <toolName>
-
-# Start admin backend (in-process mode by default)
-mt serve
-
-# Start admin backend as background process
-mt serve --detach
-
-# Start LLM router proxy
-mt router
-
-# Start MCP server over stdio
-mt mcp
-```
-
-### Infrastructure
-
-```bash
-# Start any Docker services (deferred — v1 is fully local)
-# No infra needed for MVP; everything runs on filesystem
-```
-
-## Environment Variables
-
-| Variable             | Default                 | Effect                                             |
-|----------------------|-------------------------|----------------------------------------------------|
-| `MT_HOME`            | `~/.mt`                 | Global state directory (router logs, etc.)         |
-| `MT_ROUTER_URL`      | `http://localhost:7777` | OpenRouter proxy URL                               |
-| `MT_LOG_LEVEL`       | `info`                  | Logging verbosity                                  |
-| `MT_DEBUG`           | `false`                 | Enable debug output and verbose checkpoint logging |
-| `OPENROUTER_API_KEY` | (from `.env`)           | OpenRouter API key for LLM proxy                   |
-
-Secrets loaded from `mt.json` → `secrets.envFile` (defaults to `.env` in project root).
-
-## Code Style Rules
-
-### TypeScript
-
-- Strict mode enabled in `tsconfig.base.json` — `strict: true`, `noUncheckedIndexedAccess: true`
-- Use TypeScript `interface` for public API shapes (domain model, contexts)
-- Use `type` for internal unions and utility types
-- Prefer named exports over default exports
-- `import type { ... }` for type-only imports
-- No `any` — use `unknown` with type narrowing
-- No `// @ts-ignore` or `// @ts-expect-error` without documented reason
-- Use `readonly` on interface properties that should not mutate
-- Async functions return `Promise<T>` explicitly (not inferred)
-
-### Biome
+## Biome Config (biome.json)
 
 - 2-space indent
 - single quotes
 - no semicolons
 - trailing commas where valid
 - `printWidth: 100`
-- Rules: `noExplicitAny` = error, `noNonNullAssertion` = error
+- `noExplicitAny` = **error**
+- `noNonNullAssertion` = **error**
 
-### Testing
+Run `pnpm lint` to check, `pnpm format` to auto-fix.
 
-- Test files co-located in `src/` with `.test.ts` suffix
-- Use `describe`/`it` blocks (not `test`)
-- Test descriptions should describe behaviour in business terms
-- Integration tests use temp directories under `os.tmpdir()` for isolation
-- Tool process tests spawn real `npx`/`deno`/`bun` subprocesses
+## TypeScript Rules
 
-### Domain Modelling
+- `strict: true`, `noUncheckedIndexedAccess: true` in `tsconfig.base.json`
+- Use `interface` for public API shapes; `type` for internal unions
+- `import type { … }` for type-only imports
+- No `any` — use `unknown` with narrowing
+- No `// @ts-ignore` without a documented reason
+- `readonly` on interface properties that must not mutate
+- Async functions return `Promise<T>` explicitly
 
-- Domain entities (`Book`, `Chapter`, `Paragraph`, `Line`) are plain interfaces, never classes
-- Sources provide stable IDs — engine never mints IDs for domain entities
-- Engine mints `runId`, `stepId`, `forkId` as `string` (UUID v4)
-- Context objects carry backreference to parent — never a copy
+## Naming Conventions
 
-### Naming
+| Entity | Convention |
+|---|---|
+| Files | `kebab-case.ts` |
+| Types / Interfaces | `PascalCase` |
+| DSL builders | `define*` prefix (`definePipeline`, `defineTool`, `defineSource`, `defineTarget`) |
+| Functions | `camelCase` |
+| Error types | `PascalCase` + `Error` suffix |
+| CLI commands | lowercase verbs (`run`, `resume`, `ls runs`) |
+| Commits | Conventional commits: `type(scope): description` |
 
-- Files: `kebab-case.ts` for utilities, `camelCase.ts` for modules with single export
-- Types/Interfaces: `PascalCase`
-- Functions: `camelCase`
-- DSL builders: `define*` prefix (`definePipeline`, `defineTool`, `defineSource`, `defineTarget`)
-- CLI commands: lowercase verbs (`run`, `resume`, `ls runs`, `inspect`)
-- Error types: `PascalCase` with `Error` suffix
+## Testing
 
-### Git
+- Test files: `src/**/*.test.ts` (co-located, not in a separate `tests/` folder)
+- Use `describe` / `it` blocks — never bare `test`
+- Test names describe behaviour in business terms
+- Integration tests use temp dirs (`os.tmpdir()`) for isolation
+- Architecture tests live in `tests/` inside each package (`.arch.test.ts` suffix)
 
-- Conventional commits: `type(scope): description`
-- Branch names: `feature/`, `fix/`, `chore/` prefixes
-- `.mt/` and `dist/` in `.gitignore` (per-project)
+## Import Layer Rules (enforced)
+
+```
+cli/ → core/           (only)
+backend/ → core/       (only)
+mcp/ → core/           (only)
+frontend/ → backend API (HTTP only, no direct TS imports)
+router/ → standalone   (no other packages except shared config types)
+extensions → HTTP or MCP (never direct imports)
+```
+
+## Common Commands
+
+```bash
+pnpm install            # Install all deps
+pnpm build              # Build all packages (Turborepo)
+pnpm lint               # Biome lint check
+pnpm format             # Biome auto-fix
+pnpm typecheck          # tsc across workspace
+pnpm test               # All tests (Vitest)
+pnpm test --filter=@mt/core          # Single package
+pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts  # Single file
+pnpm dev --filter=@mt/core           # Watch mode
+```
+
+## Environment Variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `OPENROUTER_API_KEYS` | — | Comma-separated keys; pool rotates round-robin |
+| `MT_HOME` | `~/.mt` | Global state directory (router logs, etc.) |
+| `MT_ROUTER_URL` | `http://localhost:7777` | OpenRouter proxy URL |
+| `MT_LOG_LEVEL` | `info` | Logging verbosity |
+| `MT_DEBUG` | `false` | Verbose checkpoint debug output |
+
+Secrets loaded from `.env` via `mt.json → secrets.envFile`.

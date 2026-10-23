@@ -1,148 +1,147 @@
-# Mt — Project Structure
+# Project Structure
 
-## Root Layout
+## Workspace Layout
 
 ```
-mt/
+machinum-pipeline/
 ├── packages/
-│   ├── cli/               # `mt` binary; root entrypoint. Commands: init, run, resume, ls runs, inspect, tool, serve, router, mcp
-│   ├── core/              # Types, domain model, DSL builders, URI registry, engine (Runner, state machine, checkpoint store), built-in Sources/Targets
-│   ├── backend/           # Nuxt (Nitro) app: admin API, SSE event stream, SQLite indicator. Serves built frontend
-│   ├── frontend/          # Vue 3 + Tailwind admin UI: runs list, run detail, pipelines registry, router link
-│   ├── router/            # Standalone Nuxt app: OpenRouter proxy with cost/usage tracking, rate limiting, mock mode
-│   ├── mcp/               # MCP server over stdio: wraps cli/core — no HTTP
-│   ├── chrome-extension/  # MV3 extension: scrape chapters from active tab, auto-upload to web editors
-│   ├── vscode-extension/  # mt.json JSON schema, DSL hover info, "Run pipeline" code lens
-│   └── docs/              # VitePress documentation site
-├── pnpm-workspace.yaml    # Workspace definition
-├── turbo.json             # Turborepo pipeline config
-├── biome.json             # Biome lint + format config
-├── tsconfig.base.json     # Base TS strict config with project references
-└── package.json           # Root package.json (scripts, devDeps)
+│   ├── core/        @mt/core    — types, DSL, engine, URI registry, built-in Sources/Targets
+│   ├── cli/         @mt/cli     — `mt` binary; pipeline loader, all CLI commands
+│   ├── tools/       @mt/tools   — chapter processing tools (validator, splitter, translator, …)
+│   ├── waypoint/    @mt/waypoint — Source/Target implementations; URI scheme registrations (side-effects)
+│   ├── router/      @mt/router  — standalone Nuxt: OpenRouter proxy, key pool, cost tracking
+│   ├── backend/     @mt/backend — Nuxt/Nitro: admin API, SSE, SQLite indicator
+│   ├── frontend/    @mt/frontend — Vue 3 + Tailwind admin UI (bundled into backend)
+│   ├── mcp/         @mt/mcp    — MCP server over stdio
+│   ├── chrome/                 — MV3 Chrome extension
+│   └── vscode/                 — VS Code extension (JSON schema + code lens)
+├── samples/
+│   ├── sample0/    — `mt init` integration test
+│   ├── sample1/    — HTTP → JSONL pipeline (`hs://` source)
+│   └── sample2/    — Multi-tool: JSONL → tools → fork → batch → MD
+├── docs/
+│   ├── tdd.md       — Architecture spec
+│   ├── uc.md        — 54 use cases
+│   ├── tools.md     — Tool catalogue
+│   ├── scaffolding.md — Implementation roadmap
+│   ├── steering/    — docs/steering/ (legacy; Kiro steering is in .kiro/steering/)
+│   └── plans/       — Per-feature implementation plans
+├── biome.json
+├── turbo.json
+├── tsconfig.base.json
+└── pnpm-workspace.yaml
 ```
 
-Consumer project layout:
-
-```
-my-book-project/
-├── package.json           # Depends on mt; calls `mt run` in scripts
-├── mt.json                # Project & book metadata, pipeline paths, defaults
-├── pipelines/
-│   ├── ingest.ts
-│   ├── fix-typos.ts
-│   └── publish.ts
-└── .mt/                   # Created by `mt init`; run state, cache, logs, checkpoints
-```
-
-## Module Responsibilities
-
-| Module             | Type              | Purpose                                                                                           |
-|--------------------|-------------------|---------------------------------------------------------------------------------------------------|
-| `cli`              | Runnable binary   | `mt` CLI commands; loads pipelines via `tsx`/`jiti`; hosts backend in-process by default          |
-| `core`             | Library           | Types, DSL, engine, built-in Sources/Targets, URI registry, `.mt` file store                      |
-| `backend`          | Nuxt app          | REST API + SSE for admin UI; optional SQLite (v1: indicator only); mounts long-lived HTTP Sources |
-| `frontend`         | Vue SPA           | Admin UI — bundled into backend at build time                                                     |
-| `router`           | Nuxt app          | OpenRouter proxy with cost/usage tracking; standalone; no SQLite                                  |
-| `mcp`              | Library + CLI     | MCP server over stdio; wraps core API                                                             |
-| `chrome-extension` | Browser extension | MV3 — chapter scraping + upload automation                                                        |
-| `vscode-extension` | IDE extension     | Schema, hover, code lens                                                                          |
-| `docs`             | VitePress site    | Documentation                                                                                     |
-
-## Core Structure
+## @mt/core — Canonical Source Layout
 
 ```
 packages/core/src/
-├── domain.ts             # Book, Chapter, Paragraph, Line interfaces
-├── types.ts              # Source, Tool, Target, Envelope, Lifecycle types
-├── contexts.ts           # GlobalContext, RunContext, ToolContext, SourceContext, TargetContext
-├── dsl.ts                # definePipeline, defineTool, defineSource, defineTarget builders
-├── uri.ts                # URI registry, parser, composite scheme resolver
-├── engine/
-│   ├── runner.ts         # Main Runner — walks DSL ops, manages Run lifecycle
-│   ├── state-machine.ts  # Run state transitions (pending/running/checkpoint/paused/done/failed)
-│   ├── checkpoint.ts     # Checkpoint tree walker, reader/writer
-│   └── child-process.ts  # Out-of-process tool runner (npx/deno/bun via stdio JSON)
-├── builtins/
-│   ├── jsonl-source.ts   # Stream lines from .jsonl file
-│   ├── jsonl-target.ts   # Write envelopes to .jsonl
-│   ├── http-source.ts    # Long-lived HTTP source (POST endpoint)
-│   ├── http-target.ts    # HTTP target (POST envelopes to URL)
-│   ├── fs-source.ts      # File system directory source (glob)
-│   ├── fs-target.ts      # File system target (write files)
-│   ├── git-source.ts     # Git worktree-aware source
-│   ├── git-target.ts     # Git worktree target with optional commit
-│   ├── stdin-source.ts   # StdIn source (pipe mode)
-│   └── stdout-target.ts  # StdOut target (pipe mode)
-└── store.ts              # .mt file reader/writer (atomic writes via temp+rename)
+├── domain.ts         # Book, Chapter, Paragraph, Line interfaces
+├── types.ts          # Source<T>, Tool<I,O>, Target<T>, Envelope<T>, Lifecycle, RunState
+├── contexts.ts       # GlobalContext → RunContext → ToolContext chain (backrefs, no copies)
+├── dsl.ts            # definePipeline(), defineTool(), defineSource(), defineTarget()
+├── uri.ts            # UriRegistry: registerSource/Target, resolveSource/Target, parse
+├── config.ts         # mt.json loader and shape
+├── settings.ts       # getSetting() helper
+├── store.ts          # Store: atomic file reads/writes under .mt/
+├── discovery.ts      # discoverPipelines()
+├── index.ts          # Public re-exports
+└── engine/
+    ├── runner.ts         # Runner: start(), pause(), resume(), state management
+    ├── state-machine.ts  # RunStateMachine: transition(), canTransition(), isTerminal()
+    ├── checkpoint.ts     # createRootCheckpoint(), walkTree(), markDone/Failed/InProgress
+    ├── child-process.ts  # spawnChildProcess(), runChildProcess() — stdio JSON bridge
+    ├── cache.ts          # Cache: content-hash keyed tool output memoisation
+    ├── dead-letter.ts    # writeDeadLetter() — failed envelopes
+    ├── retry.ts          # withRetry(), getBackoff()
+    ├── git.ts            # autoCommit(), execGit()
+    └── git-worktree.ts   # createWorktree(), removeWorktree(), mergeWorktreeToMain()
 ```
 
-## CLI Structure
+## @mt/cli — Source Layout
 
 ```
 packages/cli/src/
-├── index.ts              # Entrypoint; arg parsing, command dispatch
+├── index.ts          # main(); arg parsing, command dispatch
 ├── commands/
-│   ├── init.ts           # mt init — scaffold project
-│   ├── run.ts            # mt run <pipeline.ts> — execute pipeline
-│   ├── resume.ts         # mt resume <runId> — resume from checkpoint
-│   ├── ls.ts             # mt ls runs — list runs
-│   ├── inspect.ts        # mt inspect <runId> — show run detail
-│   ├── tool.ts           # mt tool <name> — invoke tool standalone
-│   ├── serve.ts          # mt serve [-d|--detach] — start backend
-│   ├── router.ts         # mt router — start router
-│   └── mcp.ts            # mt mcp — start MCP server
+│   ├── run.ts        # mt run <pipeline>
+│   ├── resume.ts     # mt resume <runId>
+│   ├── init.ts       # mt init
+│   ├── list.ts       # mt ls runs
+│   ├── inspect.ts    # mt inspect <runId>
+│   ├── tool.ts       # mt tool <name>
+│   └── serve.ts      # mt serve [--detach]
 └── utils/
-    ├── logger.ts         # Console + file duplex logger
-    └── config.ts         # mt.json loader
+    ├── logger.ts     # DuplexLogger (console + file)
+    └── args.ts       # parseInitArgs()
 ```
 
-## Naming Rules
+## @mt/waypoint — URI Schemes
 
-- **Files:** camelCase for modules (`jsonl-source.ts`, `state-machine.ts`), kebab-case for some monorepo configs (`biome.json`, `tsconfig.base.json`)
-- **Classes/Interfaces:** PascalCase (`RunContext`, `Envelope`, `CheckpointHandle`)
-- **DSL builders:** camelCase (`definePipeline`, `defineTool`)
-- **Commands:** lowercase kebab (`mt ls runs`, `mt serve --detach`)
-- **Tests:** co-located in `src/` with `.test.ts` suffix (`runner.test.ts`)
+Import `'@mt/waypoint'` as a side-effect to register all URI schemes:
 
-## Layer Rules
+| Scheme | File | Description |
+|---|---|---|
+| `jsonl://` | `jsonl.ts` | JSONL file source/target; supports glob patterns |
+| `md://` | `md.ts` | Markdown file source/target |
+| `hs://` / `http://` | `http-server.ts` | Long-lived HTTP source (POST endpoint) |
+| `chapter://` | `chapter-output.ts` | Chapter output (language-folder target) |
+| `schema-doc://` | `schema-doc.ts` | Per-chapter schema-doc output |
+| `git://` | `git-worktree.ts` | Git worktree-aware source/target with optional commit |
+| (ephemeral) | `ephemeral.ts` | In-memory source/target for tests |
 
-- `cli/` imports from `core/` only (never the reverse)
-- `backend/`, `mcp/` call `core/` programmatically
-- `frontend/` calls `backend/` API only (no direct core dependency)
-- `router/` is standalone — no dependency on other packages except shared config types
-- Extensions (`chrome-extension/`, `vscode-extension/`) communicate via HTTP or MCP, never via direct imports
+## @mt/tools — Tool Catalogue
 
-## Test Structure
+All tools live in `packages/tools/src/`, each as a `defineTool()` export:
 
-| Type           | Location                           | Runner                         |
-|----------------|------------------------------------|--------------------------------|
-| Unit           | `packages/*/src/**/*.test.ts`      | Vitest                         |
-| Integration    | `packages/core/tests/integration/` | Vitest + temp `.mt` fixtures   |
-| Tool process   | `packages/core/tests/process/`     | Real child process spawning    |
-| Router (mock)  | `packages/router/tests/`           | Vitest + offline mock provider |
-| Backend routes | `packages/backend/tests/`          | Nitro test utils               |
+| File | Exports | Purpose |
+|---|---|---|
+| `chapter-validator.ts` | `chapterValidator`, `forbiddenCharDetector`, `typoFinder`, `markdownFormatter` | Structural validation, forbidden chars, broken links |
+| `chapter-doc.ts` | (internal helpers) | Chapter YAML-frontmatter doc read/write |
+| `schema-doc.ts` | `summaryTool`, `entitiesTool`, `schemaTool`, `metadataTool`, `vocabularyTool`, `schemaDocWriter`, `readDoc`, `writeDoc` | LLM-powered schema document generation |
+| `translate-text.ts` | `translateText` | Chapter-level translation via OpenRouter |
+| `chapter-translator.ts` | (invokes translateText) | Full chapter translation pipeline |
+| `openrouter-tool.ts` | `chatCompletion`, `runPrompt` | Low-level OpenRouter chat completion |
+| `md-formatter.ts` | `mdFormatterTool` | Markdown reformatting with configurable width |
+| `token-splitter.ts` | (internal) | Split chapters at paragraph boundaries respecting token limits |
+| `word-counter.ts` | `wordCounter` | Word count per envelope |
+| `chapter-indexer.ts` | (internal) | Chapter indexing/ordering |
 
-## Adding a New Built-in Source (Feature Checklist)
+## Runtime State Directory (`.mt/`)
 
-1. Create type class → `packages/core/src/builtins/<scheme>-source.ts` implementing `Source<T>`
-2. Define URI scheme → register in `packages/core/src/uri.ts`
-3. Write unit tests → `packages/core/src/builtins/<scheme>-source.test.ts`
-4. Write integration test → `packages/core/tests/integration/<scheme>-source.test.ts`
-5. Export from `packages/core/src/index.ts`
-6. Add CLI help reference if relevant
+Created by `mt init` in consumer projects, not part of this repo.
 
-## Adding a New CLI Command (Feature Checklist)
+```
+.mt/
+├── runs/<runId>/
+│   ├── state.json        # State machine snapshot
+│   ├── checkpoint.json   # Checkpoint tree (resume source of truth)
+│   ├── events.jsonl      # Append-only event log (SSE source)
+│   └── dead-letter.jsonl # Failed envelopes (when onError: 'dead-letter')
+└── cache/                # Tool output memoisation (content-hash keyed)
+```
 
-1. Create command file → `packages/cli/src/commands/<name>.ts`
-2. Wire into dispatcher → `packages/cli/src/index.ts`
-3. Add to help text
-4. Write unit tests → `packages/cli/src/commands/<name>.test.ts`
+All file writes use atomic temp-then-rename to prevent corruption on crash.
 
-## Critical Rules
+## Consumer Project Layout
+
+```
+my-book-project/
+├── package.json     # devDependency on @mt/core, @mt/cli, @mt/waypoint
+├── mt.json          # Project config (book metadata, pipeline paths, secrets, defaults)
+├── pipelines/
+│   ├── ingest.ts
+│   └── translate.ts
+└── .mt/             # Runtime state (gitignored)
+```
+
+## Key Architecture Rules
 
 - `core/` has zero external runtime dependencies beyond TypeScript stdlib
-- Pipelines are loaded via `tsx`/`jiti` — no build step for consumers
-- `.mt/` is the source of truth — SQLite (when present) is a queryable view only
-- Out-of-process tools communicate exclusively via JSON over stdio (one-shot or NDJSON stream)
-- All file writes use atomic pattern (write to temp, rename) to prevent corruption on crash
-- Checkpoint tree is the only mechanism for resume — no implicit "last good state"
+- `cli/` imports from `core/` only — never the reverse
+- `waypoint/` sources/targets register themselves via URI registry side-effects
+- Sources provide stable IDs — engine never mints domain entity IDs
+- Pipelines loaded at runtime via `tsx`/`jiti` — no consumer build step
+- All file writes are atomic (write temp → rename) — no partial state on crash
+- Checkpoint tree is the only resume mechanism — no implicit "last good state"
+- Out-of-process tools communicate exclusively via JSON over stdio

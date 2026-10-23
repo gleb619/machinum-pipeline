@@ -33,9 +33,10 @@ build
 .blackboxcli/
 .codegraph/
 .cursor/
-/docs/scaffolding.md
+/.kiro/
+/docs/kanban.md
+/docs/superpowers/
 /docs/plans/*
-/docs/superpowers/*
 
 /tmp-packs/
 /packages/core/vendor/
