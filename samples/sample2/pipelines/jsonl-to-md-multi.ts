@@ -12,6 +12,7 @@ import {
   schemaTool,
   summaryTool,
   titleTranslator,
+  toMarkdown,
   tokenSplitter,
   typoFinder,
   wordCounter,
@@ -31,19 +32,6 @@ const stubTranslator = defineTool<string, string>({
       .map((p) => `[ru]${p}[/ru]`)
       .join('\n\n')
     return { ...env, item: translated, meta: { ...env.meta, translated: true } }
-  },
-})
-
-// === Helper: convert JSONL record to plain markdown for schema-doc tools ===
-//TODO: remove `toMarkdown` tool
-//@depricated
-const toMarkdown = defineTool<{ title: string; body: string }, string>({
-  name: 'to-markdown',
-  version: '1.0.0',
-  exec: 'inproc',
-  invoke: async (env, _ctx) => {
-    const record = env.item as { title: string; body: string }
-    return { ...env, item: `# ${record.title}\n\n${record.body}` }
   },
 })
 

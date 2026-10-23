@@ -1,6 +1,10 @@
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
-import { formatString, mdFormatter, mdFormatterTool } from '../src/md-formatter.js'
+import { formatMarkdown, formatString, mdFormatter, mdFormatterTool } from '../src/md-formatter.js'
 
 // ---------------------------------------------------------------------------
 // mdFormatter tool definition
@@ -110,5 +114,118 @@ describe('mdFormatter tool invoke', () => {
     )
     expect(result.item).toBeTruthy()
     expect(result.meta.mdFormatted).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// stringify options actually reach remark-stringify
+// ---------------------------------------------------------------------------
+
+const LONG_PARAGRAPH = `${'word '.repeat(40).trim()}`
+
+describe('stringify options', () => {
+  it('should wrap prose at the configured width', async () => {
+    const narrow = await formatString(LONG_PARAGRAPH, { width: 80, wrapMode: 'always' })
+    const wide = await formatString(LONG_PARAGRAPH, { width: 120, wrapMode: 'always' })
+
+    const narrowLines = narrow.formatted.split('\n').length
+    const wideLines = wide.formatted.split('\n').length
+    expect(narrowLines).toBeGreaterThan(wideLines)
+    for (const line of narrow.formatted.split('\n')) {
+      expect(line.length).toBeLessThanOrEqual(80)
+    }
+  })
+
+  it('should clamp width into the 80-120 range', async () => {
+    const tooSmall = await formatString(LONG_PARAGRAPH, { width: 10, wrapMode: 'always' })
+    const tooBig = await formatString(LONG_PARAGRAPH, { width: 1000, wrapMode: 'always' })
+    for (const line of tooSmall.formatted.split('\n')) {
+      expect(line.length).toBeLessThanOrEqual(80)
+    }
+    for (const line of tooBig.formatted.split('\n')) {
+      expect(line.length).toBeLessThanOrEqual(120)
+    }
+    expect(tooBig.formatted.split('\n').length).toBeGreaterThan(1)
+  })
+
+  it('should not wrap when wrapMode is never', async () => {
+    const result = await formatString(LONG_PARAGRAPH, { wrapMode: 'never' })
+    expect(result.formatted.trimEnd()).toBe(LONG_PARAGRAPH)
+  })
+
+  it('should keep source line breaks by default', async () => {
+    const source = 'first line of prose\nsecond line of prose\n\nnext paragraph'
+    const result = await formatString(source)
+    expect(result.formatted).toContain('first line of prose\nsecond line of prose')
+  })
+
+  it('should switch ordered list marker for orderedList one', async () => {
+    const input = '1. alpha\n2. beta\n3. gamma'
+    const ascending = await formatString(input, { orderedList: 'ascending' })
+    const one = await formatString(input, { orderedList: 'one' })
+
+    expect(ascending.formatted).toContain('1. alpha')
+    expect(one.formatted).toContain('1) alpha')
+  })
+
+  it('should preserve frontmatter through formatting', async () => {
+    const input = '---\ntitle: Keep me\n---\n\n# Head\n\nBody.\n'
+    const result = await formatString(input)
+    expect(result.formatted).toContain('title: Keep me')
+    expect(result.formatted).toContain('# Head')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// formatMarkdown over files
+// ---------------------------------------------------------------------------
+
+describe('formatMarkdown', () => {
+  it('should leave files untouched when write is false', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-fmt-'))
+    const path = join(dir, 'a.md')
+    const original = 'paragraph with   irregular   spacing'
+    await writeFile(path, original, 'utf-8')
+
+    const results = await formatMarkdown(path)
+
+    expect(results).toHaveLength(1)
+    expect(results[0]?.alreadyFormatted).toBe(false)
+    expect(results[0]?.written).toBe(false)
+    expect(await readFile(path, 'utf-8')).toBe(original)
+  })
+
+  it('should rewrite changed files when write is true', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-fmt-'))
+    const path = join(dir, 'a.md')
+    await writeFile(path, 'paragraph with   irregular   spacing', 'utf-8')
+
+    const results = await formatMarkdown(path, {}, true)
+
+    expect(results[0]?.written).toBe(true)
+    expect(await readFile(path, 'utf-8')).toBe(results[0]?.formatted)
+  })
+
+  it('should not rewrite already-formatted files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-fmt-'))
+    const path = join(dir, 'a.md')
+    await writeFile(path, '# Title\n\nBody.\n', 'utf-8')
+
+    const results = await formatMarkdown(path, {}, true)
+
+    expect(results[0]?.alreadyFormatted).toBe(true)
+    expect(results[0]?.written).toBe(false)
+  })
+
+  it('should skip excluded directories', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-fmt-'))
+    await mkdir(join(dir, 'node_modules'), { recursive: true })
+    await writeFile(join(dir, 'keep.md'), '# Keep\n', 'utf-8')
+    await writeFile(join(dir, 'node_modules', 'dep.md'), '# Dep\n', 'utf-8')
+
+    const results = await formatMarkdown(dir)
+
+    expect(results).toHaveLength(1)
+    expect(results[0]?.path.endsWith('keep.md')).toBe(true)
   })
 })

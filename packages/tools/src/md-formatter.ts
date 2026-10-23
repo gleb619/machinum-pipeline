@@ -1,11 +1,16 @@
-import { unified } from 'unified'
-import remarkParse from 'remark-parse'
-import remarkStringify from 'remark-stringify'
-import remarkGfm from 'remark-gfm'
-import remarkFrontmatter from 'remark-frontmatter'
-
 import { defineTool } from '@mt/core'
 import type { Envelope, ToolContext } from '@mt/core'
+import type { Options as StringifyOptions } from 'remark-stringify'
+
+import {
+  atomicWriteFile,
+  buildProcessor,
+  collectMarkdownFiles,
+  DEFAULT_EXCLUDES,
+  readMarkdownFile,
+  type OrderedListStyle,
+  type WrapMode,
+} from './remark-processor.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,10 +19,15 @@ import type { Envelope, ToolContext } from '@mt/core'
 export interface FormatOptions {
   /** Line width in characters (clamped to 80–120). Default: 100. */
   width?: number
-  /** Prose wrapping mode. Default: 'always'. */
-  wrapMode?: 'always' | 'preserve' | 'never'
+  /**
+   * Prose wrapping mode. Default: 'preserve'.
+   * - 'preserve' keeps the source line breaks (safe default, non-destructive)
+   * - 'always' rewraps paragraphs to `width`, collapsing existing breaks
+   * - 'never' joins each paragraph onto a single line
+   */
+  wrapMode?: WrapMode
   /** Ordered list numbering style. Default: 'ascending'. */
-  orderedList?: 'ascending' | 'one'
+  orderedList?: OrderedListStyle
   /** Glob/directory patterns to exclude. Default: ['node_modules', '.git', 'dist', 'build']. */
   excludes?: string[]
 }
@@ -27,6 +37,13 @@ export interface FormatResult {
   formatted: string
   /** Whether the input was already formatted. */
   alreadyFormatted: boolean
+}
+
+export interface FormattedFile extends FormatResult {
+  /** Source path the content came from. */
+  path: string
+  /** True when the file was rewritten (write=true and content changed). */
+  written: boolean
 }
 
 export interface MdFormatterInput {
@@ -45,9 +62,9 @@ export interface MdFormatterOutput {
 
 const DEFAULT_OPTIONS: Required<FormatOptions> = {
   width: 100,
-  wrapMode: 'always',
+  wrapMode: 'preserve',
   orderedList: 'ascending',
-  excludes: ['node_modules', '.git', 'dist', 'build'],
+  excludes: [...DEFAULT_EXCLUDES],
 }
 
 const WIDTH_MIN = 80
@@ -68,103 +85,75 @@ function resolveOptions(opts?: FormatOptions): Required<FormatOptions> {
     ...DEFAULT_OPTIONS,
     ...opts,
     width: clampWidth(opts?.width ?? DEFAULT_OPTIONS.width),
+    excludes: opts?.excludes ?? [...DEFAULT_EXCLUDES],
   }
 }
 
-function buildStringifyOptions(options: Required<FormatOptions>) {
+function buildStringifyOptions(options: Required<FormatOptions>): StringifyOptions {
   return {
-    width: options.width,
-    wrap: options.wrapMode,
     bulletOrdered: options.orderedList === 'one' ? ')' : '.',
     incrementListMarker: true,
   }
 }
 
 // ---------------------------------------------------------------------------
-// Remark processor helpers
+// Public formatting API
 // ---------------------------------------------------------------------------
 
 /**
- * Format a markdown string using remark.
- * Uses unified + remark-parse + remark-gfm + remark-stringify.
- */
-export async function formatMarkdown(
-  paths: string | string[],
-  _options?: FormatOptions,
-  _write?: boolean,
-): Promise<string | void> {
-  // File-based operations not yet implemented via remark
-  return
-}
-
-/**
- * Format a single markdown string using remark via stdin.
+ * Format a markdown string using remark (GFM + frontmatter aware).
+ * Idempotent: formatting an already-formatted string returns it unchanged.
  */
 export async function formatString(input: string, options?: FormatOptions): Promise<FormatResult> {
   const resolved = resolveOptions(options)
-  const stringifyOpts = buildStringifyOptions(resolved)
-
-  const processor = unified()
-    .use(remarkParse)
-    .use(remarkFrontmatter)
-    .use(remarkGfm)
-    .use(remarkStringify)
+  const processor = buildProcessor(buildStringifyOptions(resolved), {
+    width: resolved.width,
+    mode: resolved.wrapMode,
+  })
 
   const result = await processor.process(input)
   const formatted = String(result)
-  const alreadyFormatted = formatted === input
 
-  return {
-    formatted,
-    alreadyFormatted,
+  return { formatted, alreadyFormatted: formatted === input }
+}
+
+/**
+ * Format markdown files on disk. Directories are walked, `excludes` are skipped.
+ * With `write=true` changed files are rewritten atomically (temp + rename);
+ * unchanged files are left untouched.
+ */
+export async function formatMarkdown(
+  paths: string | string[],
+  options?: FormatOptions,
+  write = false,
+): Promise<FormattedFile[]> {
+  const resolved = resolveOptions(options)
+  const files = await collectMarkdownFiles(paths, resolved.excludes)
+
+  const results: FormattedFile[] = []
+  for (const path of files) {
+    const input = await readMarkdownFile(path)
+    const { formatted, alreadyFormatted } = await formatString(input, options)
+    const willWrite = write && !alreadyFormatted
+    if (willWrite) await atomicWriteFile(path, formatted)
+    results.push({ path, formatted, alreadyFormatted, written: willWrite })
   }
+
+  return results
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline tool — mdFormatter (defineTool wrapper)
+// Pipeline tool
 // ---------------------------------------------------------------------------
 
-export const mdFormatter = defineTool<string, string>({
-  name: 'md-formatter',
-  version: '1.0.0',
-  exec: 'inproc',
-
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
-    const input = env.item as string
-    const opts: FormatOptions | undefined = env.meta?.mdFormatOptions as FormatOptions | undefined
-
-    try {
-      const result = await formatString(input, opts)
-
-      return {
-        item: result.formatted,
-        meta: {
-          ...env.meta,
-          mdFormatted: true,
-          mdAlreadyFormatted: result.alreadyFormatted,
-        },
-      }
-    } catch (_err) {
-      return {
-        item: input,
-        meta: {
-          ...env.meta,
-          mdFormatted: false,
-          mdFormatError: _err instanceof Error ? _err.message : String(_err),
-        },
-      }
-    }
-  },
-})
-
-export function mdFormatterTool(defaults?: FormatOptions) {
+function makeMdFormatter(defaults?: FormatOptions) {
   return defineTool<string, string>({
     name: 'md-formatter',
     version: '1.0.0',
     exec: 'inproc',
 
     async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
-      const input = env.item as string
+      const input = env.item
       const perEnvOpts = env.meta?.mdFormatOptions as FormatOptions | undefined
       const opts: FormatOptions = { ...defaults, ...perEnvOpts }
 
@@ -179,16 +168,24 @@ export function mdFormatterTool(defaults?: FormatOptions) {
             mdAlreadyFormatted: result.alreadyFormatted,
           },
         }
-      } catch (_err) {
+      } catch (err) {
         return {
           item: input,
           meta: {
             ...env.meta,
             mdFormatted: false,
-            mdFormatError: _err instanceof Error ? _err.message : String(_err),
+            mdFormatError: err instanceof Error ? err.message : String(err),
           },
         }
       }
     },
   })
+}
+
+/** Markdown formatter tool with no option defaults (options come from `meta.mdFormatOptions`). */
+export const mdFormatter = makeMdFormatter()
+
+/** Markdown formatter tool pre-seeded with default options. */
+export function mdFormatterTool(defaults?: FormatOptions) {
+  return makeMdFormatter(defaults)
 }

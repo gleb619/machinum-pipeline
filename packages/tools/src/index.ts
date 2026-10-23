@@ -69,9 +69,43 @@ export {
   mdFormatterTool,
   type FormatOptions,
   type FormatResult,
+  type FormattedFile,
   type MdFormatterInput,
   type MdFormatterOutput,
 } from './md-formatter.js'
+
+export {
+  atomicWriteFile,
+  buildProcessor,
+  collectMarkdownFiles,
+  parseMarkdown,
+  readMarkdownFile,
+  DEFAULT_EXCLUDES,
+  type OrderedListStyle,
+  type WrapMode,
+} from './remark-processor.js'
+
+export {
+  markdownStats,
+  markdownOutline,
+  stripFrontmatter,
+  markdownStatsTool,
+  markdownOutlineTool,
+  markdownStripFrontmatter,
+  type MarkdownStats,
+  type MarkdownStatsOutput,
+  type MarkdownStripOutput,
+  type MarkdownToolInput,
+  type MarkdownOutlineOutput,
+  type OutlineEntry,
+} from './markdown-tool.js'
+
+export {
+  toMarkdown,
+  toMarkdownTool,
+  recordToMarkdown,
+  type ToMarkdownInput,
+} from './to-markdown.js'
 
 export {
   readChapterDoc,
