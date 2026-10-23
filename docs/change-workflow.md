@@ -18,7 +18,9 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
 4. **Commit** — only when the pre-commit gate is green.
 5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
    (`samples/sample*/tests/`). Red → stay on branch, fix, re-run.
-6. **Merge + cleanup** — merge → FF only (`git merge --ff-only`) → delete branch + worktree.
+6. **Rebase + FF-merge + cleanup** — rebase the feature branch onto `main` (`git rebase main`),
+   then merge → FF only (`git merge --ff-only`) → delete branch + worktree.
+   **Regular merge commits are forbidden.** Never use `git merge --no-ff` or merge without rebase.
 
 A merge is allowed only when both gates are green. Any failure returns to the branch, never to main.
 
