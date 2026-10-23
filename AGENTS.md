@@ -1,249 +1,135 @@
 # AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to work with code in this repository.
 
-## Steering files
+## Required skills
 
-Steering files live in `docs/steering/` (also mirrored to `.kiro/steering/`) and provide detailed context for each part of the codebase. When making code changes, read the relevant steering file(s) before editing:
+The following skills MUST be invoked (via the `skills` tool) before any work on this repository:
 
-| File | When to read |
-|---|---|
-| `docs/steering/product.md` | Understanding product concepts, domain model, data flow |
-| `docs/steering/tech.md` | Code style, TypeScript rules, Biome config, test conventions |
-| `docs/steering/structure.md` | Workspace layout, package map, import layer rules |
-| `docs/steering/core.md` | Changing `packages/core/` — types, DSL, engine, URI registry |
-| `docs/steering/tools.md` | Changing `packages/tools/` — adding or modifying processing tools |
-| `docs/steering/waypoint.md` | Changing `packages/waypoint/` — URI schemes, Source/Target impls |
-| `docs/steering/cli.md` | Changing `packages/cli/` — commands, pipeline loading |
-| `docs/steering/router.md` | Changing `packages/router/` — OpenRouter proxy, cost tracking |
-| `docs/steering/backend.md` | Changing `packages/backend/` — admin API, SSE, SQLite |
-| `docs/steering/mcp.md` | Changing `packages/mcp/` — MCP server, stdio handlers |
-| `docs/steering/extensions.md` | Changing `packages/chrome/` or `packages/vscode/` |
+- `caveman` - ultra-terse communication style
+- `i-have-adhd` - ADHD-friendly planning/output style
+- `codegraph` - code graph navigation for the codebase
+- `delegate-with-at` (optional) - delegate code changes to a sub-agent via `at` while focusing on reasoning/coordination
+
+Invoke the first three at the start of every task. Do not skip.
+
+**Delegation mechanisms - pick one per task, never both for the same work:** prefer the host's built-in/native
+subagents (for example architect / coder / qa via the Agent tool) over `delegate-with-at` (`at` agents). If a task is
+already handled by a native subagent, don't double-delegate to `at` (and vice versa).
 
 ---
 
 ## What this project is
 
 **machinum-pipeline** (package name: `mt`) is a TypeScript ETL engine for processing long-form text (primarily books)
-through composable, checkpointable, partially-out-of-process tool chains. It is pre-implementation / active
-development — not yet published. The architecture is fully specified in [docs/tdd.md](docs/tdd.md), use cases
-in [docs/uc.md](docs/uc.md), and the implementation roadmap in [docs/kanban.md](docs/kanban.md).
+through composable, checkpointable, partially-out-of-process tool chains.
 
----
+Core data flow: `Source (URI) → [Tool → Tool → …] → Target (URI)`. All data travels in **Envelopes**
+(`{ item, items?, meta }`); cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
+
+Full context lives in docs - read on demand:
+
+| Doc | Contents |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | High-level architecture, run lifecycle, `.mt/` state dir |
+| [docs/uc.md](docs/uc.md) | Use cases |
+| [docs/tools.md](docs/tools.md) | Tool catalogue |
+| [docs/kanban.md](docs/kanban.md) | Task board / roadmap (managed via `at kanban`; plans in [docs/plans/](docs/plans/)) |
+| [docs/change-workflow.md](docs/change-workflow.md) | Mandatory worktree → branch → gates → FF-merge lifecycle |
+| [docs/samples.md](docs/samples.md) | Sample projects + how to run them manually |
+
+## Steering files
+
+Steering files live in `docs/steering/`. Read the relevant one **before editing**:
+
+| File | When to read |
+|---|---|
+| [product.md](docs/steering/product.md) | Product concepts, domain model, data flow |
+| [tech.md](docs/steering/tech.md) | Toolchain, code style, Biome, test conventions, env vars |
+| [structure.md](docs/steering/structure.md) | Workspace/package layout, import layer rules, URI schemes |
+| [core.md](docs/steering/core.md) | `packages/core/` - types, DSL, engine, URI registry |
+| [tools.md](docs/steering/tools.md) | `packages/tools/` - adding/modifying processing tools |
+| [waypoint.md](docs/steering/waypoint.md) | `packages/waypoint/` - URI schemes, Source/Target impls |
+| [cli.md](docs/steering/cli.md) | `packages/cli/` - commands, pipeline loading |
+| [router.md](docs/steering/router.md) | `packages/router/` - OpenRouter proxy, cost tracking |
+| [backend.md](docs/steering/backend.md) | `packages/backend/` - admin API, SSE, SQLite |
+| [mcp.md](docs/steering/mcp.md) | `packages/mcp/` - MCP server, stdio handlers |
+| [extensions.md](docs/steering/extensions.md) | `packages/chrome/` or `packages/vscode/` |
 
 ## Commands
 
 ```bash
-# Install
-pnpm install
-
-# Build all packages (Turborepo)
-pnpm build
-
-# Lint (Biome — no ESLint/Prettier)
-pnpm lint
-
-# Auto-fix lint/format
-pnpm format
-
-# Type-check all packages
-pnpm typecheck
-
-# Run all tests (workspace + sample integration tests)
-pnpm test
-
-# Run tests for a single package
-pnpm test --filter=@mt/tools
-
-# Run a single test file inside a package
-pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts
-
-# Dev watch mode for a specific package
-pnpm dev --filter=@mt/core
+pnpm install        # Install
+pnpm build          # Build all packages (Turborepo)
+pnpm lint           # Lint (Biome - no ESLint/Prettier)
+pnpm format         # Auto-fix lint/format
+pnpm typecheck      # Type-check all packages
+pnpm test           # All tests (workspace + sample integration tests)
+pnpm test --filter=@mt/tools                    # Tests for one package
+pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts   # One test file
+pnpm dev --filter=@mt/core                      # Dev watch mode
 ```
 
-Test files are co-located in `src/` with a `.test.ts` suffix. Use `describe`/`it` blocks (not `test`). Integration tests
-for samples live under `samples/sample*/tests/`.
+## Quick architecture map
 
----
+Packages: `@mt/core` (types, DSL, Runner engine) → `@mt/cli` (binary) + `@mt/backend`/`@mt/mcp` (programmatic
+callers); `@mt/tools` (chapter processing tools); `@mt/waypoint` (URI-scheme Sources/Targets, side-effect
+registration via `import '@mt/waypoint'`); `@mt/router` (standalone OpenRouter proxy); `@mt/frontend` (admin UI);
+`chrome/` + `vscode/` extensions.
 
-## Package map
+Key types in `packages/core/src/`: `domain.ts` (`Book`, `Chapter`, … - Sources provide stable IDs, the engine never
+mints them), `types.ts` (`Source`/`Tool`/`Target`/`Envelope`), `contexts.ts` (layered `GlobalContext → RunContext →
+ToolContext`, backrefs never copies), `dsl.ts` (`definePipeline()` etc.), `uri.ts` (URI registry),
+`engine/runner.ts` + `state-machine.ts` + `checkpoint.ts` (execution, `pending → running → [checkpoint → paused →
+resumed →] done/failed`, crash recovery).
 
-| Package          | Path                 | Role                                                                          |
-|------------------|----------------------|-------------------------------------------------------------------------------|
-| `@mt/core`       | `packages/core/`     | Types, DSL builders, URI registry, Runner engine, built-in Sources/Targets    |
-| `@mt/cli`        | `packages/cli/`      | `mt` binary; loads pipelines via `tsx`/`jiti` (no consumer build step)        |
-| `@mt/tools`      | `packages/tools/`    | Chapter processing tools (validator, splitter, warnings, fixer, translator)   |
-| `@mt/waypoint`   | `packages/waypoint/` | Source/Target implementations; registers URI schemes as side-effects          |
-| `@mt/router`     | `packages/router/`   | Standalone Nuxt app; OpenRouter proxy with key pool, cost tracking, mock mode |
-| `@mt/backend`    | `packages/backend/`  | Nuxt/Nitro admin API + SSE event stream + SQLite indicator; serves frontend   |
-| `@mt/frontend`   | `packages/frontend/` | Vue 3 + Tailwind admin UI (bundled into backend at build time)                |
-| `@mt/mcp`        | `packages/mcp/`      | MCP server over stdio; wraps core/cli — no HTTP                               |
-| chrome-extension | `packages/chrome/`   | MV3 extension — scrape chapters, auto-upload to web editors                   |
-| vscode-extension | `packages/vscode/`   | JSON schema for `mt.json`, DSL hover info, "Run pipeline" code lens           |
-
-### Import layer rules
-
-- `cli/` imports from `core/` only — never the reverse
-- `backend/`, `mcp/` call `core/` programmatically
-- `frontend/` calls `backend/` API only — no direct core dependency
-- `router/` is standalone — no dependency on other packages except shared config types
-- Extensions communicate via HTTP or MCP, never via direct imports
-
----
-
-## Core architecture
-
-### Data flow
-
-```
-Source (URI) → [Tool → Tool → …] → Target (URI)
-```
-
-All data travels in **Envelopes**: `{ item: T, items?: T[], meta: Record<string, unknown> }`. Cardinality changes only
-via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
-
-### Key types (packages/core/src/)
-
-- `domain.ts` — `Book`, `Chapter`, `Paragraph`, `Line` plain interfaces. Sources provide stable IDs; the engine never
-  mints domain entity IDs.
-- `types.ts` — `Source<T>`, `Tool<I,O>`, `Target<T>`, `Envelope<T>`, `Lifestyle`
-- `contexts.ts` — `GlobalContext → RunContext → ToolContext` layered chain; each carries a backref to its parent (never
-  a copy)
-- `dsl.ts` — `definePipeline()`, `defineTool()`, `defineSource()`, `defineTarget()` builders
-- `uri.ts` — URI registry & parser; Sources/Targets are addressed as URIs (e.g. `jsonl://./out.jsonl`,
-  `md://./chapters`)
-- `engine/runner.ts` — main `Runner` executing the DSL op chain; manages Run lifecycle
-- `engine/state-machine.ts` — `pending → running → [checkpoint → paused → resumed →] done/failed`
-- `engine/checkpoint.ts` — checkpoint tree walker; enables crash recovery
-
-### URI schemes (registered by `@mt/waypoint` as side-effects)
-
-| Scheme              | Description                                           |
-|---------------------|-------------------------------------------------------|
-| `jsonl://`          | JSONL file source/target                              |
-| `md://`             | Markdown file source/target                           |
-| `schema-doc://`     | Per-chapter schema-doc output target                  |
-| `chapter://`        | Chapter output (language-folder target)               |
-| `http://` / `hs://` | Long-lived HTTP source (POST endpoint)                |
-| `git://`            | Git worktree-aware source/target with optional commit |
-
-To use waypoint schemes in a pipeline: `import '@mt/waypoint'` (side-effect import).
-
-### Pipeline DSL
+Pipeline DSL shape (full reference in [steering/core.md](docs/steering/core.md)):
 
 ```typescript
-import { definePipeline, defineTool } from '@mt/core'
-import '@mt/waypoint'
-
 export default definePipeline()
-  .from('jsonl://./input.jsonl')          // string URI (preferred) or source() wrapper
-  .flatMap(async (item) => [...])         // fan-out: one → many
+  .from('jsonl://./input.jsonl')   // string URI (preferred)
+  .flatMap(async (item) => [...])  // fan-out: one → many
   .tap(async (item) => { /* logging */ })
-  .use(myTool)                            // Tool<I, O>
-  .subflow(otherPipeline)                 // inline nested pipeline (same Runner)
-  .fork(subPipeline)                      // child Runner + nested checkpoint subtree
-  .batch(5)                               // group into items[]
+  .use(myTool)                     // Tool<I, O>
+  .subflow(otherPipeline)          // inline nested pipeline (same Runner)
+  .fork(subPipeline)               // child Runner + nested checkpoint subtree
+  .batch(5)                        // group into items[]
   .to('md://./output.md')
 ```
 
-**Pipelines are real TS modules** — plain `import`, `console.log`, conditionals all work. The DSL is only the
+**Pipelines are real TS modules** - plain `import`, `console.log`, conditionals all work. The DSL is only the
 orchestration grammar.
 
-### OpenRouter key pool (`@mt/tools/src/openrouter-pool.ts`)
+## Code style (summary)
 
-Round-robin across `OPENROUTER_API_KEYS` (comma-separated env var). Handles 429 (mark exhausted) and 402 (remove
-permanently). Pool recreates on TTL expiry. Used by translation tools and the router proxy.
+Biome enforces everything: 2-space indent, single quotes, no semicolons, trailing commas, `printWidth: 100`;
+`noExplicitAny`/`noNonNullAssertion` are errors. TS strict (`strict`, `noUncheckedIndexedAccess`): `interface` for
+public API shapes, `type` for unions, `import type` for type-only, no `any` (`unknown` + narrowing). Files
+`kebab-case.ts`, types `PascalCase`, builders `define*` prefix, conventional commits. Tests: co-located
+`*.test.ts`, `describe`/`it`. Full rules: [steering/tech.md](docs/steering/tech.md).
 
----
+## Hard rules
 
-## Code style
+- **Change workflow** - never code on `main`; worktree + branch → code → test/lint gate → commit → samples IT gate →
+  FF-merge only → cleanup. Full state machine: [docs/change-workflow.md](docs/change-workflow.md).
+- **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse); `frontend/` → backend API only;
+  `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
+- **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
+- **Do not run git mutations** (commit/push/reset/rebase) unless explicitly asked.
+- **NEVER** `git stash` or `git reset` (`--hard`/`--mixed`/`--soft`) without explicit user approval - working tree
+  changes are load-bearing, do not discard them.
+- **NEVER** add `Co-Authored-By` (or any AI-attribution trailer) to commits or PR descriptions.
 
-**Biome** enforces all formatting and lint — 2-space indent, single quotes, no semicolons, trailing commas,
-`printWidth: 100`. `noExplicitAny` and `noNonNullAssertion` are errors.
+## Communication rules
 
-TypeScript strict mode (`strict: true`, `noUncheckedIndexedAccess: true`). Use `interface` for public API shapes, `type`
-for internal unions. `import type { … }` for type-only imports. No `any` — use `unknown` with narrowing.
-
-Files: `kebab-case.ts`. Types/Interfaces: `PascalCase`. DSL builders: `define*` prefix. Commits: conventional commits (
-`type(scope): description`).
-
----
-
-## `.mt/` — runtime state directory
-
-Created by `mt init` in consumer projects. Not part of this repo. Contains:
-- `runs/<runId>/state.json` — state machine snapshot
-- `runs/<runId>/checkpoint.json` — checkpoint tree (resume source of truth)
-- `runs/<runId>/events.jsonl` — append-only event log (SSE source for UI)
-- `runs/<runId>/dead-letter.jsonl` — failed envelopes when `onError: 'dead-letter'`
-- `cache/` — tool output memoisation (content-hash keyed)
-
-All file writes use atomic temp-then-rename to prevent corruption on crash.
-
----
-
-## Samples
-
-| Sample  | Path              | What it demonstrates                                          |
-|---------|-------------------|---------------------------------------------------------------|
-| sample0 | `samples/sample0` | `mt init` integration test — validates scaffolded artifacts   |
-| sample1 | `samples/sample1` | HTTP → JSONL pipeline (`hs://` source, `jsonl://` target)     |
-| sample2 | `samples/sample2` | Multi-tool pipeline: JSONL → tools → fork → batch → MD output |
-
-Running a sample manually requires packing local deps first:
-```bash
-cd samples/sample2
-pnpm -C ../../packages/core pack --pack-destination ./vendor
-pnpm -C ../../packages/cli pack --pack-destination ./vendor
-npm install --no-audit --no-fund
-pnpm run runner
-```
-
----
+- You are not alone - other agents may work in this repo concurrently. Focus on your task; ignore unrelated errors.
+- Caveman/ultra-brief reports. Minimal texting, save tokens.
+- ADHD-friendly output (from `i-have-adhd` skill): lead with the next action; number multi-step work; restate state
+  across turns; specific time estimates; matter-of-fact tone for errors (state cause + fix, no "uh oh"); cap visible
+  lists at ~5 items; no preamble, no recap, no closing pleasantries - start with the answer, end when it's done.
 
 ## Environment variables
 
-| Variable              | Effect                                                           |
-|-----------------------|------------------------------------------------------------------|
-| `OPENROUTER_API_KEYS` | Comma-separated OpenRouter keys; pool rotates across them        |
-| `MT_ROUTER_URL`       | OpenRouter proxy URL (default `http://localhost:7777`)           |
-| `MT_LOG_LEVEL`        | Logging verbosity (default `info`)                               |
-| `MT_DEBUG`            | Enables debug output and verbose checkpoint logging              |
-
-Secrets are loaded from `.env` in the consumer project (configured via `mt.json → secrets.envFile`).
-
----
-
-## Change workflow (state machine)
-
-Every code change follows this lifecycle — no exceptions:
-
-```
-NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMIT ──► SAMPLES IT ──► FF-MERGE ──► CLEANUP
-                                        │ fail           │ fail           │ fail
-                                        ▼                ▼                ▼
-                                     fix, redo        no merge,        stay on branch,
-                                                       stay on branch   fix, re-run
-```
-
-1. **Worktree + branch** — never code on `main`. Create a git worktree + feature branch
-   (e.g. `../<repo>-<id>` on `feat/<id>`).
-2. **Code** — do the change, scoped to the task.
-3. **Pre-commit gate** — run `pnpm test` + `pnpm lint` (scoped to the change) **before** committing.
-   Red → fix, do not commit.
-4. **Commit** — only when the pre-commit gate is green.
-5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
-   (`samples/sample*/tests/`). Red → stay on branch, fix, re-run.
-6. **Merge + cleanup** — merge → FF only (`git merge --ff-only`) → delete branch + worktree.
-
-A merge is allowed only when both gates are green. Any failure returns to the branch, never to main.
-
----
-
-## Implementation status
-
-All phases through Phase 7 (sample projects) are `done`. The task board lives in [docs/kanban.md](docs/kanban.md)
-(managed via `at kanban`) with per-task plan links in [plans/](plans/). High-level architecture:
-[docs/architecture.md](docs/architecture.md), details in [docs/steering/](docs/steering/). Use cases: [docs/uc.md](docs/uc.md). Tool
-catalogue: [docs/tools.md](docs/tools.md).
+`OPENROUTER_API_KEYS` (comma-separated key pool), `MT_ROUTER_URL` (default `http://localhost:7777`),
+`MT_LOG_LEVEL`, `MT_DEBUG`. Secrets load from `.env` via `mt.json → secrets.envFile`.
+Full table: [steering/tech.md](docs/steering/tech.md#environment-variables).
