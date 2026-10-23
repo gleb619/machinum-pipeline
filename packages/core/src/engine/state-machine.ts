@@ -16,7 +16,8 @@ const TRANSITIONS: Record<RunState, RunState[]> = {
   paused: ['resumed'],
   resumed: ['running'],
   done: [],
-  failed: [],
+  // `failed` stays terminal for reporting, but `resume` re-runs a failed run.
+  failed: ['running'],
 }
 
 /**

@@ -79,6 +79,10 @@ Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `
 State transitions: `pending → running → checkpoint → paused → resumed → done / failed`.
 Use `canTransition()` before `transition()`.
 
+A run that throws is marked `failed` (root checkpoint node + run state, both persisted) and the
+error is re-thrown — `mt run` / `mt resume` then exit non-zero. `failed → running` is the one edge
+out of `failed`: `resume()` re-drives a failed run from its first non-done checkpoint node.
+
 ### `engine/child-process.ts`
 `spawnChildProcess()` / `runChildProcess()` — serialize envelope to JSON → write to child stdin → read JSON from stdout. Supports npx, deno, bun exec modes.
 
@@ -143,6 +147,9 @@ type ErrorPolicy = 'fail-run' | 'skip-item' | 'dead-letter';
 Merge order (highest wins): **tool step > pipeline > global (`mt.json`)**.
 
 `dead-letter` writes the offending envelope + error to `.mt/runs/<id>/dead-letter.jsonl`.
+`skip-item` and `dead-letter` drop the item and keep the run going (it ends `done`); `fail-run`
+rejects the tool's promise, which aborts the step stream — the item is **not** silently dropped, and
+the run ends `failed`.
 
 ## Caching
 

@@ -124,7 +124,12 @@ export class Runner {
     await this.persistState()
 
     // Walk pipeline steps
-    await this.executeSteps()
+    try {
+      await this.executeSteps()
+    } catch (error) {
+      await this.failRun(error)
+      throw error
+    }
 
     // Mark done
     this.stateMachine.transition('done')
@@ -182,7 +187,12 @@ export class Runner {
     // Find first non-done node and continue
     const resumeNode = findFirstNonDone(this.checkpoint)
     if (resumeNode) {
-      await this.executeSteps()
+      try {
+        await this.executeSteps()
+      } catch (error) {
+        await this.failRun(error)
+        throw error
+      }
     }
 
     this.stateMachine.transition('done')
@@ -492,14 +502,16 @@ export class Runner {
 
         batch.push(task)
 
-        // Yield results from completed tasks, skipping failed/skipped items
-        const settled = await Promise.any(
-          batch.map(async (p, i) => ({ result: await p.catch(() => undefined), index: i })),
+        // Race, don't `any`: `any` resolves with the first *success*, so a `fail-run`
+        // rejection would be eaten by a sibling that happened to finish later. Skipped or
+        // dead-lettered tasks return `undefined` (never reject), so only `fail-run` rejects here.
+        const settled = await Promise.race(
+          batch.map(async (p, i) => ({ result: await p, index: i })),
         )
+        batch.splice(settled.index, 1)
         if (settled.result !== undefined) {
           yield settled.result
         }
-        batch.splice(settled.index, 1)
       }
 
       // Drain remaining batch, filter out undefined (skipped items)
@@ -609,6 +621,23 @@ export class Runner {
   private nextStepId(step: PipelineStep): string {
     const name = (step.config.name as string | undefined) ?? step.type
     return `${step.type}-${name}-${++this.stepSeq}`
+  }
+
+  /**
+   * Record a run-level failure: mark the root checkpoint and transition to `failed`,
+   * so a run that throws never lands as `done` (or a stale `running`).
+   */
+  private async failRun(error: unknown): Promise<void> {
+    markFailed(this.checkpoint, error instanceof Error ? error.message : String(error))
+    if (this.stateMachine.canTransition('failed')) {
+      this.stateMachine.transition('failed')
+    }
+    try {
+      await this.persistState()
+    } catch (persistError) {
+      // A storage failure must not mask the error that actually failed the run.
+      console.error(`Failed to persist failed run state: ${persistError}`)
+    }
   }
 
   /**
