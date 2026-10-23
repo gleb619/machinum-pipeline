@@ -79,6 +79,40 @@ function formatCsv(rows: string[][]): string {
   return rows.map((row) => row.join(',')).join('\n')
 }
 
+const ATX_HEADING_RE = /^#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/
+const FENCE_RE = /^[ \t]*(`{3,}|~{3,})/
+
+/**
+ * Rewrite body ATX headings as bold text. schema-doc sections are H2, so an
+ * inner heading in a plain-markdown chapter would otherwise close `## Summary`
+ * and drop everything after it (or leave it empty, which mdshape rejects).
+ * Fenced code blocks are left verbatim.
+ */
+function demoteHeadings(body: string): string {
+  const lines = body.split('\n')
+  const result: string[] = []
+  let openFence: string | undefined
+
+  for (const line of lines) {
+    const fence = FENCE_RE.exec(line)?.[1]
+    if (fence) {
+      const marker = fence.charAt(0)
+      if (openFence === undefined) openFence = marker
+      else if (openFence === marker) openFence = undefined
+      result.push(line)
+      continue
+    }
+    if (openFence) {
+      result.push(line)
+      continue
+    }
+    const headingText = ATX_HEADING_RE.exec(line)?.[1]?.trim()
+    result.push(headingText ? `**${headingText}**` : line)
+  }
+
+  return result.join('\n')
+}
+
 /** Normalize simple markdown (`# Title\n\nBody`) into schema-doc format. */
 function normalizeToSchemaDoc(content: string): string {
   const trimmed = content.trim()
@@ -95,7 +129,7 @@ function normalizeToSchemaDoc(content: string): string {
   }
 
   const title = titleLine.slice(2).trim()
-  const body = lines.slice(1).join('\n').trim()
+  const body = demoteHeadings(lines.slice(1).join('\n').trim())
 
   return [
     `# ${title}`,
