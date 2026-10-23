@@ -11,9 +11,7 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
@@ -34,6 +32,7 @@
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "remark-stringify": "^11.0.0",
+    "tiktoken": "^1.0.22",
     "unified": "^11.0.0",
     "zod": "^3.23.0"
   },
