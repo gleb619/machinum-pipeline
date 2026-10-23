@@ -104,7 +104,7 @@ next claim … drained → exit, or with --follow sleep + poll again
   clean-tree check, `git rebase <base>` (aborted on conflict), `merge --ff-only` from the main checkout,
   then worktree + branch removal. Nothing is written into the repo. Base branch = `AT_BASE_BRANCH`, else
   origin's HEAD, else `main`/`master`, else the main checkout's current branch. A new worktree also
-  does NOT automatically link `node_modules` or other git-ignored folders. Pre-link them manually from the main checkout before running tests (see change-workflow.md).
+  `--worktree` creates the worktree but does NOT auto-link git-ignored folders; use `at worktree-new <id>` to pre-link before compose, or symlink `node_modules`/`.mt` manually (see change-workflow.md).
 
 ### Background jobs
 

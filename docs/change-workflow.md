@@ -13,14 +13,28 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
 1. **Worktree + branch** — never code on `main`. Create a git worktree + feature branch
    (e.g. `../<repo>-<id>` on `feat/<id>`).
 
-   Manual bootstrap (current):
+   Use `at worktree-new` to bootstrap a worktree and link/copy git-ignored folders
+   (so you don't reinstall/build from scratch):
+
+   ```bash
+   # Default: creates ../<repo>-<id> on feat/<id> and symlinks node_modules from the main checkout
+   at worktree-new <id>
+
+   # Explicit symlink / copy examples
+   at worktree-new <id> --symlink node_modules
+   at worktree-new <id> --copy .mt
+   at worktree-new <id> --symlink node_modules --copy .mt --base main
+
+   # Machine-readable output
+   cd $(at worktree-new <id>)
+   at worktree-new <id> --json
+   ```
+
+   Manual fallback when `at` is unavailable:
    ```bash
    git worktree add -b feat/<id> ../<repo>-<id>
    cd ../<repo>-<id>
-   # Link git-ignored, install-heavy folders from the main checkout
    ln -s /path/to/main-repo/node_modules node_modules
-   # Optionally also symlink .mt or other large, gitignored dirs
-   pnpm install   # if needed; with node_modules linked this is usually fast/no-op
    ```
 
 2. **Code** — do the change, scoped to the task.
