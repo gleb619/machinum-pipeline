@@ -55,6 +55,7 @@ export type FixerInput = FI
 export type FixerOutput = FO
 
 export { wordCounter } from './word-counter.js'
+export { tokenCounter } from './token-counter.js'
 
 export { chapterIndexer } from './chapter-indexer.js'
 
