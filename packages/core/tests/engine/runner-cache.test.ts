@@ -17,6 +17,7 @@ describe('runner caching', () => {
     const mockTool: Tool<unknown, unknown> = {
       name: 'testTool',
       version: '1.0.0',
+      mdDescription: 'Test tool for caching tests.',
       cacheable: true,
       invoke: vi.fn().mockImplementation(async () => {
         return { item: 'result' }
@@ -25,6 +26,8 @@ describe('runner caching', () => {
 
     const pipeline: Pipeline = {
       id: 'p1',
+      retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+      onError: 'fail-run',
       steps: [
         {
           type: 'tool',

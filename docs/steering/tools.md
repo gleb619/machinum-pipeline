@@ -58,6 +58,7 @@ Assigns ordering indexes to chapters based on filename patterns.
 export const myTool = defineTool<Input, Output>({
   name: 'my-tool',
   version: '1.0.0',
+  mdDescription: 'Tool purpose in Markdown.',
   async invoke(env, ctx) {
     // transform env.item
     return { ...env, item: result }

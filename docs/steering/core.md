@@ -26,7 +26,7 @@ Core interface shapes:
 interface Envelope<T> { item: T; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown } }
 interface Source<T> { uri: string; lifestyle: Lifecycle; start(ctx): AsyncIterable<Envelope<T>>; resume?(ctx, cursor) }
 interface Target<T> { uri: string; open(ctx): Promise<void>; write(env, ctx): Promise<void>; close(ctx): Promise<void> }
-interface Tool<I, O> { name: string; version: string; invoke(env, ctx): Promise<Envelope<O>>; exec?; cacheable?; idempotent? }
+interface Tool<I, O> { name: string; version: string; mdDescription: string; invoke(env, ctx): Promise<Envelope<O>>; exec?; cacheable?; idempotent? }
 ```
 
 ### `contexts.ts`

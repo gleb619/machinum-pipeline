@@ -14,7 +14,12 @@ vi.mock('../../src/store.js', () => ({
 
 describe('runner', () => {
   it('should initialize and start', async () => {
-    const pipeline: Pipeline = { id: 'p1', steps: [] }
+    const pipeline: Pipeline = {
+      id: 'p1',
+      retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+      onError: 'fail-run',
+      steps: [],
+    }
     const globalContext: GlobalContext = {
       project: { name: 'test', root: '/tmp' },
       defaults: {

@@ -246,6 +246,8 @@ export interface ChapterDocToolInput {
 export const chapterDoc = defineTool<ChapterDocToolInput, string>({
   name: 'chapter-doc',
   version: '1.0.0',
+  mdDescription:
+    'Serializes chapter metadata (title, number, warnings, body) into YAML-frontmatter markdown.',
   exec: 'inproc',
 
   async invoke(env: Envelope<ChapterDocToolInput>, _ctx: ToolContext): Promise<Envelope<string>> {

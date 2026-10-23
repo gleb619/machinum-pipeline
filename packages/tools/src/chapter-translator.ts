@@ -49,6 +49,8 @@ function splitParagraphs(text: string): string[] {
 export const titleTranslator = defineTool<TitleTranslatorInput, TitleTranslatorOutput>({
   name: 'title-translator',
   version: '1.0.0',
+  mdDescription:
+    'Translates chapter titles using `translate-text`. Reads from frontmatter or H1 heading.',
   exec: 'inproc',
 
   async invoke(
@@ -161,6 +163,8 @@ export const titleTranslator = defineTool<TitleTranslatorInput, TitleTranslatorO
 export const paragraphTranslator = defineTool<ParagraphTranslatorInput, ParagraphTranslatorOutput>({
   name: 'paragraph-translator',
   version: '1.0.0',
+  mdDescription:
+    'Translates chapter body paragraphs using `translate-text`. Preserves paragraph structure.',
   exec: 'inproc',
 
   async invoke(

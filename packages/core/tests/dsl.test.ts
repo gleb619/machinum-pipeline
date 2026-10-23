@@ -54,6 +54,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'uppercase',
       version: '1.0.0',
+      mdDescription: 'Test tool that converts text to uppercase.',
       invoke: async (env) => env,
     })
 
@@ -78,6 +79,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'test-tool',
       version: '1.0.0',
+      mdDescription: 'Test tool for unit tests.',
       invoke: async (env) => env,
     })
 
@@ -90,6 +92,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'remote-tool',
       version: '2.0.0',
+      mdDescription: 'Test tool with remote exec configuration.',
       invoke: async (env) => env,
       exec: 'npx',
       cacheable: true,
@@ -119,6 +122,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'retry-tool',
       version: '1.0.0',
+      mdDescription: 'Test tool for retry override tests.',
       invoke: async (env) => env,
     })
 
@@ -141,6 +145,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'test-tool',
       version: '1.0.0',
+      mdDescription: 'Test tool for operator chain tests.',
       invoke: async (env) => env,
     })
 
@@ -179,6 +184,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'idempotent-tool',
       version: '1.0.0',
+      mdDescription: 'Test tool for idempotent flag tests.',
       invoke: async (env) => env,
       idempotent: true,
     })

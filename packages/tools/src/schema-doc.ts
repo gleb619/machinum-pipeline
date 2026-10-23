@@ -233,6 +233,8 @@ export function writeDoc(doc: SchemaDocEnvelope): string {
 export const summaryTool = defineTool<string, string>({
   name: 'summary',
   version: '1.0.0',
+  mdDescription:
+    'Extracts the summary section from schema-doc markdown. Stores in envelope metadata.',
   exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const doc = readDoc(env.item as string)
@@ -244,6 +246,7 @@ export const summaryTool = defineTool<string, string>({
 export const entitiesTool = defineTool<string, string>({
   name: 'entities',
   version: '1.0.0',
+  mdDescription: 'Extracts entities from schema-doc CSV block. Falls back to default if empty.',
   exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const doc = readDoc(env.item as string)
@@ -256,6 +259,8 @@ export const entitiesTool = defineTool<string, string>({
 export const schemaTool = defineTool<string, string>({
   name: 'schema',
   version: '1.0.0',
+  mdDescription:
+    'Extracts or generates mermaid schema from schema-doc. Stores in envelope metadata.',
   exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const doc = readDoc(env.item as string)
@@ -269,6 +274,8 @@ export const schemaTool = defineTool<string, string>({
 export const metadataTool = defineTool<string, string>({
   name: 'metadata',
   version: '1.0.0',
+  mdDescription:
+    'Extracts metadata section (chapter, wordCount, tokenCount, charLength) from schema-doc.',
   exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const doc = readDoc(env.item as string)
@@ -280,6 +287,8 @@ export const metadataTool = defineTool<string, string>({
 export const vocabularyTool = defineTool<string, string>({
   name: 'vocabulary',
   version: '1.0.0',
+  mdDescription:
+    'Extracts vocabulary from summary, deduplicates, and updates known words in envelope metadata.',
   exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const doc = readDoc(env.item as string)
@@ -323,6 +332,8 @@ function extractTitleFromInput(item: unknown, chapterNum: number): string {
 export const schemaDocWriter = defineTool<unknown, string>({
   name: 'schema-doc-writer',
   version: '1.0.0',
+  mdDescription:
+    'Builds schema-doc markdown from envelope metadata. Sets `meta.mdOutputs` for writes.',
   exec: 'inproc',
   async invoke(env: Envelope<unknown>, _ctx: ToolContext): Promise<Envelope<string>> {
     const meta = (env.meta || {}) as Record<string, unknown>

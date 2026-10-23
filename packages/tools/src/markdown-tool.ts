@@ -220,6 +220,8 @@ export function stripFrontmatter(input: string): { text: string; stripped: boole
 export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
   name: 'markdown-stats',
   version: '1.0.0',
+  mdDescription:
+    'Collects structural statistics from markdown: headings, paragraphs, code blocks, links, word count.',
   exec: 'inproc',
 
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownStatsOutput>> {
@@ -233,6 +235,8 @@ export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
 export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
   name: 'markdown-outline',
   version: '1.0.0',
+  mdDescription:
+    'Extracts a flat heading outline from markdown, in document order with depth and line numbers.',
   exec: 'inproc',
 
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownOutlineOutput>> {
@@ -246,6 +250,7 @@ export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
 export const markdownStripFrontmatter = defineTool<string, MarkdownStripOutput>({
   name: 'markdown-strip-frontmatter',
   version: '1.0.0',
+  mdDescription: 'Removes leading YAML frontmatter from markdown documents.',
   exec: 'inproc',
 
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownStripOutput>> {

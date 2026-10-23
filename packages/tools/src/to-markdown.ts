@@ -61,6 +61,8 @@ export function recordToMarkdown(input: ToMarkdownInput): string {
 export const toMarkdown = defineTool<ToMarkdownInput, string>({
   name: 'to-markdown',
   version: '1.0.0',
+  mdDescription:
+    'Builds markdown from structured input (title + body). Uses remark with GFM and frontmatter support.',
   exec: 'inproc',
 
   async invoke(env: Envelope<ToMarkdownInput>, _ctx: ToolContext): Promise<Envelope<string>> {

@@ -43,6 +43,8 @@ async function translateSingle(
 export const translateText = defineTool<TranslateInput, TranslateOutput>({
   name: 'translate-text',
   version: '1.0.0',
+  mdDescription:
+    'Translates text via OpenRouter proxy. Supports source/target language specification.',
   exec: 'inproc',
   async invoke(
     env: Envelope<TranslateInput>,

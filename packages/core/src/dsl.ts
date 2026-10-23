@@ -243,6 +243,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
 export function defineTool<I, O>(config: {
   name: string
   version: string
+  mdDescription: string
   invoke: (env: Envelope<I>, ctx: ToolContext) => Promise<Envelope<O>>
   exec?: 'inproc' | 'npx' | 'deno' | 'bun'
   /** File path (or file URL) of the module exporting this tool. Required when `exec !== 'inproc'`. */
@@ -253,6 +254,7 @@ export function defineTool<I, O>(config: {
   return {
     name: config.name,
     version: config.version,
+    mdDescription: config.mdDescription,
     invoke: config.invoke,
     exec: config.exec ?? 'inproc',
     module: config.module,

@@ -1,8 +1,3 @@
-import { describe, expect, it, vi } from 'vitest'
-import { GlobalContext } from '../../src/contexts.js'
-import { Runner } from '../../src/engine/runner.js'
-import { Pipeline } from '../../src/types.js'
-
 import { describe, expect, it } from 'vitest'
 import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'

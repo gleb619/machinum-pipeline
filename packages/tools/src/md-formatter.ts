@@ -3,13 +3,13 @@ import type { Envelope, ToolContext } from '@mt/core'
 import type { Options as StringifyOptions } from 'remark-stringify'
 
 import {
+  DEFAULT_EXCLUDES,
+  type OrderedListStyle,
+  type WrapMode,
   atomicWriteFile,
   buildProcessor,
   collectMarkdownFiles,
-  DEFAULT_EXCLUDES,
   readMarkdownFile,
-  type OrderedListStyle,
-  type WrapMode,
 } from './remark-processor.js'
 
 // ---------------------------------------------------------------------------
@@ -150,6 +150,8 @@ function makeMdFormatter(defaults?: FormatOptions) {
   return defineTool<string, string>({
     name: 'md-formatter',
     version: '1.0.0',
+    mdDescription:
+      'Reformats markdown with configurable line width and wrapping. Uses remark (GFM + frontmatter aware).',
     exec: 'inproc',
 
     async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
