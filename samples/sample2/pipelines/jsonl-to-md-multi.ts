@@ -13,7 +13,7 @@ import {
   summaryTool,
   titleTranslator,
   tokenSplitter,
-  typoFixer,
+  typoFinder,
   wordCounter,
 } from '@mt/tools'
 import '@mt/waypoint'
@@ -103,7 +103,7 @@ export const schemaDocPipeline = definePipeline()
 
 export const fixChapterPipeline = definePipeline()
   .from('ephemeral://fix-input')
-  .use(typoFixer)
+  .use(typoFinder)
   .use(markdownFormatter)
   .to('ephemeral://fix-output')
 

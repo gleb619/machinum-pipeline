@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  markdownFormatter,
-  typoFixer,
-} from '../../../packages/tools/src/chapter-fixer.js'
+import { markdownFormatter } from '../../../packages/tools/src/chapter-validator.js'
+import { typoFinder as typoFixer } from '../../../packages/tools/src/chapter-validator.js'
 import {
   paragraphTranslator,
   titleTranslator,

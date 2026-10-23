@@ -17,8 +17,8 @@ Substitute these wherever the prompt says `<LINT>` / `<TEST>`:
 
 | Name   | Command |
 | ------ | ------- |
-| `LINT` | `pnpm exec biome ci . && npx tsc --noEmit` |
-| `TEST` | `npx vitest run` |
+| `LINT` | `pnpm lint && pnpm typecheck` |
+| `TEST` | `pnpm test` |
 
 ## Required Skills
 
