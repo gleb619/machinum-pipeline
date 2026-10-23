@@ -1,10 +1,10 @@
-import { createWriteStream, mkdirSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { AtomicStreamWriter, atomicWriteFile, registry } from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
 
 async function discoverMarkdownFiles(dir: string): Promise<string[]> {
@@ -56,8 +56,15 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
   }
 }
 
+/**
+ * Markdown Target — two modes:
+ *   - file mode (`md://./out.md`): one stream accumulated to a temp file and
+ *     renamed onto the final path in `close()` (atomic — never partially written)
+ *   - dir mode (`md://./chapters/`): one atomic file per envelope, written as
+ *     it arrives so a crash keeps every chapter finished so far
+ */
 export function createMdTarget<T>(uri: ParsedUri): Target<T> {
-  let writeStream: ReturnType<typeof createWriteStream> | null = null
+  let writer: AtomicStreamWriter | null = null
   let autoIndex = 0
   let filePath = ''
   let isFileMode = false
@@ -69,7 +76,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
       filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
       isFileMode = filePath.endsWith('.md')
       if (isFileMode) {
-        writeStream = createWriteStream(filePath, { encoding: 'utf-8', flags: 'a' })
+        writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
       }
     },
     async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
@@ -77,11 +84,11 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
         throw new Error('Target not opened. Call open() before write().')
       }
       if (isFileMode) {
-        if (!writeStream) {
+        if (!writer) {
           throw new Error('Target not opened. Call open() before write().')
         }
         const text = String(env.item)
-        writeStream.write(`${text}\n`)
+        writer.write(`${text}\n`)
       } else {
         const mdOutputs = env.meta.mdOutputs as MdOutputEntry[] | undefined
         if (mdOutputs && mdOutputs.length > 0) {
@@ -89,28 +96,22 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
             mkdirSync(output.dir, { recursive: true })
             const text =
               typeof output.content === 'string' ? output.content : String(output.content)
-            const { writeFile } = await import('node:fs/promises')
-            await writeFile(join(output.dir, output.filename), text, 'utf-8')
+            await atomicWriteFile(join(output.dir, output.filename), text)
           }
         } else {
           const chapterNum = env.meta.chapterNum || env.meta.chapter || ++autoIndex
           const baseDir = filePath
           mkdirSync(baseDir, { recursive: true })
           const text = String(env.item)
-          const { writeFile } = await import('node:fs/promises')
-          await writeFile(join(baseDir, `chapter${chapterNum}.md`), text, 'utf-8')
+          await atomicWriteFile(join(baseDir, `chapter${chapterNum}.md`), text)
         }
       }
     },
     async close(_ctx: TargetContext): Promise<void> {
-      if (writeStream) {
-        const stream = writeStream
-        writeStream = null
-        await new Promise<void>((resolve, reject) => {
-          stream.on('finish', resolve)
-          stream.on('error', reject)
-          stream.end()
-        })
+      if (writer) {
+        const pending = writer
+        writer = null
+        await pending.commit()
       }
     },
   }

@@ -1,11 +1,11 @@
 // @ts-expect-error globSync is available in Node 22 but @types/node v20 doesn't include it
-import { createReadStream, createWriteStream, globSync } from 'node:fs'
+import { createReadStream, globSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { AtomicStreamWriter, registry } from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
 
 /**
@@ -176,26 +176,31 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
 /**
  * Built-in JSONL Target — writes envelopes to a .jsonl file.
  * Each envelope is serialised as one JSON line.
+ *
+ * Lines are streamed to a temp file and renamed onto the final path in
+ * `close()`, so the .jsonl is never seen half-written and a rerun replaces
+ * instead of appending duplicates.
  */
 export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
-  let writeStream: ReturnType<typeof createWriteStream> | null = null
+  let writer: AtomicStreamWriter | null = null
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
-      writeStream = createWriteStream(filePath, { encoding: 'utf-8', flags: 'a' })
+      writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
     },
     async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
-      if (!writeStream) {
+      if (!writer) {
         throw new Error('Target not opened. Call open() before write().')
       }
-      writeStream.write(`${JSON.stringify(env)}\n`)
+      writer.write(`${JSON.stringify(env)}\n`)
     },
     async close(_ctx: TargetContext): Promise<void> {
-      if (writeStream) {
-        writeStream.end()
-        writeStream = null
+      if (writer) {
+        const pending = writer
+        writer = null
+        await pending.commit()
       }
     },
   }

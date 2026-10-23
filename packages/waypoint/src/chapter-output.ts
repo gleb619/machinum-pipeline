@@ -1,11 +1,11 @@
 import { mkdirSync } from 'node:fs'
 import type { Stats } from 'node:fs'
-import { readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { atomicWriteFile, registry } from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
 
 /**
@@ -20,6 +20,9 @@ import { resolveWaypointPath } from './settings.js'
  *
  * Output path: <base-dir>/<lang>/chapter<num>.md
  * If lang is not provided, writes directly to <base-dir>/chapter<num>.md
+ *
+ * Each chapter file is written atomically (temp → rename), so a crash never
+ * leaves a half-written chapter behind.
  *
  * Template: chapters/{lang}/chapter{num}.md
  */
@@ -49,7 +52,8 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
 
       const filePath = join(dir, filename)
       const text = String(env.item)
-      await writeFile(filePath, text, 'utf-8')
+      // Atomic: a crash mid-write leaves the previous chapter intact, never a truncated one.
+      await atomicWriteFile(filePath, text)
     },
     async close(_ctx: TargetContext): Promise<void> {
       // Nothing to close — each write creates its own file

@@ -1,10 +1,11 @@
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { appendFile, mkdir, readFile, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { atomicWriteFile } from './atomic.js'
 
 /**
  * Atomic file store for .mt/ operations.
- * All writes use temp+rename to prevent corruption on crash.
+ * Whole-file writes use temp+rename to prevent corruption on crash.
  */
 export class Store {
   private readonly root: string
@@ -43,9 +44,7 @@ export class Store {
   async write(content: string, ...parts: string[]): Promise<string> {
     const filePath = this.resolve(...parts)
     await mkdir(dirname(filePath), { recursive: true })
-    const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`
-    await writeFile(tmpPath, content, 'utf-8')
-    await rename(tmpPath, filePath)
+    await atomicWriteFile(filePath, content)
     return filePath
   }
 
@@ -57,13 +56,18 @@ export class Store {
     await unlink(this.resolve(...parts))
   }
 
+  /**
+   * Append to an append-only log (run logs, dead-letter queue).
+   *
+   * Deliberately NOT temp+rename: these files grow line by line and are never
+   * re-read whole, so rewriting them per line would make every append O(size).
+   * The OS keeps a single `write(2)` of the appended chunk below PIPE_BUF-level
+   * tears, and a truncated last line is recoverable from the checkpoint tree.
+   */
   async append(content: string, ...parts: string[]): Promise<string> {
     const filePath = this.resolve(...parts)
     await mkdir(dirname(filePath), { recursive: true })
-    const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`
-    const existing = existsSync(filePath) ? await readFile(filePath, 'utf-8') : ''
-    await writeFile(tmpPath, existing + content, 'utf-8')
-    await rename(tmpPath, filePath)
+    await appendFile(filePath, content, 'utf-8')
     return filePath
   }
 

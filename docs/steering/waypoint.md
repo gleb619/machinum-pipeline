@@ -44,11 +44,38 @@ class JsonlTarget implements Target<unknown> {
 }
 ```
 
+## Atomicity Contract (hard rule)
+
+> File writes are atomic (temp-then-rename).
+
+Every waypoint target writes through the helpers in `@mt/core`:
+
+| Helper | Use |
+|---|---|
+| `atomicWriteFile(path, data)` | Whole-file write: temp sibling → `rename` |
+| `AtomicStreamWriter.open(path, runId)` | Streamed write; `commit()` renames on `close()`, `abort()` drops the temp |
+| `removeStaleTmpFiles(path)` | Sweep temp files left by an interrupted run |
+
+Target shapes:
+
+- **Per-file targets** (`chapter-output://`, `schema-doc://`, `md://<dir>`) call `atomicWriteFile`
+  per envelope. A crash keeps every chapter written so far intact — never a truncated one.
+- **Single-file targets** (`jsonl://<file>`, `md://<file>`) accumulate into
+  `<path>.tmp.<runId>` and rename in `close()`. Consequences:
+  - a crash mid-run leaves the final file untouched (absent, or its previous content);
+  - `open()` sweeps stale `.tmp.` siblings, so a rerun replaces instead of appending
+    duplicates — do **not** open these targets with `flags: 'a'`;
+  - the final file becomes visible only once `close()` resolves, so read a target
+    file only after the run reaches its checkpoint.
+
+`Store.append` (run logs, dead-letter queue) is the one documented exception: those files are
+append-only line logs, never re-read whole, so it uses `fs.appendFile` rather than temp+rename.
+
 ## Key Implementation Details
 
 ### `jsonl.ts`
 - Source: streams lines from `.jsonl` file, supports glob patterns and a position cursor for resume
-- Target: opens file handle on `open()`, appends JSON lines on `write()`, flushes on `close()`
+- Target: `AtomicStreamWriter` on `open()`, JSON lines on `write()`, `commit()` (rename) on `close()`
 - `isGlobPattern()` / `isGlobCursor()` helpers for glob vs direct path detection
 
 ### `http-server.ts`

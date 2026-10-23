@@ -21,6 +21,15 @@ vi.mock('node:readline', async (importOriginal) => {
   }
 })
 
+/** Minimal stand-in for the WriteStream AtomicStreamWriter drives. */
+interface MockWriteStream {
+  write: (chunk: string) => void
+  end: () => void
+  destroy: () => void
+  on: () => void
+  once: (event: string, cb: () => void) => MockWriteStream
+}
+
 describe('jsonl', () => {
   it('should emit items from source', async () => {
     const mockReadStream = new Readable()
@@ -127,11 +136,20 @@ describe('jsonl', () => {
   })
 
   it('applies defaultFolder to jsonl target', async () => {
-    const mockWriteStream = {
+    const mockWriteStream: MockWriteStream = {
       write: vi.fn(),
       end: vi.fn(),
+      destroy: vi.fn(),
+      on: vi.fn(),
+      // Opens synchronously so AtomicStreamWriter.open() can resolve.
+      once: (event, cb) => {
+        if (event === 'open') cb()
+        return mockWriteStream
+      },
     }
-    vi.mocked(fs.createWriteStream).mockReturnValue(mockWriteStream as any)
+    vi.mocked(fs.createWriteStream).mockReturnValue(
+      mockWriteStream as unknown as ReturnType<typeof fs.createWriteStream>,
+    )
 
     const uri: any = {
       raw: 'jsonl://out.jsonl',
@@ -143,6 +161,7 @@ describe('jsonl', () => {
 
     const ctx = {
       run: {
+        runId: 'run-1',
         global: {
           settings: { 'waypoint.jsonl.defaultFolder': './custom/jsonl' },
         },
@@ -151,8 +170,9 @@ describe('jsonl', () => {
 
     await target.open(ctx)
 
+    // Writes go to a sibling temp file, renamed onto the target on close().
     expect(fs.createWriteStream).toHaveBeenCalledWith(
-      expect.stringContaining('custom/jsonl/out.jsonl'),
+      expect.stringContaining('custom/jsonl/out.jsonl.tmp.'),
       expect.anything(),
     )
   })

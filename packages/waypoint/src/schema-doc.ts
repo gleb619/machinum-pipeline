@@ -1,10 +1,10 @@
-import { createWriteStream, mkdirSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { atomicWriteFile, registry } from '@mt/core'
 import matter from 'gray-matter'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
@@ -118,9 +118,8 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
       const body = lines.join('\n')
       const fullDoc = matter.stringify(body, {})
 
-      // Write as a new file (overwrite if exists)
-      const fs = await import('node:fs/promises')
-      await fs.writeFile(filePath, fullDoc, 'utf-8')
+      // Write atomically (temp → rename): overwrite if exists, never truncated
+      await atomicWriteFile(filePath, fullDoc)
     },
     async close(_ctx: TargetContext): Promise<void> {
       // Nothing to close — each write creates its own file
