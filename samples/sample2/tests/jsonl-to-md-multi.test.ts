@@ -17,6 +17,7 @@ let hasFailure = false
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'en'), { recursive: true, force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'ru'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'schema'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'md', 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
@@ -61,6 +62,18 @@ describe('jsonl-to-md-multi pipeline', () => {
         'utf-8',
       )
       expect(content).toContain(CHAPTERS[i].title)
+      expect(content).toContain(CHAPTERS[i].body)
+    }
+  })
+
+  it('writes translated ru chapters to chapters/ru with [ru] markers', async () => {
+    for (let i = 0; i < CHAPTERS.length; i++) {
+      const content = await readFile(
+        join(SAMPLE_DIR, 'chapters', 'ru', `chapter${i + 1}.md`),
+        'utf-8',
+      )
+      expect(content).toContain('[ru]')
+      expect(content).toContain('[/ru]')
       expect(content).toContain(CHAPTERS[i].body)
     }
   })

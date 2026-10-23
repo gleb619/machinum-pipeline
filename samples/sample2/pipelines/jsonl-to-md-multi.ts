@@ -31,7 +31,7 @@ const stubTranslator = defineTool<string, string>({
       .split('\n\n')
       .map((p) => `[ru]${p}[/ru]`)
       .join('\n\n')
-    return { ...env, item: translated, meta: { ...env.meta, translated: true } }
+    return { ...env, item: translated, meta: { ...env.meta, translated: true, lang: 'ru' } }
   },
 })
 

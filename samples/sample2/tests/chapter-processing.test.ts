@@ -1,14 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
-import { markdownFormatter } from '../../../packages/tools/src/chapter-validator.js'
-import { typoFinder as typoFixer } from '../../../packages/tools/src/chapter-validator.js'
+import type { ToolContext } from '@mt/core'
 import {
   paragraphTranslator,
   titleTranslator,
 } from '../../../packages/tools/src/chapter-translator.js'
+import {
+  chapterValidator,
+  forbiddenCharDetector,
+  markdownFormatter,
+  typoFinder,
+} from '../../../packages/tools/src/chapter-validator.js'
 // Import tools directly from source (sample2 has no workspace resolution for @mt/tools)
-import { chapterValidator } from '../../../packages/tools/src/chapter-validator.js'
-import { forbiddenCharDetector } from '../../../packages/tools/src/chapter-validator.js'
 import { tokenSplitter } from '../../../packages/tools/src/token-splitter.js'
 
 const sampleChapter = `---
@@ -44,14 +47,14 @@ const longChapter = Array(500)
 
 describe('chapterValidator', () => {
   it('validates a well-formed chapter', async () => {
-    const ctx = { run: { global: {} } } as any
+    const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await chapterValidator.invoke({ item: sampleChapter, meta: {} }, ctx)
     expect(result.meta.valid).toBe(true)
     expect(result.meta.errors).toEqual([])
   })
 
   it('detects missing H1 heading', async () => {
-    const ctx = { run: { global: {} } } as any
+    const ctx = { run: { global: {} } } as unknown as ToolContext
     const noH1 = '## Just a level 2\n\nContent here.'
     const result = await chapterValidator.invoke({ item: noH1, meta: {} }, ctx)
     expect(result.meta.valid).toBe(false)
@@ -59,8 +62,8 @@ describe('chapterValidator', () => {
   })
 
   it('detects code blocks without language tags', async () => {
-    const ctx = { run: { global: {} } } as any
-    const noLangChapter = `# Test\n\n\`\`\`\ncode without language tag\n\`\`\`\n`
+    const ctx = { run: { global: {} } } as unknown as ToolContext
+    const noLangChapter = '# Test\n\n```\ncode without language tag\n```\n'
     const result = await chapterValidator.invoke({ item: noLangChapter, meta: {} }, ctx)
     const codeErrors = result.meta.errors.filter(
       (e: string) => e.toLowerCase().includes('code') || e.toLowerCase().includes('language'),
@@ -71,14 +74,14 @@ describe('chapterValidator', () => {
 
 describe('tokenSplitter', () => {
   it('does not split short chapters', async () => {
-    const ctx = { run: { global: {} } } as any
+    const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await tokenSplitter.invoke({ item: sampleChapter, meta: {} }, ctx)
     const items = result.item
     expect(items.length).toBe(1)
   })
 
   it('splits very long chapters', async () => {
-    const ctx = { run: { global: {} } } as any
+    const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await tokenSplitter.invoke({ item: longChapter, meta: {} }, ctx)
     const items = result.item
     expect(items.length).toBeGreaterThan(1)
@@ -87,34 +90,37 @@ describe('tokenSplitter', () => {
 
 describe('forbiddenCharDetector', () => {
   it('passes clean text', async () => {
-    const ctx = { run: { global: {} } } as any
+    const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await forbiddenCharDetector.invoke({ item: 'Normal text.', meta: {} }, ctx)
     expect(result.meta.forbidden).toBeDefined()
     expect(result.meta.forbidden.length).toBe(0)
   })
 
   it('detects zero-width characters', async () => {
-    const ctx = { run: { global: {} } } as any
+    const ctx = { run: { global: {} } } as unknown as ToolContext
     const textWithZW = 'Normal text\u200Bwith zero-width space.'
     const result = await forbiddenCharDetector.invoke({ item: textWithZW, meta: {} }, ctx)
     expect(result.meta.forbidden.length).toBeGreaterThan(0)
   })
 })
 
-describe('typoFixer', () => {
-  it('fixes common typos', async () => {
-    const ctx = { run: { global: {} } } as any
-    const result = await typoFixer.invoke(
+describe('typoFinder', () => {
+  it('returns an issues list and sets typoWarned meta', async () => {
+    const ctx = { run: { global: {} } } as unknown as ToolContext
+    const result = await typoFinder.invoke(
       { item: { text: 'Please recieve this package.' }, meta: {} },
       ctx,
     )
-    expect(result.item.text.toLowerCase()).not.toContain('recieve')
+    expect(Array.isArray(result.item.issues)).toBe(true)
+    expect(result.item.text).toBe('Please recieve this package.')
+    expect(result.meta.typoWarned).toBe(true)
+    expect(Array.isArray(result.meta.warnings)).toBe(true)
   })
 })
 
 describe('markdownFormatter', () => {
   it('formats markdown', async () => {
-    const ctx = { run: { global: {} } } as any
+    const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await markdownFormatter.invoke(
       { item: { text: 'Some text\n```js\ncode\n```\nMore text' }, meta: {} },
       ctx,

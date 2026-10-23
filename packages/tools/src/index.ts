@@ -29,6 +29,13 @@ export {
 } from './translate-text.js'
 
 export {
+  OpenRouterPool,
+  OpenRouterPoolSupplier,
+  type OpenRouterClient,
+  type OpenRouterPoolConfig,
+} from './openrouter-pool.js'
+
+export {
   chapterValidator,
   forbiddenCharDetector,
   typoFinder,
