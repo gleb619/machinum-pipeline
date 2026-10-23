@@ -100,11 +100,11 @@ next claim … drained → exit, or with --follow sleep + poll again
   fail the task run, leave the worktree intact and halt the loop (next task must not build on an
   unmerged base). Without `--merge` the worktree + branch stay for human review.
 * **Works in any git repo** (no `scripts/` needed): the project's own `scripts/merge-worktree.sh` is used
-  when it exists (it may carry project steps); otherwise the built-in merge does the same sequence —
+  when present (project-specific steps); otherwise the built-in merge does the same sequence —
   clean-tree check, `git rebase <base>` (aborted on conflict), `merge --ff-only` from the main checkout,
   then worktree + branch removal. Nothing is written into the repo. Base branch = `AT_BASE_BRANCH`, else
   origin's HEAD, else `main`/`master`, else the main checkout's current branch. A new worktree also
-  symlinks the main checkout's `node_modules` when present (like `scripts/worktree-new.sh`).
+  does NOT automatically link `node_modules` or other git-ignored folders. Pre-link them manually from the main checkout before running tests (see change-workflow.md).
 
 ### Background jobs
 

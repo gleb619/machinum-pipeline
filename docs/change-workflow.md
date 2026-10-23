@@ -12,6 +12,17 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
 
 1. **Worktree + branch** — never code on `main`. Create a git worktree + feature branch
    (e.g. `../<repo>-<id>` on `feat/<id>`).
+
+   Manual bootstrap (current):
+   ```bash
+   git worktree add -b feat/<id> ../<repo>-<id>
+   cd ../<repo>-<id>
+   # Link git-ignored, install-heavy folders from the main checkout
+   ln -s /path/to/main-repo/node_modules node_modules
+   # Optionally also symlink .mt or other large, gitignored dirs
+   pnpm install   # if needed; with node_modules linked this is usually fast/no-op
+   ```
+
 2. **Code** — do the change, scoped to the task.
 3. **Pre-commit gate** — run `pnpm test` + `pnpm lint` (scoped to the change) **before** committing.
    Red → fix, do not commit.
