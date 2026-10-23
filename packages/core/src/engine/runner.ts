@@ -152,7 +152,9 @@ export class Runner {
 
       switch (step.type) {
         case 'source': {
-          const uri = registry.expandAliases(step.config.uri as string, this.globalContext.settings)
+          const rawUri = step.config.uri as string
+          const uri = registry.expandAliases(rawUri, this.globalContext.settings)
+          if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
           const source = registry.resolveSource(uri)
           stream = source.start({ run: runContext })
           break
@@ -275,7 +277,9 @@ export class Runner {
           break
         }
         case 'target': {
-          const uri = registry.expandAliases(step.config.uri as string, this.globalContext.settings)
+          const rawUri = step.config.uri as string
+          const uri = registry.expandAliases(rawUri, this.globalContext.settings)
+          if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
           const target = registry.resolveTarget(uri)
           if (!stream) throw new Error('Target step requires a preceding stream')
 
@@ -359,14 +363,12 @@ export class Runner {
 
           const sourceStep = subPipeline.steps.find((s) => s.type === 'source')
           const targetStep = subPipeline.steps.find((s) => s.type === 'target')
-          const inputUri = registry.expandAliases(
-            (sourceStep?.config.uri as string) ?? '',
-            this.globalContext.settings,
-          )
-          const outputUri = registry.expandAliases(
-            (targetStep?.config.uri as string) ?? '',
-            this.globalContext.settings,
-          )
+          const rawInputUri = (sourceStep?.config.uri as string) ?? ''
+          const rawOutputUri = (targetStep?.config.uri as string) ?? ''
+          const inputUri = registry.expandAliases(rawInputUri, this.globalContext.settings)
+          const outputUri = registry.expandAliases(rawOutputUri, this.globalContext.settings)
+          if (inputUri !== rawInputUri) stepLogger.info(`Resolved URI alias '${rawInputUri}' → '${inputUri}'`)
+          if (outputUri !== rawOutputUri) stepLogger.info(`Resolved URI alias '${rawOutputUri}' → '${outputUri}'`)
 
           if (inputUri.startsWith('ephemeral://') && outputUri.startsWith('ephemeral://')) {
             // Mode A: Ephemeral transform — feed parent envelopes through sub-pipeline via ephemeral buffers
