@@ -43,8 +43,8 @@ definePipeline()
   .flatMap(async (item) => [...])
   .tap(async (item) => { /* logging */ })
   .use(myTool)
-  .subflow(otherPipeline)   // inline, same Runner
-  .fork(subPipeline)        // child Runner + checkpoint subtree
+  .subflow(otherPipeline)   // inline nested pipeline, same Runner
+  .fork(subPipeline)        // child pipeline per envelope, checkpoint subtree
   .batch(5)
   .to('md://./output.md')
 ```
@@ -58,6 +58,19 @@ Runner, which has `GlobalContext.settings`). Registered schemes win over alias k
 
 ### `engine/runner.ts` — `Runner`
 Main execution loop. Methods: `start()`, `pause()`, `resume()`, `unpause()`. Manages state machine, checkpoint writes, event log, dead-letter.
+
+One recursive builder drives every level of nesting:
+
+```
+buildStream(pipeline, input, runContext) → AsyncIterable<Envelope>
+```
+
+`input` is the stream entering the step chain (`null` at the top level). Each step either
+replaces or extends that stream: `source` starts a new one, `tool`/`batch`/`window`/`flatmap`/
+`tap`/`fork`/`subflow` map it, `target` consumes it into a sink. `fork` and `subflow` call
+`buildStream` again with the child pipeline, so nested pipelines support **every** DSL op — not
+just tools. Nested runs extend the checkpoint path (`<stepId>/fork-<n>`, `<stepId>/subflow`) and
+inherit the run context (same `runId`, logger scoped to the node).
 
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
@@ -96,10 +109,22 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
 
 - **In-process**: per-step limiter (`p-limit`-style), configurable via URI query param (`concurrency`), DSL, or global defaults.
 - **Out-of-process**: tools with `exec: 'npx' | 'deno' | 'bun'` are invoked as child processes via stdio JSON (one-shot or NDJSON streaming).
-- **Fork (`.fork`)**: creates a nested `Run` rooted in the parent's checkpoint tree; registered as a subtree.
-- **Subflow (`.subflow`)**: in-process lightweight variant. Two modes selected by the sub-pipeline's declared source/target:
-  - **Ephemeral transform** — sub-pipeline uses `ephemeral://` source + target. For each parent envelope, data flows through the sub-Runner and yields back into the parent stream.
-  - **Orchestration** — sub-pipeline uses any non-ephemeral source/target. It runs as a fully self-contained child pipeline; the parent stream is unchanged.
+- **Fork (`.fork`)**: runs the child pipeline **per parent envelope** — the envelope is fed into
+  `buildStream(child.steps, [envelope], childCtx)` and the child's output is merged back into the
+  parent stream. One checkpoint node per envelope (`<stepId>/fork-<n>`). A `target` inside the
+  child makes it a sink: results are written there and nothing flows back to the parent.
+- **Subflow (`.subflow`)**: in-process, same Runner, two modes selected by what the sub-pipeline
+  declares — **never** by URI scheme:
+  - **Inline** — sub-pipeline has no `source` step (steps only). Its steps are spliced into the
+    parent stream, so data flows parent → child → parent.
+  - **Self-contained** — sub-pipeline declares its own `source`. It runs as a nested pipeline on
+    its own data after the upstream stream is consumed; the parent stream passes through unchanged.
+    Subflows therefore run in declaration order, and an orchestration-only parent (no `source` /
+    `target` of its own) is valid.
+
+`.batch(n)` groups envelopes into `items[]` (`item` holds the same array) and flushes the
+remainder at end of stream; `.window(n)` emits the same shape but slides one item per arrival, so
+consecutive groups overlap.
 
 ## Retry & Error Policy
 

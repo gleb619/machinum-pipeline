@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import pLimit from 'p-limit'
-import type { GlobalContext, RunContext, StepInfo } from '../contexts.js'
+import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import { Store } from '../store.js'
-import type { Logger, Pipeline, PipelineStep, RunStateData } from '../types.js'
+import type { Envelope, Logger, Pipeline, PipelineStep, RunStateData, Tool } from '../types.js'
 import { registry } from '../uri.js'
 import { Cache } from './cache.js'
 import {
+  addChild,
   createRootCheckpoint,
   findFirstNonDone,
   findNode,
@@ -22,6 +23,71 @@ import { withRetry } from './retry.js'
 import { RunStateMachine } from './state-machine.js'
 
 /**
+ * A stream of envelopes flowing through pipeline steps.
+ */
+type EnvelopeStream = AsyncIterable<Envelope<unknown>>
+
+/**
+ * Stream of a single envelope — the input handed to a forked child pipeline.
+ */
+async function* singleEnvelope(env: Envelope<unknown>): EnvelopeStream {
+  yield env
+}
+
+/**
+ * Stream of one empty envelope — lets tool-only pipelines run without a source.
+ */
+async function* emptyEnvelope(): EnvelopeStream {
+  yield { item: {}, meta: {} }
+}
+
+/**
+ * Drain a stream without emitting its envelopes (targets already consumed it).
+ */
+async function drainStream(stream: EnvelopeStream): Promise<void> {
+  for await (const _ of stream) {
+    // no-op
+  }
+}
+
+/**
+ * Fold a group of envelopes into a single batched envelope.
+ * `item` holds the array too, so plain (non-batch-aware) tools and `flatMap` see the group.
+ */
+function toBatchEnvelope(group: Envelope<unknown>[]): Envelope<unknown> {
+  const items = group.map((env) => env.item)
+  return { item: items, items, meta: group[0]?.meta ?? {} }
+}
+
+/**
+ * Group envelopes by cardinality: `batch` tumbles (flushes the remainder at end of
+ * stream), `window` slides one item at a time so consecutive groups overlap.
+ */
+function groupStream(
+  source: EnvelopeStream,
+  size: number,
+  mode: 'batch' | 'window',
+): EnvelopeStream {
+  const groupSize = Number.isFinite(size) && size > 0 ? Math.floor(size) : 1
+
+  return (async function* () {
+    let group: Envelope<unknown>[] = []
+
+    for await (const env of source) {
+      group.push(env)
+      if (group.length < groupSize) continue
+
+      yield toBatchEnvelope(group)
+      group = mode === 'batch' ? [] : group.slice(1)
+    }
+
+    if (mode === 'batch' && group.length > 0) {
+      yield toBatchEnvelope(group)
+    }
+  })()
+}
+
+/**
  * Runner — executes a pipeline definition, manages state machine, checkpointing, and logging.
  */
 export class Runner {
@@ -33,6 +99,7 @@ export class Runner {
   private runId: string | null = null
   private runContext: RunContext | null = null
   private checkpoint = createRootCheckpoint('root')
+  private stepSeq = 0
 
   constructor(pipeline: Pipeline, globalContext: GlobalContext) {
     this.pipeline = pipeline
@@ -126,19 +193,36 @@ export class Runner {
 
   /**
    * Execute pipeline steps by streaming envelopes through them.
+   * Entry point of the run: builds the top-level stream and drains it.
    */
   private async executeSteps(): Promise<void> {
     const runContext = this.runContext
     if (!runContext) throw new Error('Run not started')
 
-    let stream: AsyncIterable<import('../types.js').Envelope<unknown>> | null = null
+    const stream = await this.buildStream(this.pipeline, null, runContext)
 
-    // Helper: default stream of one empty envelope for tests/tool-only pipelines
-    const createEmptyStream = async function* () {
-      yield { item: {}, meta: {} }
+    // Drain stream if we ended without a target
+    if (stream) {
+      await drainStream(stream)
     }
+  }
 
-    for (const step of this.pipeline.steps) {
+  /**
+   * Build the envelope stream for a pipeline's steps.
+   *
+   * Recursive: `fork` and `subflow` call this again with the child pipeline, so nested
+   * pipelines support every DSL op (source/target/batch/window/flatMap/tap/fork/subflow)
+   * instead of a tool-only subset. The incoming `input` stream is the head of the chain;
+   * `null` means the pipeline must supply its own data via a `source` step.
+   */
+  private async buildStream(
+    pipeline: Pipeline,
+    input: EnvelopeStream | null,
+    runContext: RunContext,
+  ): Promise<EnvelopeStream | null> {
+    let stream = input
+
+    for (const step of pipeline.steps) {
       // Pause if signaled
       while (this.stateMachine.current === 'paused') {
         await new Promise((resolve) => setTimeout(resolve, 100))
@@ -146,7 +230,7 @@ export class Runner {
 
       if (this.stateMachine.current !== 'running') break
 
-      const stepId = `${step.type}-${step.config.name ?? step.type}-${Date.now()}`
+      const stepId = this.nextStepId(step)
 
       this.logger(stepId).info(`Configuring pipeline stream for step: ${step.type} (${stepId})`)
 
@@ -160,153 +244,22 @@ export class Runner {
           break
         }
         case 'tool': {
-          const toolName = step.config.name as string
-          const tool = step.config.tool as import('../types.js').Tool<unknown, unknown> | undefined
-
-          const concurrency = Number.parseInt(
-            (step.config.concurrency as string) ??
-              this.globalContext.defaults.concurrency.toString(),
-            10,
-          )
-          const retryPolicy =
-            (step.config.retry as any) ?? this.pipeline.retry ?? this.globalContext.defaults.retry
-          const onError =
-            (step.config.onError as any) ??
-            this.pipeline.onError ??
-            this.globalContext.defaults.onError
-
-          const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-            stream ?? createEmptyStream()
-          const cache = this.cache
-          const logger = this.logger(stepId)
-          const store = this.store
-          const limit = pLimit(concurrency)
-          const stepInfo: StepInfo = { stepId, name: toolName, type: 'tool', index: 0 }
-
-          stream = (async function* () {
-            const batch: Promise<import('../types.js').Envelope<unknown>>[] = []
-
-            for await (const env of sourceStream) {
-              if (!tool) {
-                yield env
-                continue
-              }
-
-              const task = limit(async (): Promise<import('../types.js').Envelope<unknown>> => {
-                const cacheKey = tool.cacheable
-                  ? cache.computeKey({
-                      toolName: tool.name,
-                      version: tool.version,
-                      input: env,
-                      context: step.config.context as Record<string, unknown>,
-                    })
-                  : null
-
-                if (cacheKey && (await cache.has(cacheKey))) {
-                  logger.info(`Cache hit for tool ${tool.name}`)
-                  return (await cache.get(cacheKey))!
-                }
-
-                try {
-                  const output = await withRetry(
-                    async () => {
-                      if (tool.exec && tool.exec !== 'inproc') {
-                        return await runChildProcess(
-                          { command: tool.exec, args: [tool.name] },
-                          env,
-                          { run: runContext, step: stepInfo },
-                        )
-                      }
-                      return await tool.invoke(env, { run: runContext, step: stepInfo })
-                    },
-                    retryPolicy,
-                    (err, attempt) => {
-                      logger.warn(`Tool ${toolName} failed (attempt ${attempt + 1}): ${err}`)
-                    },
-                  )
-
-                  if (cacheKey && output !== undefined) {
-                    await cache.set(
-                      cacheKey,
-                      {
-                        toolName: tool.name,
-                        version: tool.version,
-                        input: env,
-                        context: step.config.context as Record<string, unknown>,
-                      },
-                      output,
-                    )
-                  }
-                  return output
-                } catch (error) {
-                  logger.error(`Tool ${toolName} failed after retries: ${error}`)
-                  if (onError === 'fail-run') {
-                    throw error
-                  }
-                  if (onError === 'dead-letter') {
-                    await writeDeadLetter(store, runContext.runId, env, error as Error, stepId)
-                    logger.warn(`Tool ${toolName} failed, written to dead-letter queue: ${error}`)
-                  }
-                  if (onError === 'skip-item') {
-                    logger.warn(`Tool ${toolName} failed, skipping item: ${error}`)
-                  }
-                  return undefined as unknown as import('../types.js').Envelope<unknown>
-                }
-              })
-
-              batch.push(task)
-
-              // Yield results from completed tasks, skipping failed/skipped items
-              const settled = await Promise.any(
-                batch.map(async (p, i) => ({ result: await p.catch(() => undefined), index: i })),
-              )
-              if (settled.result !== undefined) {
-                yield settled.result
-              }
-              batch.splice(settled.index, 1)
-            }
-
-            // Drain remaining batch, filter out undefined (skipped items)
-            const remaining = await Promise.all(batch)
-            for (const result of remaining) {
-              if (result !== undefined) {
-                yield result
-              }
-            }
-          })()
+          stream = this.runTool(step, stream ?? emptyEnvelope(), stepId, pipeline, runContext)
           break
         }
         case 'target': {
-          const rawUri = step.config.uri as string
-          const uri = registry.expandAliases(rawUri, this.globalContext.settings)
-          if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
-          const target = registry.resolveTarget(uri)
-          if (!stream) throw new Error('Target step requires a preceding stream')
-
-          await target.open({ run: runContext })
-          try {
-            for await (const env of stream) {
-              await target.write(env, { run: runContext })
-            }
-          } finally {
-            await target.close({ run: runContext })
-          }
-
-          // Check for auto-commit on close
-          const parsed = registry.parse(uri)
-          if (parsed.query.commit === 'on-close') {
-            this.logger('commit').info(
-              `Auto-committing changes in: ${runContext.global.project.root}`,
-            )
-            await autoCommit(runContext.global.project.root)
-          }
+          await this.writeTarget(step, stepId, stream, runContext)
+          break
+        }
+        case 'batch':
+        case 'window': {
+          const size = Number(step.config.size)
+          stream = groupStream(stream ?? emptyEnvelope(), size, step.type)
           break
         }
         case 'flatmap': {
           const fn = step.config.fn as (item: unknown) => Promise<unknown[]>
-          const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-            stream ?? createEmptyStream()
-          this.logger(stepId).info(`Configuring flatMap step: ${stepId}`)
+          const sourceStream: EnvelopeStream = stream ?? emptyEnvelope()
           stream = (async function* () {
             for await (const env of sourceStream) {
               const items = await fn(env.item)
@@ -317,95 +270,9 @@ export class Runner {
           })()
           break
         }
-        case 'fork': {
-          const subPipeline = step.config.pipeline as import('../types.js').Pipeline
-          const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-            stream ?? createEmptyStream()
-          const forkStepInfo: StepInfo = {
-            stepId,
-            name: step.config.name as string,
-            type: 'fork',
-            index: 0,
-          }
-          this.logger(stepId).info(`Configuring fork step: ${stepId}`)
-          stream = (async function* () {
-            for await (const env of sourceStream) {
-              let subStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-                (async function* () {
-                  yield env
-                })()
-              for (const childStep of subPipeline.steps) {
-                if (childStep.type === 'tool') {
-                  const tool = childStep.config.tool as
-                    | import('../types.js').Tool<unknown, unknown>
-                    | undefined
-                  if (tool) {
-                    const prevStream = subStream
-                    subStream = (async function* () {
-                      for await (const e of prevStream) {
-                        yield await tool.invoke(e, { run: runContext, step: forkStepInfo })
-                      }
-                    })()
-                  }
-                }
-              }
-              for await (const e of subStream) {
-                yield e
-              }
-            }
-          })()
-          break
-        }
-        case 'subflow': {
-          const subPipeline = step.config.pipeline as import('../types.js').Pipeline
-          const globalCtx = this.globalContext
-          const stepLogger = this.logger(stepId)
-
-          const sourceStep = subPipeline.steps.find((s) => s.type === 'source')
-          const targetStep = subPipeline.steps.find((s) => s.type === 'target')
-          const rawInputUri = (sourceStep?.config.uri as string) ?? ''
-          const rawOutputUri = (targetStep?.config.uri as string) ?? ''
-          const inputUri = registry.expandAliases(rawInputUri, this.globalContext.settings)
-          const outputUri = registry.expandAliases(rawOutputUri, this.globalContext.settings)
-          if (inputUri !== rawInputUri) stepLogger.info(`Resolved URI alias '${rawInputUri}' → '${inputUri}'`)
-          if (outputUri !== rawOutputUri) stepLogger.info(`Resolved URI alias '${rawOutputUri}' → '${outputUri}'`)
-
-          if (inputUri.startsWith('ephemeral://') && outputUri.startsWith('ephemeral://')) {
-            // Mode A: Ephemeral transform — feed parent envelopes through sub-pipeline via ephemeral buffers
-            const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-              stream ?? createEmptyStream()
-            stepLogger.info(`Configuring ephemeral subflow step: ${stepId}`)
-
-            stream = (async function* () {
-              for await (const env of sourceStream) {
-                const inputTarget = registry.resolveTarget(inputUri)
-                await inputTarget.open({ run: runContext })
-                await inputTarget.write(env, { run: runContext })
-                await inputTarget.close({ run: runContext })
-
-                const subRunner = new Runner(subPipeline, globalCtx)
-                await subRunner.start()
-
-                const outputSource = registry.resolveSource(outputUri)
-                for await (const e of outputSource.start({ run: runContext })) {
-                  yield e
-                }
-              }
-            })()
-          } else {
-            // Mode B: Orchestration — run sub-pipeline independently
-            stepLogger.info(`Running orchestration sub-pipeline: ${subPipeline.id}`)
-            const subRunner = new Runner(subPipeline, this.globalContext)
-            await subRunner.start()
-            stepLogger.info(`Orchestration sub-pipeline completed: ${subPipeline.id}`)
-          }
-          break
-        }
         case 'tap': {
           const fn = step.config.fn as (item: unknown) => Promise<void>
-          const sourceStream: AsyncIterable<import('../types.js').Envelope<unknown>> =
-            stream ?? createEmptyStream()
-          this.logger(stepId).info(`Configuring tap step: ${stepId}`)
+          const sourceStream: EnvelopeStream = stream ?? emptyEnvelope()
           stream = (async function* () {
             for await (const env of sourceStream) {
               await fn(env.item)
@@ -414,24 +281,333 @@ export class Runner {
           })()
           break
         }
+        case 'fork': {
+          stream = this.forkStream(step, stream ?? emptyEnvelope(), stepId, runContext)
+          break
+        }
+        case 'subflow': {
+          stream = await this.subflowStream(step, stream, stepId, runContext)
+          break
+        }
         default:
           this.logger(stepId).warn(`Unsupported pipeline step type in stream: ${step.type}`)
       }
     }
 
-    // Drain stream if we ended without a target
-    if (stream) {
-      for await (const _ of stream) {
-        // no-op
+    return stream
+  }
+
+  /**
+   * Fork — run the child pipeline per parent envelope and merge results back
+   * into the parent stream. Each envelope gets its own checkpoint node.
+   */
+  private forkStream(
+    step: PipelineStep,
+    sourceStream: EnvelopeStream,
+    stepId: string,
+    runContext: RunContext,
+  ): EnvelopeStream {
+    const subPipeline = step.config.pipeline as Pipeline
+    const runner = this
+    let forkIndex = 0
+
+    return (async function* () {
+      for await (const env of sourceStream) {
+        const nodeId = `${stepId}/fork-${forkIndex++}`
+        const childContext = runner.enterNested(runContext, nodeId, subPipeline.id)
+
+        try {
+          const childStream = await runner.buildStream(
+            subPipeline,
+            singleEnvelope(env),
+            childContext,
+          )
+          if (childStream) {
+            for await (const out of childStream) {
+              yield out
+            }
+          }
+          runner.completeNested(nodeId)
+        } catch (error) {
+          runner.failNested(nodeId, error as Error)
+          throw error
+        }
       }
+    })()
+  }
+
+  /**
+   * Subflow — run a child pipeline inside the parent's stream.
+   *
+   * A sub-pipeline that declares its own `source` is self-contained: it runs as a nested
+   * orchestration step and leaves the parent stream untouched. A steps-only sub-pipeline
+   * is an inline transform: its steps are spliced into the parent stream.
+   */
+  private async subflowStream(
+    step: PipelineStep,
+    upstream: EnvelopeStream | null,
+    stepId: string,
+    runContext: RunContext,
+  ): Promise<EnvelopeStream | null> {
+    const subPipeline = step.config.pipeline as Pipeline
+    const nodeId = `${stepId}/subflow`
+    const selfContained = subPipeline.steps.some((s) => s.type === 'source')
+
+    if (!selfContained) {
+      const childContext = this.enterNested(runContext, nodeId, subPipeline.id)
+      const childStream = await this.buildStream(subPipeline, upstream, childContext)
+      return this.trackNested(nodeId, childStream)
+    }
+
+    this.logger(stepId).info(
+      `Running self-contained sub-pipeline: ${subPipeline.id} (parent stream unchanged)`,
+    )
+
+    const runner = this
+    return (async function* () {
+      // Upstream first: the nested run happens once the preceding stream is consumed,
+      // so side effects land in declaration order — not while the stream is being built.
+      if (upstream) {
+        for await (const env of upstream) {
+          yield env
+        }
+      }
+
+      const childContext = runner.enterNested(runContext, nodeId, subPipeline.id)
+      try {
+        const childStream = await runner.buildStream(subPipeline, null, childContext)
+        if (childStream) {
+          await drainStream(childStream)
+        }
+        runner.completeNested(nodeId)
+      } catch (error) {
+        runner.failNested(nodeId, error as Error)
+        throw error
+      }
+    })()
+  }
+
+  /**
+   * Run a tool step over a stream: concurrency-limited, retried, cached, error-policy aware.
+   */
+  private runTool(
+    step: PipelineStep,
+    sourceStream: EnvelopeStream,
+    stepId: string,
+    pipeline: Pipeline,
+    runContext: RunContext,
+  ): EnvelopeStream {
+    const toolName = step.config.name as string
+    const tool = step.config.tool as Tool<unknown, unknown> | undefined
+    if (!tool) return sourceStream
+
+    const concurrency = Number.parseInt(
+      (step.config.concurrency as string) ?? this.globalContext.defaults.concurrency.toString(),
+      10,
+    )
+    const retryPolicy =
+      (step.config.retry as RetryPolicy | undefined) ??
+      pipeline.retry ??
+      this.globalContext.defaults.retry
+    const onError =
+      (step.config.onError as ErrorPolicy | undefined) ??
+      pipeline.onError ??
+      this.globalContext.defaults.onError
+    const toolContext = step.config.context as Record<string, unknown> | undefined
+
+    const cache = this.cache
+    const logger = this.logger(stepId)
+    const store = this.store
+    const limit = pLimit(concurrency)
+    const stepInfo: StepInfo = { stepId, name: toolName, type: 'tool', index: 0 }
+
+    return (async function* () {
+      const batch: Promise<Envelope<unknown>>[] = []
+
+      for await (const env of sourceStream) {
+        const task = limit(async (): Promise<Envelope<unknown>> => {
+          const cacheKey = tool.cacheable
+            ? cache.computeKey({
+                toolName: tool.name,
+                version: tool.version,
+                input: env,
+                context: toolContext,
+              })
+            : null
+
+          if (cacheKey && (await cache.has(cacheKey))) {
+            const cached = await cache.get<Envelope<unknown>>(cacheKey)
+            if (cached !== undefined) {
+              logger.info(`Cache hit for tool ${tool.name}`)
+              return cached
+            }
+          }
+
+          try {
+            const output = await withRetry(
+              async () => {
+                if (tool.exec && tool.exec !== 'inproc') {
+                  return await runChildProcess({ command: tool.exec, args: [tool.name] }, env, {
+                    run: runContext,
+                    step: stepInfo,
+                  })
+                }
+                return await tool.invoke(env, { run: runContext, step: stepInfo })
+              },
+              retryPolicy,
+              (err, attempt) => {
+                logger.warn(`Tool ${toolName} failed (attempt ${attempt + 1}): ${err}`)
+              },
+            )
+
+            if (cacheKey && output !== undefined) {
+              await cache.set(
+                cacheKey,
+                {
+                  toolName: tool.name,
+                  version: tool.version,
+                  input: env,
+                  context: toolContext,
+                },
+                output,
+              )
+            }
+            return output
+          } catch (error) {
+            logger.error(`Tool ${toolName} failed after retries: ${error}`)
+            if (onError === 'fail-run') {
+              throw error
+            }
+            if (onError === 'dead-letter') {
+              await writeDeadLetter(store, runContext.runId, env, error as Error, stepId)
+              logger.warn(`Tool ${toolName} failed, written to dead-letter queue: ${error}`)
+            }
+            if (onError === 'skip-item') {
+              logger.warn(`Tool ${toolName} failed, skipping item: ${error}`)
+            }
+            return undefined as unknown as Envelope<unknown>
+          }
+        })
+
+        batch.push(task)
+
+        // Yield results from completed tasks, skipping failed/skipped items
+        const settled = await Promise.any(
+          batch.map(async (p, i) => ({ result: await p.catch(() => undefined), index: i })),
+        )
+        if (settled.result !== undefined) {
+          yield settled.result
+        }
+        batch.splice(settled.index, 1)
+      }
+
+      // Drain remaining batch, filter out undefined (skipped items)
+      const remaining = await Promise.all(batch)
+      for (const result of remaining) {
+        if (result !== undefined) {
+          yield result
+        }
+      }
+    })()
+  }
+
+  /**
+   * Write a stream into a target, then close it (with optional auto-commit).
+   * A target is a sink — the stream it consumed stays exhausted for downstream steps.
+   */
+  private async writeTarget(
+    step: PipelineStep,
+    stepId: string,
+    stream: EnvelopeStream | null,
+    runContext: RunContext,
+  ): Promise<void> {
+    const rawUri = step.config.uri as string
+    const uri = registry.expandAliases(rawUri, this.globalContext.settings)
+    if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
+    const target = registry.resolveTarget(uri)
+    if (!stream) throw new Error('Target step requires a preceding stream')
+
+    await target.open({ run: runContext })
+    try {
+      for await (const env of stream) {
+        await target.write(env, { run: runContext })
+      }
+    } finally {
+      await target.close({ run: runContext })
+    }
+
+    // Check for auto-commit on close
+    const parsed = registry.parse(uri)
+    if (parsed.query.commit === 'on-close') {
+      this.logger('commit').info(`Auto-committing changes in: ${runContext.global.project.root}`)
+      await autoCommit(runContext.global.project.root)
     }
   }
 
   /**
-   * Execute a single pipeline step.
+   * Register a nested checkpoint node and derive its run context (extended path, own logger).
    */
-  private async executeStep(_step: PipelineStep, _stepId: string): Promise<void> {
-    throw new Error('executeStep is deprecated. Use executeSteps stream flow instead.')
+  private enterNested(runContext: RunContext, nodeId: string, pipelineId: string): RunContext {
+    const node = createRootCheckpoint(nodeId)
+    addChild(this.checkpoint, node)
+    markInProgress(node)
+
+    return {
+      ...runContext,
+      pipelineId,
+      checkpoint: {
+        stepId: nodeId,
+        depth: runContext.checkpoint.depth + 1,
+        path: [...runContext.checkpoint.path, nodeId],
+      },
+      logger: this.logger(nodeId),
+    }
+  }
+
+  /**
+   * Mark a nested node done once its stream is exhausted.
+   */
+  private completeNested(nodeId: string): void {
+    const node = findNode(this.checkpoint, nodeId)
+    if (node) markDone(node)
+  }
+
+  /**
+   * Mark a nested node failed when its stream throws.
+   */
+  private failNested(nodeId: string, error: Error): void {
+    const node = findNode(this.checkpoint, nodeId)
+    if (node) markFailed(node, error.message)
+  }
+
+  /**
+   * Pass a nested stream through, marking its checkpoint node done/failed as it completes.
+   */
+  private async *trackNested(
+    nodeId: string,
+    stream: EnvelopeStream | null,
+  ): AsyncGenerator<Envelope<unknown>> {
+    if (!stream) {
+      this.completeNested(nodeId)
+      return
+    }
+    try {
+      for await (const env of stream) {
+        yield env
+      }
+      this.completeNested(nodeId)
+    } catch (error) {
+      this.failNested(nodeId, error as Error)
+      throw error
+    }
+  }
+
+  /**
+   * Generate a unique, filesystem-safe step id for logging and checkpointing.
+   */
+  private nextStepId(step: PipelineStep): string {
+    const name = (step.config.name as string | undefined) ?? step.type
+    return `${step.type}-${name}-${++this.stepSeq}`
   }
 
   /**
@@ -488,8 +664,10 @@ export class Runner {
     if (!this.runId) return
     const ts = new Date().toISOString()
     const line = `[${ts}] [${level.toUpperCase()}] ${message}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`
+    // Nested checkpoint ids carry path separators — keep log file names flat.
+    const file = `${stepId.replace(/[^a-zA-Z0-9._-]/g, '_')}.log`
     await this.store.ensureDir('runs', this.runId, 'logs')
-    await this.store.append(line, 'runs', this.runId, 'logs', `${stepId}.log`)
+    await this.store.append(line, 'runs', this.runId, 'logs', file)
   }
 
   /**
