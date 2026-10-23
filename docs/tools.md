@@ -245,3 +245,61 @@ Sorted by complexity (Low → High).
 | 114   | TL114  | `indexWithLightRAG`                    | `Chapter`       | `Chapter & { ragDocId: string }`                     | Indexing        | High       | Indexes chapter content in LightRAG vector store for retrieval.                                                      |
 | 115   | TL115  | `synthesizeSpeech`                     | `Text`          | `Audio`                                              | Media           | Medium     | Uses machinum-tts for high-quality speech synthesis.                                                                 |
 | 116   | TL116  | `runAutomataWorkflow`                  | `Chapter`       | `Chapter & { automataResult: unknown }`              | Agent           | High       | Executes automation workflow via machinum-automata.                                                                  |
+
+---
+
+## Out-of-process tools (`exec`)
+
+Tools run in-process by default. Setting `exec` moves them into a child process
+started by the runner, with `module` pointing at the file that exports the tool:
+
+```typescript
+export default defineTool({
+  name: 'translate',
+  version: '1.0.0',
+  exec: 'bun',                        // 'bun' | 'deno' | 'npx'
+  module: new URL('./translate.ts', import.meta.url).pathname,
+  invoke: async (env, ctx) => ({ item: translate(env.item), meta: env.meta }),
+})
+```
+
+`module` is **required** when `exec !== 'inproc'` — the runner throws a named
+error naming the tool otherwise. `exec` alone is not enough: the child is never
+given a script by the tool name.
+
+### Runtime map
+
+| `exec`  | Command                       |
+|---------|-------------------------------|
+| `bun`   | `bun run <worker> <module> <toolName>`  |
+| `deno`  | `deno run -A <worker> <module> <toolName>` |
+| `npx`   | `npx tsx <worker> <module> <toolName>` |
+
+`<worker>` is `packages/core/src/engine/worker.ts` (shipped as `dist/engine/worker.js`).
+It imports `module`, resolves the tool by `toolName`, and speaks the NDJSON
+protocol below. It imports nothing from the package itself, so bun/deno/tsx can
+execute it without resolving workspace dependencies.
+
+### NDJSON protocol
+
+One protocol, used by both one-shot (`runChildProcess`) and streaming
+(`streamChildProcess`) calls. The `ToolContext` travels on the **first stdin
+line**, not through the environment.
+
+| Direction | Line | Payload |
+|---|---|---|
+| parent → child | 1 | `{"type":"init","toolContext":{…}}` |
+| parent → child | N | `<Envelope>` |
+| child → parent | N | `<Envelope>` |
+| child → parent | N | `{"error":"…"}` — then exit 1 |
+
+A non-zero exit throws an `Error` carrying the child's stderr (and the
+`{"error"}` message when present).
+
+### Tool resolution
+
+`mt-worker` finds the tool in the module's exports, in this order: any export
+whose `Tool.name` matches (including `export default`), then a named export of
+the same name, then `export const tools = { [toolName]: tool }` (record, one
+level deep). A module exporting none of these fails with the list of exports it
+did find.

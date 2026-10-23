@@ -108,7 +108,13 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
 ## Concurrency Primitives
 
 - **In-process**: per-step limiter (`p-limit`-style), configurable via URI query param (`concurrency`), DSL, or global defaults.
-- **Out-of-process**: tools with `exec: 'npx' | 'deno' | 'bun'` are invoked as child processes via stdio JSON (one-shot or NDJSON streaming).
+- **Out-of-process**: tools with `exec: 'npx' | 'deno' | 'bun'` run in a child process started as
+  `<runtime> <runtime argv> engine/worker <tool.module> <tool.name>` — `module` is required whenever
+  `exec !== 'inproc'`. The child speaks one NDJSON protocol for both modes: the `ToolContext` is the
+  first stdin line, then one `<Envelope>` per line; the worker answers with one `<Envelope>` or
+  `{"error":"…"}` per line (non-zero exit on error). See [tools.md](../tools.md#out-of-process-tools-exec).
+  Under bun the pipeline id cannot be inferred from the stack (`Error.prepareStackTrace` call sites are
+  unavailable) — pass an explicit `id` to `definePipeline()`.
 - **Fork (`.fork`)**: runs the child pipeline **per parent envelope** — the envelope is fed into
   `buildStream(child.steps, [envelope], childCtx)` and the child's output is merged back into the
   parent stream. One checkpoint node per envelope (`<stepId>/fork-<n>`). A `target` inside the

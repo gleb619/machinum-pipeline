@@ -9,6 +9,18 @@ import { registry } from './uri.js'
 const DEFAULT_RETRY = { max: 3, backoffMs: 1000, strategy: 'exp' as const }
 const DEFAULT_ON_ERROR: 'fail-run' | 'skip-item' | 'dead-letter' = 'fail-run'
 
+let warnedAboutPipelineId = false
+
+/** One-shot warning: pipeline ids cannot be inferred from the stack under bun. */
+function warnUnresolvablePipelineId(): void {
+  if (warnedAboutPipelineId) return
+  warnedAboutPipelineId = true
+  console.warn(
+    '[mt] Cannot infer pipeline id from the call stack on this runtime — pass an explicit ' +
+      "`id` to definePipeline({ id: '...' }).",
+  )
+}
+
 /**
  * Extract pipeline ID from caller filename using stack trace analysis.
  * Falls back to 'default-pipeline' if unable to determine.
@@ -20,10 +32,18 @@ function getCallerFileId(): string {
     const err = new Error()
     const stack = err.stack as unknown as NodeJS.CallSite[]
 
+    // Bun (and any other engine without V8 call sites) returns a plain string
+    // here — the id cannot be derived, so the caller must pass an explicit `id`.
+    if (!Array.isArray(stack)) {
+      warnUnresolvablePipelineId()
+      return 'default-pipeline'
+    }
+
     // Find the caller (skip this function, getCallerFileId, and the definePipeline call)
     for (let i = 2; i < stack.length; i++) {
       const caller = stack[i]
       if (!caller) continue
+      if (typeof caller.getFileName !== 'function') continue
       const fileName = caller.getFileName()
       if (fileName && fileName.endsWith('.ts') && !fileName.includes('node_modules')) {
         // Extract filename without extension
@@ -225,6 +245,8 @@ export function defineTool<I, O>(config: {
   version: string
   invoke: (env: Envelope<I>, ctx: ToolContext) => Promise<Envelope<O>>
   exec?: 'inproc' | 'npx' | 'deno' | 'bun'
+  /** File path (or file URL) of the module exporting this tool. Required when `exec !== 'inproc'`. */
+  module?: string
   cacheable?: boolean
   idempotent?: boolean
 }): Tool<I, O> {
@@ -233,6 +255,7 @@ export function defineTool<I, O>(config: {
     version: config.version,
     invoke: config.invoke,
     exec: config.exec ?? 'inproc',
+    module: config.module,
     cacheable: config.cacheable,
     idempotent: config.idempotent,
   }
