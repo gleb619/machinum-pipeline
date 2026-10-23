@@ -1,8 +1,14 @@
+import type { Settings } from './settings.js'
 import type { Source, Target } from './types.ts'
 
 /**
  * URI registry — maps URI schemes to Source/Target factories.
  * Supports composite schemes (e.g. git+http://) via registered combinators.
+ *
+ * Also resolves named URI shortcuts (aliases): bare strings without a scheme
+ * separator are looked up in the project's "uris" table from mt.json settings.
+ * Registered schemes always win — a string is only treated as an alias when it
+ * has no "://" and no registered "scheme:" prefix.
  */
 
 /**
@@ -31,6 +37,21 @@ export interface ParsedUri {
  * Composite resolver — combines two or more schemes.
  */
 export type CompositeResolver = (schemes: string[], rest: string) => ParsedUri
+
+/**
+ * Named URI shortcuts (aliases) — configured per-project in mt.json:
+ * { "uris": { "en": "md://./chapters/en" } }
+ */
+export interface UriAliases {
+  [alias: string]: string
+}
+
+/**
+ * Maximum number of alias-to-alias hops before expansion fails.
+ */
+export const MAX_URI_ALIAS_DEPTH = 10
+
+const SCHEME_PREFIX_RE = /^([a-zA-Z][a-zA-Z0-9+\-.]*):/
 
 /**
  * URI registry singleton.
@@ -64,26 +85,96 @@ class UriRegistry {
 
   /**
    * Resolve a URI string to a Source.
+   * Bare alias strings (no scheme separator) are expanded via the project's
+   * "uris" table in settings before lookup.
    */
-  resolveSource<T>(uri: string): Source<T> {
-    const parsed = this.parse(uri)
+  resolveSource<T>(uri: string, settings?: Settings): Source<T> {
+    const resolvedUri = this.expandAliases(uri, settings)
+    const parsed = this.parse(resolvedUri)
     const factory = this.sources.get(parsed.scheme)
     if (!factory) {
-      throw new Error(`No source registered for scheme: ${parsed.scheme} (URI: ${uri})`)
+      throw new Error(`No source registered for scheme: ${parsed.scheme} (URI: ${resolvedUri})`)
     }
     return factory(parsed) as Source<T>
   }
 
   /**
    * Resolve a URI string to a Target.
+   * Bare alias strings (no scheme separator) are expanded via the project's
+   * "uris" table in settings before lookup.
    */
-  resolveTarget<T>(uri: string): Target<T> {
-    const parsed = this.parse(uri)
+  resolveTarget<T>(uri: string, settings?: Settings): Target<T> {
+    const resolvedUri = this.expandAliases(uri, settings)
+    const parsed = this.parse(resolvedUri)
     const factory = this.targets.get(parsed.scheme)
     if (!factory) {
-      throw new Error(`No target registered for scheme: ${parsed.scheme} (URI: ${uri})`)
+      throw new Error(`No target registered for scheme: ${parsed.scheme} (URI: ${resolvedUri})`)
     }
     return factory(parsed) as Target<T>
+  }
+
+  /**
+   * Read the "uris" alias table from project settings (mt.json).
+   * Non-string values are ignored.
+   */
+  getAliases(settings: Settings | undefined): UriAliases {
+    const uris = settings?.uris
+    if (!uris || typeof uris !== 'object' || Array.isArray(uris)) return {}
+    const aliases: UriAliases = {}
+    for (const [key, value] of Object.entries(uris)) {
+      if (typeof value === 'string') aliases[key] = value
+    }
+    return aliases
+  }
+
+  /**
+   * True when a URI string has no scheme of its own and may be an alias:
+   * no "://" separator, and no "scheme:" prefix matching a registered scheme.
+   * Registered schemes always win over aliases.
+   */
+  isAliasCandidate(uri: string): boolean {
+    if (uri.includes('://')) return false
+    const schemeMatch = uri.match(SCHEME_PREFIX_RE)
+    if (schemeMatch && this.hasScheme(schemeMatch[1] ?? '')) return false
+    return true
+  }
+
+  /**
+   * Expand a named URI alias through the project's "uris" table.
+   * Alias values may themselves be aliases (chained, up to MAX_URI_ALIAS_DEPTH).
+   * Returns the input unchanged when it is not an alias candidate.
+   */
+  expandAliases(uri: string, settings: Settings | undefined): string {
+    if (!this.isAliasCandidate(uri)) return uri
+    const aliases = this.getAliases(settings)
+    const chain: string[] = []
+    let current = uri
+    while (this.isAliasCandidate(current)) {
+      if (chain.includes(current)) {
+        throw new Error(`Circular URI alias: ${[...chain, current].join(' → ')}`)
+      }
+      if (chain.length >= MAX_URI_ALIAS_DEPTH) {
+        throw new Error(
+          `URI alias chain exceeds ${MAX_URI_ALIAS_DEPTH} hops: ${[...chain, current].join(' → ')}`,
+        )
+      }
+      const next = aliases[current]
+      if (next === undefined) {
+        throw new Error(
+          `Unknown URI alias '${current}'${chain.length > 0 ? ` (chained from '${uri}')` : ''}. ` +
+            `Define it in mt.json: "uris": { "${current}": "<scheme>://..." }`,
+        )
+      }
+      chain.push(current)
+      current = next
+    }
+    return current
+  }
+
+  private hasScheme(scheme: string): boolean {
+    return (
+      this.sources.has(scheme) || this.targets.has(scheme) || this.compositeResolvers.has(scheme)
+    )
   }
 
   /**

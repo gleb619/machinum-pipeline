@@ -47,15 +47,15 @@ const verifyFlow = definePipeline()
     const meta = (item as { meta?: { errors?: unknown } }).meta
     console.log('[verify] errors:', meta?.errors)
   })
-  .to('md://./chapters/en')
+  .to('en')
 
 // === Flow 2: MD(EN) → MD(RU) translation ===
 const translateFlow = definePipeline()
-  .from('md://./chapters/en')
+  .from('en')
   .use(wordCounter)
   .use(chapterIndexer)
   .use(stubTranslator)
-  .to('chapter-output://./chapters')
+  .to('ru')
 
 // === Named exports: each uses ephemeral:// source/target ===
 export const smokeTestPipeline = definePipeline()

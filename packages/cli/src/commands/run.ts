@@ -100,6 +100,7 @@ async function buildGlobalContext(projectRoot: string): Promise<GlobalContext> {
     const defaults = config.defaults as Record<string, unknown> | undefined
     const retryDef = defaults?.retry as Record<string, unknown> | undefined
     const settings = (config.settings as Record<string, unknown>) ?? {}
+    const uris = config.uris as Record<string, unknown> | undefined
 
     return {
       project: {
@@ -115,7 +116,7 @@ async function buildGlobalContext(projectRoot: string): Promise<GlobalContext> {
         onError: (defaults?.onError as 'fail-run' | 'skip-item' | 'dead-letter') ?? 'fail-run',
         concurrency: (defaults?.concurrency as number) ?? 4,
       },
-      settings,
+      settings: uris ? { ...settings, uris } : settings,
       env: {},
     }
   } catch {

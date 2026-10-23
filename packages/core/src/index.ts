@@ -39,8 +39,14 @@ export {
   target,
   PipelineBuilder,
 } from './dsl.js'
-export { registry, UriRegistry } from './uri.js'
-export type { ParsedUri, SourceFactory, TargetFactory, CompositeResolver } from './uri.js'
+export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
+export type {
+  ParsedUri,
+  SourceFactory,
+  TargetFactory,
+  CompositeResolver,
+  UriAliases,
+} from './uri.js'
 export { discoverPipelines } from './discovery.js'
 export type { DiscoveredPipeline } from './discovery.js'
 

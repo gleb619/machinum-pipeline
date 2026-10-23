@@ -10,5 +10,9 @@
     },
     "onError": "fail-run",
     "concurrency": 4
+  },
+  "uris": {
+    "en": "md://./chapters/en",
+    "ru": "chapter-output://./chapters"
   }
 }

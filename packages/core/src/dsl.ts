@@ -131,6 +131,11 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * .from('jsonl://./input.jsonl')
    */
   from<T>(source: Source<T> | string): PipelineBuilder<T, O> {
+    if (typeof source === 'string' && registry.isAliasCandidate(source)) {
+      // Named URI alias — needs mt.json settings, so the Runner resolves it at run time
+      this._steps.push({ type: 'source', config: { uri: source } })
+      return this as unknown as PipelineBuilder<T, O>
+    }
     const resolvedSource = typeof source === 'string' ? registry.resolveSource<T>(source) : source
     this._steps.push({ type: 'source', config: { uri: resolvedSource.uri } })
     return this as unknown as PipelineBuilder<T, O>
@@ -171,6 +176,11 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * .to('md://./output.md')
    */
   to<T>(target: Target<T> | string): Pipeline<I, O> {
+    if (typeof target === 'string' && registry.isAliasCandidate(target)) {
+      // Named URI alias — needs mt.json settings, so the Runner resolves it at run time
+      this._steps.push({ type: 'target', config: { uri: target } })
+      return this
+    }
     const resolvedTarget = typeof target === 'string' ? registry.resolveTarget<T>(target) : target
     this._steps.push({ type: 'target', config: { uri: resolvedTarget.uri } })
     return this
