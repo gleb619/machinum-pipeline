@@ -100,6 +100,14 @@ export interface LlmGateOptions<I, O> {
   parse?: (content: string) => unknown
   /** On context-length error, shrink via the `fit` slot and retry. `true` = 2 attempts. Default off. */
   shrinkOnContextError?: boolean | number
+  /**
+   * Stream via `client.chatCompletionStream` when the transport supports it
+   * (SDK transports); the aggregated result is identical to non-streaming.
+   * Falls back to `chatCompletion` otherwise.
+   */
+  stream?: boolean
+  /** Called with each content delta while streaming (and the original input). */
+  onDelta?: (delta: string, input: I) => void
   /** Map the tool input to a GateInput. Default: identity. */
   normalize?: (input: I) => GateInput
   /** Map the final state to the tool output. Default: chat-completion shaped output. */
@@ -323,7 +331,19 @@ export function llmCall<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, Ga
             ? opts.client(cfg, ctx)
             : (opts.client ??
               createLlmClient(cfg, ctx, { transport: opts.transport, cache: opts.cache }))
-        return runLlmCall(state, (req) => client.chatCompletion(req), opts.shrinkOnContextError)
+        const streamFn =
+          opts.stream && typeof client.chatCompletionStream === 'function'
+            ? client.chatCompletionStream
+            : undefined
+        const invoke = (req: LlmRequest): Promise<LlmResponse> =>
+          streamFn
+            ? streamFn.call(
+                client,
+                req,
+                opts.onDelta ? (d) => opts.onDelta?.(d, state.input) : undefined,
+              )
+            : client.chatCompletion(req)
+        return runLlmCall(state, invoke, opts.shrinkOnContextError)
       })
     },
   })

@@ -88,14 +88,22 @@ export {
 
 export {
   translateText,
+  createTranslateText,
+  createTranslateGate,
+  translateNormalize,
+  translateToOutput,
+  routerTranslateCall,
   type TranslateInput,
   type TranslateOutput,
   type TranslateToolConfig,
+  type TranslateTextOptions,
 } from './translate-text.js'
 
 export {
   OpenRouterPool,
   OpenRouterPoolSupplier,
+  applyPoolError,
+  sharedPoolFor,
   type OpenRouterClient,
   type OpenRouterPoolConfig,
 } from './openrouter-pool.js'
@@ -134,10 +142,18 @@ export { tokenSplitter } from './token-splitter.js'
 export {
   titleTranslator,
   paragraphTranslator,
+  createTitleTranslator,
+  createParagraphTranslator,
   type TitleTranslatorInput,
   type TitleTranslatorOutput,
   type ParagraphTranslatorInput,
   type ParagraphTranslatorOutput,
+  type TitleTranslatorOptions,
+  type ParagraphTranslatorOptions,
+  type TitleTranslatorSlot,
+  type ParagraphTranslatorSlot,
+  type TitleTranslatorState,
+  type ParagraphTranslatorState,
 } from './chapter-translator.js'
 
 export {
@@ -224,6 +240,18 @@ export {
 } from './llm-client.js'
 
 export {
+  createOpenAiSdkClient,
+  createAnthropicSdkClient,
+  createSdkAdapter,
+  defaultTransportKind,
+  isSdkPackageAvailable,
+  mapSdkError,
+  setSdkPackageAvailableForTests,
+  type OpenAiSdkClientOptions,
+  type AnthropicSdkClientOptions,
+} from './llm-sdk-transports.js'
+
+export {
   withTimeout,
   withLlmRetry,
   withCache,
@@ -258,6 +286,7 @@ export {
   readCtx,
   type LlmProvider,
   type LlmConfigLayer,
+  type LlmTransportKind,
   type ResolvedLlmConfig,
   type ResolveLlmConfigArgs,
   type CtxView,
@@ -291,6 +320,10 @@ export {
   registerShrinkStrategy,
   shrinkStrategies,
   modelContextLimit,
+  MODEL_CONTEXT_LIMITS,
+  parseContextLimits,
+  type ModelContextLimitEntry,
+  type LastMessageStrategy,
   truncateLines,
   truncateTail,
   truncateHead,

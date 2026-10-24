@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import type { ToolContext } from '@mt/core'
 import { Cache } from '@mt/core'
 import { type ResolvedLlmConfig, readCtx } from './llm-config.js'
@@ -8,11 +7,16 @@ import {
   LlmAuthError,
   LlmError,
   LlmNetworkError,
-  LlmQuotaError,
   LlmRateLimitError,
   classifyHttpError,
 } from './llm-errors.js'
-import { type OpenRouterClient, OpenRouterPoolSupplier } from './openrouter-pool.js'
+import { createSdkAdapter } from './llm-sdk-transports.js'
+import {
+  type OpenRouterClient,
+  type OpenRouterPoolSupplier,
+  applyPoolError,
+  sharedPoolFor,
+} from './openrouter-pool.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,6 +63,11 @@ export interface LlmResponse {
 
 export interface LlmClient {
   chatCompletion(req: LlmRequest): Promise<LlmResponse>
+  /**
+   * Optional streaming variant: resolves to the same aggregated `LlmResponse`,
+   * invoking `onDelta` with each content delta. Implemented by the SDK transports.
+   */
+  chatCompletionStream?(req: LlmRequest, onDelta?: (delta: string) => void): Promise<LlmResponse>
 }
 
 // ---------------------------------------------------------------------------
@@ -191,13 +200,7 @@ export class OpenAiCompatClient implements LlmClient {
 
     if (res.status < 200 || res.status >= 300) {
       const err = classifyHttpError(res.status, res.body, res.headers)
-      if (pool && picked) {
-        if (err instanceof LlmRateLimitError) {
-          pool.getPool().handleRateLimitError(picked, err.retryAfterMs)
-        } else if (err instanceof LlmQuotaError) {
-          pool.getPool().handle402Error(picked)
-        }
-      }
+      applyPoolError(pool, picked, err)
       throw err
     }
 
@@ -335,21 +338,6 @@ export interface CreateLlmClientDeps {
   bare?: boolean
 }
 
-const poolSuppliers = new Map<string, OpenRouterPoolSupplier>()
-
-/** Shared per key-set so round-robin / blocked-key state survives across calls. */
-function poolFor(keys: string[], apiUrl: string): OpenRouterPoolSupplier {
-  const id = createHash('sha256')
-    .update(`${apiUrl}\n${keys.join('\n')}`)
-    .digest('hex')
-  let supplier = poolSuppliers.get(id)
-  if (!supplier) {
-    supplier = new OpenRouterPoolSupplier({ clients: keys.map((apiKey) => ({ apiKey, apiUrl })) })
-    poolSuppliers.set(id, supplier)
-  }
-  return supplier
-}
-
 /** Build the bare provider adapter for a resolved config. */
 export function createAdapter(cfg: ResolvedLlmConfig, transport?: LlmTransport): LlmClient {
   switch (cfg.provider) {
@@ -373,7 +361,7 @@ export function createAdapter(cfg: ResolvedLlmConfig, transport?: LlmTransport):
         baseUrl: cfg.baseUrl,
         apiKey: cfg.apiKey,
         headers: cfg.headers,
-        pool: keys.length > 0 ? poolFor(keys, cfg.baseUrl) : undefined,
+        pool: keys.length > 0 ? sharedPoolFor(keys, cfg.baseUrl) : undefined,
         transport,
       })
     }
@@ -396,7 +384,14 @@ export function createLlmClient(
   ctx?: ToolContext,
   deps: CreateLlmClientDeps = {},
 ): LlmClient {
-  let client = createAdapter(cfg, deps.transport)
+  let client: LlmClient
+  if (deps.transport) {
+    client = createAdapter(cfg, deps.transport)
+  } else if (cfg.transport === 'sdk') {
+    client = createSdkAdapter(cfg) ?? createAdapter(cfg)
+  } else {
+    client = createAdapter(cfg)
+  }
   if (deps.bare) return client
   client = withTimeout(client, cfg.timeoutMs)
   client = withLlmRetry(client, cfg.retry, {

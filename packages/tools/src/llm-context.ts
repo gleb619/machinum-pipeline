@@ -82,7 +82,7 @@ function makeHelpers(
 
 const MARKER = '[...truncated...]'
 
-type CutMode = 'tail' | 'head' | 'lines'
+type CutMode = 'tail' | 'head' | 'lines' | 'headtail'
 
 function unmark(text: string): string {
   return text.includes(MARKER)
@@ -98,6 +98,10 @@ function cutText(raw: string, keep: number, mode: CutMode): string {
   if (text.length <= keep) return raw
   if (mode === 'tail') return `${text.slice(0, keep)}\n${MARKER}`
   if (mode === 'head') return `${MARKER}\n${text.slice(text.length - keep)}`
+  if (mode === 'headtail') {
+    const half = Math.max(1, Math.floor(keep / 2))
+    return `${text.slice(0, half)}\n${MARKER}\n${text.slice(text.length - half)}`
+  }
   const lines = text.split('\n')
   if (lines.length <= 2) return cutText(text, keep, 'tail')
   const half = Math.max(1, Math.floor(keep / 2))
@@ -340,6 +344,9 @@ export function resolveStrategy(spec: StrategySpec): ShrinkStrategy {
 // Pipeline
 // ---------------------------------------------------------------------------
 
+/** What to do when the last user message alone exceeds the remaining budget. */
+export type LastMessageStrategy = 'off' | 'truncate' | 'summarize' | 'error'
+
 export interface FitOptions {
   /** Token budget for input messages; undefined/null = no-op. */
   limit?: number | null
@@ -351,6 +358,10 @@ export interface FitOptions {
   model?: string
   prompt?: (name: string, vars: Record<string, unknown>) => string
   signal?: AbortSignal
+  /** Oversize last user message handling. Default 'off' (report fits=false). */
+  lastMessage?: LastMessageStrategy
+  /** Words budget passed to the summarize prompt. Default 200. */
+  lastMessageMaxWords?: number
 }
 
 export const DEFAULT_STRATEGIES: StrategySpec[] = ['dropOldest', 'truncateLines']
@@ -404,9 +415,105 @@ export async function fitMessages(
     })
     cur = next
   }
+
+  // Oversize LAST user message: strategies above never touch it (protected), so
+  // handle it explicitly per `lastMessage`. The system message is never dropped.
+  const lastMessage = options.lastMessage ?? 'off'
+  if (lastMessage !== 'off' && h.count(cur) > limit) {
+    let lastIdx = -1
+    for (let i = cur.length - 1; i >= 0; i--) {
+      if (cur[i]?.role === 'user') {
+        lastIdx = i
+        break
+      }
+    }
+    if (lastIdx >= 0) {
+      const rest = h.count(cur.filter((_, i) => i !== lastIdx))
+      if (lastMessage === 'error') {
+        throw new LlmContextLengthError(
+          rest >= limit
+            ? `Last user message does not fit the context budget: ${rest} tokens of other messages already exceed the ${limit} token budget`
+            : `Last user message alone exceeds the remaining ${Math.max(0, limit - rest)} tokens of the ${limit} token budget`,
+        )
+      }
+      if (rest < limit) {
+        const before = h.count(cur)
+        const original = cur[lastIdx] as LlmMessage
+        let appliedName = 'truncateLastMessage'
+        let content: string | undefined
+        if (lastMessage === 'summarize') {
+          content = await summarizeLastMessage(original.content, limit - rest, h, options)
+          if (content !== undefined) appliedName = 'summarizeLastMessage'
+        }
+        if (content === undefined) {
+          content = truncateLastMessage(original.content, limit - rest, (t) => h.countText(t))
+        }
+        cur = cur.map((m, i) => (i === lastIdx ? { ...m, content } : m))
+        record.applied.push({ name: appliedName, before, after: h.count(cur) })
+      }
+      // else: even without the last message there is no room; fits stays false.
+    }
+  }
+
   record.after = h.count(cur)
   record.fits = record.after <= limit
   return { messages: cur, record }
+}
+
+/** Shrink one message to roughly `budget` tokens, keeping head and tail with a marker. */
+function truncateLastMessage(
+  text: string,
+  budgetTokens: number,
+  countText: (text: string) => number,
+): string {
+  const total = countText(text)
+  if (total <= budgetTokens) return text
+  let cur = text
+  for (let iter = 0; iter < 100; iter++) {
+    const t = countText(cur)
+    if (t <= budgetTokens) break
+    // head+marker+tail: budget split across both halves, minus marker overhead
+    const keepChars = Math.max(
+      8,
+      Math.floor((cur.length * budgetTokens) / (2 * Math.max(1, t))) - MARKER.length - 2,
+    )
+    const next = cutText(cur, keepChars, 'headtail')
+    if (next.length >= cur.length) break
+    cur = next
+  }
+  return cur
+}
+
+/** Summarize one message via the LLM; returns undefined when impossible so caller can truncate. */
+async function summarizeLastMessage(
+  text: string,
+  budgetTokens: number,
+  h: ShrinkHelpers,
+  options: FitOptions,
+): Promise<string | undefined> {
+  if (!h.llm || !h.model) {
+    h.report('fallback:no-llm')
+    return undefined
+  }
+  try {
+    const maxWords = options.lastMessageMaxWords ?? 200
+    const transcript = truncateLastMessage(text, Math.max(64, budgetTokens + 500), (t) =>
+      h.countText(t),
+    )
+    const res = await h.llm.chatCompletion({
+      model: h.model,
+      temperature: 0,
+      messages: [
+        { role: 'user', content: h.prompt('context.summarize', { transcript, maxWords }) },
+      ],
+      signal: h.signal,
+    })
+    const summary = res.content.trim()
+    return summary ? `[Summary]\n${summary}` : undefined
+  } catch (err) {
+    h.report(`fallback:${err instanceof Error ? err.message : 'error'}`)
+    return undefined
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -418,6 +525,10 @@ export interface ContextConfigLayer {
   contextLimit?: number
   reserve?: number
   strategies?: StrategySpec[]
+  /** Oversize last user message handling (see `LastMessageStrategy`). */
+  lastMessage?: LastMessageStrategy
+  /** Use the model's known context window when no explicit limit is set. Default true. */
+  autoLimit?: boolean
 }
 
 export interface ResolvedContextConfig {
@@ -427,6 +538,8 @@ export interface ResolvedContextConfig {
   contextLimit?: number
   reserve: number
   strategies: StrategySpec[]
+  lastMessage: LastMessageStrategy
+  autoLimit: boolean
   sources: Record<string, string>
 }
 
@@ -437,9 +550,9 @@ export interface ResolveContextConfigArgs {
   options?: ContextConfigLayer
   /** Envelope meta; reads `meta.context`. */
   meta?: Record<string, unknown>
-  /** mt.json settings: `context.maxTokens`, `context.contextLimit`, `context.reserve`, `context.strategies`. */
+  /** mt.json settings: `context.maxTokens`, `context.contextLimit`, `context.reserve`, `context.strategies`, `context.lastMessage`, `context.autoLimit`, `context.limits`. */
   settings?: Record<string, unknown>
-  /** `MT_CONTEXT_MAX_TOKENS`, `MT_CONTEXT_LIMIT`, `MT_CONTEXT_RESERVE`, `MT_CONTEXT_STRATEGIES`. */
+  /** `MT_CONTEXT_MAX_TOKENS`, `MT_CONTEXT_LIMIT`, `MT_CONTEXT_RESERVE`, `MT_CONTEXT_STRATEGIES`, `MT_CONTEXT_LAST_MESSAGE`, `MT_CONTEXT_AUTO_LIMIT`, `MT_CONTEXT_LIMITS`. */
   env?: Record<string, string | undefined>
   /** Model's known context limit (used only when nothing else sets contextLimit). */
   modelLimit?: number
@@ -463,12 +576,38 @@ function stratList(v: unknown): StrategySpec[] | undefined {
   return undefined
 }
 
+const LAST_MESSAGE_VALUES: readonly LastMessageStrategy[] = [
+  'off',
+  'truncate',
+  'summarize',
+  'error',
+]
+
+function lastMessageOf(v: unknown): LastMessageStrategy | undefined {
+  if (typeof v !== 'string' || !v.trim()) return undefined
+  const s = v.trim().toLowerCase()
+  return (LAST_MESSAGE_VALUES as readonly string[]).includes(s)
+    ? (s as LastMessageStrategy)
+    : undefined
+}
+
+function boolOf(v: unknown): boolean | undefined {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'string') {
+    if (/^(1|true|yes|on)$/i.test(v)) return true
+    if (/^(0|false|no|off)$/i.test(v)) return false
+  }
+  return undefined
+}
+
 function ctxLayer(raw: Record<string, unknown> | undefined): ContextConfigLayer {
   return {
     maxTokens: numOf(raw?.maxTokens),
     contextLimit: numOf(raw?.contextLimit),
     reserve: numOf(raw?.reserve),
     strategies: stratList(raw?.strategies),
+    lastMessage: lastMessageOf(raw?.lastMessage),
+    autoLimit: boolOf(raw?.autoLimit),
   }
 }
 
@@ -490,6 +629,8 @@ export function resolveContextConfig(args: ResolveContextConfigArgs = {}): Resol
         contextLimit: s['context.contextLimit'],
         reserve: s['context.reserve'],
         strategies: s['context.strategies'],
+        lastMessage: s['context.lastMessage'],
+        autoLimit: s['context.autoLimit'],
       }),
     ],
     [
@@ -499,6 +640,8 @@ export function resolveContextConfig(args: ResolveContextConfigArgs = {}): Resol
         contextLimit: e.MT_CONTEXT_LIMIT,
         reserve: e.MT_CONTEXT_RESERVE,
         strategies: e.MT_CONTEXT_STRATEGIES,
+        lastMessage: e.MT_CONTEXT_LAST_MESSAGE,
+        autoLimit: e.MT_CONTEXT_AUTO_LIMIT,
       }),
     ],
   ]
@@ -518,6 +661,8 @@ export function resolveContextConfig(args: ResolveContextConfigArgs = {}): Resol
   const picked = pick('strategies')
   if (!picked) sources.strategies = 'default'
   const strategies = picked ?? DEFAULT_STRATEGIES
+  const lastMessage = pick('lastMessage') ?? 'off'
+  const autoLimit = pick('autoLimit') ?? true
   const candidates: number[] = []
   if (maxTokens !== undefined) candidates.push(maxTokens)
   if (contextLimit !== undefined) candidates.push(Math.max(0, contextLimit - reserve))
@@ -527,24 +672,112 @@ export function resolveContextConfig(args: ResolveContextConfigArgs = {}): Resol
     contextLimit,
     reserve,
     strategies,
+    lastMessage,
+    autoLimit,
     sources,
   }
 }
 
-const MODEL_LIMITS: Array<[RegExp, number]> = [
-  [/claude/i, 200_000],
-  [/gpt-4o|gpt-4\.1|gpt-5|o[134]-/i, 128_000],
-  [/gpt-4-turbo/i, 128_000],
-  [/gpt-4/i, 8_192],
-  [/gpt-3\.5/i, 16_385],
-  [/gemini/i, 1_000_000],
-  [/llama-?3\.[1-9]/i, 128_000],
+// ---------------------------------------------------------------------------
+// Model context-limit table (autoLimit)
+// ---------------------------------------------------------------------------
+
+export interface ModelContextLimitEntry {
+  /** Glob-ish pattern: `*` matches anything; matched against the full id and the id without provider prefix (`openai/gpt-4o` -> also `gpt-4o`). */
+  pattern: string
+  limit: number
+}
+
+/**
+ * Maintained best-effort table of model context windows (major families).
+ * First match wins; user entries (option/env/settings) take precedence over
+ * the whole table. Extend or correct via `MT_CONTEXT_LIMITS` / mt.json
+ * `context.limits` without waiting for a release.
+ */
+export const MODEL_CONTEXT_LIMITS: ModelContextLimitEntry[] = [
+  { pattern: 'claude*', limit: 200_000 },
+  { pattern: 'gpt-5*', limit: 400_000 },
+  { pattern: 'gpt-4.1*', limit: 1_000_000 },
+  { pattern: 'gpt-4o*', limit: 128_000 },
+  { pattern: 'o1*', limit: 200_000 },
+  { pattern: 'o3*', limit: 200_000 },
+  { pattern: 'o4*', limit: 200_000 },
+  { pattern: 'gpt-4-turbo*', limit: 128_000 },
+  { pattern: 'gpt-4-32k*', limit: 32_768 },
+  { pattern: 'gpt-4*', limit: 8_192 },
+  { pattern: 'gpt-3.5*', limit: 16_385 },
+  { pattern: 'gemini-2.5*', limit: 1_000_000 },
+  { pattern: 'gemini-2.0*', limit: 1_000_000 },
+  { pattern: 'gemini-1.5*', limit: 1_000_000 },
+  { pattern: 'gemini*', limit: 32_768 },
+  { pattern: 'llama-4*', limit: 1_000_000 },
+  { pattern: 'llama-3.3*', limit: 128_000 },
+  { pattern: 'llama-3.2*', limit: 128_000 },
+  { pattern: 'llama-3.1*', limit: 128_000 },
+  { pattern: 'llama-3*', limit: 8_192 },
+  { pattern: 'llama-2*', limit: 4_096 },
+  { pattern: 'mistral-large*', limit: 128_000 },
+  { pattern: 'mistral-small*', limit: 128_000 },
+  { pattern: 'mistral-nemo*', limit: 128_000 },
+  { pattern: 'devstral*', limit: 128_000 },
+  { pattern: 'mixtral*', limit: 32_768 },
+  { pattern: 'codestral*', limit: 32_768 },
+  { pattern: 'ministral*', limit: 32_768 },
+  { pattern: 'mistral*', limit: 32_768 },
+  { pattern: 'deepseek*', limit: 65_536 },
+  { pattern: 'qwen-max*', limit: 32_768 },
+  { pattern: 'qwen*', limit: 128_000 },
 ]
 
-/** Best-effort known context window for a model id (undefined when unknown). */
-export function modelContextLimit(model: string | undefined): number | undefined {
+function globToRegExp(glob: string): RegExp {
+  const escaped = glob.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')
+  return new RegExp(`^${escaped}$`, 'i')
+}
+
+function matchOneLimit(model: string, pattern: string): boolean {
+  const bare = model.includes('/') ? (model.split('/').pop() as string) : model
+  const re = globToRegExp(pattern.trim())
+  return re.test(model) || re.test(bare)
+}
+
+/** Parse a user limit table: JSON string or object `{ "pattern": number }`. */
+export function parseContextLimits(v: unknown): Record<string, number> | undefined {
+  let raw: unknown = v
+  if (typeof v === 'string') {
+    if (!v.trim()) return undefined
+    try {
+      raw = JSON.parse(v)
+    } catch {
+      return undefined
+    }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: Record<string, number> = {}
+  for (const [k, n] of Object.entries(raw)) {
+    if (typeof n === 'number' && Number.isFinite(n) && n > 0) out[k] = n
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+/**
+ * Best-effort known context window for a model id (undefined when unknown).
+ * `limits` (and env `MT_CONTEXT_LIMITS` / settings `context.limits` when passed
+ * via createFitter) override the built-in table; first match wins.
+ */
+export function modelContextLimit(
+  model: string | undefined,
+  limits?: Record<string, number>,
+): number | undefined {
   if (!model) return undefined
-  return MODEL_LIMITS.find(([re]) => re.test(model))?.[1]
+  if (limits) {
+    for (const [pattern, limit] of Object.entries(limits)) {
+      if (matchOneLimit(model, pattern)) return limit
+    }
+  }
+  for (const { pattern, limit } of MODEL_CONTEXT_LIMITS) {
+    if (matchOneLimit(model, pattern)) return limit
+  }
+  return undefined
 }
 
 // ---------------------------------------------------------------------------
@@ -555,8 +788,14 @@ export interface ContextWindowOptions extends ContextConfigLayer {
   countTokens?: (text: string) => number
   preserveSystem?: boolean
   preserveLastUser?: boolean
-  /** Look up the model's known context window when no limit is configured. Default false. */
+  /**
+   * Look up the model's known context window when no explicit limit is configured.
+   * Default true: a known model id implies a budget. Disable with `autoLimit: false`
+   * / `MT_CONTEXT_AUTO_LIMIT=0` / settings `context.autoLimit: false`.
+   */
   autoLimit?: boolean
+  /** Words budget for `lastMessage: 'summarize'`. Default 200. */
+  lastMessageMaxWords?: number
   /** `'throw'` raises LlmContextLengthError when the result still does not fit. Default `'pass'`. */
   onOverflow?: 'pass' | 'throw'
   /** Client for `summarize` (instance or factory). Default: created from LLM config (ctx/meta/env). */
@@ -582,6 +821,8 @@ export interface FitArgs {
   /** Override `preserveLastUser` for this call (plain-text items are not protected). */
   preserveLastUser?: boolean
   signal?: AbortSignal
+  /** Override the resolved `lastMessage` strategy for this call. */
+  lastMessage?: LastMessageStrategy
 }
 
 export type Fitter = (
@@ -592,13 +833,27 @@ export function createFitter(options: ContextWindowOptions = {}): Fitter {
   return async (args) => {
     const view = readCtx(args.ctx)
     const meta = args.meta ?? {}
+    const userLimits = {
+      ...parseContextLimits(view.settings['context.limits']),
+      ...parseContextLimits(view.env.MT_CONTEXT_LIMITS),
+    }
+    // autoLimit comes from the same layered resolution as the budget; probe it
+    // first (cheap, pure) so the model table only applies when enabled.
+    const autoProbe = resolveContextConfig({
+      input: args.input,
+      options,
+      meta,
+      settings: view.settings,
+      env: view.env,
+      outputReserve: args.outputReserve,
+    })
     const cfg = resolveContextConfig({
       input: args.input,
       options,
       meta,
       settings: view.settings,
       env: view.env,
-      modelLimit: options.autoLimit ? modelContextLimit(args.model) : undefined,
+      modelLimit: autoProbe.autoLimit ? modelContextLimit(args.model, userLimits) : undefined,
       outputReserve: args.outputReserve,
     })
     const limit =
@@ -636,6 +891,8 @@ export function createFitter(options: ContextWindowOptions = {}): Fitter {
       model: options.model ?? args.model ?? resolveLlmConfigFromCtx(args.ctx, { meta }).model,
       prompt: (name, vars) => resolvePrompt(name, vars, sources, ps.env),
       signal: args.signal,
+      lastMessage: args.lastMessage ?? cfg.lastMessage,
+      lastMessageMaxWords: options.lastMessageMaxWords,
     })
     if (!result.record.fits && options.onOverflow === 'throw') {
       throw new LlmContextLengthError(

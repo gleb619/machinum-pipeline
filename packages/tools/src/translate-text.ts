@@ -1,10 +1,15 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
+import type { LlmConfigLayer } from './llm-config.js'
+import { readCtx } from './llm-config.js'
+import { type GateInput, type GateSlot, type GateState, createLlmGate } from './llm-gate.js'
 
 export interface TranslateInput {
   text: string
   sourceLang?: string
   targetLang: string
+  /** Per-call model override (llm backend). */
+  model?: string
 }
 
 export interface TranslateOutput {
@@ -13,64 +18,187 @@ export interface TranslateOutput {
   tokens?: number
 }
 
+/**
+ * Legacy translate tool configuration (kept for backwards compatibility;
+ * `translateText` itself now takes the wider {@link TranslateTextOptions}).
+ */
 export interface TranslateToolConfig {
   targetLang: string
   batchSize?: number
   chunkSize?: number
 }
 
-async function translateSingle(
-  text: string,
-  targetLang: string,
-  sourceLang: string | undefined,
+export interface TranslateTextOptions {
+  /** Default target language when an input omits `targetLang`. */
+  targetLang?: string
+  /**
+   * `router` (default): POST `/api/translate` on the MT router proxy.
+   * `llm`: direct-to-provider via the LLM toolkit (prompts `translate.system` /
+   * `translate.user`, provider from `resolveLlmConfig`).
+   */
+  backend?: 'router' | 'llm'
+  /** Tool-level LLM config for the `llm` backend (provider/model/keys/...). */
+  llm?: LlmConfigLayer
+  /** Override the router proxy URL (default: ctx `routerUrl` / `MT_ROUTER_URL`). */
+  routerUrl?: string
+  /** Prompt template overrides (`translate.system` / `translate.user`). */
+  prompts?: Record<string, string>
+}
+
+// ---------------------------------------------------------------------------
+// Shared implementation (also used by llm-translate.ts)
+// ---------------------------------------------------------------------------
+
+/** Map a translate input to the generic gate input (shared with `llmTranslate`). */
+export function translateNormalize(targetLangDefault?: string) {
+  return (i: TranslateInput): GateInput => {
+    const targetLang = i.targetLang ?? targetLangDefault
+    if (!targetLang) {
+      throw new Error('translate: targetLang is required (input.targetLang or tool option)')
+    }
+    return {
+      systemPromptName: 'translate.system',
+      promptName: 'translate.user',
+      vars: {
+        text: i.text,
+        targetLang,
+        sourceLang: i.sourceLang ?? 'the source language',
+      },
+      model: i.model,
+    }
+  }
+}
+
+function num(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0
+}
+
+/** Shared output shaping: trim the model/router answer into `TranslateOutput`. */
+export function translateToOutput(state: GateState<TranslateInput>): TranslateOutput {
+  const r = state.response
+  if (!r) throw new Error('translate emit slot: state.response missing (did call run?)')
+  return {
+    translatedText: r.content.trim(),
+    ...(r.model ? { model: r.model } : {}),
+    ...(r.usage.totalTokens > 0 ? { tokens: r.usage.totalTokens } : {}),
+  }
+}
+
+/**
+ * Build the shared translate gate. `llmTranslate` uses it as-is; `translateText`
+ * replaces the `call` slot with the router `/api/translate` backend by default.
+ */
+export function createTranslateGate(
+  name: string,
+  options: TranslateTextOptions = {},
+  mdDescription?: string,
+): ComposableTool<TranslateInput, TranslateOutput, GateSlot> {
+  return createLlmGate<TranslateInput, TranslateOutput>({
+    name,
+    mdDescription:
+      mdDescription ??
+      'Translates text with swappable slots prepare/fit/call/parse/emit; prompts translate.system / translate.user.',
+    llm: options.llm,
+    prompts: options.prompts,
+    normalize: translateNormalize(options.targetLang),
+    toOutput: translateToOutput,
+    metaFlags: { translated: true },
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Router `/api/translate` call slot (legacy backend, default for translateText)
+// ---------------------------------------------------------------------------
+
+interface RouterTranslateResponse {
+  translatedText?: string
+  model?: string
+  tokens?: number
+}
+
+async function routerTranslateSingle(
+  input: TranslateInput,
   routerUrl: string,
-): Promise<TranslateOutput> {
+  signal?: AbortSignal,
+): Promise<RouterTranslateResponse> {
   const url = new URL('/api/translate', routerUrl)
   const response = await fetch(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, targetLang, sourceLang }),
+    body: JSON.stringify({
+      text: input.text,
+      targetLang: input.targetLang,
+      sourceLang: input.sourceLang,
+    }),
+    signal,
   })
-
   if (!response.ok) {
     const error = await response.text()
     throw new Error(`Translation failed: ${response.status} ${error}`)
   }
-
-  return (await response.json()) as TranslateOutput
+  return (await response.json()) as RouterTranslateResponse
 }
 
-export const translateText = defineTool<TranslateInput, TranslateOutput>({
-  name: 'translate-text',
-  version: '1.0.0',
-  mdDescription:
-    'Translates text via OpenRouter proxy. Supports source/target language specification.',
-  async invoke(
-    env: Envelope<TranslateInput>,
-    ctx: ToolContext,
-  ): Promise<Envelope<TranslateOutput>> {
-    const routerUrl = ctx.run.global.routerUrl ?? 'http://localhost:7777'
-    const inputs = env.items ?? [env.item]
+/** `call` slot backend that POSTs to the router proxy `/api/translate` (legacy behaviour). */
+export function routerTranslateCall(
+  options: TranslateTextOptions = {},
+): Tool<GateState, GateState> {
+  return defineTool<GateState, GateState>({
+    name: 'translate-text:call',
+    version: '1.0.0',
+    mdDescription: 'Calls the router proxy POST /api/translate endpoint.',
+    async invoke(env: Envelope<GateState>, ctx: ToolContext): Promise<Envelope<GateState>> {
+      const routerUrl = options.routerUrl ?? readCtx(ctx).routerUrl ?? 'http://localhost:7777'
+      const states = env.items ?? [env.item]
+      const out: GateState[] = []
+      for (const state of states) {
+        const input = state.input as TranslateInput
+        const body = await routerTranslateSingle(input, routerUrl, undefined)
+        out.push({
+          ...state,
+          response: {
+            content: body.translatedText ?? '',
+            model: body.model ?? '',
+            usage: {
+              promptTokens: 0,
+              completionTokens: 0,
+              totalTokens: num(body.tokens),
+            },
+          },
+          usage: {
+            ...state.usage,
+            totalTokens: state.usage.totalTokens + num(body.tokens),
+            calls: state.usage.calls + 1,
+          },
+        })
+      }
+      return env.items
+        ? { item: out[0] as GateState, items: out, meta: env.meta }
+        : { item: out[0] as GateState, meta: env.meta }
+    },
+  })
+}
 
-    const results: TranslateOutput[] = []
-    for (const input of inputs) {
-      const result = await translateSingle(
-        input.text,
-        input.targetLang,
-        input.sourceLang,
-        routerUrl,
-      )
-      results.push(result)
-    }
+// ---------------------------------------------------------------------------
+// translateText
+// ---------------------------------------------------------------------------
 
-    const output = env.items ? results : results[0]
-    return {
-      item: output as TranslateOutput,
-      meta: {
-        ...env.meta,
-        translated: true,
-        count: results.length,
-      },
-    }
-  },
-})
+/**
+ * Composable translation tool (slots `prepare, fit, call, parse, emit`).
+ * Default `call` backend is the router proxy `/api/translate`; pass
+ * `{ backend: 'llm' }` (or swap the `call` slot) to go direct-to-provider
+ * through the LLM toolkit. Swap parts with `.with({ call: ... })` etc.
+ */
+export function createTranslateText(
+  options: TranslateTextOptions = {},
+): ComposableTool<TranslateInput, TranslateOutput, GateSlot> {
+  const gate = createTranslateGate(
+    'translate-text',
+    options,
+    'Translates text via OpenRouter proxy. Supports source/target language specification. ' +
+      'Composable: swap the call slot (router `/api/translate` default) or pick backend `llm`.',
+  )
+  return options.backend === 'llm' ? gate : gate.with({ call: routerTranslateCall(options) })
+}
+
+export const translateText = createTranslateText()

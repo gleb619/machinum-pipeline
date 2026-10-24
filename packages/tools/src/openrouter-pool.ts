@@ -122,6 +122,41 @@ export class OpenRouterPool {
   }
 }
 
+import { createHash } from 'node:crypto'
+import { LlmQuotaError, LlmRateLimitError } from './llm-errors.js'
+
+/**
+ * After a failed call: 429 blocks the picked key until retry-after, 402 disables it.
+ * Shared by the fetch adapter (`OpenAiCompatClient`) and the SDK transports.
+ */
+export function applyPoolError(
+  pool: OpenRouterPoolSupplier | undefined,
+  picked: OpenRouterClient | undefined,
+  err: unknown,
+): void {
+  if (!pool || !picked) return
+  if (err instanceof LlmRateLimitError) {
+    pool.getPool().handleRateLimitError(picked, err.retryAfterMs)
+  } else if (err instanceof LlmQuotaError) {
+    pool.getPool().handle402Error(picked)
+  }
+}
+
+const sharedPools = new Map<string, OpenRouterPoolSupplier>()
+
+/** Shared per key-set so round-robin / blocked-key state survives across calls and adapters. */
+export function sharedPoolFor(keys: string[], apiUrl: string): OpenRouterPoolSupplier {
+  const id = createHash('sha256')
+    .update(`${apiUrl}\n${keys.join('\n')}`)
+    .digest('hex')
+  let supplier = sharedPools.get(id)
+  if (!supplier) {
+    supplier = new OpenRouterPoolSupplier({ clients: keys.map((apiKey) => ({ apiKey, apiUrl })) })
+    sharedPools.set(id, supplier)
+  }
+  return supplier
+}
+
 /**
  * Lazy supplier that creates a new pool on first access
  * and recreates it whenever the old pool expires.

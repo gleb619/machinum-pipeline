@@ -1,6 +1,10 @@
 import type { Logger, RetryPolicy, ToolContext } from '@mt/core'
+import { defaultTransportKind } from './llm-sdk-transports.js'
 
 export type LlmProvider = 'router' | 'openrouter' | 'openai' | 'ollama' | 'anthropic' | 'custom'
+
+/** HTTP stack used to talk to the provider. `sdk` = official provider SDK (lazy-loaded), `fetch` = built-in HTTP adapters. */
+export type LlmTransportKind = 'sdk' | 'fetch'
 
 export const LLM_PROVIDERS: readonly LlmProvider[] = [
   'router',
@@ -24,11 +28,13 @@ export interface LlmConfigLayer {
   temperature?: number
   maxTokens?: number
   headers?: Record<string, string>
+  transport?: LlmTransportKind
 }
 
 export interface ResolvedLlmConfig {
   provider: LlmProvider
   model: string
+  transport: LlmTransportKind
   baseUrl: string
   apiKey?: string
   apiKeys: string[]
@@ -127,6 +133,7 @@ function settingsLayer(settings: Record<string, unknown> | undefined): LlmConfig
     cache: bool(s['llm.cache']),
     temperature: posNum(s['llm.temperature']),
     maxTokens: posNum(s['llm.maxTokens']),
+    transport: parseTransport(s['llm.transport'], 'settings llm.transport'),
   }
 }
 
@@ -144,7 +151,15 @@ function envLayer(env: Record<string, string | undefined>): LlmConfigLayer {
     baseUrl: nonEmpty(env.MT_LLM_BASE_URL),
     timeoutMs: posNum(env.MT_LLM_TIMEOUT_MS),
     cache: bool(env.MT_LLM_CACHE),
+    transport: parseTransport(env.MT_LLM_TRANSPORT, 'env MT_LLM_TRANSPORT'),
   }
+}
+
+function parseTransport(v: unknown, where: string): LlmTransportKind | undefined {
+  const s = nonEmpty(v)
+  if (!s) return undefined
+  if (s === 'sdk' || s === 'fetch') return s
+  throw new Error(`Unknown LLM transport '${s}' (from ${where}). Valid: sdk, fetch`)
 }
 
 /** Provider-specific env keys. `MT_LLM_API_KEY` applies to any provider and wins. */
@@ -245,10 +260,13 @@ export function resolveLlmConfig(args: ResolveLlmConfigArgs = {}): ResolvedLlmCo
 
   const timeoutMs = orDefault('timeoutMs', pick('timeoutMs'), DEFAULT_TIMEOUT_MS)
   const cache = orDefault('cache', pick('cache'), false)
+  const transport = pick('transport') ?? defaultTransportKind(provider)
+  if (!('transport' in sources)) sources.transport = 'default'
 
   return {
     provider,
     model,
+    transport,
     baseUrl,
     apiKey,
     apiKeys,
