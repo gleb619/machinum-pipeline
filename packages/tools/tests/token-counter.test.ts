@@ -1,7 +1,11 @@
 import type { Envelope, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
-import { tokenCounter, tokenCounterBatch, tokenCounterBatchCached } from '../src/token-counter.js'
+import {
+  tokenCounter,
+  tokenCounterBatch,
+  tokenCounterBatchCached,
+} from '../src/verification/token-counter.js'
 
 const ctx = {} as ToolContext
 

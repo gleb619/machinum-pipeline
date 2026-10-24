@@ -113,7 +113,7 @@ export function parseMarkdown(input: string): Root {
 // Filesystem helpers
 // ---------------------------------------------------------------------------
 
-export { atomicWriteFile } from './fs-write.js'
+export { atomicWriteFile } from '../modification/fs-write.js'
 
 /**
  * Expand file and directory paths into a sorted list of `.md` files.

@@ -7,7 +7,7 @@ import {
   chapterDoc,
   readChapterDoc,
   writeChapterDoc,
-} from '../src/chapter-doc.js'
+} from '../src/normalization/chapter-doc.js'
 
 // ---------------------------------------------------------------------------
 // Fixtures

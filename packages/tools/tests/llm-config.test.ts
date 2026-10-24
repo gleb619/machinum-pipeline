@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { redactLlmConfig, resolveLlmConfig } from '../src/llm-config.js'
+import { redactLlmConfig, resolveLlmConfig } from '../src/modification/llm-config.js'
 
 describe('resolveLlmConfig precedence', () => {
   it('defaults to router provider with legacy model and url', () => {

@@ -1,10 +1,10 @@
 import { defineTool } from '@mt/core'
 import type { Envelope, Tool, ToolContext } from '@mt/core'
+import { countTextTokens } from '../verification/token-counter.js'
 import { type LlmClient, type LlmMessage, createLlmClient } from './llm-client.js'
 import { type LlmConfigLayer, readCtx, resolveLlmConfigFromCtx } from './llm-config.js'
 import { LlmContextLengthError } from './llm-errors.js'
 import { type PromptSources, promptSourcesFromCtx, resolvePrompt } from './llm-prompts.js'
-import { countTextTokens } from './token-counter.js'
 
 // ---------------------------------------------------------------------------
 // Types

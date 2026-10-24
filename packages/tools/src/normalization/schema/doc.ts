@@ -1,5 +1,5 @@
-import { parseCsvRows, readDoc, writeDoc } from '../schema-doc.js'
-import type { SchemaDocEnvelope, SchemaDocMetadata } from '../schema-doc.js'
+import { parseCsvRows, readDoc, writeDoc } from '../normalization/schema-doc.js'
+import type { SchemaDocEnvelope, SchemaDocMetadata } from '../normalization/schema-doc.js'
 
 /** The chapter as an extraction tool sees it: title, full body text, parsed document. */
 export interface ChapterSource {

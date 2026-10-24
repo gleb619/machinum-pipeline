@@ -11,7 +11,7 @@ import {
   markdownStatsTool,
   markdownStripFrontmatter,
   stripFrontmatter,
-} from '../src/markdown-tool.js'
+} from '../src/verification/markdown-tool.js'
 
 const SAMPLE = `---
 title: Chapter One
@@ -167,7 +167,7 @@ describe('markdown tools over files', () => {
     await writeFile(join(dir, 'nested', 'b.md'), '# B\n', 'utf-8')
     await writeFile(join(dir, 'skip.txt'), 'not markdown', 'utf-8')
 
-    const { formatMarkdown } = await import('../src/md-formatter.js')
+    const { formatMarkdown } = await import('../src/normalization/md-formatter.js')
     const results = await formatMarkdown(dir, { wrapMode: 'never' }, true)
 
     expect(results).toHaveLength(2)

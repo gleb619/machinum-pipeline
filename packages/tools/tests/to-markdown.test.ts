@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { recordToMarkdown, toMarkdown } from '../src/to-markdown.js'
+import { recordToMarkdown, toMarkdown } from '../src/modification/to-markdown.js'
 
 describe('recordToMarkdown', () => {
   it('renders title as h1 and body as paragraph', () => {

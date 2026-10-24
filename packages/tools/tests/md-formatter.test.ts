@@ -5,7 +5,12 @@ import { join } from 'node:path'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
-import { formatMarkdown, formatString, mdFormatter, mdFormatterTool } from '../src/md-formatter.js'
+import {
+  formatMarkdown,
+  formatString,
+  mdFormatter,
+  mdFormatterTool,
+} from '../src/normalization/md-formatter.js'
 
 // ---------------------------------------------------------------------------
 // mdFormatter tool definition

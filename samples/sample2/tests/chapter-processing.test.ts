@@ -4,15 +4,15 @@ import type { ToolContext } from '@mt/core'
 import {
   paragraphTranslator,
   titleTranslator,
-} from '../../../packages/tools/src/chapter-translator.js'
+} from '../../../packages/tools/src/modification/chapter-translator.js'
+// Import tools directly from source (sample2 has no workspace resolution for @mt/tools)
+import { tokenSplitter } from '../../../packages/tools/src/normalization/token-splitter.js'
 import {
   chapterValidator,
   forbiddenCharDetector,
   markdownFormatter,
   typoFinder,
-} from '../../../packages/tools/src/chapter-validator.js'
-// Import tools directly from source (sample2 has no workspace resolution for @mt/tools)
-import { tokenSplitter } from '../../../packages/tools/src/token-splitter.js'
+} from '../../../packages/tools/src/verification/chapter-validator.js'
 
 const sampleChapter = `---
 title: The Road from Thornhaven

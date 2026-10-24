@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from 'node:path'
 import type { ToolContext } from '@mt/core'
-import { readTextFileSync } from './fs-read.js'
+import { readTextFileSync } from '../normalization/fs-read.js'
 import { readCtx } from './llm-config.js'
 
 /** A named prompt template using `{{var}}` placeholders. */

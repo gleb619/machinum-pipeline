@@ -13,9 +13,9 @@ import {
   type LlmTransport,
   OpenAiCompatClient,
   createLlmClient,
-} from '../src/llm-client.js'
-import { resolveLlmConfig } from '../src/llm-config.js'
-import { withCache, withLlmRetry, withTimeout } from '../src/llm-decorators.js'
+} from '../src/modification/llm-client.js'
+import { resolveLlmConfig } from '../src/modification/llm-config.js'
+import { withCache, withLlmRetry, withTimeout } from '../src/modification/llm-decorators.js'
 import {
   LlmAbortError,
   LlmAuthError,
@@ -24,8 +24,8 @@ import {
   LlmRateLimitError,
   LlmServerError,
   LlmTimeoutError,
-} from '../src/llm-errors.js'
-import { OpenRouterPoolSupplier } from '../src/openrouter-pool.js'
+} from '../src/modification/llm-errors.js'
+import { OpenRouterPoolSupplier } from '../src/modification/openrouter-pool.js'
 
 const okBody = (content = 'hi', extra: Record<string, unknown> = {}) =>
   JSON.stringify({

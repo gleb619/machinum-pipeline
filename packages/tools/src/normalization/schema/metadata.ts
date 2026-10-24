@@ -1,6 +1,6 @@
 import { defineTool } from '@mt/core'
 import type { Envelope, ToolContext } from '@mt/core'
-import type { SchemaDocMetadata } from '../schema-doc.js'
+import type { SchemaDocMetadata } from '../normalization/schema-doc.js'
 import {
   chapterVars,
   metadataGroundTruth,

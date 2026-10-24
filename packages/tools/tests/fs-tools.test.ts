@@ -4,8 +4,13 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { isDirectory, readDirectory, readTextFile, readTextFileSync } from '../src/fs-read.js'
-import { atomicWriteFile } from '../src/fs-write.js'
+import { atomicWriteFile } from '../src/modification/fs-write.js'
+import {
+  isDirectory,
+  readDirectory,
+  readTextFile,
+  readTextFileSync,
+} from '../src/normalization/fs-read.js'
 
 // ---------------------------------------------------------------------------
 // fs-write

@@ -8,7 +8,7 @@ export {
   schemaDocEmit,
   type SchemaDocEnvelope,
   type SchemaDocMetadata,
-} from './schema-doc.js'
+} from './normalization/schema-doc.js'
 
 export {
   chatCompletion,
@@ -21,7 +21,7 @@ export {
   type ChatCompletionOutput,
   type PromptInput,
   type PromptOutput,
-} from './openrouter-tool.js'
+} from './modification/openrouter-tool.js'
 
 export {
   readChapter,
@@ -96,8 +96,12 @@ export {
   type TranslateInput,
   type TranslateOutput,
   type TranslateToolConfig,
+<<<<<<< HEAD
   type TranslateTextOptions,
 } from './translate-text.js'
+=======
+} from './modification/translate-text.js'
+>>>>>>> 228da03 (refactor(tools): group source into normalization, modification, verification)
 
 export {
   OpenRouterPool,
@@ -106,7 +110,7 @@ export {
   sharedPoolFor,
   type OpenRouterClient,
   type OpenRouterPoolConfig,
-} from './openrouter-pool.js'
+} from './modification/openrouter-pool.js'
 
 export {
   chapterValidator,
@@ -119,25 +123,25 @@ export {
   type EntityNormalizerOutput,
   type MarkdownFormatterInput,
   type MarkdownFormatterOutput,
-} from './chapter-validator.js'
+} from './verification/chapter-validator.js'
 
-import type { FinderInput as FI, FinderOutput as FO } from './chapter-validator.js'
+import type { FinderInput as FI, FinderOutput as FO } from './verification/chapter-validator.js'
 /** @deprecated use FinderInput */
 export type FixerInput = FI
 /** @deprecated use FinderOutput */
 export type FixerOutput = FO
 
-export { wordCounter } from './word-counter.js'
+export { wordCounter } from './verification/word-counter.js'
 export {
   tokenCounter,
   tokenCounterBatch,
   tokenCounterBatchCached,
   countTextTokens,
-} from './token-counter.js'
+} from './verification/token-counter.js'
 
-export { chapterIndexer } from './chapter-indexer.js'
+export { chapterIndexer } from './normalization/chapter-indexer.js'
 
-export { tokenSplitter } from './token-splitter.js'
+export { tokenSplitter } from './normalization/token-splitter.js'
 
 export {
   titleTranslator,
@@ -148,6 +152,7 @@ export {
   type TitleTranslatorOutput,
   type ParagraphTranslatorInput,
   type ParagraphTranslatorOutput,
+<<<<<<< HEAD
   type TitleTranslatorOptions,
   type ParagraphTranslatorOptions,
   type TitleTranslatorSlot,
@@ -155,6 +160,9 @@ export {
   type TitleTranslatorState,
   type ParagraphTranslatorState,
 } from './chapter-translator.js'
+=======
+} from './modification/chapter-translator.js'
+>>>>>>> 228da03 (refactor(tools): group source into normalization, modification, verification)
 
 export {
   formatMarkdown,
@@ -166,7 +174,7 @@ export {
   type FormattedFile,
   type MdFormatterInput,
   type MdFormatterOutput,
-} from './md-formatter.js'
+} from './normalization/md-formatter.js'
 
 export {
   buildProcessor,
@@ -176,11 +184,16 @@ export {
   DEFAULT_EXCLUDES,
   type OrderedListStyle,
   type WrapMode,
-} from './remark-processor.js'
+} from './normalization/remark-processor.js'
 
-export { isDirectory, readDirectory, readTextFile, readTextFileSync } from './fs-read.js'
+export {
+  isDirectory,
+  readDirectory,
+  readTextFile,
+  readTextFileSync,
+} from './normalization/fs-read.js'
 
-export { atomicWriteFile } from './fs-write.js'
+export { atomicWriteFile } from './modification/fs-write.js'
 
 export {
   markdownStats,
@@ -195,14 +208,14 @@ export {
   type MarkdownToolInput,
   type MarkdownOutlineOutput,
   type OutlineEntry,
-} from './markdown-tool.js'
+} from './verification/markdown-tool.js'
 
 export {
   toMarkdown,
   toMarkdownTool,
   recordToMarkdown,
   type ToMarkdownInput,
-} from './to-markdown.js'
+} from './modification/to-markdown.js'
 
 export {
   readChapterDoc,
@@ -213,9 +226,13 @@ export {
   type ChapterDoc,
   type ChapterDocWarning,
   type ChapterDocParagraph,
-} from './chapter-doc.js'
+} from './normalization/chapter-doc.js'
 
-export { appendMdOutput, mdOutputEmitter, type MdOutputEmitterConfig } from './md-outputs.js'
+export {
+  appendMdOutput,
+  mdOutputEmitter,
+  type MdOutputEmitterConfig,
+} from './modification/md-outputs.js'
 
 // --- LLM toolkit (client, config, prompts, context window, gate) ---
 export {
@@ -237,7 +254,7 @@ export {
   fetchTransport,
   createAdapter,
   createLlmClient,
-} from './llm-client.js'
+} from './modification/llm-client.js'
 
 export {
   createOpenAiSdkClient,
@@ -258,7 +275,7 @@ export {
   cacheableRequest,
   type LlmRetryOptions,
   type LlmCacheOptions,
-} from './llm-decorators.js'
+} from './modification/llm-decorators.js'
 
 export {
   LlmError,
@@ -274,7 +291,7 @@ export {
   LlmParseError,
   classifyHttpError,
   isRetryableLlmError,
-} from './llm-errors.js'
+} from './modification/llm-errors.js'
 
 export {
   LLM_PROVIDERS,
@@ -290,7 +307,7 @@ export {
   type ResolvedLlmConfig,
   type ResolveLlmConfigArgs,
   type CtxView,
-} from './llm-config.js'
+} from './modification/llm-config.js'
 
 export {
   PromptVariableError,
@@ -307,7 +324,7 @@ export {
   type PromptTemplate,
   type PromptSources,
   type PromptSource,
-} from './llm-prompts.js'
+} from './modification/llm-prompts.js'
 
 export {
   contextWindow,
@@ -344,7 +361,7 @@ export {
   type ResolvedContextConfig,
   type FitOptions,
   type Fitter,
-} from './llm-context.js'
+} from './modification/llm-context.js'
 
 export {
   createLlmGate,
@@ -367,10 +384,10 @@ export {
   type MockAnswer,
   type MockLlmClient,
   type MockLlmCall,
-} from './llm-gate.js'
+} from './modification/llm-gate.js'
 
 export {
   llmTranslate,
   type LlmTranslateInput,
   type LlmTranslateOutput,
-} from './llm-translate.js'
+} from './modification/llm-translate.js'
