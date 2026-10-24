@@ -1,7 +1,7 @@
 import type { ToolContext } from '@mt/core'
+import { type GateInput, createLlmGate } from '../verification/llm-gate.js'
 import { type LlmMessage, OpenAiCompatClient } from './llm-client.js'
 import { DEFAULT_ROUTER_URL, readCtx } from './llm-config.js'
-import { type GateInput, createLlmGate } from './llm-gate.js'
 
 export { DEFAULT_ROUTER_URL }
 

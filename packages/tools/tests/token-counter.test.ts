@@ -5,7 +5,7 @@ import {
   tokenCounter,
   tokenCounterBatch,
   tokenCounterBatchCached,
-} from '../src/verification/token-counter.js'
+} from '../src/normalization/token-counter.js'
 
 const ctx = {} as ToolContext
 

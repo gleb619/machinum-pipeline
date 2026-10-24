@@ -10,7 +10,7 @@ import {
   buildProcessor,
   collectMarkdownFiles,
   readMarkdownFile,
-} from './remark-processor.js'
+} from '../normalization/remark-processor.js'
 
 // ---------------------------------------------------------------------------
 // Types

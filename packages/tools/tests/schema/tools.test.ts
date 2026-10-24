@@ -1,14 +1,14 @@
 import type { Envelope } from '@mt/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { readDoc, schemaDocWriter, writeDoc } from '../../src/normalization/schema-doc.js'
-import type { SchemaDocEnvelope } from '../../src/normalization/schema-doc.js'
-import { countWords, metadataGroundTruth, readChapter } from '../../src/schema/doc.js'
-import { entitiesTool } from '../../src/schema/entities.js'
-import { metadataTool } from '../../src/schema/metadata.js'
-import { schemaTool } from '../../src/schema/schema.js'
-import { summaryTool } from '../../src/schema/summary.js'
-import { createSummaryTool } from '../../src/schema/summary.js'
-import { createVocabularyTool, vocabularyTool } from '../../src/schema/vocabulary.js'
+import { readDoc, schemaDocWriter, writeDoc } from '../../src/modification/schema-doc.js'
+import type { SchemaDocEnvelope } from '../../src/modification/schema-doc.js'
+import { countWords, metadataGroundTruth, readChapter } from '../../src/normalization/schema/doc.js'
+import { entitiesTool } from '../../src/normalization/schema/entities.js'
+import { metadataTool } from '../../src/normalization/schema/metadata.js'
+import { schemaTool } from '../../src/normalization/schema/schema.js'
+import { summaryTool } from '../../src/normalization/schema/summary.js'
+import { createSummaryTool } from '../../src/normalization/schema/summary.js'
+import { createVocabularyTool, vocabularyTool } from '../../src/normalization/schema/vocabulary.js'
 import {
   CHAPTER,
   CHAPTER_TWO,

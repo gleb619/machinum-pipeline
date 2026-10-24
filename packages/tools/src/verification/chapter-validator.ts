@@ -3,7 +3,7 @@ import type { Envelope, ToolContext } from '@mt/core'
 import { spellCheckDocument } from 'cspell-lib'
 import { remark } from 'remark'
 import remarkGfm from 'remark-gfm'
-import { type ChapterDoc, readChapterDoc } from '../normalization/chapter-doc.js'
+import { type ChapterDoc, readChapterDoc } from '../modification/chapter-doc.js'
 
 export interface ChapterDocWarning {
   id: string

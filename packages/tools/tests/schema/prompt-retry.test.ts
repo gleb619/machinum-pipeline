@@ -6,7 +6,7 @@ import {
   attemptMeta,
   resolveLlmOptions,
   runPromptWithRetry,
-} from '../../src/schema/llm.js'
+} from '../../src/normalization/schema/llm.js'
 import { installRouter, toolContext } from './mock-router.js'
 
 let router: ReturnType<typeof installRouter> | undefined

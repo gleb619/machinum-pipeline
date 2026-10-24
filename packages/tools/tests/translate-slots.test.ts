@@ -8,15 +8,15 @@ import {
   createTitleTranslator,
   paragraphTranslator,
   titleTranslator,
-} from '../src/chapter-translator.js'
-import { mockLlmCall } from '../src/llm-gate.js'
-import { llmTranslate } from '../src/llm-translate.js'
+} from '../src/modification/chapter-translator.js'
+import { llmTranslate } from '../src/modification/llm-translate.js'
 import {
   type TranslateInput,
   type TranslateOutput,
   createTranslateText,
   translateText,
-} from '../src/translate-text.js'
+} from '../src/modification/translate-text.js'
+import { mockLlmCall } from '../src/verification/llm-gate.js'
 
 const ctx = {} as ToolContext
 

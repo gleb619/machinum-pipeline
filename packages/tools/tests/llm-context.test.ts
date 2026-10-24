@@ -15,7 +15,7 @@ import {
   truncateLines,
   truncateTail,
 } from '../src/modification/llm-context.js'
-import { mockLlmClient } from '../src/modification/llm-gate.js'
+import { mockLlmClient } from '../src/verification/llm-gate.js'
 
 /** 1 token per 4 chars; deterministic. */
 const countTokens = (t: string) => Math.ceil(t.length / 4)

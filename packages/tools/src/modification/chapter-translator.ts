@@ -1,14 +1,7 @@
-<<<<<<< HEAD:packages/tools/src/chapter-translator.ts
 import { defineComposableTool, defineTool } from '@mt/core'
 import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
 import { type ChapterDoc, readChapterDoc, writeChapterDoc } from './chapter-doc.js'
 import { type TranslateInput, type TranslateOutput, translateText } from './translate-text.js'
-=======
-import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
-import { type ChapterDoc, readChapterDoc, writeChapterDoc } from '../normalization/chapter-doc.js'
-import { translateText } from './translate-text.js'
->>>>>>> 228da03 (refactor(tools): group source into normalization, modification, verification):packages/tools/src/modification/chapter-translator.ts
 
 // ---------------------------------------------------------------------------
 // Input / Output types

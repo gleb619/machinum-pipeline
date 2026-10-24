@@ -1,6 +1,6 @@
 import { defineTool } from '@mt/core'
 import type { Envelope, ToolContext } from '@mt/core'
-import { readChapterDoc } from './chapter-doc.js'
+import { readChapterDoc } from '../modification/chapter-doc.js'
 
 /**
  * Extracts the chapter number from markdown frontmatter or heading.

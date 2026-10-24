@@ -10,7 +10,7 @@ import {
   formatString,
   mdFormatter,
   mdFormatterTool,
-} from '../src/normalization/md-formatter.js'
+} from '../src/modification/md-formatter.js'
 
 // ---------------------------------------------------------------------------
 // mdFormatter tool definition

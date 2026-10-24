@@ -3,7 +3,7 @@ import type { Envelope, ToolContext } from '@mt/core'
 import type { Heading, Nodes, Root, RootContent } from 'mdast'
 import { toString as mdastToString } from 'mdast-util-to-string'
 
-import { parseMarkdown } from '../normalization/remark-processor.js'
+import { parseMarkdown } from './remark-processor.js'
 
 // ---------------------------------------------------------------------------
 // Types

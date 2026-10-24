@@ -1,14 +1,14 @@
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
-import type { LlmMessage } from '../src/llm-client.js'
+import type { LlmMessage } from '../src/modification/llm-client.js'
 import {
   createContextWindow,
   fitMessages,
   modelContextLimit,
   parseContextLimits,
-} from '../src/llm-context.js'
-import { LlmContextLengthError } from '../src/llm-errors.js'
-import { mockLlmClient } from '../src/llm-gate.js'
+} from '../src/modification/llm-context.js'
+import { LlmContextLengthError } from '../src/verification/llm-errors.js'
+import { mockLlmClient } from '../src/verification/llm-gate.js'
 
 /** 1 token per 4 chars; deterministic. */
 const countTokens = (t: string) => Math.ceil(t.length / 4)

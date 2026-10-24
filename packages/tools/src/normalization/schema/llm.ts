@@ -1,6 +1,6 @@
 import type { ToolContext } from '@mt/core'
-import { chatCompletionSingle } from '../modification/openrouter-tool.js'
-import type { ChatCompletionInput } from '../modification/openrouter-tool.js'
+import { chatCompletionSingle } from '../../modification/openrouter-tool.js'
+import type { ChatCompletionInput } from '../../modification/openrouter-tool.js'
 
 export const DEFAULT_LLM_MODEL = 'openai/gpt-4o-mini'
 export const DEFAULT_MAX_ATTEMPTS = 3

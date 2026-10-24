@@ -16,6 +16,7 @@ import {
 } from '../src/modification/llm-client.js'
 import { resolveLlmConfig } from '../src/modification/llm-config.js'
 import { withCache, withLlmRetry, withTimeout } from '../src/modification/llm-decorators.js'
+import { OpenRouterPoolSupplier } from '../src/modification/openrouter-pool.js'
 import {
   LlmAbortError,
   LlmAuthError,
@@ -24,8 +25,7 @@ import {
   LlmRateLimitError,
   LlmServerError,
   LlmTimeoutError,
-} from '../src/modification/llm-errors.js'
-import { OpenRouterPoolSupplier } from '../src/modification/openrouter-pool.js'
+} from '../src/verification/llm-errors.js'
 
 const okBody = (content = 'hi', extra: Record<string, unknown> = {}) =>
   JSON.stringify({

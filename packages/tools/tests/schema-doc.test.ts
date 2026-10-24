@@ -4,7 +4,7 @@ import {
   type SchemaDocMetadata,
   readDoc,
   writeDoc,
-} from '../src/normalization/schema-doc.js'
+} from '../src/modification/schema-doc.js'
 
 function createFullEnvelope(): SchemaDocEnvelope {
   const metadata: SchemaDocMetadata = {

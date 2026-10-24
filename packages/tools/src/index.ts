@@ -8,7 +8,7 @@ export {
   schemaDocEmit,
   type SchemaDocEnvelope,
   type SchemaDocMetadata,
-} from './normalization/schema-doc.js'
+} from './modification/schema-doc.js'
 
 export {
   chatCompletion,
@@ -34,7 +34,7 @@ export {
   roundTripIssue,
   metadataGroundTruth,
   type ChapterSource,
-} from './schema/doc.js'
+} from './normalization/schema/doc.js'
 
 export {
   runPromptWithRetry,
@@ -48,14 +48,14 @@ export {
   type PromptRetryOptions,
   type PromptRetryResult,
   type LlmAttemptMeta,
-} from './schema/llm.js'
+} from './normalization/schema/llm.js'
 
 export {
   summaryTool,
   createSummaryTool,
   SUMMARY_SYSTEM_PROMPT,
   SUMMARY_USER_PROMPT,
-} from './schema/summary.js'
+} from './normalization/schema/summary.js'
 
 export {
   entitiesTool,
@@ -63,28 +63,28 @@ export {
   ENTITIES_SYSTEM_PROMPT,
   ENTITIES_USER_PROMPT,
   type SchemaEntity,
-} from './schema/entities.js'
+} from './normalization/schema/entities.js'
 
 export {
   schemaTool,
   createSchemaTool,
   SCHEMA_SYSTEM_PROMPT,
   SCHEMA_USER_PROMPT,
-} from './schema/schema.js'
+} from './normalization/schema/schema.js'
 
 export {
   metadataTool,
   createMetadataTool,
   METADATA_SYSTEM_PROMPT,
   METADATA_USER_PROMPT,
-} from './schema/metadata.js'
+} from './normalization/schema/metadata.js'
 
 export {
   vocabularyTool,
   createVocabularyTool,
   VOCABULARY_SYSTEM_PROMPT,
   VOCABULARY_USER_PROMPT,
-} from './schema/vocabulary.js'
+} from './normalization/schema/vocabulary.js'
 
 export {
   translateText,
@@ -96,12 +96,8 @@ export {
   type TranslateInput,
   type TranslateOutput,
   type TranslateToolConfig,
-<<<<<<< HEAD
   type TranslateTextOptions,
-} from './translate-text.js'
-=======
 } from './modification/translate-text.js'
->>>>>>> 228da03 (refactor(tools): group source into normalization, modification, verification)
 
 export {
   OpenRouterPool,
@@ -131,13 +127,13 @@ export type FixerInput = FI
 /** @deprecated use FinderOutput */
 export type FixerOutput = FO
 
-export { wordCounter } from './verification/word-counter.js'
+export { wordCounter } from './normalization/word-counter.js'
 export {
   tokenCounter,
   tokenCounterBatch,
   tokenCounterBatchCached,
   countTextTokens,
-} from './verification/token-counter.js'
+} from './normalization/token-counter.js'
 
 export { chapterIndexer } from './normalization/chapter-indexer.js'
 
@@ -152,17 +148,13 @@ export {
   type TitleTranslatorOutput,
   type ParagraphTranslatorInput,
   type ParagraphTranslatorOutput,
-<<<<<<< HEAD
   type TitleTranslatorOptions,
   type ParagraphTranslatorOptions,
   type TitleTranslatorSlot,
   type ParagraphTranslatorSlot,
   type TitleTranslatorState,
   type ParagraphTranslatorState,
-} from './chapter-translator.js'
-=======
 } from './modification/chapter-translator.js'
->>>>>>> 228da03 (refactor(tools): group source into normalization, modification, verification)
 
 export {
   formatMarkdown,
@@ -174,7 +166,7 @@ export {
   type FormattedFile,
   type MdFormatterInput,
   type MdFormatterOutput,
-} from './normalization/md-formatter.js'
+} from './modification/md-formatter.js'
 
 export {
   buildProcessor,
@@ -208,7 +200,7 @@ export {
   type MarkdownToolInput,
   type MarkdownOutlineOutput,
   type OutlineEntry,
-} from './verification/markdown-tool.js'
+} from './normalization/markdown-tool.js'
 
 export {
   toMarkdown,
@@ -226,7 +218,7 @@ export {
   type ChapterDoc,
   type ChapterDocWarning,
   type ChapterDocParagraph,
-} from './normalization/chapter-doc.js'
+} from './modification/chapter-doc.js'
 
 export {
   appendMdOutput,
@@ -266,7 +258,7 @@ export {
   setSdkPackageAvailableForTests,
   type OpenAiSdkClientOptions,
   type AnthropicSdkClientOptions,
-} from './llm-sdk-transports.js'
+} from './modification/llm-sdk-transports.js'
 
 export {
   withTimeout,
@@ -291,7 +283,7 @@ export {
   LlmParseError,
   classifyHttpError,
   isRetryableLlmError,
-} from './modification/llm-errors.js'
+} from './verification/llm-errors.js'
 
 export {
   LLM_PROVIDERS,
@@ -384,7 +376,7 @@ export {
   type MockAnswer,
   type MockLlmClient,
   type MockLlmCall,
-} from './modification/llm-gate.js'
+} from './verification/llm-gate.js'
 
 export {
   llmTranslate,
