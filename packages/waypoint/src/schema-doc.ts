@@ -170,6 +170,11 @@ interface MdastTableRow {
   type: string
   children: MdastPhrasable[]
 }
+interface MdastNode extends MdastPhrasable {
+  depth?: number
+  lang?: string
+}
+
 
 function parseSchemaDoc(text: string): SchemaDocEnvelope {
   const { data: frontmatter, content } = matter(text)
