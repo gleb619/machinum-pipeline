@@ -45,10 +45,12 @@ export async function main(): Promise<void> {
       await serveCommand(args.slice(1))
       break
     }
-    case 'router':
-      console.error('mt router — not yet implemented')
-      process.exit(1)
+    case 'router': {
+      // Lazy-load: h3 + the OpenRouter key pool are only needed for serving
+      const { routerCommand } = await import('./commands/router.js')
+      await routerCommand(args.slice(1))
       break
+    }
     case 'mcp':
       console.error('mt mcp — not yet implemented')
       process.exit(1)
@@ -68,7 +70,7 @@ Commands:
   inspect <runId>        Show run details
   tool <name>            Invoke a tool standalone
   serve [-d|--detach]    Start admin backend
-  router                 Start LLM router proxy
+  router [opts]          Start LLM router proxy (--help)
   mcp                    Start MCP server over stdio
 
 Options:

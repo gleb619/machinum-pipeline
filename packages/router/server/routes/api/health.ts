@@ -1,11 +1,10 @@
 import { defineEventHandler } from 'h3'
+import { isMockMode } from '../../plugins/mock-mode.js'
 
 export default defineEventHandler(() => {
-  const mockMode = process.env.MT_ROUTER_MOCK === 'true'
-
   return {
     status: 'ok',
-    mockMode,
+    mockMode: isMockMode(),
     uptime: Date.now(),
   }
 })

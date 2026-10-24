@@ -1,5 +1,6 @@
 import { appendFile, mkdir, readFile, readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { getRouterConfig } from './router-config.js'
 
 export interface LogEntry {
   timestamp: string
@@ -18,8 +19,7 @@ export interface DailyUsage {
 }
 
 function getLogDir(): string {
-  const mtHome = process.env.MT_HOME || join(process.env.HOME || '/root', '.mt')
-  return join(mtHome, 'router')
+  return getRouterConfig().logDir
 }
 
 export function getLogPath(date: string): string {

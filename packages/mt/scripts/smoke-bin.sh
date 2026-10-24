@@ -52,13 +52,13 @@ if PATH="$SAFE_PATH" command -v node >/dev/null 2>&1; then
 fi
 run() { env -i HOME="$WORK" PATH="$SAFE_PATH" "$BIN" "$@"; }
 
-echo "1/12 --help"
+echo "1/15 --help"
 run --help | grep -q "Usage: mt"
-echo "2/12 init"
+echo "2/15 init"
 run init >/dev/null
 test -f mt.json && test -d .mt
 
-echo "3/12 run pipeline importing 'mt' + 'mt/tools' (no node_modules)"
+echo "3/15 run pipeline importing 'mt' + 'mt/tools' (no node_modules)"
 mkdir -p pipelines jsonl
 printf '%s\n' \
   '{"item":{"title":"Chapter 1","body":"# Chapter 1\n\nHello world."}}' \
@@ -76,14 +76,14 @@ TS
 run run ./pipelines/p.ts >/dev/null
 test "$(ls chapters/en/*.md | wc -l)" -ge 2
 
-echo "4/12 legacy @mt/core specifier also resolves"
+echo "4/15 legacy @mt/core specifier also resolves"
 sed -e "s#from 'mt'#from '@mt/core'#" -e "s#'mt/tools'#'@mt/tools'#" -e "s#'mt/waypoint'#'@mt/waypoint'#" \
   pipelines/p.ts > pipelines/legacy.ts
 rm -rf chapters .mt/runs
 run run ./pipelines/legacy.ts >/dev/null
 test "$(ls chapters/en/*.md | wc -l)" -ge 2
 
-echo "5/12 pipeline with relative .ts helper + package from its own node_modules + embedded zod fallback"
+echo "5/15 pipeline with relative .ts helper + package from its own node_modules + embedded zod fallback"
 mkdir -p lib node_modules/smoke-dep
 echo 'export const helper = (s: string): string => `helper:${s}`' > lib/helper.ts
 echo '{"name":"smoke-dep","version":"1.0.0","type":"module","main":"index.js"}' > node_modules/smoke-dep/package.json
@@ -106,7 +106,7 @@ rm -rf .mt/runs
 run run ./pipelines/third.ts >/dev/null
 test "$(cat proof.txt)" = "helper:a|dep:b|c"
 
-echo "6/12 the project's own zod wins over the embedded one (per-import resolution)"
+echo "6/15 the project's own zod wins over the embedded one (per-import resolution)"
 mkdir -p node_modules/zod
 echo '{"name":"zod","version":"3.0.0","type":"module","main":"index.js"}' > node_modules/zod/package.json
 cat > node_modules/zod/index.js <<'JS'
@@ -117,7 +117,7 @@ run run ./pipelines/third.ts >/dev/null
 test "$(cat proof.txt)" = "helper:a|dep:b|project:c"
 rm -rf node_modules/zod
 
-echo "7/12 package whose entry point is in a subdirectory resolves"
+echo "7/15 package whose entry point is in a subdirectory resolves"
 mkdir -p node_modules/subpkg/lib
 echo '{"name":"subpkg","version":"1.0.0","type":"module","main":"lib/index.js"}' > node_modules/subpkg/package.json
 echo 'export const v = "subpkg"' > node_modules/subpkg/lib/index.js
@@ -135,7 +135,7 @@ rm -rf .mt/runs
 run run ./pipelines/subpkg.ts >/dev/null
 test "$(cat subpkg.txt)" = "subpkg"
 
-echo "8/12 missing package and native addon fail with the binary's limitation hint"
+echo "8/15 missing package and native addon fail with the binary's limitation hint"
 cat > pipelines/missing.ts <<'TS'
 import { definePipeline } from 'mt'
 import 'mt/waypoint'
@@ -175,7 +175,7 @@ set -e
 test "$ADDON_RC" -ne 0
 printf '%s' "$ADDON_OUT" | grep -q "Native addons are not supported by the \`mt\` binary"
 
-echo "9/12 token counter runs in the binary (tiktoken wasm -> gpt-tokenizer shim)"
+echo "9/15 token counter runs in the binary (tiktoken wasm -> gpt-tokenizer shim)"
 mkdir -p jsonl-text
 printf '%s\n' '{"item":"Hello world, this is a test of the token counter."}' > jsonl-text/in.jsonl
 cat > pipelines/tokens.ts <<'TS'
@@ -206,7 +206,22 @@ start_server() { # $1 = log file ; sets SERVER_PID and BASE
   [ -n "$BASE" ] || { cat "$1"; echo "serve did not start"; exit 1; }
 }
 
-echo "10/12 mt serve: health, runs API, SQLite, SSE, UI, pause/resume"
+start_router() { # $1 = log file ; sets ROUTER_PID and RBASE
+  : > "$1"
+  env -i HOME="$WORK" PATH="$SAFE_PATH" "$BIN" router --mock --port 0 --host 127.0.0.1 >"$1" 2>&1 &
+  ROUTER_PID=$!
+  PIDS="$PIDS $ROUTER_PID"
+  RBASE=""
+  for _ in $(seq 1 50); do
+    RBASE="$(grep -o 'http://127\.0\.0\.1:[0-9]*' "$1" | head -1 || true)"
+    [ -n "$RBASE" ] && break
+    kill -0 "$ROUTER_PID" 2>/dev/null || { cat "$1"; echo "router exited early"; exit 1; }
+    sleep 0.2
+  done
+  [ -n "$RBASE" ] || { cat "$1"; echo "router did not start"; exit 1; }
+}
+
+echo "10/15 mt serve: health, runs API, SQLite, SSE, UI, pause/resume"
 mkdir -p .mt/runs/smoke-run
 echo '{"state":"running"}' > .mt/runs/smoke-run/state.json
 echo '{"type":"started"}' > .mt/runs/smoke-run/events.jsonl
@@ -258,7 +273,7 @@ kill "$SERVER_PID"
 for _ in $(seq 1 25); do kill -0 "$SERVER_PID" 2>/dev/null || break; sleep 0.2; done
 if kill -0 "$SERVER_PID" 2>/dev/null; then echo "serve did not stop on SIGTERM"; exit 1; fi
 
-echo "11/12 mt serve --detach (re-execs the binary), then stop via pid file"
+echo "11/15 mt serve --detach (re-execs the binary), then stop via pid file"
 rm -rf .mt/backend
 run serve --detach --port 0 --host 127.0.0.1 | grep -q "Backend PID"
 DPID="$(cat .mt/backend/pid)"
@@ -275,7 +290,48 @@ kill "$DPID"
 for _ in $(seq 1 25); do kill -0 "$DPID" 2>/dev/null || break; sleep 0.2; done
 if kill -0 "$DPID" 2>/dev/null; then echo "detached serve did not stop"; exit 1; fi
 
-echo "12/12 no stray processes"
+echo "12/15 mt router --help is documented"
+run router --help | grep -q "Usage: mt router"
+run --help | grep -q "Start LLM router proxy"
+
+echo "13/15 mt router --mock: proxy API, dashboard JSON and embedded assets (no network, no keys)"
+start_router router.log
+curl -sf "$RBASE/api/health" | grep -q '"mockMode":true'
+curl -sf -X POST -H 'content-type: application/json' \
+  -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}' \
+  "$RBASE/api/chat/completions" | grep -q 'Mock response from Mt Router'
+curl -sf -X POST -H 'content-type: application/json' -d '{"text":"hello","targetLang":"fr"}' \
+  "$RBASE/api/translate" | grep -q '\[MOCK\] hello'
+curl -sf "$RBASE/api/dashboard" | grep -q '"budgetLimit"'
+curl -sf "$RBASE/api/pool" | grep -q '"mockMode":true'
+curl -sf "$RBASE/api/logs" | grep -q '"entries"'
+curl -sf "$RBASE/api/translate/health" | grep -q '"availableClients"'
+curl -sf "$RBASE/api/translate/config" | grep -q '"supportedLanguages"'
+curl -sf "$RBASE/" | grep -q '<div id="app">'
+curl -sf "$RBASE/app.js" | grep -q 'useDashboard'
+test "$(curl -s -o /dev/null -w '%{http_code}' "$RBASE/api/nope")" = 404
+kill "$ROUTER_PID"
+for _ in $(seq 1 25); do kill -0 "$ROUTER_PID" 2>/dev/null || break; sleep 0.2; done
+if kill -0 "$ROUTER_PID" 2>/dev/null; then echo "router did not stop on SIGTERM"; exit 1; fi
+
+echo "14/15 mt router --detach (re-execs the binary), then stop via pid file"
+rm -rf .mt/router
+run router --detach --mock --port 0 --host 127.0.0.1 | grep -q "Router PID"
+RPID="$(cat .mt/router/pid)"
+PIDS="$PIDS $RPID"
+RDBASE=""
+for _ in $(seq 1 50); do
+  RDBASE="$(grep -o 'http://127\.0\.0\.1:[0-9]*' .mt/router/server.log 2>/dev/null | head -1 || true)"
+  [ -n "$RDBASE" ] && break
+  sleep 0.2
+done
+[ -n "$RDBASE" ] || { cat .mt/router/server.log; echo "detached router did not start"; exit 1; }
+curl -sf "$RDBASE/api/health" | grep -q '"mockMode":true'
+kill "$RPID"
+for _ in $(seq 1 25); do kill -0 "$RPID" 2>/dev/null || break; sleep 0.2; done
+if kill -0 "$RPID" 2>/dev/null; then echo "detached router did not stop"; exit 1; fi
+
+echo "15/15 no stray processes"
 for p in $PIDS; do if kill -0 "$p" 2>/dev/null; then echo "leaked pid $p"; exit 1; fi; done
 
 echo "smoke OK"

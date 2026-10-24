@@ -6,7 +6,12 @@ import { describe, expect, it } from 'vitest'
 const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
 
 /** `@mt/*` packages the CLI is allowed to import. */
-const ALLOWED = new Set(['@mt/core', '@mt/waypoint', '@mt/backend/standalone'])
+const ALLOWED = new Set([
+  '@mt/core',
+  '@mt/waypoint',
+  '@mt/backend/standalone',
+  '@mt/router/standalone',
+])
 
 interface ImportRef {
   file: string
@@ -45,24 +50,29 @@ async function mtImports(): Promise<ImportRef[]> {
 }
 
 describe('CLI import layers (architectural)', () => {
-  it('imports only @mt/core, @mt/waypoint and @mt/backend/standalone', async () => {
+  it('imports only @mt/core, @mt/waypoint and the standalone server entry points', async () => {
     const refs = await mtImports()
     const offenders = refs.filter((ref) => !ALLOWED.has(ref.specifier))
     expect(offenders).toEqual([])
   })
 
-  it('reaches @mt/backend only through the standalone entry point', async () => {
+  it('reaches the server packages only through their standalone entry point', async () => {
     const refs = await mtImports()
-    const backendRefs = refs.filter((ref) => ref.specifier.startsWith('@mt/backend'))
-    expect(backendRefs.length).toBeGreaterThan(0)
-    for (const ref of backendRefs) {
-      expect(ref.specifier).toBe('@mt/backend/standalone')
+    for (const pkg of ['@mt/backend', '@mt/router']) {
+      const serverRefs = refs.filter((ref) => ref.specifier.startsWith(pkg))
+      expect(serverRefs.length).toBeGreaterThan(0)
+      for (const ref of serverRefs) {
+        expect(ref.specifier).toBe(`${pkg}/standalone`)
+      }
     }
   })
 
-  it('imports the backend lazily, so the CLI starts without h3/SQLite', async () => {
+  it('imports the server packages lazily, so the CLI starts without h3/SQLite', async () => {
     const refs = await mtImports()
-    for (const ref of refs.filter((r) => r.specifier.startsWith('@mt/backend'))) {
+    const serverRefs = refs.filter(
+      (ref) => ref.specifier.startsWith('@mt/backend') || ref.specifier.startsWith('@mt/router'),
+    )
+    for (const ref of serverRefs) {
       expect(ref.dynamic).toBe(true)
     }
   })

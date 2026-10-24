@@ -1,9 +1,9 @@
 import { readdir, rename, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
+import { getRouterConfig } from './router-config.js'
 
 function getLogDir(): string {
-  const mtHome = process.env.MT_HOME || join(process.env.HOME || '/root', '.mt')
-  return join(mtHome, 'router')
+  return getRouterConfig().logDir
 }
 
 export async function rotateLogs(retentionDays = 30): Promise<void> {
@@ -43,6 +43,7 @@ export async function rotateLogs(retentionDays = 30): Promise<void> {
       }
     }
   } catch (err) {
-    console.error('Log rotation error:', err)
+    // A router that has never written a log has no directory yet: not an error worth reporting.
+    if ((err as { code?: string }).code !== 'ENOENT') console.error('Log rotation error:', err)
   }
 }

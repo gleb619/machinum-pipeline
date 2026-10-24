@@ -1,9 +1,26 @@
-import { OpenRouterPoolSupplier } from '@mt/tools'
+import { type OpenRouterPool, OpenRouterPoolSupplier } from '@mt/tools'
+import { getRouterConfig } from './router-config.js'
 
-const envKeys = (process.env.OPENROUTER_API_KEYS ?? process.env.OPENROUTER_API_KEY ?? '')
-  .split(',')
-  .map((k) => k.trim())
-  .filter(Boolean)
-  .map((k) => ({ apiKey: k }))
+let supplier: OpenRouterPoolSupplier | undefined
+let supplierKeys = ''
 
-export const poolSupplier = new OpenRouterPoolSupplier({ clients: envKeys })
+/**
+ * The supplier is built from the effective router config instead of `process.env` at import time,
+ * so keys supplied through CLI flags or `mt.json → secrets.envFile` reach the pool. Rebuilt only
+ * when the key set changes, which in practice happens once, before the first request.
+ */
+function currentSupplier(): OpenRouterPoolSupplier {
+  const keys = getRouterConfig().apiKeys
+  const signature = keys.join(',')
+  if (!supplier || signature !== supplierKeys) {
+    supplier = new OpenRouterPoolSupplier({ clients: keys.map((apiKey) => ({ apiKey })) })
+    supplierKeys = signature
+  }
+  return supplier
+}
+
+export const poolSupplier = {
+  getPool(): OpenRouterPool {
+    return currentSupplier().getPool()
+  },
+}

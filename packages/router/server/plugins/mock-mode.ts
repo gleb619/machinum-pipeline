@@ -1,16 +1,19 @@
 import type { NitroApp } from 'nitropack'
-
-export let mockMode = false
+import { getRouterConfig } from '../utils/router-config.js'
 
 export function isMockMode(): boolean {
-  return mockMode
+  return getRouterConfig().mock
 }
 
-export default function mockModePlugin(_nitroApp: NitroApp): void {
-  mockMode = process.env.MT_ROUTER_MOCK === 'true'
-  if (mockMode) {
+/** Logs the active mode. Called by the Nitro plugin and explicitly by `startRouter()`. */
+export function startMockMode(): void {
+  if (isMockMode()) {
     console.log('[router] Starting in MOCK mode')
   } else {
     console.log('[router] Starting in LIVE mode')
   }
+}
+
+export default function mockModePlugin(_nitroApp: NitroApp): void {
+  startMockMode()
 }

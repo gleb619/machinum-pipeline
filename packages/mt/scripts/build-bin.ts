@@ -44,23 +44,29 @@ function* walk(dir: string): Generator<string> {
 }
 
 // Generated entry: registers the embedded admin UI (URL path -> embedded file) before the CLI starts.
-const uiDir = join(dist, 'ui')
-let uiFiles: string[] = []
-try {
-  uiFiles = [...walk(uiDir)]
-} catch {
-  console.warn('mt: dist/ui missing (run `pnpm build`); binary will serve the API only')
+function embedAssets(dir: string, globalName: string, genFile: string): string {
+  let files: string[] = []
+  try {
+    files = [...walk(dir)]
+  } catch {
+    console.warn(`mt: ${dir} missing (run \`pnpm build\`); binary will serve the API only`)
+  }
+  const lines = files.map((f, i) => `import f${i} from ${JSON.stringify(f)} with { type: 'file' }`)
+  const map = files.map(
+    (f, i) => `  ${JSON.stringify(`/${relative(dir, f).split('\\').join('/')}`)}: f${i},`,
+  )
+  const gen = join(dist, genFile)
+  writeFileSync(gen, `${lines.join('\n')}\nglobalThis.${globalName} = {\n${map.join('\n')}\n}\n`)
+  return genFile
 }
-const lines = uiFiles.map((f, i) => `import f${i} from ${JSON.stringify(f)} with { type: 'file' }`)
-const map = uiFiles.map(
-  (f, i) => `  ${JSON.stringify(`/${relative(uiDir, f).split('\\').join('/')}`)}: f${i},`,
-)
-writeFileSync(
-  join(dist, 'ui-embedded.gen.js'),
-  `${lines.join('\n')}\nglobalThis.__MT_UI__ = {\n${map.join('\n')}\n}\n`,
-)
+
+embedAssets(join(dist, 'ui'), '__MT_UI__', 'ui-embedded.gen.js')
+embedAssets(join(dist, 'router-ui'), '__MT_ROUTER_UI__', 'router-ui-embedded.gen.js')
 const entry = join(dist, 'bin-entry.gen.js')
-writeFileSync(entry, "import './ui-embedded.gen.js'\nimport './bin.js'\n")
+writeFileSync(
+  entry,
+  "import './ui-embedded.gen.js'\nimport './router-ui-embedded.gen.js'\nimport './bin.js'\n",
+)
 
 // Not bundled into the binary:
 // - `openai` / `@anthropic-ai/sdk` — the official SDK transports are optional; the tools fall back

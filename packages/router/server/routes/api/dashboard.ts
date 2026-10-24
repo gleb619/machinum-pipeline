@@ -1,5 +1,6 @@
 import { defineEventHandler } from 'h3'
 import { getDailyCost, getMonthlyCost } from '../../utils/cost-tracker.js'
+import { getRouterConfig } from '../../utils/router-config.js'
 
 export default defineEventHandler(async () => {
   const todayStr = new Date().toISOString().split('T')[0] as string
@@ -7,7 +8,7 @@ export default defineEventHandler(async () => {
   const dailyUsage = await getDailyCost(todayStr)
   const monthUsage = await getMonthlyCost()
 
-  const dailyBudget = Number.parseFloat(process.env.MT_DAILY_BUDGET || '5.00')
+  const dailyBudget = getRouterConfig().dailyBudget
 
   return {
     today: dailyUsage,

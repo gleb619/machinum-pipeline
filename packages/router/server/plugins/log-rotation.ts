@@ -1,7 +1,12 @@
 import type { NitroApp } from 'nitropack'
 import { rotateLogs } from '../utils/log-rotator.js'
+import { getRouterConfig } from '../utils/router-config.js'
+
+/** Rotates the cost log on boot. Called by the Nitro plugin and explicitly by `startRouter()`. */
+export function startLogRotation(): Promise<void> {
+  return rotateLogs(getRouterConfig().retentionDays)
+}
 
 export default function logRotationPlugin(_nitroApp: NitroApp): void {
-  const retentionDays = Number.parseInt(process.env.MT_RETENTION_DAYS || '30', 10)
-  rotateLogs(retentionDays)
+  void startLogRotation()
 }

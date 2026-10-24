@@ -1,10 +1,11 @@
 import { defineEventHandler } from 'h3'
 import { getDailyCost } from '../utils/cost-tracker.js'
+import { getRouterConfig } from '../utils/router-config.js'
 
 export default defineEventHandler(async (event) => {
   if (event.path !== '/api/chat/completions' || event.method !== 'POST') return
 
-  const dailyBudget = Number.parseFloat(process.env.MT_DAILY_BUDGET || '5.00')
+  const dailyBudget = getRouterConfig().dailyBudget
   const today = new Date().toISOString().split('T')[0] as string
   const usage = await getDailyCost(today)
 

@@ -63,6 +63,7 @@
     "@mt/cli": "workspace:*",
     "@mt/core": "workspace:*",
     "@mt/frontend": "workspace:*",
+    "@mt/router": "workspace:*",
     "@mt/tools": "workspace:*",
     "@mt/waypoint": "workspace:*",
     "@types/node": "^20.14.0",

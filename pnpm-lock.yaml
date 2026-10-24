@@ -72,6 +72,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@mt/router':
+        specifier: workspace:*
+        version: link:../router
       '@mt/waypoint':
         specifier: workspace:*
         version: link:../waypoint
@@ -221,6 +224,9 @@ importers:
       '@mt/frontend':
         specifier: workspace:*
         version: link:../frontend
+      '@mt/router':
+        specifier: workspace:*
+        version: link:../router
       '@mt/tools':
         specifier: workspace:*
         version: link:../tools

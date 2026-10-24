@@ -25,6 +25,7 @@
   "dependencies": {
     "@mt/backend": "workspace:*",
     "@mt/core": "workspace:*",
+    "@mt/router": "workspace:*",
     "@mt/waypoint": "workspace:*"
   },
   "devDependencies": {
