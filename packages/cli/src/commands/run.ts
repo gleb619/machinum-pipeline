@@ -1,5 +1,5 @@
 import { join, resolve } from 'node:path'
-import { Runner } from '@mt/core'
+import { Runner, importPipelineModule, nativeAddonHint, packageResolutionHint } from '@mt/core'
 import type { GlobalContext, Pipeline } from '@mt/core'
 
 // Ensure built-in sources/targets are registered before resolving URIs
@@ -60,8 +60,9 @@ export async function runCommand(args: string[]): Promise<void> {
     console.log(`\n✅ Pipeline complete. Run ID: ${runContext.runId}`)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
+    const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline failed: ${errorMessage}`)
-    console.error(`\n❌ Pipeline failed: ${errorMessage}`)
+    console.error(`\n❌ Pipeline failed: ${errorMessage}${hint}`)
     process.exit(1)
   }
 }
@@ -72,8 +73,8 @@ export async function runCommand(args: string[]): Promise<void> {
  */
 async function loadPipeline(filePath: string, name?: string): Promise<Pipeline> {
   const resolvedPath = resolve(process.cwd(), filePath)
-  const mod = await import(resolvedPath)
-  const pipeline = name ? (mod[name] as Pipeline | undefined) : (mod.default ?? mod.pipeline)
+  const mod = await importPipelineModule(resolvedPath)
+  const pipeline = (name ? mod[name] : (mod.default ?? mod.pipeline)) as Pipeline | undefined
 
   if (!pipeline || typeof pipeline.id !== 'string') {
     const hint = name ? ` (named export '${name}' not found or invalid)` : ''

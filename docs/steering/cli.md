@@ -3,30 +3,66 @@
 
 Path: `packages/cli/`
 
-The `mt` binary. Loads pipelines at runtime via `tsx`/`jiti` — no consumer build step required. Imports only from `@mt/core`.
+The `mt` binary. Loads pipelines at runtime via `tsx`/`jiti` — no consumer build step required.
+Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imported lazily for
+`mt serve` (see [import layers](tech.md#import-layer-rules-enforced)).
 
 ## Distribution
 
 - **npm**: `mt` package (`packages/mt`) ships the CLI as bin `mt` (Node >= 20; `.ts` pipelines need
   `NODE_OPTIONS='--import tsx'` or Node >= 22.18 type stripping).
 - **Single-file binary** (Bun, no node/pnpm/node_modules): `pnpm build:bin` -> `packages/mt/dist/bin/mt`
-  (~98 MB on linux-x64). Includes `mt serve` (h3 API + `bun:sqlite` + embedded admin UI).
-  Pipelines are imported at runtime by Bun (TS works natively). Import matrix inside the binary:
+  (92.4 MiB on linux-x64). Includes `mt serve` (h3 API + `bun:sqlite` + embedded admin UI).
+  Pipelines are imported at runtime by Bun (TS works natively).
+
+  ### Import matrix inside the binary
 
   | Import in a pipeline | Works | How |
   |---|---|---|
   | `mt`, `mt/tools`, `mt/waypoint` (+ legacy `@mt/core\|tools\|waypoint`) | yes | Bun runtime plugin `packages/mt/src/embed.ts`; same module instances as the Runner |
   | `node:*` builtins | yes | Bun |
   | relative `./x`, `../lib/helper` (.ts/.js, extension optional) | yes | Bun resolver |
-  | package in `node_modules` found by walking up from the pipeline file | yes | Bun resolver (no install step, no network) |
-  | `zod` | yes | embedded fallback, used only if cwd has no own `zod` in `node_modules` |
-  | any other npm package | only if present in a `node_modules` next to/above the pipeline | not embedded; add it to the project |
-  | native addons (`.node`) from the project's `node_modules` | best effort, untested | |
+  | package in `node_modules` next to/above the pipeline, entry point `<pkg>/index.js` | yes | Bun resolver (no install step, no network) |
+  | package whose `main`/`exports` point into a subdirectory (e.g. `lib/index.js`) | yes, for direct imports | the pipeline loader resolves the specifier per importer (`packages/mt/src/pipeline-loader.ts`) and rewrites it to an absolute path — Bun's compiled-binary resolver only finds `<pkg>/index.js` |
+  | `zod` | yes | resolved per importer: the project's own copy wins, the embedded copy is the fallback |
+  | native addons (`.node`, e.g. `better-sqlite3`, `sharp`) | no | Bun cannot load them; the failure carries an explicit hint ("not supported by the binary") |
+  | any other npm package | only if installed next to/above the pipeline | not embedded; add it to the project |
 
-  Cross targets: `bun scripts/build-bin.ts --target <t>` -> `dist/bin/mt-<os>-<arch>[-musl][.exe]`
-  (`bun-linux-x64|arm64[-musl]`, `bun-darwin-x64|arm64`, `bun-windows-x64`). Building a foreign target
-  downloads that Bun runtime once (needs network, then cached); the produced binary is offline. Only the
-  host target is smoke-tested.
+  ### Cross-target matrix
+
+  `bun scripts/build-bin.ts --all` builds every target; `bun scripts/build-bin.ts --target <t>` builds one.
+  Building a foreign target downloads that Bun runtime once (needs network, then cached); the produced
+  binary is offline. The smoke test runs against any binary: `scripts/smoke-bin.sh --bin <path>`.
+
+  | Target | Binary | Builds | Runtime verified |
+  |---|---|---|---|
+  | `bun-linux-x64` | `dist/bin/mt` | yes | yes — host, `pnpm smoke:bin` |
+  | `bun-linux-x64-musl` | `dist/bin/mt-linux-x64-musl` | yes | yes — alpine 3.20 container (`apk add libstdc++`), full smoke passes |
+  | `bun-linux-arm64` | `dist/bin/mt-linux-arm64` | yes | yes — arm64v8/debian container under qemu-user |
+  | `bun-linux-arm64-musl` | `dist/bin/mt-linux-arm64-musl` | yes | yes — alpine arm64 container under qemu-user |
+  | `bun-darwin-x64` | `dist/bin/mt-darwin-x64` | yes | no macOS runner available |
+  | `bun-darwin-arm64` | `dist/bin/mt-darwin-arm64` | yes | no macOS runner available |
+  | `bun-windows-x64` | `dist/bin/mt-windows-x64.exe` | yes | no Windows runner available |
+
+  The musl builds are dynamically linked against musl **and** `libstdc++`/`libgcc` (Bun 1.3.14 links
+  them that way), so an alpine image needs `apk add libstdc++`; the glibc builds need their own libc.
+
+  ### Size
+
+  An empty `bun build --compile` program is 90.2 MiB — the Bun runtime is the floor, so the binary
+  cannot get below ~90 MB without a different runtime. The app code adds ~2.2 MiB:
+
+  | Binary | Size |
+  |---|---|
+  | `mt-linux-x64` | 92.4 MiB |
+  | `mt-linux-x64-musl` | 89.1 MiB |
+  | `mt-linux-arm64` | 91.5 MiB |
+  | `mt-darwin-arm64` | 62.7 MiB |
+  | `mt-windows-x64.exe` | 96.1 MiB |
+
+  `--minify` is on (saves 1.3 MB). `tiktoken` is replaced by the pure-JS `gpt-tokenizer` in the binary
+  (`packages/mt/scripts/tiktoken-shim.ts`): Bun's bundler mis-compiles tiktoken's WebAssembly module,
+  so the token counter traps without the shim.
 
 ## Commands
 
@@ -51,6 +87,13 @@ const pipeline = await loadPipeline(pipelineFilePath, ctx)
 ```
 
 `loadPipeline()` uses `tsx`/`jiti` dynamic import — the consumer file is **not** compiled ahead of time. Plain `import`, `console.log`, and conditionals all work inside pipeline files.
+
+The single-file binary installs its own loader (`@mt/core`'s `setPipelineModuleLoader`, implemented in
+`packages/mt/src/pipeline-loader.ts`): it resolves every bare specifier of the pipeline against the
+pipeline's own directory and rewrites it to an absolute path, because Bun's compiled-binary resolver
+only finds packages whose entry point is `<pkg>/index.js`. The project's own copy of a library
+therefore wins over the copy embedded in the binary, and the pipeline id stays the one derived from
+the original file.
 
 ## Key Files
 

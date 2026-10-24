@@ -22,6 +22,17 @@ function warnUnresolvablePipelineId(): void {
 }
 
 /**
+ * Pipeline id derived from a pipeline file path: the file name without extension, or the
+ * parent directory name for `index.ts` / `pipeline.ts`.
+ */
+export function derivePipelineId(filePath: string): string {
+  if (!filePath.endsWith('.ts')) return 'default-pipeline'
+  const base = basename(filePath, '.ts')
+  if (base === 'index' || base === 'pipeline') return basename(dirname(filePath))
+  return base
+}
+
+/**
  * Extract pipeline ID from caller filename using stack trace analysis.
  * Falls back to 'default-pipeline' if unable to determine.
  */
@@ -46,14 +57,7 @@ function getCallerFileId(): string {
       if (typeof caller.getFileName !== 'function') continue
       const fileName = caller.getFileName()
       if (fileName?.endsWith('.ts') && !fileName.includes('node_modules')) {
-        // Extract filename without extension
-        const base = basename(fileName, '.ts')
-        // Skip index files, use parent directory name if it's a common pattern
-        if (base === 'index' || base === 'pipeline') {
-          const dirName = basename(dirname(fileName))
-          return dirName
-        }
-        return base
+        return derivePipelineId(fileName)
       }
     }
   } catch {

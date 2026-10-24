@@ -157,7 +157,7 @@ my-book-project/
 ## Key Architecture Rules
 
 - `core/` has zero external runtime dependencies beyond TypeScript stdlib
-- `cli/` imports from `core/` only — never the reverse (exception: `mt serve` imports `@mt/backend/standalone`)
+- `cli/` imports from `core/` and `waypoint/` only — never the reverse (sole exception: `mt serve` imports `@mt/backend/standalone`, lazily, so the CLI starts without h3/SQLite)
 - `waypoint/` sources/targets register themselves via URI registry side-effects
 - Sources provide stable IDs — engine never mints domain entity IDs
 - Pipelines loaded at runtime via `tsx`/`jiti` — no consumer build step

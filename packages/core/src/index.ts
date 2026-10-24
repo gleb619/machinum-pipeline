@@ -53,6 +53,16 @@ export type {
 } from './uri.js'
 export { discoverPipelines } from './discovery.js'
 export type { DiscoveredPipeline } from './discovery.js'
+export { derivePipelineId } from './dsl.js'
+export {
+  importPipelineModule,
+  isNativeAddonError,
+  isPackageResolutionError,
+  nativeAddonHint,
+  packageResolutionHint,
+  setPipelineModuleLoader,
+} from './module-loader.js'
+export type { PipelineModuleLoader } from './module-loader.js'
 
 // Engine exports
 export { RunStateMachine } from './engine/state-machine.js'

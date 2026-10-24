@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { Runner } from '@mt/core'
+import { Runner, importPipelineModule, nativeAddonHint, packageResolutionHint } from '@mt/core'
 import type { GlobalContext, Pipeline } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
 
@@ -39,8 +39,9 @@ export async function resumeCommand(args: string[]): Promise<void> {
     console.log(`\n\u2705 Pipeline resumed and complete. Run ID: ${runContext.runId}`)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
+    const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline resume failed: ${errorMessage}`)
-    console.error(`\n\u274c Pipeline resume failed: ${errorMessage}`)
+    console.error(`\n\u274c Pipeline resume failed: ${errorMessage}${hint}`)
     process.exit(1)
   }
 }
@@ -50,8 +51,8 @@ export async function resumeCommand(args: string[]): Promise<void> {
  */
 async function loadPipeline(filePath: string): Promise<Pipeline> {
   const resolvedPath = resolve(process.cwd(), filePath)
-  const mod = await import(resolvedPath)
-  const pipeline = mod.default ?? mod.pipeline
+  const mod = await importPipelineModule(resolvedPath)
+  const pipeline = (mod.default ?? mod.pipeline) as Pipeline | undefined
   if (!pipeline || typeof pipeline.id !== 'string') {
     throw new Error(`Invalid pipeline module: ${filePath}.`)
   }

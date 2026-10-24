@@ -9,6 +9,11 @@ import { runCommand } from '../../src/commands/run.js'
 vi.mock('@mt/core', () => ({
   Runner: vi.fn(),
   definePipeline: vi.fn(),
+  importPipelineModule: vi.fn(
+    async (filePath: string) => (await import(filePath)) as Record<string, unknown>,
+  ),
+  nativeAddonHint: () => '',
+  packageResolutionHint: () => '',
   registry: {
     resolveSource: vi.fn(),
     resolveTarget: vi.fn(),

@@ -20,6 +20,12 @@ export function getDb(): Database | null {
 /**
  * Open the driver for the current runtime: `bun:sqlite` under Bun (built in, works inside the
  * single-file binary), `better-sqlite3` (native addon) under Node.
+ *
+ * The `better-sqlite3` specifier is kept in a variable on purpose: a literal `require()` is
+ * statically analysed by bundlers, which pulls the native addon into the single-file binary
+ * (where it cannot be loaded) and shadows the copy a user project ships in its own
+ * `node_modules`. A dynamic specifier keeps the addon out of the bundle and lets the user's own
+ * copy resolve at runtime.
  */
 function openDatabase(dbPath: string): Database {
   if (typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined') {
@@ -28,7 +34,8 @@ function openDatabase(dbPath: string): Database {
     }
     return new BunDatabase(dbPath)
   }
-  const Sqlite = require('better-sqlite3') as new (path: string) => Database
+  const sqliteAddon = 'better-sqlite3'
+  const Sqlite = require(sqliteAddon) as new (path: string) => Database
   return new Sqlite(dbPath)
 }
 

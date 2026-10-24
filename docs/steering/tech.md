@@ -60,13 +60,17 @@ Run `pnpm lint` to check, `pnpm format` to auto-fix.
 ## Import Layer Rules (enforced)
 
 ```
-cli/ → core/           (only)
+cli/ → core/, waypoint/ (URI registration side effect),
+       backend/standalone (lazy, only for `mt serve`)
 backend/ → core/       (only)
 mcp/ → core/           (only)
 frontend/ → backend API (HTTP only, no direct TS imports)
 router/ → standalone   (no other packages except shared config types)
 extensions → HTTP or MCP (never direct imports)
+mt/ → umbrella package (core, tools, waypoint, cli, backend)
 ```
+
+Enforced by architecture tests: `packages/{cli,backend,mcp}/tests/layers.arch.test.ts`.
 
 ## Common Commands
 

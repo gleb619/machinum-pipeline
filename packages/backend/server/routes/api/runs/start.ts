@@ -1,5 +1,12 @@
 import { join } from 'node:path'
-import { Runner } from '@mt/core'
+import {
+  Runner,
+  importPipelineModule,
+  isNativeAddonError,
+  isPackageResolutionError,
+  nativeAddonHint,
+  packageResolutionHint,
+} from '@mt/core'
 import type { GlobalContext, Pipeline } from '@mt/core'
 import { createError, defineEventHandler, readBody } from 'h3'
 import { registerRunner, removeRunner } from '../../../utils/runner-registry.js'
@@ -20,8 +27,15 @@ export default defineEventHandler(async (event) => {
 
   let pipelineModule: { default?: Pipeline }
   try {
-    pipelineModule = await import(resolvedPath)
-  } catch (_err) {
+    pipelineModule = await importPipelineModule(resolvedPath)
+  } catch (err) {
+    if (isNativeAddonError(err) || isPackageResolutionError(err)) {
+      const hint = nativeAddonHint(err) || packageResolutionHint(err)
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Pipeline cannot be loaded: ${declaredPath}${hint}`,
+      })
+    }
     throw createError({
       statusCode: 404,
       statusMessage: `Pipeline not found: ${declaredPath}`,

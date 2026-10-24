@@ -9,6 +9,11 @@ import { resumeCommand } from '../../src/commands/resume.js'
 vi.mock('@mt/core', () => ({
   Runner: vi.fn(),
   definePipeline: vi.fn(),
+  importPipelineModule: vi.fn(
+    async (filePath: string) => (await import(filePath)) as Record<string, unknown>,
+  ),
+  nativeAddonHint: () => '',
+  packageResolutionHint: () => '',
 }))
 
 describe('resume command', () => {

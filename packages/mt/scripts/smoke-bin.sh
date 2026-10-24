@@ -1,14 +1,35 @@
 #!/usr/bin/env bash
-# Smoke test for the single-file `mt` binary. Usage: scripts/smoke-bin.sh [--no-build]
+# Smoke test for the single-file `mt` binary.
+# Usage: scripts/smoke-bin.sh [--no-build] [--bin <path>]
+#   --no-build  do not rebuild the binary (use the one that is there)
+#   --bin <p>   smoke the binary at <p> instead of dist/bin/mt (cross targets)
 # Runs the binary from an empty temp dir (no node_modules) with a PATH that has no node/bun/pnpm.
 set -euo pipefail
 
 PKG="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="$PKG/dist/bin/mt"
+BUILD=1
 
-if [ "${1:-}" != "--no-build" ]; then
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-build) BUILD=0 ;;
+    --) ;; # pnpm forwards a literal `--` before run-script arguments
+    --bin)
+      shift
+      [ $# -gt 0 ] || { echo "--bin needs a path" >&2; exit 2; }
+      BIN="$1"
+      ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+if [ "$BUILD" = 1 ]; then
   (cd "$PKG" && pnpm build && bun scripts/build-bin.ts)
 fi
+
+[ -x "$BIN" ] || { echo "binary not found or not executable: $BIN" >&2; exit 1; }
+echo "smoke binary: $BIN"
 
 WORK="$(mktemp -d)"
 PIDS=""
@@ -31,13 +52,13 @@ if PATH="$SAFE_PATH" command -v node >/dev/null 2>&1; then
 fi
 run() { env -i HOME="$WORK" PATH="$SAFE_PATH" "$BIN" "$@"; }
 
-echo "1/8 --help"
-run --help | grep -q "Usage: mt" 
-echo "2/8 init"
+echo "1/12 --help"
+run --help | grep -q "Usage: mt"
+echo "2/12 init"
 run init >/dev/null
 test -f mt.json && test -d .mt
 
-echo "3/8 run pipeline importing 'mt' + 'mt/tools' (no node_modules)"
+echo "3/12 run pipeline importing 'mt' + 'mt/tools' (no node_modules)"
 mkdir -p pipelines jsonl
 printf '%s\n' \
   '{"item":{"title":"Chapter 1","body":"# Chapter 1\n\nHello world."}}' \
@@ -55,14 +76,14 @@ TS
 run run ./pipelines/p.ts >/dev/null
 test "$(ls chapters/en/*.md | wc -l)" -ge 2
 
-echo "4/8 legacy @mt/core specifier also resolves"
+echo "4/12 legacy @mt/core specifier also resolves"
 sed -e "s#from 'mt'#from '@mt/core'#" -e "s#'mt/tools'#'@mt/tools'#" -e "s#'mt/waypoint'#'@mt/waypoint'#" \
   pipelines/p.ts > pipelines/legacy.ts
 rm -rf chapters .mt/runs
 run run ./pipelines/legacy.ts >/dev/null
 test "$(ls chapters/en/*.md | wc -l)" -ge 2
 
-echo "5/8 pipeline with relative .ts helper + package from its own node_modules + embedded zod fallback"
+echo "5/12 pipeline with relative .ts helper + package from its own node_modules + embedded zod fallback"
 mkdir -p lib node_modules/smoke-dep
 echo 'export const helper = (s: string): string => `helper:${s}`' > lib/helper.ts
 echo '{"name":"smoke-dep","version":"1.0.0","type":"module","main":"index.js"}' > node_modules/smoke-dep/package.json
@@ -85,6 +106,90 @@ rm -rf .mt/runs
 run run ./pipelines/third.ts >/dev/null
 test "$(cat proof.txt)" = "helper:a|dep:b|c"
 
+echo "6/12 the project's own zod wins over the embedded one (per-import resolution)"
+mkdir -p node_modules/zod
+echo '{"name":"zod","version":"3.0.0","type":"module","main":"index.js"}' > node_modules/zod/package.json
+cat > node_modules/zod/index.js <<'JS'
+export const z = { string: () => ({ parse: (v) => `project:${v}` }) }
+JS
+rm -rf .mt/runs
+run run ./pipelines/third.ts >/dev/null
+test "$(cat proof.txt)" = "helper:a|dep:b|project:c"
+rm -rf node_modules/zod
+
+echo "7/12 package whose entry point is in a subdirectory resolves"
+mkdir -p node_modules/subpkg/lib
+echo '{"name":"subpkg","version":"1.0.0","type":"module","main":"lib/index.js"}' > node_modules/subpkg/package.json
+echo 'export const v = "subpkg"' > node_modules/subpkg/lib/index.js
+cat > pipelines/subpkg.ts <<'TS'
+import { writeFileSync } from 'node:fs'
+import { definePipeline } from 'mt'
+import 'mt/waypoint'
+import { v } from 'subpkg'
+
+export default definePipeline()
+  .from('jsonl://./jsonl/*.jsonl')
+  .tap(async () => { writeFileSync('subpkg.txt', v) })
+TS
+rm -rf .mt/runs
+run run ./pipelines/subpkg.ts >/dev/null
+test "$(cat subpkg.txt)" = "subpkg"
+
+echo "8/12 missing package and native addon fail with the binary's limitation hint"
+cat > pipelines/missing.ts <<'TS'
+import { definePipeline } from 'mt'
+import 'mt/waypoint'
+import { v } from 'definitely-not-installed'
+
+export default definePipeline()
+  .from('jsonl://./jsonl/*.jsonl')
+  .tap(async () => { console.log(v) })
+TS
+set +e
+MISSING_OUT="$(run run ./pipelines/missing.ts 2>&1)"
+MISSING_RC=$?
+set -e
+test "$MISSING_RC" -ne 0
+printf '%s' "$MISSING_OUT" | grep -q "definitely-not-installed"
+printf '%s' "$MISSING_OUT" | grep -q "not supported by the binary"
+
+# A compiled addon (`.node`) is resolvable but not loadable: the raw Bun error ("To load Node-API
+# modules, use require()" / "invalid ELF header") does not say the binary cannot do it.
+mkdir -p node_modules/fake-addon/build/Release
+echo '{"name":"fake-addon","version":"1.0.0","main":"build/Release/addon.node"}' \
+  > node_modules/fake-addon/package.json
+printf '\177ELF\002\001\001' > node_modules/fake-addon/build/Release/addon.node
+cat > pipelines/addon.ts <<'TS'
+import { definePipeline } from 'mt'
+import 'mt/waypoint'
+import addon from 'fake-addon'
+
+export default definePipeline()
+  .from('jsonl://./jsonl/*.jsonl')
+  .tap(async () => { console.log(addon) })
+TS
+set +e
+ADDON_OUT="$(run run ./pipelines/addon.ts 2>&1)"
+ADDON_RC=$?
+set -e
+test "$ADDON_RC" -ne 0
+printf '%s' "$ADDON_OUT" | grep -q "Native addons are not supported by the \`mt\` binary"
+
+echo "9/12 token counter runs in the binary (tiktoken wasm -> gpt-tokenizer shim)"
+mkdir -p jsonl-text
+printf '%s\n' '{"item":"Hello world, this is a test of the token counter."}' > jsonl-text/in.jsonl
+cat > pipelines/tokens.ts <<'TS'
+import { definePipeline } from 'mt'
+import { tokenCounter } from 'mt/tools'
+import 'mt/waypoint'
+
+export default definePipeline()
+  .from('jsonl://./jsonl-text/*.jsonl')
+  .use(tokenCounter)
+TS
+rm -rf .mt/runs
+run run ./pipelines/tokens.ts >/dev/null
+
 # --- serve ---------------------------------------------------------------
 start_server() { # $1 = log file ; sets SERVER_PID and BASE
   : > "$1"
@@ -101,7 +206,7 @@ start_server() { # $1 = log file ; sets SERVER_PID and BASE
   [ -n "$BASE" ] || { cat "$1"; echo "serve did not start"; exit 1; }
 }
 
-echo "6/8 mt serve: health, runs API, SQLite, SSE, UI, pause/resume"
+echo "10/12 mt serve: health, runs API, SQLite, SSE, UI, pause/resume"
 mkdir -p .mt/runs/smoke-run
 echo '{"state":"running"}' > .mt/runs/smoke-run/state.json
 echo '{"type":"started"}' > .mt/runs/smoke-run/events.jsonl
@@ -123,13 +228,17 @@ curl -sf "$BASE/api/runs/smoke-run" | grep -q '"state":"running"'
 test -f .mt/mt.sqlite   # bun:sqlite opened
 curl -sf -X POST -H 'content-type: application/json' -d '{"a":1}' "$BASE/api/runs/smoke-run/items" \
   | grep -q '"received":true'
-curl -sf "$BASE/api/runs/smoke-run/events" | grep -q 'event: started'
-# SSE stream mode stays open: connect, expect the replayed event, then time out (curl rc 28)
+# the events endpoint streams, so read it with a timeout instead of piping into grep
+EVENTS="$(curl -sf --max-time 2 "$BASE/api/runs/smoke-run/events" || true)"
+echo "$EVENTS" | grep -q 'event: started'
+# SSE stream mode stays open: connect, expect the replayed event, then time out.
+# The timeout exit code differs between curl builds (28 on glibc, 23 on alpine), so only the
+# failure and the replayed event are asserted.
 set +e
 SSE="$(curl -sN --max-time 2 "$BASE/api/runs/smoke-run/events?stream=true")"
 RC=$?
 set -e
-test "$RC" -eq 28
+test "$RC" -ne 0
 echo "$SSE" | grep -q 'event: started'
 curl -sf "$BASE/" | grep -qi '<div id="app">'
 ASSET="$(curl -sf "$BASE/" | grep -o '/assets/[^"]*\.js' | head -1)"
@@ -149,7 +258,7 @@ kill "$SERVER_PID"
 for _ in $(seq 1 25); do kill -0 "$SERVER_PID" 2>/dev/null || break; sleep 0.2; done
 if kill -0 "$SERVER_PID" 2>/dev/null; then echo "serve did not stop on SIGTERM"; exit 1; fi
 
-echo "7/8 mt serve --detach (re-execs the binary), then stop via pid file"
+echo "11/12 mt serve --detach (re-execs the binary), then stop via pid file"
 rm -rf .mt/backend
 run serve --detach --port 0 --host 127.0.0.1 | grep -q "Backend PID"
 DPID="$(cat .mt/backend/pid)"
@@ -166,7 +275,7 @@ kill "$DPID"
 for _ in $(seq 1 25); do kill -0 "$DPID" 2>/dev/null || break; sleep 0.2; done
 if kill -0 "$DPID" 2>/dev/null; then echo "detached serve did not stop"; exit 1; fi
 
-echo "8/8 no stray processes"
+echo "12/12 no stray processes"
 for p in $PIDS; do if kill -0 "$p" 2>/dev/null; then echo "leaked pid $p"; exit 1; fi; done
 
 echo "smoke OK"

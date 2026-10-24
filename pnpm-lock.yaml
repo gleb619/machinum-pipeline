@@ -153,6 +153,9 @@ importers:
 
   packages/mt:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.133.0
+        version: 0.133.0(zod@3.25.76)
       '@markschema/mdshape':
         specifier: ^1.0.0
         version: 1.0.0
@@ -174,6 +177,9 @@ importers:
       mdast-util-to-string:
         specifier: ^4.0.0
         version: 4.0.0
+      openai:
+        specifier: ^7.32.0
+        version: 7.32.0(zod@3.25.76)
       remark:
         specifier: ^15.0.1
         version: 15.0.1
