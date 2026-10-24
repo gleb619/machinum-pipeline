@@ -3,7 +3,7 @@
 
 Path: `packages/router/`
 
-Standalone Nuxt/Nitro app. OpenAI-compatible reverse proxy in front of OpenRouter. Runs on a configurable port (default 7777). **Standalone** — has no dependency on any other `@mt/*` package except optional shared config types.
+Standalone Nuxt/Nitro app. OpenAI-compatible reverse proxy in front of OpenRouter. Runs on a configurable port (default 7777). **Standalone** — zero `@mt/*` dependencies (no imports, no `package.json` deps), enforced by [packages/router/tests/layers.arch.test.ts](../../packages/router/tests/layers.arch.test.ts).
 
 ## Purpose
 
@@ -30,8 +30,14 @@ packages/router/server/routes/api/
 
 ## Key Utilities
 
+### `server/utils/openrouter-pool.ts`
+Router-local key pool (`OpenRouterPool` + `OpenRouterPoolSupplier`): round-robin, 429 block, 402 disable, TTL recreate.
+Deliberate copy of the same half of `packages/tools/src/core/openrouter-pool.ts` — the standalone rule beats
+single-sourcing it, so keep both in sync when pool semantics change.
+
 ### `server/utils/openrouter-pool-supplier.ts`
-Wraps the key pool from `@mt/tools` for use inside Nitro context. Returns the shared pool singleton.
+Wraps the router-local pool for use inside Nitro context, building clients from the effective router config
+(`getRouterConfig().apiKeys`) so CLI flags and `secrets.envFile` reach the pool. Returns the shared pool singleton.
 
 ### `server/utils/cost-tracker.ts`
 - `logCall(model, usage, cost)` — appends to rolling log files under `~/.mt/router/<YYYY-MM-DD>/log.json`

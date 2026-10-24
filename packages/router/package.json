@@ -11,8 +11,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mt/core": "workspace:*",
-    "@mt/tools": "workspace:*",
     "nitropack": "^2.10.0",
     "h3": "^1.13.0"
   },

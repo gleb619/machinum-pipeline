@@ -1,8 +1,8 @@
-import { OpenRouterPool } from '@mt/tools'
 import { createError, defineEventHandler, getHeader, getQuery, readBody } from 'h3'
 import { isMockMode } from '../../plugins/mock-mode.js'
 import { logCall } from '../../utils/cost-tracker.js'
 import { poolSupplier } from '../../utils/openrouter-pool-supplier.js'
+import { OpenRouterPool } from '../../utils/openrouter-pool.js'
 
 interface TranslateRequest {
   text: string | string[]

@@ -1,4 +1,4 @@
-import { type OpenRouterPool, OpenRouterPoolSupplier } from '@mt/tools'
+import { type OpenRouterPool, OpenRouterPoolSupplier } from './openrouter-pool.js'
 import { getRouterConfig } from './router-config.js'
 
 let supplier: OpenRouterPoolSupplier | undefined
