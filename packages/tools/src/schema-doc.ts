@@ -313,10 +313,10 @@ function schemaDocChapterNum(meta: Record<string, unknown>): number {
   return (meta.chapterNum as number) || (meta.chapter as number) || 1
 }
 
-/** Slot `emit`: markdown -> `meta.mdOutputs` entry in chapters/schema. */
+/** Slot `emit`: markdown -> `meta.mdOutputs` intent for `<target-root>/schema`. */
 export const schemaDocEmit = mdOutputEmitter({
   name: 'schema-doc',
-  dir: 'chapters/schema',
+  subdir: 'schema',
   filename: (meta) => `chapter${schemaDocChapterNum(meta)}.schema.md`,
   toolName: 'schema-doc-emit',
 })

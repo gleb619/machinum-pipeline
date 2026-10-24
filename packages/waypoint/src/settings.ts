@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { isAbsolute, join, resolve } from 'node:path'
 import { type Settings, getSetting } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 
@@ -27,6 +27,32 @@ export function resolveWaypointPath(
   if (rawPath.length > 0 && rawPath[0] === '/') return rawPath
 
   return join(defaultFolder, rawPath)
+}
+
+/**
+ * Resolve a waypoint's base directory to an absolute path, independent of
+ * `process.cwd()`.
+ *
+ * Rules (in order):
+ * - absolute URI path → returned unchanged
+ * - `waypoint.<scheme>.defaultFolder` set → `<projectRoot>/<defaultFolder>/<rawPath>`
+ * - otherwise → `<projectRoot>/<rawPath>`
+ *
+ * Use this where a waypoint needs a *root* it composes paths under (e.g. the
+ * `md://` directory target and its `meta.mdOutputs` intents).
+ */
+export function resolveWaypointRoot(
+  uri: ParsedUri,
+  scheme: string,
+  settings: Settings | undefined,
+  projectRoot: string,
+): string {
+  const rawPath = uri.path || uri.host
+  if (isAbsolute(rawPath)) return rawPath
+  const defaultFolder = getWaypointSetting<string>(settings, scheme, 'defaultFolder')
+  return defaultFolder
+    ? resolve(projectRoot, defaultFolder, rawPath)
+    : resolve(projectRoot, rawPath)
 }
 
 /**

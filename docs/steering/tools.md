@@ -212,7 +212,7 @@ export const myDoc = defineComposableTool({
   name: 'my-doc', version: '1.0.0', mdDescription: '...',
   slots: {
     build: myBuildTool,                                        // pure: meta -> markdown
-    emit: mdOutputEmitter({ name: 'my-doc', dir: 'chapters/x', filename: (m) => `c${m.chapterNum}.md` }),
+    emit: mdOutputEmitter({ name: 'my-doc', subdir: 'x', filename: (m) => `c${m.chapterNum}.md` }),
   },
 })
 // pipeline author: reuse build, replace emit (any Tool or fn); original stays intact

@@ -276,10 +276,10 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
   },
 })
 
-/** Slot `emit`: only when meta carries a chapter number; entry goes to chapters/en. */
+/** Slot `emit`: only when meta carries a chapter number; intent targets the md:// root. */
 export const chapterDocEmit = mdOutputEmitter({
   name: 'chapter',
-  dir: 'chapters/en',
+  subdir: '',
   filename: (meta) => `chapter${(meta.chapterDoc as ChapterDoc).number}.md`,
   when: (meta) => meta.chapterNum !== undefined || meta.chapter !== undefined,
   toolName: 'chapter-doc-emit',

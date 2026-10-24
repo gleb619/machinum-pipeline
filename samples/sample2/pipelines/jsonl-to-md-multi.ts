@@ -34,6 +34,8 @@ import '@mt/waypoint'
 // Shortcuts are defined in this sample's mt.json under "uris", e.g.:
 //   "uris": { "en": "md://./chapters/en", "ru": "chapter-output://./chapters" }
 // They are resolved at pipeline run time; full URIs still work unchanged.
+// Tools never name these roots: they emit write intents (subdir + filename) and
+// the md:// target resolves them under whichever root the URI points at.
 
 // === Stub translation tool (in-memory, no API call) ===
 const stubTranslator = defineTool<string, string>({
@@ -124,7 +126,7 @@ export const schemaDocPipeline = definePipeline()
   .to('md://./chapters')
 
 // Same build as schemaDocPipeline, but the emit slot is swapped for a mock writer:
-// markdown is tagged and redirected to chapters/schema-mock (no fork of schemaDocWriter).
+// markdown is tagged and redirected to the target root's schema-mock subfolder.
 const mockSchemaEmit = defineTool<string, string>({
   name: 'mock-schema-emit',
   version: '1.0.0',
@@ -136,7 +138,7 @@ const mockSchemaEmit = defineTool<string, string>({
       ...existing,
       {
         name: 'schema-doc-mock',
-        dir: 'chapters/schema-mock',
+        subdir: 'schema-mock',
         filename: `chapter${n}.mock.md`,
         content,
       },
@@ -222,7 +224,7 @@ const toLlmGateInput = defineTool<{ title: string; body: string }, unknown>({
   },
 })
 
-// Gate output -> markdown, then the shared emit slot helper writes chapters/llm/chapter<N>.llm.md.
+// Gate output -> markdown, then the shared emit slot helper requests `<root>/llm/chapter<N>.llm.md`.
 const llmSummaryToMd = defineTool<{ content: string; model: string }, string>({
   name: 'llm-summary-to-md',
   version: '1.0.0',
@@ -241,7 +243,7 @@ export const llmGatePipeline = definePipeline()
   .use(
     mdOutputEmitter({
       name: 'llm-summary',
-      dir: 'chapters/llm',
+      subdir: 'llm',
       filename: (meta) => `chapter${meta.chapterNum}.llm.md`,
     }),
   )

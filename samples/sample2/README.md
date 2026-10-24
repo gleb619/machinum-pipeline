@@ -75,15 +75,16 @@ jsonl://./jsonl/input.jsonl
   → use(entitiesTool)      ← meta.entities
   → use(schemaTool)        ← meta.schema
   → use(mdFormatter)       ← meta.mdFormatted / mdAlreadyFormatted
-  → use(schemaDocWriter)   ← builds the schema doc, appends to meta.mdOutputs
-  → md://./chapters        ← writes meta.mdOutputs → chapters/schema/chapter<N>.schema.md
+  → use(schemaDocWriter)   ← builds the schema doc, appends a write intent (subdir 'schema') to meta.mdOutputs
+  → md://./chapters        ← target root; writes <root>/schema/chapter<N>.schema.md
 ```
 
 ### schemaDocMockPipeline — schemaDocWriter with a swapped emit slot
 
 Same chain as `schemaDocPipeline`, but `.use(schemaDocWriter.with({ emit: mockSchemaEmit }))`: the `build`
 slot (markdown assembly) is reused, the `emit` slot is replaced by a sample-local mock that tags the markdown
-and redirects it to `chapters/schema-mock/chapter<N>.mock.md`. Run with `--pipeline schemaDocMockPipeline`.
+and redirects it to the target root's `schema-mock/` subfolder (`chapters/schema-mock/chapter<N>.mock.md`).
+Run with `--pipeline schemaDocMockPipeline`.
 
 ### llmGatePipeline — LLM gate with a mock `call` slot (offline)
 
@@ -97,7 +98,7 @@ jsonl://./jsonl/input.jsonl
         fit:     context budget maxTokens=60, strategies ['dropOldest','truncateLines']
         call:    mock (scripted answer, no network)  <- swapped slot
   → use(llmSummaryToMd)        ← markdown incl. `context: <before> -> <after> tokens` (meta.contextWindow)
-  → use(mdOutputEmitter(...))  ← meta.mdOutputs -> chapters/llm/chapter<N>.llm.md
+  → use(mdOutputEmitter(...))  ← write intent (subdir 'llm') -> <root>/llm/chapter<N>.llm.md
   → md://./chapters
 ```
 
@@ -276,7 +277,8 @@ Reformats the markdown through the shared formatter, setting `meta.mdFormatted` 
 
 ### schemaDocWriter
 Assembles the schema document (frontmatter + Metadata table + Summary + Entities CSV) and appends it to
-`meta.mdOutputs`, which the `md://` directory target writes to `chapters/schema/`. `wordCount`, `tokenCount`,
+`meta.mdOutputs` as a write intent (`subdir: 'schema'`); the `md://` directory target resolves it under
+its own root, i.e. `chapters/schema/` for the sample's `md://./chapters` target. `wordCount`, `tokenCount`,
 and `charLength` are read from meta, falling back to 0 and the item length.
 
 ### stubTranslator

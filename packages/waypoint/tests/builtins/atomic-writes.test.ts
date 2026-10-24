@@ -136,7 +136,7 @@ describe('waypoint targets — atomic writes', () => {
       await target.open(ctx)
       await target.write({ item: '# One', meta: { chapterNum: 1 } }, ctx)
       await target.write(
-        { item: '# Two', meta: { mdOutputs: [{ dir, filename: 'x.md', content: '# X' }] } },
+        { item: '# Two', meta: { mdOutputs: [{ subdir: '', filename: 'x.md', content: '# X' }] } },
         ctx,
       )
       await target.close(ctx)

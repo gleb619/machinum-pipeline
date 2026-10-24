@@ -94,7 +94,31 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 
 ### `settings.ts`
 - `getWaypointSetting(key)` — reads from `mt.json` waypoint section
-- `resolveWaypointPath(uri, ctx)` — resolves relative paths against project root
+- `resolveWaypointPath(uri, scheme, settings)` — bare-filename `defaultFolder` rule for file-style
+  waypoints (returns the raw path when it already contains a directory separator)
+- `resolveWaypointRoot(uri, scheme, settings, projectRoot)` — absolute base directory, independent of
+  `process.cwd()`; used where a waypoint composes paths under a root (`md://` dir mode)
+
+## `md://` dir mode — write intents
+
+A tool never names an output root. It appends a `meta.mdOutputs` intent:
+
+```typescript
+{
+  name: 'schema-doc',      // logical slot, used in diagnostics
+  subdir: 'schema',        // relative to the target root; '' = root itself
+  filename: 'chapter1.schema.md',  // basename only
+  content: '…',
+}
+```
+
+The `md://` target resolves the root in `open()` (`absolute URI path` → `waypoint.md.defaultFolder` →
+`project.root`) and writes `join(root, subdir, filename)` per intent, atomically. `subdir` must be
+relative and free of `..`; `filename` must be a basename. Violations throw — they are tool bugs, not
+paths to normalize. `dir` is a deprecated alias for `subdir` (removed next release).
+
+Consequence: retargeting `.to('md://./out')` moves every intent, and tools stay reusable across
+layouts. `md://<file>` single-file mode ignores `mdOutputs` entirely.
 
 ## Adding a New URI Scheme
 

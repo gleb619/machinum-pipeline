@@ -119,9 +119,21 @@ export interface RunStateData {
   contextRef: string
 }
 
+/**
+ * A write *intent* from a tool to an `md://` directory target.
+ *
+ * Tools describe what to write, never where: the target resolves `subdir` and
+ * `filename` against its own root (URI path, `waypoint.md.defaultFolder`, or
+ * `project.root`) and validates both. Tools must not embed the target root here.
+ */
 export interface MdOutputEntry {
+  /** Logical slot name (e.g. 'schema-doc'); used in diagnostics. */
   name: string
-  dir: string
+  /** Path relative to the target root. `''` (default) = the root itself. No absolute paths, no `..`. */
+  subdir?: string
+  /** @deprecated Use `subdir`. Treated as `subdir` by the `md://` target; removed next release. */
+  dir?: string
+  /** Basename only — no path separators. */
   filename: string
   content: string
 }

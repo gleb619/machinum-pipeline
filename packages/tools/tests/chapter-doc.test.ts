@@ -356,14 +356,14 @@ describe('chapterDoc tool', () => {
 
     const mdOutputs = result.meta.mdOutputs as Array<{
       name: string
-      dir: string
+      subdir: string
       filename: string
       content: string
     }>
     expect(mdOutputs).toEqual([
       {
         name: 'chapter',
-        dir: 'chapters/en',
+        subdir: '',
         filename: 'chapter2.md',
         content: result.item,
       },
@@ -451,7 +451,7 @@ describe('chapterDoc tool', () => {
       item: { title: 'Test', body: 'Body.' },
       meta: {
         chapterNum: 3,
-        mdOutputs: [{ name: 'existing', dir: 'tmp', filename: 'x.md', content: 'x' }],
+        mdOutputs: [{ name: 'existing', subdir: 'tmp', filename: 'x.md', content: 'x' }],
       },
     }
 
@@ -459,20 +459,20 @@ describe('chapterDoc tool', () => {
 
     const mdOutputs = result.meta.mdOutputs as Array<{
       name: string
-      dir: string
+      subdir: string
       filename: string
       content: string
     }>
     expect(mdOutputs).toHaveLength(2)
     expect(mdOutputs[0]).toEqual({
       name: 'existing',
-      dir: 'tmp',
+      subdir: 'tmp',
       filename: 'x.md',
       content: 'x',
     })
     expect(mdOutputs[1]).toEqual({
       name: 'chapter',
-      dir: 'chapters/en',
+      subdir: '',
       filename: 'chapter3.md',
       content: result.item,
     })

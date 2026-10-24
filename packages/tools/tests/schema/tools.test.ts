@@ -499,7 +499,7 @@ describe('schema-doc pipeline shape', () => {
     expect(md).toContain('```mermaid')
     expect(readDoc(md).entities).toHaveLength(4)
     expect(written.meta.mdOutputs).toMatchObject([
-      { dir: 'chapters/schema', filename: 'chapter1.schema.md' },
+      { subdir: 'schema', filename: 'chapter1.schema.md' },
     ])
   })
 })

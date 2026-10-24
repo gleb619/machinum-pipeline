@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { SourceContext } from '@mt/core'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { SourceContext, TargetContext } from '@mt/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMdSource, createMdTarget } from '../../src/md.js'
 import type { ParsedUri } from '../../src/uri.js'
 
@@ -186,9 +186,8 @@ describe('md target', () => {
     expect(readFileSync(join(dir, 'chapter10.md'), 'utf-8')).toBe('# Second')
   })
 
-  it('should write files from meta.mdOutputs and ignore base path', async () => {
-    const baseDir = join(tempDir, 'ignored')
-    const targetDir = join(tempDir, 'custom')
+  it('should write files from meta.mdOutputs under the target root', async () => {
+    const baseDir = join(tempDir, 'chapters')
     const uri: ParsedUri = {
       raw: `md://${baseDir}`,
       host: baseDir,
@@ -204,8 +203,8 @@ describe('md target', () => {
         item: 'should be ignored',
         meta: {
           mdOutputs: [
-            { dir: targetDir, filename: 'intro.md', content: '# Custom Intro' },
-            { dir: targetDir, filename: 'outro.md', content: '# Custom Outro' },
+            { name: 'intro', subdir: '', filename: 'intro.md', content: '# Custom Intro' },
+            { name: 'outro', subdir: '', filename: 'outro.md', content: '# Custom Outro' },
           ],
         },
       },
@@ -213,8 +212,174 @@ describe('md target', () => {
     )
     await target.close(ctx)
 
-    expect(readFileSync(join(targetDir, 'intro.md'), 'utf-8')).toBe('# Custom Intro')
-    expect(readFileSync(join(targetDir, 'outro.md'), 'utf-8')).toBe('# Custom Outro')
+    expect(readFileSync(join(baseDir, 'intro.md'), 'utf-8')).toBe('# Custom Intro')
+    expect(readFileSync(join(baseDir, 'outro.md'), 'utf-8')).toBe('# Custom Outro')
     expect(() => readFileSync(join(baseDir, 'chapter1.md'), 'utf-8')).toThrow()
+  })
+})
+
+describe('md target — mdOutputs intents', () => {
+  let tempDir: string
+  let ctx: TargetContext
+
+  const uri = (path = './chapters'): ParsedUri => ({
+    raw: `md://${path}`,
+    host: path,
+    path,
+    query: {},
+  })
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'md-intent-'))
+    ctx = {
+      run: {
+        runId: 'run-1',
+        global: { project: { name: 'test', root: tempDir }, settings: {} },
+      },
+    } as unknown as TargetContext
+  })
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('resolves a relative root against project.root, not process.cwd()', async () => {
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await target.write(
+      {
+        item: 'x',
+        meta: { mdOutputs: [{ name: 'a', subdir: 'schema', filename: 'a.md', content: 'A' }] },
+      },
+      ctx,
+    )
+    await target.close(ctx)
+
+    expect(readFileSync(join(tempDir, 'chapters', 'schema', 'a.md'), 'utf-8')).toBe('A')
+  })
+
+  it('treats subdir "" as the target root', async () => {
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await target.write(
+      { item: 'x', meta: { mdOutputs: [{ name: 'a', filename: 'a.md', content: 'A' }] } },
+      ctx,
+    )
+    await target.close(ctx)
+
+    expect(readFileSync(join(tempDir, 'chapters', 'a.md'), 'utf-8')).toBe('A')
+  })
+
+  it('applies waypoint.md.defaultFolder to the root', async () => {
+    ctx = {
+      run: {
+        runId: 'run-1',
+        global: {
+          project: { name: 'test', root: tempDir },
+          settings: { 'waypoint.md.defaultFolder': 'out' },
+        },
+      },
+    } as unknown as TargetContext
+
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await target.write(
+      {
+        item: 'x',
+        meta: { mdOutputs: [{ name: 'a', subdir: 'schema', filename: 'a.md', content: 'A' }] },
+      },
+      ctx,
+    )
+    await target.close(ctx)
+
+    expect(readFileSync(join(tempDir, 'out', 'chapters', 'schema', 'a.md'), 'utf-8')).toBe('A')
+  })
+
+  it('rejects an absolute subdir', async () => {
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await expect(
+      target.write(
+        {
+          item: 'x',
+          meta: {
+            mdOutputs: [{ name: 'evil', subdir: '/etc', filename: 'a.md', content: 'A' }],
+          },
+        },
+        ctx,
+      ),
+    ).rejects.toThrow(/subdir must be relative/)
+  })
+
+  it('rejects a subdir that escapes the root', async () => {
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await expect(
+      target.write(
+        {
+          item: 'x',
+          meta: {
+            mdOutputs: [{ name: 'evil', subdir: '../escape', filename: 'a.md', content: 'A' }],
+          },
+        },
+        ctx,
+      ),
+    ).rejects.toThrow(/must not escape/)
+  })
+
+  it('rejects a filename containing a separator', async () => {
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await expect(
+      target.write(
+        {
+          item: 'x',
+          meta: {
+            mdOutputs: [{ name: 'evil', filename: '../a.md', content: 'A' }],
+          },
+        },
+        ctx,
+      ),
+    ).rejects.toThrow(/filename must be a basename/)
+  })
+
+  it('still accepts the deprecated dir field as a subdir', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await target.write(
+      {
+        item: 'x',
+        meta: { mdOutputs: [{ name: 'legacy', dir: 'legacy', filename: 'a.md', content: 'A' }] },
+      },
+      ctx,
+    )
+    await target.close(ctx)
+    warn.mockRestore()
+
+    expect(readFileSync(join(tempDir, 'chapters', 'legacy', 'a.md'), 'utf-8')).toBe('A')
+  })
+
+  it('warns when two intents in one envelope claim the same path', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const target = createMdTarget<string>(uri())
+    await target.open(ctx)
+    await target.write(
+      {
+        item: 'x',
+        meta: {
+          mdOutputs: [
+            { name: 'first', subdir: 'dup', filename: 'a.md', content: 'one' },
+            { name: 'second', subdir: 'dup', filename: 'a.md', content: 'two' },
+          ],
+        },
+      },
+      ctx,
+    )
+    await target.close(ctx)
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("'first' and 'second'"))
+    warn.mockRestore()
+    expect(readFileSync(join(tempDir, 'chapters', 'dup', 'a.md'), 'utf-8')).toBe('two')
   })
 })
