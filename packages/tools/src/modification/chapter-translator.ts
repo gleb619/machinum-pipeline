@@ -1,7 +1,7 @@
 import { defineComposableTool, defineTool } from '@mt/core'
 import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
+import { type TranslateInput, type TranslateOutput, translateText } from '../core/translate-text.js'
 import { type ChapterDoc, readChapterDoc, writeChapterDoc } from './chapter-doc.js'
-import { type TranslateInput, type TranslateOutput, translateText } from './translate-text.js'
 
 // ---------------------------------------------------------------------------
 // Input / Output types

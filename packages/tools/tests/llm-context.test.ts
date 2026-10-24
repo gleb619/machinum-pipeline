@@ -1,6 +1,6 @@
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
-import type { LlmMessage } from '../src/modification/llm-client.js'
+import type { LlmMessage } from '../src/core/llm-client.js'
 import {
   type ShrinkStrategy,
   contextWindow,
@@ -14,8 +14,8 @@ import {
   truncateHead,
   truncateLines,
   truncateTail,
-} from '../src/modification/llm-context.js'
-import { mockLlmClient } from '../src/verification/llm-gate.js'
+} from '../src/core/llm-context.js'
+import { mockLlmClient } from '../src/core/llm-gate.js'
 
 /** 1 token per 4 chars; deterministic. */
 const countTokens = (t: string) => Math.ceil(t.length / 4)

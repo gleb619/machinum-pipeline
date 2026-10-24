@@ -1,14 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { LlmRequest } from '../src/modification/llm-client.js'
-import { resolveLlmConfig } from '../src/modification/llm-config.js'
-import { withCache } from '../src/modification/llm-decorators.js'
-import {
-  createAnthropicSdkClient,
-  createOpenAiSdkClient,
-  defaultTransportKind,
-  mapSdkError,
-} from '../src/modification/llm-sdk-transports.js'
-import { OpenRouterPoolSupplier } from '../src/modification/openrouter-pool.js'
+import type { LlmRequest } from '../src/core/llm-client.js'
+import { resolveLlmConfig } from '../src/core/llm-config.js'
+import { withCache } from '../src/core/llm-decorators.js'
 import {
   LlmAbortError,
   LlmAuthError,
@@ -18,7 +11,14 @@ import {
   LlmRateLimitError,
   LlmServerError,
   LlmTimeoutError,
-} from '../src/verification/llm-errors.js'
+} from '../src/core/llm-errors.js'
+import {
+  createAnthropicSdkClient,
+  createOpenAiSdkClient,
+  defaultTransportKind,
+  mapSdkError,
+} from '../src/core/llm-sdk-transports.js'
+import { OpenRouterPoolSupplier } from '../src/core/openrouter-pool.js'
 
 // ---------------------------------------------------------------------------
 // Mock SDKs (vi.mock intercepts the adapters' dynamic imports)

@@ -1,6 +1,14 @@
 import { defineTool } from '@mt/core'
 import type { Tool, ToolContext } from '@mt/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { mockLlmCall } from '../src/core/llm-gate.js'
+import { llmTranslate } from '../src/core/llm-translate.js'
+import {
+  type TranslateInput,
+  type TranslateOutput,
+  createTranslateText,
+  translateText,
+} from '../src/core/translate-text.js'
 import {
   type ParagraphTranslatorState,
   type TitleTranslatorState,
@@ -9,14 +17,6 @@ import {
   paragraphTranslator,
   titleTranslator,
 } from '../src/modification/chapter-translator.js'
-import { llmTranslate } from '../src/modification/llm-translate.js'
-import {
-  type TranslateInput,
-  type TranslateOutput,
-  createTranslateText,
-  translateText,
-} from '../src/modification/translate-text.js'
-import { mockLlmCall } from '../src/verification/llm-gate.js'
 
 const ctx = {} as ToolContext
 

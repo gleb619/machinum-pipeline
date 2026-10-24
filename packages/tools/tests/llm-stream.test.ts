@@ -1,7 +1,7 @@
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it, vi } from 'vitest'
-import type { LlmClient, LlmRequest, LlmResponse } from '../src/modification/llm-client.js'
-import { createLlmGate, mockLlmCall } from '../src/verification/llm-gate.js'
+import type { LlmClient, LlmRequest, LlmResponse } from '../src/core/llm-client.js'
+import { createLlmGate, mockLlmCall } from '../src/core/llm-gate.js'
 
 const ctx = {} as ToolContext
 

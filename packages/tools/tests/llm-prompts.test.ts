@@ -10,7 +10,7 @@ import {
   renderTemplate,
   resolvePrompt,
   resolvePromptTemplate,
-} from '../src/modification/llm-prompts.js'
+} from '../src/core/llm-prompts.js'
 
 const vars = { text: 'hello', targetLang: 'ru', sourceLang: 'en' }
 

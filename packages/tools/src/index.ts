@@ -21,7 +21,7 @@ export {
   type ChatCompletionOutput,
   type PromptInput,
   type PromptOutput,
-} from './modification/openrouter-tool.js'
+} from './core/openrouter-tool.js'
 
 export {
   readChapter,
@@ -97,7 +97,7 @@ export {
   type TranslateOutput,
   type TranslateToolConfig,
   type TranslateTextOptions,
-} from './modification/translate-text.js'
+} from './core/translate-text.js'
 
 export {
   OpenRouterPool,
@@ -106,7 +106,7 @@ export {
   sharedPoolFor,
   type OpenRouterClient,
   type OpenRouterPoolConfig,
-} from './modification/openrouter-pool.js'
+} from './core/openrouter-pool.js'
 
 export {
   chapterValidator,
@@ -183,9 +183,9 @@ export {
   readDirectory,
   readTextFile,
   readTextFileSync,
-} from './normalization/fs-read.js'
+} from './core/fs-read.js'
 
-export { atomicWriteFile } from './modification/fs-write.js'
+export { atomicWriteFile } from './core/fs-write.js'
 
 export {
   markdownStats,
@@ -224,7 +224,7 @@ export {
   appendMdOutput,
   mdOutputEmitter,
   type MdOutputEmitterConfig,
-} from './modification/md-outputs.js'
+} from './core/md-outputs.js'
 
 // --- LLM toolkit (client, config, prompts, context window, gate) ---
 export {
@@ -246,7 +246,7 @@ export {
   fetchTransport,
   createAdapter,
   createLlmClient,
-} from './modification/llm-client.js'
+} from './core/llm-client.js'
 
 export {
   createOpenAiSdkClient,
@@ -258,7 +258,7 @@ export {
   setSdkPackageAvailableForTests,
   type OpenAiSdkClientOptions,
   type AnthropicSdkClientOptions,
-} from './modification/llm-sdk-transports.js'
+} from './core/llm-sdk-transports.js'
 
 export {
   withTimeout,
@@ -267,7 +267,7 @@ export {
   cacheableRequest,
   type LlmRetryOptions,
   type LlmCacheOptions,
-} from './modification/llm-decorators.js'
+} from './core/llm-decorators.js'
 
 export {
   LlmError,
@@ -283,7 +283,7 @@ export {
   LlmParseError,
   classifyHttpError,
   isRetryableLlmError,
-} from './verification/llm-errors.js'
+} from './core/llm-errors.js'
 
 export {
   LLM_PROVIDERS,
@@ -299,7 +299,7 @@ export {
   type ResolvedLlmConfig,
   type ResolveLlmConfigArgs,
   type CtxView,
-} from './modification/llm-config.js'
+} from './core/llm-config.js'
 
 export {
   PromptVariableError,
@@ -316,7 +316,7 @@ export {
   type PromptTemplate,
   type PromptSources,
   type PromptSource,
-} from './modification/llm-prompts.js'
+} from './core/llm-prompts.js'
 
 export {
   contextWindow,
@@ -353,7 +353,7 @@ export {
   type ResolvedContextConfig,
   type FitOptions,
   type Fitter,
-} from './modification/llm-context.js'
+} from './core/llm-context.js'
 
 export {
   createLlmGate,
@@ -376,10 +376,10 @@ export {
   type MockAnswer,
   type MockLlmClient,
   type MockLlmCall,
-} from './verification/llm-gate.js'
+} from './core/llm-gate.js'
 
 export {
   llmTranslate,
   type LlmTranslateInput,
   type LlmTranslateOutput,
-} from './modification/llm-translate.js'
+} from './core/llm-translate.js'

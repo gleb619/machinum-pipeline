@@ -1,6 +1,6 @@
 import { basename, join } from 'node:path'
 
-import { isDirectory, readDirectory, readTextFile } from './fs-read.js'
+import { isDirectory, readDirectory, readTextFile } from '../core/fs-read.js'
 
 import type { Nodes, Root, RootContent } from 'mdast'
 import remarkFrontmatter from 'remark-frontmatter'
@@ -113,7 +113,7 @@ export function parseMarkdown(input: string): Root {
 // Filesystem helpers
 // ---------------------------------------------------------------------------
 
-export { atomicWriteFile } from '../modification/fs-write.js'
+export { atomicWriteFile } from '../core/fs-write.js'
 
 /**
  * Expand file and directory paths into a sorted list of `.md` files.

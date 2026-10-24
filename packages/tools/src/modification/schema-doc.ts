@@ -4,7 +4,7 @@ import { defineComposableTool, defineTool } from '@mt/core'
 import type { Envelope, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
-import { mdOutputEmitter } from './md-outputs.js'
+import { mdOutputEmitter } from '../core/md-outputs.js'
 
 export interface SchemaDocMetadata {
   chapter: number

@@ -1,8 +1,8 @@
 import { defineTool } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
+import { appendMdOutput, mdOutputEmitter } from '../src/core/md-outputs.js'
 import { chapterDoc } from '../src/modification/chapter-doc.js'
-import { appendMdOutput, mdOutputEmitter } from '../src/modification/md-outputs.js'
 import { schemaDocWriter } from '../src/modification/schema-doc.js'
 
 const ctx = {} as ToolContext

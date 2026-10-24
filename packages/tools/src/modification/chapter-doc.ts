@@ -2,8 +2,8 @@ import { defineComposableTool, defineTool } from '@mt/core'
 import type { Envelope, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
+import { mdOutputEmitter } from '../core/md-outputs.js'
 import { formatString } from './md-formatter.js'
-import { mdOutputEmitter } from './md-outputs.js'
 
 // ---------------------------------------------------------------------------
 // Types

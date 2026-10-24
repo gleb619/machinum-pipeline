@@ -1,17 +1,17 @@
 import { defineTool } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { LlmHttpRequest } from '../src/modification/llm-client.js'
-import { llmTranslate } from '../src/modification/llm-translate.js'
-import { chatCompletion, runPrompt } from '../src/modification/openrouter-tool.js'
-import { LlmContextLengthError, LlmParseError } from '../src/verification/llm-errors.js'
+import type { LlmHttpRequest } from '../src/core/llm-client.js'
+import { LlmContextLengthError, LlmParseError } from '../src/core/llm-errors.js'
 import {
   type GateState,
   createLlmGate,
   extractJson,
   llmGate,
   mockLlmCall,
-} from '../src/verification/llm-gate.js'
+} from '../src/core/llm-gate.js'
+import { llmTranslate } from '../src/core/llm-translate.js'
+import { chatCompletion, runPrompt } from '../src/core/openrouter-tool.js'
 
 const ctx = {} as ToolContext
 const ctxWith = (global: Record<string, unknown>): ToolContext =>
