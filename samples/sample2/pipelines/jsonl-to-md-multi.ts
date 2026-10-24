@@ -41,6 +41,7 @@ import '@mt/waypoint'
 const stubTranslator = defineTool<string, string>({
   name: 'stub-translator',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => {
     const text = env.item as string
     // Simple stub: wrap paragraphs in [ru]...[/ru] markers
@@ -132,6 +133,7 @@ export const schemaDocPipeline = definePipeline()
 const mockSchemaEmit = defineTool<string, string>({
   name: 'mock-schema-emit',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => {
     const n = (env.meta.chapterNum as number | undefined) ?? 1
     const content = `<!-- mock-emit -->\n${env.item}`
@@ -220,6 +222,7 @@ const chapterSummaryGate = createLlmGate<
 const toLlmGateInput = defineTool<{ title: string; body: string }, unknown>({
   name: 'to-llm-gate-input',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => {
     const { title, body } = env.item
     const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
@@ -232,6 +235,7 @@ const toLlmGateInput = defineTool<{ title: string; body: string }, unknown>({
 const llmSummaryToMd = defineTool<{ content: string; model: string }, string>({
   name: 'llm-summary-to-md',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => {
     const cw = env.meta.contextWindow as { before: number; after: number } | undefined
     const md = `## LLM summary\n\n${env.item.content}\n\ncontext: ${cw?.before} -> ${cw?.after} tokens\n`
@@ -262,6 +266,7 @@ export const llmGatePipeline = definePipeline()
 const titleTranslateSlotMock = defineTool<TitleTranslatorState, TitleTranslatorState>({
   name: 'title-translate-slot-mock',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => ({
     item: env.item.title
       ? { ...env.item, translatedTitle: `[mock]${env.item.title}[/mock]` }
@@ -273,6 +278,7 @@ const titleTranslateSlotMock = defineTool<TitleTranslatorState, TitleTranslatorS
 const paragraphTranslateSlotMock = defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
   name: 'paragraph-translate-slot-mock',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => ({
     item: { ...env.item, translated: env.item.paragraphs.map((p) => `[mock]${p}[/mock]`) },
     meta: env.meta,
@@ -282,6 +288,7 @@ const paragraphTranslateSlotMock = defineTool<ParagraphTranslatorState, Paragrap
 const toChapterTranslateInput = defineTool<{ title: string; body: string }, TitleTranslatorInput>({
   name: 'to-chapter-translate-input',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => {
     const { title, body } = env.item
     const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
@@ -296,6 +303,7 @@ const toChapterTranslateInput = defineTool<{ title: string; body: string }, Titl
 const translateOutputToMd = defineTool<{ text: string }, string>({
   name: 'translate-output-to-md',
   version: '1.0.0',
+  mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => ({ item: env.item.text, meta: env.meta }),
 })
 

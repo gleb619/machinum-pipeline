@@ -8,6 +8,7 @@
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
     "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/schema-mock/*.md chapters/llm/*.md chapters/translate-mock/*.md jsonl/input.jsonl .mt",
+    "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest"
   },
