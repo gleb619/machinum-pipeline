@@ -85,6 +85,7 @@ const defaultRetry = { max: 0, backoffMs: 0, strategy: 'fixed' as const }
 const processTool: Tool<unknown, unknown> = {
   name: 'process-tool',
   version: '1.0.0',
+  mdDescription: 'Process tool for subflow tests.',
   exec: 'inproc',
   invoke: vi.fn(async (env: Envelope<unknown>) => ({
     ...env,
@@ -167,6 +168,7 @@ describe('runner subflow', () => {
     const recordingTool: Tool<unknown, unknown> = {
       name: 'recording-tool',
       version: '1.0.0',
+      mdDescription: 'Test tool recording-tool for subflow tests.',
       exec: 'inproc',
       invoke: async (env) => {
         order.push('subflow')
@@ -246,6 +248,7 @@ describe('runner subflow', () => {
     const orchTool: Tool<unknown, unknown> = {
       name: 'orch-tool',
       version: '1.0.0',
+      mdDescription: 'Test tool orch-tool for subflow tests.',
       exec: 'inproc',
       invoke: vi.fn(async (env) => env),
     }
@@ -289,6 +292,7 @@ describe('runner subflow', () => {
     const orchTool: Tool<unknown, unknown> = {
       name: 'orch-tool',
       version: '1.0.0',
+      mdDescription: 'Test tool orch-tool for subflow tests.',
       exec: 'inproc',
       invoke: vi.fn(async (env) => env),
     }

@@ -40,7 +40,7 @@ describe('UC-50 — Streaming NDJSON to child-process tool (architectural)', () 
     expect(streamChildProcess.length).toBe(3)
   })
 
-  it('streamChildProcess returns an AsyncIterable (has Symbol.asyncIterator)', () => {
+  it('streamChildProcess returns an AsyncIterable (has Symbol.asyncIterator)', async () => {
     // Verify async generator nature by checking return type's iterator symbol
     // streamChildProcess() returns an AsyncGenerator
     const iter = streamChildProcess(
@@ -53,7 +53,10 @@ describe('UC-50 — Streaming NDJSON to child-process tool (architectural)', () 
     expect(typeof iter[Symbol.asyncIterator]).toBe('function')
     // Clean up — the generator will error when the child process fails to spawn
     // (expected — we're testing the interface, not actual execution)
-    iter.return?.()
+    const cleanup = (iter as unknown as AsyncGenerator<Envelope<unknown>>).return
+    if (cleanup) {
+      await cleanup(undefined)
+    }
   })
 })
 

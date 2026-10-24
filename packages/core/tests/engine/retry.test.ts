@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { RetryPolicy } from '../../src/contexts.js'
 import { withRetry } from '../../src/engine/retry.js'
-import type { RetryPolicy } from '../types.js'
 
 describe('withRetry', () => {
   it('returns result on first attempt', async () => {

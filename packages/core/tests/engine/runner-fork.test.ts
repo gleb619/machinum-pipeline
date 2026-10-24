@@ -70,6 +70,7 @@ function multiplierTool(name = 'multiply'): Tool<{ value: number }, { value: num
   return {
     name,
     version: '1.0.0',
+    mdDescription: 'Multiplies item.value by 10.',
     exec: 'inproc',
     invoke: async (env) => ({
       ...env,

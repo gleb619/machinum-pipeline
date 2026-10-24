@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool } from '../src/dsl.js'
-import type { Pipeline, Tool } from '../src/index.js'
+import type { Pipeline, RetryPolicy, Tool } from '../src/index.js'
 
 describe('UC-02 — Author a pipeline in TS (architectural)', () => {
   it('definePipeline returns a PipelineBuilder', () => {
@@ -112,8 +112,8 @@ describe('UC-47 — Configure retry/onError policies (architectural)', () => {
     const p = pipeline as Pipeline
     const toolStep = p.steps.find((s) => s.type === 'tool')
     expect(toolStep).toBeDefined()
-    expect(toolStep?.config.retry?.max).toBe(1)
-    expect(toolStep?.config.retry?.strategy).toBe('fixed')
+    expect((toolStep?.config.retry as RetryPolicy | undefined)?.max).toBe(1)
+    expect((toolStep?.config.retry as RetryPolicy | undefined)?.strategy).toBe('fixed')
     expect(toolStep?.config.onError).toBe('skip-item')
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool, source, target } from '../src/dsl.js'
-import type { Book, Chapter, Envelope, Line, Paragraph } from '../src/index.js'
+import type { Book, Chapter, Envelope, Line, Paragraph, RetryPolicy } from '../src/index.js'
 import { registry } from '../src/uri.js'
 
 // Register jsonl scheme for tests

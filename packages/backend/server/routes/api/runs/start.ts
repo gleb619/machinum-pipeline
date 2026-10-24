@@ -45,6 +45,7 @@ export default defineEventHandler(async (event) => {
       onError: 'fail-run',
       concurrency: 5,
     },
+    settings: {},
     env: process.env as Record<string, string>,
   }
 

@@ -3,13 +3,13 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { SourceContext, TargetContext } from '../../src/contexts.js'
 import {
   GitWorktreeSource,
   GitWorktreeTarget,
   createGitWorktreeSource,
   createGitWorktreeTarget,
-} from '../../../waypoint/src/git-worktree.ts'
-import type { SourceContext, TargetContext } from '../../src/contexts.js'
+} from '../../src/engine/git-worktree-source.js'
 import {
   createWorktree,
   getRepoRoot,
@@ -311,7 +311,7 @@ describe('GitWorktreeSource', () => {
     }
 
     expect(results).toHaveLength(1)
-    expect(results[0].item).toBe('hello')
+    expect(results[0]?.item).toBe('hello')
     // Should have chdir'd into the worktree and back
     expect(chdirSpy).toHaveBeenCalledWith(worktreePath)
     chdirSpy.mockRestore()

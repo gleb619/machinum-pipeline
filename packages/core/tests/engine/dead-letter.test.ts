@@ -24,10 +24,10 @@ describe('writeDeadLetter', () => {
     await writeDeadLetter(store, runId, envelope, error, stepId)
 
     const content = await store.read('runs', runId, 'dead-letter.jsonl')
-    const lines = content.trim().split('\n')
+    const lines = (content as string).trim().split('\n')
     expect(lines.length).toBe(1)
 
-    const entry = JSON.parse(lines[0])
+    const entry = JSON.parse(lines[0] as string)
     expect(entry.timestamp).toBeDefined()
     expect(entry.envelope).toEqual(envelope)
     expect(entry.error).toEqual({
@@ -46,11 +46,11 @@ describe('writeDeadLetter', () => {
     await writeDeadLetter(store, runId, envelope2, new Error('Error 2'), 'step-2')
 
     const content = await store.read('runs', runId, 'dead-letter.jsonl')
-    const lines = content.trim().split('\n')
+    const lines = (content as string).trim().split('\n')
     expect(lines.length).toBe(2)
 
-    const entry1 = JSON.parse(lines[0])
-    const entry2 = JSON.parse(lines[1])
+    const entry1 = JSON.parse(lines[0] as string)
+    const entry2 = JSON.parse(lines[1] as string)
     expect(entry1.error.message).toBe('Error 1')
     expect(entry2.error.message).toBe('Error 2')
   })

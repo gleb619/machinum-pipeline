@@ -14,6 +14,7 @@ export interface EchoInput {
 export const echoTool = defineTool<EchoInput, EchoInput>({
   name: 'fixture-echo',
   version: '1.0.0',
+  mdDescription: 'Echo fixture tool.',
   exec: 'bun',
   module: import.meta.filename,
   invoke: async (env: Envelope<EchoInput>, ctx): Promise<Envelope<EchoInput>> => ({
@@ -29,6 +30,7 @@ export const echoTool = defineTool<EchoInput, EchoInput>({
 export const failingTool = defineTool<EchoInput, EchoInput>({
   name: 'fixture-fail',
   version: '1.0.0',
+  mdDescription: 'Echo fixture tool.',
   exec: 'bun',
   module: import.meta.filename,
   invoke: async (): Promise<Envelope<EchoInput>> => {
@@ -41,6 +43,7 @@ export const tools = {
   'fixture-recorded': defineTool<EchoInput, EchoInput>({
     name: 'fixture-recorded',
     version: '1.0.0',
+    mdDescription: 'Recorded echo fixture tool.',
     exec: 'bun',
     module: import.meta.filename,
     invoke: async (env: Envelope<EchoInput>): Promise<Envelope<EchoInput>> => ({

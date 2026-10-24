@@ -25,7 +25,7 @@ describe('UC-04 — Define custom Source/Target (architectural)', () => {
   it('Source<T> conforms to interface shape', () => {
     const src: Source<unknown> = {
       uri: 'mock://test-source',
-      lifestyle: { type: 'request-response' },
+      lifestyle: 'resumable',
       start: async function* (_ctx: SourceContext) {
         yield { item: {}, meta: {} } as Envelope<unknown>
       },

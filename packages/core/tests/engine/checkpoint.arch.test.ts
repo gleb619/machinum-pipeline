@@ -71,7 +71,7 @@ describe('UC-15 — Checkpoint tree shape & operations (architectural)', () => {
     const child = createRootCheckpoint('child')
     addChild(parent, child)
     expect(parent.children?.length).toBe(1)
-    expect(parent.children?.[0].stepId).toBe('child')
+    expect(parent.children?.[0]?.stepId).toBe('child')
   })
 
   it('isAllDone returns true when all children and root are done', () => {
@@ -107,8 +107,8 @@ describe('UC-15 — Checkpoint tree shape & operations (architectural)', () => {
     const serialized = serializeTree(original)
     const restored = deserializeTree(serialized)
     expect(restored.stepId).toBe('root')
-    expect(restored.children?.[0].stepId).toBe('child')
-    expect(restored.children?.[0].state).toBe('done')
+    expect(restored.children?.[0]?.stepId).toBe('child')
+    expect(restored.children?.[0]?.state).toBe('done')
   })
 
   it('walkTree visits all nodes depth-first', () => {

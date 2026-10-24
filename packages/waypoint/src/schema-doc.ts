@@ -174,8 +174,6 @@ interface MdastNode extends MdastPhrasable {
   depth?: number
   lang?: string
 }
-
-
 function parseSchemaDoc(text: string): SchemaDocEnvelope {
   const { data: frontmatter, content } = matter(text)
   const tree = unified().use(remarkParse).parse(content)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PipelineStep } from '../src/types.js'
+import type { PipelineStep } from '../../src/index.js'
 
 describe('UC-20 — Item routing (architectural)', () => {
   it('PipelineStep.type does not yet include route', () => {
