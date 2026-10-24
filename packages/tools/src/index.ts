@@ -7,6 +7,8 @@ export {
   metadataTool,
   vocabularyTool,
   schemaDocWriter,
+  schemaDocBuild,
+  schemaDocEmit,
   type SchemaDocEnvelope,
   type SchemaDocMetadata,
 } from './schema-doc.js'
@@ -119,7 +121,11 @@ export {
   readChapterDoc,
   writeChapterDoc,
   chapterDoc,
+  chapterDocBuild,
+  chapterDocEmit,
   type ChapterDoc,
   type ChapterDocWarning,
   type ChapterDocParagraph,
 } from './chapter-doc.js'
+
+export { appendMdOutput, mdOutputEmitter, type MdOutputEmitterConfig } from './md-outputs.js'

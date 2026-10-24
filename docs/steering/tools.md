@@ -13,7 +13,7 @@ Chapter processing tools for validation, translation, schema extraction, and for
 - `typoFinder` — detects common Chinese/English typos, mixed scripts
 
 ### `chapter-doc.ts`
-Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`.
+Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`).
 
 ### `schema-doc.ts`
 LLM-powered schema document generation. Runs multiple sub-tools in sequence via OpenRouter:
@@ -22,7 +22,7 @@ LLM-powered schema document generation. Runs multiple sub-tools in sequence via 
 - `schemaTool` — structured schema generation
 - `metadataTool` — metadata extraction
 - `vocabularyTool` — vocabulary/terminology
-- `schemaDocWriter` — persists to `schema-doc://` target
+- `schemaDocWriter` — composable tool, slots `build` (`schemaDocBuild`: meta -> markdown) + `emit` (`schemaDocEmit`: appends `meta.mdOutputs` entry in `chapters/schema`); override via `.with()`
 
 Envelope type: `SchemaDocEnvelope`.
 
@@ -71,6 +71,21 @@ export const myTool = defineTool<Input, Output>({
   },
 })
 ```
+
+**Composable tools / overridable parts** (`md-outputs.ts`, core `defineComposableTool`):
+```typescript
+export const myDoc = defineComposableTool({
+  name: 'my-doc', version: '1.0.0', mdDescription: '...',
+  slots: {
+    build: myBuildTool,                                        // pure: meta -> markdown
+    emit: mdOutputEmitter({ name: 'my-doc', dir: 'chapters/x', filename: (m) => `c${m.chapterNum}.md` }),
+  },
+})
+// pipeline author: reuse build, replace emit (any Tool or fn); original stays intact
+.use(myDoc.with({ emit: mockEmit }))
+```
+`appendMdOutput(meta, entry)` is the shared non-mutating `meta.mdOutputs` append; `mdOutputEmitter` supports `when()` to skip.
+New tools that write md should expose `build`/`emit` slots instead of hardcoding both. Tests: `tests/composition.test.ts`.
 
 **OpenRouter pool** (`openrouter-pool.ts`):
 - Round-robin across `OPENROUTER_API_KEYS` (comma-separated env var)

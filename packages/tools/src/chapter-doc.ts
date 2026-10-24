@@ -1,8 +1,9 @@
-import { defineTool } from '@mt/core'
-import type { Envelope, MdOutputEntry, ToolContext } from '@mt/core'
+import { defineComposableTool, defineTool } from '@mt/core'
+import type { Envelope, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
 import { formatString } from './md-formatter.js'
+import { mdOutputEmitter } from './md-outputs.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -243,11 +244,11 @@ export interface ChapterDocToolInput {
   warnings?: ChapterDocWarning[]
 }
 
-export const chapterDoc = defineTool<ChapterDocToolInput, string>({
-  name: 'chapter-doc',
+/** Slot `build`: chapter input -> YAML-frontmatter markdown; records `meta.chapterDoc`. */
+export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
+  name: 'chapter-doc-build',
   version: '1.0.0',
-  mdDescription:
-    'Serializes chapter metadata (title, number, warnings, body) into YAML-frontmatter markdown.',
+  mdDescription: 'Serializes chapter metadata into YAML-frontmatter markdown.',
   exec: 'inproc',
 
   async invoke(env: Envelope<ChapterDocToolInput>, _ctx: ToolContext): Promise<Envelope<string>> {
@@ -272,29 +273,24 @@ export const chapterDoc = defineTool<ChapterDocToolInput, string>({
     }
 
     const formatted = await writeChapterDoc(doc)
-
-    const existing = (env.meta?.mdOutputs as MdOutputEntry[] | undefined) ?? []
-    const mdOutputs: MdOutputEntry[] | undefined =
-      env.meta?.chapterNum !== undefined || env.meta?.chapter !== undefined
-        ? [
-            ...existing,
-            {
-              name: 'chapter',
-              dir: 'chapters/en',
-              filename: `chapter${number}.md`,
-              content: formatted,
-            },
-          ]
-        : undefined
-
-    const meta: Record<string, unknown> = {
-      ...env.meta,
-      chapterDoc: doc,
-    }
-    if (mdOutputs) {
-      meta.mdOutputs = mdOutputs
-    }
-
-    return { item: formatted, meta }
+    return { item: formatted, meta: { ...env.meta, chapterDoc: doc } }
   },
+})
+
+/** Slot `emit`: only when meta carries a chapter number; entry goes to chapters/en. */
+export const chapterDocEmit = mdOutputEmitter({
+  name: 'chapter',
+  dir: 'chapters/en',
+  filename: (meta) => `chapter${(meta.chapterDoc as ChapterDoc).number}.md`,
+  when: (meta) => meta.chapterNum !== undefined || meta.chapter !== undefined,
+  toolName: 'chapter-doc-emit',
+})
+
+/** Slots: `build`, `emit`. Override with `chapterDoc.with({ emit: myTool })`. */
+export const chapterDoc = defineComposableTool<ChapterDocToolInput, string, 'build' | 'emit'>({
+  name: 'chapter-doc',
+  version: '1.0.0',
+  mdDescription:
+    'Serializes chapter metadata (title, number, warnings, body) into YAML-frontmatter markdown.',
+  slots: { build: chapterDocBuild, emit: chapterDocEmit },
 })

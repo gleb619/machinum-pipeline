@@ -76,6 +76,12 @@ jsonl://./jsonl/input.jsonl
   → md://./chapters        ← writes meta.mdOutputs → chapters/schema/chapter<N>.schema.md
 ```
 
+### schemaDocMockPipeline — schemaDocWriter with a swapped emit slot
+
+Same chain as `schemaDocPipeline`, but `.use(schemaDocWriter.with({ emit: mockSchemaEmit }))`: the `build`
+slot (markdown assembly) is reused, the `emit` slot is replaced by a sample-local mock that tags the markdown
+and redirects it to `chapters/schema-mock/chapter<N>.mock.md`. Run with `--pipeline schemaDocMockPipeline`.
+
 ### translateFlow — MD(EN) → MD(RU)
 
 ```
@@ -178,6 +184,7 @@ The integration test (`tests/jsonl-to-md-multi.test.ts`):
    `chapters/ru/chapter<N>.md` holds the `[ru]…[/ru]` markers produced by `stubTranslator`.
 3. Runs `mt run … --pipeline schemaDocPipeline` and checks that `chapters/schema/chapter<N>.schema.md`
    is generated per chapter, with YAML frontmatter plus the Metadata, Summary, and Entities sections.
+4. Runs `--pipeline schemaDocMockPipeline` and checks output lands only in `chapters/schema-mock/` (slot override).
 
 `tests/chapter-processing.test.ts` covers the tools directly (`chapterValidator`, `tokenSplitter`,
 `forbiddenCharDetector`, `typoFinder`, `markdownFormatter`) by importing them from `packages/tools/src`,

@@ -1,8 +1,10 @@
 import { md } from '@markschema/mdshape'
 import type { TypeMdIssue } from '@markschema/mdshape'
-import { defineTool } from '@mt/core'
-import type { Envelope, MdOutputEntry, ToolContext } from '@mt/core'
+import { defineComposableTool, defineTool } from '@mt/core'
+import type { Envelope, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
+
+import { mdOutputEmitter } from './md-outputs.js'
 
 export interface SchemaDocMetadata {
   chapter: number
@@ -362,16 +364,15 @@ function extractTitleFromInput(item: unknown, chapterNum: number): string {
   return `Chapter ${chapterNum}`
 }
 
-/** Tool: builds a schema-doc markdown from meta and sets meta.mdOutputs for schema-doc writes */
-export const schemaDocWriter = defineTool<unknown, string>({
-  name: 'schema-doc-writer',
+/** Slot `build`: envelope meta -> schema-doc markdown (pure, no mdOutputs). */
+export const schemaDocBuild = defineTool<unknown, string>({
+  name: 'schema-doc-build',
   version: '1.0.0',
-  mdDescription:
-    'Builds schema-doc markdown from envelope metadata. Sets `meta.mdOutputs` for writes.',
+  mdDescription: 'Builds schema-doc markdown from envelope metadata.',
   exec: 'inproc',
   async invoke(env: Envelope<unknown>, _ctx: ToolContext): Promise<Envelope<string>> {
     const meta = (env.meta || {}) as Record<string, unknown>
-    const chapterNum = (meta.chapterNum as number) || (meta.chapter as number) || 1
+    const chapterNum = schemaDocChapterNum(meta)
     const summary = (meta.summary as string) || ''
     const entities = (meta.entities as { index: number; name: string }[]) || []
     const vocabulary = (meta.vocabulary as string[]) || []
@@ -381,41 +382,39 @@ export const schemaDocWriter = defineTool<unknown, string>({
     const charLength =
       (meta.charLength as number) || (typeof env.item === 'string' ? env.item.length : 0)
 
-    const title = extractTitleFromInput(env.item, chapterNum)
-
     const doc: SchemaDocEnvelope = {
-      title,
-      metadata: {
-        chapter: chapterNum,
-        wordCount,
-        tokenCount,
-        charLength,
-      },
+      title: extractTitleFromInput(env.item, chapterNum),
+      metadata: { chapter: chapterNum, wordCount, tokenCount, charLength },
       summary,
       entities,
       vocabulary,
       schema,
     }
 
-    const schemaDocMarkdown = writeDoc(doc)
-
-    const existing = (env.meta.mdOutputs as MdOutputEntry[] | undefined) ?? []
-    const mdOutputs: MdOutputEntry[] = [
-      ...existing,
-      {
-        name: 'schema-doc',
-        dir: 'chapters/schema',
-        filename: `chapter${chapterNum}.schema.md`,
-        content: schemaDocMarkdown,
-      },
-    ]
-
-    return {
-      item: schemaDocMarkdown,
-      meta: {
-        ...env.meta,
-        mdOutputs,
-      },
-    }
+    return { item: writeDoc(doc), meta: { ...env.meta } }
   },
+})
+
+function schemaDocChapterNum(meta: Record<string, unknown>): number {
+  return (meta.chapterNum as number) || (meta.chapter as number) || 1
+}
+
+/** Slot `emit`: markdown -> `meta.mdOutputs` entry in chapters/schema. */
+export const schemaDocEmit = mdOutputEmitter({
+  name: 'schema-doc',
+  dir: 'chapters/schema',
+  filename: (meta) => `chapter${schemaDocChapterNum(meta)}.schema.md`,
+  toolName: 'schema-doc-emit',
+})
+
+/**
+ * Tool: builds a schema-doc markdown from meta and sets meta.mdOutputs for schema-doc writes.
+ * Slots: `build`, `emit`. Override with `schemaDocWriter.with({ emit: myTool })`.
+ */
+export const schemaDocWriter = defineComposableTool<unknown, string, 'build' | 'emit'>({
+  name: 'schema-doc-writer',
+  version: '1.0.0',
+  mdDescription:
+    'Builds schema-doc markdown from envelope metadata. Sets `meta.mdOutputs` for writes.',
+  slots: { build: schemaDocBuild, emit: schemaDocEmit },
 })

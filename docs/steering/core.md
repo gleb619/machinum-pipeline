@@ -49,6 +49,17 @@ definePipeline()
   .to('md://./output.md')
 ```
 
+**Tool composition** (all optional; plain `Tool`s and `.use()` unchanged):
+- `chain(name, ...tools)` — one `Tool` running tools sequentially (output envelope feeds next).
+- `builder.useAll(a, b, c)` — sugar for `.use(a).use(b).use(c)`.
+- `defineComposableTool({ name, version, mdDescription, slots })` — tool built from named, ordered slots
+  (object key order = run order), each slot itself a `Tool`. `tool.with({ slot: Tool | fn })` returns a NEW
+  tool (immutable; the default export is never mutated); unknown slot names throw.
+```typescript
+.use(schemaDocWriter.with({ emit: myMockEmit }))   // keep build, swap emit
+```
+Slot rule: put pure build logic in one slot and I/O/emit (e.g. `meta.mdOutputs`) in another so authors can swap either.
+
 ### `uri.ts` — `UriRegistry`
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.
 Composite schemes (e.g. `git://`) wrap another scheme. Named URI aliases from mt.json (`"uris": { "en": "md://./chapters/en" }`)

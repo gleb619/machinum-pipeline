@@ -19,6 +19,7 @@ async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'chapters', 'en'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'ru'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'schema'), { recursive: true, force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'schema-mock'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'md', 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
@@ -177,5 +178,29 @@ describe('schema-doc pipeline', () => {
     expect(content).toContain('## Entities')
     expect(content).toContain('```csv')
     expect(content).toContain('index,name')
+  })
+})
+
+describe('schema-doc mock-emit pipeline (slot override)', () => {
+  it('runs schemaDocMockPipeline and writes only to chapters/schema-mock', async () => {
+    const fs = await import('node:fs/promises')
+    await fs.rm(join(SAMPLE_DIR, 'chapters', 'schema'), { recursive: true, force: true })
+    execSync(`"${MT_BIN}" run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocMockPipeline`, {
+      cwd: SAMPLE_DIR,
+      stdio: 'pipe',
+      env: { ...process.env, NODE_OPTIONS: '--import tsx' },
+      timeout: 10_000,
+    })
+    for (let i = 1; i <= 3; i++) {
+      const content = await readFile(
+        join(SAMPLE_DIR, 'chapters', 'schema-mock', `chapter${i}.mock.md`),
+        'utf-8',
+      )
+      expect(content).toContain('<!-- mock-emit -->')
+      expect(content).toContain('## Summary')
+    }
+    await expect(
+      fs.access(join(SAMPLE_DIR, 'chapters', 'schema', 'chapter1.schema.md')),
+    ).rejects.toThrow()
   })
 })

@@ -161,6 +161,12 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this as unknown as PipelineBuilder<T, O>
   }
 
+  /** Sugar: `.use()` each tool in order (same as chaining `.use()` calls). */
+  useAll(...tools: Tool<never, unknown>[]): PipelineBuilder<unknown, O> {
+    for (const tool of tools) this.use(tool as Tool<unknown, unknown>)
+    return this as unknown as PipelineBuilder<unknown, O>
+  }
+
   use<T, R>(
     tool: Tool<T, R>,
     overrides?: {
@@ -291,4 +297,94 @@ export function source<T>(uri: string): Source<T> {
  */
 export function target<T>(uri: string): Target<T> {
   return defineTarget<T>(uri)
+}
+
+/** A plain function usable wherever a slot Tool is expected. */
+export type ToolFn<I = unknown, O = unknown> = (
+  env: Envelope<I>,
+  ctx: ToolContext,
+) => Promise<Envelope<O>>
+
+/**
+ * Compose tools into one sequential Tool: each tool's output envelope feeds the next.
+ * Result is a plain Tool, so `.use(chain(...))` works unchanged.
+ */
+export function chain<I = unknown, O = unknown>(
+  name: string,
+  ...tools: Array<Tool<never, unknown> | Tool<unknown, unknown>>
+): Tool<I, O> {
+  const steps = tools as Tool<unknown, unknown>[]
+  return defineTool<I, O>({
+    name,
+    version: '1.0.0',
+    mdDescription: `Chain: ${steps.map((t) => t.name).join(' -> ')}`,
+    async invoke(env, ctx) {
+      let current = env as unknown as Envelope<unknown>
+      for (const tool of steps) current = await tool.invoke(current, ctx)
+      return current as unknown as Envelope<O>
+    },
+  })
+}
+
+/**
+ * Tool made of named, ordered slots (each slot is itself a Tool). `.with()` returns a NEW
+ * tool with some slots replaced - the original is never mutated.
+ */
+export interface ComposableTool<I = unknown, O = unknown, S extends string = string>
+  extends Tool<I, O> {
+  readonly slots: Readonly<Record<S, Tool<never, unknown> | Tool<unknown, unknown>>>
+  with(
+    overrides: Partial<Record<S, Tool<never, unknown> | Tool<unknown, unknown> | ToolFn>>,
+  ): ComposableTool<I, O, S>
+}
+
+/**
+ * Define a tool as sequential slots (object key order = execution order).
+ * Pipeline authors swap parts via `tool.with({ slot: otherTool | fn })`.
+ */
+export function defineComposableTool<I, O, S extends string>(config: {
+  name: string
+  version: string
+  mdDescription: string
+  slots: Record<S, Tool<never, unknown> | Tool<unknown, unknown>>
+}): ComposableTool<I, O, S> {
+  const slots = Object.freeze({ ...config.slots }) as ComposableTool<I, O, S>['slots']
+  const names = Object.keys(slots) as S[]
+  const base = defineTool<I, O>({
+    name: config.name,
+    version: config.version,
+    mdDescription: config.mdDescription,
+    async invoke(env, ctx) {
+      let current = env as unknown as Envelope<unknown>
+      for (const key of names) {
+        current = await (slots[key] as Tool<unknown, unknown>).invoke(current, ctx)
+      }
+      return current as unknown as Envelope<O>
+    },
+  })
+  return {
+    ...base,
+    slots,
+    with(overrides) {
+      const next = { ...slots } as Record<S, Tool<never, unknown> | Tool<unknown, unknown>>
+      for (const key of Object.keys(overrides) as S[]) {
+        const repl = overrides[key]
+        if (repl === undefined) continue
+        if (!(key in slots)) {
+          throw new Error(`Tool '${config.name}' has no slot '${key}' (slots: ${names.join(', ')})`)
+        }
+        if (typeof repl === 'function') {
+          next[key] = defineTool<unknown, unknown>({
+            name: `${config.name}:${key}`,
+            version: config.version,
+            mdDescription: `Override of slot '${key}'`,
+            invoke: repl as ToolFn,
+          })
+        } else {
+          next[key] = repl as Tool<unknown, unknown>
+        }
+      }
+      return defineComposableTool<I, O, S>({ ...config, slots: next })
+    },
+  }
 }

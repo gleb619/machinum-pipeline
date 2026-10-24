@@ -1,4 +1,5 @@
 import { definePipeline, defineTool } from '@mt/core'
+import type { MdOutputEntry } from '@mt/core'
 import {
   chapterDoc,
   chapterIndexer,
@@ -115,6 +116,40 @@ export const schemaDocPipeline = definePipeline()
   .use(schemaTool)
   .use(mdFormatter)
   .use(schemaDocWriter)
+  .to('md://./chapters')
+
+// Same build as schemaDocPipeline, but the emit slot is swapped for a mock writer:
+// markdown is tagged and redirected to chapters/schema-mock (no fork of schemaDocWriter).
+const mockSchemaEmit = defineTool<string, string>({
+  name: 'mock-schema-emit',
+  version: '1.0.0',
+  exec: 'inproc',
+  invoke: async (env, _ctx) => {
+    const n = (env.meta.chapterNum as number | undefined) ?? 1
+    const content = `<!-- mock-emit -->\n${env.item}`
+    const existing = (env.meta.mdOutputs as MdOutputEntry[] | undefined) ?? []
+    const mdOutputs = [
+      ...existing,
+      {
+        name: 'schema-doc-mock',
+        dir: 'chapters/schema-mock',
+        filename: `chapter${n}.mock.md`,
+        content,
+      },
+    ]
+    return { item: content, meta: { ...env.meta, mdOutputs } }
+  },
+})
+
+export const schemaDocMockPipeline = definePipeline()
+  .from('jsonl://./jsonl/input.jsonl')
+  .use(toMarkdown)
+  .use(chapterIndexer)
+  .use(summaryTool)
+  .use(entitiesTool)
+  .use(schemaTool)
+  .use(mdFormatter)
+  .use(schemaDocWriter.with({ emit: mockSchemaEmit }))
   .to('md://./chapters')
 
 export const fixChapterPipeline = definePipeline()
