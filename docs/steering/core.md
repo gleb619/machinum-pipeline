@@ -83,6 +83,25 @@ replaces or extends that stream: `source` starts a new one, `tool`/`batch`/`wind
 just tools. Nested runs extend the checkpoint path (`<stepId>/fork-<n>`, `<stepId>/subflow`) and
 inherit the run context (same `runId`, logger scoped to the node).
 
+**Run event log** — every run appends one JSON line per event to `.mt/runs/<runId>/events.jsonl`
+through `Store.append` (append-only, never temp+rename). The backend tails this file for SSE
+(UC015/UC029), so it must exist for every normal run.
+
+| `RunEventType` | Emitted when | extra field |
+|---|---|---|
+| `started` | `start()` persisted the initial state | — |
+| `step-done` | a step's stream ran dry, a `target` finished writing, or a nested fork/subflow node completed | `stepId` |
+| `paused` | `pause()` persisted | — |
+| `resumed` | `unpause()` / `resume()` took the run back to `running` | — |
+| `done` | the run reached its terminal `done` state | — |
+| `failed` | `failRun()` persisted the failure | `error` |
+
+Events are written *after* the matching `state.json` write, so a tailer never sees an event
+running ahead of the persisted state. A stream-shaped step only reports `step-done` when its
+consumer pulls the last envelope, so upstream steps are recorded before the sink. A `pause`
+that lands in the tail window (stream drained, terminal transition not yet made) is unraveled by
+`markRunDone()` instead of stranding the run in `paused` — `paused → done` is not a legal edge.
+
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
 

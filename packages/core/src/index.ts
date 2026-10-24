@@ -26,6 +26,8 @@ export type {
   Pipeline,
   PipelineStep,
   RunState,
+  RunEvent,
+  RunEventType,
   CheckpointNode,
   RunStateData,
   MdOutputEntry,

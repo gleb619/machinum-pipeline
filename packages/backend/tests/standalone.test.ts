@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -153,6 +153,40 @@ describe('pause/resume of a live run (T084)', () => {
       return res.status === 404
     })
     expect(await runState(runId)).toBe('done')
+  })
+
+  it('writes events.jsonl for a real run, so SSE replay resolves', async () => {
+    // Drop the previous run's resolver: `gate()` must only flip once *this* run parks.
+    delete (globalThis as Record<string, unknown>)[GATE_KEY]
+
+    const started = await fetch(`${handle.url}/api/runs/start`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pipeline: 'pipeline.mjs' }),
+    })
+    const { runId } = (await started.json()) as { runId: string }
+
+    await until('the run to park on its tap step', () => gate() !== undefined)
+    const paused = await post(`/api/runs/${runId}/pause`)
+    expect(paused.status).toBe(200)
+    await until('paused state to be persisted', () => runState(runId).then((s) => s === 'paused'))
+    expect((await post(`/api/runs/${runId}/resume`)).status).toBe(200)
+    gate()?.()
+    // Poll the persisted state, not POST /pause: the pause probe would itself pause a run
+    // still inside its tail window, which is exactly the race this run must not trip on.
+    await until('the run to finish', () => runState(runId).then((s) => s === 'done'))
+
+    const raw = await readFile(join(dir, '.mt', 'runs', runId, 'events.jsonl'), 'utf-8')
+    const types = raw
+      .split('\n')
+      .filter((line) => line.trim().length > 0)
+      .map((line) => (JSON.parse(line) as { type: string }).type)
+    expect(types).toEqual(['started', 'paused', 'resumed', 'step-done', 'done'])
+
+    const res = await fetch(`${handle.url}/api/runs/${runId}/events`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/event-stream')
+    expect(await res.text()).toContain('event: started')
   })
 
   it('keeps an unknown runId a 404 on both pause and resume', async () => {

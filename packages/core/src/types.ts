@@ -107,6 +107,25 @@ export interface CheckpointNode {
 }
 
 /**
+ * Event kinds appended to `.mt/runs/<runId>/events.jsonl` (the SSE source, UC015/UC029).
+ */
+export type RunEventType = 'started' | 'step-done' | 'paused' | 'resumed' | 'done' | 'failed'
+
+/**
+ * One line of the append-only run event log.
+ *
+ * Written by the Runner, tailed by the backend and replayed over SSE. `stepId` is set on
+ * `step-done` events only; `error` on `failed` ones.
+ */
+export interface RunEvent {
+  type: RunEventType
+  ts: string
+  runId: string
+  stepId?: string
+  error?: string
+}
+
+/**
  * Run metadata — persisted to state.json.
  */
 export interface RunStateData {

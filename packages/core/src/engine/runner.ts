@@ -2,7 +2,16 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import { Store } from '../store.js'
-import type { Envelope, Logger, Pipeline, PipelineStep, RunStateData, Tool } from '../types.js'
+import type {
+  Envelope,
+  Logger,
+  Pipeline,
+  PipelineStep,
+  RunEvent,
+  RunEventType,
+  RunStateData,
+  Tool,
+} from '../types.js'
 import { registry } from '../uri.js'
 import { Cache } from './cache.js'
 import {
@@ -121,6 +130,7 @@ export class Runner {
 
     // Persist initial state
     await this.persistState()
+    await this.emitEvent('started')
 
     // Walk pipeline steps
     try {
@@ -131,8 +141,7 @@ export class Runner {
     }
 
     // Mark done
-    this.stateMachine.transition('done')
-    await this.persistState()
+    await this.markRunDone()
 
     return runContext
   }
@@ -144,6 +153,7 @@ export class Runner {
     if (this.stateMachine.canTransition('paused')) {
       this.stateMachine.transition('paused')
       await this.persistState()
+      await this.emitEvent('paused')
     }
   }
 
@@ -160,6 +170,7 @@ export class Runner {
       this.stateMachine.transition('running')
     }
     await this.persistState()
+    await this.emitEvent('resumed')
   }
 
   /**
@@ -182,6 +193,7 @@ export class Runner {
     if (this.stateMachine.canTransition('running')) {
       this.stateMachine.transition('running')
     }
+    await this.emitEvent('resumed')
 
     // Find first non-done node and continue
     const resumeNode = findFirstNonDone(this.checkpoint)
@@ -194,10 +206,27 @@ export class Runner {
       }
     }
 
-    this.stateMachine.transition('done')
-    await this.persistState()
+    await this.markRunDone()
 
     return runContext
+  }
+
+  /**
+   * Drive the machine to `done` and record it.
+   *
+   * A `pause` that arrives after the stream drained but before this call is unraveled
+   * rather than honoured: `paused → done` is not a legal transition, so a run that has
+   * actually finished must not be stranded in `paused` (and must still emit its `done`
+   * event, or the SSE stream never terminates).
+   */
+  private async markRunDone(): Promise<void> {
+    if (this.stateMachine.current === 'paused') {
+      this.stateMachine.transition('resumed')
+      this.stateMachine.transition('running')
+    }
+    this.stateMachine.transition('done')
+    await this.persistState()
+    await this.emitEvent('done')
   }
 
   /**
@@ -244,6 +273,8 @@ export class Runner {
 
       this.logger(stepId).debug(`Configuring pipeline stream for step: ${step.type} (${stepId})`)
 
+      const upstream = stream
+
       switch (step.type) {
         case 'source': {
           hasSourceStep = true
@@ -266,6 +297,7 @@ export class Runner {
         }
         case 'target': {
           await this.writeTarget(step, stepId, stream, runContext)
+          await this.emitEvent('step-done', stepId)
           break
         }
         case 'batch':
@@ -333,6 +365,12 @@ export class Runner {
         default:
           this.logger(stepId).warn(`Unsupported pipeline step type in stream: ${step.type}`)
       }
+
+      // A stream-shaped step ends where its consumer stops pulling, so the boundary is
+      // only observable on the stream itself — record it as the envelopes run out.
+      if (stream && stream !== upstream) {
+        stream = this.trackStep(stepId, stream)
+      }
     }
 
     return stream
@@ -369,7 +407,7 @@ export class Runner {
               yield out
             }
           }
-          runner.completeNested(nodeId)
+          await runner.completeNested(nodeId)
         } catch (error) {
           runner.failNested(nodeId, error as Error)
           throw error
@@ -421,7 +459,7 @@ export class Runner {
         if (childStream) {
           await drainStream(childStream)
         }
-        runner.completeNested(nodeId)
+        await runner.completeNested(nodeId)
       } catch (error) {
         runner.failNested(nodeId, error as Error)
         throw error
@@ -593,9 +631,10 @@ export class Runner {
   /**
    * Mark a nested node done once its stream is exhausted.
    */
-  private completeNested(nodeId: string): void {
+  private async completeNested(nodeId: string): Promise<void> {
     const node = findNode(this.checkpoint, nodeId)
     if (node) markDone(node)
+    await this.emitEvent('step-done', nodeId)
   }
 
   /**
@@ -614,14 +653,14 @@ export class Runner {
     stream: EnvelopeStream | null,
   ): AsyncGenerator<Envelope<unknown>> {
     if (!stream) {
-      this.completeNested(nodeId)
+      await this.completeNested(nodeId)
       return
     }
     try {
       for await (const env of stream) {
         yield env
       }
-      this.completeNested(nodeId)
+      await this.completeNested(nodeId)
     } catch (error) {
       this.failNested(nodeId, error as Error)
       throw error
@@ -637,16 +676,46 @@ export class Runner {
   }
 
   /**
+   * Append one line to `.mt/runs/<runId>/events.jsonl` — the append-only event log the
+   * backend tails for SSE (UC015/UC029). Called after the matching state.json write, so a
+   * reader never sees an event that runs ahead of the persisted state.
+   */
+  private async emitEvent(type: RunEventType, stepId?: string, error?: string): Promise<void> {
+    if (!this.runId) return
+    const event: RunEvent = { type, ts: new Date().toISOString(), runId: this.runId }
+    if (stepId) event.stepId = stepId
+    if (error) event.error = error
+    await this.store.append(`${JSON.stringify(event)}\n`, 'runs', this.runId, 'events.jsonl')
+  }
+
+  /**
+   * Pass a step's stream through unchanged, recording a `step-done` event once it runs dry.
+   * The event is skipped when the consumer abandons the stream early (a throw upstream),
+   * so a step never reports completion it did not reach.
+   */
+  private trackStep(stepId: string, stream: EnvelopeStream): EnvelopeStream {
+    const runner = this
+    return (async function* () {
+      for await (const env of stream) {
+        yield env
+      }
+      await runner.emitEvent('step-done', stepId)
+    })()
+  }
+
+  /**
    * Record a run-level failure: mark the root checkpoint and transition to `failed`,
    * so a run that throws never lands as `done` (or a stale `running`).
    */
   private async failRun(error: unknown): Promise<void> {
-    markFailed(this.checkpoint, error instanceof Error ? error.message : String(error))
+    const message = error instanceof Error ? error.message : String(error)
+    markFailed(this.checkpoint, message)
     if (this.stateMachine.canTransition('failed')) {
       this.stateMachine.transition('failed')
     }
     try {
       await this.persistState()
+      await this.emitEvent('failed', undefined, message)
     } catch (persistError) {
       // A storage failure must not mask the error that actually failed the run.
       console.error(`Failed to persist failed run state: ${persistError}`)

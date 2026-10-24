@@ -9,6 +9,7 @@ vi.mock('../../src/store.js', () => ({
     ensureDir = vi.fn().mockResolvedValue(undefined)
     writeJson = vi.fn().mockResolvedValue(undefined)
     readJson = vi.fn().mockResolvedValue({ state: 'done', checkpoint: { stepId: 'root' } })
+    append = vi.fn().mockResolvedValue(undefined)
   },
 }))
 
