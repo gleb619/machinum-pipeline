@@ -8,10 +8,31 @@ import { registry } from '@mt/core'
  * Built-in HTTP Source — long-lived HTTP server that receives envelopes via POST.
  * Supports POST /<path> for ingest, GET /health for health check, and GET /events for SSE.
  *
+ * `/events` is a read-only fan-out of the envelopes handed to the pipeline: it never consumes
+ * the ingest buffer, and a subscriber is dropped as soon as its socket closes.
+ *
+ * Query options:
+ *   - `port`         listen port (default 8080)
+ *   - `count`        stop after N envelopes yielded (tests / bounded runs)
+ *   - `maxBodyBytes` reject request bodies over this size with 413 (default 1 MiB)
+ *   - `maxBuffer`    answer 503 once this many envelopes are undelivered (default 1000)
+ *
  * Scheme aliases:
  *   - `http://host:port/path?query`  (legacy)
  *   - `hs://host:port/path?query`    ("http server" shorthand)
  */
+const DEFAULT_MAX_BODY_BYTES = 1024 * 1024
+const DEFAULT_MAX_BUFFER = 1000
+
+/** Seconds a producer should wait before retrying a 503 (buffer full). */
+const RETRY_AFTER_SECONDS = 1
+
+function parseSizeOption(value: string | undefined, fallback: number): number {
+  if (!value) return fallback
+  const parsed = Number.parseInt(value, 10)
+  return Number.isNaN(parsed) || parsed <= 0 ? fallback : parsed
+}
+
 export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   // Parse port from host (e.g. localhost:9876) or query.port (default 8080)
   let displayHost = uri.host || '127.0.0.1'
@@ -32,6 +53,10 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   // Optional envelope count limit (for tests)
   const maxCount = uri.query.count ? Number.parseInt(uri.query.count, 10) : undefined
 
+  // Ingest guards: body size cap and undelivered-buffer cap (backpressure signal)
+  const maxBodyBytes = parseSizeOption(uri.query.maxBodyBytes, DEFAULT_MAX_BODY_BYTES)
+  const maxBuffer = parseSizeOption(uri.query.maxBuffer, DEFAULT_MAX_BUFFER)
+
   return {
     uri: uri.raw,
     lifestyle: 'long-lived',
@@ -40,11 +65,28 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
       // Producer-consumer pattern: buffer + waiting resolvers
       const buffer: Envelope<T>[] = []
       const waiting: ((value: Envelope<T>) => void)[] = []
+      // Read-only fan-out of delivered envelopes to /events subscribers
+      const subscribers = new Set<ServerResponse>()
 
       let server: Server | null = null
       let receivedCount = 0
 
       const deliverEnvelope = (envelope: Envelope<T>): void => {
+        // Mirror to subscribers before handing over to the pipeline — a failed
+        // socket must never break ingest.
+        const payload = `data: ${JSON.stringify(envelope)}\n\n`
+        for (const subscriber of subscribers) {
+          if (subscriber.writableEnded) {
+            subscribers.delete(subscriber)
+            continue
+          }
+          try {
+            subscriber.write(payload)
+          } catch {
+            subscribers.delete(subscriber)
+          }
+        }
+
         if (waiting.length > 0) {
           const resolver = waiting.shift() as (value: Envelope<T>) => void
           resolver(envelope)
@@ -79,31 +121,51 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
           // Send initial comment to establish connection
           res.write(': connected\n\n')
 
-          // Store envelope send function for this response
-          const sendEnvelope = (envelope: Envelope<T>) => {
-            const data = JSON.stringify(envelope)
-            res.write(`data: ${data}\n\n`)
-          }
+          // Subscribe to the live fan-out only — buffered envelopes stay with the pipeline
+          subscribers.add(res)
 
-          // If there are buffered envelopes, send them
-          for (const env of buffer) {
-            sendEnvelope(env)
+          const unsubscribe = () => {
+            subscribers.delete(res)
           }
-          buffer.length = 0 // Clear buffer
-
-          req.on('close', () => {
-            // Client disconnected — nothing else to clean up
-          })
+          req.on('close', unsubscribe)
+          res.on('error', unsubscribe)
+          res.on('finish', unsubscribe)
 
           return
         }
 
         // POST /<path> - ingest endpoint
         if (method === 'POST' && pathname === ingestPath) {
-          let body = ''
-          for await (const chunk of req) {
-            body += chunk
+          const chunks: Buffer[] = []
+          let bodyBytes = 0
+          let tooLarge = false
+          for await (const chunk of req as AsyncIterable<Buffer>) {
+            bodyBytes += chunk.length
+            // Keep draining an oversized body so the client gets a clean 413, not a reset
+            if (tooLarge || bodyBytes > maxBodyBytes) {
+              tooLarge = true
+              continue
+            }
+            chunks.push(chunk)
           }
+
+          if (tooLarge) {
+            res.writeHead(413, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: 'Payload too large' }))
+            return
+          }
+
+          // Backpressure: refuse ingest rather than growing the buffer without bound
+          if (buffer.length >= maxBuffer) {
+            res.writeHead(503, {
+              'Content-Type': 'application/json',
+              'Retry-After': String(RETRY_AFTER_SECONDS),
+            })
+            res.end(JSON.stringify({ error: 'Buffer full' }))
+            return
+          }
+
+          const body = Buffer.concat(chunks).toString('utf8')
 
           try {
             const parsedBody = JSON.parse(body) as T
@@ -171,9 +233,22 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
         }
       } finally {
         // Clean up server
-        if (server) {
+        const httpServer = server
+        if (httpServer) {
+          // An SSE response never ends by itself, so close() would wait forever:
+          // end every subscriber, then drop whatever sockets are still open.
+          for (const subscriber of subscribers) {
+            try {
+              subscriber.end()
+            } catch {
+              // Socket already gone — nothing to end
+            }
+          }
+          subscribers.clear()
+          httpServer.closeAllConnections()
+
           await new Promise<void>((resolve) => {
-            server?.close(() => {
+            httpServer.close(() => {
               resolve()
             })
           })

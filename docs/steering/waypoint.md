@@ -80,8 +80,14 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 
 ### `http-server.ts`
 - `Lifecycle: 'long-lived'` — persists across pauses/resumes
-- Starts a Fastify HTTP server on `start()`; reconnects on `resume()`
-- Clients POST JSON bodies; server emits Envelopes
+- Plain `node:http` server started on `start()`; no `resume()` support
+- Endpoints: `POST <uri.path>` ingest, `GET /health`, `GET /events` (SSE)
+- `/events` is a read-only fan-out: each envelope handed to the pipeline is mirrored to every
+  subscriber. It never reads or clears the ingest buffer, so subscribing cannot steal items
+- Query options: `port`, `count` (stop after N yielded), `maxBodyBytes` (default 1 MiB, oversize →
+  `413`), `maxBuffer` (default 1000 undelivered envelopes, full → `503` + `Retry-After`)
+- Shutdown ends all subscriber responses and calls `closeAllConnections()` before `close()` — an open
+  SSE connection must not block run teardown
 
 ### `git-worktree.ts`
 - `GitWorktreeSource` / `GitWorktreeTarget` — use `createWorktree()` / `removeWorktree()` from `@mt/core/engine/git-worktree`
