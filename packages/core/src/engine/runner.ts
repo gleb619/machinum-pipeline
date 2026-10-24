@@ -242,14 +242,14 @@ export class Runner {
 
       const stepId = this.nextStepId(step)
 
-      this.logger(stepId).info(`Configuring pipeline stream for step: ${step.type} (${stepId})`)
+      this.logger(stepId).debug(`Configuring pipeline stream for step: ${step.type} (${stepId})`)
 
       switch (step.type) {
         case 'source': {
           hasSourceStep = true
           const rawUri = step.config.uri as string
           const uri = registry.expandAliases(rawUri, this.globalContext.settings)
-          if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
+          if (uri !== rawUri) this.logger(stepId).debug(`Resolved URI alias '${rawUri}' → '${uri}'`)
           const source = registry.resolveSource(uri)
           stream = source.start({ run: runContext })
           break
@@ -401,7 +401,7 @@ export class Runner {
       return this.trackNested(nodeId, childStream)
     }
 
-    this.logger(stepId).info(
+    this.logger(stepId).debug(
       `Running self-contained sub-pipeline: ${subPipeline.id} (parent stream unchanged)`,
     )
 
@@ -458,7 +458,7 @@ export class Runner {
     if (cacheKey && (await cache.has(cacheKey))) {
       const cached = await cache.get<Envelope<O>>(cacheKey)
       if (cached !== undefined) {
-        logger.info(`Cache hit for tool ${tool.name}`)
+        logger.debug(`Cache hit for tool ${tool.name}`)
         return cached
       }
     }
@@ -565,7 +565,7 @@ export class Runner {
     // Check for auto-commit on close
     const parsed = registry.parse(uri)
     if (parsed.query.commit === 'on-close') {
-      this.logger('commit').info(`Auto-committing changes in: ${runContext.global.project.root}`)
+      this.logger('commit').debug(`Auto-committing changes in: ${runContext.global.project.root}`)
       await autoCommit(runContext.global.project.root)
     }
   }
