@@ -123,7 +123,7 @@ export class OpenRouterPool {
 }
 
 import { createHash } from 'node:crypto'
-import { LlmQuotaError, LlmRateLimitError } from '../verification/llm-errors.js'
+import { LlmQuotaError, LlmRateLimitError } from './llm-errors.js'
 
 /**
  * After a failed call: 429 blocks the picked key until retry-after, 402 disables it.

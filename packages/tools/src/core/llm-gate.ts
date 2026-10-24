@@ -10,24 +10,20 @@ import {
   type LlmTransport,
   type LlmUsage,
   createLlmClient,
-} from '../modification/llm-client.js'
+} from './llm-client.js'
 import {
   type LlmConfigLayer,
   type ResolvedLlmConfig,
   resolveLlmConfigFromCtx,
-} from '../modification/llm-config.js'
+} from './llm-config.js'
 import {
   type ContextConfigLayer,
   type ContextWindowOptions,
   type ContextWindowRecord,
   createFitter,
-} from '../modification/llm-context.js'
-import {
-  type PromptSources,
-  promptSourcesFromCtx,
-  resolvePrompt,
-} from '../modification/llm-prompts.js'
+} from './llm-context.js'
 import { LlmContextLengthError, LlmParseError } from './llm-errors.js'
+import { type PromptSources, promptSourcesFromCtx, resolvePrompt } from './llm-prompts.js'
 
 // ---------------------------------------------------------------------------
 // Types

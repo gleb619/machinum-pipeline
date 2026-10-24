@@ -14,6 +14,9 @@
  * 429-block / 402-disable behaviour.
  */
 import { createRequire } from 'node:module'
+import type { LlmClient, LlmMessage, LlmRequest, LlmResponse } from './llm-client.js'
+import type { LlmProvider, ResolvedLlmConfig } from './llm-config.js'
+import { DEFAULT_TIMEOUT_MS } from './llm-config.js'
 import {
   LlmAbortError,
   LlmAuthError,
@@ -22,10 +25,7 @@ import {
   LlmRateLimitError,
   LlmTimeoutError,
   classifyHttpError,
-} from '../verification/llm-errors.js'
-import type { LlmClient, LlmMessage, LlmRequest, LlmResponse } from './llm-client.js'
-import type { LlmProvider, ResolvedLlmConfig } from './llm-config.js'
-import { DEFAULT_TIMEOUT_MS } from './llm-config.js'
+} from './llm-errors.js'
 import {
   type OpenRouterClient,
   type OpenRouterPoolSupplier,

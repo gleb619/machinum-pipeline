@@ -17,4 +17,4 @@ export const llmTranslate = createTranslateGate(
   'Translates text with an LLM using overridable prompt templates (translate.system / translate.user).',
 )
 
-export type { GateOutput } from '../verification/llm-gate.js'
+export type { GateOutput } from './llm-gate.js'

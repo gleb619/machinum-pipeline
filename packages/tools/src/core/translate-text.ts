@@ -1,13 +1,8 @@
 import { defineTool } from '@mt/core'
 import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
-import {
-  type GateInput,
-  type GateSlot,
-  type GateState,
-  createLlmGate,
-} from '../verification/llm-gate.js'
 import type { LlmConfigLayer } from './llm-config.js'
 import { readCtx } from './llm-config.js'
+import { type GateInput, type GateSlot, type GateState, createLlmGate } from './llm-gate.js'
 
 export interface TranslateInput {
   text: string

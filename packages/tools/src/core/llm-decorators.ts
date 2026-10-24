@@ -1,7 +1,7 @@
 import type { RetryPolicy } from '@mt/core'
 import { withRetry as coreWithRetry } from '@mt/core'
-import { LlmAbortError, LlmTimeoutError, isRetryableLlmError } from '../verification/llm-errors.js'
 import type { CacheLike, LlmClient, LlmRequest, LlmResponse } from './llm-client.js'
+import { LlmAbortError, LlmTimeoutError, isRetryableLlmError } from './llm-errors.js'
 
 /**
  * Per-call timeout + AbortSignal. Works even when the inner client ignores the signal
