@@ -2,7 +2,7 @@
 
 This sample reads book chapters from JSONL and processes them through several tool chains: verification,
 schema-doc generation, and a stub translation. The default export is a pure orchestration pipeline — it has
-no source or target of its own and runs nine named subflows on the same Runner.
+no source or target of its own and runs ten named subflows on the same Runner.
 
 ## What you will learn
 
@@ -14,6 +14,9 @@ no source or target of its own and runs nine named subflows on the same Runner.
 - How to use `.batch(n)` to group items before a tool, then `.flatMap()` to unwrap them again.
 - How to use `.tap()` for side-effect logging, reading the meta keys the tools actually write
   (`chapterValidator` sets `meta.errors`, not `meta.warnings`).
+- How to write source/target URIs as `'@name'` shortcuts, resolved from `mt.json` → `"uris"`
+  (`en` → `md://./chapters/en`, `ru` → `chapter-output://./chapters`), so the pipeline writes
+  `.to('@en')` / `.to('@ru')` instead of the full URIs.
 
 ## Directory layout
 
@@ -41,7 +44,7 @@ Default export — orchestration only, no `.from()`/`.to()` of its own:
 ```
 default
   → subflow(verifyFlow)               → subflow(schemaDocPipeline)    → subflow(smokeTestPipeline)
-  → subflow(splitChaptersPipeline)    → subflow(collectWarningsPipeline)
+  → subflow(splitChaptersPipeline)    → subflow(collectWarningsPipeline)  → subflow(countTokensFlow)
   → subflow(fixChapterPipeline)       → subflow(translateTitlesPipeline)
   → subflow(translateChapterPipeline) → subflow(translateFlow)
 ```
@@ -56,7 +59,7 @@ jsonl://./jsonl/input.jsonl
   → use(chapterValidator)       ← meta.valid + meta.errors
   → use(forbiddenCharDetector)  ← meta.forbidden
   → tap (log meta.errors)
-  → md://./chapters/en          ← directory target → chapters/en/chapter<N>.md
+  → @en (md://./chapters/en)    ← directory target → chapters/en/chapter<N>.md
 ```
 
 ### schemaDocPipeline — JSONL → schema docs
@@ -80,7 +83,21 @@ md://./chapters/en
   → use(wordCounter)
   → use(chapterIndexer)
   → use(stubTranslator)   ← local defineTool stub: wraps paragraphs in [ru]…[/ru], sets meta.translated + meta.lang='ru'
-  → chapter-output://./chapters  ← chapters/<lang>/chapter<N>.md → chapters/ru/chapter<N>.md
+  → @ru (chapter-output://./chapters)  ← chapters/<lang>/chapter<N>.md → chapters/ru/chapter<N>.md
+```
+
+### countTokensFlow — token counting demo (batched)
+
+Unlike the ephemeral flows below, this one reads the JSONL source directly and writes to an
+`ephemeral://` target (batch-level meta has no per-item file keying):
+
+```
+jsonl://./jsonl/input.jsonl
+  → flatMap (fan out to title + body)
+  → batch(5)
+  → use(tokenCounterBatch)        ← meta.tokenCount (batch-level meta)
+  → use(tokenCounterBatchCached)  ← cached variant
+  → ephemeral://tokens-output
 ```
 
 ### Ephemeral flows — tool chains with no disk I/O
@@ -92,7 +109,7 @@ the DSL grammar.
 |---|---|
 | `smokeTestPipeline` | `chapterValidator` → `tap` |
 | `splitChaptersPipeline` | `tokenSplitter` |
-| `collectWarningsPipeline` | `forbiddenCharDetector` → `tap` (logs `meta.errors`) |
+| `collectWarningsPipeline` | `forbiddenCharDetector` → `tap` (logs `meta.forbidden`) |
 | `fixChapterPipeline` | `typoFinder` → `markdownFormatter` |
 | `translateTitlesPipeline` | `batch(5)` → `titleTranslator` → `flatMap` |
 | `translateChapterPipeline` | `flatMap` (split body on blank lines) → `paragraphTranslator` |

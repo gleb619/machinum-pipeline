@@ -101,8 +101,8 @@ export const collectWarningsPipeline = definePipeline()
   .from('ephemeral://warnings-input')
   .use(forbiddenCharDetector)
   .tap(async (item: unknown) => {
-    const meta = (item as { meta?: { errors?: unknown } }).meta
-    console.log('[errors]', meta?.errors)
+    const meta = (item as { meta?: { forbidden?: unknown } }).meta
+    console.log('[forbidden]', meta?.forbidden)
   })
   .to('ephemeral://warnings-output')
 
