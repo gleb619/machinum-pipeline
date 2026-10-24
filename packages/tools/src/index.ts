@@ -153,7 +153,6 @@ export {
 } from './md-formatter.js'
 
 export {
-  atomicWriteFile,
   buildProcessor,
   collectMarkdownFiles,
   parseMarkdown,
@@ -162,6 +161,10 @@ export {
   type OrderedListStyle,
   type WrapMode,
 } from './remark-processor.js'
+
+export { isDirectory, readDirectory, readTextFile, readTextFileSync } from './fs-read.js'
+
+export { atomicWriteFile } from './fs-write.js'
 
 export {
   markdownStats,

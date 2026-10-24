@@ -1,5 +1,6 @@
-import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
-import { basename, dirname, join } from 'node:path'
+import { basename, join } from 'node:path'
+
+import { isDirectory, readDirectory, readTextFile } from './fs-read.js'
 
 import type { Nodes, Root, RootContent } from 'mdast'
 import remarkFrontmatter from 'remark-frontmatter'
@@ -112,17 +113,7 @@ export function parseMarkdown(input: string): Root {
 // Filesystem helpers
 // ---------------------------------------------------------------------------
 
-/** Atomic write: temp file + rename, so a crash never leaves a half-written file. */
-export async function atomicWriteFile(filePath: string, content: string): Promise<void> {
-  await mkdir(dirname(filePath), { recursive: true })
-  const tmpPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`
-  await writeFile(tmpPath, content, 'utf-8')
-  await rename(tmpPath, filePath)
-}
-
-async function isDirectory(path: string): Promise<boolean> {
-  return (await stat(path)).isDirectory()
-}
+export { atomicWriteFile } from './fs-write.js'
 
 /**
  * Expand file and directory paths into a sorted list of `.md` files.
@@ -137,7 +128,7 @@ export async function collectMarkdownFiles(
 
   const walk = async (path: string): Promise<void> => {
     if (await isDirectory(path)) {
-      const entries = await readdir(path, { withFileTypes: true })
+      const entries = await readDirectory(path)
       for (const entry of entries) {
         if (excludes.includes(entry.name)) continue
         await walk(join(path, entry.name))
@@ -154,5 +145,5 @@ export async function collectMarkdownFiles(
 
 /** Read a markdown file as utf-8. */
 export function readMarkdownFile(path: string): Promise<string> {
-  return readFile(path, 'utf-8')
+  return readTextFile(path)
 }

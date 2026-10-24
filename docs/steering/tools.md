@@ -63,6 +63,11 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
 ### `md-formatter.ts`
 - `mdFormatterTool` — reformats markdown with configurable line width. Uses remark/unified under the hood.
 
+### `fs-read.ts` / `fs-write.ts`
+The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readTextFile`,
+`readTextFileSync`, `readDirectory`, `isDirectory`); `fs-write.ts` delegates atomic writes to
+`@mt/core` (`atomicWriteFile`, temp-then-rename). Everything else in `src/` goes through these two.
+
 ### `token-splitter.ts`
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
 

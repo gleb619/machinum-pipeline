@@ -1,6 +1,6 @@
-import { readFileSync } from 'node:fs'
 import { isAbsolute, resolve } from 'node:path'
 import type { ToolContext } from '@mt/core'
+import { readTextFileSync } from './fs-read.js'
 import { readCtx } from './llm-config.js'
 
 /** A named prompt template using `{{var}}` placeholders. */
@@ -147,7 +147,7 @@ function load(value: string, sources: PromptSources, promptName: string, origin:
   const rel = value.slice(1)
   const path = isAbsolute(rel) ? rel : resolve(sources.baseDir ?? process.cwd(), rel)
   try {
-    return (sources.readFile ?? ((p: string) => readFileSync(p, 'utf8')))(path)
+    return (sources.readFile ?? ((p: string) => readTextFileSync(p)))(path)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     throw new Error(`Prompt '${promptName}' (${origin}) could not read file ${path}: ${msg}`)
