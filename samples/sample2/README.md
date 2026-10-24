@@ -70,6 +70,8 @@ jsonl://./jsonl/input.jsonl
 ```
 jsonl://./jsonl/input.jsonl
   → use(toMarkdown)        ← native tool from packages/tools/src/to-markdown.ts (remark mdast → markdown)
+  → use(wordCounter)       ← meta.wordCount (feeds the schema doc Metadata table)
+  → use(tokenCounter)      ← meta.tokenCount (feeds the schema doc Metadata table)
   → use(chapterIndexer)    ← meta.chapterNum
   → use(summaryTool)       ← meta.summary
   → use(entitiesTool)      ← meta.entities

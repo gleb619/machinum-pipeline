@@ -169,6 +169,20 @@ describe('schema-doc pipeline', () => {
     expect(content3).toContain('Chapter 3')
   })
 
+  it('schema-doc metadata row has non-zero wordCount and tokenCount', async () => {
+    for (let i = 1; i <= 3; i++) {
+      const content = await readFile(
+        join(SAMPLE_DIR, 'chapters', 'schema', `chapter${i}.schema.md`),
+        'utf-8',
+      )
+      const row = content.match(new RegExp(`\\| ${i} \\| (\\d+) \\| (\\d+) \\| (\\d+) \\|`))
+      expect(row).not.toBeNull()
+      expect(Number(row?.[1])).toBeGreaterThan(0) // wordCount
+      expect(Number(row?.[2])).toBeGreaterThan(0) // tokenCount
+      expect(Number(row?.[3])).toBeGreaterThan(0) // charLength
+    }
+  })
+
   it('schema-doc output contains Metadata, Summary, and Entities sections', async () => {
     const content = await readFile(
       join(SAMPLE_DIR, 'chapters', 'schema', 'chapter1.schema.md'),
