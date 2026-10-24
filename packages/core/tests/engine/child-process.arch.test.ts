@@ -49,14 +49,11 @@ describe('UC-50 — Streaming NDJSON to child-process tool (architectural)', () 
         yield { item: { x: 1 }, meta: {} } as Envelope<unknown>
       })(),
       {} as unknown as ToolContext,
-    )
+    ) as AsyncGenerator<Envelope<unknown>, void, unknown>
     expect(typeof iter[Symbol.asyncIterator]).toBe('function')
     // Clean up — the generator will error when the child process fails to spawn
     // (expected — we're testing the interface, not actual execution)
-    const cleanup = (iter as unknown as AsyncGenerator<Envelope<unknown>>).return
-    if (cleanup) {
-      await cleanup(undefined)
-    }
+    await iter.return?.(undefined)
   })
 })
 

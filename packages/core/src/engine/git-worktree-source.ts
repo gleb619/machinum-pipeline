@@ -1,15 +1,10 @@
 import { basename, join } from 'node:path'
-import type { SourceContext, TargetContext } from '@mt/core'
-import type { Envelope, Lifecycle, Source, Target } from '@mt/core'
-import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
-import {
-  createWorktree,
-  getRepoRoot,
-  mergeWorktreeToMain,
-  removeWorktree,
-} from '@mt/core/engine/git-worktree.js'
-import { autoCommit } from '@mt/core/engine/git.js'
+import type { SourceContext, TargetContext } from '../contexts.js'
+import type { Envelope, Lifecycle, Source, Target } from '../types.js'
+import type { ParsedUri } from '../uri.js'
+import { registry } from '../uri.js'
+import { createWorktree, mergeWorktreeToMain, removeWorktree } from './git-worktree.js'
+import { autoCommit } from './git.js'
 
 /**
  * GitWorktreeSource wraps an inner Source, delegating all operations
@@ -190,24 +185,3 @@ export function createGitWorktreeTarget<T>(uri: ParsedUri): Target<T> {
     commitOnClose,
   )
 }
-
-// ---------------------------------------------------------------------------
-// Module-level side effect: register git+ composite resolver
-// ---------------------------------------------------------------------------
-
-/**
- * Composite resolver for git+ URIs.
- * E.g., git+jsonl://data.jsonl?branch=feat&commit=on-close
- *
- * Parses the inner scheme and injects it as _inner_scheme query param
- * so that createGitWorktreeSource / createGitWorktreeTarget can use it.
- */
-registry.registerComposite(
-  'git+',
-  (_schemes: string[], rest: string): import('@mt/core').ParsedUri => {
-    // rest looks like: jsonl://data.jsonl?branch=feat&commit=on-close
-    const parsed = registry.parse(rest)
-    parsed.query._inner_scheme = parsed.scheme
-    return parsed
-  },
-)
