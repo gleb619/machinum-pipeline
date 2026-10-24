@@ -1,0 +1,67 @@
+{
+  "name": "mt",
+  "version": "0.1.0",
+  "description": "Machinum Pipeline — composable ETL engine for long-form text (library + CLI)",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "mt": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    },
+    "./waypoint": {
+      "types": "./dist/waypoint.d.ts",
+      "import": "./dist/waypoint.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "!dist/bin"],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "rm -rf dist *.tsbuildinfo && tsc -p tsconfig.build.json && node scripts/assemble.mjs",
+    "build:bin": "bun scripts/build-bin.ts",
+    "smoke:bin": "bash scripts/smoke-bin.sh",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@markschema/mdshape": "^1.0.0",
+    "@rewdy/md-formatter": "^0.4.1",
+    "cspell-lib": "^8.0.0",
+    "gpt-tokenizer": "^2.5.0",
+    "gray-matter": "^4.0.3",
+    "mdast-util-to-string": "^4.0.0",
+    "remark": "^15.0.1",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-stringify": "^11.0.0",
+    "tiktoken": "^1.0.22",
+    "unified": "^11.0.0",
+    "zod": "^3.23.0"
+  },
+  "optionalDependencies": {
+    "nitropack": "^2.10.0"
+  },
+  "devDependencies": {
+    "@mt/cli": "workspace:*",
+    "@mt/core": "workspace:*",
+    "@mt/tools": "workspace:*",
+    "@mt/waypoint": "workspace:*",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

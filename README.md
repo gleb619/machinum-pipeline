@@ -40,6 +40,18 @@ and watch it live.
 | `@mt/mcp` | MCP server — let AI agents drive pipelines |
 | Chrome / VS Code extensions | Scrape chapters from the browser, run pipelines from the editor |
 
+## Quickstart
+
+```bash
+# As a library / CLI from npm
+npm i mt tsx
+# pipeline.ts:  import { definePipeline } from 'mt'; import { chapterDoc } from 'mt/tools'
+NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts
+
+# Or as one self-contained binary (no node needed): build with Bun
+pnpm build:bin && ./packages/mt/dist/bin/mt run ./pipeline.ts
+```
+
 ## A pipeline, in one glance
 
 ```typescript

@@ -5,6 +5,18 @@ Path: `packages/cli/`
 
 The `mt` binary. Loads pipelines at runtime via `tsx`/`jiti` — no consumer build step required. Imports only from `@mt/core`.
 
+## Distribution
+
+- **npm**: `mt` package (`packages/mt`) ships the CLI as bin `mt` (Node >= 20; `.ts` pipelines need
+  `NODE_OPTIONS='--import tsx'` or Node >= 22.18 type stripping).
+- **Single-file binary** (Bun, no node/pnpm/node_modules): `pnpm build:bin` -> `packages/mt/dist/bin/mt`.
+  Pipelines are imported at runtime by Bun (TS works natively). Bare `mt`, `mt/tools`, `mt/waypoint`
+  (and legacy `@mt/core|tools|waypoint`) resolve to the copies embedded in the binary via a Bun runtime
+  plugin (`packages/mt/src/embed.ts`), so the pipeline shares the Runner's module instances. Other bare
+  imports from a pipeline (third-party npm packages) are NOT available unless a `node_modules` exists next
+  to the pipeline. `mt serve` is excluded from the binary (prints a message, exit 1).
+  Cross targets: `bun scripts/build-bin.ts --target bun-linux-arm64|bun-darwin-arm64|bun-windows-x64`.
+
 ## Commands
 
 | Command | File | Description |

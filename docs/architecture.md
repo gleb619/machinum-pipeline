@@ -69,6 +69,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 |---|---|---|
 | `@mt/core` | Types, DSL, URI registry, Runner engine, built-in Sources/Targets | [`core.md`](steering/core.md) |
 | `@mt/cli` | `mt` binary; loads pipelines via `tsx`/`jiti` (no consumer build step) | [`cli.md`](steering/cli.md) |
+| `mt` | Publishable umbrella (`import … from 'mt'`, `mt/tools`, `mt/waypoint`) + single-file Bun binary | [`structure.md`](steering/structure.md) |
 | `@mt/tools` | Chapter processing tools (validator, splitter, translator, schema-doc, …) | [`tools.md`](steering/tools.md) |
 | `@mt/waypoint` | Source/Target implementations; URI scheme registrations (side-effect import) | [`waypoint.md`](steering/waypoint.md) |
 | `@mt/backend` | Nuxt/Nitro admin API + SSE event stream + SQLite indicator; serves frontend | [`backend.md`](steering/backend.md) |

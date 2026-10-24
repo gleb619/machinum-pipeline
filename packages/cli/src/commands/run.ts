@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { Runner } from '@mt/core'
 import type { GlobalContext, Pipeline } from '@mt/core'
 
@@ -71,7 +71,7 @@ export async function runCommand(args: string[]): Promise<void> {
  * Uses dynamic import (tsx/jiti compatible).
  */
 async function loadPipeline(filePath: string, name?: string): Promise<Pipeline> {
-  const resolvedPath = join(process.cwd(), filePath)
+  const resolvedPath = resolve(process.cwd(), filePath)
   const mod = await import(resolvedPath)
   const pipeline = name ? (mod[name] as Pipeline | undefined) : (mod.default ?? mod.pipeline)
 

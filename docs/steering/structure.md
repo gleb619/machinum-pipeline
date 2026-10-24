@@ -10,6 +10,7 @@ machinum-pipeline/
 │   ├── cli/         @mt/cli     — `mt` binary; pipeline loader, all CLI commands
 │   ├── tools/       @mt/tools   — chapter processing tools (validator, splitter, translator, …)
 │   ├── waypoint/    @mt/waypoint — Source/Target implementations; URI scheme registrations (side-effects)
+│   ├── mt/          mt          — publishable umbrella: `import … from 'mt'`, `mt/tools`, `mt/waypoint`; bin `mt`; Bun binary build
 │   ├── router/      @mt/router  — standalone Nuxt: OpenRouter proxy, key pool, cost tracking
 │   ├── backend/     @mt/backend — Nuxt/Nitro: admin API, SSE, SQLite indicator
 │   ├── frontend/    @mt/frontend — Vue 3 + Tailwind admin UI (bundled into backend)
@@ -57,6 +58,23 @@ packages/core/src/
     ├── git.ts            # autoCommit(), execGit()
     └── git-worktree.ts   # createWorktree(), removeWorktree(), mergeWorktreeToMain()
 ```
+
+## `mt` — Umbrella Package (`packages/mt`)
+
+Leaf package that aggregates the workspace; nothing imports it. Name `mt` is the npm name.
+
+| Entry | Re-exports |
+|---|---|
+| `mt` | `@mt/core` (DSL, types, Runner) + side-effect registration of `@mt/waypoint` URI schemes |
+| `mt/tools` | `@mt/tools` |
+| `mt/waypoint` | `@mt/waypoint` |
+| bin `mt` | `@mt/cli` `main()` (`dist/bin.js`) |
+
+Build: `tsc` (src → `dist/*.js`) then `scripts/assemble.mjs` copies built `@mt/{core,tools,waypoint,cli}`
+into `dist/<name>/` and rewrites `@mt/*` specifiers to relative paths, so `npm pack` yields a standalone
+tarball (third-party deps listed in `dependencies`; `nitropack` is optional, only for `mt serve`).
+Binary: `scripts/build-bin.ts` (Bun.build `compile`) → `dist/bin/mt` (excluded from the tarball).
+Details: [plan](../plans/bun-binary-and-mt-package.md).
 
 ## @mt/cli — Source Layout
 

@@ -7,6 +7,7 @@
 |---|---|
 | Language | TypeScript 5, strict mode, `noUncheckedIndexedAccess: true` |
 | Runtime | Node.js (engine); pipelines loaded via `tsx` / `jiti` — no consumer build step |
+| Distribution | `mt` npm package (library + CLI, `packages/mt`) and a single-file Bun binary (`bun build --compile`, Bun >= 1.3) |
 | Monorepo | pnpm workspaces + Turborepo |
 | Lint / Format | **Biome only** — no ESLint, no Prettier |
 | Test runner | **Vitest** — test files co-located in `src/` with `.test.ts` suffix |
@@ -79,6 +80,8 @@ pnpm test               # All tests (Vitest)
 pnpm test --filter=@mt/core          # Single package
 pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts  # Single file
 pnpm dev --filter=@mt/core           # Watch mode
+pnpm build:bin          # Single-file binary -> packages/mt/dist/bin/mt (needs bun)
+pnpm smoke:bin          # Build binary + smoke test (no node_modules, no node on PATH)
 ```
 
 ## Environment Variables

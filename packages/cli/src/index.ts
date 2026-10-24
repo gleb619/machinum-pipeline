@@ -41,7 +41,15 @@ export async function main(): Promise<void> {
       break
     case 'serve': {
       // Lazy-load serve command to avoid importing nitropack unless needed
-      const { serveCommand } = await import('./commands/serve.js')
+      let serveCommand: typeof import('./commands/serve.js')['serveCommand']
+      try {
+        ;({ serveCommand } = await import('./commands/serve.js'))
+      } catch (err) {
+        // Single-file binary excludes nitropack (see docs/plans/bun-binary-and-mt-package.md)
+        console.error('mt serve is unavailable in this build (admin backend not bundled).')
+        console.error(`  ${err instanceof Error ? err.message : String(err)}`)
+        process.exit(1)
+      }
       await serveCommand(args.slice(1))
       break
     }
@@ -87,7 +95,16 @@ Options:
   }
 }
 
-const isMain = realpathSync(process.argv[1] ?? '') === realpathSync(fileURLToPath(import.meta.url))
+function isEntrypoint(): boolean {
+  try {
+    return realpathSync(process.argv[1] ?? '') === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    // e.g. bundled single-file binary: argv[1] is a virtual path
+    return false
+  }
+}
+
+const isMain = isEntrypoint()
 if (isMain) {
   main().catch((err: unknown) => {
     console.error('Fatal error:', err instanceof Error ? err.message : String(err))
