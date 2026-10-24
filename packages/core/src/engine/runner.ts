@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
-import pLimit from 'p-limit'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import { Store } from '../store.js'
 import type { Envelope, Logger, Pipeline, PipelineStep, RunStateData, Tool } from '../types.js'
@@ -21,6 +20,7 @@ import { writeDeadLetter } from './dead-letter.js'
 import { autoCommit } from './git.js'
 import { withRetry } from './retry.js'
 import { RunStateMachine } from './state-machine.js'
+import { mapConcurrent } from './stream.js'
 
 /**
  * A stream of envelopes flowing through pipeline steps.
@@ -398,6 +398,87 @@ export class Runner {
   }
 
   /**
+   * Execute a single tool envelope: cache lookup → retry → invoke → cache store → error policy.
+   */
+  private async runToolItem<I, O>(
+    tool: Tool<I, O>,
+    env: Envelope<I>,
+    stepId: string,
+    runContext: RunContext,
+    toolContext: Record<string, unknown> | undefined,
+    retryPolicy: RetryPolicy,
+    onError: ErrorPolicy,
+  ): Promise<Envelope<O> | undefined> {
+    const stepInfo: StepInfo = { stepId, name: tool.name, type: 'tool', index: 0 }
+    const cache = this.cache
+    const logger = this.logger(stepId)
+    const store = this.store
+
+    const cacheKey = tool.cacheable
+      ? cache.computeKey({
+          toolName: tool.name,
+          version: tool.version,
+          input: env,
+          context: toolContext,
+        })
+      : null
+
+    if (cacheKey && (await cache.has(cacheKey))) {
+      const cached = await cache.get<Envelope<O>>(cacheKey)
+      if (cached !== undefined) {
+        logger.info(`Cache hit for tool ${tool.name}`)
+        return cached
+      }
+    }
+
+    try {
+      const output = await withRetry(
+        async () => {
+          if (tool.exec && tool.exec !== 'inproc') {
+            return await runChildProcess<O>(
+              resolveToolCommand(tool.exec, tool.module, tool.name),
+              env,
+              { run: runContext, step: stepInfo },
+            )
+          }
+          return await tool.invoke(env, { run: runContext, step: stepInfo })
+        },
+        retryPolicy,
+        (err, attempt) => {
+          logger.warn(`Tool ${tool.name} failed (attempt ${attempt + 1}): ${err}`)
+        },
+      )
+
+      if (cacheKey && output !== undefined) {
+        await cache.set(
+          cacheKey,
+          {
+            toolName: tool.name,
+            version: tool.version,
+            input: env,
+            context: toolContext,
+          },
+          output,
+        )
+      }
+      return output
+    } catch (error) {
+      logger.error(`Tool ${tool.name} failed after retries: ${error}`)
+      if (onError === 'fail-run') {
+        throw error
+      }
+      if (onError === 'dead-letter') {
+        await writeDeadLetter(store, runContext.runId, env, error as Error, stepId)
+        logger.warn(`Tool ${tool.name} failed, written to dead-letter queue: ${error}`)
+      }
+      if (onError === 'skip-item') {
+        logger.warn(`Tool ${tool.name} failed, skipping item: ${error}`)
+      }
+      return undefined
+    }
+  }
+
+  /**
    * Run a tool step over a stream: concurrency-limited, retried, cached, error-policy aware.
    */
   private runTool(
@@ -407,7 +488,6 @@ export class Runner {
     pipeline: Pipeline,
     runContext: RunContext,
   ): EnvelopeStream {
-    const toolName = step.config.name as string
     const tool = step.config.tool as Tool<unknown, unknown> | undefined
     if (!tool) return sourceStream
 
@@ -425,103 +505,13 @@ export class Runner {
       this.globalContext.defaults.onError
     const toolContext = step.config.context as Record<string, unknown> | undefined
 
-    const cache = this.cache
-    const logger = this.logger(stepId)
-    const store = this.store
-    const limit = pLimit(concurrency)
-    const stepInfo: StepInfo = { stepId, name: toolName, type: 'tool', index: 0 }
-
-    return (async function* () {
-      const batch: Promise<Envelope<unknown>>[] = []
-
-      for await (const env of sourceStream) {
-        const task = limit(async (): Promise<Envelope<unknown>> => {
-          const cacheKey = tool.cacheable
-            ? cache.computeKey({
-                toolName: tool.name,
-                version: tool.version,
-                input: env,
-                context: toolContext,
-              })
-            : null
-
-          if (cacheKey && (await cache.has(cacheKey))) {
-            const cached = await cache.get<Envelope<unknown>>(cacheKey)
-            if (cached !== undefined) {
-              logger.info(`Cache hit for tool ${tool.name}`)
-              return cached
-            }
-          }
-
-          try {
-            const output = await withRetry(
-              async () => {
-                if (tool.exec && tool.exec !== 'inproc') {
-                  return await runChildProcess(
-                    resolveToolCommand(tool.exec, tool.module, tool.name),
-                    env,
-                    { run: runContext, step: stepInfo },
-                  )
-                }
-                return await tool.invoke(env, { run: runContext, step: stepInfo })
-              },
-              retryPolicy,
-              (err, attempt) => {
-                logger.warn(`Tool ${toolName} failed (attempt ${attempt + 1}): ${err}`)
-              },
-            )
-
-            if (cacheKey && output !== undefined) {
-              await cache.set(
-                cacheKey,
-                {
-                  toolName: tool.name,
-                  version: tool.version,
-                  input: env,
-                  context: toolContext,
-                },
-                output,
-              )
-            }
-            return output
-          } catch (error) {
-            logger.error(`Tool ${toolName} failed after retries: ${error}`)
-            if (onError === 'fail-run') {
-              throw error
-            }
-            if (onError === 'dead-letter') {
-              await writeDeadLetter(store, runContext.runId, env, error as Error, stepId)
-              logger.warn(`Tool ${toolName} failed, written to dead-letter queue: ${error}`)
-            }
-            if (onError === 'skip-item') {
-              logger.warn(`Tool ${toolName} failed, skipping item: ${error}`)
-            }
-            return undefined as unknown as Envelope<unknown>
-          }
-        })
-
-        batch.push(task)
-
-        // Race, don't `any`: `any` resolves with the first *success*, so a `fail-run`
-        // rejection would be eaten by a sibling that happened to finish later. Skipped or
-        // dead-lettered tasks return `undefined` (never reject), so only `fail-run` rejects here.
-        const settled = await Promise.race(
-          batch.map(async (p, i) => ({ result: await p, index: i })),
-        )
-        batch.splice(settled.index, 1)
-        if (settled.result !== undefined) {
-          yield settled.result
-        }
-      }
-
-      // Drain remaining batch, filter out undefined (skipped items)
-      const remaining = await Promise.all(batch)
-      for (const result of remaining) {
-        if (result !== undefined) {
-          yield result
-        }
-      }
-    })()
+    return mapConcurrent(
+      sourceStream,
+      concurrency,
+      async (env) =>
+        this.runToolItem(tool, env, stepId, runContext, toolContext, retryPolicy, onError),
+      { ordered: true },
+    )
   }
 
   /**
