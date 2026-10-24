@@ -9,7 +9,7 @@ const DSL_DOCS: DSLDocumentation = {
     '**definePipeline(config)** — Define a new pipeline.\n\n```ts\ndefinePipeline({ name: string, description?: string }, (p) => { ... })\n```',
   use: '**.use(tool, options?)** — Add a tool step to the pipeline.\n\nReturns PipelineBuilder for chaining.',
   fork: '**.fork(name, branches)** — Fork execution into N parallel branches.\n\n\nEach branch is an independent sub-pipeline.',
-  tap: '**.tap(fn)** — Side-effect step that passes items through unchanged.',
+  tap: '**.tap(fn)** — Side-effect step that passes items through unchanged. Receives the full envelope `{ item, meta }`.',
 }
 
 export class HoverProvider implements vscode.HoverProvider {

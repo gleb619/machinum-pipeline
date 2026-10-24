@@ -300,7 +300,7 @@ export class Runner {
           break
         }
         case 'tap': {
-          const fn = step.config.fn as (item: unknown) => Promise<void>
+          const fn = step.config.fn as (env: Envelope<unknown>) => Promise<void>
           if (!stream && !hasSourceStep) {
             stream = emptyEnvelope()
           }
@@ -310,7 +310,7 @@ export class Runner {
           const sourceStream = stream
           stream = (async function* () {
             for await (const env of sourceStream) {
-              await fn(env.item)
+              await fn(env)
               yield env
             }
           })()

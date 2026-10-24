@@ -41,7 +41,7 @@ Fluent chain. The builder itself implements `Pipeline`, so it can be a `default 
 definePipeline()
   .from('jsonl://./input.jsonl')
   .flatMap(async (item) => [...])
-  .tap(async (item) => { /* logging */ })
+  .tap(async (env) => { /* logging: receives the full envelope incl. meta */ })
   .use(myTool)
   .subflow(otherPipeline)   // inline nested pipeline, same Runner
   .fork(subPipeline)        // child pipeline per envelope, checkpoint subtree

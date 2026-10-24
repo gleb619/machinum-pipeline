@@ -90,7 +90,7 @@ Pipeline DSL shape (full reference in [steering/core.md](docs/steering/core.md))
 export default definePipeline()
   .from('jsonl://./input.jsonl')   // string URI (preferred)
   .flatMap(async (item) => [...])  // fan-out: one → many
-  .tap(async (item) => { /* logging */ })
+  .tap(async (env) => { /* logging: receives the full envelope incl. meta */ })
   .use(myTool)                     // Tool<I, O>
   .subflow(otherPipeline)          // inline nested pipeline (same Runner)
   .fork(subPipeline)               // child Runner + nested checkpoint subtree

@@ -127,11 +127,11 @@ describe('runner fork', () => {
     sourceItems.push({ item: { value: 1 }, meta: { chapterId: 'c1' } })
     sourceItems.push({ item: { value: 2 }, meta: { chapterId: 'c2' } })
 
-    const tapped: unknown[] = []
+    const tapped: Envelope<unknown>[] = []
     const child = childPipeline(
       [
         { type: 'batch', config: { size: 2 } },
-        { type: 'tap', config: { fn: async (group: unknown) => void tapped.push(group) } },
+        { type: 'tap', config: { fn: async (env: Envelope<unknown>) => void tapped.push(env) } },
         {
           type: 'flatmap',
           config: { fn: async (group: unknown) => (group as unknown[]).flatMap((x) => [x, x]) },
@@ -144,7 +144,9 @@ describe('runner fork', () => {
     await new Runner(parentPipeline(child), globalContext).start()
 
     // Each parent envelope is forked on its own: batch groups it alone, flatMap doubles it.
-    expect(tapped).toEqual([[{ value: 1 }], [{ value: 2 }]])
+    // tap sees the full envelope: item is the batch group, meta carries the parent envelope's keys.
+    expect(tapped.map((env) => env.item)).toEqual([[{ value: 1 }], [{ value: 2 }]])
+    expect(tapped.map((env) => env.meta.chapterId)).toEqual(['c1', 'c2'])
     expect(targetItems.map((env) => (env.item as { value: number }).value)).toEqual([
       10, 10, 20, 20,
     ])

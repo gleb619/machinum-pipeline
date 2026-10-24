@@ -237,7 +237,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this
   }
 
-  tap(fn: (item: I) => Promise<void>): PipelineBuilder<I, O> {
+  tap(fn: (env: Envelope<I>) => Promise<void>): PipelineBuilder<I, O> {
     this._steps.push({ type: 'tap', config: { fn } })
     return this
   }

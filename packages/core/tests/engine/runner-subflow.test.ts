@@ -208,14 +208,14 @@ describe('runner subflow', () => {
     mockSourceItems.push({ item: 2, meta: {} })
     mockSourceItems.push({ item: 3, meta: {} })
 
-    const tapped: unknown[] = []
+    const tapped: Envelope<unknown>[] = []
     const subPipeline: Pipeline = {
       id: 'batchy-sub',
       retry: defaultRetry,
       onError: 'fail-run',
       steps: [
         { type: 'batch', config: { size: 2 } },
-        { type: 'tap', config: { fn: async (group: unknown) => void tapped.push(group) } },
+        { type: 'tap', config: { fn: async (env: Envelope<unknown>) => void tapped.push(env) } },
         { type: 'flatmap', config: { fn: async (group: unknown) => group as unknown[] } },
       ],
     }
@@ -233,8 +233,9 @@ describe('runner subflow', () => {
 
     await new Runner(mainPipeline, globalContext).start()
 
-    // 3 items → groups [1,2] and [3] → flatMap fans both back out
-    expect(tapped).toEqual([[1, 2], [3]])
+    // 3 items → groups [1,2] and [3] → flatMap fans both back out; tap sees full envelopes
+    expect(tapped.map((env) => env.item)).toEqual([[1, 2], [3]])
+    expect(tapped.every((env) => typeof env.meta === 'object' && env.meta !== null)).toBe(true)
     expect(mockTargetItems.map((env) => env.item)).toEqual([1, 2, 3])
   })
 
