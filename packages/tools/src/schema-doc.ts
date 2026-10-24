@@ -71,13 +71,13 @@ const schemaDocSchema = md.document({
 })
 
 /** Parse CSV content into rows. */
-function parseCsvRows(code: string): string[][] {
+export function parseCsvRows(code: string): string[][] {
   const lines = code.trim().split('\n')
   return lines.map((line) => line.split(','))
 }
 
 /** Format rows into CSV content. */
-function formatCsv(rows: string[][]): string {
+export function formatCsv(rows: string[][]): string {
   return rows.map((row) => row.join(',')).join('\n')
 }
 
@@ -264,91 +264,6 @@ export function writeDoc(doc: SchemaDocEnvelope): string {
 
   return lines.join('\n')
 }
-
-/** Tool: extracts the summary section and stores it in meta */
-export const summaryTool = defineTool<string, string>({
-  name: 'summary',
-  version: '1.0.0',
-  mdDescription:
-    'Extracts the summary section from schema-doc markdown. Stores in envelope metadata.',
-  exec: 'inproc',
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
-    const doc = readDoc(env.item as string)
-    return { ...env, meta: { ...env.meta, summary: doc.summary } }
-  },
-})
-
-/** Tool: extracts entities from CSV block or falls back to defaults, stores in meta */
-export const entitiesTool = defineTool<string, string>({
-  name: 'entities',
-  version: '1.0.0',
-  mdDescription: 'Extracts entities from schema-doc CSV block. Falls back to default if empty.',
-  exec: 'inproc',
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
-    const doc = readDoc(env.item as string)
-    const entities = doc.entities.length > 0 ? doc.entities : [{ index: 1, name: 'chapter' }]
-    return { ...env, meta: { ...env.meta, entities } }
-  },
-})
-
-/** Tool: extracts or generates mermaid schema and stores it in meta */
-export const schemaTool = defineTool<string, string>({
-  name: 'schema',
-  version: '1.0.0',
-  mdDescription:
-    'Extracts or generates mermaid schema from schema-doc. Stores in envelope metadata.',
-  exec: 'inproc',
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
-    const doc = readDoc(env.item as string)
-    const titleText = doc.title.replace(/^Chapter \d+: /, '') || 'Unknown'
-    const mermaid = doc.schema ?? `graph TD\n    ${titleText} --> Next`
-    return { ...env, meta: { ...env.meta, schema: mermaid } }
-  },
-})
-
-/** Tool: extracts metadata and stores it in meta */
-export const metadataTool = defineTool<string, string>({
-  name: 'metadata',
-  version: '1.0.0',
-  mdDescription:
-    'Extracts metadata section (chapter, wordCount, tokenCount, charLength) from schema-doc.',
-  exec: 'inproc',
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
-    const doc = readDoc(env.item as string)
-    return { ...env, meta: { ...env.meta, metadata: doc.metadata } }
-  },
-})
-
-/** Tool: extracts vocabulary from summary, deduplicates, and updates known words */
-export const vocabularyTool = defineTool<string, string>({
-  name: 'vocabulary',
-  version: '1.0.0',
-  mdDescription:
-    'Extracts vocabulary from summary, deduplicates, and updates known words in envelope metadata.',
-  exec: 'inproc',
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
-    const doc = readDoc(env.item as string)
-    const rawKnown = env.meta.knownWords
-    const knownWords =
-      Array.isArray(rawKnown) && rawKnown.every((w): w is string => typeof w === 'string')
-        ? rawKnown
-        : []
-    const words = doc.summary.match(/\b[a-z]{2,}\b/gi) ?? []
-    const lowerWords = words.map((w) => w.toLowerCase())
-    const uniqueWords = [...new Set(lowerWords)]
-    const knownSet = new Set(knownWords)
-    const newWords = uniqueWords.filter((w) => !knownSet.has(w))
-    const updatedKnownSet = [...new Set([...knownWords, ...newWords])]
-    return {
-      ...env,
-      meta: {
-        ...env.meta,
-        vocabulary: newWords,
-        knownWords: updatedKnownSet,
-      },
-    }
-  },
-})
 
 function extractTitleFromInput(item: unknown, chapterNum: number): string {
   if (typeof item === 'string') {

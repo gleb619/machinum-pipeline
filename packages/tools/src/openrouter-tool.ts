@@ -30,7 +30,8 @@ export interface PromptInput {
 
 export interface PromptOutput extends ChatCompletionOutput {}
 
-async function chatCompletionSingle(
+/** Single chat completion against the OpenRouter proxy. Shared by `runPrompt` and the schema-doc tools. */
+export async function chatCompletionSingle(
   input: ChatCompletionInput,
   routerUrl: string,
 ): Promise<ChatCompletionOutput> {

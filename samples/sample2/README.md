@@ -214,7 +214,17 @@ Native `@mt/tools` builder (`packages/tools/src/to-markdown.ts`): renders a `{ t
 markdown through a remark mdast, and sets `toMarkdown: true` in meta.
 
 ### summaryTool / entitiesTool / schemaTool
-Read the chapter document and attach `meta.summary`, `meta.entities`, and `meta.schema` (mermaid) respectively.
+LLM-backed extractors (`packages/tools/src/schema/`). Each sends the chapter to the OpenRouter proxy
+(`ctx.run.global.routerUrl`, default `http://localhost:7777`, also honouring `MT_ROUTER_URL`) and attaches
+`meta.summary`, `meta.entities`, and `meta.schema` (mermaid) respectively. Every answer goes through a retry
+loop guard: the response must be non-empty, mdshape-parseable, and keep the section content intact
+(summary covers the chapter's key terms, entities/vocabulary actually occur in the text, the diagram has a
+type declaration and edges). A rejected answer is re-prompted with the rejection reason, up to 3 attempts.
+When the guard is exhausted — or no router is running — the tool falls back to the deterministic value already
+present in the chapter document, so the sample still produces `chapters/schema/chapter<N>.schema.md` without
+credentials. Attempt count and last failure land in `meta.summaryLlm` / `entitiesLlm` / `schemaLlm`.
+Prompts, model (`openai/gpt-4o-mini` default), temperature and `maxTokens` are set per tool via
+`create*Tool({ ... })` or per envelope via `meta.schemaDocLlm` and `meta.<tool>Prompt`.
 
 ### mdFormatter
 Reformats the markdown through the shared formatter, setting `meta.mdFormatted` and `meta.mdAlreadyFormatted`

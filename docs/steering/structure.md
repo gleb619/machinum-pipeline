@@ -99,7 +99,8 @@ All tools live in `packages/tools/src/`, each as a `defineTool()` export:
 |---|---|---|
 | `chapter-validator.ts` | `chapterValidator`, `forbiddenCharDetector`, `typoFinder`, `markdownFormatter` | Structural validation, forbidden chars, broken links |
 | `chapter-doc.ts` | (internal helpers) | Chapter YAML-frontmatter doc read/write |
-| `schema-doc.ts` | `summaryTool`, `entitiesTool`, `schemaTool`, `metadataTool`, `vocabularyTool`, `schemaDocWriter`, `readDoc`, `writeDoc` | LLM-powered schema document generation |
+| `schema-doc.ts` | `readDoc`, `writeDoc`, `schemaDocWriter`, `SchemaDocEnvelope` | mdshape schema-doc format + writer (no LLM call) |
+| `schema/` | `summaryTool`, `entitiesTool`, `schemaTool`, `metadataTool`, `vocabularyTool` (+ `create*Tool`) | LLM extraction per section via `runPromptWithRetry`, retry loop guard + deterministic fallback |
 | `translate-text.ts` | `translateText` | Chapter-level translation via OpenRouter |
 | `chapter-translator.ts` | (invokes translateText) | Full chapter translation pipeline |
 | `openrouter-tool.ts` | `chatCompletion`, `runPrompt` | Low-level OpenRouter chat completion |

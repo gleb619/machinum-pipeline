@@ -1,11 +1,8 @@
 export {
   readDoc,
   writeDoc,
-  summaryTool,
-  entitiesTool,
-  schemaTool,
-  metadataTool,
-  vocabularyTool,
+  parseCsvRows,
+  formatCsv,
   schemaDocWriter,
   schemaDocBuild,
   schemaDocEmit,
@@ -16,12 +13,76 @@ export {
 export {
   chatCompletion,
   runPrompt,
+  chatCompletionSingle,
   type ChatMessage,
   type ChatCompletionInput,
   type ChatCompletionOutput,
   type PromptInput,
   type PromptOutput,
 } from './openrouter-tool.js'
+
+export {
+  readChapter,
+  chapterVars,
+  renderPrompt,
+  stripCodeFence,
+  parseEntityRows,
+  parseWordList,
+  parseMetadataRow,
+  roundTripIssue,
+  metadataGroundTruth,
+  type ChapterSource,
+} from './schema/doc.js'
+
+export {
+  runPromptWithRetry,
+  resolveLlmOptions,
+  attemptMeta,
+  DEFAULT_LLM_MODEL,
+  DEFAULT_MAX_ATTEMPTS,
+  DEFAULT_ROUTER_URL,
+  type SchemaDocLlmOptions,
+  type PromptValidation,
+  type PromptRetryOptions,
+  type PromptRetryResult,
+  type LlmAttemptMeta,
+} from './schema/llm.js'
+
+export {
+  summaryTool,
+  createSummaryTool,
+  SUMMARY_SYSTEM_PROMPT,
+  SUMMARY_USER_PROMPT,
+} from './schema/summary.js'
+
+export {
+  entitiesTool,
+  createEntitiesTool,
+  ENTITIES_SYSTEM_PROMPT,
+  ENTITIES_USER_PROMPT,
+  type SchemaEntity,
+} from './schema/entities.js'
+
+export {
+  schemaTool,
+  createSchemaTool,
+  SCHEMA_SYSTEM_PROMPT,
+  SCHEMA_USER_PROMPT,
+} from './schema/schema.js'
+
+export {
+  metadataTool,
+  createMetadataTool,
+  METADATA_SYSTEM_PROMPT,
+  METADATA_USER_PROMPT,
+} from './schema/metadata.js'
+
+export {
+  vocabularyTool,
+  createVocabularyTool,
+  VOCABULARY_SYSTEM_PROMPT,
+  VOCABULARY_USER_PROMPT,
+} from './schema/vocabulary.js'
 
 export {
   translateText,

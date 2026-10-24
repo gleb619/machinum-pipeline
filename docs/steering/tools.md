@@ -15,14 +15,33 @@ Chapter processing tools for validation, translation, schema extraction, and for
 ### `chapter-doc.ts`
 Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`).
 
-### `schema-doc.ts`
-LLM-powered schema document generation. Runs multiple sub-tools in sequence via OpenRouter:
-- `summaryTool` — chapter summary
-- `entitiesTool` — named entity extraction
-- `schemaTool` — structured schema generation
-- `metadataTool` — metadata extraction
-- `vocabularyTool` — vocabulary/terminology
-- `schemaDocWriter` — composable tool, slots `build` (`schemaDocBuild`: meta -> markdown) + `emit` (`schemaDocEmit`: appends `meta.mdOutputs` entry in `chapters/schema`); override via `.with()`
+### `schema-doc.ts` + `schema/`
+LLM-powered schema document generation. The mdshape document format (`SchemaDocEnvelope`, `readDoc`,
+`writeDoc`, `schemaDocWriter`) lives in `schema-doc.ts` and stays pure; the five extraction tools live in
+`packages/tools/src/schema/`, one file each:
+
+- `summary.ts` — `summaryTool` / `createSummaryTool` → `meta.summary`
+- `entities.ts` — `entitiesTool` / `createEntitiesTool` → `meta.entities`
+- `schema.ts` — `schemaTool` / `createSchemaTool` → `meta.schema` (mermaid)
+- `metadata.ts` — `metadataTool` / `createMetadataTool` → `meta.metadata`
+- `vocabulary.ts` — `vocabularyTool` / `createVocabularyTool` → `meta.vocabulary`, `meta.knownWords`
+
+Each calls `runPromptWithRetry` (`schema/llm.ts`), which wraps `chatCompletionSingle` from
+`openrouter-tool.ts` against `ctx.run.global.routerUrl`. Shared pieces: `schema/doc.ts` (chapter parsing,
+prompt rendering, CSV/table parsers, mdshape round-trip check) and `schema/llm.ts` (retry loop guard).
+
+**Loop guard:** a reply must be non-empty, parse as mdshape, and keep the section's required content (key
+terms covered, entities/terms present in the chapter, diagram keyword + edges, metadata counters unchanged).
+Rejections are re-prompted with the reason appended, max 3 attempts, then the deterministic fallback (the
+value already in the document, else the pre-LLM heuristic) so the run never hard-fails. `meta.<tool>Llm`
+records `attempts`, `tokens`, `model`, `fallbackUsed`, `lastFailure`.
+
+**Configuration:** `create*Tool({ model, temperature, maxTokens, systemPrompt, userPrompt, maxAttempts,
+routerUrl })`, default model `openai/gpt-4o-mini`; per-envelope overrides via `meta.schemaDocLlm` and
+`meta.<key>Prompt` / `meta.<key>SystemPrompt`. Templates render `{{title}}`, `{{body}}`, `{{chapter}}`, …
+Batched envelopes store per-item results in `meta.<key>ByItem`.
+
+- `schemaDocWriter` — persists to `schema-doc://` target (pure, no LLM call)
 
 Envelope type: `SchemaDocEnvelope`.
 
@@ -97,11 +116,15 @@ New tools that write md should expose `build`/`emit` slots instead of hardcoding
 
 Tests live in `packages/tools/tests/`:
 - `chapter-doc.test.ts` — unit tests for doc read/write
-- `schema-doc.test.ts` — schema doc generation tests
+- `schema-doc.test.ts` — schema-doc format tests (`readDoc` / `writeDoc` round-trip)
+- `schema/prompt-retry.test.ts` — `runPromptWithRetry` loop guard, retries and attempt budget
+- `schema/tools.test.ts` — the five extraction tools against a stubbed router, fallbacks included
+- `schema/mock-router.ts` — shared `fetch` stub and chapter fixtures (helper, not a test file)
 - `md-formatter.test.ts` — formatter output tests
 - `translate-text.test.ts` — translation tests (requires `OPENROUTER_API_KEYS`)
 
-LLM-dependent tests are skipped unless the env var is set.
+The schema-doc tests stub `globalThis.fetch`, so they need neither a running router nor
+`OPENROUTER_API_KEYS`; `translate-text.test.ts` is skipped unless that env var is set.
 
 ## Dependencies
 
