@@ -125,7 +125,7 @@ jsonl://./jsonl/input.jsonl
   → use(paragraphTranslator.with({ translate: paragraphTranslateSlotMock }))
         translate slot <- offline mock (wraps title/paragraphs in [mock]…[/mock]); no API key, no router
   → use(translateOutputToMd)
-  → use(mdOutputEmitter(...))  ← chapters/translate-mock/chapter<N>.mock.md
+  → use(mdOutputEmitter(...))  ← write intent (subdir 'translate-mock') -> <root>/translate-mock/chapter<N>.mock.md
   → md://./chapters
 ```
 

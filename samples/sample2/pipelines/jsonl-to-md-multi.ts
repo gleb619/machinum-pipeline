@@ -304,7 +304,7 @@ export const translateSlotsMockPipeline = definePipeline()
   .use(
     mdOutputEmitter({
       name: 'translate-mock',
-      dir: 'chapters/translate-mock',
+      subdir: 'translate-mock',
       filename: (meta) => `chapter${meta.chapterNum}.mock.md`,
     }),
   )
