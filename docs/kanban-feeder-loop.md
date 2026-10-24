@@ -28,13 +28,24 @@ Invoke before any work:
 
 ```
 CHECK ─► INVESTIGATE ─► PICK ─► REGISTER ─► REPORT ─► ⏸
-  │ invalid board          │ nothing good
-  ▼ ⏸ one line             ▼ ⏸ one line
+  │ lint fails → self-heal │ nothing good
+  │ still invalid          ▼ ⏸ one line
+  ▼ ⏸ one line
 ```
 
 ### State: CHECK
 
-1. `at kanban lint`. Violations → report verbatim, ⏸ (`FEEDER: BOARD INVALID`).
+1. `at kanban lint`. Violations → **self-heal, do not stop**: fix each one yourself, then re-lint once.
+   Only if violations remain after the fix → report verbatim, ⏸ (`FEEDER: BOARD INVALID`).
+   Fixes (touch plan files and `at kanban add` fields only; never change a row's Status, never edit rows owned by
+   other tasks beyond what the violation names):
+   - `plan was authored against a different board row` (stale provenance, usually after a status change by the
+     consumer loop): re-verify title/blockers/description against the row, then delete the
+     `<!-- provenance: … -->` line from that plan (unstamped plans are not checked).
+   - `plan Steps … exceeds 'Done when' criteria`: add runnable `Done when` criteria to that plan (≤ 3 steps per
+     criterion), keeping existing steps.
+   - other plan-structure / Time / missing-plan-file violations: repair the plan from the template sections.
+   Mention what was fixed in the REPORT line (`healed: T### <violation>`).
 2. `at kanban list`. Remember all existing titles/keywords (dedupe input). Backlog size is never a stop
    condition: always feed, however full the board is. → **INVESTIGATE**.
 
