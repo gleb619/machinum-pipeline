@@ -1,6 +1,7 @@
-// Assemble the publishable `mt` package: copy built @mt/{core,tools,waypoint,cli} into dist/<name>/
+// Assemble the publishable `mt` package: copy built @mt/{core,tools,waypoint,backend,cli} into dist/<name>/
 // (no maps/tests), rewrite `@mt/<name>[/sub]` specifiers to relative paths so the tarball is
 // standalone. Third-party deps are declared in package.json `dependencies`.
+// Also copies the built admin UI (packages/frontend/dist) to dist/ui for `mt serve`.
 import {
   cpSync,
   mkdirSync,
@@ -15,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(root, 'dist')
-const pkgs = ['core', 'tools', 'waypoint', 'cli']
+const pkgs = ['core', 'tools', 'waypoint', 'backend', 'cli']
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -36,14 +37,24 @@ for (const name of pkgs) {
   })
 }
 
+const uiSrc = resolve(root, '..', 'frontend', 'dist')
+rmSync(join(dist, 'ui'), { recursive: true, force: true })
+try {
+  cpSync(uiSrc, join(dist, 'ui'), { recursive: true })
+} catch {
+  console.warn('mt: packages/frontend/dist missing; admin UI not included (run pnpm build)')
+}
+
 // Only import/export-from contexts, so plain string literals (e.g. embed.ts keys) stay intact.
-const re = /\b(from\s*|import\s*\(\s*|import\s+)(['"])@mt\/(core|tools|waypoint|cli)(\/[^'"]*)?\2/g
+const re =
+  /\b(from\s*|import\s*\(\s*|import\s+)(['"])@mt\/(core|tools|waypoint|backend|cli)(\/[^'"]*)?\2/g
 let rewritten = 0
 for (const file of walk(dist)) {
   if (!/\.(js|d\.ts)$/.test(file)) continue
   const src = readFileSync(file, 'utf8')
   const out = src.replace(re, (_m, kw, q, name, sub) => {
-    const target = join(dist, name, sub ? sub.slice(1) : 'index.js')
+    let target = join(dist, name, sub ? sub.slice(1) : 'index.js')
+    if (sub && !/\.[cm]?js$/.test(target)) target += '.js'
     let rel = relative(dirname(file), target)
     if (!rel.startsWith('.')) rel = `./${rel}`
     return `${kw}${q}${rel}${q}`

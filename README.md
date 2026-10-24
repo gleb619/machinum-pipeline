@@ -50,6 +50,7 @@ NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts
 
 # Or as one self-contained binary (no node needed): build with Bun
 pnpm build:bin && ./packages/mt/dist/bin/mt run ./pipeline.ts
+./packages/mt/dist/bin/mt serve --port 3000   # admin API + UI + SSE + SQLite, also from the binary
 ```
 
 ## A pipeline, in one glance

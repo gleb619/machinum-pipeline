@@ -40,16 +40,8 @@ export async function main(): Promise<void> {
       await toolCommand(args.slice(1))
       break
     case 'serve': {
-      // Lazy-load serve command to avoid importing nitropack unless needed
-      let serveCommand: typeof import('./commands/serve.js')['serveCommand']
-      try {
-        ;({ serveCommand } = await import('./commands/serve.js'))
-      } catch (err) {
-        // Single-file binary excludes nitropack (see docs/plans/bun-binary-and-mt-package.md)
-        console.error('mt serve is unavailable in this build (admin backend not bundled).')
-        console.error(`  ${err instanceof Error ? err.message : String(err)}`)
-        process.exit(1)
-      }
+      // Lazy-load: h3 + SQLite driver are only needed for serving
+      const { serveCommand } = await import('./commands/serve.js')
       await serveCommand(args.slice(1))
       break
     }

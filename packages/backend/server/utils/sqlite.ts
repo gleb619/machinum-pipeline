@@ -1,7 +1,13 @@
+import { mkdirSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 
-type Database = import('better-sqlite3').Database
+/** Minimal driver surface used by the backend; satisfied by better-sqlite3 and bun:sqlite. */
+export interface Database {
+  exec(sql: string): unknown
+  prepare(sql: string): { run(...params: unknown[]): unknown }
+  close(): void
+}
 
 const require = createRequire(import.meta.url)
 
@@ -11,13 +17,28 @@ export function getDb(): Database | null {
   return db
 }
 
-export function initSqlite(projectRoot: string): Database {
+/**
+ * Open the driver for the current runtime: `bun:sqlite` under Bun (built in, works inside the
+ * single-file binary), `better-sqlite3` (native addon) under Node.
+ */
+function openDatabase(dbPath: string): Database {
+  if (typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined') {
+    const { Database: BunDatabase } = require('bun:sqlite') as {
+      Database: new (path: string) => Database
+    }
+    return new BunDatabase(dbPath)
+  }
   const Sqlite = require('better-sqlite3') as new (path: string) => Database
-  const dbPath = join(projectRoot, '.mt', 'mt.sqlite')
-  db = new Sqlite(dbPath)
+  return new Sqlite(dbPath)
+}
 
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
+export function initSqlite(projectRoot: string): Database {
+  mkdirSync(join(projectRoot, '.mt'), { recursive: true })
+  const dbPath = join(projectRoot, '.mt', 'mt.sqlite')
+  db = openDatabase(dbPath)
+
+  db.exec('PRAGMA journal_mode = WAL')
+  db.exec('PRAGMA foreign_keys = ON')
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS runs (

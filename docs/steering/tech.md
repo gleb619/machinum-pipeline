@@ -11,9 +11,9 @@
 | Monorepo | pnpm workspaces + Turborepo |
 | Lint / Format | **Biome only** — no ESLint, no Prettier |
 | Test runner | **Vitest** — test files co-located in `src/` with `.test.ts` suffix |
-| Server framework | Nuxt / Nitro (backend and router packages) |
+| Server framework | router: Nuxt / Nitro; backend: h3 handlers, run via plain h3 + `node:http` (`mt serve`, Bun binary) or Nitro (dev) |
 | Frontend | Vue 3 + Tailwind CSS + Vite |
-| DB | SQLite (backend only, v1: indicator; future: search index) |
+| DB | SQLite (backend only, v1: indicator): `bun:sqlite` in Bun/binary, `better-sqlite3` on Node |
 
 ## Biome Config (biome.json)
 
@@ -80,8 +80,9 @@ pnpm test               # All tests (Vitest)
 pnpm test --filter=@mt/core          # Single package
 pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts  # Single file
 pnpm dev --filter=@mt/core           # Watch mode
-pnpm build:bin          # Single-file binary -> packages/mt/dist/bin/mt (needs bun)
-pnpm smoke:bin          # Build binary + smoke test (no node_modules, no node on PATH)
+pnpm build:bin          # Single-file binary (incl. `mt serve` + UI) -> packages/mt/dist/bin/mt (needs bun)
+pnpm smoke:bin          # Build binary + smoke test: run/imports/serve/SSE/UI (no node_modules, no node on PATH)
+bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build -> dist/bin/mt-linux-arm64
 ```
 
 ## Environment Variables

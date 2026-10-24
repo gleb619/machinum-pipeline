@@ -15,7 +15,7 @@ Primary goals:
 - **Pluggable** — Sources, Tools, Targets are interfaces; tools always run in-process via `tool.invoke()`.
 - **Resumable** — Per-Run state machine with checkpoint tree; crash recovery to the last completed step.
 - **Parallel by design** — Fork-join over Chapters/Paragraphs/Lines; batching and windowing built in.
-- **Hybrid runtime** — CLI (foreground or detached) or Nuxt-based admin server (`backend`).
+- **Hybrid runtime** — CLI (foreground or detached) or h3-based admin server (`backend`, also inside the single-file binary).
 - **Git-aware (opt-in)** — Source/Target wrap worktree creation/removal so processing never touches master.
 - **Observable** — File-based event log (`events.jsonl`) is the source of truth; backend tails it and streams via SSE.
 
@@ -72,7 +72,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 | `mt` | Publishable umbrella (`import … from 'mt'`, `mt/tools`, `mt/waypoint`) + single-file Bun binary | [`structure.md`](steering/structure.md) |
 | `@mt/tools` | Chapter processing tools (validator, splitter, translator, schema-doc, …) | [`tools.md`](steering/tools.md) |
 | `@mt/waypoint` | Source/Target implementations; URI scheme registrations (side-effect import) | [`waypoint.md`](steering/waypoint.md) |
-| `@mt/backend` | Nuxt/Nitro admin API + SSE event stream + SQLite indicator; serves frontend | [`backend.md`](steering/backend.md) |
+| `@mt/backend` | h3 admin API + SSE event stream + SQLite indicator; serves frontend (Nitro in dev only) | [`backend.md`](steering/backend.md) |
 | `@mt/frontend` | Vue 3 + Tailwind admin UI (bundled into backend) | [`structure.md`](steering/structure.md) |
 | `@mt/router` | Standalone Nuxt: OpenRouter proxy, key pool, cost tracking, mock mode | [`router.md`](steering/router.md) |
 | `@mt/mcp` | MCP server over stdio; wraps core/cli — no HTTP | [`mcp.md`](steering/mcp.md) |

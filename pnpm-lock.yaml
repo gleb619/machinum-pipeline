@@ -66,15 +66,15 @@ importers:
 
   packages/cli:
     dependencies:
+      '@mt/backend':
+        specifier: workspace:*
+        version: link:../backend
       '@mt/core':
         specifier: workspace:*
         version: link:../core
       '@mt/waypoint':
         specifier: workspace:*
         version: link:../waypoint
-      nitropack:
-        specifier: ^2.10.0
-        version: 2.13.4(better-sqlite3@9.6.0)
     devDependencies:
       '@types/node':
         specifier: ^20.14.0
@@ -168,6 +168,9 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
+      h3:
+        specifier: ^1.13.0
+        version: 1.15.11
       mdast-util-to-string:
         specifier: ^4.0.0
         version: 4.0.0
@@ -196,16 +199,22 @@ importers:
         specifier: ^3.23.0
         version: 3.25.76
     optionalDependencies:
-      nitropack:
-        specifier: ^2.10.0
-        version: 2.13.4(better-sqlite3@9.6.0)
+      better-sqlite3:
+        specifier: ^9.6.0
+        version: 9.6.0
     devDependencies:
+      '@mt/backend':
+        specifier: workspace:*
+        version: link:../backend
       '@mt/cli':
         specifier: workspace:*
         version: link:../cli
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@mt/frontend':
+        specifier: workspace:*
+        version: link:../frontend
       '@mt/tools':
         specifier: workspace:*
         version: link:../tools

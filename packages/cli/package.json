@@ -23,9 +23,9 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@mt/backend": "workspace:*",
     "@mt/core": "workspace:*",
-    "@mt/waypoint": "workspace:*",
-    "nitropack": "^2.10.0"
+    "@mt/waypoint": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

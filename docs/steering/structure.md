@@ -12,7 +12,7 @@ machinum-pipeline/
 │   ├── waypoint/    @mt/waypoint — Source/Target implementations; URI scheme registrations (side-effects)
 │   ├── mt/          mt          — publishable umbrella: `import … from 'mt'`, `mt/tools`, `mt/waypoint`; bin `mt`; Bun binary build
 │   ├── router/      @mt/router  — standalone Nuxt: OpenRouter proxy, key pool, cost tracking
-│   ├── backend/     @mt/backend — Nuxt/Nitro: admin API, SSE, SQLite indicator
+│   ├── backend/     @mt/backend — admin API (h3), SSE, SQLite indicator; Nitro for dev
 │   ├── frontend/    @mt/frontend — Vue 3 + Tailwind admin UI (bundled into backend)
 │   ├── mcp/         @mt/mcp    — MCP server over stdio
 │   ├── chrome/                 — MV3 Chrome extension
@@ -72,8 +72,8 @@ Leaf package that aggregates the workspace; nothing imports it. Name `mt` is the
 
 Build: `tsc` (src → `dist/*.js`) then `scripts/assemble.mjs` copies built `@mt/{core,tools,waypoint,cli}`
 into `dist/<name>/` and rewrites `@mt/*` specifiers to relative paths, so `npm pack` yields a standalone
-tarball (third-party deps listed in `dependencies`; `nitropack` is optional, only for `mt serve`).
-Binary: `scripts/build-bin.ts` (Bun.build `compile`) → `dist/bin/mt` (excluded from the tarball).
+tarball (third-party deps listed in `dependencies`; `better-sqlite3` is optional; `mt serve` also uses `h3`; admin UI copied to `dist/ui`).
+Binary: `scripts/build-bin.ts` (Bun.build `compile`) → `dist/bin/mt` or `dist/bin/mt-<os>-<arch>` with `--target` (excluded from the tarball). Embeds `dist/ui` (admin UI) and includes `mt serve`.
 Details: [plan](../plans/bun-binary-and-mt-package.md).
 
 ## @mt/cli — Source Layout
@@ -88,7 +88,7 @@ packages/cli/src/
 │   ├── list.ts       # mt ls runs
 │   ├── inspect.ts    # mt inspect <runId>
 │   ├── tool.ts       # mt tool <name>
-│   └── serve.ts      # mt serve [--detach]
+│   └── serve.ts      # mt serve [--detach] (lazy-imports @mt/backend/standalone)
 └── utils/
     ├── logger.ts     # DuplexLogger (console + file)
     └── args.ts       # parseInitArgs()
@@ -157,7 +157,7 @@ my-book-project/
 ## Key Architecture Rules
 
 - `core/` has zero external runtime dependencies beyond TypeScript stdlib
-- `cli/` imports from `core/` only — never the reverse
+- `cli/` imports from `core/` only — never the reverse (exception: `mt serve` imports `@mt/backend/standalone`)
 - `waypoint/` sources/targets register themselves via URI registry side-effects
 - Sources provide stable IDs — engine never mints domain entity IDs
 - Pipelines loaded at runtime via `tsx`/`jiti` — no consumer build step

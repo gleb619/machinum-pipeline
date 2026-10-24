@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "nitro dev",
-    "build": "nitro build",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build:nitro": "nitro build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -20,5 +21,14 @@
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
-  }
+  },
+  "main": "./dist/standalone.js",
+  "types": "./dist/standalone.d.ts",
+  "exports": {
+    "./standalone": {
+      "types": "./dist/standalone.d.ts",
+      "import": "./dist/standalone.js"
+    }
+  },
+  "files": ["dist", "server"]
 }

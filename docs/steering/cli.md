@@ -9,13 +9,24 @@ The `mt` binary. Loads pipelines at runtime via `tsx`/`jiti` — no consumer bui
 
 - **npm**: `mt` package (`packages/mt`) ships the CLI as bin `mt` (Node >= 20; `.ts` pipelines need
   `NODE_OPTIONS='--import tsx'` or Node >= 22.18 type stripping).
-- **Single-file binary** (Bun, no node/pnpm/node_modules): `pnpm build:bin` -> `packages/mt/dist/bin/mt`.
-  Pipelines are imported at runtime by Bun (TS works natively). Bare `mt`, `mt/tools`, `mt/waypoint`
-  (and legacy `@mt/core|tools|waypoint`) resolve to the copies embedded in the binary via a Bun runtime
-  plugin (`packages/mt/src/embed.ts`), so the pipeline shares the Runner's module instances. Other bare
-  imports from a pipeline (third-party npm packages) are NOT available unless a `node_modules` exists next
-  to the pipeline. `mt serve` is excluded from the binary (prints a message, exit 1).
-  Cross targets: `bun scripts/build-bin.ts --target bun-linux-arm64|bun-darwin-arm64|bun-windows-x64`.
+- **Single-file binary** (Bun, no node/pnpm/node_modules): `pnpm build:bin` -> `packages/mt/dist/bin/mt`
+  (~98 MB on linux-x64). Includes `mt serve` (h3 API + `bun:sqlite` + embedded admin UI).
+  Pipelines are imported at runtime by Bun (TS works natively). Import matrix inside the binary:
+
+  | Import in a pipeline | Works | How |
+  |---|---|---|
+  | `mt`, `mt/tools`, `mt/waypoint` (+ legacy `@mt/core\|tools\|waypoint`) | yes | Bun runtime plugin `packages/mt/src/embed.ts`; same module instances as the Runner |
+  | `node:*` builtins | yes | Bun |
+  | relative `./x`, `../lib/helper` (.ts/.js, extension optional) | yes | Bun resolver |
+  | package in `node_modules` found by walking up from the pipeline file | yes | Bun resolver (no install step, no network) |
+  | `zod` | yes | embedded fallback, used only if cwd has no own `zod` in `node_modules` |
+  | any other npm package | only if present in a `node_modules` next to/above the pipeline | not embedded; add it to the project |
+  | native addons (`.node`) from the project's `node_modules` | best effort, untested | |
+
+  Cross targets: `bun scripts/build-bin.ts --target <t>` -> `dist/bin/mt-<os>-<arch>[-musl][.exe]`
+  (`bun-linux-x64|arm64[-musl]`, `bun-darwin-x64|arm64`, `bun-windows-x64`). Building a foreign target
+  downloads that Bun runtime once (needs network, then cached); the produced binary is offline. Only the
+  host target is smoke-tested.
 
 ## Commands
 
@@ -27,7 +38,7 @@ The `mt` binary. Loads pipelines at runtime via `tsx`/`jiti` — no consumer bui
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
 | `mt tool <name>` | `tool.ts` | Invoke a tool standalone (JSON envelope on stdin/stdout) |
-| `mt serve [--detach]` | `serve.ts` | Start admin backend; `--detach` forks as background process |
+| `mt serve [--port N\|0] [--host H] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/backend/standalone`); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
 
 ## Pipeline Loading
 
@@ -56,9 +67,11 @@ Entry point: `main()` function, arg parsing, dispatch to command modules. Handle
 Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`.
 
 ### `src/commands/serve.ts`
-- `serveCommand()` starts the `@mt/backend` Nuxt app in-process
-- `detachServe()` forks a child process with `--detach` flag
-- `parseArgs()` handles `--port`, `--detach`, `--no-open`
+- `serveCommand()` lazy-imports `@mt/backend/standalone` and calls `startBackend()` (plain h3 on `node:http`; no Nitro
+  at runtime). SIGINT/SIGTERM close the server. UI dir: `$MT_UI_DIR` > `<pkg>/dist/ui` > `packages/frontend/dist`;
+  in the Bun binary the UI is embedded (`globalThis.__MT_UI__`).
+- `detachServe()` re-spawns `process.execPath` (the binary itself when compiled) in the foreground mode, detached
+- `parseArgs()` handles `--port`, `--host`, `--detach`
 
 ### `src/utils/logger.ts` — `DuplexLogger`
 Writes to both console (with ANSI colour) and a log file under `.mt/runs/<runId>/`. Implements `Logger` from `@mt/core/types`.

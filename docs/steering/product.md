@@ -43,7 +43,7 @@ All data travels in Envelopes. The pipeline DSL describes the shape; the Runner 
 | Service | Description |
 |---|---|
 | `mt` CLI | Binary entrypoint; `init`, `run`, `resume`, `ls runs`, `inspect`, `tool`, `serve`, `router`, `mcp` |
-| Backend (Nuxt/Nitro) | Admin REST API + SSE event stream; serves bundled Vue frontend |
+| Backend (h3; Nitro in dev) | Admin REST API + SSE event stream; serves bundled Vue frontend |
 | Frontend (Vue 3) | Admin UI: runs list, detail, pipelines registry, router link |
 | Router (standalone Nuxt) | OpenRouter proxy with key pool, cost tracking, rate limiting, mock mode |
 | MCP server | stdio-only; wraps core/cli, no HTTP |

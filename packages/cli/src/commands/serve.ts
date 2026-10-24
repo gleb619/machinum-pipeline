@@ -1,8 +1,8 @@
-import { type ChildProcess, spawn } from 'node:child_process'
-import { createWriteStream } from 'node:fs'
-import { mkdir } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
-import { build, createNitro, prepare } from 'nitropack'
+import { spawn } from 'node:child_process'
+import { createWriteStream, existsSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 interface ServeOptions {
   port: number
@@ -26,38 +26,33 @@ function parseArgs(args: string[]): ServeOptions {
   return options
 }
 
+/** Directory with the built admin UI (npm package `dist/ui`, or the monorepo frontend build). */
+function findUiDir(): string | undefined {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    process.env.MT_UI_DIR,
+    join(here, '..', '..', 'ui'), // mt package: dist/cli/commands -> dist/ui
+    join(here, '..', '..', '..', 'frontend', 'dist'), // monorepo: packages/cli/dist/commands
+  ]
+  return candidates.find((c): c is string => !!c && existsSync(join(c, 'index.html')))
+}
+
 async function detachServe(options: ServeOptions): Promise<void> {
-  const rootDir = resolve(process.cwd(), 'packages', 'backend')
-
-  const nitro = await createNitro({
-    rootDir,
-    dev: false,
-    preset: 'node-server',
-  })
-
-  await prepare(nitro)
-  await build(nitro)
-
-  const entryPoint = join(process.cwd(), 'packages', 'backend', '.output', 'server', 'index.mjs')
   const backendDir = join(process.cwd(), '.mt', 'backend')
   await mkdir(backendDir, { recursive: true })
-
   const logStream = createWriteStream(join(backendDir, 'server.log'), { flags: 'a' })
+  await new Promise<void>((r) => logStream.once('open', () => r()))
 
-  const child: ChildProcess = spawn('node', [entryPoint], {
-    detached: true,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: {
-      ...process.env,
-      NITRO_PORT: String(options.port),
-      NITRO_HOST: options.host,
-    },
-  })
+  // Re-run this same program in the foreground. Compiled Bun binary: execPath is the binary itself
+  // (argv[1] is a virtual /$bunfs path); otherwise execPath is node/bun and argv[1] the script.
+  const compiled = process.argv[1]?.startsWith('/$bunfs') === true
+  const entry = compiled ? [] : [process.argv[1] as string]
+  const child = spawn(
+    process.execPath,
+    [...entry, 'serve', '--port', String(options.port), '--host', options.host],
+    { detached: true, stdio: ['ignore', logStream, logStream], env: process.env },
+  )
 
-  if (child.stdout) child.stdout.pipe(logStream)
-  if (child.stderr) child.stderr.pipe(logStream)
-
-  const { writeFile } = await import('node:fs/promises')
   await writeFile(join(backendDir, 'pid'), String(child.pid ?? 0))
   child.unref()
 
@@ -72,16 +67,15 @@ export async function serveCommand(args: string[]): Promise<void> {
     return
   }
 
-  const rootDir = resolve(process.cwd(), 'packages', 'backend')
+  // Lazy: pulls h3 (+ better-sqlite3 under Node / bun:sqlite under Bun) only when serving.
+  const { startBackend } = await import('@mt/backend/standalone')
+  const uiDir = findUiDir()
+  const handle = await startBackend({ port: options.port, host: options.host, uiDir })
+  console.log(`Backend listening on ${handle.url}`)
 
-  const nitro = await createNitro({
-    rootDir,
-    dev: true,
-    preset: 'node-server',
-  })
-
-  await prepare(nitro)
-  await build(nitro)
-
-  console.log(`Backend listening on http://${options.host}:${options.port}`)
+  const shutdown = (): void => {
+    handle.close().finally(() => process.exit(0))
+  }
+  process.once('SIGINT', shutdown)
+  process.once('SIGTERM', shutdown)
 }

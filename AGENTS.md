@@ -115,7 +115,7 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
   rebase onto `main`, then FF-merge only (`git merge --ff-only`) → cleanup.
   **Regular merge commits are forbidden** — never use `git merge --no-ff` or merge without rebase.
   Full state machine: [docs/change-workflow.md](docs/change-workflow.md).
-- **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse); `frontend/` → backend API only;
+- **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse; sole exception: `cli/` → `backend/standalone` for `mt serve`); `frontend/` → backend API only;
   `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
 - **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
 - **Do not run git mutations** (commit/push/reset/rebase) unless explicitly asked.

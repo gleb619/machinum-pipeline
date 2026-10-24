@@ -1,7 +1,7 @@
 {
   "name": "mt",
   "version": "0.1.0",
-  "description": "Machinum Pipeline — composable ETL engine for long-form text (library + CLI)",
+  "description": "Machinum Pipeline \u2014 composable ETL engine for long-form text (library + CLI)",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -42,6 +42,7 @@
     "cspell-lib": "^8.0.0",
     "gpt-tokenizer": "^2.5.0",
     "gray-matter": "^4.0.3",
+    "h3": "^1.13.0",
     "mdast-util-to-string": "^4.0.0",
     "remark": "^15.0.1",
     "remark-frontmatter": "^5.0.0",
@@ -53,11 +54,13 @@
     "zod": "^3.23.0"
   },
   "optionalDependencies": {
-    "nitropack": "^2.10.0"
+    "better-sqlite3": "^9.6.0"
   },
   "devDependencies": {
+    "@mt/backend": "workspace:*",
     "@mt/cli": "workspace:*",
     "@mt/core": "workspace:*",
+    "@mt/frontend": "workspace:*",
     "@mt/tools": "workspace:*",
     "@mt/waypoint": "workspace:*",
     "@types/node": "^20.14.0",
