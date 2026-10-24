@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import { Store } from '../store.js'
 import type {
+  CheckpointNode,
   Envelope,
   Logger,
   Pipeline,
@@ -260,6 +261,20 @@ export class Runner {
   ): Promise<EnvelopeStream | null> {
     let stream = input
     let hasSourceStep = false
+    // Source position of this pipeline level, kept on its own checkpoint node: the root for
+    // the top-level pipeline, the nested node for a fork/subflow child.
+    const cursorNode = this.cursorNode(runContext)
+    let sourceStart = 0
+    let envelopesWritten = 0
+
+    /**
+     * Move the persisted cursor past the envelope the target just accepted. Sources are
+     * asked for work ahead of the target (tool concurrency), so only a target write proves
+     * an envelope finished — counting pulls instead would let a resume skip in-flight items.
+     */
+    const recordCursor = (): void => {
+      cursorNode.cursor = sourceStart + ++envelopesWritten
+    }
 
     for (const step of pipeline.steps) {
       // Pause if signaled
@@ -282,7 +297,22 @@ export class Runner {
           const uri = registry.expandAliases(rawUri, this.globalContext.settings)
           if (uri !== rawUri) this.logger(stepId).debug(`Resolved URI alias '${rawUri}' → '${uri}'`)
           const source = registry.resolveSource(uri)
-          stream = source.start({ run: runContext })
+          const cursor = typeof cursorNode.cursor === 'number' ? cursorNode.cursor : undefined
+          envelopesWritten = 0
+          if (cursor !== undefined && source.resume) {
+            this.logger(stepId).debug(`Resuming source '${uri}' from cursor ${cursor}`)
+            sourceStart = cursor
+            stream = source.resume({ run: runContext }, cursor)
+          } else {
+            if (cursor !== undefined) {
+              this.logger(stepId).debug(
+                `Source '${uri}' has no resume() — replaying it from the start`,
+              )
+            }
+            // A replay from item 0 re-derives every position, so the old cursor is dropped.
+            sourceStart = 0
+            stream = source.start({ run: runContext })
+          }
           break
         }
         case 'tool': {
@@ -296,7 +326,7 @@ export class Runner {
           break
         }
         case 'target': {
-          await this.writeTarget(step, stepId, stream, runContext)
+          await this.writeTarget(step, stepId, stream, runContext, recordCursor)
           await this.emitEvent('step-done', stepId)
           break
         }
@@ -584,6 +614,7 @@ export class Runner {
     stepId: string,
     stream: EnvelopeStream | null,
     runContext: RunContext,
+    onEnvelopeWritten: () => void,
   ): Promise<void> {
     const rawUri = step.config.uri as string
     const uri = registry.expandAliases(rawUri, this.globalContext.settings)
@@ -595,6 +626,7 @@ export class Runner {
     try {
       for await (const env of stream) {
         await target.write(env, { run: runContext })
+        onEnvelopeWritten()
       }
     } finally {
       await target.close({ run: runContext })
@@ -606,6 +638,14 @@ export class Runner {
       this.logger('commit').debug(`Auto-committing changes in: ${runContext.global.project.root}`)
       await autoCommit(runContext.global.project.root)
     }
+  }
+
+  /**
+   * Checkpoint node carrying this pipeline level's source cursor — the nested node of a
+   * fork/subflow child, the root for the top-level pipeline.
+   */
+  private cursorNode(runContext: RunContext): CheckpointNode {
+    return findNode(this.checkpoint, runContext.checkpoint.stepId) ?? this.checkpoint
   }
 
   /**

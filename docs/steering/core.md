@@ -105,6 +105,24 @@ that lands in the tail window (stream drained, terminal transition not yet made)
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
 
+### Source cursor (`CheckpointNode.cursor`)
+Each pipeline level keeps its source position on its own checkpoint node (root for the
+top-level pipeline, `<stepId>/fork-<n>` / `<stepId>/subflow` for a nested one). The Runner counts
+envelopes **as the target accepts them** (`writeTarget` → `recordCursor`) — never as the source
+hands them out — because tool concurrency keeps items in flight past the write; counting pulls
+would let a resume skip work that never completed. The node then serializes with the rest of the
+tree, so the cursor survives a failure, a pause, or a crash.
+
+On `resume()`, a `source` step reads that cursor and calls `source.resume(ctx, cursor)` when the
+cursor is a number and the source implements `resume`; otherwise it falls back to `source.start()`
+and rebases the cursor at 0 (a full replay re-derives every position). Cursor units are **source
+envelopes**, so a `resume(cursor)` implementation must treat it as "skip this many envelopes" —
+the ordinal a `jsonl://` source reads as its line offset. Cardinality-changing steps
+(`batch`/`window`/`flatMap`) and dropped items (`skip-item`) can only under-count, which is the
+safe direction: the item is re-processed, then deduplicated by the content cache.
+
+A run whose stream ends without a target records no cursor — resume there stays cache-replay.
+
 ### `engine/state-machine.ts` — `RunStateMachine`
 State transitions: `pending → running → checkpoint → paused → resumed → done / failed`.
 Use `canTransition()` before `transition()`.
