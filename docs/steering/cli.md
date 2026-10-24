@@ -78,11 +78,11 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 
 ## Pipeline Loading
 
-Both `run.ts` and `resume.ts` use `buildGlobalContext()` + `loadPipeline()`:
+Both `run.ts` and `resume.ts` use `@mt/core`'s `loadGlobalContext()` plus a local `loadPipeline()`:
 
 ```typescript
-const ctx = await buildGlobalContext(mtJsonPath)
-const pipeline = await loadPipeline(pipelineFilePath, ctx)
+const ctx = await loadGlobalContext(projectRoot) // mt.json + secrets.envFile — same loader as the backend
+const pipeline = await loadPipeline(pipelineFilePath, pipelineName)
 // pipeline is a Pipeline instance (result of definePipeline().…)
 ```
 
@@ -101,8 +101,8 @@ the original file.
 Entry point: `main()` function, arg parsing, dispatch to command modules. Handles top-level errors and process exit codes.
 
 ### `src/commands/run.ts`
-1. `buildGlobalContext(mtJsonPath)` → `GlobalContext`
-2. `loadPipeline(file, ctx)` → `Pipeline`
+1. `loadGlobalContext(projectRoot)` → `GlobalContext` (from `@mt/core`; no CLI-local `mt.json` parsing)
+2. `loadPipeline(file, name?)` → `Pipeline`
 3. `new Runner(pipeline, ctx)` → `runner.start()`
 4. Listen for SIGINT → `runner.pause()`
 

@@ -6,15 +6,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
 import { resumeCommand } from '../../src/commands/resume.js'
 
-vi.mock('@mt/core', () => ({
-  Runner: vi.fn(),
-  definePipeline: vi.fn(),
-  importPipelineModule: vi.fn(
-    async (filePath: string) => (await import(filePath)) as Record<string, unknown>,
-  ),
-  nativeAddonHint: () => '',
-  packageResolutionHint: () => '',
-}))
+vi.mock('@mt/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@mt/core')>()
+  return {
+    ...actual,
+    Runner: vi.fn(),
+    definePipeline: vi.fn(),
+    importPipelineModule: vi.fn(
+      async (filePath: string) => (await import(filePath)) as Record<string, unknown>,
+    ),
+    nativeAddonHint: () => '',
+    packageResolutionHint: () => '',
+  }
+})
 
 describe('resume command', () => {
   let testDir: string

@@ -1,7 +1,12 @@
-import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { Runner, importPipelineModule, nativeAddonHint, packageResolutionHint } from '@mt/core'
-import type { GlobalContext, Pipeline } from '@mt/core'
+import {
+  Runner,
+  importPipelineModule,
+  loadGlobalContext,
+  nativeAddonHint,
+  packageResolutionHint,
+} from '@mt/core'
+import type { Pipeline } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
 
 /**
@@ -20,7 +25,7 @@ export async function resumeCommand(args: string[]): Promise<void> {
   const projectRoot = process.cwd()
 
   // Build global context
-  const globalContext = await buildGlobalContext(projectRoot)
+  const globalContext = await loadGlobalContext(projectRoot)
 
   // Load pipeline
   const pipeline = await loadPipeline(pipelineFile)
@@ -36,12 +41,12 @@ export async function resumeCommand(args: string[]): Promise<void> {
   try {
     const runContext = await runner.resume(runId)
     logger.info(`Pipeline resumed and completed successfully (runId: ${runContext.runId})`)
-    console.log(`\n\u2705 Pipeline resumed and complete. Run ID: ${runContext.runId}`)
+    console.log(`\n✅ Pipeline resumed and complete. Run ID: ${runContext.runId}`)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline resume failed: ${errorMessage}`)
-    console.error(`\n\u274c Pipeline resume failed: ${errorMessage}${hint}`)
+    console.error(`\n❌ Pipeline resume failed: ${errorMessage}${hint}`)
     process.exit(1)
   }
 }
@@ -57,54 +62,4 @@ async function loadPipeline(filePath: string): Promise<Pipeline> {
     throw new Error(`Invalid pipeline module: ${filePath}.`)
   }
   return pipeline
-}
-
-/**
- * Build a GlobalContext from mt.json if it exists.
- */
-async function buildGlobalContext(projectRoot: string): Promise<GlobalContext> {
-  const configPath = join(projectRoot, 'mt.json')
-
-  try {
-    const configContent = await readFile(configPath, 'utf-8')
-    const config = JSON.parse(configContent) as Record<string, unknown>
-
-    const project = config.project as Record<string, unknown> | undefined
-    const defaults = config.defaults as Record<string, unknown> | undefined
-    const retryDef = defaults?.retry as Record<string, unknown> | undefined
-    const settings = (config.settings as Record<string, unknown>) ?? {}
-    const uris = config.uris as Record<string, unknown> | undefined
-
-    return {
-      project: {
-        name: (project?.name as string) ?? 'unknown',
-        root: projectRoot,
-      },
-      defaults: {
-        retry: {
-          max: (retryDef?.max as number) ?? 3,
-          backoffMs: (retryDef?.backoffMs as number) ?? 1000,
-          strategy: (retryDef?.strategy as 'fixed' | 'linear' | 'exp') ?? 'exp',
-        },
-        onError: (defaults?.onError as 'fail-run' | 'skip-item' | 'dead-letter') ?? 'fail-run',
-        concurrency: (defaults?.concurrency as number) ?? 4,
-      },
-      settings: uris ? { ...settings, uris } : settings,
-      env: {},
-    }
-  } catch {
-    return {
-      project: {
-        name: 'unknown',
-        root: projectRoot,
-      },
-      defaults: {
-        retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
-        onError: 'fail-run',
-        concurrency: 4,
-      },
-      settings: {},
-      env: {},
-    }
-  }
 }

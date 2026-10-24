@@ -12,6 +12,7 @@ Re-exports everything needed by consumers:
 - `definePipeline`, `defineTool`, `defineSource`, `defineTarget` (DSL builders)
 - `Envelope`, `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
+- `loadGlobalContext`, `parseEnvFile`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
 - `UriRegistry`, `registry`, `registerSource`, `registerTarget`, `resolveSource`, `resolveTarget` (URI)
 - `Runner`, `Store`, `Cache`
 
@@ -34,6 +35,12 @@ Three-level chain. Each context holds a backref to its parent — never a copy. 
 - `GlobalContext` — mt.json config, store root, logger
 - `RunContext` — runId, pipeline ref, extends GlobalContext
 - `ToolContext` / `SourceContext` / `TargetContext` — step-level, extends RunContext
+
+### `config.ts` — `loadGlobalContext(projectRoot)`
+The only `GlobalContext` builder: `mt.json` merged over `DEFAULT_MT_CONFIG`, top-level `uris` copied to
+`settings.uris`, and `secrets.envFile` (default `.env`) read into `env`. Missing `mt.json` yields defaults;
+a malformed one throws naming the file path. `env` never overrides a key already set in `process.env` and never
+writes back into it. `mt run`, `mt resume` and the admin start route all call it — no caller hand-rolls a context.
 
 ### `dsl.ts` — `PipelineBuilder`
 Fluent chain. The builder itself implements `Pipeline`, so it can be a `default export` without calling `.to()`.

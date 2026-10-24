@@ -4,10 +4,11 @@ import {
   importPipelineModule,
   isNativeAddonError,
   isPackageResolutionError,
+  loadGlobalContext,
   nativeAddonHint,
   packageResolutionHint,
 } from '@mt/core'
-import type { GlobalContext, Pipeline } from '@mt/core'
+import type { Pipeline } from '@mt/core'
 import { createError, defineEventHandler, readBody } from 'h3'
 import { registerRunner, removeRunner } from '../../../utils/runner-registry.js'
 
@@ -50,19 +51,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const globalContext: GlobalContext = {
-    project: {
-      name: 'mt-project',
-      root: projectRoot,
-    },
-    defaults: {
-      retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
-      onError: 'fail-run',
-      concurrency: 5,
-    },
-    settings: {},
-    env: process.env as Record<string, string>,
-  }
+  const globalContext = await loadGlobalContext(projectRoot)
 
   const runner = new Runner(pipeline, globalContext)
 

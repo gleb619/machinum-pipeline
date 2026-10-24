@@ -56,6 +56,13 @@ the runId before its first await) and calls `removeRunner` when the run settles,
 other way — `mt run`, `mt resume`, another backend process — is never in this registry, so pause/resume answers 404;
 that 404 means "not live in this process", not "run does not exist" (run metadata stays readable via `GET /api/runs/:id`).
 
+## Project context
+
+`start.ts` builds its `GlobalContext` with `@mt/core`'s `loadGlobalContext(projectRoot)` — the same loader `mt run`
+and `mt resume` use. `mt.json` (project name, `defaults`, `settings`, top-level `uris` aliases) and
+`secrets.envFile` therefore apply to admin-UI runs exactly as they do to CLI runs; the route must not hand-roll a
+context.
+
 ## Frontend Integration
 
 The Vue 3 frontend (`@mt/frontend`, `vite build` -> `dist/`) is served by the standalone runtime (see above): from disk (`mt` npm package `dist/ui`) or embedded in the Bun binary. In dev, Vite proxy handles frontend requests.

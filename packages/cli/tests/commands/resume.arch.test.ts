@@ -18,13 +18,17 @@ describe('UC-06 — Resume command wiring (architectural)', () => {
 
   it('resumeCommand calls Runner.resume(runId)', async () => {
     const src = await readResumeTs()
-    expect(src).toMatch(/import.*Runner.*from\s+['"]@mt\/core['"]/)
+    expect(src).toMatch(/import\s*\{[^}]*\bRunner\b[^}]*\}\s*from\s+['"]@mt\/core['"]/s)
     expect(src).toMatch(/\.resume\(/)
   })
 
-  it('resumeCommand reads mt.json for GlobalContext', async () => {
+  it('resumeCommand builds its GlobalContext with the shared core loader', async () => {
     const src = await readResumeTs()
-    expect(src).toMatch(/mt\.json/)
-    expect(src).toMatch(/globalContext|GlobalContext/)
+    expect(src).toMatch(/loadGlobalContext/)
+    expect(src).toMatch(/from ['"]@mt\/core['"]/)
+    expect(src).toMatch(/globalContext/)
+    // Hand-rolled mt.json parsing must be gone — one loader for CLI and backend
+    expect(src).not.toMatch(/JSON\.parse/)
+    expect(src).not.toMatch(/mt\.json/)
   })
 })
