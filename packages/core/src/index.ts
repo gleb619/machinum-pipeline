@@ -83,7 +83,7 @@ export {
   deserializeTree,
   walkTree,
 } from './engine/checkpoint.js'
-export { withRetry, getBackoff } from './engine/retry.js'
+export { getBackoff, resolveRetryPolicy, withRetry } from './engine/retry.js'
 export { Cache } from './engine/cache.js'
 export type { CacheEntry, CacheOptions } from './engine/cache.js'
 // Built-in source/target registration moved to @mt/waypoint package.

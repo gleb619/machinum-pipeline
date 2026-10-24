@@ -27,7 +27,8 @@ import {
 } from './checkpoint.js'
 import { writeDeadLetter } from './dead-letter.js'
 import { autoCommit } from './git.js'
-import { withRetry } from './retry.js'
+import type { PartialRetryPolicy } from './retry.js'
+import { resolveRetryPolicy, withRetry } from './retry.js'
 import { RunStateMachine } from './state-machine.js'
 import { mapConcurrent } from './stream.js'
 
@@ -586,10 +587,18 @@ export class Runner {
       (step.config.concurrency as string) ?? this.globalContext.defaults.concurrency.toString(),
       10,
     )
-    const retryPolicy =
-      (step.config.retry as RetryPolicy | undefined) ??
-      pipeline.retry ??
-      this.globalContext.defaults.retry
+    let retryPolicy: RetryPolicy
+    try {
+      retryPolicy = resolveRetryPolicy(
+        step.config.retry as PartialRetryPolicy | undefined,
+        pipeline.retry,
+        this.globalContext.defaults.retry,
+      )
+    } catch (error) {
+      throw new Error(`Step ${stepId} (tool '${tool.name}'): ${(error as Error).message}`, {
+        cause: error,
+      })
+    }
     const onError =
       (step.config.onError as ErrorPolicy | undefined) ??
       pipeline.onError ??
