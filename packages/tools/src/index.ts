@@ -140,6 +140,35 @@ export { chapterIndexer } from './normalization/chapter-indexer.js'
 export { tokenSplitter } from './normalization/token-splitter.js'
 
 export {
+  createTokenSplitter,
+  withStrategy,
+  paragraphStrategy,
+  lineStrategy,
+  whitespaceStrategy,
+  sentenceStrategy,
+  singleStrategy,
+  balancedStrategy,
+  balancedLineStrategy,
+  balanceText,
+  overlap,
+  rebalance,
+  countTokens,
+  heuristicTokenCount,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_CHUNK_TARGET,
+  type TokenSplitter,
+  type TokenSplitterOptions,
+  type TokenSplitStrategy,
+  type TokenCountFn,
+  type ParagraphStrategyOptions,
+  type LineStrategyOptions,
+  type WhitespaceStrategyOptions,
+  type SentenceStrategyOptions,
+  type BalancedStrategyOptions,
+  type BalancedLineStrategyOptions,
+} from './normalization/token-splitter.js'
+
+export {
   titleTranslator,
   paragraphTranslator,
   createTitleTranslator,
