@@ -8,9 +8,5 @@
     "moduleResolution": "bundler",
     "module": "ES2022"
   },
-  "include": [
-    "src/**/*.ts",
-    "src/**/*.vue",
-    "env.d.ts"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.vue", "env.d.ts"]
 }
