@@ -13,13 +13,13 @@ packages/backend/server/routes/api/
 ├── pipelines.ts                      # GET /api/pipelines — list discovered pipelines
 ├── runs/
 │   ├── index.ts                      # GET /api/runs — list all runs
-│   ├── start.ts                      # POST /api/runs — start a new run
-│   ├── [id].ts                       # GET /api/runs/:id — run metadata
+│   ├── start.ts                      # POST /api/runs — start a new run, registerRunner(runId)
+│   ├── [id].ts                       # GET /api/runs/:id — run metadata (state.json)
 │   └── [id]/
 │       ├── items.ts                  # GET /api/runs/:id/items — paginated envelope list
 │       ├── events.ts                 # GET /api/runs/:id/events — SSE stream
-│       ├── pause.ts                  # POST /api/runs/:id/pause
-│       └── resume.ts                 # POST /api/runs/:id/resume
+│       ├── pause.ts                  # POST /api/runs/:id/pause — 404 unless the Runner is live here
+│       └── resume.ts                 # POST /api/runs/:id/resume — same registry lookup
 ```
 
 ## SSE Events (`events.ts`)
@@ -51,6 +51,11 @@ In-process registry mapping `runId → Runner` for runs started via the API. Met
 
 Used by `/api/runs/:id/pause` and `/api/runs/:id/resume` to reach the live Runner object.
 
+`POST /api/runs` (`start.ts`) is the only writer: it registers the Runner right after `runner.start()` (which mints
+the runId before its first await) and calls `removeRunner` when the run settles, done or failed. A run started some
+other way — `mt run`, `mt resume`, another backend process — is never in this registry, so pause/resume answers 404;
+that 404 means "not live in this process", not "run does not exist" (run metadata stays readable via `GET /api/runs/:id`).
+
 ## Frontend Integration
 
 The Vue 3 frontend (`@mt/frontend`, `vite build` -> `dist/`) is served by the standalone runtime (see above): from disk (`mt` npm package `dist/ui`) or embedded in the Bun binary. In dev, Vite proxy handles frontend requests.
@@ -73,7 +78,7 @@ packages/backend/
 └── tests/
     ├── db.arch.test.ts       # Arch: SQLite schema and migrations
     ├── routes.arch.test.ts   # Arch: expected routes present
-    ├── standalone.test.ts    # Real HTTP: health, runs, SSE replay, UI + SPA fallback
+    ├── standalone.test.ts    # Real HTTP: health, runs, SSE replay, UI + SPA fallback, pause/resume lifecycle
     └── api/
         ├── runs.arch.test.ts # Arch: runs API shape
         └── events.arch.test.ts

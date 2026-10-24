@@ -101,10 +101,21 @@ start_server() { # $1 = log file ; sets SERVER_PID and BASE
   [ -n "$BASE" ] || { cat "$1"; echo "serve did not start"; exit 1; }
 }
 
-echo "6/8 mt serve: health, runs API, SQLite, SSE, UI"
+echo "6/8 mt serve: health, runs API, SQLite, SSE, UI, pause/resume"
 mkdir -p .mt/runs/smoke-run
 echo '{"state":"running"}' > .mt/runs/smoke-run/state.json
 echo '{"type":"started"}' > .mt/runs/smoke-run/events.jsonl
+# parked run for the pause/resume probe: without this the run would end before the API calls land
+cat > pipelines/slow.ts <<'TS'
+import { definePipeline } from 'mt'
+import 'mt/waypoint'
+
+export default definePipeline()
+  .from('jsonl://./jsonl/*.jsonl')
+  .tap(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 15000))
+  })
+TS
 start_server serve.log
 test "$(curl -sf "$BASE/api/health")" = '{"status":"ok"}'
 curl -sf "$BASE/api/runs" | grep -q '"id":"smoke-run"'
@@ -125,6 +136,15 @@ ASSET="$(curl -sf "$BASE/" | grep -o '/assets/[^"]*\.js' | head -1)"
 curl -sfI "$BASE$ASSET" | grep -qi 'text/javascript'
 curl -sf "$BASE/some/spa/route" | grep -qi '<div id="app">'   # SPA fallback
 test "$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/nope")" = 404
+# a run started via the API is registered live: pause -> resume must answer 200, not 404
+STARTED="$(curl -sf -X POST -H 'content-type: application/json' -d '{"pipeline":"pipelines/slow.ts"}' "$BASE/api/runs/start")"
+SRID="$(printf '%s' "$STARTED" | grep -o '"runId":"[^"]*"' | cut -d'"' -f4)"
+[ -n "$SRID" ] || { echo "runs/start returned no runId: $STARTED"; exit 1; }
+curl -sf -X POST "$BASE/api/runs/$SRID/pause" | grep -q '"state":"paused"'
+curl -sf "$BASE/api/runs/$SRID" | grep -q '"state":"paused"'
+curl -sf -X POST "$BASE/api/runs/$SRID/resume" | grep -q '"state":"running"'
+curl -sf "$BASE/api/runs/$SRID" | grep -q '"state":"running"'
+test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/runs/nope/pause")" = 404
 kill "$SERVER_PID"
 for _ in $(seq 1 25); do kill -0 "$SERVER_PID" 2>/dev/null || break; sleep 0.2; done
 if kill -0 "$SERVER_PID" 2>/dev/null; then echo "serve did not stop on SIGTERM"; exit 1; fi

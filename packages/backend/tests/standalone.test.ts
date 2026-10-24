@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { type BackendHandle, startBackend } from '../server/standalone.js'
 
@@ -50,5 +51,112 @@ describe('standalone backend (h3 + node:http, no Nitro)', () => {
     expect(await (await fetch(`${handle.url}/`)).text()).toContain('id="app"')
     expect(await (await fetch(`${handle.url}/some/route`)).text()).toContain('id="app"')
     expect((await fetch(`${handle.url}/api/nope`)).status).toBe(404)
+  })
+})
+
+const GATE_KEY = '__MT_LIVE_RUN_RELEASE__'
+
+function gate(): (() => void) | undefined {
+  return (globalThis as Record<string, unknown>)[GATE_KEY] as (() => void) | undefined
+}
+
+async function until(
+  label: string,
+  cond: () => Promise<boolean> | boolean,
+  timeoutMs = 5000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!(await cond())) {
+    if (Date.now() > deadline) throw new Error(`Timed out waiting for ${label}`)
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+}
+
+describe('pause/resume of a live run (T084)', () => {
+  let dir: string
+  let previousCwd: string
+  let handle: BackendHandle
+
+  beforeAll(async () => {
+    // Under the vitest root so the runtime-written pipeline module stays resolvable
+    dir = await mkdtemp(join(dirname(fileURLToPath(import.meta.url)), 'live-run.ignore.'))
+    await writeFile(
+      join(dir, 'pipeline.mjs'),
+      `export default {
+  id: 'live-run-fixture',
+  retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+  onError: 'fail-run',
+  steps: [
+    {
+      type: 'tap',
+      config: {
+        fn: async () => {
+          await new Promise((resolve) => {
+            globalThis['${GATE_KEY}'] = resolve
+          })
+        },
+      },
+    },
+  ],
+}
+`,
+    )
+    previousCwd = process.cwd()
+    process.chdir(dir)
+    handle = await startBackend({ port: 0, host: '127.0.0.1' })
+  })
+
+  afterAll(async () => {
+    gate()?.()
+    delete (globalThis as Record<string, unknown>)[GATE_KEY]
+    await handle.close()
+    process.chdir(previousCwd)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  async function post(path: string): Promise<Response> {
+    return fetch(`${handle.url}${path}`, { method: 'POST' })
+  }
+
+  async function runState(runId: string): Promise<string> {
+    const body = (await (await fetch(`${handle.url}/api/runs/${runId}`)).json()) as {
+      state: string
+    }
+    return body.state
+  }
+
+  it('pause → resume a run started through POST /api/runs/start, then drops it when done', async () => {
+    const started = await fetch(`${handle.url}/api/runs/start`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pipeline: 'pipeline.mjs' }),
+    })
+    expect(started.status).toBe(200)
+    const { runId } = (await started.json()) as { runId: string }
+    expect(runId).toBeTruthy()
+
+    await until('the run to park on its tap step', () => gate() !== undefined)
+
+    const paused = await post(`/api/runs/${runId}/pause`)
+    expect(paused.status).toBe(200)
+    expect(await paused.json()).toEqual({ runId, state: 'paused' })
+    await until('paused state to be persisted', () => runState(runId).then((s) => s === 'paused'))
+
+    const resumed = await post(`/api/runs/${runId}/resume`)
+    expect(resumed.status).toBe(200)
+    expect(await resumed.json()).toEqual({ runId, state: 'running' })
+    await until('running state to be persisted', () => runState(runId).then((s) => s === 'running'))
+
+    gate()?.()
+    await until('the finished runner to unregister', async () => {
+      const res = await post(`/api/runs/${runId}/pause`)
+      return res.status === 404
+    })
+    expect(await runState(runId)).toBe('done')
+  })
+
+  it('keeps an unknown runId a 404 on both pause and resume', async () => {
+    expect((await post('/api/runs/no-such-run/pause')).status).toBe(404)
+    expect((await post('/api/runs/no-such-run/resume')).status).toBe(404)
   })
 })

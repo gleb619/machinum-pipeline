@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { Runner } from '@mt/core'
 import type { GlobalContext, Pipeline } from '@mt/core'
 import { createError, defineEventHandler, readBody } from 'h3'
+import { registerRunner, removeRunner } from '../../../utils/runner-registry.js'
 
 interface StartRunBody {
   pipeline: string
@@ -52,9 +53,19 @@ export default defineEventHandler(async (event) => {
   const runner = new Runner(pipeline, globalContext)
 
   // Fire-and-forget: start the run in background
-  runner.start().catch((err) => {
-    console.error(`[run:${runner.getRunId()}] Background run failed:`, err)
-  })
+  const running = runner.start()
+  // start() mints the runId before its first await, so it is readable here
+  const runId = runner.getRunId()
+  if (runId) registerRunner(runId, runner)
 
-  return { runId: runner.getRunId() }
+  running
+    .catch((err) => {
+      console.error(`[run:${runner.getRunId()}] Background run failed:`, err)
+    })
+    .finally(() => {
+      // done/failed: pause/resume must not reach a Runner that can no longer run
+      if (runId) removeRunner(runId)
+    })
+
+  return { runId }
 })
