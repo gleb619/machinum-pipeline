@@ -32,6 +32,7 @@ export interface MtConfig {
       max?: number
       backoffMs?: number
       strategy?: 'fixed' | 'linear' | 'exp'
+      maxBackoffMs?: number
     }
     onError?: 'fail-run' | 'skip-item' | 'dead-letter'
     concurrency?: number
@@ -131,15 +132,20 @@ type PartialRetry = {
   max?: number
   backoffMs?: number
   strategy?: RetryStrategy
+  maxBackoffMs?: number
 }
 
 function resolveRetry(retry: PartialRetry | undefined): RetryPolicy {
   const fallback = DEFAULT_MT_CONFIG.defaults.retry
-  return {
+  const policy: RetryPolicy = {
     max: retry?.max ?? fallback.max,
     backoffMs: retry?.backoffMs ?? fallback.backoffMs,
     strategy: retry?.strategy ?? fallback.strategy,
   }
+  // Unset stays unset: withRetry then applies DEFAULT_MAX_BACKOFF_MS.
+  const maxBackoffMs = retry?.maxBackoffMs
+  if (maxBackoffMs !== undefined) policy.maxBackoffMs = maxBackoffMs
+  return policy
 }
 
 async function readMtConfig(projectRoot: string): Promise<Partial<MtConfig>> {

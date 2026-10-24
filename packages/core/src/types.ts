@@ -1,4 +1,4 @@
-import type { SourceContext, TargetContext, ToolContext } from './contexts.js'
+import type { RetryPolicy, SourceContext, TargetContext, ToolContext } from './contexts.js'
 
 /**
  * Lifecycle type for sources.
@@ -44,6 +44,11 @@ export interface Target<T> {
 
 /**
  * Tool abstraction — transforms items in a pipeline.
+ *
+ * Error contract (read by the engine's retry layer, `engine/retry.ts`): an error thrown from
+ * `invoke` with `retryable === false` is fatal — the engine rethrows it immediately, without
+ * backoff. Any other error (including `retryable === true`) follows the policy, and a
+ * `retryAfterMs` on it overrides the computed backoff, clamped to `RetryPolicy.maxBackoffMs`.
  */
 export interface Tool<I, O> {
   name: string
@@ -69,7 +74,7 @@ export interface Logger {
  */
 export interface Pipeline<_I = unknown, _O = unknown> {
   id: string
-  retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
+  retry: RetryPolicy
   onError: 'fail-run' | 'skip-item' | 'dead-letter'
   steps: PipelineStep[]
 }

@@ -193,11 +193,28 @@ consecutive groups overlap.
 
 ```typescript
 type RetryStrategy = 'fixed' | 'linear' | 'exp';
-interface RetryPolicy { max: number; backoffMs: number; strategy: RetryStrategy; }
+interface RetryPolicy {
+  max: number; backoffMs: number; strategy: RetryStrategy; maxBackoffMs?: number; // cap, default 60_000
+}
 type ErrorPolicy = 'fail-run' | 'skip-item' | 'dead-letter';
 ```
 
 Merge order (highest wins): **tool step > pipeline > global (`mt.json`)**.
+
+`withRetry` also reads a duck-typed error contract (`RetryableError` in `engine/retry.ts`), so core
+stays free of any `@mt/tools` import:
+
+- `error.retryable === false` → fatal: rethrown on the spot, no further attempt, no `onRetry`
+  callback, no backoff. Anything else (including a plain `Error`) keeps retrying.
+- `error.retryAfterMs` > 0 on a retryable error replaces the computed backoff — a `Retry-After`
+  header is a server instruction, not a hint.
+- Every wait (computed backoff or `retryAfterMs`) is clamped to `maxBackoffMs`
+  (`DEFAULT_MAX_BACKOFF_MS` = 60s when unset), so `exp` cannot run away on a large `backoffMs`.
+
+Tools opt in by throwing errors carrying those fields (contract documented on `Tool.invoke` in
+`types.ts`); `LlmError.retryable` and `LlmRateLimitError.retryAfterMs` in `@mt/tools` are the
+existing shapes, so a dead key (402) or an oversize prompt now fails fast instead of waiting
+1s + 2s + 4s per item.
 
 `dead-letter` writes the offending envelope + error to `.mt/runs/<id>/dead-letter.jsonl`.
 `skip-item` and `dead-letter` drop the item and keep the run going (it ends `done`); `fail-run`

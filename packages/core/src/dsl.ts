@@ -1,5 +1,5 @@
 import { basename, dirname } from 'node:path'
-import type { ToolContext } from './contexts.js'
+import type { RetryPolicy, ToolContext } from './contexts.js'
 import type { Envelope, Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
 
@@ -97,7 +97,7 @@ function getCallerFileId(): string {
  */
 export function definePipeline<I = unknown, O = unknown>(config?: {
   id?: string
-  retry?: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
+  retry?: RetryPolicy
   onError?: 'fail-run' | 'skip-item' | 'dead-letter'
 }): PipelineBuilder<I, O> {
   const id = config?.id ?? getCallerFileId()
@@ -115,14 +115,14 @@ export function definePipeline<I = unknown, O = unknown>(config?: {
  */
 export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   private readonly _id: string
-  private readonly _retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
+  private readonly _retry: RetryPolicy
   private readonly _onError: 'fail-run' | 'skip-item' | 'dead-letter'
   private readonly _steps: PipelineStep[] = []
 
   get id(): string {
     return this._id
   }
-  get retry(): { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' } {
+  get retry(): RetryPolicy {
     return this._retry
   }
   get onError(): 'fail-run' | 'skip-item' | 'dead-letter' {
@@ -134,7 +134,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
 
   constructor(config: {
     id: string
-    retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
+    retry: RetryPolicy
     onError: 'fail-run' | 'skip-item' | 'dead-letter'
   }) {
     this._id = config.id
@@ -174,7 +174,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   use<T, R>(
     tool: Tool<T, R>,
     overrides?: {
-      retry?: { max?: number; backoffMs?: number; strategy?: 'fixed' | 'linear' | 'exp' }
+      retry?: Partial<RetryPolicy>
       onError?: 'fail-run' | 'skip-item' | 'dead-letter'
     },
   ): PipelineBuilder<R, O> {

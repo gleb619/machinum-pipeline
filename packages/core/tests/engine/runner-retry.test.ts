@@ -9,7 +9,9 @@ vi.mock('../../src/store.js', () => ({
     ensureDir = vi.fn().mockResolvedValue(undefined)
     writeJson = vi.fn().mockResolvedValue(undefined)
     readJson = vi.fn().mockResolvedValue({ state: 'done', checkpoint: { stepId: 'root' } })
-    append = vi.fn().mockResolvedValue(undefined)
+    append = vi.fn().mockImplementation(async (line: string) => {
+      appendedLines.push(line)
+    })
   },
 }))
 
@@ -21,6 +23,9 @@ vi.mock('../../src/engine/cache.js', () => ({
     set = vi.fn().mockResolvedValue(undefined)
   },
 }))
+
+/** Every line appended to the mocked store (dead-letter queue). */
+const appendedLines = vi.hoisted(() => [] as string[])
 
 const sourceItems: Envelope<unknown>[] = []
 const written: Envelope<unknown>[] = []
@@ -72,11 +77,26 @@ function flakyTool(failTimes: number): { tool: Tool<unknown, unknown>; calls: ()
   return { tool, calls: () => attempts }
 }
 
+/** Tool that always throws an error declaring itself non-retryable (e.g. 402 quota). */
+function fatalTool(): { tool: Tool<unknown, unknown>; calls: () => number } {
+  let attempts = 0
+  const tool: Tool<unknown, unknown> = {
+    name: 'fatal-tool',
+    version: '1.0.0',
+    mdDescription: 'Test tool fatal-tool that fails the same way on every attempt.',
+    invoke: async (_env: Envelope<unknown>) => {
+      attempts++
+      throw Object.assign(new Error('insufficient credits'), { retryable: false, status: 402 })
+    },
+  }
+  return { tool, calls: () => attempts }
+}
+
 function pipelineWith(
   pipelineRetry: RetryPolicy | undefined,
   stepRetry: RetryPolicy | Partial<RetryPolicy> | undefined,
   tool: Tool<unknown, unknown>,
-  onError: 'fail-run' | 'skip-item' = 'fail-run',
+  onError: 'fail-run' | 'skip-item' | 'dead-letter' = 'fail-run',
 ): Pipeline {
   const steps: PipelineStep[] = [
     { type: 'source', config: { uri: 'retry-source://input' } },
@@ -97,6 +117,7 @@ describe('Runner retry policy merge', () => {
     vi.clearAllMocks()
     sourceItems.length = 0
     written.length = 0
+    appendedLines.length = 0
     sourceItems.push({ item: 'a', meta: {} })
   })
 
@@ -191,5 +212,40 @@ describe('Runner retry policy merge', () => {
       ).rejects.toThrow(/[Rr]etry/)
       expect(neverCalled.calls()).toBe(0)
     }
+  })
+
+  it('fails the run on the first attempt when the tool error says retryable: false', async () => {
+    const spy = vi.spyOn(globalThis, 'setTimeout')
+    const { tool, calls } = fatalTool()
+    // Expensive policy on purpose: a fatal error must not wait 1s + 2s + 4s before surfacing.
+    const pipeline = pipelineWith({ max: 3, backoffMs: 1000, strategy: 'exp' }, undefined, tool)
+
+    await expect(
+      new Runner(pipeline, defaultsContext({ max: 0, backoffMs: 0, strategy: 'fixed' })).start(),
+    ).rejects.toThrow('insufficient credits')
+
+    expect(calls()).toBe(1)
+    expect(spy.mock.calls.map((args) => args[1]).filter((d) => (d ?? 0) > 0)).toEqual([])
+    spy.mockRestore()
+  })
+
+  it('routes a non-retryable tool error to dead-letter and still completes the run', async () => {
+    const { tool, calls } = fatalTool()
+    const pipeline = pipelineWith(
+      { max: 3, backoffMs: 1, strategy: 'fixed' },
+      undefined,
+      tool,
+      'dead-letter',
+    )
+
+    await new Runner(pipeline, defaultsContext({ max: 0, backoffMs: 0, strategy: 'fixed' })).start()
+
+    expect(calls()).toBe(1)
+    expect(written).toHaveLength(0)
+    const entry = appendedLines
+      .filter((line) => line.startsWith('{'))
+      .map((line) => JSON.parse(line) as { error?: { message?: string } })
+      .find((json) => json.error?.message)
+    expect(entry?.error?.message).toBe('insufficient credits')
   })
 })

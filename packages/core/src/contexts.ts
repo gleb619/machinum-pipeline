@@ -83,6 +83,11 @@ export interface RetryPolicy {
   max: number
   backoffMs: number
   strategy: 'fixed' | 'linear' | 'exp'
+  /**
+   * Ceiling for any single wait, in ms. Applies to the computed backoff and to a
+   * server-supplied `retryAfterMs`. Unset means `DEFAULT_MAX_BACKOFF_MS` (60s).
+   */
+  maxBackoffMs?: number
 }
 
 /**

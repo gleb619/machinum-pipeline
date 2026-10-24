@@ -110,6 +110,12 @@ stable key, opt-in). Typed errors: `LlmRateLimitError` (with `retryAfterMs`), `L
 `LlmServerError`, `LlmNetworkError`, `LlmTimeoutError`, `LlmAbortError`, `LlmParseError`. Secrets are never logged
 (`redactLlmConfig`), and `apiKey` is never read from `meta` (checkpointed).
 
+**Layered retries.** The decorator above and the engine's `withRetry` around `tool.invoke` obey the *same*
+error contract (`retryable` / `retryAfterMs`, see [core.md](core.md#retry--error-policy)), so the two layers
+do not multiply on a fatal error: a 402 / 401 / oversize prompt / parse error surfaces from the first attempt
+at both levels instead of burning `max` backoffs each. A 429 waits the server's `retryAfterMs`, clamped to
+`RetryPolicy.maxBackoffMs` (default 60s).
+
 `LlmClient.chatCompletionStream?(req, onDelta?)` optionally aggregates content deltas (final usage included);
 the non-streaming `chatCompletion` path is unchanged.
 

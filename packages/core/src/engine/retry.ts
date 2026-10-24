@@ -5,9 +5,40 @@ export type PartialRetryPolicy = {
   max?: number
   backoffMs?: number
   strategy?: RetryStrategy
+  maxBackoffMs?: number
 }
 
 const STRATEGIES: readonly RetryStrategy[] = ['fixed', 'linear', 'exp']
+
+/** Ceiling used when a policy declares no `maxBackoffMs`. */
+export const DEFAULT_MAX_BACKOFF_MS = 60_000
+
+/**
+ * Duck-typed error contract read by `withRetry`. Core must not import tool error classes, so any
+ * shape works: `retryable: false` marks the failure fatal for this item (quota / auth / oversize
+ * prompt / parse), `retryAfterMs` tells the engine how long the server asked it to wait.
+ */
+export interface RetryableError {
+  readonly retryable?: boolean
+  readonly retryAfterMs?: number
+}
+
+/** Only an explicit `retryable: false` is fatal — an error that says nothing keeps retrying. */
+export function isFatalError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false
+  return (error as RetryableError).retryable === false
+}
+
+function getRetryAfterMs(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) return undefined
+  const value = (error as RetryableError).retryAfterMs
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function capOf(policy: RetryPolicy): number {
+  const cap = policy.maxBackoffMs
+  return typeof cap === 'number' && Number.isFinite(cap) && cap >= 0 ? cap : DEFAULT_MAX_BACKOFF_MS
+}
 
 export async function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -37,6 +68,7 @@ export function resolveRetryPolicy(
     max: 'no retry layer',
     backoffMs: 'no retry layer',
     strategy: 'no retry layer',
+    maxBackoffMs: 'no retry layer',
   }
   for (const { label, value } of layers) {
     if (value === undefined) continue
@@ -54,6 +86,10 @@ export function resolveRetryPolicy(
     if (value.strategy !== undefined) {
       merged.strategy = value.strategy
       origin.strategy = label
+    }
+    if (value.maxBackoffMs !== undefined) {
+      merged.maxBackoffMs = value.maxBackoffMs
+      origin.maxBackoffMs = label
     }
   }
 
@@ -89,10 +125,27 @@ export function resolveRetryPolicy(
     )
   }
 
+  const maxBackoffMs = merged.maxBackoffMs
+  if (maxBackoffMs !== undefined) {
+    if (typeof maxBackoffMs !== 'number' || !Number.isFinite(maxBackoffMs) || maxBackoffMs < 0) {
+      throw new Error(
+        `Invalid retry policy: 'maxBackoffMs' must be a finite number >= 0, got ${String(
+          maxBackoffMs,
+        )} (from ${origin.maxBackoffMs})`,
+      )
+    }
+    return { max, backoffMs, strategy, maxBackoffMs }
+  }
+
   return { max, backoffMs, strategy }
 }
 
 export function getBackoff(attempt: number, policy: RetryPolicy): number {
+  const raw = computeBackoff(attempt, policy)
+  return Number.isFinite(raw) ? Math.min(raw, capOf(policy)) : raw
+}
+
+function computeBackoff(attempt: number, policy: RetryPolicy): number {
   switch (policy.strategy) {
     case 'fixed':
       return policy.backoffMs
@@ -119,9 +172,13 @@ export async function withRetry<T>(
       return await fn()
     } catch (error) {
       lastError = error
+      // Retrying a failure the tool already declared fatal (402 / 401 / oversize prompt)
+      // only burns backoff time before the same error surfaces.
+      if (isFatalError(error)) throw error
       if (attempt < max) {
         onRetry(error, attempt)
-        const delay = getBackoff(attempt, policy)
+        const raw = getRetryAfterMs(error) ?? getBackoff(attempt, policy)
+        const delay = Math.min(raw, capOf(policy))
         await wait(Number.isFinite(delay) && delay > 0 ? delay : 0)
       }
     }
