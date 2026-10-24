@@ -14,6 +14,8 @@ export {
   chatCompletion,
   runPrompt,
   chatCompletionSingle,
+  resolveRouterUrl,
+  type ChatCompletionOptions,
   type ChatMessage,
   type ChatCompletionInput,
   type ChatCompletionOutput,
@@ -118,7 +120,12 @@ export type FixerInput = FI
 export type FixerOutput = FO
 
 export { wordCounter } from './word-counter.js'
-export { tokenCounter, tokenCounterBatch, tokenCounterBatchCached } from './token-counter.js'
+export {
+  tokenCounter,
+  tokenCounterBatch,
+  tokenCounterBatchCached,
+  countTextTokens,
+} from './token-counter.js'
 
 export { chapterIndexer } from './chapter-indexer.js'
 
@@ -190,3 +197,144 @@ export {
 } from './chapter-doc.js'
 
 export { appendMdOutput, mdOutputEmitter, type MdOutputEmitterConfig } from './md-outputs.js'
+
+// --- LLM toolkit (client, config, prompts, context window, gate) ---
+export {
+  type LlmMessage,
+  type LlmRequest,
+  type LlmResponse,
+  type LlmUsage,
+  type LlmClient,
+  type LlmResponseFormat,
+  type LlmTransport,
+  type LlmHttpRequest,
+  type LlmHttpResponse,
+  type OpenAiCompatOptions,
+  type AnthropicOptions,
+  type CacheLike,
+  type CreateLlmClientDeps,
+  OpenAiCompatClient,
+  AnthropicClient,
+  fetchTransport,
+  createAdapter,
+  createLlmClient,
+} from './llm-client.js'
+
+export {
+  withTimeout,
+  withLlmRetry,
+  withCache,
+  cacheableRequest,
+  type LlmRetryOptions,
+  type LlmCacheOptions,
+} from './llm-decorators.js'
+
+export {
+  LlmError,
+  LlmRateLimitError,
+  LlmAuthError,
+  LlmQuotaError,
+  LlmContextLengthError,
+  LlmServerError,
+  LlmNetworkError,
+  LlmTimeoutError,
+  LlmAbortError,
+  LlmRequestError,
+  LlmParseError,
+  classifyHttpError,
+  isRetryableLlmError,
+} from './llm-errors.js'
+
+export {
+  LLM_PROVIDERS,
+  DEFAULT_RETRY,
+  DEFAULT_TIMEOUT_MS,
+  resolveLlmConfig,
+  resolveLlmConfigFromCtx,
+  redactLlmConfig,
+  readCtx,
+  type LlmProvider,
+  type LlmConfigLayer,
+  type ResolvedLlmConfig,
+  type ResolveLlmConfigArgs,
+  type CtxView,
+} from './llm-config.js'
+
+export {
+  PromptVariableError,
+  PromptNotFoundError,
+  renderTemplate,
+  templateVars,
+  registerPrompt,
+  getDefaultPrompt,
+  listPrompts,
+  resolvePrompt,
+  resolvePromptTemplate,
+  promptEnvName,
+  promptSourcesFromCtx,
+  type PromptTemplate,
+  type PromptSources,
+  type PromptSource,
+} from './llm-prompts.js'
+
+export {
+  contextWindow,
+  contextShrink,
+  createContextWindow,
+  createFitter,
+  fitMessages,
+  resolveContextConfig,
+  resolveStrategy,
+  registerShrinkStrategy,
+  shrinkStrategies,
+  modelContextLimit,
+  truncateLines,
+  truncateTail,
+  truncateHead,
+  dropOldest,
+  dropMiddle,
+  slidingWindow,
+  summarize,
+  DEFAULT_STRATEGIES,
+  type ShrinkStrategy,
+  type ShrinkBudget,
+  type ShrinkHelpers,
+  type StrategySpec,
+  type StrategyFactory,
+  type ContextWindowRecord,
+  type ContextWindowOptions,
+  type ContextWindowItem,
+  type ContextConfigLayer,
+  type ResolvedContextConfig,
+  type FitOptions,
+  type Fitter,
+} from './llm-context.js'
+
+export {
+  createLlmGate,
+  llmGate,
+  llmPrepare,
+  llmFit,
+  llmCall,
+  llmParse,
+  llmEmit,
+  runLlmCall,
+  extractJson,
+  mockLlmCall,
+  mockLlmClient,
+  type GateInput,
+  type GateState,
+  type GateSlot,
+  type GateOutput,
+  type LlmGateOptions,
+  type MockSource,
+  type MockAnswer,
+  type MockLlmClient,
+  type MockLlmCall,
+} from './llm-gate.js'
+
+export {
+  llmTranslate,
+  type LlmTranslateInput,
+  type LlmTranslateOutput,
+} from './llm-translate.js'

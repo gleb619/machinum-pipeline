@@ -2,7 +2,8 @@
 
 This sample reads book chapters from JSONL and processes them through several tool chains: verification,
 schema-doc generation, and a stub translation. The default export is a pure orchestration pipeline — it has
-no source or target of its own and runs ten named subflows on the same Runner.
+no source or target of its own and runs ten named subflows on the same Runner. Extra named pipelines
+(`schemaDocMockPipeline`, `llmGatePipeline`) are run on demand with `--pipeline <name>`.
 
 ## What you will learn
 
@@ -31,7 +32,8 @@ samples/sample2/
 ├── chapters/                        # Created at runtime — pipeline output
 │   ├── en/                          #   verifyFlow: chapter1.md … chapterN.md
 │   ├── ru/                          #   translateFlow: chapter1.md … chapterN.md ([ru] markers)
-│   └── schema/                      #   schemaDocPipeline: chapterN.schema.md
+│   ├── schema/                      #   schemaDocPipeline: chapterN.schema.md
+│   └── llm/                         #   llmGatePipeline: chapterN.llm.md
 └── tests/
     ├── jsonl-to-md-multi.test.ts    # Integration test (runs the real `mt` binary)
     └── chapter-processing.test.ts   # Unit tests over the tools used by the flows
@@ -81,6 +83,26 @@ jsonl://./jsonl/input.jsonl
 Same chain as `schemaDocPipeline`, but `.use(schemaDocWriter.with({ emit: mockSchemaEmit }))`: the `build`
 slot (markdown assembly) is reused, the `emit` slot is replaced by a sample-local mock that tags the markdown
 and redirects it to `chapters/schema-mock/chapter<N>.mock.md`. Run with `--pipeline schemaDocMockPipeline`.
+
+### llmGatePipeline — LLM gate with a mock `call` slot (offline)
+
+Not part of the default subflow chain (it is a demo; it needs no API key). Shows the LLM toolkit:
+
+```
+jsonl://./jsonl/input.jsonl
+  → use(toLlmGateInput)        ← record -> {title, body, history[6 earlier notes]}, meta.chapterNum
+  → use(chapterSummaryGate)    ← createLlmGate(...).with({ call: mockLlmCall(fn) })
+        prepare: custom 'summary' prompt template (override of the built-in default)
+        fit:     context budget maxTokens=60, strategies ['dropOldest','truncateLines']
+        call:    mock (scripted answer, no network)  <- swapped slot
+  → use(llmSummaryToMd)        ← markdown incl. `context: <before> -> <after> tokens` (meta.contextWindow)
+  → use(mdOutputEmitter(...))  ← meta.mdOutputs -> chapters/llm/chapter<N>.llm.md
+  → md://./chapters
+```
+
+Swap `mockLlmCall` for a real provider by deleting the `.with({ call })` and configuring
+`MT_LLM_PROVIDER` / `MT_LLM_MODEL` / API key env (see docs/steering/tools.md). Override the prompt without code via
+`MT_PROMPT_SUMMARY='...'` or `MT_PROMPT_SUMMARY=@prompts/summary.md`.
 
 ### translateFlow — MD(EN) → MD(RU)
 
@@ -152,7 +174,7 @@ cd samples/sample2
 npm run cleanup
 ```
 
-This removes `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`, `jsonl/input.jsonl`, and `.mt/`.
+This removes `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`, `chapters/llm/*.md`, `jsonl/input.jsonl`, and `.mt/`.
 
 ## How to run manually
 
@@ -185,6 +207,7 @@ The integration test (`tests/jsonl-to-md-multi.test.ts`):
 3. Runs `mt run … --pipeline schemaDocPipeline` and checks that `chapters/schema/chapter<N>.schema.md`
    is generated per chapter, with YAML frontmatter plus the Metadata, Summary, and Entities sections.
 4. Runs `--pipeline schemaDocMockPipeline` and checks output lands only in `chapters/schema-mock/` (slot override).
+5. Runs `--pipeline llmGatePipeline` and checks `chapters/llm/chapter<N>.llm.md`: mock answer, custom prompt text, and that the context budget shrank the history (`context: A -> B tokens`, B <= 60).
 
 `tests/chapter-processing.test.ts` covers the tools directly (`chapterValidator`, `tokenSplitter`,
 `forbiddenCharDetector`, `typoFinder`, `markdownFormatter`) by importing them from `packages/tools/src`,

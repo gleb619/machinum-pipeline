@@ -88,7 +88,17 @@ pnpm dev --filter=@mt/core           # Watch mode
 | `OPENROUTER_API_KEYS` | — | Comma-separated keys; pool rotates round-robin |
 | `MT_HOME` | `~/.mt` | Global state directory (router logs, etc.) |
 | `MT_ROUTER_URL` | `http://localhost:7777` | OpenRouter proxy URL |
+| `MT_LLM_PROVIDER` | `router` | `router` \| `openrouter` \| `openai` \| `ollama` \| `anthropic` \| `custom` |
+| `MT_LLM_MODEL` | provider default | Default model id |
+| `MT_LLM_BASE_URL` | provider default | API base URL (required for `custom`) |
+| `MT_LLM_API_KEY` | — | API key for any provider (wins over provider-specific vars) |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — | Provider keys |
+| `MT_LLM_TIMEOUT_MS` | `120000` | Per-call timeout |
+| `MT_LLM_CACHE` | `false` | Cache LLM responses in `.mt/cache` |
+| `MT_PROMPT_<NAME>` | built-in | Prompt override, inline text or `@path/to/file.md` (`translate.system` -> `MT_PROMPT_TRANSLATE_SYSTEM`) |
+| `MT_CONTEXT_MAX_TOKENS` / `MT_CONTEXT_LIMIT` / `MT_CONTEXT_RESERVE` | — | Context-window budget (input tokens / model window / output reserve) |
+| `MT_CONTEXT_STRATEGIES` | `dropOldest,truncateLines` | Comma-separated shrink strategies |
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |
 
-Secrets loaded from `.env` via `mt.json → secrets.envFile`.
+LLM precedence tables: [tools.md](tools.md#llm-toolkit). Secrets loaded from `.env` via `mt.json → secrets.envFile`.

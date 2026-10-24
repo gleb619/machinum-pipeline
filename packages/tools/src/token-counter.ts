@@ -112,3 +112,11 @@ export const tokenCounterBatchCached = defineTool<string, string>({
     }
   },
 })
+
+/**
+ * Token count for plain text using the process-wide cached encoder (cl100k_base).
+ * Shared by LLM context-window management.
+ */
+export function countTextTokens(text: string): number {
+  return getCachedEncoder().encode(text).length
+}

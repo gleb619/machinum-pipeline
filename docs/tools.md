@@ -245,3 +245,19 @@ Sorted by complexity (Low → High).
 | 114   | TL114  | `indexWithLightRAG`                    | `Chapter`       | `Chapter & { ragDocId: string }`                     | Indexing        | High       | Indexes chapter content in LightRAG vector store for retrieval.                                                      |
 | 115   | TL115  | `synthesizeSpeech`                     | `Text`          | `Audio`                                              | Media           | Medium     | Uses machinum-tts for high-quality speech synthesis.                                                                 |
 | 116   | TL116  | `runAutomataWorkflow`                  | `Chapter`       | `Chapter & { automataResult: unknown }`              | Agent           | High       | Executes automation workflow via machinum-automata.                                                                  |
+
+---
+
+## LLM toolkit (`@mt/tools`)
+
+Implemented (not part of the TL index above). Full reference: [steering/tools.md](steering/tools.md#llm-toolkit).
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `chatCompletion`, `runPrompt` | composable tool (slots `prepare, fit, call, parse, emit`) | Existing LLM tools, now gate-based; same I/O |
+| `llmGate` / `createLlmGate(opts)` | composable tool factory | Generic LLM gate; swap any slot with `.with()` |
+| `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user` |
+| `contextWindow` (= `contextShrink`) / `createContextWindow(opts)` | tool | Shrink messages/text to a token budget (strategies: `truncateLines`, `truncateTail`, `truncateHead`, `summarize`, `dropOldest`, `dropMiddle`, `slidingWindow`, custom) |
+| `mockLlmCall`, `mockLlmClient` | test helpers | Scripted `call` slot / client, no network |
+| `createLlmClient(cfg, ctx)`, `withTimeout`, `withLlmRetry`, `withCache` | client layer | Provider adapters (OpenAI-compatible, Anthropic) + decorators |
+| `resolveLlmConfig`, `resolvePrompt`, `resolveContextConfig` | pure resolvers | Config / prompt / context precedence |

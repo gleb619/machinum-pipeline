@@ -4,10 +4,13 @@ import {
   chapterDoc,
   chapterIndexer,
   chapterValidator,
+  createLlmGate,
   entitiesTool,
   forbiddenCharDetector,
   markdownFormatter,
   mdFormatter,
+  mdOutputEmitter,
+  mockLlmCall,
   paragraphTranslator,
   schemaDocWriter,
   schemaTool,
@@ -172,6 +175,74 @@ export const translateChapterPipeline = definePipeline()
   })
   .use(paragraphTranslator)
   .to('ephemeral://translate-output')
+
+// === LLM gate demo (offline): mock `call` slot + custom prompt + context shrink ===
+// Gate = composable tool with slots prepare -> fit -> call -> parse -> emit.
+// - prompts:  override the built-in 'summary' template (also possible via meta.prompts,
+//             mt.json settings `prompts.summary`, or env MT_PROMPT_SUMMARY=text|@file)
+// - context:  token budget + ordered shrink strategies for the `fit` slot
+// - .with({ call: mockLlmCall(...) }) swaps the network call for a scripted answer (no API key)
+const chapterSummaryGate = createLlmGate<
+  { title: string; body: string; history: string[] },
+  { content: string; model: string }
+>({
+  name: 'chapter-summary-gate',
+  prompts: {
+    summary: 'SAMPLE PROMPT - summarize in {{sentences}} sentences: {{text}}',
+  },
+  context: { maxTokens: 60, strategies: ['dropOldest', 'truncateLines'] },
+  normalize: (input) => ({
+    systemPrompt: 'You summarize book chapters.',
+    // earlier turns the budget will trim (system + final prompt are always kept)
+    messages: input.history.flatMap((h) => [
+      { role: 'user' as const, content: h },
+      { role: 'assistant' as const, content: `noted: ${h}` },
+    ]),
+    promptName: 'summary',
+    vars: { sentences: 2, text: input.body },
+  }),
+}).with({
+  call: mockLlmCall(
+    (req) => `mock-summary(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
+  ),
+})
+
+// Record -> gate input (history is synthetic filler so the context budget has something to trim).
+const toLlmGateInput = defineTool<{ title: string; body: string }, unknown>({
+  name: 'to-llm-gate-input',
+  version: '1.0.0',
+  invoke: async (env, _ctx) => {
+    const { title, body } = env.item
+    const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
+    const history = Array.from({ length: 6 }, (_, i) => `earlier note ${i + 1} about ${title}`)
+    return { item: { title, body, history }, meta: { ...env.meta, chapterNum: n } }
+  },
+})
+
+// Gate output -> markdown, then the shared emit slot helper writes chapters/llm/chapter<N>.llm.md.
+const llmSummaryToMd = defineTool<{ content: string; model: string }, string>({
+  name: 'llm-summary-to-md',
+  version: '1.0.0',
+  invoke: async (env, _ctx) => {
+    const cw = env.meta.contextWindow as { before: number; after: number } | undefined
+    const md = `## LLM summary\n\n${env.item.content}\n\ncontext: ${cw?.before} -> ${cw?.after} tokens\n`
+    return { item: md, meta: env.meta }
+  },
+})
+
+export const llmGatePipeline = definePipeline()
+  .from('jsonl://./jsonl/input.jsonl')
+  .use(toLlmGateInput)
+  .use(chapterSummaryGate)
+  .use(llmSummaryToMd)
+  .use(
+    mdOutputEmitter({
+      name: 'llm-summary',
+      dir: 'chapters/llm',
+      filename: (meta) => `chapter${meta.chapterNum}.llm.md`,
+    }),
+  )
+  .to('md://./chapters')
 
 // === Default: orchestration pipeline (subflow-only) ===
 export default definePipeline()

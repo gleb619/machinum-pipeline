@@ -1,5 +1,9 @@
-import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import type { ToolContext } from '@mt/core'
+import { type LlmMessage, OpenAiCompatClient } from './llm-client.js'
+import { DEFAULT_ROUTER_URL, readCtx } from './llm-config.js'
+import { type GateInput, createLlmGate } from './llm-gate.js'
+
+export { DEFAULT_ROUTER_URL }
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -12,6 +16,12 @@ export interface ChatCompletionInput {
   systemPrompt?: string
   temperature?: number
   maxTokens?: number
+  /** Ask for JSON output; the gate parses it into `json` (with corrective retries). */
+  responseFormat?: GateInput['responseFormat']
+  /** Per-call LLM config overrides (provider, model, baseUrl, timeoutMs, ...). */
+  llm?: GateInput['llm']
+  /** Per-call context-window overrides (maxTokens, contextLimit, reserve, strategies). */
+  context?: GateInput['context']
 }
 
 export interface ChatCompletionOutput {
@@ -20,126 +30,84 @@ export interface ChatCompletionOutput {
   tokens: number
   promptTokens: number
   completionTokens: number
+  /** Parsed JSON when `responseFormat: 'json'`. */
+  json?: unknown
 }
 
 export interface PromptInput {
   prompt: string
   model?: string
   systemPrompt?: string
+  responseFormat?: GateInput['responseFormat']
+  llm?: GateInput['llm']
+  context?: GateInput['context']
 }
 
 export interface PromptOutput extends ChatCompletionOutput {}
 
-/** Single chat completion against the OpenRouter proxy. Shared by `runPrompt` and the schema-doc tools. */
+/**
+ * Resolve the router URL: run context first, then `MT_ROUTER_URL`, then default.
+ * Empty values count as unset.
+ */
+export function resolveRouterUrl(ctx?: ToolContext): string {
+  const fromContext = ctx?.run?.global?.routerUrl
+  if (typeof fromContext === 'string' && fromContext.length > 0) return fromContext
+  const fromEnv = readCtx(ctx).env.MT_ROUTER_URL
+  if (typeof fromEnv === 'string' && fromEnv.length > 0) return fromEnv
+  return DEFAULT_ROUTER_URL
+}
+
+/** Per-request options for a single chat completion. */
+export interface ChatCompletionOptions {
+  /** Abort signal used to bound the request. */
+  signal?: AbortSignal
+}
+
+/**
+ * One-shot completion against the router proxy (no retry/cache/context management).
+ * Prefer the `chatCompletion` gate; this stays for direct programmatic use.
+ */
 export async function chatCompletionSingle(
   input: ChatCompletionInput,
   routerUrl: string,
+  options: ChatCompletionOptions = {},
 ): Promise<ChatCompletionOutput> {
-  const messages: ChatMessage[] = []
-  if (input.systemPrompt) {
-    messages.push({ role: 'system', content: input.systemPrompt })
-  }
+  const messages: LlmMessage[] = []
+  if (input.systemPrompt) messages.push({ role: 'system', content: input.systemPrompt })
   messages.push(...input.messages)
-
-  const body: Record<string, unknown> = {
+  const client = new OpenAiCompatClient({ baseUrl: routerUrl, chatPath: '/api/chat/completions' })
+  const res = await client.chatCompletion({
     model: input.model ?? 'openai/gpt-4o-mini',
     messages,
-  }
-  if (input.temperature !== undefined) {
-    body.temperature = input.temperature
-  }
-  if (input.maxTokens !== undefined) {
-    body.max_tokens = input.maxTokens
-  }
-
-  const url = new URL('/api/chat/completions', routerUrl)
-  const response = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    temperature: input.temperature,
+    maxTokens: input.maxTokens,
+    signal: options.signal,
   })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Chat completion failed: ${response.status} ${error}`)
-  }
-
-  const data = (await response.json()) as {
-    choices: Array<{ message: { content: string } }>
-    model: string
-    usage: {
-      total_tokens: number
-      prompt_tokens: number
-      completion_tokens: number
-    }
-  }
-
   return {
-    content: data.choices[0]?.message?.content ?? '',
-    model: data.model,
-    tokens: data.usage.total_tokens,
-    promptTokens: data.usage.prompt_tokens,
-    completionTokens: data.usage.completion_tokens,
+    content: res.content,
+    model: res.model,
+    tokens: res.usage.totalTokens,
+    promptTokens: res.usage.promptTokens,
+    completionTokens: res.usage.completionTokens,
   }
 }
 
-export const chatCompletion = defineTool<ChatCompletionInput, ChatCompletionOutput>({
+/**
+ * Chat completion gate. Composable slots: prepare -> fit -> call -> parse -> emit
+ * (`chatCompletion.with({ call: mockLlmCall([...]) })`). Provider defaults to the MT router proxy;
+ * see llm-config for provider/model/baseUrl/key precedence.
+ */
+export const chatCompletion = createLlmGate<ChatCompletionInput, ChatCompletionOutput>({
   name: 'chat-completion',
   version: '1.0.0',
   mdDescription:
     'LLM chat completion via OpenRouter proxy. Supports system prompts, temperature, and max tokens.',
-  async invoke(
-    env: Envelope<ChatCompletionInput>,
-    ctx: ToolContext,
-  ): Promise<Envelope<ChatCompletionOutput>> {
-    const routerUrl = ctx.run.global.routerUrl ?? 'http://localhost:7777'
-    const inputs = env.items ?? [env.item]
-
-    const results: ChatCompletionOutput[] = []
-    for (const input of inputs) {
-      const result = await chatCompletionSingle(input, routerUrl)
-      results.push(result)
-    }
-
-    const output = env.items ? results : results[0]
-    return {
-      item: output as ChatCompletionOutput,
-      meta: {
-        ...env.meta,
-        chatCompletion: true,
-        count: results.length,
-      },
-    }
-  },
+  metaFlags: { chatCompletion: true },
 })
 
-export const runPrompt = defineTool<PromptInput, PromptOutput>({
+export const runPrompt = createLlmGate<PromptInput, PromptOutput>({
   name: 'run-prompt',
   version: '1.0.0',
   mdDescription: 'Simplified single-prompt runner. Wraps `chat-completion` with a user message.',
-  async invoke(env: Envelope<PromptInput>, ctx: ToolContext): Promise<Envelope<PromptOutput>> {
-    const routerUrl = ctx.run.global.routerUrl ?? 'http://localhost:7777'
-    const inputs = env.items ?? [env.item]
-
-    const results: PromptOutput[] = []
-    for (const input of inputs) {
-      const chatInput: ChatCompletionInput = {
-        messages: [{ role: 'user', content: input.prompt }],
-        model: input.model,
-        systemPrompt: input.systemPrompt,
-      }
-      const result = await chatCompletionSingle(chatInput, routerUrl)
-      results.push(result)
-    }
-
-    const output = env.items ? results : results[0]
-    return {
-      item: output as PromptOutput,
-      meta: {
-        ...env.meta,
-        runPrompt: true,
-        count: results.length,
-      },
-    }
-  },
+  metaFlags: { runPrompt: true },
 })

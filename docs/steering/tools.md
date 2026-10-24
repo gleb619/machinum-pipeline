@@ -52,11 +52,13 @@ Envelope type: `SchemaDocEnvelope`.
 Higher-level translation tool. Internally uses `translateText` and handles paragraph-level splitting via `token-splitter.ts`.
 
 ### `openrouter-tool.ts`
-Low-level OpenRouter integration:
-- `chatCompletion` — raw chat completion with streaming support
+LLM gates built on the LLM toolkit (see [LLM toolkit](#llm-toolkit)); I/O unchanged:
+- `chatCompletion` — chat completion (composable: `prepare, fit, call, parse, emit`)
 - `runPrompt` — simplified prompt runner
+- `chatCompletionSingle`, `resolveRouterUrl` — direct one-shot helper / router URL resolution
 
-Uses the key pool from `openrouter-pool.ts` (round-robin, handles 429/402).
+Default provider is the MT router proxy (`/api/chat/completions`). The key pool from `openrouter-pool.ts`
+(round-robin, 429/402) is used by the `openrouter` provider.
 
 ### `md-formatter.ts`
 - `mdFormatterTool` — reformats markdown with configurable line width. Uses remark/unified under the hood.
@@ -75,6 +77,79 @@ Token counting via tiktoken (`cl100k_base`):
 - `tokenCounter` — counts tokens of a string envelope item, adds `tokenCount` to meta. Creates/frees the encoder on every call (clean, no shared state).
 - `tokenCounterBatch` — for batched envelopes (after `.batch(n)`): one encoder create/free per batch invoke. Adds `tokenCounts` (per item) and `tokenCount` (batch total) to meta.
 - `tokenCounterBatchCached` — same batch semantics, but reuses one process-wide cached encoder, freed via a `process.on('exit')` hook (one create/free per process). Use for large runs where encoder construction dominates.
+
+## LLM toolkit
+
+Files: `llm-client.ts` (types, adapters, `createLlmClient`), `llm-decorators.ts`, `llm-errors.ts`,
+`llm-config.ts`, `llm-prompts.ts`, `llm-context.ts`, `llm-gate.ts`, `llm-translate.ts`. Plan: [plans/llm-toolkit.md](../plans/llm-toolkit.md).
+
+**Layers:** adapter (`OpenAiCompatClient`: OpenAI/OpenRouter/Ollama/router/custom, `AnthropicClient`; fetch-based behind an
+injectable `LlmTransport`, no SDK dep) -> `withTimeout` (per-call timeout + `AbortSignal`) -> `withLlmRetry`
+(core `withRetry`; only 429/5xx/network/timeout; policy = `ctx.run.global.defaults.retry`) -> `withCache` (core `Cache`,
+stable key, opt-in). Typed errors: `LlmRateLimitError`, `LlmAuthError`, `LlmQuotaError` (402), `LlmContextLengthError`,
+`LlmServerError`, `LlmNetworkError`, `LlmTimeoutError`, `LlmAbortError`, `LlmParseError`. Secrets are never logged
+(`redactLlmConfig`), and `apiKey` is never read from `meta` (checkpointed).
+
+### LLM config precedence (`resolveLlmConfig`, pure)
+
+First defined wins, per field: **call input** (`item.llm`, `item.model`) > **tool option** (`createLlmGate({ llm })`) >
+**`meta.llm`** > **mt.json `settings`** (`llm.provider`, `llm.model`, `llm.baseUrl`, `llm.apiKey`, `llm.timeoutMs`, `llm.retry`, `llm.cache`) >
+**env** > **default**.
+
+| Field | Env | Default |
+|---|---|---|
+| provider | `MT_LLM_PROVIDER` | `router` (never inferred from keys) |
+| model | `MT_LLM_MODEL` | `openai/gpt-4o-mini` (router/openrouter), `gpt-4o-mini`, `llama3.1`, `claude-haiku-4-5` |
+| baseUrl | `MT_LLM_BASE_URL`; router: `ctx.routerUrl`, `MT_ROUTER_URL` | provider URL; router `http://localhost:7777` |
+| apiKey(s) | `MT_LLM_API_KEY`, `OPENROUTER_API_KEYS` (pool), `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | none |
+| timeoutMs | `MT_LLM_TIMEOUT_MS` | 120000 |
+| retry | (layers) then `ctx.defaults.retry` | `{max:3, backoffMs:1000, strategy:'exp'}` |
+| cache | `MT_LLM_CACHE` | off |
+
+### Prompt precedence (`resolvePrompt(name, vars, sources, env)`)
+
+**tool option** (`createLlmGate({ prompts: { name: text } })`) > **`meta.prompts[name]`** > **settings `prompts.<name>`** >
+**env `MT_PROMPT_<NAME>`** (`.`/`-` -> `_`, upper-case) > **registered default**. A value starting with `@` is a file path
+(relative to the project root). Templates use `{{var}}`; a missing var throws `PromptVariableError`.
+Defaults: `translate.system`, `translate.user`, `summary`, `entities`, `context.summarize`, `json.correction`
+(`registerPrompt()` adds more).
+
+### Context window (`contextWindow` tool, `fit` slot)
+
+Budget = `min(maxTokens, contextLimit - reserve)`; no budget = no-op. Precedence: **item `context`** > **factory options** >
+**`meta.context`** > **settings `context.*`** > **env** (`MT_CONTEXT_MAX_TOKENS`, `MT_CONTEXT_LIMIT`, `MT_CONTEXT_RESERVE`,
+`MT_CONTEXT_STRATEGIES`). Strategies run in order until the messages fit; system messages and the last user message are
+protected by default. Built-ins: `truncateLines`, `truncateTail`, `truncateHead`, `summarize` (LLM, prompt `context.summarize`,
+falls back to `dropOldest`), `dropOldest`, `dropMiddle`, `slidingWindow`; custom: pass a `ShrinkStrategy`
+(`{ name, apply(messages, budget, helpers) }`) or `registerShrinkStrategy(name, factory)`. Token counting is injectable
+(`countTokens`, default `countTextTokens` from `token-counter.ts`). Records `meta.contextWindow`
+`{before, after, budget, fits, applied[{name,before,after,note?}]}`.
+
+### Gates and swapping a slot
+
+`createLlmGate(opts)` = `defineComposableTool` with slots `prepare -> fit -> call -> parse -> emit` (state travels as
+`GateState` in `env.item`). Reliability: JSON mode (`responseFormat: 'json'`) parses with bounded corrective retries
+(`jsonRetries`, default 2), `shrinkOnContextError` re-fits via the `fit` slot and retries on `LlmContextLengthError`,
+usage/cost land in `meta.llmUsage`.
+
+```typescript
+import { chatCompletion, createLlmGate, mockLlmCall } from '@mt/tools'
+
+// swap `call` for a mock (tests/samples), original stays intact
+.use(chatCompletion.with({ call: mockLlmCall(['answer 1', (req) => `echo ${req.model}`]) }))
+
+// custom gate: own prompt, context budget, provider; swap only `fit`
+const gate = createLlmGate({
+  name: 'my-gate',
+  llm: { provider: 'openai', model: 'gpt-4o-mini' },
+  prompts: { summary: '@prompts/summary.md' },
+  context: { maxTokens: 6000, strategies: ['truncateLines', 'summarize', 'dropOldest'] },
+  shrinkOnContextError: true,
+})
+.use(gate.with({ fit: myFitTool }))   // any Tool or fn(env, ctx)
+```
+
+Tests: `tests/llm-*.test.ts`. Sample: `samples/sample2` `llmGatePipeline`.
 
 ## Key Patterns
 
@@ -122,6 +197,7 @@ Tests live in `packages/tools/tests/`:
 - `schema/mock-router.ts` — shared `fetch` stub and chapter fixtures (helper, not a test file)
 - `md-formatter.test.ts` — formatter output tests
 - `translate-text.test.ts` — translation tests (requires `OPENROUTER_API_KEYS`)
+- `llm-config|prompts|context|client|gate.test.ts` — LLM toolkit (mock transport, no network)
 
 The schema-doc tests stub `globalThis.fetch`, so they need neither a running router nor
 `OPENROUTER_API_KEYS`; `translate-text.test.ts` is skipped unless that env var is set.
