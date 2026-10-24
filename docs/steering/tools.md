@@ -46,10 +46,22 @@ Batched envelopes store per-item results in `meta.<key>ByItem`.
 Envelope type: `SchemaDocEnvelope`.
 
 ### `translate-text.ts`
-- `translateText` — translates chapter content via OpenRouter. Config: `TranslateToolConfig` (model, sourceLanguage, targetLanguage, prompt template).
+- `translateText` / `createTranslateText(opts)` — composable translation tool (slots `prepare, fit, call,
+  parse, emit`). Default `call` backend POSTs `/api/translate` on the MT router proxy (legacy behaviour and
+  error messages kept); `backend: 'llm'` routes through the LLM toolkit (`resolveLlmConfig` provider,
+  prompts `translate.system` / `translate.user`). Options: `TranslateTextOptions` (`targetLang`, `backend`,
+  `llm`, `routerUrl`, `prompts`); legacy `TranslateToolConfig` type kept for compatibility.
+  `llmTranslate` (`llm-translate.ts`) shares this one implementation with the `llm` backend.
 
 ### `chapter-translator.ts`
-Higher-level translation tool. Internally uses `translateText` and handles paragraph-level splitting via `token-splitter.ts`.
+Higher-level translation tools, composable:
+- `titleTranslator` / `createTitleTranslator({ translate })` — slots `extract -> translate -> assemble`
+  (title from frontmatter, H1, or first line).
+- `paragraphTranslator` / `createParagraphTranslator({ translate })` — slots `split -> translate -> assemble`.
+
+The `translate` slot defaults to `translateText`; all invocations go through one shared helper
+(`translateVia`, no hand-built envelopes). Swap the translator for the whole tool either via the factory
+option (any `Tool<TranslateInput, TranslateOutput>`) or per-slot via `.with({ translate })`.
 
 ### `openrouter-tool.ts`
 LLM gates built on the LLM toolkit (see [LLM toolkit](#llm-toolkit)); I/O unchanged:
@@ -86,14 +98,20 @@ Token counting via tiktoken (`cl100k_base`):
 ## LLM toolkit
 
 Files: `llm-client.ts` (types, adapters, `createLlmClient`), `llm-decorators.ts`, `llm-errors.ts`,
-`llm-config.ts`, `llm-prompts.ts`, `llm-context.ts`, `llm-gate.ts`, `llm-translate.ts`. Plan: [plans/llm-toolkit.md](../plans/llm-toolkit.md).
+`llm-config.ts`, `llm-prompts.ts`, `llm-context.ts`, `llm-gate.ts`, `llm-translate.ts`,
+`llm-sdk-transports.ts`. Plan: [plans/llm-toolkit.md](../plans/llm-toolkit.md).
 
 **Layers:** adapter (`OpenAiCompatClient`: OpenAI/OpenRouter/Ollama/router/custom, `AnthropicClient`; fetch-based behind an
-injectable `LlmTransport`, no SDK dep) -> `withTimeout` (per-call timeout + `AbortSignal`) -> `withLlmRetry`
+injectable `LlmTransport`, no SDK dep) or the official SDK adapters (`createOpenAiSdkClient`, `createAnthropicSdkClient`
+in `llm-sdk-transports.ts`; `openai` / `@anthropic-ai/sdk` loaded lazily via dynamic `import()`, minimal structural local
+interfaces, same typed error mapping incl. pool 429-block/402-disable) -> `withTimeout` (per-call timeout + `AbortSignal`) -> `withLlmRetry`
 (core `withRetry`; only 429/5xx/network/timeout; policy = `ctx.run.global.defaults.retry`) -> `withCache` (core `Cache`,
-stable key, opt-in). Typed errors: `LlmRateLimitError`, `LlmAuthError`, `LlmQuotaError` (402), `LlmContextLengthError`,
+stable key, opt-in). Typed errors: `LlmRateLimitError` (with `retryAfterMs`), `LlmAuthError`, `LlmQuotaError` (402), `LlmContextLengthError`,
 `LlmServerError`, `LlmNetworkError`, `LlmTimeoutError`, `LlmAbortError`, `LlmParseError`. Secrets are never logged
 (`redactLlmConfig`), and `apiKey` is never read from `meta` (checkpointed).
+
+`LlmClient.chatCompletionStream?(req, onDelta?)` optionally aggregates content deltas (final usage included);
+the non-streaming `chatCompletion` path is unchanged.
 
 ### LLM config precedence (`resolveLlmConfig`, pure)
 
@@ -110,6 +128,7 @@ First defined wins, per field: **call input** (`item.llm`, `item.model`) > **too
 | timeoutMs | `MT_LLM_TIMEOUT_MS` | 120000 |
 | retry | (layers) then `ctx.defaults.retry` | `{max:3, backoffMs:1000, strategy:'exp'}` |
 | cache | `MT_LLM_CACHE` | off |
+| transport | `MT_LLM_TRANSPORT`, settings `llm.transport` | `sdk` when the provider SDK is resolvable, else `fetch`; `router` always `fetch` |
 
 ### Prompt precedence (`resolvePrompt(name, vars, sources, env)`)
 
@@ -130,12 +149,27 @@ falls back to `dropOldest`), `dropOldest`, `dropMiddle`, `slidingWindow`; custom
 (`countTokens`, default `countTextTokens` from `token-counter.ts`). Records `meta.contextWindow`
 `{before, after, budget, fits, applied[{name,before,after,note?}]}`.
 
+**Oversize last user message** (`lastMessage`, default `off`): strategies protect the final user message from
+shrinking, so a single oversize message can exceed the budget. `lastMessage: 'truncate'` keeps head+tail with an
+elision marker, `'summarize'` rewrites it via the `context.summarize` prompt (needs an LLM), `'error'` throws a
+clear `LlmContextLengthError`; the result is still reported in `meta.contextWindow.applied` (`truncateLastMessage` /
+`summarizeLastMessage`). The system message is never dropped. Config: settings `context.lastMessage` /
+`MT_CONTEXT_LAST_MESSAGE`.
+
+**Model context limits (`autoLimit`, default on):** when the model id is known, the budget is derived from the
+maintained `MODEL_CONTEXT_LIMITS` table (major OpenAI/Anthropic/Google/Meta/Mistral/DeepSeek/Qwen families;
+prefix/glob match incl. `provider/model` OpenRouter ids) minus `reserve` — no explicit `maxTokens` needed.
+Extend/override via mt.json `context.limits` or `MT_CONTEXT_LIMITS` (`{"glob": tokens}` JSON), disable with
+`context.autoLimit: false` / `MT_CONTEXT_AUTO_LIMIT=0`.
+
 ### Gates and swapping a slot
 
 `createLlmGate(opts)` = `defineComposableTool` with slots `prepare -> fit -> call -> parse -> emit` (state travels as
 `GateState` in `env.item`). Reliability: JSON mode (`responseFormat: 'json'`) parses with bounded corrective retries
 (`jsonRetries`, default 2), `shrinkOnContextError` re-fits via the `fit` slot and retries on `LlmContextLengthError`,
-usage/cost land in `meta.llmUsage`.
+usage/cost land in `meta.llmUsage`. `stream: true` (+ optional `onDelta(delta, input)`) makes the `call` slot use
+`chatCompletionStream` when the transport supports it; the aggregated output and envelope shape are identical to
+non-streaming.
 
 ```typescript
 import { chatCompletion, createLlmGate, mockLlmCall } from '@mt/tools'
@@ -154,7 +188,8 @@ const gate = createLlmGate({
 .use(gate.with({ fit: myFitTool }))   // any Tool or fn(env, ctx)
 ```
 
-Tests: `tests/llm-*.test.ts`. Sample: `samples/sample2` `llmGatePipeline`.
+Tests: `tests/llm-*.test.ts`. Samples: `samples/sample2` `llmGatePipeline` (mock `call` slot) and
+`translateSlotsMockPipeline` (`.with({ translate })` on `titleTranslator`/`paragraphTranslator`, offline mock).
 
 ## Key Patterns
 
@@ -202,7 +237,11 @@ Tests live in `packages/tools/tests/`:
 - `schema/mock-router.ts` — shared `fetch` stub and chapter fixtures (helper, not a test file)
 - `md-formatter.test.ts` — formatter output tests
 - `translate-text.test.ts` — translation tests (requires `OPENROUTER_API_KEYS`)
+- `translate-slots.test.ts` — composable translateText / titleTranslator / paragraphTranslator (slot swaps, mock translator)
 - `llm-config|prompts|context|client|gate.test.ts` — LLM toolkit (mock transport, no network)
+- `llm-sdk-transports.test.ts` — official-SDK adapters (vi.mock'd `openai` / `@anthropic-ai/sdk`): error mapping, retry-after, pool block/disable, lazy load, cache skip
+- `llm-context-limits.test.ts` — model context-limit table matching + `MT_CONTEXT_LIMITS` overrides
+- `llm-stream.test.ts` — gate `stream: true` delta aggregation
 
 The schema-doc tests stub `globalThis.fetch`, so they need neither a running router nor
 `OPENROUTER_API_KEYS`; `translate-text.test.ts` is skipped unless that env var is set.

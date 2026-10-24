@@ -1,13 +1,13 @@
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import type { LlmMessage } from '../src/llm-client.js'
-import { LlmContextLengthError } from '../src/llm-errors.js'
 import {
   createContextWindow,
   fitMessages,
   modelContextLimit,
   parseContextLimits,
 } from '../src/llm-context.js'
+import { LlmContextLengthError } from '../src/llm-errors.js'
 import { mockLlmClient } from '../src/llm-gate.js'
 
 /** 1 token per 4 chars; deterministic. */

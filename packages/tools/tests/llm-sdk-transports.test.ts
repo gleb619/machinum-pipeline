@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LlmRequest } from '../src/llm-client.js'
+import { resolveLlmConfig } from '../src/llm-config.js'
 import { withCache } from '../src/llm-decorators.js'
 import {
   LlmAbortError,
@@ -18,7 +19,6 @@ import {
   mapSdkError,
 } from '../src/llm-sdk-transports.js'
 import { OpenRouterPoolSupplier } from '../src/openrouter-pool.js'
-import { resolveLlmConfig } from '../src/llm-config.js'
 
 // ---------------------------------------------------------------------------
 // Mock SDKs (vi.mock intercepts the adapters' dynamic imports)
@@ -157,9 +157,9 @@ describe('transport selection', () => {
     // openai provider with the installed SDK -> sdk default; router -> fetch
     expect(resolveLlmConfig({ tool: { provider: 'openai' } }).transport).toBe('sdk')
     expect(resolveLlmConfig().transport).toBe('fetch')
-    expect(() =>
-      resolveLlmConfig({ env: { MT_LLM_TRANSPORT: 'bogus' } }),
-    ).toThrow(/Unknown LLM transport/)
+    expect(() => resolveLlmConfig({ env: { MT_LLM_TRANSPORT: 'bogus' } })).toThrow(
+      /Unknown LLM transport/,
+    )
   })
 })
 
@@ -245,8 +245,7 @@ describe('createOpenAiSdkClient', () => {
   it('cache decorator skips the SDK transport on a repeat call', async () => {
     const store = new Map<string, unknown>()
     const cache = {
-      computeKey: (o: { toolName: string; version: string; input: unknown }) =>
-        JSON.stringify(o),
+      computeKey: (o: { toolName: string; version: string; input: unknown }) => JSON.stringify(o),
       get: async <T>(k: string) => store.get(k) as T | undefined,
       set: async (k: string, _o: unknown, v: unknown) => {
         store.set(k, v)
@@ -270,7 +269,10 @@ describe('createAnthropicSdkClient', () => {
     const c = createAnthropicSdkClient({ apiKey: 'ak' })
     expect(anthropicConstructor).not.toHaveBeenCalled()
     anthropicCreate.mockResolvedValueOnce({
-      content: [{ type: 'text', text: 'A' }, { type: 'text', text: 'B' }],
+      content: [
+        { type: 'text', text: 'A' },
+        { type: 'text', text: 'B' },
+      ],
       model: 'claude-x',
       stop_reason: 'end_turn',
       usage: { input_tokens: 4, output_tokens: 6 },

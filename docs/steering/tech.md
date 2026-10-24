@@ -98,10 +98,14 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_LLM_API_KEY` | — | API key for any provider (wins over provider-specific vars) |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — | Provider keys |
 | `MT_LLM_TIMEOUT_MS` | `120000` | Per-call timeout |
+| `MT_LLM_TRANSPORT` | `sdk` when the provider SDK is installed, else `fetch` | `sdk` \| `fetch`; router provider always uses `fetch` |
 | `MT_LLM_CACHE` | `false` | Cache LLM responses in `.mt/cache` |
 | `MT_PROMPT_<NAME>` | built-in | Prompt override, inline text or `@path/to/file.md` (`translate.system` -> `MT_PROMPT_TRANSLATE_SYSTEM`) |
 | `MT_CONTEXT_MAX_TOKENS` / `MT_CONTEXT_LIMIT` / `MT_CONTEXT_RESERVE` | — | Context-window budget (input tokens / model window / output reserve) |
 | `MT_CONTEXT_STRATEGIES` | `dropOldest,truncateLines` | Comma-separated shrink strategies |
+| `MT_CONTEXT_LAST_MESSAGE` | `off` | Oversize final user message: `off` \| `truncate` (head+tail with elision) \| `summarize` (LLM) \| `error` |
+| `MT_CONTEXT_AUTO_LIMIT` | `true` | Derive the budget from the known model context window |
+| `MT_CONTEXT_LIMITS` | — | JSON map `{"glob-or-prefix": tokens}` extending the built-in model context-limit table |
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |
 

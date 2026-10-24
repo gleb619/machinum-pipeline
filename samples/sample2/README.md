@@ -3,7 +3,7 @@
 This sample reads book chapters from JSONL and processes them through several tool chains: verification,
 schema-doc generation, and a stub translation. The default export is a pure orchestration pipeline — it has
 no source or target of its own and runs ten named subflows on the same Runner. Extra named pipelines
-(`schemaDocMockPipeline`, `llmGatePipeline`) are run on demand with `--pipeline <name>`.
+(`schemaDocMockPipeline`, `llmGatePipeline`, `translateSlotsMockPipeline`) are run on demand with `--pipeline <name>`.
 
 ## What you will learn
 
@@ -49,6 +49,7 @@ default
   → subflow(splitChaptersPipeline)    → subflow(collectWarningsPipeline)  → subflow(countTokensFlow)
   → subflow(fixChapterPipeline)       → subflow(translateTitlesPipeline)
   → subflow(translateChapterPipeline) → subflow(translateFlow)
+  → subflow(translateSlotsMockPipeline)
 ```
 
 ### verifyFlow — JSONL → verified MD
@@ -114,6 +115,23 @@ md://./chapters/en
   → @ru (chapter-output://./chapters)  ← chapters/<lang>/chapter<N>.md → chapters/ru/chapter<N>.md
 ```
 
+### translateSlotsMockPipeline — chapter translators with a swapped `translate` slot (offline)
+
+```
+jsonl://./jsonl/input.jsonl
+  → use(toChapterTranslateInput)                       ← record -> {text, targetLang:'ru'}, meta.chapterNum
+  → use(titleTranslator.with({ translate: titleTranslateSlotMock }))
+  → use(paragraphTranslator.with({ translate: paragraphTranslateSlotMock }))
+        translate slot <- offline mock (wraps title/paragraphs in [mock]…[/mock]); no API key, no router
+  → use(translateOutputToMd)
+  → use(mdOutputEmitter(...))  ← chapters/translate-mock/chapter<N>.mock.md
+  → md://./chapters
+```
+
+The composable chapter translators (`extract/translate/assemble`, `split/translate/assemble`) keep every slot
+except `translate`. To swap in another `Tool<TranslateInput, TranslateOutput>` without writing a state-level
+slot, use `createTitleTranslator({ translate })` / `createParagraphTranslator({ translate })`.
+
 ### countTokensFlow — token counting demo (batched)
 
 Unlike the ephemeral flows below, this one reads the JSONL source directly and writes to an
@@ -174,7 +192,8 @@ cd samples/sample2
 npm run cleanup
 ```
 
-This removes `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`, `chapters/llm/*.md`, `jsonl/input.jsonl`, and `.mt/`.
+This removes `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`, `chapters/llm/*.md`,
+`chapters/translate-mock/*.md`, `jsonl/input.jsonl`, and `.mt/`.
 
 ## How to run manually
 
@@ -208,6 +227,8 @@ The integration test (`tests/jsonl-to-md-multi.test.ts`):
    is generated per chapter, with YAML frontmatter plus the Metadata, Summary, and Entities sections.
 4. Runs `--pipeline schemaDocMockPipeline` and checks output lands only in `chapters/schema-mock/` (slot override).
 5. Runs `--pipeline llmGatePipeline` and checks `chapters/llm/chapter<N>.llm.md`: mock answer, custom prompt text, and that the context budget shrank the history (`context: A -> B tokens`, B <= 60).
+6. Runs `--pipeline translateSlotsMockPipeline` and checks `chapters/translate-mock/chapter<N>.mock.md` holds the
+   `[mock]…[/mock]` markers from the swapped `translate` slots (title + paragraphs, offline).
 
 `tests/chapter-processing.test.ts` covers the tools directly (`chapterValidator`, `tokenSplitter`,
 `forbiddenCharDetector`, `typoFinder`, `markdownFormatter`) by importing them from `packages/tools/src`,

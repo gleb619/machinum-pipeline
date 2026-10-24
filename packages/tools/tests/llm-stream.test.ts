@@ -6,11 +6,13 @@ import { createLlmGate, mockLlmCall } from '../src/llm-gate.js'
 const ctx = {} as ToolContext
 
 function streamingClient(onStreamCall: (req: LlmRequest) => void) {
-  const chatCompletion = vi.fn(async (req: LlmRequest): Promise<LlmResponse> => ({
-    content: 'nonstream',
-    model: req.model,
-    usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-  }))
+  const chatCompletion = vi.fn(
+    async (req: LlmRequest): Promise<LlmResponse> => ({
+      content: 'nonstream',
+      model: req.model,
+      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+    }),
+  )
   const chatCompletionStream = vi.fn(async (req: LlmRequest, onDelta?: (d: string) => void) => {
     onStreamCall(req)
     for (const d of ['a', 'b', 'c']) onDelta?.(d)
@@ -49,11 +51,13 @@ describe('gate stream option', () => {
   })
 
   it('falls back to chatCompletion when the client cannot stream', async () => {
-    const chatCompletion = vi.fn(async (req: LlmRequest): Promise<LlmResponse> => ({
-      content: 'plain',
-      model: req.model,
-      usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
-    }))
+    const chatCompletion = vi.fn(
+      async (req: LlmRequest): Promise<LlmResponse> => ({
+        content: 'plain',
+        model: req.model,
+        usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
+      }),
+    )
     const gate = createLlmGate<{ prompt: string }, unknown>({
       name: 'nostream-gate',
       client: { chatCompletion },

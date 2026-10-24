@@ -21,6 +21,7 @@ async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'chapters', 'schema'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'schema-mock'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'llm'), { recursive: true, force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'translate-mock'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'md', 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
@@ -203,6 +204,30 @@ describe('schema-doc mock-emit pipeline (slot override)', () => {
     await expect(
       fs.access(join(SAMPLE_DIR, 'chapters', 'schema', 'chapter1.schema.md')),
     ).rejects.toThrow()
+  })
+})
+
+describe('translate slots mock pipeline (.with({ translate }), offline)', () => {
+  it('runs translateSlotsMockPipeline and writes mock-translated chapters', async () => {
+    execSync(
+      `"${MT_BIN}" run ./pipelines/jsonl-to-md-multi.ts --pipeline translateSlotsMockPipeline`,
+      {
+        cwd: SAMPLE_DIR,
+        stdio: 'pipe',
+        env: { ...process.env, NODE_OPTIONS: '--import tsx' },
+        timeout: 10_000,
+      },
+    )
+    for (let i = 1; i <= 3; i++) {
+      const content = await readFile(
+        join(SAMPLE_DIR, 'chapters', 'translate-mock', `chapter${i}.mock.md`),
+        'utf-8',
+      )
+      // the swapped `translate` slot wrapped both title and body in mock markers
+      expect(content).toContain('[mock]')
+      expect(content).toContain('[/mock]')
+      expect(content).toContain(CHAPTERS[i - 1]?.body)
+    }
   })
 })
 

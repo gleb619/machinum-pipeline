@@ -19,8 +19,6 @@ import {
 } from '../src/translate-text.js'
 
 const ctx = {} as ToolContext
-const ctxWith = (global: Record<string, unknown>): ToolContext =>
-  ({ run: { global: { settings: {}, env: {}, ...global } } }) as unknown as ToolContext
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -66,17 +64,19 @@ describe('translateText (composable)', () => {
   })
 
   it('router failure keeps the legacy error message', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('nope', { status: 500 })),
+    )
     await expect(wrap(translateText)).rejects.toThrow('Translation failed: 500 nope')
   })
 
   it('llm backend with a mocked call: shared prompts with llmTranslate', async () => {
     const tool = createTranslateText({ backend: 'llm' })
     const mock = mockLlmCall(['привет'])
-    const out = await tool.with({ call: mock }).invoke(
-      { item: { text: 'hello', targetLang: 'ru', sourceLang: 'en' }, meta: {} },
-      ctx,
-    )
+    const out = await tool
+      .with({ call: mock })
+      .invoke({ item: { text: 'hello', targetLang: 'ru', sourceLang: 'en' }, meta: {} }, ctx)
     expect(out.item).toMatchObject({ translatedText: 'привет' })
     expect(out.meta).toMatchObject({ translated: true })
     expect(mock.calls[0]?.messages[0]).toMatchObject({ role: 'system' })
@@ -89,7 +89,9 @@ describe('translateText (composable)', () => {
     // same slot layout, same normalize/toOutput (no duplicated prompt/parse logic)
     expect(Object.keys(llmTranslate.slots)).toEqual(Object.keys(translateText.slots))
     const viaLlmTranslate = llmTranslate.with({ call: mockLlmCall(['x']) })
-    const viaTranslateText = createTranslateText({ backend: 'llm' }).with({ call: mockLlmCall(['x']) })
+    const viaTranslateText = createTranslateText({ backend: 'llm' }).with({
+      call: mockLlmCall(['x']),
+    })
     return Promise.all([
       viaLlmTranslate.invoke({ item: { text: 'a', targetLang: 'ru' }, meta: {} }, ctx),
       viaTranslateText.invoke({ item: { text: 'a', targetLang: 'ru' }, meta: {} }, ctx),
@@ -136,10 +138,9 @@ Body text here.
         item: { ...env.item, translatedTitle: `«m»${env.item.title ?? ''}«/m»` },
       }),
     })
-    const out = await titleTranslator.with({ translate: slotMock }).invoke(
-      { item: { text: docChapter, targetLang: 'ru' }, meta: {} },
-      ctx,
-    )
+    const out = await titleTranslator
+      .with({ translate: slotMock })
+      .invoke({ item: { text: docChapter, targetLang: 'ru' }, meta: {} }, ctx)
     expect(out.item.text).toContain('«m»The Road«/m»')
   })
 
@@ -189,10 +190,9 @@ Body text here.
         item: { ...env.item, translated: env.item.paragraphs.map((p) => `«p»${p}«/p»`) },
       }),
     })
-    const out = await paragraphTranslator.with({ translate: slotMock }).invoke(
-      { item: { text: docChapter, targetLang: 'ru' }, meta: {} },
-      ctx,
-    )
+    const out = await paragraphTranslator
+      .with({ translate: slotMock })
+      .invoke({ item: { text: docChapter, targetLang: 'ru' }, meta: {} }, ctx)
     expect(out.item.text).toContain('«p»Body text here.«/p»')
   })
 })

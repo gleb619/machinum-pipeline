@@ -256,8 +256,11 @@ Implemented (not part of the TL index above). Full reference: [steering/tools.md
 |---|---|---|
 | `chatCompletion`, `runPrompt` | composable tool (slots `prepare, fit, call, parse, emit`) | Existing LLM tools, now gate-based; same I/O |
 | `llmGate` / `createLlmGate(opts)` | composable tool factory | Generic LLM gate; swap any slot with `.with()` |
-| `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user` |
+| `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user`; shares one implementation with `translateText` |
+| `translateText` / `createTranslateText(opts)` | composable tool (slots `prepare, fit, call, parse, emit`) | Chapter translation; default backend router `/api/translate`, `backend: 'llm'` routes via the LLM client |
+| `titleTranslator` / `paragraphTranslator` / `createTitleTranslator(opts)` / `createParagraphTranslator(opts)` | composable tool | Chapter title / paragraph translation; `translate` slot (default `translateText`) swappable via options or `.with({ translate })` |
 | `contextWindow` (= `contextShrink`) / `createContextWindow(opts)` | tool | Shrink messages/text to a token budget (strategies: `truncateLines`, `truncateTail`, `truncateHead`, `summarize`, `dropOldest`, `dropMiddle`, `slidingWindow`, custom) |
 | `mockLlmCall`, `mockLlmClient` | test helpers | Scripted `call` slot / client, no network |
-| `createLlmClient(cfg, ctx)`, `withTimeout`, `withLlmRetry`, `withCache` | client layer | Provider adapters (OpenAI-compatible, Anthropic) + decorators |
-| `resolveLlmConfig`, `resolvePrompt`, `resolveContextConfig` | pure resolvers | Config / prompt / context precedence |
+| `createLlmClient(cfg, ctx)`, `withTimeout`, `withLlmRetry`, `withCache` | client layer | Provider adapters (OpenAI-compatible, Anthropic) + decorators; optional `chatCompletionStream` aggregates deltas |
+| `createOpenAiSdkClient`, `createAnthropicSdkClient`, `createSdkAdapter` | SDK transports | Official `openai` / `@anthropic-ai/sdk` adapters (lazy-loaded); same typed errors + pool 429/402 behaviour as the fetch adapters |
+| `resolveLlmConfig`, `resolvePrompt`, `resolveContextConfig` | pure resolvers | Config / prompt / context precedence (config key `llm.transport`: `sdk` \| `fetch`) |

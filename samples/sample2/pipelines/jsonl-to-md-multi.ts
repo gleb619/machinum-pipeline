@@ -1,6 +1,9 @@
 import { definePipeline, defineTool } from '@mt/core'
 import type { MdOutputEntry } from '@mt/core'
 import {
+  type ParagraphTranslatorState,
+  type TitleTranslatorInput,
+  type TitleTranslatorState,
   chapterDoc,
   chapterIndexer,
   chapterValidator,
@@ -244,6 +247,67 @@ export const llmGatePipeline = definePipeline()
   )
   .to('md://./chapters')
 
+// === Translate slot swap demo (offline): `.with({ translate })` on the chapter translators ===
+// `.with({ translate })` replaces the translate slot of the composable translators with
+// an offline mock — no API key, no router. The rest of each tool (extract/assemble,
+// split/assemble) is untouched. (To swap in another `Tool<TranslateInput, TranslateOutput>`
+// without writing a state-level slot, use `createTitleTranslator({ translate })` /
+// `createParagraphTranslator({ translate })`.)
+const titleTranslateSlotMock = defineTool<TitleTranslatorState, TitleTranslatorState>({
+  name: 'title-translate-slot-mock',
+  version: '1.0.0',
+  invoke: async (env, _ctx) => ({
+    item: env.item.title
+      ? { ...env.item, translatedTitle: `[mock]${env.item.title}[/mock]` }
+      : env.item,
+    meta: env.meta,
+  }),
+})
+
+const paragraphTranslateSlotMock = defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
+  name: 'paragraph-translate-slot-mock',
+  version: '1.0.0',
+  invoke: async (env, _ctx) => ({
+    item: { ...env.item, translated: env.item.paragraphs.map((p) => `[mock]${p}[/mock]`) },
+    meta: env.meta,
+  }),
+})
+
+const toChapterTranslateInput = defineTool<{ title: string; body: string }, TitleTranslatorInput>({
+  name: 'to-chapter-translate-input',
+  version: '1.0.0',
+  invoke: async (env, _ctx) => {
+    const { title, body } = env.item
+    const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
+    return {
+      item: { text: `# ${title}\n\n${body}`, targetLang: 'ru' },
+      meta: { ...env.meta, chapterNum: n },
+    }
+  },
+})
+
+// Gate/tool output ({ text, ... }) -> markdown string for the md:// target.
+const translateOutputToMd = defineTool<{ text: string }, string>({
+  name: 'translate-output-to-md',
+  version: '1.0.0',
+  invoke: async (env, _ctx) => ({ item: env.item.text, meta: env.meta }),
+})
+
+export const translateSlotsMockPipeline = definePipeline()
+  .from('jsonl://./jsonl/input.jsonl')
+  .use(toChapterTranslateInput)
+  .use(titleTranslator.with({ translate: titleTranslateSlotMock }))
+  .use(paragraphTranslator.with({ translate: paragraphTranslateSlotMock }))
+  .use(translateOutputToMd)
+  .use(
+    mdOutputEmitter({
+      name: 'translate-mock',
+      dir: 'chapters/translate-mock',
+      filename: (meta) => `chapter${meta.chapterNum}.mock.md`,
+    }),
+  )
+  .to('md://./chapters')
+
 // === Default: orchestration pipeline (subflow-only) ===
 export default definePipeline()
   .subflow(verifyFlow)
@@ -256,3 +320,4 @@ export default definePipeline()
   .subflow(translateTitlesPipeline)
   .subflow(translateChapterPipeline)
   .subflow(translateFlow)
+  .subflow(translateSlotsMockPipeline)

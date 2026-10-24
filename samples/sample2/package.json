@@ -7,7 +7,7 @@
     "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/llm/*.md jsonl/input.jsonl .mt",
+    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/schema-mock/*.md chapters/llm/*.md chapters/translate-mock/*.md jsonl/input.jsonl .mt",
     "test": "vitest run",
     "test:watch": "vitest"
   },
