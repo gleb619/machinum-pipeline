@@ -33,7 +33,6 @@ import '@mt/waypoint'
 const stubTranslator = defineTool<string, string>({
   name: 'stub-translator',
   version: '1.0.0',
-  exec: 'inproc',
   invoke: async (env, _ctx) => {
     const text = env.item as string
     // Simple stub: wrap paragraphs in [ru]...[/ru] markers
@@ -123,7 +122,6 @@ export const schemaDocPipeline = definePipeline()
 const mockSchemaEmit = defineTool<string, string>({
   name: 'mock-schema-emit',
   version: '1.0.0',
-  exec: 'inproc',
   invoke: async (env, _ctx) => {
     const n = (env.meta.chapterNum as number | undefined) ?? 1
     const content = `<!-- mock-emit -->\n${env.item}`

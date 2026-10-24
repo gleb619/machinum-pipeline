@@ -51,7 +51,6 @@ packages/core/src/
     ├── runner.ts         # Runner: start(), pause(), resume(), state management
     ├── state-machine.ts  # RunStateMachine: transition(), canTransition(), isTerminal()
     ├── checkpoint.ts     # createRootCheckpoint(), walkTree(), markDone/Failed/InProgress
-    ├── child-process.ts  # spawnChildProcess(), runChildProcess() — stdio JSON bridge
     ├── cache.ts          # Cache: content-hash keyed tool output memoisation
     ├── dead-letter.ts    # writeDeadLetter() — failed envelopes
     ├── retry.ts          # withRetry(), getBackoff()
@@ -146,4 +145,4 @@ my-book-project/
 - Pipelines loaded at runtime via `tsx`/`jiti` — no consumer build step
 - All file writes are atomic (write temp → rename) — no partial state on crash
 - Checkpoint tree is the only resume mechanism — no implicit "last good state"
-- Out-of-process tools communicate exclusively via JSON over stdio
+- Tools always run in-process — the engine calls `tool.invoke()` directly

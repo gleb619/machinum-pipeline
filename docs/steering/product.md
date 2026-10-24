@@ -2,7 +2,7 @@
 
 ← [Architecture](../architecture.md)
 
-**machinum-pipeline** (`mt`) is a TypeScript ETL engine for processing long-form text — primarily books — through composable, checkpointable, partially-out-of-process tool chains.
+**machinum-pipeline** (`mt`) is a TypeScript ETL engine for processing long-form text — primarily books — through composable, checkpointable tool chains.
 
 Consumers write pipelines as real `.ts` files using a thin DSL, declare project metadata in `mt.json`, and invoke the engine via the `mt` CLI. Mt persists all run state under `.mt/` and produces artifacts (jsonl, md, schema-docs, translations).
 
@@ -17,7 +17,7 @@ Consumers write pipelines as real `.ts` files using a thin DSL, declare project 
 | Entity | Role |
 |---|---|
 | **Source** | Produces `Envelope<T>` items; `resumable` (file cursor) or `long-lived` (HTTP). Addressed via URI. |
-| **Tool** | Pure async function `Envelope<I> → Envelope<O>`; in-process or child process via stdio JSON. |
+| **Tool** | Pure async function `Envelope<I> → Envelope<O>`; always in-process. |
 | **Target** | Sink with `open/write/close` lifecycle (e.g. git commit on close). Addressed via URI. |
 | **Pipeline** | TS module exporting a DSL chain. Real code — plain imports and logic work inside. |
 | **Run** | One execution: `pending → running → [checkpoint → paused →] done / failed`. Fully resumable. |
@@ -75,17 +75,15 @@ mt resume <runId>
 ```
 
 ```
-npx invocation of a Tool (out-of-process)
-→ Runner serialises { envelope, toolContext } to JSON
-→ Spawns npx <tool-name> (or deno/bun); writes JSON to stdin
-→ Reads single JSON object (or NDJSON stream) from stdout
-→ Validates output shape, emits downstream
+Tool invocation (in-process)
+→ Runner calls tool.invoke(env, { run, step })
+→ Tool returns an Envelope
+→ Runner validates output shape, emits downstream
 ```
 
 ## Key Differentiators
 
 - **Crash recovery**: checkpoint tree enables full resume from any failure point
-- **Out-of-process tools**: tools can run as child processes (npx/deno/bun) via stdio JSON
 - **Real pipeline files**: consumers write plain TypeScript, no config DSL lock-in
 - **URI-addressed I/O**: sources and targets are pluggable via scheme registry (`jsonl://`, `md://`, `git://`, `hs://`, …)
 
@@ -96,7 +94,7 @@ npx invocation of a Tool (out-of-process)
 | Milestone | Focus |
 |---|---|
 | M1 — Engine spine | `core` types/DSL, `jsonl` source/target, in-proc tools, file-based checkpoints, `cli`: `init`/`run`/`resume`/`inspect` |
-| M2 — Forks & out-of-process | `.fork()` with nested checkpoints, child-process tools (`npx`/`deno`/`bun`), cache layer, git worktree source/target |
+| M2 — Forks & caching | `.fork()` with nested checkpoints, cache layer, git worktree source/target |
 | M3 — Backend & frontend MVP | Nuxt backend, SSE event tail, runs list + detail + pipelines registry, `serve` in-process/detached, SQLite indicator |
 | M4 — Router & integrations | Router Nuxt app, cost/usage tracking, mock mode, rolling logs; MCP server; long-lived HTTP source |
 | M5 — Extensions & polish | VS Code extension, Chrome extension, VitePress docs site, frontend post-MVP screens |
@@ -116,7 +114,7 @@ npx invocation of a Tool (out-of-process)
 ## Glossary
 
 - **Source** — Producer of envelopes; `long-lived` or `resumable`.
-- **Tool** — Pure `Envelope<I> → Envelope<O>`; in-proc or child process.
+- **Tool** — Pure `Envelope<I> → Envelope<O>`; always in-process.
 - **Target** — Sink with `open/write/close` lifecycle.
 - **Pipeline** — Real `.ts` module exporting a DSL chain.
 - **Run** — One resumable execution instance.

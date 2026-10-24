@@ -71,7 +71,6 @@ function multiplierTool(name = 'multiply'): Tool<{ value: number }, { value: num
     name,
     version: '1.0.0',
     mdDescription: 'Multiplies item.value by 10.',
-    exec: 'inproc',
     invoke: async (env) => ({
       ...env,
       item: { value: (env.item as { value: number }).value * 10 },

@@ -15,7 +15,6 @@ import {
   markInProgress,
   serializeTree,
 } from './checkpoint.js'
-import { resolveToolCommand, runChildProcess } from './child-process.js'
 import { writeDeadLetter } from './dead-letter.js'
 import { autoCommit } from './git.js'
 import { withRetry } from './retry.js'
@@ -466,16 +465,7 @@ export class Runner {
 
     try {
       const output = await withRetry(
-        async () => {
-          if (tool.exec && tool.exec !== 'inproc') {
-            return await runChildProcess<O>(
-              resolveToolCommand(tool.exec, tool.module, tool.name),
-              env,
-              { run: runContext, step: stepInfo },
-            )
-          }
-          return await tool.invoke(env, { run: runContext, step: stepInfo })
-        },
+        async () => tool.invoke(env, { run: runContext, step: stepInfo }),
         retryPolicy,
         (err, attempt) => {
           logger.warn(`Tool ${tool.name} failed (attempt ${attempt + 1}): ${err}`)

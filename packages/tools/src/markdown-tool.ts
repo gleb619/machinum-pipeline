@@ -222,7 +222,6 @@ export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
   version: '1.0.0',
   mdDescription:
     'Collects structural statistics from markdown: headings, paragraphs, code blocks, links, word count.',
-  exec: 'inproc',
 
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownStatsOutput>> {
     return {
@@ -237,7 +236,6 @@ export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
   version: '1.0.0',
   mdDescription:
     'Extracts a flat heading outline from markdown, in document order with depth and line numbers.',
-  exec: 'inproc',
 
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownOutlineOutput>> {
     return {
@@ -251,7 +249,6 @@ export const markdownStripFrontmatter = defineTool<string, MarkdownStripOutput>(
   name: 'markdown-strip-frontmatter',
   version: '1.0.0',
   mdDescription: 'Removes leading YAML frontmatter from markdown documents.',
-  exec: 'inproc',
 
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownStripOutput>> {
     const { text, stripped } = stripFrontmatter(env.item)

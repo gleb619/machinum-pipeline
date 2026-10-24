@@ -94,7 +94,6 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
       'Extracts the schema-doc Metadata row (chapter, wordCount, tokenCount, charLength) with an ' +
       'LLM through the OpenRouter proxy, validated against the measured values and falling back to ' +
       'the deterministic row. Stores `meta.metadata`.',
-    exec: 'inproc',
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'metadata')
       const inputs = env.items ?? [env.item]

@@ -51,7 +51,6 @@ export const titleTranslator = defineTool<TitleTranslatorInput, TitleTranslatorO
   version: '1.0.0',
   mdDescription:
     'Translates chapter titles using `translate-text`. Reads from frontmatter or H1 heading.',
-  exec: 'inproc',
 
   async invoke(
     env: Envelope<TitleTranslatorInput>,
@@ -165,7 +164,6 @@ export const paragraphTranslator = defineTool<ParagraphTranslatorInput, Paragrap
   version: '1.0.0',
   mdDescription:
     'Translates chapter body paragraphs using `translate-text`. Preserves paragraph structure.',
-  exec: 'inproc',
 
   async invoke(
     env: Envelope<ParagraphTranslatorInput>,

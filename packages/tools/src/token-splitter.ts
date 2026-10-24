@@ -61,7 +61,6 @@ export const tokenSplitter = defineTool<string, string[]>({
   version: '1.0.0',
   mdDescription:
     'Splits text at paragraph boundaries into chunks of ~6000 tokens. Uses gpt-tokenizer or heuristic fallback.',
-  exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string[]>> {
     const inputs: string[] = env.items ?? [env.item]
     const allChunks: string[] = []

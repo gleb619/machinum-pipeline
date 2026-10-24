@@ -251,9 +251,6 @@ export function defineTool<I, O>(config: {
   version: string
   mdDescription: string
   invoke: (env: Envelope<I>, ctx: ToolContext) => Promise<Envelope<O>>
-  exec?: 'inproc' | 'npx' | 'deno' | 'bun'
-  /** File path (or file URL) of the module exporting this tool. Required when `exec !== 'inproc'`. */
-  module?: string
   cacheable?: boolean
   idempotent?: boolean
 }): Tool<I, O> {
@@ -262,8 +259,6 @@ export function defineTool<I, O>(config: {
     version: config.version,
     mdDescription: config.mdDescription,
     invoke: config.invoke,
-    exec: config.exec ?? 'inproc',
-    module: config.module,
     cacheable: config.cacheable,
     idempotent: config.idempotent,
   }

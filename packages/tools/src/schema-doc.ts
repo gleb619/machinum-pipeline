@@ -284,7 +284,6 @@ export const schemaDocBuild = defineTool<unknown, string>({
   name: 'schema-doc-build',
   version: '1.0.0',
   mdDescription: 'Builds schema-doc markdown from envelope metadata.',
-  exec: 'inproc',
   async invoke(env: Envelope<unknown>, _ctx: ToolContext): Promise<Envelope<string>> {
     const meta = (env.meta || {}) as Record<string, unknown>
     const chapterNum = schemaDocChapterNum(meta)

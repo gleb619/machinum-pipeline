@@ -249,7 +249,6 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
   name: 'chapter-doc-build',
   version: '1.0.0',
   mdDescription: 'Serializes chapter metadata into YAML-frontmatter markdown.',
-  exec: 'inproc',
 
   async invoke(env: Envelope<ChapterDocToolInput>, _ctx: ToolContext): Promise<Envelope<string>> {
     const input = env.item

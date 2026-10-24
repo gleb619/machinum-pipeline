@@ -68,7 +68,6 @@ describe('runner empty source', () => {
       name: 'crash-tool',
       version: '1.0.0',
       mdDescription: 'Test tool',
-      exec: 'inproc',
       invoke: vi.fn(async (env: Envelope<unknown>) => {
         toolCalls.push(env.item)
         return env
@@ -99,7 +98,6 @@ describe('runner empty source', () => {
       name: 'tool-only-tool',
       version: '1.0.0',
       mdDescription: 'Test tool',
-      exec: 'inproc',
       invoke: vi.fn(async (env: Envelope<unknown>) => {
         toolCalls.push(env.item)
         return env

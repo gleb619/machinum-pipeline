@@ -130,7 +130,7 @@ describe('markdown tools', () => {
     expect(markdownStripFrontmatter.name).toBe('markdown-strip-frontmatter')
     for (const tool of [markdownStatsTool, markdownOutlineTool, markdownStripFrontmatter]) {
       expect(tool.version).toBe('1.0.0')
-      expect(tool.exec).toBe('inproc')
+      expect(typeof tool.invoke).toBe('function')
     }
   })
 

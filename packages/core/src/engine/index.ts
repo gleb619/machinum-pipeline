@@ -24,10 +24,3 @@ export {
   deserializeTree,
   walkTree,
 } from './checkpoint.js'
-export {
-  runChildProcess,
-  streamChildProcess,
-  resolveToolCommand,
-  workerPath,
-} from './child-process.js'
-export type { ChildProcessOptions, ChildProcessResult, ChildRuntime } from './child-process.js'

@@ -152,7 +152,6 @@ function makeMdFormatter(defaults?: FormatOptions) {
     version: '1.0.0',
     mdDescription:
       'Reformats markdown with configurable line width and wrapping. Uses remark (GFM + frontmatter aware).',
-    exec: 'inproc',
 
     async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
       const input = env.item

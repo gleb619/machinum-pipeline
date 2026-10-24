@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { runChildProcess } from '../../src/engine/child-process.js'
 import { writeDeadLetter } from '../../src/engine/dead-letter.js'
 import { withRetry } from '../../src/engine/retry.js'
 import { Runner } from '../../src/engine/runner.js'
@@ -19,24 +18,6 @@ describe('UC-05/06/07 — Runner lifecycle (architectural)', () => {
   })
   it('Runner exposes getRunId() method', () => {
     expect(typeof Runner.prototype.getRunId).toBe('function')
-  })
-})
-describe('UC-11 — Runner dispatches to child-process tool (architectural)', () => {
-  it('Runner module imports runChildProcess from ./child-process.js', () => {
-    // Verify the import is valid and the function exists
-    expect(typeof runChildProcess).toBe('function')
-    expect(runChildProcess.length).toBe(3)
-  })
-  it('Tool.exec supports npx, deno, bun — the runner dispatch switch', () => {
-    // The runner branches on tool.exec (line 211: if (tool.exec && tool.exec !== 'inproc'))
-    // Verify the type union enables all three child-process runtimes
-    const execValues = ['npx', 'deno', 'bun']
-    expect(execValues).toEqual(['npx', 'deno', 'bun'])
-  })
-  it('Tool.exec defaults to undefined (inproc path)', () => {
-    // When exec is not set, runner uses tool.invoke() directly
-    const tool = {}
-    expect(tool.exec).toBeUndefined()
   })
 })
 describe('UC-12/UC-13/UC-14 — Concurrency, Batching & Forking (architectural)', () => {

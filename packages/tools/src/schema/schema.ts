@@ -79,7 +79,6 @@ export function createSchemaTool(options?: SchemaDocLlmOptions) {
       'Generates a mermaid structure diagram for the chapter with an LLM through the OpenRouter ' +
       'proxy. Loop-guarded retries fall back to the schema-doc Schema block, then a generated ' +
       '`graph TD`. Stores `meta.schema`.',
-    exec: 'inproc',
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'schema')
       const inputs = env.items ?? [env.item]

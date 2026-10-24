@@ -9,7 +9,6 @@ export const wordCounter = defineTool<string, string>({
   name: 'word-counter',
   version: '1.0.0',
   mdDescription: 'Counts words in a string envelope. Adds `wordCount` to envelope metadata.',
-  exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const wordCount = env.item.split(/\s+/).filter(Boolean).length
     return {

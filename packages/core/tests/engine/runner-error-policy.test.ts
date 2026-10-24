@@ -76,7 +76,6 @@ function passThroughTool(name = 'passthrough'): Tool<{ value: number; boom?: boo
     name,
     version: '1.0.0',
     mdDescription: 'echoes the item, throws when boom is set',
-    exec: 'inproc',
     invoke: async (env) => {
       const item = env.item as { value: number; boom?: boolean }
       if (item.value === 1) await new Promise((resolve) => setTimeout(resolve, 30))

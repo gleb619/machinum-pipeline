@@ -11,7 +11,6 @@ export const chapterIndexer = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Extracts chapter number from frontmatter or heading. Stores `chapterNum` in envelope metadata.',
-  exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     let chapterNum = 0
 

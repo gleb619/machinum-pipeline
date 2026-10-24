@@ -71,7 +71,6 @@ export {
   deserializeTree,
   walkTree,
 } from './engine/checkpoint.js'
-export { runChildProcess, streamChildProcess } from './engine/child-process.js'
-export type { ChildProcessOptions, ChildProcessResult } from './engine/child-process.js'
+
 // Built-in source/target registration moved to @mt/waypoint package.
 // Import '@mt/waypoint' to register jsonl, md, http, hs, git+ schemes.

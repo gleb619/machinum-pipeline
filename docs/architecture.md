@@ -12,7 +12,7 @@
 **MT** (`machinum-pipeline`, package `@mt/core`) is a TypeScript ETL engine for long-form text (primarily books). It runs as a dev dependency in a consumer project: the user writes real `.ts` pipeline modules using a thin DSL, declares metadata in `mt.json`, and executes via the `mt` CLI. The engine produces artifacts (`jsonl`, `md`, `pdf`, `epub`) and persists all run state under `.mt/`.
 
 Primary goals:
-- **Pluggable** — Sources, Tools, Targets are interfaces; tools can run in-process or as short-lived `npx`/`deno`/`bun` child processes.
+- **Pluggable** — Sources, Tools, Targets are interfaces; tools always run in-process via `tool.invoke()`.
 - **Resumable** — Per-Run state machine with checkpoint tree; crash recovery to the last completed step.
 - **Parallel by design** — Fork-join over Chapters/Paragraphs/Lines; batching and windowing built in.
 - **Hybrid runtime** — CLI (foreground or detached) or Nuxt-based admin server (`backend`).
@@ -53,7 +53,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 |---|---|---|
 | **Domain** | `Book` → `Chapter` → `Paragraph` → `Line` (plain interfaces) | [`core.md`](steering/core.md) |
 | **Source** | `start()` / `resume()`; lifestyle `long-lived` or `resumable` | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
-| **Tool** | `invoke(env, ctx) → Promise<Envelope<O>>`; `exec: 'inproc' | 'npx' ...` | [`core.md`](steering/core.md), [`tools.md`](steering/tools.md) |
+| **Tool** | `invoke(env, ctx) → Promise<Envelope<O>>` (always in-process) | [`core.md`](steering/core.md), [`tools.md`](steering/tools.md) |
 | **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
 | **Envelope** | `{ item, items?, meta }` — single or batch | [`core.md`](steering/core.md) |
 | **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](steering/core.md) |
@@ -92,7 +92,7 @@ For full workspace layout, see [`structure.md`](steering/structure.md).
 ## 5. Key Runtime Concepts (Summary)
 
 - **Run lifecycle**: `pending → running → checkpoint → paused → resumed → done | failed`. Every state transition writes atomically to `.mt/runs/<runId>/state.json` (temp + rename).
-- **Concurrency**: In-process (`p-limit`-style limiter from URI/DSL/global); out-of-process via `npx`/`deno`/`bun` over stdio JSON; `.fork()` creates nested checkpoint subtrees; `.subflow()` is the lightweight in-process variant.
+- **Concurrency**: In-process only (`p-limit`-style limiter from URI/DSL/global); tools always run in-process via `tool.invoke()`; `.fork()` creates nested checkpoint subtrees; `.subflow()` is the lightweight in-process variant.
 - **Retry & error**: `RetryPolicy` (`fixed` | `linear` | `exp`); `ErrorPolicy` (`fail-run` | `skip-item` | `dead-letter`). Merge order: tool step > pipeline > global (`mt.json`). Dead-letter writes to `.mt/runs/<id>/dead-letter.jsonl`.
 - **Caching**: When `cacheable === true`, output is memoised by content hash at `.mt/cache/<hash>.json`. Replay short-circuits the tool; cache is never required for correctness.
 - **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://`, `chapter://`, `schema-doc://`, `git://`.

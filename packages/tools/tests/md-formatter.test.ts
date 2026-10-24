@@ -20,10 +20,6 @@ describe('mdFormatter', () => {
   it('should have invoke as a function', () => {
     expect(typeof mdFormatter.invoke).toBe('function')
   })
-
-  it('should have exec set to inproc', () => {
-    expect(mdFormatter.exec).toBe('inproc')
-  })
 })
 
 // ---------------------------------------------------------------------------

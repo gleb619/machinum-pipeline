@@ -75,7 +75,7 @@ describe('DSL', () => {
     expect(pipeline.steps[3]?.type).toBe('target')
   })
 
-  it('T002-06: defineTool creates a Tool with default exec', () => {
+  it('T002-06: defineTool creates a Tool with metadata', () => {
     const tool = defineTool({
       name: 'test-tool',
       version: '1.0.0',
@@ -84,22 +84,20 @@ describe('DSL', () => {
     })
 
     expect(tool.name).toBe('test-tool')
-    expect(tool.exec).toBe('inproc')
+    expect(tool.version).toBe('1.0.0')
     expect(tool.cacheable).toBeUndefined()
   })
 
-  it('T002-08: defineTool supports exec configuration', () => {
+  it('T002-08: defineTool supports cacheable configuration', () => {
     const tool = defineTool({
-      name: 'remote-tool',
+      name: 'cached-tool',
       version: '2.0.0',
-      mdDescription: 'Test tool with remote exec configuration.',
+      mdDescription: 'Test tool with cacheable configuration.',
       invoke: async (env) => env,
-      exec: 'npx',
       cacheable: true,
     })
 
-    expect(tool.name).toBe('remote-tool')
-    expect(tool.exec).toBe('npx')
+    expect(tool.name).toBe('cached-tool')
     expect(tool.cacheable).toBe(true)
   })
 

@@ -95,7 +95,6 @@ export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: n
       'Extracts key terms from the chapter with an LLM through the OpenRouter proxy, deduplicates ' +
       'them against `meta.knownWords`, and falls back to summary word extraction when the loop guard ' +
       'is exhausted. Stores `meta.vocabulary` and `meta.knownWords`.',
-    exec: 'inproc',
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const { limit: optionLimit, ...llmOptions } = options ?? {}
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env.meta, 'vocabulary')

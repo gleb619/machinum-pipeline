@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
 import type { Envelope } from '@mt/core'
+import { afterEach, describe, expect, it } from 'vitest'
 import { readDoc, schemaDocWriter, writeDoc } from '../../src/schema-doc.js'
 import type { SchemaDocEnvelope } from '../../src/schema-doc.js'
 import { countWords, metadataGroundTruth, readChapter } from '../../src/schema/doc.js'

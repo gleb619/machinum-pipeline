@@ -77,7 +77,6 @@ export function createSummaryTool(options?: SchemaDocLlmOptions) {
     mdDescription:
       'Summarises the chapter with an LLM through the OpenRouter proxy (configurable prompts, ' +
       'loop-guarded retries, deterministic schema-doc parse as fallback). Stores `meta.summary`.',
-    exec: 'inproc',
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'summary')
       const inputs = env.items ?? [env.item]

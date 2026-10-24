@@ -49,7 +49,6 @@ describe('UC-03 — Define a custom Tool (architectural)', () => {
     expect(tool.name).toBe('uppercase')
     expect(typeof tool.version).toBe('string')
     expect(typeof tool.invoke).toBe('function')
-    expect('exec' in tool).toBe(true) // defaults to 'inproc'
   })
   it('defineTool supports optional cacheable flag', () => {
     const tool = defineTool({

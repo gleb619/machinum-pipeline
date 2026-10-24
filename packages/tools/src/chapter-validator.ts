@@ -66,7 +66,6 @@ export const forbiddenCharDetector = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Detects zero-width characters and forbidden control characters. Reports findings in envelope metadata.',
-  exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const text = env.item
     const lines = text.split('\n')
@@ -223,7 +222,6 @@ export const chapterValidator = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Validates markdown structure: H1 presence, heading level skips, code block languages, link references.',
-  exec: 'inproc',
   async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
     const text = env.item
     const errors: string[] = []
@@ -262,7 +260,6 @@ export const typoFinder = defineTool<FinderInput, FinderOutput>({
   version: '2.0.0',
   mdDescription:
     'Detects spelling typos using cspell-lib. Reports suggestions in envelope metadata.',
-  exec: 'inproc',
 
   async invoke(env: Envelope<FinderInput>, _ctx: ToolContext): Promise<Envelope<FinderOutput>> {
     const { text } = env.item
@@ -321,7 +318,6 @@ export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownForm
   version: '1.0.0',
   mdDescription:
     'Lightweight markdown formatter: fixes list bullets, tabs, and fence spacing. Uses remark.',
-  exec: 'inproc',
 
   async invoke(
     env: Envelope<MarkdownFormatterInput>,

@@ -88,7 +88,6 @@ export const chatCompletion = defineTool<ChatCompletionInput, ChatCompletionOutp
   version: '1.0.0',
   mdDescription:
     'LLM chat completion via OpenRouter proxy. Supports system prompts, temperature, and max tokens.',
-  exec: 'inproc',
   async invoke(
     env: Envelope<ChatCompletionInput>,
     ctx: ToolContext,
@@ -118,7 +117,6 @@ export const runPrompt = defineTool<PromptInput, PromptOutput>({
   name: 'run-prompt',
   version: '1.0.0',
   mdDescription: 'Simplified single-prompt runner. Wraps `chat-completion` with a user message.',
-  exec: 'inproc',
   async invoke(env: Envelope<PromptInput>, ctx: ToolContext): Promise<Envelope<PromptOutput>> {
     const routerUrl = ctx.run.global.routerUrl ?? 'http://localhost:7777'
     const inputs = env.items ?? [env.item]

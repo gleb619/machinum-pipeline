@@ -84,7 +84,6 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions) {
       'Extracts named entities from the chapter with an LLM through the OpenRouter proxy, as CSV ' +
       'rows (`index,name`). Loop-guarded retries fall back to the schema-doc Entities block, then a ' +
       'default entity. Stores `meta.entities`.',
-    exec: 'inproc',
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'entities')
       const inputs = env.items ?? [env.item]

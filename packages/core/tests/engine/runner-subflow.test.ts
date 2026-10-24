@@ -86,7 +86,6 @@ const processTool: Tool<unknown, unknown> = {
   name: 'process-tool',
   version: '1.0.0',
   mdDescription: 'Process tool for subflow tests.',
-  exec: 'inproc',
   invoke: vi.fn(async (env: Envelope<unknown>) => ({
     ...env,
     meta: { ...env.meta, processed: true },
@@ -169,7 +168,6 @@ describe('runner subflow', () => {
       name: 'recording-tool',
       version: '1.0.0',
       mdDescription: 'Test tool recording-tool for subflow tests.',
-      exec: 'inproc',
       invoke: async (env) => {
         order.push('subflow')
         return env
@@ -249,7 +247,6 @@ describe('runner subflow', () => {
       name: 'orch-tool',
       version: '1.0.0',
       mdDescription: 'Test tool orch-tool for subflow tests.',
-      exec: 'inproc',
       invoke: vi.fn(async (env) => env),
     }
 
@@ -293,7 +290,6 @@ describe('runner subflow', () => {
       name: 'orch-tool',
       version: '1.0.0',
       mdDescription: 'Test tool orch-tool for subflow tests.',
-      exec: 'inproc',
       invoke: vi.fn(async (env) => env),
     }
 

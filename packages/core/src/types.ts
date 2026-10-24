@@ -50,9 +50,6 @@ export interface Tool<I, O> {
   version: string
   mdDescription: string
   invoke(env: Envelope<I>, ctx: ToolContext): Promise<Envelope<O>>
-  exec?: 'inproc' | 'npx' | 'deno' | 'bun'
-  /** File path (or file URL) of the module exporting this tool. Required when `exec !== 'inproc'`. */
-  module?: string
   cacheable?: boolean
   idempotent?: boolean
 }

@@ -26,7 +26,7 @@ Core interface shapes:
 interface Envelope<T> { item: T; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown } }
 interface Source<T> { uri: string; lifestyle: Lifecycle; start(ctx): AsyncIterable<Envelope<T>>; resume?(ctx, cursor) }
 interface Target<T> { uri: string; open(ctx): Promise<void>; write(env, ctx): Promise<void>; close(ctx): Promise<void> }
-interface Tool<I, O> { name: string; version: string; mdDescription: string; invoke(env, ctx): Promise<Envelope<O>>; exec?; cacheable?; idempotent? }
+interface Tool<I, O> { name: string; version: string; mdDescription: string; invoke(env, ctx): Promise<Envelope<O>>; cacheable?; idempotent? }
 ```
 
 ### `contexts.ts`
@@ -94,9 +94,6 @@ A run that throws is marked `failed` (root checkpoint node + run state, both per
 error is re-thrown — `mt run` / `mt resume` then exit non-zero. `failed → running` is the one edge
 out of `failed`: `resume()` re-drives a failed run from its first non-done checkpoint node.
 
-### `engine/child-process.ts`
-`spawnChildProcess()` / `runChildProcess()` — serialize envelope to JSON → write to child stdin → read JSON from stdout. Supports npx, deno, bun exec modes.
-
 ### `engine/cache.ts` — `Cache`
 Content-hash keyed memoisation. `computeKey(tool, envelope)` → `has/get/set/delete/clear`.
 
@@ -122,14 +119,7 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
 
 ## Concurrency Primitives
 
-- **In-process**: per-step limiter (`p-limit`-style), configurable via URI query param (`concurrency`), DSL, or global defaults.
-- **Out-of-process**: tools with `exec: 'npx' | 'deno' | 'bun'` run in a child process started as
-  `<runtime> <runtime argv> engine/worker <tool.module> <tool.name>` — `module` is required whenever
-  `exec !== 'inproc'`. The child speaks one NDJSON protocol for both modes: the `ToolContext` is the
-  first stdin line, then one `<Envelope>` per line; the worker answers with one `<Envelope>` or
-  `{"error":"…"}` per line (non-zero exit on error). See [tools.md](../tools.md#out-of-process-tools-exec).
-  Under bun the pipeline id cannot be inferred from the stack (`Error.prepareStackTrace` call sites are
-  unavailable) — pass an explicit `id` to `definePipeline()`.
+- **In-process**: per-step limiter (`p-limit`-style), configurable via URI query param (`concurrency`), DSL, or global defaults. Tools always run in-process via `tool.invoke()`.
 - **Fork (`.fork`)**: runs the child pipeline **per parent envelope** — the envelope is fed into
   `buildStream(child.steps, [envelope], childCtx)` and the child's output is merged back into the
   parent stream. One checkpoint node per envelope (`<stepId>/fork-<n>`). A `target` inside the
