@@ -231,6 +231,7 @@ export class Runner {
     runContext: RunContext,
   ): Promise<EnvelopeStream | null> {
     let stream = input
+    let hasSourceStep = false
 
     for (const step of pipeline.steps) {
       // Pause if signaled
@@ -246,6 +247,7 @@ export class Runner {
 
       switch (step.type) {
         case 'source': {
+          hasSourceStep = true
           const rawUri = step.config.uri as string
           const uri = registry.expandAliases(rawUri, this.globalContext.settings)
           if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
@@ -254,7 +256,13 @@ export class Runner {
           break
         }
         case 'tool': {
-          stream = this.runTool(step, stream ?? emptyEnvelope(), stepId, pipeline, runContext)
+          if (!stream && !hasSourceStep) {
+            stream = emptyEnvelope()
+          }
+          if (!stream) {
+            throw new Error('Tool step requires a preceding stream or source step')
+          }
+          stream = this.runTool(step, stream, stepId, pipeline, runContext)
           break
         }
         case 'target': {
@@ -264,12 +272,24 @@ export class Runner {
         case 'batch':
         case 'window': {
           const size = Number(step.config.size)
-          stream = groupStream(stream ?? emptyEnvelope(), size, step.type)
+          if (!stream && !hasSourceStep) {
+            stream = emptyEnvelope()
+          }
+          if (!stream) {
+            throw new Error('Batch/window step requires a preceding stream or source step')
+          }
+          stream = groupStream(stream, size, step.type)
           break
         }
         case 'flatmap': {
           const fn = step.config.fn as (item: unknown) => Promise<unknown[]>
-          const sourceStream: EnvelopeStream = stream ?? emptyEnvelope()
+          if (!stream && !hasSourceStep) {
+            stream = emptyEnvelope()
+          }
+          if (!stream) {
+            throw new Error('FlatMap step requires a preceding stream or source step')
+          }
+          const sourceStream = stream
           stream = (async function* () {
             for await (const env of sourceStream) {
               const items = await fn(env.item)
@@ -282,7 +302,13 @@ export class Runner {
         }
         case 'tap': {
           const fn = step.config.fn as (item: unknown) => Promise<void>
-          const sourceStream: EnvelopeStream = stream ?? emptyEnvelope()
+          if (!stream && !hasSourceStep) {
+            stream = emptyEnvelope()
+          }
+          if (!stream) {
+            throw new Error('Tap step requires a preceding stream or source step')
+          }
+          const sourceStream = stream
           stream = (async function* () {
             for await (const env of sourceStream) {
               await fn(env.item)
@@ -292,7 +318,13 @@ export class Runner {
           break
         }
         case 'fork': {
-          stream = this.forkStream(step, stream ?? emptyEnvelope(), stepId, runContext)
+          if (!stream && !hasSourceStep) {
+            stream = emptyEnvelope()
+          }
+          if (!stream) {
+            throw new Error('Fork step requires a preceding stream or source step')
+          }
+          stream = this.forkStream(step, stream, stepId, runContext)
           break
         }
         case 'subflow': {
@@ -313,7 +345,7 @@ export class Runner {
    */
   private forkStream(
     step: PipelineStep,
-    sourceStream: EnvelopeStream,
+    sourceStream: EnvelopeStream | null,
     stepId: string,
     runContext: RunContext,
   ): EnvelopeStream {
@@ -322,6 +354,7 @@ export class Runner {
     let forkIndex = 0
 
     return (async function* () {
+      if (!sourceStream) return
       for await (const env of sourceStream) {
         const nodeId = `${stepId}/fork-${forkIndex++}`
         const childContext = runner.enterNested(runContext, nodeId, subPipeline.id)
@@ -528,7 +561,7 @@ export class Runner {
     const uri = registry.expandAliases(rawUri, this.globalContext.settings)
     if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
     const target = registry.resolveTarget(uri)
-    if (!stream) throw new Error('Target step requires a preceding stream')
+    if (!stream) throw new Error('Target step requires a preceding stream or source step')
 
     await target.open({ run: runContext })
     try {
