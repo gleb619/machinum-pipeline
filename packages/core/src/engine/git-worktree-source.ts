@@ -1,4 +1,4 @@
-import { basename, join } from 'node:path'
+import { basename, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '../contexts.js'
 import type { Envelope, Lifecycle, Source, Target } from '../types.js'
 import type { ParsedUri } from '../uri.js'
@@ -7,9 +7,22 @@ import { createWorktree, mergeWorktreeToMain, removeWorktree } from './git-workt
 import { autoCommit } from './git.js'
 
 /**
+ * Resolve a relative inner URI path against a Git worktree directory.
+ * Absolute paths are returned unchanged.
+ */
+function resolveUriPathToWorktree(uri: ParsedUri, worktreePath: string): ParsedUri {
+  if (!uri.path || isAbsolute(uri.path)) return uri
+  return { ...uri, path: join(worktreePath, uri.path) }
+}
+
+/**
  * GitWorktreeSource wraps an inner Source, delegating all operations
  * inside a Git worktree directory. The worktree must already exist
  * (created externally by the composite resolver or caller).
+ *
+ * The inner Source receives a URI whose relative path has been resolved onto
+ * the worktree directory. The global process working directory is never
+ * changed.
  */
 export class GitWorktreeSource<T> implements Source<T> {
   constructor(
@@ -26,26 +39,14 @@ export class GitWorktreeSource<T> implements Source<T> {
   }
 
   async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
-    const prev = process.cwd()
-    try {
-      process.chdir(this.worktreePath)
-      yield* this.innerSource.start(ctx)
-    } finally {
-      process.chdir(prev)
-    }
+    yield* this.innerSource.start(ctx)
   }
 
   async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
     if (!this.innerSource.resume) {
       throw new Error('Inner source does not support resume')
     }
-    const prev = process.cwd()
-    try {
-      process.chdir(this.worktreePath)
-      yield* this.innerSource.resume(ctx, cursor)
-    } finally {
-      process.chdir(prev)
-    }
+    yield* this.innerSource.resume(ctx, cursor)
   }
 }
 
@@ -55,6 +56,10 @@ export class GitWorktreeSource<T> implements Source<T> {
  *   - closes the inner Target
  *   - if commitOnClose: auto-commits + rebase-merges to main
  *   - always removes the worktree (best-effort)
+ *
+ * The inner Target receives a URI whose relative path has been resolved onto
+ * the worktree directory. The global process working directory is never
+ * changed, so concurrent writes cannot race on cwd.
  */
 export class GitWorktreeTarget<T> implements Target<T> {
   private branchName: string
@@ -74,32 +79,16 @@ export class GitWorktreeTarget<T> implements Target<T> {
   }
 
   async open(ctx: TargetContext): Promise<void> {
-    // Create the worktree
     await createWorktree(this.repoRoot, this.branchName, !this.commitOnClose)
     this.opened = true
-
-    const prev = process.cwd()
-    try {
-      const worktreePath = join(this.repoRoot, 'worktrees', this.branchName)
-      process.chdir(worktreePath)
-      await this.innerTarget.open(ctx)
-    } finally {
-      process.chdir(prev)
-    }
+    await this.innerTarget.open(ctx)
   }
 
   async write(env: Envelope<T>, ctx: TargetContext): Promise<void> {
     if (!this.opened) {
       throw new Error('Target not opened. Call open() before write().')
     }
-    const prev = process.cwd()
-    try {
-      const worktreePath = join(this.repoRoot, 'worktrees', this.branchName)
-      process.chdir(worktreePath)
-      await this.innerTarget.write(env, ctx)
-    } finally {
-      process.chdir(prev)
-    }
+    await this.innerTarget.write(env, ctx)
   }
 
   async close(ctx: TargetContext): Promise<void> {
@@ -107,16 +96,8 @@ export class GitWorktreeTarget<T> implements Target<T> {
 
     const worktreePath = join(this.repoRoot, 'worktrees', this.branchName)
 
-    // Close inner target first (inside worktree)
-    const prev = process.cwd()
-    try {
-      process.chdir(worktreePath)
-      await this.innerTarget.close(ctx)
-    } finally {
-      process.chdir(prev)
-    }
+    await this.innerTarget.close(ctx)
 
-    // Commit + merge if requested
     if (this.commitOnClose) {
       try {
         await autoCommit(worktreePath)
@@ -126,7 +107,6 @@ export class GitWorktreeTarget<T> implements Target<T> {
       }
     }
 
-    // Always attempt cleanup
     try {
       await removeWorktree(worktreePath)
     } catch (err) {
@@ -151,12 +131,14 @@ export function createGitWorktreeSource<T>(uri: ParsedUri): Source<T> {
     throw new Error(`No source registered for inner scheme: ${innerScheme} (from ${uri.raw})`)
   }
 
-  const innerSource = innerFactory(uri)
   const branchName = uri.query.branch || `worktree-${Date.now()}`
-  // repoRoot from query or CWD
   const repoRoot = uri.query.root || process.cwd()
+  const worktreePath = join(repoRoot, 'worktrees', branchName)
 
-  return new GitWorktreeSource(innerSource, join(repoRoot, 'worktrees', branchName))
+  const resolvedUri = resolveUriPathToWorktree(uri, worktreePath)
+  const innerSource = innerFactory(resolvedUri)
+
+  return new GitWorktreeSource(innerSource, worktreePath)
 }
 
 /**
@@ -173,15 +155,13 @@ export function createGitWorktreeTarget<T>(uri: ParsedUri): Target<T> {
     throw new Error(`No target registered for inner scheme: ${innerScheme} (from ${uri.raw})`)
   }
 
-  const innerTarget = innerFactory(uri) as Target<T>
   const branchName = uri.query.branch || `worktree-${Date.now()}`
   const repoRoot = uri.query.root || process.cwd()
+  const worktreePath = join(repoRoot, 'worktrees', branchName)
   const commitOnClose = uri.query.commit === 'on-close'
 
-  return new GitWorktreeTarget(
-    innerTarget,
-    repoRoot,
-    join(repoRoot, 'worktrees', branchName),
-    commitOnClose,
-  )
+  const resolvedUri = resolveUriPathToWorktree(uri, worktreePath)
+  const innerTarget = innerFactory(resolvedUri) as Target<T>
+
+  return new GitWorktreeTarget(innerTarget, repoRoot, worktreePath, commitOnClose)
 }

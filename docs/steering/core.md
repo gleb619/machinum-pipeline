@@ -130,6 +130,14 @@ safe direction: the item is re-processed, then deduplicated by the content cache
 
 A run whose stream ends without a target records no cursor — resume there stays cache-replay.
 
+### `engine/git-worktree-source.ts` — Git worktree wrapper
+
+`GitWorktreeSource` and `GitWorktreeTarget` run an inner Source/Target inside a
+Git worktree without changing `process.cwd()`. Relative inner URI paths are
+resolved onto the worktree directory in `createGitWorktreeSource` / `createGitWorktreeTarget`
+before the inner factory is invoked. Absolute inner paths pass through unchanged.
+The engine never calls `process.chdir`; concurrent worktree writes are safe.
+
 ### `engine/state-machine.ts` — `RunStateMachine`
 State transitions: `pending → running → checkpoint → paused → resumed → done / failed`.
 Use `canTransition()` before `transition()`.

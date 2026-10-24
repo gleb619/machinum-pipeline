@@ -299,39 +299,44 @@ describe('GitWorktreeSource', () => {
     }
   })
 
-  it('delegates start() to the inner source inside the worktree directory', async () => {
+  it('delegates start() to the inner source without changing cwd', async () => {
     const inner = mockSource([{ item: 'hello', meta: {} }])
     const wrapper = new GitWorktreeSource(inner, worktreePath)
 
     const chdirSpy = vi.spyOn(process, 'chdir')
     const ctx = makeSourceContext()
+    const originalCwd = process.cwd()
     const results: Envelope<string>[] = []
     for await (const env of wrapper.start(ctx)) {
       results.push(env as Envelope<string>)
+      expect(process.cwd()).toBe(originalCwd)
     }
 
     expect(results).toHaveLength(1)
     expect(results[0]?.item).toBe('hello')
-    // Should have chdir'd into the worktree and back
-    expect(chdirSpy).toHaveBeenCalledWith(worktreePath)
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
     chdirSpy.mockRestore()
   })
 
-  it('delegates resume() to the inner source inside the worktree directory', async () => {
+  it('delegates resume() to the inner source without changing cwd', async () => {
     const inner = mockSource([{ item: 'resumed', meta: {} }])
     const wrapper = new GitWorktreeSource(inner, worktreePath)
 
     const chdirSpy = vi.spyOn(process, 'chdir')
     const ctx = makeSourceContext()
+    const originalCwd = process.cwd()
     const results: Envelope<string>[] = []
     if (!wrapper.resume) throw new Error('resume not supported')
     for await (const env of wrapper.resume(ctx, { offset: 0 })) {
       results.push(env as Envelope<string>)
+      expect(process.cwd()).toBe(originalCwd)
     }
 
     expect(results).toHaveLength(1)
     expect(results[0]?.item).toBe('resumed')
-    expect(chdirSpy).toHaveBeenCalledWith(worktreePath)
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
     chdirSpy.mockRestore()
   })
 
@@ -356,7 +361,7 @@ describe('GitWorktreeSource', () => {
     ).rejects.toThrow(/does not support resume/)
   })
 
-  it('restores the original CWD even if inner source throws', async () => {
+  it('does not change cwd even if inner source throws', async () => {
     const inner: Source<string> = {
       uri: 'mock://fail',
       lifestyle: 'long-lived',
@@ -378,6 +383,32 @@ describe('GitWorktreeSource', () => {
     ).rejects.toThrow('inner source boom')
 
     expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
+    chdirSpy.mockRestore()
+  })
+
+  it('keeps process.cwd() unchanged between yields', async () => {
+    const inner: Source<string> = {
+      uri: 'mock://yielder',
+      lifestyle: 'long-lived',
+      async *start(_ctx: SourceContext): AsyncIterable<Envelope<string>> {
+        yield { item: 'a', meta: {} }
+        yield { item: 'b', meta: {} }
+        yield { item: 'c', meta: {} }
+      },
+    }
+    const wrapper = new GitWorktreeSource(inner, worktreePath)
+    const originalCwd = process.cwd()
+    const chdirSpy = vi.spyOn(process, 'chdir')
+    const ctx = makeSourceContext()
+    let count = 0
+    for await (const _ of wrapper.start(ctx)) {
+      count++
+      expect(process.cwd()).toBe(originalCwd)
+    }
+    expect(count).toBe(3)
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
     chdirSpy.mockRestore()
   })
 
@@ -496,6 +527,54 @@ describe('GitWorktreeTarget', () => {
     expect(existsSync(wtPath)).toBe(false)
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Commit/merge failed'))
     warnSpy.mockRestore()
+  })
+
+  it('resolves relative inner paths to the worktree for concurrent writes', async () => {
+    registry.registerTarget('relative-file', (uri: ParsedUri) => {
+      return {
+        uri: uri.raw,
+        async open() {},
+        async write(env: Envelope<string>) {
+          writeFileSync(uri.path, `${String(env.item)}\n`, { flag: 'a' })
+        },
+        async close() {},
+      }
+    })
+
+    const branchName = 'concurrent-test'
+    const uri: ParsedUri = {
+      scheme: 'git+relative-file',
+      host: '',
+      path: './out.txt',
+      query: { _inner_scheme: 'relative-file', branch: branchName, root: repoRoot },
+      fragment: '',
+      raw: 'git+relative-file://./out.txt?branch=concurrent-test',
+    }
+    const target = createGitWorktreeTarget<string>(uri)
+    const originalCwd = process.cwd()
+    const chdirSpy = vi.spyOn(process, 'chdir')
+    const ctx = makeTargetContext()
+
+    await target.open(ctx)
+    const wtPath = join(repoRoot, 'worktrees', branchName)
+    expect(existsSync(wtPath)).toBe(true)
+
+    await Promise.all([
+      target.write({ item: 'a', meta: {} }, ctx),
+      target.write({ item: 'b', meta: {} }, ctx),
+    ])
+
+    const outPath = join(wtPath, 'out.txt')
+    expect(existsSync(outPath)).toBe(true)
+    const content = readFileSync(outPath, 'utf-8')
+    expect(content).toContain('a')
+    expect(content).toContain('b')
+
+    await target.close(ctx)
+
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
+    chdirSpy.mockRestore()
   })
 
   it('throws when write() called before open()', async () => {
