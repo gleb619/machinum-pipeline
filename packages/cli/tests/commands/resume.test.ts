@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Runner } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Mock } from 'vitest'
 import { resumeCommand } from '../../src/commands/resume.js'
 
 vi.mock('@mt/core', () => ({
@@ -13,7 +14,7 @@ vi.mock('@mt/core', () => ({
 describe('resume command', () => {
   let testDir: string
   let originalCwd: string
-  let mockResume: any
+  let mockResume: Mock
 
   beforeEach(async () => {
     testDir = await mkdtemp(join(tmpdir(), 'mt-resume-test-'))
@@ -25,7 +26,7 @@ describe('resume command', () => {
       () =>
         ({
           resume: mockResume,
-        }) as any,
+        }) as unknown as Runner,
     )
 
     vi.spyOn(console, 'log').mockImplementation(() => {})

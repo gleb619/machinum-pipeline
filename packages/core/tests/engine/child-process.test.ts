@@ -20,11 +20,11 @@ describe('child-process', () => {
       on: vi.fn((event, cb) => event === 'close' && cb(0)),
       stdin: { write: vi.fn(), end: vi.fn() },
     }
-    vi.mocked(spawn).mockReturnValue(mockChild as any)
+    vi.mocked(spawn).mockReturnValue(mockChild as unknown as ReturnType<typeof spawn>)
 
     const result = await runChildProcess(
       { command: 'npx', args: ['test'] },
-      { item: 'input' } as Envelope<any>,
+      { item: 'input' } as Envelope<string>,
       {} as ToolContext,
     )
 

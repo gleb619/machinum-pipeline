@@ -41,5 +41,8 @@
     "enabled": true,
     "clientKind": "git",
     "useIgnoreFile": true
+  },
+  "files": {
+    "ignore": [".remember", "node_modules", "dist", ".output", ".turbo", ".mt"]
   }
 }

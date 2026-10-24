@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import type { PathLike } from 'node:fs/promises'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { inspectCommand } from '../../src/commands/inspect.js'
@@ -54,7 +55,7 @@ describe('inspectCommand', () => {
       },
     }
 
-    vi.mocked(readFile).mockImplementation(async (path: any) => {
+    vi.mocked(readFile).mockImplementation(async (path: PathLike | URL) => {
       if (path.toString().endsWith('state.json')) {
         return JSON.stringify(mockState)
       }

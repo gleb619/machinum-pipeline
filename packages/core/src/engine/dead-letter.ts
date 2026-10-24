@@ -42,5 +42,5 @@ export async function writeDeadLetter(
   }
 
   await store.ensureDir('runs', runId)
-  await store.append(JSON.stringify(entry) + '\n', 'runs', runId, 'dead-letter.jsonl')
+  await store.append(`${JSON.stringify(entry)}\n`, 'runs', runId, 'dead-letter.jsonl')
 }

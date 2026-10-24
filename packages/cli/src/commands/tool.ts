@@ -16,7 +16,7 @@ export async function toolCommand(args: string[]): Promise<void> {
 
   // Read stdin for the envelope
   const input = readFileSync(0, 'utf8')
-  const envelope = JSON.parse(input)
+  const _envelope = JSON.parse(input)
 
   console.error(`Tool ${toolName} not yet fully implemented for dynamic discovery.`)
   process.exit(1)

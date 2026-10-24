@@ -39,12 +39,14 @@ export async function inspectCommand(args: string[]): Promise<void> {
       const lines = logContent.trim().split('\n')
       const lastLines = lines.slice(-5)
       console.log('\nLast Log Entries:')
-      lastLines.forEach((line) => console.log(`  ${line}`))
+      for (const line of lastLines) {
+        console.log(`  ${line}`)
+      }
     } catch {
       // Ignore if log not found
     }
   } catch (err) {
-    if ((err as any).code === 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       console.error(`Error: Run "${runId}" not found.`)
     } else {
       console.error(`Error inspecting run ${runId}:`, err)

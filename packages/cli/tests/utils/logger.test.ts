@@ -58,7 +58,7 @@ describe('DuplexLogger', () => {
     process.env.MT_DEBUG = '1'
     logger.debug('test debug')
     expect(console.debug).toHaveBeenCalledWith(expect.stringContaining('[DEBUG] test debug'))
-    delete process.env.MT_DEBUG
+    process.env.MT_DEBUG = undefined
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     const logContent = await readFile(join(testDir, 'run.log'), 'utf-8')

@@ -324,12 +324,13 @@ describe('GitWorktreeSource', () => {
     const chdirSpy = vi.spyOn(process, 'chdir')
     const ctx = makeSourceContext()
     const results: Envelope<string>[] = []
-    for await (const env of wrapper.resume!(ctx, { offset: 0 })) {
+    if (!wrapper.resume) throw new Error('resume not supported')
+    for await (const env of wrapper.resume(ctx, { offset: 0 })) {
       results.push(env as Envelope<string>)
     }
 
     expect(results).toHaveLength(1)
-    expect(results[0]!.item).toBe('resumed')
+    expect(results[0]?.item).toBe('resumed')
     expect(chdirSpy).toHaveBeenCalledWith(worktreePath)
     chdirSpy.mockRestore()
   })
@@ -347,7 +348,8 @@ describe('GitWorktreeSource', () => {
 
     await expect(
       (async () => {
-        for await (const _ of wrapper.resume!(makeSourceContext(), {})) {
+        if (!wrapper.resume) throw new Error('resume not supported')
+        for await (const _ of wrapper.resume(makeSourceContext(), {})) {
           /* noop */
         }
       })(),
@@ -575,9 +577,7 @@ describe('createGitWorktreeSource (composite URI)', () => {
       path: '/data/test.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'composite-test', root: repoRoot },
       fragment: '',
-      raw:
-        'jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=composite-test&root=' +
-        encodeURIComponent(repoRoot),
+      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=composite-test&root=${encodeURIComponent(repoRoot)}`,
     }
 
     const source = createGitWorktreeSource<string>(uri)
@@ -621,7 +621,7 @@ describe('createGitWorktreeSource (composite URI)', () => {
       path: '/data/test.jsonl',
       query: { _inner_scheme: 'jsonl', root: repoRoot },
       fragment: '',
-      raw: 'jsonl://data/test.jsonl?_inner_scheme=jsonl&root=' + encodeURIComponent(repoRoot),
+      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&root=${encodeURIComponent(repoRoot)}`,
     }
 
     const source = createGitWorktreeSource<string>(uri)
@@ -669,10 +669,7 @@ describe('createGitWorktreeTarget (composite URI)', () => {
         commit: 'on-close',
       },
       fragment: '',
-      raw:
-        'jsonl://out.jsonl?_inner_scheme=jsonl&branch=target-branch&root=' +
-        encodeURIComponent(repoRoot) +
-        '&commit=on-close',
+      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=target-branch&root=${encodeURIComponent(repoRoot)}&commit=on-close`,
     }
 
     const target = createGitWorktreeTarget<string>(uri)
@@ -690,10 +687,7 @@ describe('createGitWorktreeTarget (composite URI)', () => {
       path: '/out.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'no-commit', root: repoRoot, commit: 'never' },
       fragment: '',
-      raw:
-        'jsonl://out.jsonl?_inner_scheme=jsonl&branch=no-commit&root=' +
-        encodeURIComponent(repoRoot) +
-        '&commit=never',
+      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=no-commit&root=${encodeURIComponent(repoRoot)}&commit=never`,
     }
 
     const target = createGitWorktreeTarget<string>(uri) as GitWorktreeTarget<string>

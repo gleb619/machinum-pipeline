@@ -70,7 +70,7 @@ function fmtTime(iso) {
 
 function truncate(s, n = 8) {
   if (!s) return '—'
-  return s.length > n ? s.slice(0, n) + '…' : s
+  return s.length > n ? `${s.slice(0, n)}…` : s
 }
 
 const SummaryCard = {

@@ -492,9 +492,7 @@ describe('createGitWorktreeSource (composite URI)', () => {
       path: '/data/test.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'composite-test', root: repoRoot },
       fragment: '',
-      raw:
-        'jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=composite-test&root=' +
-        encodeURIComponent(repoRoot),
+      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=composite-test&root=${encodeURIComponent(repoRoot)}`,
     }
     const source = createGitWorktreeSource(uri)
     expect(source).toBeInstanceOf(GitWorktreeSource)
@@ -531,7 +529,7 @@ describe('createGitWorktreeSource (composite URI)', () => {
       path: '/data/test.jsonl',
       query: { _inner_scheme: 'jsonl', root: repoRoot },
       fragment: '',
-      raw: 'jsonl://data/test.jsonl?_inner_scheme=jsonl&root=' + encodeURIComponent(repoRoot),
+      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&root=${encodeURIComponent(repoRoot)}`,
     }
     const source = createGitWorktreeSource(uri)
     // The branch name should contain a timestamp-based default
@@ -573,10 +571,7 @@ describe('createGitWorktreeTarget (composite URI)', () => {
         commit: 'on-close',
       },
       fragment: '',
-      raw:
-        'jsonl://out.jsonl?_inner_scheme=jsonl&branch=target-branch&root=' +
-        encodeURIComponent(repoRoot) +
-        '&commit=on-close',
+      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=target-branch&root=${encodeURIComponent(repoRoot)}&commit=on-close`,
     }
     const target = createGitWorktreeTarget(uri)
     expect(target).toBeInstanceOf(GitWorktreeTarget)
@@ -591,10 +586,7 @@ describe('createGitWorktreeTarget (composite URI)', () => {
       path: '/out.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'no-commit', root: repoRoot, commit: 'never' },
       fragment: '',
-      raw:
-        'jsonl://out.jsonl?_inner_scheme=jsonl&branch=no-commit&root=' +
-        encodeURIComponent(repoRoot) +
-        '&commit=never',
+      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=no-commit&root=${encodeURIComponent(repoRoot)}&commit=never`,
     }
     const target = createGitWorktreeTarget(uri)
     // Can't directly inspect commitOnClose (it's private), but verify it was created

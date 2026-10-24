@@ -40,7 +40,7 @@ export async function listRunsCommand(_args: string[]): Promise<void> {
       })),
     )
   } catch (err) {
-    if ((err as any).code === 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
       console.log('No runs found.')
     } else {
       console.error('Error listing runs:', err)

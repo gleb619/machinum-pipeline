@@ -129,7 +129,7 @@ describe('readChapterDoc', () => {
   })
 
   it('reads warnings from frontmatter', () => {
-    const md = `---\nnumber: 5\nwarnings:\n  - id: x\n    text: y\n---\n\n# Title\n\nBody.`
+    const md = '---\nnumber: 5\nwarnings:\n  - id: x\n    text: y\n---\n\n# Title\n\nBody.'
     const parsed = readChapterDoc(md)
 
     expect(parsed.number).toBe(5)
@@ -152,10 +152,10 @@ describe('readChapterDoc', () => {
     const parsed = readChapterDoc(md)
 
     expect(parsed.body).toHaveLength(2)
-    expect(parsed.body[0]!.lines).toEqual([
+    expect(parsed.body[0]?.lines).toEqual([
       'This is one long paragraph that spans multiple words without any hard line breaks.',
     ])
-    expect(parsed.body[1]!.lines).toEqual(['Second paragraph here.'])
+    expect(parsed.body[1]?.lines).toEqual(['Second paragraph here.'])
   })
 
   it('throws on missing h1', () => {
@@ -502,8 +502,8 @@ describe('chapterDoc tool', () => {
     const doc = result.meta.chapterDoc as ChapterDoc
 
     expect(doc.body).toHaveLength(3)
-    expect(doc.body[0]!.lines).toEqual(['Paragraph one line one.'])
-    expect(doc.body[1]!.lines).toEqual(['Paragraph two line one. Paragraph two line two.'])
-    expect(doc.body[2]!.lines).toEqual(['Paragraph three.'])
+    expect(doc.body[0]?.lines).toEqual(['Paragraph one line one.'])
+    expect(doc.body[1]?.lines).toEqual(['Paragraph two line one. Paragraph two line two.'])
+    expect(doc.body[2]?.lines).toEqual(['Paragraph three.'])
   })
 })

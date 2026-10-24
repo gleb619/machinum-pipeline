@@ -26,7 +26,7 @@ Invoke before any work:
 
 - `caveman` — compressed communication throughout all sessions
 - `codegraph` — codebase exploration; never grep when `codegraph_*` tools are available
-- `delegate-with-at` — delegate code writing to subagents via the `at` CLI
+- `at` — delegate code writing to subagents via the `at` CLI
 
 ## Rules
 

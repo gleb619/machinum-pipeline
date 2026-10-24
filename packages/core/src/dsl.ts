@@ -1,4 +1,4 @@
-import { basename, dirname } from 'path'
+import { basename, dirname } from 'node:path'
 import type { ToolContext } from './contexts.js'
 import type { Envelope, Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
@@ -45,7 +45,7 @@ function getCallerFileId(): string {
       if (!caller) continue
       if (typeof caller.getFileName !== 'function') continue
       const fileName = caller.getFileName()
-      if (fileName && fileName.endsWith('.ts') && !fileName.includes('node_modules')) {
+      if (fileName?.endsWith('.ts') && !fileName.includes('node_modules')) {
         // Extract filename without extension
         const base = basename(fileName, '.ts')
         // Skip index files, use parent directory name if it's a common pattern
@@ -221,12 +221,12 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this as unknown as PipelineBuilder<R, O>
   }
 
-  fork(pipeline: Pipeline<I, any>): PipelineBuilder<I, O> {
+  fork(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O> {
     this._steps.push({ type: 'fork', config: { pipeline } })
     return this
   }
 
-  subflow(pipeline: Pipeline<I, any>): PipelineBuilder<I, O> {
+  subflow(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O> {
     this._steps.push({ type: 'subflow', config: { pipeline } })
     return this
   }

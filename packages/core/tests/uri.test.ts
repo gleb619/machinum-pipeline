@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { ParsedUri } from '../src/uri.js'
 import { UriRegistry, registry } from '../src/uri.js'
 
 describe('UriRegistry', () => {
@@ -36,7 +37,7 @@ describe('UriRegistry', () => {
 
   it('registers and resolves a source', () => {
     const testRegistry = new UriRegistry()
-    const factory = (parsed: any) => ({
+    const factory = (parsed: ParsedUri) => ({
       uri: parsed.raw,
       lifestyle: 'resumable' as const,
       start: async function* () {},
@@ -56,7 +57,7 @@ describe('UriRegistry', () => {
 
   it('registers and resolves a target', () => {
     const testRegistry = new UriRegistry()
-    const factory = (parsed: any) => ({
+    const factory = (parsed: ParsedUri) => ({
       uri: parsed.raw,
       open: async () => {},
       write: async () => {},

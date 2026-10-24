@@ -1,8 +1,10 @@
 import * as fs from 'node:fs'
 import * as readline from 'node:readline'
 import { Readable } from 'node:stream'
+import type { SourceContext, TargetContext } from '@mt/core'
 import { describe, expect, it, vi } from 'vitest'
 import { createJsonlSource, createJsonlTarget } from '../../src/jsonl.js'
+import type { ParsedUri } from '../../src/uri.js'
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
@@ -33,7 +35,9 @@ interface MockWriteStream {
 describe('jsonl', () => {
   it('should emit items from source', async () => {
     const mockReadStream = new Readable()
-    vi.mocked(fs.createReadStream).mockReturnValue(mockReadStream as any)
+    vi.mocked(fs.createReadStream).mockReturnValue(
+      mockReadStream as unknown as ReturnType<typeof fs.createReadStream>,
+    )
 
     // Simulate read line
     const rlMock = {
@@ -41,9 +45,11 @@ describe('jsonl', () => {
         yield JSON.stringify({ item: 'test' })
       },
     }
-    vi.mocked(readline.createInterface).mockReturnValue(rlMock as any)
+    vi.mocked(readline.createInterface).mockReturnValue(
+      rlMock as unknown as ReturnType<typeof readline.createInterface>,
+    )
 
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: 'jsonl://test.jsonl',
       host: 'test.jsonl',
       path: 'test.jsonl',
@@ -51,7 +57,7 @@ describe('jsonl', () => {
     }
     const source = createJsonlSource(uri)
 
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as SourceContext
     const results = []
     for await (const env of source.start(ctx)) {
       results.push(env)
@@ -63,16 +69,20 @@ describe('jsonl', () => {
 
   it('applies defaultFolder setting to bare filename', async () => {
     const mockReadStream = new Readable()
-    vi.mocked(fs.createReadStream).mockReturnValue(mockReadStream as any)
+    vi.mocked(fs.createReadStream).mockReturnValue(
+      mockReadStream as unknown as ReturnType<typeof fs.createReadStream>,
+    )
 
     const rlMock = {
       [Symbol.asyncIterator]: async function* () {
         yield JSON.stringify({ item: 'test' })
       },
     }
-    vi.mocked(readline.createInterface).mockReturnValue(rlMock as any)
+    vi.mocked(readline.createInterface).mockReturnValue(
+      rlMock as unknown as ReturnType<typeof readline.createInterface>,
+    )
 
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: 'jsonl://test.jsonl',
       host: 'test.jsonl',
       path: 'test.jsonl',
@@ -86,7 +96,7 @@ describe('jsonl', () => {
           settings: { 'waypoint.jsonl.defaultFolder': './custom/jsonl' },
         },
       },
-    } as any
+    } as SourceContext
 
     for await (const _ of source.start(ctx)) {
       // drain
@@ -100,16 +110,20 @@ describe('jsonl', () => {
 
   it('does not apply defaultFolder when path already has directory', async () => {
     const mockReadStream = new Readable()
-    vi.mocked(fs.createReadStream).mockReturnValue(mockReadStream as any)
+    vi.mocked(fs.createReadStream).mockReturnValue(
+      mockReadStream as unknown as ReturnType<typeof fs.createReadStream>,
+    )
 
     const rlMock = {
       [Symbol.asyncIterator]: async function* () {
         yield JSON.stringify({ item: 'test' })
       },
     }
-    vi.mocked(readline.createInterface).mockReturnValue(rlMock as any)
+    vi.mocked(readline.createInterface).mockReturnValue(
+      rlMock as unknown as ReturnType<typeof readline.createInterface>,
+    )
 
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: 'jsonl://./data/test.jsonl',
       host: './data/test.jsonl',
       path: './data/test.jsonl',
@@ -123,7 +137,7 @@ describe('jsonl', () => {
           settings: { 'waypoint.jsonl.defaultFolder': './custom/jsonl' },
         },
       },
-    } as any
+    } as SourceContext
 
     for await (const _ of source.start(ctx)) {
       // drain
@@ -151,7 +165,7 @@ describe('jsonl', () => {
       mockWriteStream as unknown as ReturnType<typeof fs.createWriteStream>,
     )
 
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: 'jsonl://out.jsonl',
       host: 'out.jsonl',
       path: 'out.jsonl',
@@ -166,7 +180,7 @@ describe('jsonl', () => {
           settings: { 'waypoint.jsonl.defaultFolder': './custom/jsonl' },
         },
       },
-    } as any
+    } as SourceContext
 
     await target.open(ctx)
 

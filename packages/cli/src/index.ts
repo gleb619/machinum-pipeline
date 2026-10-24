@@ -87,7 +87,7 @@ Options:
   }
 }
 
-const isMain = realpathSync(process.argv[1]!) === realpathSync(fileURLToPath(import.meta.url))
+const isMain = realpathSync(process.argv[1] ?? '') === realpathSync(fileURLToPath(import.meta.url))
 if (isMain) {
   main().catch((err: unknown) => {
     console.error('Fatal error:', err instanceof Error ? err.message : String(err))

@@ -135,7 +135,7 @@ describe('DSL', () => {
       .use(tool, { retry: { max: 10, backoffMs: 2000, strategy: 'fixed' } })
       .to(target('jsonl://./output.jsonl'))
 
-    const config = pipeline.steps[1]?.config as any
+    const config = pipeline.steps[1]?.config as { retry: RetryPolicy }
     expect(config.retry.max).toBe(10)
     expect(config.retry.backoffMs).toBe(2000)
     expect(config.retry.strategy).toBe('fixed')

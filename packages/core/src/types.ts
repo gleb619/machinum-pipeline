@@ -70,7 +70,7 @@ export interface Logger {
 /**
  * Pipeline definition — the result of definePipeline().
  */
-export interface Pipeline<I = unknown, O = unknown> {
+export interface Pipeline<_I = unknown, _O = unknown> {
   id: string
   retry: { max: number; backoffMs: number; strategy: 'fixed' | 'linear' | 'exp' }
   onError: 'fail-run' | 'skip-item' | 'dead-letter'

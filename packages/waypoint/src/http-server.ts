@@ -19,8 +19,8 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
 
   if (displayHost.includes(':')) {
     const [h, p] = displayHost.split(':')
-    displayHost = h!
-    const parsedPort = Number.parseInt(p!, 10)
+    displayHost = h as string
+    const parsedPort = Number.parseInt(p as string, 10)
     if (!Number.isNaN(parsedPort)) {
       port = parsedPort
     }
@@ -46,7 +46,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
 
       const deliverEnvelope = (envelope: Envelope<T>): void => {
         if (waiting.length > 0) {
-          const resolver = waiting.shift()!
+          const resolver = waiting.shift() as (value: Envelope<T>) => void
           resolver(envelope)
         } else {
           buffer.push(envelope)
@@ -59,7 +59,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
         const method = req.method ?? 'GET'
 
         // Normalize path (remove query string)
-        const pathname = url.split('?')[0]!
+        const pathname = url.split('?')[0] ?? ''
 
         // GET /health - health check endpoint
         if (method === 'GET' && pathname === '/health') {
@@ -156,7 +156,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
           const envelope = await new Promise<Envelope<T>>((resolve) => {
             // If buffer has items, take from there
             if (buffer.length > 0) {
-              resolve(buffer.shift()!)
+              resolve(buffer.shift() as Envelope<T>)
             } else {
               // Otherwise wait for a producer to deliver
               waiting.push(resolve as (value: Envelope<T>) => void)

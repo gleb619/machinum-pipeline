@@ -190,17 +190,21 @@ function checkBrokenLinks(text: string): string[] {
 
   const refLinkPattern = /\[([^\]]+)\]\[([^\]]+)\]/g
   const refLinks: Array<{ text: string; ref: string }> = []
-  while ((match = refLinkPattern.exec(text)) !== null) {
-    const ref = match[2] as string
+  let refLinkMatch: RegExpExecArray | null = refLinkPattern.exec(text)
+  while (refLinkMatch !== null) {
+    const ref = refLinkMatch[2] as string
     if (ref && !ref.startsWith('!')) {
-      refLinks.push({ text: match[1] as string, ref })
+      refLinks.push({ text: refLinkMatch[1] as string, ref })
     }
+    refLinkMatch = refLinkPattern.exec(text)
   }
 
   const defPattern = /^\[([^\]]+)\]:\s*\S/gm
   const definedRefs = new Set<string>()
-  while ((match = defPattern.exec(text)) !== null) {
-    definedRefs.add((match[1] as string).toLowerCase())
+  let defMatch: RegExpExecArray | null = defPattern.exec(text)
+  while (defMatch !== null) {
+    definedRefs.add((defMatch[1] as string).toLowerCase())
+    defMatch = defPattern.exec(text)
   }
 
   for (const link of refLinks) {
@@ -348,7 +352,11 @@ export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownForm
         if (i > 0 && lines[i - 1]?.trim() !== '') {
           fenceFixCount++
         }
-        if (i < lines.length - 1 && lines[i + 1]?.trim() !== '' && !/^```/.test(lines[i + 1]!)) {
+        if (
+          i < lines.length - 1 &&
+          lines[i + 1]?.trim() !== '' &&
+          !/^```/.test(lines[i + 1] as string)
+        ) {
           fenceFixCount++
         }
       }
@@ -375,6 +383,7 @@ export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownForm
 // Helpers
 // ---------------------------------------------------------------------------
 
+// biome-ignore lint/correctness/noUnusedVariables: helper kept
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

@@ -18,5 +18,5 @@ for (const file of files) {
   lines.push(envelope)
 }
 
-writeFileSync(OUTPUT_FILE, lines.join('\n') + '\n')
+writeFileSync(OUTPUT_FILE, `${lines.join('\n')}\n`)
 console.log(`Wrote ${lines.length} chapters to ${OUTPUT_FILE}`)

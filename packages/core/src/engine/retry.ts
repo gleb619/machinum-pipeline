@@ -11,7 +11,7 @@ export function getBackoff(attempt: number, policy: RetryPolicy): number {
     case 'linear':
       return policy.backoffMs * (attempt + 1)
     case 'exp':
-      return policy.backoffMs * Math.pow(2, attempt)
+      return policy.backoffMs * 2 ** attempt
     default:
       return policy.backoffMs
   }

@@ -1,8 +1,10 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import type { SourceContext } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createMdSource, createMdTarget } from '../../src/md.js'
+import type { ParsedUri } from '../../src/uri.js'
 
 import '../../src/md.js'
 
@@ -23,7 +25,7 @@ describe('md source', () => {
     const content = '# Hello\n\nThis is a test markdown file.'
     writeFileSync(filePath, content, 'utf-8')
 
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${filePath}`,
       host: filePath,
       path: filePath,
@@ -31,21 +33,21 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     const results = []
     for await (const env of source.start(ctx)) {
       results.push(env)
     }
 
     expect(results).toHaveLength(1)
-    expect(results[0]!.item).toBe(content)
+    expect(results[0]?.item).toBe(content)
   })
 
   it('should support resume by re-reading the file', async () => {
     const content = '# Resume Test'
     writeFileSync(filePath, content, 'utf-8')
 
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${filePath}`,
       host: filePath,
       path: filePath,
@@ -53,14 +55,15 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     const results = []
-    for await (const env of source.resume!(ctx, 0)) {
+    if (!source.resume) throw new Error('resume not supported')
+    for await (const env of source.resume(ctx, 0)) {
       results.push(env)
     }
 
     expect(results).toHaveLength(1)
-    expect(results[0]!.item).toBe(content)
+    expect(results[0]?.item).toBe(content)
   })
 
   it('should read all .md files from a directory recursively', async () => {
@@ -70,7 +73,7 @@ describe('md source', () => {
     writeFileSync(join(subDir, 'getting-started.md'), '# Getting Started', 'utf-8')
     writeFileSync(join(subDir, 'advanced.md'), '# Advanced', 'utf-8')
 
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${tempDir}`,
       host: tempDir,
       path: tempDir,
@@ -78,7 +81,7 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     const results = []
     for await (const env of source.start(ctx)) {
       results.push(env)
@@ -90,9 +93,9 @@ describe('md source', () => {
       join(tempDir, 'docs', 'guides', 'getting-started.md'),
       join(tempDir, 'intro.md'),
     ])
-    expect(results[0]!.item).toBe('# Advanced')
-    expect(results[1]!.item).toBe('# Getting Started')
-    expect(results[2]!.item).toBe('# Intro')
+    expect(results[0]?.item).toBe('# Advanced')
+    expect(results[1]?.item).toBe('# Getting Started')
+    expect(results[2]?.item).toBe('# Intro')
   })
 })
 
@@ -110,7 +113,7 @@ describe('md target', () => {
   })
 
   it('should append markdown content to file', async () => {
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${filePath}`,
       host: filePath,
       path: filePath,
@@ -118,7 +121,7 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     await target.open(ctx)
     await target.write({ item: '# Line 1', meta: {} }, ctx)
     await target.write({ item: '# Line 2', meta: {} }, ctx)
@@ -129,7 +132,7 @@ describe('md target', () => {
   })
 
   it('should throw if write is called before open', async () => {
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${filePath}`,
       host: filePath,
       path: filePath,
@@ -137,7 +140,7 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     await expect(target.write({ item: 'x', meta: {} }, ctx)).rejects.toThrow(
       'Target not opened. Call open() before write().',
     )
@@ -145,7 +148,7 @@ describe('md target', () => {
 
   it('should write chapter1.md, chapter2.md when given two envelopes without meta.chapterNum', async () => {
     const dir = join(tempDir, 'output')
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${dir}`,
       host: dir,
       path: dir,
@@ -153,7 +156,7 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     await target.open(ctx)
     await target.write({ item: '# Chapter 1', meta: {} }, ctx)
     await target.write({ item: '# Chapter 2', meta: {} }, ctx)
@@ -165,7 +168,7 @@ describe('md target', () => {
 
   it('should use meta.chapterNum for filenames in directory mode', async () => {
     const dir = join(tempDir, 'output')
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${dir}`,
       host: dir,
       path: dir,
@@ -173,7 +176,7 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     await target.open(ctx)
     await target.write({ item: '# First', meta: { chapterNum: 5 } }, ctx)
     await target.write({ item: '# Second', meta: { chapter: 10 } }, ctx)
@@ -186,7 +189,7 @@ describe('md target', () => {
   it('should write files from meta.mdOutputs and ignore base path', async () => {
     const baseDir = join(tempDir, 'ignored')
     const targetDir = join(tempDir, 'custom')
-    const uri: any = {
+    const uri: ParsedUri = {
       raw: `md://${baseDir}`,
       host: baseDir,
       path: baseDir,
@@ -194,7 +197,7 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as any
+    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
     await target.open(ctx)
     await target.write(
       {

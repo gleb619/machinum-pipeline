@@ -186,7 +186,7 @@ function parseSchemaDoc(text: string): SchemaDocEnvelope {
   const children = tree.children
 
   for (let i = 0; i < children.length; i++) {
-    const node = children[i] as any
+    const node = children[i] as MdastNode
 
     if (node.type === 'heading') {
       const headingText = extractTextContent(node as MdastPhrasable)

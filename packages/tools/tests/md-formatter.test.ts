@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
 import { formatMarkdown, formatString, mdFormatter, mdFormatterTool } from '../src/md-formatter.js'
@@ -89,7 +90,10 @@ describe('empty input', () => {
 
 describe('mdFormatter tool invoke', () => {
   it('should format envelope item', async () => {
-    const result = await mdFormatter.invoke({ item: '# Test\n\nContent.', meta: {} }, {} as any)
+    const result = await mdFormatter.invoke(
+      { item: '# Test\n\nContent.', meta: {} },
+      {} as ToolContext,
+    )
     expect(result.item).toBeTruthy()
     expect(typeof result.item).toBe('string')
     expect(result.meta.mdFormatted).toBe(true)
@@ -97,20 +101,20 @@ describe('mdFormatter tool invoke', () => {
 
   it('should set mdAlreadyFormatted true when no change needed', async () => {
     const input = '# Title\n\nBody text.\n'
-    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as any)
+    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as ToolContext)
     expect(result.meta.mdAlreadyFormatted).toBe(true)
   })
 
   it('should set mdAlreadyFormatted false when reformatted', async () => {
     const input = '# Title\n\nBody text.'
-    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as any)
+    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as ToolContext)
     expect(result.meta.mdAlreadyFormatted).toBe(false)
   })
 
   it('should use per-envelope options from meta.mdFormatOptions', async () => {
     const result = await mdFormatter.invoke(
       { item: 'test', meta: { mdFormatOptions: { wrapMode: 'never' } } },
-      {} as any,
+      {} as ToolContext,
     )
     expect(result.item).toBeTruthy()
     expect(result.meta.mdFormatted).toBe(true)

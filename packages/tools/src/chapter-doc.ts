@@ -166,7 +166,7 @@ export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
   const formattedBody = formattedBodyResult.formatted
 
   // Remove leading blank line that formatString may add before the heading
-  return rawFrontmatter + '\n' + formattedBody
+  return `${rawFrontmatter}\n${formattedBody}`
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +176,7 @@ export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
 function extractTitle(content: string): { title: string; bodyStartLine: number } {
   const lines = content.split('\n')
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]!
+    const line = lines[i] as string
     const trimmed = line.trim()
     if (trimmed.startsWith('# ')) {
       return { title: trimmed.slice(2).trim(), bodyStartLine: i + 1 }

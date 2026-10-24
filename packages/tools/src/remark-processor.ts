@@ -1,13 +1,13 @@
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
-import { unified } from 'unified'
+import type { Nodes, Root, RootContent } from 'mdast'
+import remarkFrontmatter from 'remark-frontmatter'
+import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
-import remarkGfm from 'remark-gfm'
-import remarkFrontmatter from 'remark-frontmatter'
-import type { Nodes, Root, RootContent } from 'mdast'
 import type { Options as StringifyOptions } from 'remark-stringify'
+import { unified } from 'unified'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,10 +92,15 @@ function rewriteLine(value: string, options: { width: number; mode: WrapMode }):
  * `stringifyOpts` is passed through to remark-stringify (bullet style, list markers).
  * Prose wrapping is applied by {@link remarkWrapProse} — remark-stringify ignores width.
  */
-export function buildProcessor(stringifyOpts?: StringifyOptions, wrap?: { width: number; mode: WrapMode }) {
+export function buildProcessor(
+  stringifyOpts?: StringifyOptions,
+  wrap?: { width: number; mode: WrapMode },
+) {
   let processor = unified().use(remarkParse).use(remarkFrontmatter).use(remarkGfm)
   if (wrap) processor = processor.use(remarkWrapProse, wrap)
-  return stringifyOpts ? processor.use(remarkStringify, stringifyOpts) : processor.use(remarkStringify)
+  return stringifyOpts
+    ? processor.use(remarkStringify, stringifyOpts)
+    : processor.use(remarkStringify)
 }
 
 /** Parse markdown into an mdast tree. No stringify plugin attached. */

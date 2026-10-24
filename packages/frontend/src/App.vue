@@ -14,6 +14,7 @@ interface RunInfo {
 
 const pipelines = ref<PipelineInfo[]>([])
 const runs = ref<RunInfo[]>([])
+// biome-ignore lint/correctness/noUnusedVariables: used in template
 const activeTab = ref<'pipelines' | 'runs'>('pipelines')
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -42,6 +43,7 @@ async function fetchRuns() {
   }
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: used in template
 async function startRun(declared: string) {
   toast.value = null
   try {
@@ -62,6 +64,7 @@ async function startRun(declared: string) {
   }
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: used in template
 async function pauseRun(runId: string) {
   toast.value = null
   try {
@@ -77,6 +80,7 @@ async function pauseRun(runId: string) {
   }
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: used in template
 async function resumeRun(runId: string) {
   toast.value = null
   try {
@@ -92,10 +96,12 @@ async function resumeRun(runId: string) {
   }
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: used in template
 function clearToast() {
   toast.value = null
 }
 
+// biome-ignore lint/correctness/noUnusedVariables: used in template
 function stateColor(state: string): string {
   switch (state) {
     case 'running':

@@ -1,5 +1,5 @@
 import { type Server, createServer } from 'node:http'
-import type { Envelope } from '@mt/core'
+import type { Envelope, SourceContext } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createHttpSource } from '../../src/http-server.js'
@@ -53,7 +53,7 @@ describe('http-server', () => {
     const port = await getFreePort()
     const ctx = makeMockContext()
     const source = createHttpSource(makeUri(port))
-    const iterator = source.start(ctx as any)[Symbol.asyncIterator]()
+    const iterator = source.start(ctx as SourceContext)[Symbol.asyncIterator]()
 
     // Start the generator — it'll log the port then block waiting for an envelope
     const nextPromise = iterator.next()
@@ -77,17 +77,17 @@ describe('http-server', () => {
     // Read yielded envelope
     const result = await nextPromise
     expect(result.done).toBe(false)
-    expect((result.value as any).item).toEqual({ message: 'hello' })
+    expect((result.value as Envelope<unknown>).item).toEqual({ message: 'hello' })
 
     // Cleanup
-    await iterator.return!()
+    await iterator.return?.()
   })
 
   it('should yield multiple envelopes from multiple POSTs', async () => {
     const port = await getFreePort()
     const ctx = makeMockContext()
     const source = createHttpSource<{ id: number }>(makeUri(port))
-    const iterator = source.start(ctx as any)[Symbol.asyncIterator]()
+    const iterator = source.start(ctx as SourceContext)[Symbol.asyncIterator]()
     const nextPromise = iterator.next()
     await vi.waitFor(
       () => {
@@ -116,18 +116,18 @@ describe('http-server', () => {
     }
 
     expect(envelopes).toHaveLength(3)
-    expect((envelopes[0] as any).item).toEqual({ id: 1 })
-    expect((envelopes[1] as any).item).toEqual({ id: 2 })
-    expect((envelopes[2] as any).item).toEqual({ id: 3 })
+    expect((envelopes[0] as Envelope<unknown>).item).toEqual({ id: 1 })
+    expect((envelopes[1] as Envelope<unknown>).item).toEqual({ id: 2 })
+    expect((envelopes[2] as Envelope<unknown>).item).toEqual({ id: 3 })
 
-    await iterator.return!()
+    await iterator.return?.()
   })
 
   it('should return 200 for health endpoint', async () => {
     const port = await getFreePort()
     const ctx = makeMockContext()
     const source = createHttpSource(makeUri(port))
-    const iterator = source.start(ctx as any)[Symbol.asyncIterator]()
+    const iterator = source.start(ctx as SourceContext)[Symbol.asyncIterator]()
 
     // Fire and forget the generator — it'll log then block
     iterator.next().catch(() => {})
@@ -145,14 +145,14 @@ describe('http-server', () => {
 
     // Unblock the generator by POSTing, then return it
     await fetch(`http://localhost:${port}/ingest`, { method: 'POST', body: '{}' }).catch(() => {})
-    await iterator.return!()
+    await iterator.return?.()
   })
 
   it('should stop cleanly when iterator returns', async () => {
     const port = await getFreePort()
     const ctx = makeMockContext()
     const source = createHttpSource(makeUri(port))
-    const iterator = source.start(ctx as any)[Symbol.asyncIterator]()
+    const iterator = source.start(ctx as SourceContext)[Symbol.asyncIterator]()
 
     iterator.next().catch(() => {})
     await vi.waitFor(
@@ -170,7 +170,7 @@ describe('http-server', () => {
     await new Promise((r) => setTimeout(r, 100))
 
     // Now iterator.return() should work without hanging
-    await iterator.return!()
+    await iterator.return?.()
 
     // Verify server is stopped
     const healthRes = await fetch(`http://localhost:${port}/health`).catch(() => null)

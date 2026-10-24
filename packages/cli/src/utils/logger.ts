@@ -43,7 +43,7 @@ export class DuplexLogger implements Logger {
       await mkdir(this.logDir, { recursive: true })
       const logFile = join(this.logDir, 'run.log')
       const timestamp = new Date().toISOString()
-      const line = `[${timestamp}] [${level}] ${message}${meta ? ' ' + JSON.stringify(meta) : ''}\n`
+      const line = `[${timestamp}] [${level}] ${message}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`
       await appendFile(logFile, line, 'utf-8')
     } catch {
       // Silently fail on file logging errors
