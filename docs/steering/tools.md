@@ -81,6 +81,17 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   A per-call `model` / `llm` override still wins — the preset sits on the **tool option** layer
   (see [LLM config precedence](#llm-config-precedence-resolvellmconfig-pure)), above `meta.llm`, settings and env.
 
+### `openrouter-pool-tool.ts`
+- `openrouterPool` / `createOpenrouterPool({ models?, strategy?, client? })` — like `openrouterFree` but with
+  **sticky free-model pinning**: first call pins ONE model from `models` (default `['openrouter/free']`,
+  `strategy` `first` | `random`), kept in a module-level Map keyed by baseUrl + key-set (shared across gate
+  instances; `resetOpenrouterPoolPins()` for tests). Re-pins to the next candidate only on 404 (model
+  unavailable), 429 with all keys blocked (`sharedPoolFor` pool state) or 402 quota; throws when every
+  candidate failed. Key rotation is the existing `OpenRouterPoolSupplier`. A per-call `model` / `llm.model`
+  wins and never touches the pin. Pin recorded in `meta.openrouterPool = { model, pinnedAt, repins }`.
+  Offline: `.with({ call: mockLlmCall([...]) })` (pin applied in `prepare`) or `client: () => mockLlmClient(...)`
+  (re-pin logic lives in the client wrapper, so a replaced `call` slot bypasses re-pin).
+
 ### `md-formatter.ts`
 - `mdFormatterTool` — reformats markdown with configurable line width. Uses remark/unified under the hood.
 

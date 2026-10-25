@@ -414,3 +414,14 @@ export {
 } from './core/llm-translate.js'
 
 export { openrouterFree, OPENROUTER_FREE_LLM } from './core/openrouter-free.js'
+
+export {
+  openrouterPool,
+  createOpenrouterPool,
+  resetOpenrouterPoolPins,
+  getOpenrouterPoolPin,
+  OPENROUTER_POOL_DEFAULT_MODELS,
+  type OpenrouterPoolOptions,
+  type OpenrouterPoolMeta,
+  type PinStrategy,
+} from './core/openrouter-pool-tool.js'
