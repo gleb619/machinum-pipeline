@@ -164,6 +164,7 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   (re-pin logic lives in the client wrapper, so a replaced `call` slot bypasses re-pin).
 
 ### `ollama-tool.ts`
+- GPU IT `tests/it/router-vault.it.test.ts` loads the router standalone runtime by relative dynamic import (test-only; no `@mt/router` dependency in `package.json`, no layer change) to prove tools -> router -> vault `ollama` entry -> ollama without any API key.
 - `ollamaTool` — gate against an ollama server: stock local by default, a remote GPU server by
   setting `MT_OLLAMA_URL` (e.g. `http://<gpu-host>:<port>/v1`; nothing host-specific is hardcoded). Thin preset over `createLlmGate`: tool layer `OLLAMA_LLM`
   (`{ provider: 'ollama', transport: 'fetch' }` — the server needs no API key, the OpenAI SDK
