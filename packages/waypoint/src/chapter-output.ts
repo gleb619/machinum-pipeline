@@ -6,6 +6,7 @@ import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { atomicWriteFile, registry } from '@mt/core'
+import { resumeFrom } from './resume.js'
 import { resolveWaypointPath } from './settings.js'
 
 /**
@@ -70,39 +71,32 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
  *   - chapterNum: parsed from filename
  *   - filePath: full path to the chapter file
  */
+async function* readChapterEnvelopes<T>(baseDir: string): AsyncIterable<Envelope<T>> {
+  const files = await discoverChapterFiles(baseDir)
+  for (const file of files) {
+    const content = await readFile(file.path, 'utf-8')
+    yield {
+      item: content as T,
+      meta: {
+        chapterNum: file.chapterNum,
+        lang: file.lang,
+        filePath: file.path,
+      },
+    }
+  }
+}
+
 export function createChapterOutputSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
       const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
-      const files = await discoverChapterFiles(baseDir)
-      for (const file of files) {
-        const content = await readFile(file.path, 'utf-8')
-        yield {
-          item: content as T,
-          meta: {
-            chapterNum: file.chapterNum,
-            lang: file.lang,
-            filePath: file.path,
-          },
-        }
-      }
+      yield* readChapterEnvelopes(baseDir)
     },
-    async *resume(ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
       const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
-      const files = await discoverChapterFiles(baseDir)
-      for (const file of files) {
-        const content = await readFile(file.path, 'utf-8')
-        yield {
-          item: content as T,
-          meta: {
-            chapterNum: file.chapterNum,
-            lang: file.lang,
-            filePath: file.path,
-          },
-        }
-      }
+      yield* resumeFrom(() => readChapterEnvelopes(baseDir), cursor)
     },
   }
 }

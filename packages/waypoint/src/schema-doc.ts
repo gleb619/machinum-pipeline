@@ -8,6 +8,7 @@ import { atomicWriteFile, registry } from '@mt/core'
 import matter from 'gray-matter'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
+import { resumeFrom } from './resume.js'
 import { resolveWaypointPath } from './settings.js'
 
 export interface SchemaDocMetadata {
@@ -132,23 +133,23 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
  * its parsed content.
  */
 export function createSchemaDocSource(uri: ParsedUri): Source<SchemaDocEnvelope> {
+  const readEnvelope = async function* (
+    ctx: SourceContext,
+  ): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+    const filePath = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
+    const text = await readFile(filePath, 'utf-8')
+    const doc = parseSchemaDoc(text)
+    yield { item: doc, meta: {} }
+  }
+
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<Envelope<SchemaDocEnvelope>> {
-      const filePath = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
-      const text = await readFile(filePath, 'utf-8')
-      const doc = parseSchemaDoc(text)
-      yield { item: doc, meta: {} }
+      yield* readEnvelope(ctx)
     },
-    async *resume(
-      ctx: SourceContext,
-      _cursor: unknown,
-    ): AsyncIterable<Envelope<SchemaDocEnvelope>> {
-      const filePath = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
-      const text = await readFile(filePath, 'utf-8')
-      const doc = parseSchemaDoc(text)
-      yield { item: doc, meta: {} }
+    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+      yield* resumeFrom(() => readEnvelope(ctx), cursor)
     },
   }
 }

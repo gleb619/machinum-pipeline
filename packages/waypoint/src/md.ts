@@ -5,6 +5,7 @@ import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { AtomicStreamWriter, atomicWriteFile, registry } from '@mt/core'
+import { resumeFrom } from './resume.js'
 import { resolveWaypointPath, resolveWaypointRoot } from './settings.js'
 
 const PATH_SEPARATOR_RE = /[\\/]/
@@ -54,37 +55,31 @@ async function discoverMarkdownFiles(dir: string): Promise<string[]> {
   return files.sort()
 }
 
+async function* readMdEnvelopes<T>(filePath: string): AsyncIterable<Envelope<T>> {
+  const stats = await stat(filePath)
+  if (stats.isFile()) {
+    const content = await readFile(filePath, 'utf-8')
+    yield { item: content as T, meta: { filePath } }
+  } else {
+    const files = await discoverMarkdownFiles(filePath)
+    for (const f of files) {
+      const content = await readFile(f, 'utf-8')
+      yield { item: content as T, meta: { filePath: f } }
+    }
+  }
+}
+
 export function createMdSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
       const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
-      const stats = await stat(filePath)
-      if (stats.isFile()) {
-        const content = await readFile(filePath, 'utf-8')
-        yield { item: content as T, meta: { filePath } }
-      } else {
-        const files = await discoverMarkdownFiles(filePath)
-        for (const f of files) {
-          const content = await readFile(f, 'utf-8')
-          yield { item: content as T, meta: { filePath: f } }
-        }
-      }
+      yield* readMdEnvelopes(filePath)
     },
-    async *resume(ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
       const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
-      const stats = await stat(filePath)
-      if (stats.isFile()) {
-        const content = await readFile(filePath, 'utf-8')
-        yield { item: content as T, meta: { filePath } }
-      } else {
-        const files = await discoverMarkdownFiles(filePath)
-        for (const f of files) {
-          const content = await readFile(f, 'utf-8')
-          yield { item: content as T, meta: { filePath: f } }
-        }
-      }
+      yield* resumeFrom(() => readMdEnvelopes(filePath), cursor)
     },
   }
 }

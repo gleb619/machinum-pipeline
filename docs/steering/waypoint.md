@@ -44,6 +44,17 @@ class JsonlTarget implements Target<unknown> {
 }
 ```
 
+### Source resume contract
+
+`resume(ctx, cursor)` must **skip `cursor` envelopes** of the source's deterministic ordering
+(`docs/steering/core.md` — Source cursor). The runner counts envelopes as the target accepts
+them and resumes at `sourceStart + envelopesWritten`; replaying already-accepted envelopes makes
+the runner double-count and the next resume silently skips unprocessed work. A non-number cursor
+means "skip nothing" (`sourceStart = 0`). All waypoint resumable orderings are deterministic
+(sorted file walks, buffer insertion order), so a plain skip is exact. Shared helper:
+`src/resume.ts` (`resumeFrom(startFn, cursor)` / `skipEnvelopes(stream, n)`), used by `md://`,
+`chapter-output://`, `ephemeral://` and `schema-doc://`.
+
 ## Atomicity Contract (hard rule)
 
 > File writes are atomic (temp-then-rename).

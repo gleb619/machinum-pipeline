@@ -162,6 +162,37 @@ describe('runner source cursor', () => {
     expect(lastState().checkpoint.cursor).toBe(5)
   })
 
+  it('resume twice after a failure processes every envelope exactly once (T098)', async () => {
+    // Guards the waypoint contract: a resumable source with a deterministic
+    // ordering (e.g. md:// dir, sorted file walk) must skip `cursor`
+    // envelopes on resume — re-yielding them makes the runner double-count.
+    failOn = 3
+
+    await expect(
+      new Runner(cursorPipeline('cursor-twice', 'cursor-source'), globalContext).start(),
+    ).rejects.toThrow('gate exploded on 3')
+
+    await expect(
+      new Runner(cursorPipeline('cursor-twice', 'cursor-source'), globalContext).resume(
+        'run-under-test',
+      ),
+    ).rejects.toThrow('gate exploded on 3')
+    // The first resume must not re-deliver envelopes 1 and 2.
+    expect(written).toEqual([1, 2])
+
+    failOn = 0
+    sourceCalls.length = 0
+    written.length = 0
+
+    await new Runner(cursorPipeline('cursor-twice', 'cursor-source'), globalContext).resume(
+      'run-under-test',
+    )
+
+    expect(sourceCalls).toEqual(['resume:2'])
+    expect(written).toEqual([3, 4, 5])
+    expect(lastState().checkpoint.cursor).toBe(5)
+  })
+
   it('falls back to start() and replays in full when the source has no resume', async () => {
     failOn = 3
 

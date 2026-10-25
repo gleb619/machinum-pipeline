@@ -2,6 +2,7 @@ import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { registry } from '@mt/core'
+import { resumeFrom } from './resume.js'
 
 /**
  * Module-level in-memory buffer shared between ephemeral sources and targets.
@@ -21,24 +22,23 @@ const buffers = new Map<string, Envelope[]>()
 export function createEphemeralSource<T>(uri: ParsedUri): Source<T> {
   const bufferName = uri.path || uri.host
 
+  const readEnvelopes = async function* (): AsyncIterable<Envelope<T>> {
+    const batch = buffers.get(bufferName)
+    if (batch && batch.length > 0) {
+      for (const env of batch) {
+        yield env as Envelope<T>
+      }
+    }
+  }
+
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(_ctx: SourceContext): AsyncIterable<Envelope<T>> {
-      const batch = buffers.get(bufferName)
-      if (batch && batch.length > 0) {
-        for (const env of batch) {
-          yield env as Envelope<T>
-        }
-      }
+      yield* readEnvelopes()
     },
-    async *resume(_ctx: SourceContext, _cursor: unknown): AsyncIterable<Envelope<T>> {
-      const batch = buffers.get(bufferName)
-      if (batch && batch.length > 0) {
-        for (const env of batch) {
-          yield env as Envelope<T>
-        }
-      }
+    async *resume(_ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+      yield* resumeFrom(readEnvelopes, cursor)
     },
   }
 }
