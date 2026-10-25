@@ -48,7 +48,7 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
     )
     expect(content).toContain('export default')
     expect(content).toContain('getUpstreamRegistry')
-    expect(content).toContain('client.apiKey')
+    expect(content).toContain('callUpstream')
   })
 
   it('router proxies to OpenRouter via pool', async () => {
@@ -56,8 +56,10 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
       join(__dirname, '../server/routes/api/chat/completions.ts'),
       'utf-8',
     )
-    expect(content).toContain('chat/completions')
-    expect(content).toContain('client.apiUrl')
+    const helper = await readFile(join(__dirname, '../server/utils/upstream-call.ts'), 'utf-8')
+    expect(helper).toContain('chat/completions')
+    expect(helper).toContain('client.apiUrl')
+    expect(content).toContain('callUpstream')
   })
 
   it('router uses h3 imports', async () => {

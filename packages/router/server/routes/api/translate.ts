@@ -1,9 +1,10 @@
 import { createError, defineEventHandler, getHeader, getQuery, readBody } from 'h3'
 import { isMockMode } from '../../plugins/mock-mode.js'
 import { logCall } from '../../utils/cost-tracker.js'
-import { poolSupplier } from '../../utils/openrouter-pool-supplier.js'
 import { OpenRouterPool } from '../../utils/openrouter-pool.js'
-import { redact } from '../../utils/redact.js'
+import { redactError } from '../../utils/redact.js'
+import { callUpstream } from '../../utils/upstream-call.js'
+import { DEFAULT_UPSTREAM, getUpstreamRegistry } from '../../utils/upstream.js'
 
 interface TranslateRequest {
   text: string | string[]
@@ -23,17 +24,7 @@ interface BatchTranslateResponse {
   results: TranslateResponse[]
 }
 
-interface OpenRouterMessage {
-  role: 'system' | 'user'
-  content: string
-}
-
-interface OpenRouterChatRequest {
-  model: string
-  messages: OpenRouterMessage[]
-}
-
-interface OpenRouterChatResponse {
+interface ChatResponse {
   id?: string
   model?: string
   choices?: Array<{
@@ -54,71 +45,6 @@ function buildSystemPrompt(targetLang: string, sourceLang?: string): string {
   return `You are a precise translation engine. Translate the following text${sourceHint} into ${targetLang}. Preserve formatting, tone, and meaning. Respond with ONLY the translated text, no explanations.`
 }
 
-async function callOpenRouter(
-  pool: OpenRouterPool,
-  client: ReturnType<OpenRouterPool['getAvailableClient']>,
-  body: OpenRouterChatRequest,
-): Promise<OpenRouterChatResponse> {
-  if (!client) {
-    throw createError({
-      statusCode: 503,
-      statusMessage: 'No available OpenRouter clients',
-    })
-  }
-
-  const response = await fetch(`${client.apiUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${client.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-
-  if (response.status === 429) {
-    const retryAfter = response.headers.get('retry-after')
-    const retryMs = retryAfter ? Number.parseInt(retryAfter, 10) * 1000 : 60_000
-    pool.handleRateLimitError(client, retryMs)
-    throw createError({
-      statusCode: 429,
-      statusMessage: 'Rate limited by OpenRouter',
-    })
-  }
-
-  if (response.status === 402) {
-    pool.handle402Error(client)
-    throw createError({
-      statusCode: 402,
-      statusMessage: 'Payment required / DDoS block',
-    })
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw createError({
-      statusCode: 502,
-      statusMessage: `OpenRouter error: ${response.status} ${redact(errorText)}`,
-    })
-  }
-
-  return (await response.json()) as OpenRouterChatResponse
-}
-
-function getOrCreatePool(apiKeys?: string[]): OpenRouterPool {
-  if (apiKeys?.length) {
-    return new OpenRouterPool({ clients: apiKeys.map((k) => ({ apiKey: k })) })
-  }
-
-  const pool = poolSupplier.getPool()
-  if (pool.availableSize() === 0) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'No OpenRouter API keys configured',
-    })
-  }
-  return pool
-}
-
 export default defineEventHandler(async (event) => {
   const body = await readBody<TranslateRequest>(event)
   const query = getQuery(event)
@@ -137,58 +63,53 @@ export default defineEventHandler(async (event) => {
       : (results[0] ?? { translatedText: '', model: 'mock', tokens: 0 })
   }
 
-  const pool = getOrCreatePool(body.apiKeys)
-  const model = body.model ?? 'openai/gpt-4o-mini'
+  const registry = getUpstreamRegistry()
+  const requested = body.model ?? registry.defaultUpstream.defaultModel ?? 'openai/gpt-4o-mini'
+  const { upstream, upstreamModel } = registry.resolve(requested)
+  // Per-request apiKeys only override the default (openrouter) upstream; keyless / vault
+  // upstreams always use their registry credentials.
+  const pool =
+    body.apiKeys?.length && upstream.name === DEFAULT_UPSTREAM
+      ? new OpenRouterPool({ clients: body.apiKeys.map((k) => ({ apiKey: k })) })
+      : upstream.getPool()
   const texts = Array.isArray(body.text) ? body.text : [body.text]
 
   const results: TranslateResponse[] = []
-  for (const text of texts) {
-    const client = pool.getAvailableClient(model)
-
-    const chatBody: OpenRouterChatRequest = {
-      model,
-      messages: [
-        { role: 'system', content: buildSystemPrompt(body.targetLang, body.sourceLang) },
-        { role: 'user', content: text },
-      ],
-    }
-
-    try {
-      const data = await callOpenRouter(pool, client, chatBody)
+  try {
+    for (const text of texts) {
+      const payload = JSON.stringify({
+        model: upstreamModel,
+        messages: [
+          { role: 'system', content: buildSystemPrompt(body.targetLang, body.sourceLang) },
+          { role: 'user', content: text },
+        ],
+      })
+      const response = await callUpstream(event, upstream, upstreamModel, payload, pool)
+      const data = (await response.json()) as ChatResponse
       const translatedText = data.choices?.[0]?.message?.content ?? ''
       const tokens = data.usage?.total_tokens ?? 0
 
-      void logCall(runId, stepId, model, {
-        promptTokens: data.usage?.prompt_tokens ?? 0,
-        completionTokens: data.usage?.completion_tokens ?? 0,
-      })
+      void logCall(
+        runId,
+        stepId,
+        requested,
+        {
+          promptTokens: data.usage?.prompt_tokens ?? 0,
+          completionTokens: data.usage?.completion_tokens ?? 0,
+        },
+        { upstream: upstream.name, free: upstream.kind !== 'openrouter' },
+      )
 
-      results.push({ translatedText, model, tokens })
-    } catch (err) {
-      // If rate-limited, retry once with next client
-      if (err && typeof err === 'object' && 'statusCode' in err && err.statusCode === 429) {
-        const nextClient = pool.getAvailableClient(model)
-        if (nextClient) {
-          const data = await callOpenRouter(pool, nextClient, chatBody)
-          const translatedText = data.choices?.[0]?.message?.content ?? ''
-          const tokens = data.usage?.total_tokens ?? 0
-
-          void logCall(runId, stepId, model, {
-            promptTokens: data.usage?.prompt_tokens ?? 0,
-            completionTokens: data.usage?.completion_tokens ?? 0,
-          })
-
-          results.push({ translatedText, model, tokens })
-          continue
-        }
-      }
-      throw err
+      results.push({ translatedText, model: requested, tokens })
     }
+  } catch (err) {
+    if (err instanceof Error && 'statusCode' in err) throw err
+    throw createError({ statusCode: 502, statusMessage: `Proxy error: ${redactError(err)}` })
   }
 
   if (query.batch || Array.isArray(body.text)) {
     return { results } as BatchTranslateResponse
   }
 
-  return results[0] ?? { translatedText: '', model, tokens: 0 }
+  return results[0] ?? { translatedText: '', model: requested, tokens: 0 }
 })

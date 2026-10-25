@@ -45,7 +45,7 @@ describe('keyless gateway (architectural)', () => {
   })
 
   it('the proxy builds upstream headers from scratch', async () => {
-    const source = await readFile(join(routesDir, 'api', 'chat', 'completions.ts'), 'utf8')
+    const source = await readFile(join(srcDir, 'utils', 'upstream-call.ts'), 'utf8')
     expect(source).toContain("'Content-Type': 'application/json'")
     expect(source).toMatch(/headers\.Authorization\s*=\s*`Bearer \$\{client\.apiKey\}`/)
   })

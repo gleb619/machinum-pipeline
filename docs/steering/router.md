@@ -49,7 +49,7 @@ end-to-end flows.
 ```
 packages/router/server/routes/api/
 ├── chat/completions.ts     # POST /api/chat/completions — OpenAI-compatible proxy endpoint
-├── translate.ts            # POST /api/translate — translation shortcut with prompt building
+├── translate.ts            # POST /api/translate — translation shortcut, routed via upstream registry
 ├── translate/
 │   ├── health.ts           # GET /api/translate/health
 │   └── config.ts           # GET /api/translate/config
@@ -118,14 +118,18 @@ Router is a keyless gateway: clients send no upstream key; router holds them (en
 - **Token** (`middleware/auth.ts`, runs before `rate-limit`): when `MT_ROUTER_TOKEN` is set, every `/api/*` request except
   `GET /api/health` needs `Authorization: Bearer <token>` (constant-time compare), else 401. Unset: open (loopback only).
   Static dashboard files are served without auth but its `/api` calls need the token when set.
-- **Header strip**: `completions.ts` builds upstream headers from scratch (content-type, optional http-referer/x-title,
+- **Header strip**: `utils/upstream-call.ts` builds upstream headers from scratch (content-type, optional http-referer/x-title,
   upstream key, registry headers). Client `Authorization`, `x-api-key`, cookies and the router token are never forwarded.
 - **Redaction** (`utils/redact.ts`): all known keys (env, vault, upstream specs, router token) plus `Bearer <x>` / `sk-...`
   patterns become `***` in upstream error echo, proxy errors, the global error handler, log lines, `/api/logs`, and
   console errors. `/api/pool`, `/api/health`, `/api/dashboard` expose names and counts only.
 - Rate limit = the daily spend budget only. Not done: per-client budget (`X-MT-Client`, `MT_CLIENT_BUDGET`).
-- **Legacy translate path**: `POST /api/translate` accepts optional `apiKeys` in the request body; those keys
-  are used for that call only, never stored, and the router's own pool is used when they are absent.
+- **Translate path**: `POST /api/translate` resolves its model through the upstream registry exactly like chat
+  (`ollama/<m>`, vault upstream names; bare ids go to openrouter; default `openai/gpt-4o-mini`) and shares the
+  forward + 429-retry + 402 + redacted-502 logic in `utils/upstream-call.ts` (`callUpstream`) with
+  `chat/completions`. Keyless upstreams get no `Authorization`. Cost log uses the requested id and
+  `{ upstream, free: kind !== 'openrouter' }`; response `model` is the requested id. Optional body `apiKeys`
+  override only the default openrouter upstream for that call (never stored); ignored for other upstreams.
 - **Tools side**: `mt` tools with provider `router` send `Authorization: Bearer ${MT_ROUTER_TOKEN}` when that env is set
   (`llm-config.ts` provider env keys; `MT_LLM_API_KEY` still wins). No key otherwise.
 
