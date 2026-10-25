@@ -182,6 +182,8 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
           tool: llm,
           meta: env.meta,
         })
+        // A vault ref (`llm.use`) fixes the model: the sticky free-model pin must not override it.
+        if (cfg.sources.model?.startsWith('vault:')) return s
         const id = pinId(cfg)
         const pin = pinFor(id, candidates, strategy)
         return { ...s, pinId: id, request: { ...s.request, model: model(pin) } }

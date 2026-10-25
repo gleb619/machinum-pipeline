@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import type { ToolContext } from '@mt/core'
+import { mockLlmCall } from '@mt/tools'
 import { pickLlmTool, readLlmConfig } from '../pipelines/llm-picker.js'
 
 const ctx = { run: { global: {} } } as unknown as ToolContext
@@ -101,5 +102,50 @@ describe('pickLlmTool', () => {
     )
     expect(res.content).toBe('mock-summary')
     expect(res.model).toBe('mock')
+  })
+})
+
+describe('llm.use vault refs', () => {
+  const vctx = {
+    run: {
+      global: {
+        env: { MT_OLLAMA_MODEL: '', MT_OLLAMA_URL: '' },
+        vault: {
+          version: 1,
+          entries: {
+            gpu: { provider: 'ollama', baseUrl: 'http://vault-host:1/v1', defaultModel: 'llama3' },
+          },
+        },
+      },
+    },
+  } as unknown as ToolContext
+
+  it('MT_LLM_USE is read from env; settings llm.use from mt.json; env wins', () => {
+    expect(readLlmConfig({ MT_LLM_TOOL: 'ollama', MT_LLM_USE: 'vault://gpu/qwen3:8b' })).toEqual({
+      tool: 'ollama',
+      model: 'qwen3:8b',
+      use: 'vault://gpu/qwen3:8b',
+    })
+    const path = configFile({ 'llm.tool': 'ollama', 'llm.use': '@vault/gpu' })
+    expect(readLlmConfig({}, path)).toMatchObject({ use: '@vault/gpu' })
+    expect(readLlmConfig({ MT_LLM_USE: 'vault://other' }, path)).toMatchObject({
+      use: 'vault://other',
+    })
+  })
+
+  it('passes the ref to the chosen tool; the vault model is not defeated by the picker pin', async () => {
+    const llm = pickLlmTool({ env: { MT_LLM_TOOL: 'ollama', MT_LLM_USE: 'vault://gpu' } })
+    const mock = mockLlmCall(['ok'])
+    await llm.gate.with({ call: mock }).invoke({ item: { prompt: 'hi' }, meta: {} }, vctx)
+    expect(mock.calls[0]?.model).toBe('llama3')
+  })
+
+  it('explicit MT_LLM_MODEL still beats the vault model', async () => {
+    const llm = pickLlmTool({
+      env: { MT_LLM_TOOL: 'ollama', MT_LLM_USE: 'vault://gpu', MT_LLM_MODEL: 'pinned' },
+    })
+    const mock = mockLlmCall(['ok'])
+    await llm.gate.with({ call: mock }).invoke({ item: { prompt: 'hi' }, meta: {} }, vctx)
+    expect(mock.calls[0]?.model).toBe('pinned')
   })
 })

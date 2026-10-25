@@ -197,8 +197,14 @@ the non-streaming `chatCompletion` path is unchanged.
 
 First defined wins, per field: **call input** (`item.llm`, `item.model`) > **tool option** (`createLlmGate({ llm })`) >
 **`meta.llm`** > **mt.json `settings`** (`llm.provider`, `llm.model`, `llm.baseUrl`, `llm.apiKey`, `llm.timeoutMs`, `llm.retry`, `llm.cache`) >
+**vault ref** (`llm.use` / `MT_LLM_USE` / `use` on any layer; expands `ctx.run.global.vault`, directly below the layer carrying the ref) >
 **provider env** (`MT_OLLAMA_MODEL`, `MT_OLLAMA_URL`) > **preset defaults** (`createLlmGate({ llmDefaults })`) >
 **env** > **default**.
+
+Vault refs (`vault://<entry>[/<model>]` | `@vault/<entry>[/<model>]`, see [vault.md](../vault.md)): tools only read
+`ctx.run.global.vault`, never files. Presets (`ollamaTool`, `openrouterFree`, `openrouterPool`) pin only the provider on
+the tool layer (their model/endpoint are `llmDefaults`), so a vault model/endpoint wins; an entry of a different provider
+throws naming the ref. Secrets are reported as `vault:<entry>` in `sources` and never reach meta/logs/errors.
 
 | Field | Env | Default |
 |---|---|---|

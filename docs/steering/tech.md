@@ -97,6 +97,7 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_HOME` | `~/.mt` | Global state directory (router logs, etc.) |
 | `MT_ROUTER_URL` | `http://localhost:7777` | OpenRouter proxy URL |
 | `MT_LLM_PROVIDER` | `router` | `router` \| `openrouter` \| `openai` \| `ollama` \| `anthropic` \| `custom` |
+| `MT_LLM_USE` | — | Vault ref `vault://<entry>[/<model>]` \| `@vault/<entry>[/<model>]`; expands to provider/baseUrl/keys/headers/model (same as mt.json `settings.llm.use`, which wins). See [vault.md](../vault.md) |
 | `MT_LLM_MODEL` | provider default | Default model id |
 | `MT_LLM_BASE_URL` | provider default | API base URL (required for `custom`) |
 | `MT_LLM_API_KEY` | — | API key for any provider (wins over provider-specific vars) |

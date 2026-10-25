@@ -117,3 +117,29 @@ describe('openrouterPool re-pin', () => {
     expect(poolMeta(out.meta)).toMatchObject({ model: 'm/one', repins: 0 })
   })
 })
+
+describe('openrouterPool llm.use (vault)', () => {
+  it('vault model is used instead of the sticky pin', async () => {
+    const vctx = {
+      run: {
+        global: {
+          settings: { 'llm.use': 'vault://or' },
+          vault: {
+            version: 1,
+            entries: {
+              or: {
+                provider: 'openrouter',
+                apiKey: 'fake-key-1234',
+                defaultModel: 'vendor/model-x',
+              },
+            },
+          },
+          env: {},
+        },
+      },
+    } as unknown as ToolContext
+    const mock = mockLlmCall(['ok'])
+    await openrouterPool.with({ call: mock }).invoke(envOf({ prompt: 'x' }), vctx)
+    expect(mock.calls[0]?.model).toBe('vendor/model-x')
+  })
+})

@@ -1,3 +1,4 @@
+import { type Vault, resolveVaultRef } from '@mt/core'
 import type { Logger, RetryPolicy, ToolContext } from '@mt/core'
 import { defaultTransportKind } from './llm-sdk-transports.js'
 
@@ -29,6 +30,11 @@ export interface LlmConfigLayer {
   maxTokens?: number
   headers?: Record<string, string>
   transport?: LlmTransportKind
+  /**
+   * Vault ref (`vault://<entry>[/<model>]` | `@vault/<entry>[/<model>]`). Expanded from
+   * `ctx.run.global.vault` into provider/baseUrl/keys/headers/model. Not a secret.
+   */
+  use?: string
 }
 
 export interface ResolvedLlmConfig {
@@ -70,6 +76,8 @@ export interface ResolveLlmConfigArgs {
    * The provider is never read from this layer.
    */
   defaults?: LlmConfigLayer
+  /** `ctx.run.global.vault`; required when any layer / `MT_LLM_USE` carries a vault ref. */
+  vault?: Vault
 }
 
 export const DEFAULT_ROUTER_URL = 'http://localhost:7777'
@@ -141,6 +149,7 @@ function settingsLayer(settings: Record<string, unknown> | undefined): LlmConfig
     temperature: posNum(s['llm.temperature']),
     maxTokens: posNum(s['llm.maxTokens']),
     transport: parseTransport(s['llm.transport'], 'settings llm.transport'),
+    use: nonEmpty(s['llm.use']),
   }
 }
 
@@ -208,10 +217,52 @@ function envKeys(provider: LlmProvider, env: Record<string, string | undefined>)
   }
 }
 
+interface ExpandedVaultRef {
+  ref: string
+  name: string
+  /** Layer the ref came from; the expansion sits directly below it. */
+  after: string
+  layer: LlmConfigLayer
+}
+
+/** Expand the first vault ref found (highest layer first). Errors never include secrets. */
+function expandVaultRef(
+  candidates: Array<[string, string | undefined]>,
+  vault: Vault | undefined,
+): ExpandedVaultRef | undefined {
+  for (const [after, ref] of candidates) {
+    if (!ref) continue
+    if (!vault) {
+      throw new Error(`Vault ref "${ref}" (${after}): no vault loaded in the run context`)
+    }
+    const r = resolveVaultRef(vault, ref)
+    const e = r.entry
+    const layer: LlmConfigLayer = { provider: e.provider }
+    if (e.baseUrl) layer.baseUrl = e.baseUrl
+    if (e.apiKeys?.length) layer.apiKeys = [...e.apiKeys]
+    else if (e.apiKey) layer.apiKey = e.apiKey
+    if (e.headers) layer.headers = { ...e.headers }
+    if (r.model) layer.model = r.model
+    return { ref, name: r.name, after, layer }
+  }
+  return undefined
+}
+
 /**
  * Pure LLM config resolution. Precedence per field (first defined wins):
  *
- *   input > tool > meta.llm > mt.json settings (`llm.*`) > provider env > preset defaults > env > defaults
+ *   input > tool > meta.llm > mt.json settings (`llm.*`) > vault ref (`use`) > provider env
+ *     > preset defaults > env > defaults
+ *
+ * Vault ref (`use`: `vault://<entry>[/<model>]` | `@vault/<entry>[/<model>]`): taken from the first
+ * layer that carries one (input > tool > meta.llm > settings `llm.use` > env `MT_LLM_USE`) and
+ * expanded from `ctx.run.global.vault` into ONE layer (provider, baseUrl, apiKey(s), headers,
+ * model = ref model ?? entry.defaultModel) placed directly below the layer that carried the ref
+ * (settings and env `MT_LLM_USE` -> directly below mt.json settings). So explicit fields of the
+ * carrying layer and every higher layer beat the vault; vault beats provider env, preset defaults
+ * and generic env. A higher layer pinning a different provider (e.g. the `ollamaTool` preset vs a
+ * vault `openrouter` entry) is an error naming the ref. Secrets never reach `sources`
+ * (reported as `vault:<entry>`), meta, logs or errors; `meta.llm` apiKey(s) stay ignored.
  *
  * Extras: `baseUrl` for provider `router` falls back to ctx `routerUrl`, `MT_ROUTER_URL`, then
  * `http://localhost:7777`; `retry` falls back to ctx `defaults.retry`; API keys never come from `meta`.
@@ -229,13 +280,32 @@ export function resolveLlmConfig(args: ResolveLlmConfigArgs = {}): ResolvedLlmCo
   }
   const sources: Record<string, string> = {}
 
-  let layers: Array<[string, LlmConfigLayer]> = [
+  const vaultRef = expandVaultRef(
+    [
+      ['input', inputLayer.use],
+      ['tool', toolLayer.use],
+      ['meta', metaL.use],
+      ['settings', settingsL.use ?? nonEmpty(env.MT_LLM_USE)],
+    ],
+    args.vault,
+  )
+  const withVault = (rest: Array<[string, LlmConfigLayer]>): Array<[string, LlmConfigLayer]> => {
+    if (!vaultRef) return rest
+    const out: Array<[string, LlmConfigLayer]> = []
+    for (const l of rest) {
+      out.push(l)
+      if (l[0] === vaultRef.after) out.push([`vault:${vaultRef.name}`, vaultRef.layer])
+    }
+    return out
+  }
+
+  let layers: Array<[string, LlmConfigLayer]> = withVault([
     ['input', inputLayer],
     ['tool', toolLayer],
     ['meta', metaL],
     ['settings', settingsL],
     ['env', envL],
-  ]
+  ])
 
   function pick<K extends keyof LlmConfigLayer>(key: K): LlmConfigLayer[K] | undefined {
     for (const [name, layer] of layers) {
@@ -258,7 +328,13 @@ export function resolveLlmConfig(args: ResolveLlmConfigArgs = {}): ResolvedLlmCo
   const provider = orDefault<LlmProvider>('provider', pick('provider'), 'router')
   // Provider env (`MT_OLLAMA_*`) and preset defaults sit above the generic `MT_LLM_*` env layer:
   // a preset pins its own model/endpoint, the user overrides it with the provider env var.
-  layers = [
+  if (vaultRef?.layer.provider && vaultRef.layer.provider !== provider) {
+    throw new Error(
+      `Vault ref "${vaultRef.ref}": entry "${vaultRef.name}" has provider '${vaultRef.layer.provider}' ` +
+        `but a higher-precedence layer (${sources.provider}) pins provider '${provider}'`,
+    )
+  }
+  layers = withVault([
     ['input', inputLayer],
     ['tool', toolLayer],
     ['meta', metaL],
@@ -266,7 +342,7 @@ export function resolveLlmConfig(args: ResolveLlmConfigArgs = {}): ResolvedLlmCo
     ['provider-env', providerEnvLayer(provider, env)],
     ['preset-defaults', args.defaults ?? {}],
     ['env', envL],
-  ]
+  ])
 
   const model = orDefault('model', pick('model'), DEFAULT_MODEL[provider])
 
@@ -350,6 +426,7 @@ export interface CtxView {
   env: Record<string, string | undefined>
   routerUrl?: string
   retry?: RetryPolicy
+  vault?: Vault
   projectRoot: string
   logger?: Logger
 }
@@ -362,6 +439,7 @@ export function readCtx(ctx?: ToolContext): CtxView {
     env: { ...process.env, ...(g?.env ?? {}) },
     routerUrl: g?.routerUrl,
     retry: g?.defaults?.retry,
+    vault: g?.vault,
     projectRoot: g?.project?.root ?? process.cwd(),
     logger: ctx?.run?.logger,
   }
@@ -384,5 +462,6 @@ export function resolveLlmConfigFromCtx(
     routerUrl: v.routerUrl,
     retryDefault: v.retry,
     env: v.env,
+    vault: v.vault,
   })
 }

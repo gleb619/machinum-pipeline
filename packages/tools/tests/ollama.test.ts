@@ -163,3 +163,50 @@ describe('ollama native API helpers', () => {
     expect(health.error).toContain('ECONNREFUSED')
   })
 })
+
+describe('ollamaTool llm.use (vault)', () => {
+  const vault = {
+    version: 1 as const,
+    entries: {
+      gpu: {
+        provider: 'ollama' as const,
+        baseUrl: 'http://vault-host:1/v1',
+        defaultModel: 'llama3',
+      },
+      or: { provider: 'openrouter' as const, apiKey: 'fake-key-1234' },
+    },
+  }
+  const vctx = (use: string) =>
+    ({
+      run: {
+        global: {
+          settings: { 'llm.use': use },
+          vault,
+          env: { MT_OLLAMA_MODEL: '', MT_OLLAMA_URL: '' },
+        },
+      },
+    }) as unknown as ToolContext
+
+  it('vault model beats the preset default', async () => {
+    const mock = mockLlmCall(['ok'])
+    await ollamaTool
+      .with({ call: mock })
+      .invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('@vault/gpu'))
+    expect(mock.calls[0]?.model).toBe('llama3')
+  })
+
+  it('ref model wins; per-call model still beats the ref', async () => {
+    const mock = mockLlmCall(['ok'])
+    const gate = ollamaTool.with({ call: mock })
+    await gate.invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('vault://gpu/qwen3:8b'))
+    await gate.invoke({ item: { prompt: 'hi', model: 'call' }, meta: {} }, vctx('vault://gpu'))
+    expect(mock.calls.map((c) => c.model)).toEqual(['qwen3:8b', 'call'])
+  })
+
+  it('entry with another provider => error naming the ref', async () => {
+    const run = ollamaTool
+      .with({ call: mockLlmCall(['ok']) })
+      .invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('vault://or'))
+    await expect(run).rejects.toThrow(/vault:\/\/or/)
+  })
+})

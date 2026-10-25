@@ -21,7 +21,7 @@ Missing file = empty vault. Malformed JSON / bad entry = error naming file + ent
 
 `vault://<entry>[/<model>]` or `@vault/<entry>[/<model>]`. Model may contain `:` and `/`
 (`vault://my-openrouter/openai/gpt-4o-mini`). Model defaults to `defaultModel`; if the entry lists
-`models`, anything else is an error. T115 wires refs into `mt.json` `settings.llm.use`.
+`models`, anything else is an error. See [Using a vault entry](#using-a-vault-entry-llmuse).
 
 ## Security
 
@@ -38,3 +38,28 @@ is standalone, keep formats in sync). Each entry becomes an upstream named after
 pool (after `OPENROUTER_API_KEYS`). `anthropic` is skipped with a warning, `router` ignored. Env upstreams
 (`MT_ROUTER_UPSTREAMS`, `MT_ROUTER_OLLAMA_URL`) win on name conflicts. Edits are picked up without restart (mtime check, at
 most every 2s); a broken file keeps the previous entries. Key values are never logged or returned by the router API.
+
+## Using a vault entry (`llm.use`)
+
+```json
+{ "settings": { "llm.use": "@vault/local-ollama/llama3" } }
+```
+
+`llm.use` (mt.json `settings`), env `MT_LLM_USE`, and a `use` field on the per-call / tool / `meta.llm`
+LLM config layer all take a ref. It expands (from `ctx.run.global.vault`; tools never read files)
+into one layer: `provider`, `baseUrl`, `apiKey`/`apiKeys`, `headers`, `model` (ref model, else
+`defaultModel`). The first ref found wins: call input > tool > `meta.llm` > settings `llm.use` > `MT_LLM_USE`.
+
+Precedence (per field, first defined wins):
+`input > tool > meta.llm > settings llm.* > vault expansion > provider env (MT_OLLAMA_*) > preset defaults > MT_LLM_* env > defaults`.
+So explicit `llm.model` etc. beat the vault; the vault beats env/preset defaults (preset default models and
+endpoints of `ollamaTool` / `openrouterFree` / `openrouterPool` are defaults, not pins). Presets still pin
+the **provider**: a vault entry of another provider (e.g. `openrouter` entry with `ollamaTool`) throws an
+error naming the ref. `openrouterPool` skips its sticky model pin when the model comes from a vault ref.
+
+Errors: unknown entry / model (not in `models`) / no vault loaded name the ref and never contain secrets.
+`resolved.sources` reports `vault:<entry>`; `meta.llm` still ignores `apiKey(s)`; nothing from the vault
+reaches meta, checkpoints or logs.
+
+Sample pickers (`samples/sample2|3/pipelines/llm-picker.ts`) pass `MT_LLM_USE` / `settings.llm.use`
+to the chosen tool; without an explicit `MT_LLM_MODEL` / `llm.model` the vault model is used.

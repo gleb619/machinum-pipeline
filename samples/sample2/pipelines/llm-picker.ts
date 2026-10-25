@@ -4,6 +4,9 @@
  * - `MT_LLM_TOOL` picks the backend: `router` | `openrouter-free` | `openrouter-pool` |
  *   `ollama` | `mock` (default `mock` - offline, no API key, no router).
  * - `MT_LLM_MODEL` picks the model (default: the backend's own model).
+ * - `MT_LLM_USE` / `settings.llm.use` = `vault://<entry>[/<model>]` | `@vault/<entry>[/<model>]`
+ *   routes the chosen backend through a vault entry (endpoint, keys, model; see docs/vault.md).
+ *   Without an explicit `MT_LLM_MODEL` / `settings.llm.model`, the vault model is used.
  * - `mt.json` -> `settings.llm.tool` / `settings.llm.model` are the file-based fallback;
  *   the env vars win over them.
  *
@@ -12,7 +15,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { defineTool } from '@mt/core'
+import { defineTool, parseVaultRef } from '@mt/core'
 import type { ComposableTool, Tool, ToolContext } from '@mt/core'
 import {
   type ChatCompletionInput,
@@ -55,6 +58,8 @@ export interface LlmConfig {
   tool: LlmTool
   /** Model used by the selected backend. */
   model: string
+  /** Vault ref (`MT_LLM_USE` / `settings.llm.use`); set only when configured. */
+  use?: string
 }
 
 /** The picked backend, wired for every LLM-backed tool of the sample. */
@@ -117,12 +122,14 @@ export function readLlmConfig(
 ): LlmConfig {
   const settings = readProjectSettings(configPath)
   const tool = parseTool(env.MT_LLM_TOOL ?? text(settings['llm.tool']) ?? 'mock')
+  const use = env.MT_LLM_USE || text(settings['llm.use'])
+  const explicit = env.MT_LLM_MODEL ?? text(settings['llm.model'])
   const model =
-    env.MT_LLM_MODEL ??
-    text(settings['llm.model']) ??
+    explicit ??
+    (use ? parseVaultRef(use)?.model : undefined) ??
     (tool === 'ollama' ? env.MT_OLLAMA_MODEL : undefined) ??
     DEFAULT_MODELS[tool]
-  return { tool, model }
+  return use ? { tool, model, use } : { tool, model }
 }
 
 /** The gate of the picked backend. `mock` swaps the `call` slot for a scripted answer. */
@@ -144,10 +151,15 @@ function gateFor(
   }
 }
 
-/** Pin the picked model on the gate input (the input layer wins over every other layer). */
+/**
+ * Pin the picked model on the gate input (the input layer wins over every other layer).
+ * With a vault ref and no explicit model, the model is NOT pinned (the vault entry decides)
+ * and the ref is passed on the input layer so it reaches the chosen tool.
+ */
 function withModel(
   gate: ComposableTool<GateInput, GateOutput, GateSlot>,
   model: string,
+  vault?: { use: string; pinModel: boolean },
 ): ComposableTool<GateInput, GateOutput, GateSlot> {
   const prepare = gate.slots.prepare as Tool<GateInput, GateState>
   const pinned = defineTool<GateInput, GateState>({
@@ -155,7 +167,14 @@ function withModel(
     version: '1.0.0',
     mdDescription: `Pins the picked model (${model}) on the gate input.`,
     async invoke(env, ctx) {
-      return prepare.invoke({ ...env, item: { ...env.item, model } }, ctx)
+      if (!vault) return prepare.invoke({ ...env, item: { ...env.item, model } }, ctx)
+      const { model: _callerModel, ...rest } = env.item
+      const item: GateInput = {
+        ...rest,
+        llm: { ...env.item.llm, use: vault.use },
+        ...(vault.pinModel ? { model } : {}),
+      }
+      return prepare.invoke({ ...env, item }, ctx)
     },
   })
   return gate.with({ prepare: pinned })
@@ -220,7 +239,14 @@ function translateTool(
  */
 export function pickLlmTool(options: PickLlmToolOptions = {}): LlmChoice {
   const config = readLlmConfig(options.env ?? process.env, options.configPath ?? MT_JSON)
-  const gate = withModel(gateFor(config.tool, options.mockSource ?? ['mock']), config.model)
+  const env = options.env ?? process.env
+  const configPath = options.configPath ?? MT_JSON
+  const pinModel = Boolean(env.MT_LLM_MODEL ?? text(readProjectSettings(configPath)['llm.model']))
+  const gate = withModel(
+    gateFor(config.tool, options.mockSource ?? ['mock']),
+    config.model,
+    config.use ? { use: config.use, pinModel } : undefined,
+  )
   return {
     tool: config.tool,
     model: config.model,

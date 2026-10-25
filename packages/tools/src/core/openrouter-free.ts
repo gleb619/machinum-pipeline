@@ -8,6 +8,13 @@ import { type GateInput, type GateOutput, createLlmGate } from './llm-gate.js'
  */
 export const OPENROUTER_FREE_LLM: LlmConfigLayer = {
   provider: 'openrouter',
+}
+
+/**
+ * Preset default model: a default, not a pin, so a vault ref (`llm.use`), mt.json `llm.model`
+ * or `meta.llm` can choose another model. Only the provider is pinned on the tool layer.
+ */
+export const OPENROUTER_FREE_DEFAULTS: LlmConfigLayer = {
   model: 'openrouter/free',
 }
 
@@ -16,8 +23,8 @@ export const OPENROUTER_FREE_LLM: LlmConfigLayer = {
  * as the tool-level config layer. Slots are the standard `prepare -> fit -> call -> parse -> emit`,
  * so anything stays swappable (`openrouterFree.with({ call: mockLlmCall(['ok']) })` — offline tests).
  *
- * A per-call override still wins (`item.model` / `item.llm`); the preset sits on the tool layer,
- * above `meta.llm`, settings and env.
+ * A per-call override still wins (`item.model` / `item.llm`). The provider pin sits on the tool
+ * layer; a vault entry of another provider (`llm.use`) is an error, same provider is fine.
  */
 export const openrouterFree = createLlmGate<GateInput, GateOutput>({
   name: 'openrouter-free',
@@ -26,5 +33,6 @@ export const openrouterFree = createLlmGate<GateInput, GateOutput>({
     'OpenRouter free-tier gate (provider openrouter, model openrouter/free). ' +
     'Keys from OPENROUTER_API_KEYS / OPENROUTER_API_KEY; per-call model override wins.',
   llm: OPENROUTER_FREE_LLM,
+  llmDefaults: OPENROUTER_FREE_DEFAULTS,
   metaFlags: { openrouterFree: true },
 })
