@@ -132,11 +132,11 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   (re-pin logic lives in the client wrapper, so a replaced `call` slot bypasses re-pin).
 
 ### `ollama-tool.ts`
-- `ollamaTool` — gate against the remote GPU server (`ollama` in docker on `borispc3.ai`, host port
-  7869 -> container 11434). Thin preset over `createLlmGate`: tool layer `OLLAMA_LLM`
+- `ollamaTool` — gate against an ollama server: stock local by default, a remote GPU server by
+  setting `MT_OLLAMA_URL` (e.g. `http://<gpu-host>:<port>/v1`; nothing host-specific is hardcoded). Thin preset over `createLlmGate`: tool layer `OLLAMA_LLM`
   (`{ provider: 'ollama', transport: 'fetch' }` — the server needs no API key, the OpenAI SDK
   refuses to construct without one), preset defaults `OLLAMA_DEFAULTS`
-  (`baseUrl: http://borispc3.ai:7869/v1`, `model: gemma4:latest`).
+  (`baseUrl: http://localhost:11434/v1`, `model: gemma4:latest`).
   Endpoint from `MT_OLLAMA_URL`, model from `MT_OLLAMA_MODEL` (both beat the preset defaults,
   see [LLM config precedence](#llm-config-precedence-resolvellmconfig-pure)). A per-call
   `model` / `llm` override still wins.

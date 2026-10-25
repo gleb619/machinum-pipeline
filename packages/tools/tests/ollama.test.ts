@@ -31,7 +31,7 @@ describe('ollamaTool preset config', () => {
   it('resolves to provider ollama with the remote GPU server endpoint', () => {
     const cfg = resolveLlmConfig({ tool: OLLAMA_LLM, defaults: OLLAMA_DEFAULTS })
     expect(cfg.provider).toBe('ollama')
-    expect(cfg.baseUrl).toBe('http://borispc3.ai:7869/v1')
+    expect(cfg.baseUrl).toBe('http://localhost:11434/v1')
     expect(cfg.baseUrl).toBe(OLLAMA_BASE_URL)
     expect(cfg.model).toBe('gemma4:latest')
     expect(cfg.model).toBe(OLLAMA_MODEL)
@@ -45,9 +45,9 @@ describe('ollamaTool preset config', () => {
     const cfg = resolveLlmConfig({
       tool: OLLAMA_LLM,
       defaults: OLLAMA_DEFAULTS,
-      env: { MT_OLLAMA_URL: 'http://other:7869/v1', MT_OLLAMA_MODEL: 'qwen3:8b' },
+      env: { MT_OLLAMA_URL: 'http://other:11434/v1', MT_OLLAMA_MODEL: 'qwen3:8b' },
     })
-    expect(cfg.baseUrl).toBe('http://other:7869/v1')
+    expect(cfg.baseUrl).toBe('http://other:11434/v1')
     expect(cfg.model).toBe('qwen3:8b')
     expect(cfg.sources.baseUrl).toBe('provider-env')
     expect(cfg.sources.model).toBe('provider-env')
@@ -97,9 +97,9 @@ describe('ollamaTool gate', () => {
 
 describe('ollama native API helpers', () => {
   it('ollamaApiRoot drops the /v1 suffix', () => {
-    expect(ollamaApiRoot('http://borispc3.ai:7869/v1')).toBe('http://borispc3.ai:7869')
-    expect(ollamaApiRoot('http://borispc3.ai:7869/v1/')).toBe('http://borispc3.ai:7869')
-    expect(ollamaApiRoot('http://borispc3.ai:7869')).toBe('http://borispc3.ai:7869')
+    expect(ollamaApiRoot('http://localhost:11434/v1')).toBe('http://localhost:11434')
+    expect(ollamaApiRoot('http://localhost:11434/v1/')).toBe('http://localhost:11434')
+    expect(ollamaApiRoot('http://localhost:11434')).toBe('http://localhost:11434')
   })
 
   it('listOllamaModels parses GET /api/tags', async () => {
@@ -120,7 +120,7 @@ describe('ollama native API helpers', () => {
       fetch: fetchMock as unknown as typeof fetch,
     })
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://borispc3.ai:7869/api/tags',
+      'http://localhost:11434/api/tags',
       expect.objectContaining({ signal: expect.anything() }),
     )
     expect(models).toEqual([
@@ -140,18 +140,18 @@ describe('ollama native API helpers', () => {
       fetch: fetchMock as unknown as typeof fetch,
     })
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://borispc3.ai:7869/api/version',
+      'http://localhost:11434/api/version',
       expect.objectContaining({ signal: expect.anything() }),
     )
     expect(health.ok).toBe(true)
     expect(health.version).toBe('0.5.7')
-    expect(health.baseUrl).toBe('http://borispc3.ai:7869')
+    expect(health.baseUrl).toBe('http://localhost:11434')
   })
 
   it('ollamaHealth is false on ECONNREFUSED', async () => {
     const fetchMock = vi.fn(async () => {
       throw Object.assign(new Error('fetch failed'), {
-        cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:7869'), {
+        cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), {
           code: 'ECONNREFUSED',
         }),
       })

@@ -2,12 +2,13 @@ import type { LlmConfigLayer } from './llm-config.js'
 import { type GateInput, type GateOutput, createLlmGate } from './llm-gate.js'
 
 /**
- * Remote GPU server: ollama in docker on `borispc3.ai`, host port 7869 -> container port 11434.
- * The OpenAI-compatible endpoint is `<host>:7869/v1`, the native API `<host>:7869/api/...`.
+ * Default endpoint: stock local ollama. Point `MT_OLLAMA_URL` at a remote GPU server
+ * (e.g. `http://<gpu-host>:<port>/v1`). The OpenAI-compatible endpoint is `<host>:<port>/v1`,
+ * the native API `<host>:<port>/api/...`.
  */
-export const OLLAMA_BASE_URL = 'http://borispc3.ai:7869/v1'
+export const OLLAMA_BASE_URL = 'http://localhost:11434/v1'
 
-/** Default model on that server (override with `MT_OLLAMA_MODEL`). */
+/** Default model (must exist on the server; override with `MT_OLLAMA_MODEL`). */
 export const OLLAMA_MODEL = 'gemma4:latest'
 
 /**
@@ -28,7 +29,7 @@ export const OLLAMA_DEFAULTS: LlmConfigLayer = {
 }
 
 /**
- * Ollama gate against the remote GPU server: thin preset over {@link createLlmGate}.
+ * Ollama gate against an ollama server (local by default, remote via `MT_OLLAMA_URL`): thin preset over {@link createLlmGate}.
  *
  * Endpoint: `MT_OLLAMA_URL` (default {@link OLLAMA_BASE_URL}); model: `MT_OLLAMA_MODEL`
  * (default {@link OLLAMA_MODEL}). A per-call override still wins (`item.model` / `item.llm`).
@@ -37,8 +38,8 @@ export const ollamaTool = createLlmGate<GateInput, GateOutput>({
   name: 'ollama',
   version: '1.0.0',
   mdDescription:
-    'Ollama gate (provider ollama) against the remote GPU server. ' +
-    'Endpoint from MT_OLLAMA_URL (default http://borispc3.ai:7869/v1), model from MT_OLLAMA_MODEL (default gemma4:latest).',
+    'Ollama gate (provider ollama). ' +
+    'Endpoint from MT_OLLAMA_URL (default http://localhost:11434/v1, e.g. a remote GPU server), model from MT_OLLAMA_MODEL (default gemma4:latest).',
   llm: OLLAMA_LLM,
   llmDefaults: OLLAMA_DEFAULTS,
   metaFlags: { ollama: true },

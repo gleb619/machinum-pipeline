@@ -22,7 +22,7 @@ const ctx = {} as unknown as ToolContext
 const baseUrl = process.env.MT_OLLAMA_URL ?? OLLAMA_BASE_URL
 
 const gateHint =
-  'The ollama server on borispc3.ai:7869 must be up to run `pnpm test:gpu`. ' +
+  'The ollama server (set MT_OLLAMA_URL to the GPU server) must be up to run `pnpm test:gpu`. ' +
   'Report this failure — do not skip the GPU gate and do not merge without it.'
 
 function unreachable(root: string, error?: string): Error {

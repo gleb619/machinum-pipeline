@@ -24,7 +24,7 @@ pnpm --dir sandbox test                         # scoring unit tests
 Options: `--tool ollama|openrouter-free|openrouter-pool|mock`, `--models a,b,c`, `--runs N`,
 `--out results/`.
 
-- ollama endpoint: `MT_OLLAMA_URL` (default `http://borispc3.ai:7869/v1`)
+- ollama endpoint: `MT_OLLAMA_URL` (default `http://localhost:11434/v1`; set it to your GPU server)
 - openrouter: `OPENROUTER_API_KEYS` / `OPENROUTER_API_KEY`
 - Models on the GPU server: gemma4:latest, gemma4:31b, gpt-oss:20b, qwen3.8:latest, deepseek-r1:32b
 
