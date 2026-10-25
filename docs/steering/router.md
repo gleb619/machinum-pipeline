@@ -24,9 +24,19 @@ packages/router/server/routes/api/
 │   └── config.ts           # GET /api/translate/config
 ├── dashboard.ts            # GET /api/dashboard — cost + pool stats for UI
 ├── pool.ts                 # GET /api/pool — pool status
+├── models.ts               # GET /api/models — OpenAI-style list of routable model ids
 ├── health.ts               # GET /api/health
 └── logs.ts                 # GET /api/logs — recent request logs
 ```
+
+### Models endpoint
+
+`GET /api/models` -> `{ object: 'list', data: [{ id, object: 'model', owned_by }] }`. Ids are routable as is:
+default upstream = bare OpenRouter id (always includes the `openrouter/free` alias, plus configured `models`);
+other upstreams = `<upstream>/<model>` from vault/config `models` merged with a live listing (`<baseUrl>/models`,
+ollama `/api/tags`), cached 60s, 2s timeout. Live failures are swallowed (configured models still listed); keys and
+upstream bodies never appear. Token middleware applies (unlike `GET /api/health`).
+Impl: `server/utils/models-list.ts`. Client helper: `listRouterModels` in `@mt/tools`.
 
 ## Key Utilities
 

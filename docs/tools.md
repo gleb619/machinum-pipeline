@@ -258,6 +258,7 @@ Implemented (not part of the TL index above). Full reference: [steering/tools.md
 | `llmGate` / `createLlmGate(opts)` | composable tool factory | Generic LLM gate; swap any slot with `.with()` |
 | `openrouterFree` / `OPENROUTER_FREE_LLM` | gate preset | Free-tier OpenRouter: provider `openrouter`, model `openrouter/free`, keys from `OPENROUTER_API_KEYS` / `OPENROUTER_API_KEY`; per-call model override wins |
 | `ollamaTool` / `OLLAMA_LLM` / `OLLAMA_DEFAULTS` | gate preset | Ollama (local by default; remote GPU server via `MT_OLLAMA_URL`): provider `ollama`, endpoint from `MT_OLLAMA_URL` (default `http://localhost:11434/v1`), model from `MT_OLLAMA_MODEL` (default `gemma4:latest`) |
+| `listRouterModels` | helper | Router `GET /api/models` (routable ids, e.g. `openrouter/free`, `ollama/gemma4:latest`); provider `router` needs no API key |
 | `listOllamaModels`, `ollamaHealth` | helpers | Ollama native API: `GET /api/tags` (model list), `GET /api/version` (health, `ok: false` when unreachable) |
 | `llm.use` (`MT_LLM_USE`) | config | Vault ref `vault://<entry>[/<model>]` / `@vault/<entry>[/<model>]` honoured by every LLM gate (`ollamaTool`, `openrouterFree`, `openrouterPool`, `llmGate`): endpoint/keys/model from the vault; see [vault.md](vault.md) |
 | `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user`; shares one implementation with `translateText` |

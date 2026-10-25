@@ -19,6 +19,7 @@ import chatCompletionsRoute from './routes/api/chat/completions.js'
 import dashboardRoute from './routes/api/dashboard.js'
 import healthRoute from './routes/api/health.js'
 import logsRoute from './routes/api/logs.js'
+import modelsRoute from './routes/api/models.js'
 import poolRoute from './routes/api/pool.js'
 import translateRoute from './routes/api/translate.js'
 import translateConfigRoute from './routes/api/translate/config.js'
@@ -130,6 +131,7 @@ export function createRouterApp(
   router.use('/api/dashboard', dashboardRoute)
   router.use('/api/logs', logsRoute)
   router.use('/api/pool', poolRoute)
+  router.get('/api/models', modelsRoute)
   router.use('/api/chat/completions', chatCompletionsRoute)
   router.use('/api/translate', translateRoute)
   router.use('/api/translate/health', translateHealthRoute)

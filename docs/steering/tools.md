@@ -142,6 +142,10 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   `model` / `llm` override still wins.
 - `listOllamaModels(baseUrl?)` — models of the server (`GET /api/tags`), returns
   `{ name, sizeBytes?, digest?, modifiedAt? }[]`.
+- `listRouterModels(baseUrl?, { token?, fetch?, timeoutMs? })` — `GET <router>/api/models`, returns
+  `{ id, ownedBy? }[]` (routable ids: `openrouter/free`, `ollama/<m>`, ...). Throws when unreachable.
+  Provider `router` is keyless: the only credential is the optional `MT_ROUTER_TOKEN` (sent as bearer). Alias
+  `ROUTER_FREE_MODEL` = `openrouter/free` (free OpenRouter model through the router).
 - `ollamaHealth(baseUrl?)` — `GET /api/version`; never throws, returns `{ ok, baseUrl, version?, error? }`
   (`ok: false` when the server is unreachable, e.g. `ECONNREFUSED`).
 - `ollamaApiRoot(baseUrl?)` — native API root of an Ollama base URL (drops the `/v1` suffix).

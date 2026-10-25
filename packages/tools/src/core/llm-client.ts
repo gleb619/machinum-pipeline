@@ -352,6 +352,8 @@ export function createAdapter(cfg: ResolvedLlmConfig, transport?: LlmTransport):
       return new OpenAiCompatClient({
         baseUrl: cfg.baseUrl,
         chatPath: '/api/chat/completions',
+        // Keyless gateway: apiKey is only the optional router token (MT_ROUTER_TOKEN / vault).
+        apiKey: cfg.apiKey,
         headers: cfg.headers,
         transport,
       })

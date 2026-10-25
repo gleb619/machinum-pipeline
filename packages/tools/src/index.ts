@@ -490,6 +490,13 @@ export {
 } from './core/openrouter-pool-tool.js'
 
 export {
+  listRouterModels,
+  ROUTER_FREE_MODEL,
+  type RouterModelInfo,
+  type RouterModelsOptions,
+} from './core/router-models.js'
+
+export {
   ollamaTool,
   ollamaApiRoot,
   ollamaHealth,

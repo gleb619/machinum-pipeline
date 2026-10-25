@@ -35,7 +35,7 @@ Missing file = empty vault. Malformed JSON / bad entry = error naming file + ent
 `@mt/router` reads the same files with its own copy of the reader (`packages/router/server/utils/vault-reader.ts`; the router
 is standalone, keep formats in sync). Each entry becomes an upstream named after the entry, routed as `<entry>/<model>`:
 `ollama` -> ollama, `openai`/`custom` -> openai-compat (needs `baseUrl`), `openrouter` -> keys join the default `openrouter`
-pool (after `OPENROUTER_API_KEYS`). `anthropic` is skipped with a warning, `router` ignored. Env upstreams
+pool (after `OPENROUTER_API_KEYS`). `anthropic` is skipped with a warning, `router` entries are ignored by the router itself (they are client-side refs, below). Env upstreams
 (`MT_ROUTER_UPSTREAMS`, `MT_ROUTER_OLLAMA_URL`) win on name conflicts. Edits are picked up without restart (mtime check, at
 most every 2s); a broken file keeps the previous entries. Key values are never logged or returned by the router API.
 
@@ -63,3 +63,20 @@ reaches meta, checkpoints or logs.
 
 Sample pickers (`samples/sample2|3/pipelines/llm-picker.ts`) pass `MT_LLM_USE` / `settings.llm.use`
 to the chosen tool; without an explicit `MT_LLM_MODEL` / `llm.model` the vault model is used.
+
+## Router entry (client side)
+
+A `router` entry points `llm.use` at the router; no upstream key is needed (the router holds them). `apiKey` is
+optional and, if set, is sent as the router token (`MT_ROUTER_TOKEN` equivalent). Models are routable ids; list them
+with `listRouterModels()` (`GET /api/models`). All values below are fake.
+
+```json
+{ "version": 1, "entries": {
+  "rt":   { "provider": "router", "baseUrl": "http://localhost:7777", "defaultModel": "openrouter/free" },
+  "rtol": { "provider": "router", "baseUrl": "http://localhost:7777", "defaultModel": "ollama/gemma4:latest",
+            "apiKey": "fake-router-token" }
+} }
+```
+
+`llm.use: "vault://rt"` runs the free OpenRouter model through the router; `vault://rt/ollama/gemma4:latest` picks
+a model per ref.
