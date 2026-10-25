@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -43,28 +43,22 @@ const LIVE_KEYS = [
 ]
 const PLACEHOLDER = /EXAMPLE|FAKE|PLACEHOLDER|YOUR[_-]?KEY|XXXX|<[^>]+>/i
 
-async function collectFiles(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true })
-  const files: string[] = []
-  for (const entry of entries) {
-    const path = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) files.push(...(await collectFiles(path)))
-    } else {
-      files.push(path)
-    }
-  }
-  return files
-}
-
-/** Every file of the documentation surface, machine-managed planning files excluded. */
+/**
+ * Every tracked file of the documentation surface, machine-managed planning files excluded.
+ *
+ * Tracked-only on purpose: the surface is what would actually be committed, so local gitignored
+ * files under docs/ (plans, scratch notes) must not fail these guards in a developer checkout.
+ */
 async function docSurface(): Promise<string[]> {
-  const files: string[] = []
-  for (const root of SCAN_ROOTS) {
-    files.push(...(await collectFiles(join(repoRoot, root))))
-  }
-  for (const file of ROOT_FILES) files.push(join(repoRoot, file))
-  return files.filter((file) => !MACHINE_MANAGED.has(relative(repoRoot, file)))
+  const out = execFileSync('git', ['ls-files', '-z', '--', ...SCAN_ROOTS, ...ROOT_FILES], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+  return out
+    .split('\0')
+    .filter((path) => path !== '' && !path.split('/').some((segment) => SKIP_DIRS.has(segment)))
+    .map((path) => join(repoRoot, path))
+    .filter((file) => !MACHINE_MANAGED.has(relative(repoRoot, file)))
 }
 
 describe('committed vault values (architectural)', () => {
