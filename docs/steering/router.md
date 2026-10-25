@@ -39,6 +39,18 @@ single-sourcing it, so keep both in sync when pool semantics change.
 Wraps the router-local pool for use inside Nitro context, building clients from the effective router config
 (`getRouterConfig().apiKeys`) so CLI flags and `secrets.envFile` reach the pool. Returns the shared pool singleton.
 
+### `server/utils/upstream.ts` / `upstream-spec.ts`
+Upstream registry (T117). `Upstream = { name, kind: openrouter|ollama|openai-compat, baseUrl, keys, headers, models, defaultModel }`,
+each with its own `OpenRouterPool` (round-robin / 429 / 402). The default upstream `openrouter` is always present, built from
+`apiKeys`, and reuses the shared pool singleton. Extra upstreams come from `RouterConfig.upstreams` (env
+`MT_ROUTER_UPSTREAMS`, `MT_ROUTER_OLLAMA_URL`, or code; vault feeding is T118).
+
+Routing (`registry.resolve(model)`): `<name>/<model>` where `<name>` is a registered **non-default** upstream routes there and
+the prefix is stripped (`ollama/gemma4:latest` -> ollama, `gemma4:latest`). Everything else — bare ids, `openrouter/free`,
+`openrouter/auto`, unknown prefixes — goes to the default upstream unchanged. Keyless upstreams (no keys) send no
+`Authorization` header. Ollama `baseUrl` gets `/v1` appended if missing. Non-openrouter upstreams log cost 0; log entries gain an
+optional `upstream` field. `/api/pool` adds `upstreams[]` (name, kind, keyless, counts; never key values).
+
 ### `server/utils/cost-tracker.ts`
 - `logCall(model, usage, cost)` — appends to rolling log files under `~/.mt/router/<YYYY-MM-DD>/log.json`
 - `getMonthlyCost()` / `getDailyCost()` — aggregate cost summaries
@@ -77,6 +89,8 @@ Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Section
 | Variable | Default | Purpose |
 |---|---|---|
 | `OPENROUTER_API_KEYS` | — | Comma-separated keys |
+| `MT_ROUTER_UPSTREAMS` | — | JSON array of upstream specs `{name,kind,baseUrl,keys?,headers?,models?,defaultModel?}` |
+| `MT_ROUTER_OLLAMA_URL` | — | Registers keyless `ollama` upstream (e.g. `http://gpu:11434`) |
 | `MT_MOCK` | `false` | Enable mock mode |
 | `PORT` | `7777` | Router listen port |
 | `MT_LOG_RETENTION_DAYS` | `30` | Log file retention |
@@ -85,6 +99,7 @@ Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Section
 
 ```
 packages/router/tests/
+├── upstream-registry.test.ts # resolve() + handler routing vs fake upstream
 ├── routes.arch.test.ts    # Arch: all expected routes exist
 └── middleware.arch.test.ts # Arch: rate-limit middleware shape
 ```

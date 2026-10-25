@@ -10,6 +10,8 @@ export interface LogEntry {
   promptTokens: number
   completionTokens: number
   cost: number
+  /** Upstream that served the call; absent in logs written before upstream routing. */
+  upstream?: string
 }
 
 export interface DailyUsage {
@@ -92,8 +94,10 @@ export async function logCall(
   stepId: string | null,
   model: string,
   usage: { promptTokens: number; completionTokens: number },
+  opts: { upstream?: string; free?: boolean } = {},
 ): Promise<void> {
-  const cost = usage.promptTokens * 0.000001 + usage.completionTokens * 0.000002
+  // Upstreams without pricing (ollama, local openai-compat) are free; `free` forces cost 0.
+  const cost = opts.free ? 0 : usage.promptTokens * 0.000001 + usage.completionTokens * 0.000002
   const entry: LogEntry = {
     timestamp: new Date().toISOString(),
     runId,
@@ -102,6 +106,7 @@ export async function logCall(
     promptTokens: usage.promptTokens,
     completionTokens: usage.completionTokens,
     cost,
+    ...(opts.upstream ? { upstream: opts.upstream } : {}),
   }
 
   const today = new Date().toISOString().split('T')[0] as string

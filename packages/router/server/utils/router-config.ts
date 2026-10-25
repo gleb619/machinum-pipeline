@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { type UpstreamSpec, upstreamSpecsFromEnv } from './upstream-spec.js'
 
 /**
  * Router settings, resolved once from explicit overrides + environment.
@@ -17,6 +18,8 @@ export interface RouterConfig {
   retentionDays: number
   /** OpenRouter keys backing the pool; empty means "no key configured". */
   apiKeys: string[]
+  /** Extra upstreams (ollama, openai-compat, ...) besides the default OpenRouter one. */
+  upstreams: UpstreamSpec[]
 }
 
 export type RouterConfigInput = Partial<RouterConfig>
@@ -48,6 +51,7 @@ function fromEnv(): RouterConfig {
     dailyBudget: numberFrom(process.env.MT_DAILY_BUDGET, 5),
     retentionDays: numberFrom(process.env.MT_RETENTION_DAYS, 30),
     apiKeys: envKeys(),
+    upstreams: upstreamSpecsFromEnv(),
   }
 }
 
@@ -72,6 +76,7 @@ export function setRouterConfig(input: RouterConfigInput = {}): RouterConfig {
     dailyBudget: input.dailyBudget ?? base.dailyBudget,
     retentionDays: input.retentionDays ?? base.retentionDays,
     apiKeys: input.apiKeys ?? base.apiKeys,
+    upstreams: input.upstreams ?? base.upstreams,
   }
   return config
 }

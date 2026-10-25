@@ -47,7 +47,7 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
       'utf-8',
     )
     expect(content).toContain('export default')
-    expect(content).toContain('poolSupplier')
+    expect(content).toContain('getUpstreamRegistry')
     expect(content).toContain('client.apiKey')
   })
 
