@@ -1,6 +1,6 @@
 import { join } from 'node:path'
-import { definePipeline, defineTool } from '@mt/core'
-import type { MdOutputEntry } from '@mt/core'
+import { definePipeline, defineTool, registry } from '@mt/core'
+import type { MdOutputEntry, ParsedUri, RunEvent, Target, TargetContext } from '@mt/core'
 import {
   type LlmRequest,
   type ParagraphTranslatorState,
@@ -31,6 +31,7 @@ import {
   typoFinder,
   wordCounter,
 } from '@mt/tools'
+import { createMdTarget } from '@mt/waypoint'
 import '@mt/waypoint'
 
 // === LLM backend (single config point) ===
@@ -345,6 +346,51 @@ export const translateSlotsMockPipeline = definePipeline()
     }),
   )
   .to('md://./chapters')
+
+// === Run lifecycle events demo (RunEvents) ===
+// A pipeline module is a real TS module — it can register its own URI schemes.
+// `log-md://` wraps the built-in `md://` target and shows how a Source/Target
+// listens to the run's lifecycle events via `ctx.events?.subscribe(...)`:
+// started / step-done / paused / resumed / done / failed. Each event prints
+// one custom log line. Unsubscribe in `close()` — it also runs on failure.
+// (This is the same facade the `http-server` source uses to mirror lifecycle
+// events to its SSE subscribers.)
+// Run it:  mt run pipelines/jsonl-to-md-multi.ts --pipeline lifecycleLogPipeline
+const createLifecycleLogTarget = <T>(uri: ParsedUri): Target<T> => {
+  // Delegate all actual writing to the built-in md target.
+  const inner = createMdTarget<T>({ ...uri, scheme: 'md', raw: uri.raw.replace(/^log-md:/, 'md:') })
+  let unsubscribe: (() => void) | undefined
+  return {
+    uri: uri.raw,
+    async open(ctx: TargetContext): Promise<void> {
+      unsubscribe = ctx.events?.subscribe((event: RunEvent) => {
+        const step = event.stepId ? ` step=${event.stepId}` : ''
+        const error = event.error ? ` error=${event.error}` : ''
+        const line = `[lifecycle] ${event.type}${step}${error}`
+        // `ctx.run.logger` writes to .mt/runs/<id>/logs/<step>.log;
+        // console.log makes the line visible live during `mt run`.
+        ctx.run.logger.info(line)
+        console.log(line)
+      })
+      await inner.open(ctx)
+    },
+    async write(env, ctx): Promise<void> {
+      await inner.write(env, ctx)
+    },
+    async close(ctx): Promise<void> {
+      unsubscribe?.()
+      unsubscribe = undefined
+      await inner.close(ctx)
+    },
+  }
+}
+registry.registerTarget('log-md', createLifecycleLogTarget)
+
+export const lifecycleLogPipeline = definePipeline()
+  .from('jsonl://./jsonl/input.jsonl')
+  .use(chapterDoc)
+  .use(chapterIndexer)
+  .to('log-md://./chapters/lifecycle')
 
 // === Default: orchestration pipeline (subflow-only) ===
 export default definePipeline()
