@@ -535,45 +535,21 @@ export class Runner {
     const logger = this.logger(stepId)
     const store = this.store
 
-    const cacheKey = tool.cacheable
-      ? cache.computeKey({
-          toolName: tool.name,
-          version: tool.version,
-          input: env,
-          context: toolContext,
-        })
-      : null
-
-    if (cacheKey && (await cache.has(cacheKey))) {
-      const cached = await cache.get<Envelope<O>>(cacheKey)
-      if (cached !== undefined) {
-        logger.debug(`Cache hit for tool ${tool.name}`)
-        return cached
-      }
+    const { key: cacheKey, value: cached } = await this.tryCacheGet(tool, env, toolContext, logger)
+    if (cached !== undefined) {
+      logger.debug(`Cache hit for tool ${tool.name}`)
+      return cached as Envelope<O>
     }
 
+    let output: Envelope<O> | undefined
     try {
-      const output = await withRetry(
+      output = await withRetry(
         async () => tool.invoke(env, { run: runContext, step: stepInfo }),
         retryPolicy,
         (err, attempt) => {
           logger.warn(`Tool ${tool.name} failed (attempt ${attempt + 1}): ${err}`)
         },
       )
-
-      if (cacheKey && output !== undefined) {
-        await cache.set(
-          cacheKey,
-          {
-            toolName: tool.name,
-            version: tool.version,
-            input: env,
-            context: toolContext,
-          },
-          output,
-        )
-      }
-      return output
     } catch (error) {
       logger.error(`Tool ${tool.name} failed after retries: ${error}`)
       if (onError === 'fail-run') {
@@ -587,6 +563,61 @@ export class Runner {
         logger.warn(`Tool ${tool.name} failed, skipping item: ${error}`)
       }
       return undefined
+    }
+
+    if (cacheKey && output !== undefined) {
+      try {
+        await cache.set(
+          cacheKey,
+          {
+            toolName: tool.name,
+            version: tool.version,
+            input: env,
+            context: toolContext,
+          },
+          output,
+        )
+      } catch (error) {
+        logger.warn(`Cache write failed for tool ${tool.name}, result stays uncached: ${error}`)
+      }
+    }
+    return output
+  }
+
+  /**
+   * Best-effort cache lookup: the cache is an optimisation only, so any
+   * key-computation or read error degrades to a cache miss (warn-logged)
+   * instead of failing the item. Returns the key (when computable) and the
+   * cached value, if any.
+   */
+  private async tryCacheGet(
+    tool: Tool<unknown, unknown>,
+    env: Envelope<unknown>,
+    toolContext: Record<string, unknown> | undefined,
+    logger: Logger,
+  ): Promise<{ key: string | null; value: Envelope<unknown> | undefined }> {
+    if (!tool.cacheable) return { key: null, value: undefined }
+
+    let key: string
+    try {
+      key = this.cache.computeKey({
+        toolName: tool.name,
+        version: tool.version,
+        input: env,
+        context: toolContext,
+      })
+    } catch (error) {
+      logger.warn(
+        `Cache key computation failed for tool ${tool.name}, treating as cache miss: ${error}`,
+      )
+      return { key: null, value: undefined }
+    }
+
+    try {
+      return { key, value: await this.cache.get<Envelope<unknown>>(key) }
+    } catch (error) {
+      logger.warn(`Cache read failed for tool ${tool.name}, treating as cache miss: ${error}`)
+      return { key, value: undefined }
     }
   }
 
