@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { defineEventHandler, getQuery } from 'h3'
 import { type LogEntry, getLogPath } from '../../utils/cost-tracker.js'
+import { redact } from '../../utils/redact.js'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -15,7 +16,7 @@ export default defineEventHandler(async (event) => {
     for (const line of content.split('\n')) {
       if (!line.trim()) continue
       try {
-        entries.push(JSON.parse(line) as LogEntry)
+        entries.push(JSON.parse(redact(line)) as LogEntry)
       } catch {
         // skip malformed lines
       }

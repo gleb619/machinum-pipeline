@@ -21,6 +21,12 @@ describe('UC-35,36 - Router Middleware & Rate Limit (architectural)', () => {
     expect(await fileExists('../server/middleware/rate-limit.ts')).toBe(true)
   })
 
+  it('auth middleware exists and redaction util exists', async () => {
+    expect(await fileExists('../server/middleware/auth.ts')).toBe(true)
+    expect(await fileExists('../server/utils/redact.ts')).toBe(true)
+    expect(await fileExists('../server/utils/bind-guard.ts')).toBe(true)
+  })
+
   it('cost-tracker utility exists', async () => {
     expect(await fileExists('../server/utils/cost-tracker.ts')).toBe(true)
   })

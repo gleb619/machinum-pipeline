@@ -336,3 +336,17 @@ describe('createLlmClient', () => {
     expect(String(err)).not.toContain('sk-topsecret')
   })
 })
+
+describe('router provider token (T119)', () => {
+  it('uses MT_ROUTER_TOKEN as the bearer key only for provider router', () => {
+    const router = resolveLlmConfig({ env: { MT_ROUTER_TOKEN: 'rt-secret' } })
+    expect(router.provider).toBe('router')
+    expect(router.apiKey).toBe('rt-secret')
+    const none = resolveLlmConfig({ env: {} })
+    expect(none.apiKey).toBeUndefined()
+    const other = resolveLlmConfig({
+      env: { MT_ROUTER_TOKEN: 'rt-secret', MT_LLM_PROVIDER: 'openai' },
+    })
+    expect(other.apiKey).toBeUndefined()
+  })
+})

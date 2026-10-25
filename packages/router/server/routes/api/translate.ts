@@ -3,6 +3,7 @@ import { isMockMode } from '../../plugins/mock-mode.js'
 import { logCall } from '../../utils/cost-tracker.js'
 import { poolSupplier } from '../../utils/openrouter-pool-supplier.js'
 import { OpenRouterPool } from '../../utils/openrouter-pool.js'
+import { redact } from '../../utils/redact.js'
 
 interface TranslateRequest {
   text: string | string[]
@@ -96,7 +97,7 @@ async function callOpenRouter(
     const errorText = await response.text()
     throw createError({
       statusCode: 502,
-      statusMessage: `OpenRouter error: ${response.status} ${errorText}`,
+      statusMessage: `OpenRouter error: ${response.status} ${redact(errorText)}`,
     })
   }
 

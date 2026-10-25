@@ -1,5 +1,6 @@
 import { appendFile, mkdir, readFile, readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { redact, redactError } from './redact.js'
 import { getRouterConfig } from './router-config.js'
 
 export interface LogEntry {
@@ -115,8 +116,8 @@ export async function logCall(
 
   try {
     await mkdir(logDir, { recursive: true })
-    await appendFile(logPath, `${JSON.stringify(entry)}\n`)
+    await appendFile(logPath, `${redact(JSON.stringify(entry))}\n`)
   } catch (err) {
-    console.error('Failed to write log entry:', err)
+    console.error('Failed to write log entry:', redactError(err))
   }
 }

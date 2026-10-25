@@ -4,6 +4,7 @@ import { type H3Event, createError, defineEventHandler, getHeader, readBody, sen
 import { isMockMode } from '../../../plugins/mock-mode.js'
 import { logCall } from '../../../utils/cost-tracker.js'
 import type { OpenRouterClient } from '../../../utils/openrouter-pool.js'
+import { redact, redactError } from '../../../utils/redact.js'
 import { type Upstream, getUpstreamRegistry } from '../../../utils/upstream.js'
 
 // biome-ignore lint/suspicious/noExplicitAny: Node.js stream type incompatibility
@@ -52,6 +53,8 @@ function forward(
   client: OpenRouterClient,
   body: string,
 ): Promise<Response> {
+  // Strict allowlist: the client's Authorization / x-api-key / cookie / router token are never
+  // forwarded; upstream auth comes only from the registry.
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   // Keyless upstreams (ollama) get no Authorization header at all.
   if (client.apiKey) headers.Authorization = `Bearer ${client.apiKey}`
@@ -129,7 +132,7 @@ export default defineEventHandler(async (event) => {
       const errorText = await response.text()
       throw createError({
         statusCode: 502,
-        statusMessage: `${label(upstream)} error: ${response.status} ${errorText}`,
+        statusMessage: `${label(upstream)} error: ${response.status} ${redact(errorText)}`,
       })
     }
 
@@ -157,7 +160,7 @@ export default defineEventHandler(async (event) => {
     if (err instanceof Error && 'statusCode' in err) throw err
     throw createError({
       statusCode: 502,
-      statusMessage: `Proxy error: ${err instanceof Error ? err.message : String(err)}`,
+      statusMessage: `Proxy error: ${redactError(err)}`,
     })
   }
 })

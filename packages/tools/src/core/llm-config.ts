@@ -208,6 +208,9 @@ function envKeys(provider: LlmProvider, env: Record<string, string | undefined>)
       if (pool.length > 0) return pool
       return splitList(env.OPENROUTER_API_KEY)
     }
+    case 'router':
+      // Keyless gateway: the only credential a client may present is the optional router token.
+      return splitList(env.MT_ROUTER_TOKEN)
     case 'openai':
       return splitList(env.OPENAI_API_KEY)
     case 'anthropic':

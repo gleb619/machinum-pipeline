@@ -11,6 +11,7 @@ import {
   setResponseHeader,
   toNodeListener,
 } from 'h3'
+import auth from './middleware/auth.js'
 import rateLimit from './middleware/rate-limit.js'
 import { startLogRotation } from './plugins/log-rotation.js'
 import { startMockMode } from './plugins/mock-mode.js'
@@ -22,6 +23,8 @@ import poolRoute from './routes/api/pool.js'
 import translateRoute from './routes/api/translate.js'
 import translateConfigRoute from './routes/api/translate/config.js'
 import translateHealthRoute from './routes/api/translate/health.js'
+import { assertSafeBind } from './utils/bind-guard.js'
+import { redact } from './utils/redact.js'
 import { type RouterConfigInput, getRouterConfig, setRouterConfig } from './utils/router-config.js'
 import { resetVaultState } from './utils/vault-upstreams.js'
 
@@ -108,7 +111,18 @@ function dashboardHandler(lookup: DashboardLookup) {
 export function createRouterApp(
   options: Pick<StartRouterOptions, 'dashboardDir' | 'dashboard'> = {},
 ) {
-  const app = createApp()
+  const app = createApp({
+    // Error bodies can echo upstream text; scrub every known key before it leaves.
+    onError(error, event) {
+      const status = error.statusCode || 500
+      const res = event.node.res
+      if (res.headersSent) return
+      res.statusCode = status
+      res.setHeader('Content-Type', 'application/json')
+      res.end(JSON.stringify({ error: redact(error.statusMessage || error.message || 'Error') }))
+    },
+  })
+  app.use(auth)
   app.use(rateLimit)
 
   const router = createRouter()
@@ -134,6 +148,7 @@ export function createRouterApp(
 
 export async function startRouter(options: StartRouterOptions = {}): Promise<RouterHandle> {
   const config = setRouterConfig(options)
+  assertSafeBind(config.host, config.token)
   resetVaultState()
   startMockMode()
   await startLogRotation()

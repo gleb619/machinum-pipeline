@@ -90,6 +90,24 @@ shows entry names only; no key or file content in `/api/pool`, `/api/dashboard`,
 - On 402: removes key permanently from pool
 - Appends cost data via `cost-tracker`
 
+## Security Model (T119)
+
+Router is a keyless gateway: clients send no upstream key; router holds them (env + vault). Keyless must not mean open.
+
+- **Bind guard** (`utils/bind-guard.ts`): default host `localhost`. A non-loopback `MT_ROUTER_HOST` / `--host` without
+  `MT_ROUTER_TOKEN` makes `startRouter()` throw (clear fix hint) before listening.
+- **Token** (`middleware/auth.ts`, runs before `rate-limit`): when `MT_ROUTER_TOKEN` is set, every `/api/*` request except
+  `GET /api/health` needs `Authorization: Bearer <token>` (constant-time compare), else 401. Unset: open (loopback only).
+  Static dashboard files are served without auth but its `/api` calls need the token when set.
+- **Header strip**: `completions.ts` builds upstream headers from scratch (content-type, optional http-referer/x-title,
+  upstream key, registry headers). Client `Authorization`, `x-api-key`, cookies and the router token are never forwarded.
+- **Redaction** (`utils/redact.ts`): all known keys (env, vault, upstream specs, router token) plus `Bearer <x>` / `sk-...`
+  patterns become `***` in upstream error echo, proxy errors, the global error handler, log lines, `/api/logs`, and
+  console errors. `/api/pool`, `/api/health`, `/api/dashboard` expose names and counts only.
+- Rate-limit / daily budget semantics unchanged. Not done: per-client budget (`X-MT-Client`, `MT_CLIENT_BUDGET`).
+- **Tools side**: `mt` tools with provider `router` send `Authorization: Bearer ${MT_ROUTER_TOKEN}` when that env is set
+  (`llm-config.ts` provider env keys; `MT_LLM_API_KEY` still wins). No key otherwise.
+
 ## Dashboard UI (`public/app.js`)
 
 Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Sections:
@@ -105,6 +123,8 @@ Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Section
 | `MT_ROUTER_UPSTREAMS` | — | JSON array of upstream specs `{name,kind,baseUrl,keys?,headers?,models?,defaultModel?}` |
 | `MT_ROUTER_OLLAMA_URL` | — | Registers keyless `ollama` upstream (e.g. `http://gpu:11434`) |
 | `MT_VAULT` | — | Vault file path override (only that file is read) |
+| `MT_ROUTER_HOST` | `localhost` | Bind host; non-loopback requires `MT_ROUTER_TOKEN` |
+| `MT_ROUTER_TOKEN` | — | Bearer token required on `/api/*` (except `GET /api/health`); also read by tools provider `router` |
 | `MT_ROUTER_VAULT` | `true` | `false` disables vault loading |
 | `MT_ROUTER_VAULT_POLL_MS` | `2000` | Min interval between vault mtime checks |
 | `MT_MOCK` | `false` | Enable mock mode |

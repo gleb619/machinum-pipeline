@@ -12,6 +12,8 @@ import { type UpstreamSpec, upstreamSpecsFromEnv } from './upstream-spec.js'
 export interface RouterConfig {
   port: number
   host: string
+  /** Optional bearer token every /api request (except GET /api/health) must present. */
+  token?: string
   mock: boolean
   logDir: string
   dailyBudget: number
@@ -48,6 +50,7 @@ function fromEnv(): RouterConfig {
   return {
     port: numberFrom(process.env.PORT ?? process.env.MT_ROUTER_PORT, 7777),
     host: process.env.MT_ROUTER_HOST || 'localhost',
+    token: process.env.MT_ROUTER_TOKEN?.trim() || undefined,
     mock: process.env.MT_ROUTER_MOCK === 'true',
     logDir: defaultLogDir(),
     dailyBudget: numberFrom(process.env.MT_DAILY_BUDGET, 5),
@@ -74,6 +77,7 @@ export function setRouterConfig(input: RouterConfigInput = {}): RouterConfig {
   config = {
     port: input.port ?? base.port,
     host: input.host ?? base.host,
+    token: input.token ?? base.token,
     mock: input.mock ?? base.mock,
     logDir: input.logDir ?? base.logDir,
     dailyBudget: input.dailyBudget ?? base.dailyBudget,
