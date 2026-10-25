@@ -17,6 +17,11 @@ Invoke the first two at the start of every task. Do not skip. The optional ones 
 subagents (for example architect / coder / qa via the Agent tool) over `at` (`at` agents). If a task is
 already handled by a native subagent, don't double-delegate to `at` (and vice versa).
 
+**`at` feedback** — when you hit an `at` bug or see an improvement (ignored flag, crash, bad routing,
+stale kanban provenance, worktree bootstrap traps), register it before working around it:
+`at feedback add "<title>" -k bug|improvement|note --context "<repro, expected vs actual>"`.
+List open items with `at feedback list --status open` to avoid duplicates.
+
 ---
 
 ## What this project is
