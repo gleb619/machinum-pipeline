@@ -189,6 +189,14 @@ Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Section
 - `usePool()` — key pool status, exhausted/active counts
 - `useLogs()` — recent request log with latency and cost
 
+Token auth (T127): all three panels fetch through one `apiFetch(path)` helper, so the dashboard works behind
+`MT_ROUTER_TOKEN` instead of showing 401s. It sends `Authorization: Bearer <token>` when a token is known; on 401 it
+clears the stored token and sets a shared `needsToken` ref, which shows a "Router token required" password input plus
+Save (and a **Clear token** control once a token is held). The token lives in `sessionStorage` under
+`mt-router-token` (tab-scoped, every access wrapped in try/catch with an in-memory ref as fallback for private mode).
+Header only: never in the URL, query, hash, or logs. The static page itself stays unauthenticated, so the prompt can
+always load. Pinned by [packages/router/tests/dashboard-auth.test.ts](../../packages/router/tests/dashboard-auth.test.ts).
+
 ## Environment Variables
 
 | Variable | Default | Purpose |

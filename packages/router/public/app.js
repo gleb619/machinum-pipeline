@@ -6,12 +6,50 @@ import {
   ref,
 } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
 
+const TOKEN_KEY = 'mt-router-token'
+
+/**
+ * The token is never part of the URL and never logged; only the `Authorization` header carries it.
+ * sessionStorage keeps it tab-scoped. The module ref is the fallback when storage is blocked
+ * (private mode), so the prompt does not loop inside the tab that already answered it.
+ */
+const token = ref('')
+const needsToken = ref(false)
+
+try {
+  token.value = sessionStorage.getItem(TOKEN_KEY) ?? ''
+} catch {
+  token.value = ''
+}
+
+function setToken(value) {
+  token.value = value
+  try {
+    if (value) sessionStorage.setItem(TOKEN_KEY, value)
+    else sessionStorage.removeItem(TOKEN_KEY)
+  } catch {
+    // In-memory ref above is the only store this tab gets; nothing else to do.
+  }
+}
+
+async function apiFetch(path) {
+  const headers = token.value ? { Authorization: `Bearer ${token.value}` } : {}
+  const res = await fetch(path, { headers })
+  if (res.status === 401) {
+    setToken('')
+    needsToken.value = true
+  } else if (res.ok) {
+    needsToken.value = false
+  }
+  return res
+}
+
 function useDashboard() {
   const data = ref(null)
   const error = ref(null)
   async function refresh() {
     try {
-      const r = await fetch('/api/dashboard')
+      const r = await apiFetch('/api/dashboard')
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       data.value = await r.json()
       error.value = null
@@ -27,7 +65,7 @@ function usePool() {
   const error = ref(null)
   async function refresh() {
     try {
-      const r = await fetch('/api/pool')
+      const r = await apiFetch('/api/pool')
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       data.value = await r.json()
       error.value = null
@@ -43,7 +81,7 @@ function useLogs() {
   const error = ref(null)
   async function refresh() {
     try {
-      const r = await fetch('/api/logs?limit=50')
+      const r = await apiFetch('/api/logs?limit=50')
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
       const json = await r.json()
       data.value = json.entries ?? []
@@ -210,10 +248,27 @@ const App = {
     const pool = usePool()
     const logs = useLogs()
     const lastRefresh = ref(null)
+    const tokenInput = ref('')
+    const hasToken = computed(() => token.value.length > 0)
 
     async function refreshAll() {
       await Promise.all([dash.refresh(), pool.refresh(), logs.refresh()])
       lastRefresh.value = new Date().toLocaleTimeString()
+    }
+
+    async function saveToken() {
+      const value = tokenInput.value.trim()
+      if (!value) return
+      setToken(value)
+      tokenInput.value = ''
+      needsToken.value = false
+      await refreshAll()
+    }
+
+    async function clearToken() {
+      setToken('')
+      needsToken.value = true
+      await refreshAll()
     }
 
     let timer = null
@@ -225,7 +280,20 @@ const App = {
 
     const mockMode = computed(() => pool.data.value?.mockMode ?? false)
 
-    return { dash, pool, logs, lastRefresh, refreshAll, mockMode, fmtCost }
+    return {
+      dash,
+      pool,
+      logs,
+      lastRefresh,
+      refreshAll,
+      mockMode,
+      fmtCost,
+      needsToken,
+      tokenInput,
+      hasToken,
+      saveToken,
+      clearToken,
+    }
   },
 
   template: `
@@ -238,11 +306,23 @@ const App = {
         </div>
         <div class="flex items-center gap-3 text-slate-500 text-xs">
           <span v-if="lastRefresh">↻ {{ lastRefresh }}</span>
+          <button v-if="hasToken" @click="clearToken" class="text-slate-400 hover:text-white transition-colors text-sm px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Clear token</button>
           <button @click="refreshAll" class="text-slate-400 hover:text-white transition-colors text-sm px-2 py-1 rounded bg-slate-800 hover:bg-slate-700">Refresh</button>
         </div>
       </div>
 
-      <div v-if="dash.error.value || pool.error.value || logs.error.value"
+      <div v-if="needsToken" class="bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col gap-2">
+        <label for="router-token" class="text-slate-300 text-sm">Router token required</label>
+        <div class="flex items-center gap-2 flex-wrap">
+          <input id="router-token" v-model="tokenInput" type="password" autocomplete="off"
+                 spellcheck="false" placeholder="MT_ROUTER_TOKEN"
+                 @keyup.enter="saveToken"
+                 class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-slate-500 min-w-[240px] flex-1" />
+          <button @click="saveToken" class="bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm px-3 py-1.5 rounded-lg transition-colors">Save</button>
+        </div>
+      </div>
+
+      <div v-if="!needsToken && (dash.error.value || pool.error.value || logs.error.value)"
            class="bg-red-900/50 border border-red-700 text-red-300 text-sm rounded-lg px-4 py-2">
         {{ dash.error.value || pool.error.value || logs.error.value }}
       </div>
