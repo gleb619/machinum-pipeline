@@ -138,7 +138,7 @@ export async function loadGlobalContext(projectRoot: string): Promise<GlobalCont
     defaults: {
       retry: resolveRetry(config.defaults?.retry),
       onError: config.defaults?.onError ?? DEFAULT_MT_CONFIG.defaults.onError,
-      concurrency: config.defaults?.concurrency ?? DEFAULT_MT_CONFIG.defaults.concurrency,
+      concurrency: resolveConcurrency(config.defaults?.concurrency),
     },
     settings,
     env,
@@ -158,6 +158,21 @@ type PartialRetry = {
   backoffMs?: number
   strategy?: RetryStrategy
   maxBackoffMs?: number
+}
+
+/**
+ * `defaults.concurrency` from mt.json is copied into the GlobalContext verbatim; a
+ * non-number (e.g. `"four"`) would reach `mapConcurrent` as NaN and silently drop
+ * every item. Validate early: positive integer, or the config is rejected.
+ */
+function resolveConcurrency(value: number | undefined): number {
+  if (value === undefined) return DEFAULT_MT_CONFIG.defaults.concurrency
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new Error(
+      `Invalid mt.json: defaults.concurrency must be a positive integer, got ${JSON.stringify(value)}`,
+    )
+  }
+  return value
 }
 
 function resolveRetry(retry: PartialRetry | undefined): RetryPolicy {

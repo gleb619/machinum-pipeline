@@ -64,6 +64,19 @@ describe('loadGlobalContext', () => {
     expect(ctx.defaults.onError).toBe('fail-run')
   })
 
+  it('rejects a non-numeric defaults.concurrency in mt.json', async () => {
+    await writeFile(join(dir, 'mt.json'), JSON.stringify({ defaults: { concurrency: 'four' } }))
+
+    await expect(loadGlobalContext(dir)).rejects.toThrow(/Invalid mt\.json/)
+    await expect(loadGlobalContext(dir)).rejects.toThrow(/concurrency/)
+  })
+
+  it('rejects a non-positive-integer defaults.concurrency in mt.json', async () => {
+    await writeFile(join(dir, 'mt.json'), JSON.stringify({ defaults: { concurrency: 0 } }))
+
+    await expect(loadGlobalContext(dir)).rejects.toThrow(/concurrency/)
+  })
+
   it('never mints a book identity from mt.json metadata', async () => {
     await writeFile(
       join(dir, 'mt.json'),

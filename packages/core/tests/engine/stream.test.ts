@@ -7,7 +7,63 @@ async function* range(n: number): AsyncIterable<number> {
   }
 }
 
+/** Hand-written async iterator with a `return` spy, so tests can assert the source is closed. */
+function trackedSource(size: number): {
+  source: AsyncIterable<number>
+  wasReturned: () => boolean
+} {
+  let returned = false
+  const source: AsyncIterable<number> = {
+    [Symbol.asyncIterator](): AsyncIterator<number> {
+      let i = 0
+      return {
+        next: async () =>
+          i < size ? { value: i++, done: false } : { value: undefined, done: true },
+        return: async () => {
+          returned = true
+          return { value: undefined, done: true }
+        },
+      }
+    },
+  }
+  return { source, wasReturned: () => returned }
+}
+
 describe('mapConcurrent', () => {
+  it('rejects non-finite concurrency instead of silently dropping all items', async () => {
+    const stream = mapConcurrent(range(3), Number.NaN, async (i) => i)
+
+    await expect(async () => {
+      for await (const _ of stream) {
+        // consume
+      }
+    }).rejects.toThrow(/concurrency/)
+  })
+
+  it('closes the source iterator when fn rejects', async () => {
+    const { source, wasReturned } = trackedSource(5)
+
+    await expect(async () => {
+      for await (const _ of mapConcurrent(source, 2, async (i) => {
+        if (i === 1) throw new Error('boom')
+        return i
+      })) {
+        // consume
+      }
+    }).rejects.toThrow('boom')
+    expect(wasReturned()).toBe(true)
+  })
+
+  it('closes the source iterator when the consumer stops early', async () => {
+    const { source, wasReturned } = trackedSource(5)
+
+    for await (const _ of mapConcurrent(source, 2, async (i) => i)) {
+      break
+    }
+
+    expect(wasReturned()).toBe(true)
+  })
+
   it('preserves order with concurrency 1', async () => {
     const results: number[] = []
     for await (const x of mapConcurrent(range(5), 1, async (i) => i * 2)) {
