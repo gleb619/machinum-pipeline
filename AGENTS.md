@@ -139,4 +139,6 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
 
 `OPENROUTER_API_KEYS` (comma-separated key pool), `MT_ROUTER_URL` (default `http://localhost:7777`),
 `MT_LOG_LEVEL`, `MT_DEBUG`. Secrets load from `.env` via `mt.json → secrets.envFile`.
+Vault `apiKey`/`apiKeys[]` values of the form `vlt:<name>` resolve through vlt at load time
+(`MT_VLT=false` disables this; `mt vault vlt-install` manages the binary).
 Full table: [steering/tech.md](docs/steering/tech.md#environment-variables).

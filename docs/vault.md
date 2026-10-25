@@ -22,6 +22,8 @@ See [vault.example.json](vault.example.json) (fake values). `{ "version": 1, "en
 | `mt vault rm <name>` | Removes the entry (project vault first, then the user vault) |
 | `mt vault path` | The resolved vault paths and whether they exist |
 | `mt vault init` | Creates an empty `{ "version": 1, "entries": {} }` vault file |
+| `mt vault vlt-install` | Downloads the vlt binary into `~/.mt/bin` (prints path + version) |
+| `mt vault vlt-status` | vlt binary location, version and session state (no secrets printed) |
 
 `add` flags: `--provider` (`ollama|openrouter|openai|anthropic|custom|router`), `--base-url`,
 `--api-key`, `--api-keys k1,k2`, `--models a,b`, `--default-model`, `--notes`. Missing flags are
@@ -48,6 +50,29 @@ Missing file = empty vault. Malformed JSON / bad entry = error naming file + ent
 `vault://<entry>[/<model>]` or `@vault/<entry>[/<model>]`. Model may contain `:` and `/`
 (`vault://my-openrouter/openai/gpt-4o-mini`). Model defaults to `defaultModel`; if the entry lists
 `models`, anything else is an error. See [Using a vault entry](#using-a-vault-entry-llmuse).
+
+## vlt backend
+
+`apiKey` / `apiKeys[]` values may be vlt secret references instead of plaintext:
+`"apiKey": "vlt:openrouter_main"` resolves at load time via
+[vlt](https://github.com/ladzaretti/vlt-cli) (`vlt show openrouter_main --stdout`).
+Resolution is **in memory only** — the vault file keeps the original refs and
+`saveVault` never persists resolved values.
+
+- **Binary acquisition** (first match wins): `vlt` on PATH → mt-managed
+  `$MT_HOME|~/.mt/bin/vlt` → on-demand auto-install into `~/.mt/bin` (Linux only;
+  x64/arm64/386). Install or check with `mt vault vlt-install` / `mt vault vlt-status`.
+- **Session model**: vlt is served by the `vltd` daemon; after `vlt login` a session
+  stays unlocked for `session_duration` (default 1min, extendable in `~/.vlt.toml`
+  `[vault] session_duration`). An expired session fails resolution with a
+  "run `vlt login`" hint. `VLT_CONFIG_PATH` overrides the config file location.
+- **Opt-out**: `MT_VLT=false` disables resolution entirely (refs pass through as-is).
+- **Errors are sanitized**: vlt stdout/stderr may contain secret material and never
+  reaches error messages or logs; failures name only the entry and secret.
+- The router resolves the same refs with its own sync copy
+  (`packages/router/server/utils/vlt.ts`), memoized per secret name so the hot-reload
+  poll never forks `vlt` repeatedly; a failed `vlt show` clears the memo entry so the
+  next reload re-resolves.
 
 ## Security
 

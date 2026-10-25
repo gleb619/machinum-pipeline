@@ -76,7 +76,7 @@ Commands:
   tool <name>            Invoke a tool standalone
   serve [-d|--detach]    Start admin backend
   router [opts]          Start LLM router proxy (--help)
-  vault <sub>            Manage the vault: list|show|add|rm|path|init (--help)
+  vault <sub>            Manage the vault: list|show|add|rm|path|init|vlt-install|vlt-status (--help)
   mcp                    Start MCP server over stdio
 
 Options:

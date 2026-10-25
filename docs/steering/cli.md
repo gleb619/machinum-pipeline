@@ -76,7 +76,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | `mt tool <name>` | `tool.ts` | Invoke a tool standalone (JSON envelope on stdin/stdout) |
 | `mt serve [--port N\|0] [--host H] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/backend/standalone`); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
 | `mt router [--port N\|0] [--host H] [--mock] [--log-dir D] [-d\|--detach]` | `router.ts` | Start the keyless LLM gateway + dashboard (`@mt/router/standalone`); no `--token` flag — the token is `MT_ROUTER_TOKEN`; `--detach` re-execs self in background (`.mt/router/{pid,server.log}`) |
-| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init` (secrets masked unless `--reveal`) |
+| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init`, `vlt-install`, `vlt-status` (secrets masked unless `--reveal`) |
 
 ## Pipeline Loading
 
@@ -138,7 +138,10 @@ Writes to both console (with ANSI colour) and a log file under `.mt/runs/<runId>
 `mt vault` — `list` / `show` / `add` / `rm` / `path` / `init` over the `@mt/core` vault. Writes go
 through `saveVault` (atomic, mode 0600). Secrets are masked in every output unless `--reveal` is
 given. `--user` targets `~/.mt/vault.json`, otherwise `<project>/.mt/vault.json`; `MT_VAULT` wins
-over both. The router reads those same files as upstream key sources ([router.md](router.md#vault-t118)).
+over both. `list`/`show` and the file-editing flows load with `resolveVlt: false` so stored
+`vlt:` refs display and round-trip unchanged. `vlt-install` runs `installVlt()` (prints path +
+version); `vlt-status` prints binary location, version and session state (probes `vlt find`,
+never prints secrets). The router reads those same files as upstream key sources ([router.md](router.md#vault-t118)).
 Details: [docs/vault.md](../vault.md).
 
 ### `src/utils/gitignore.ts`

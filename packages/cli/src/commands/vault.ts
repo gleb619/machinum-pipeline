@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -6,6 +7,8 @@ import {
   VAULT_PROVIDERS,
   addEntry,
   emptyVault,
+  findVlt,
+  installVlt,
   isVaultProvider,
   loadVault,
   maskSecret,
@@ -28,6 +31,8 @@ Subcommands:
   rm <name>             Remove an entry
   path                  Print the resolved vault paths and whether they exist
   init                  Create an empty vault file
+  vlt-install           Download the vlt binary into ~/.mt/bin
+  vlt-status            Show vlt binary location, version and session state
 
 Options:
   --provider <name>     Provider: ${VAULT_PROVIDERS.join(' | ')}
@@ -155,9 +160,10 @@ function resolveTargets(options: VaultOptions, cwd: string, env: NodeJS.ProcessE
   return { user, project, read, write }
 }
 
-/** Load a single vault file (the merged view would pull in the other files' entries). */
+/** Load a single vault file (the merged view would pull in the other files' entries).
+ * Resolution of `vlt:` refs is skipped so stored refs round-trip unchanged on save. */
 function loadSingle(path: string, env: NodeJS.ProcessEnv): Promise<Vault> {
-  return loadVault(process.cwd(), { ...env, MT_VAULT: path })
+  return loadVault(process.cwd(), { ...env, MT_VAULT: path }, { resolveVlt: false })
 }
 
 function unknownEntryMessage(name: string, vault: Vault): string {
@@ -249,7 +255,7 @@ async function buildEntry(options: VaultOptions): Promise<VaultEntry> {
 }
 
 async function listCommand(): Promise<void> {
-  const vault = await loadVault(process.cwd(), process.env)
+  const vault = await loadVault(process.cwd(), process.env, { resolveVlt: false })
   const names = Object.keys(vault.entries).sort()
   if (names.length === 0) {
     console.log('Vault is empty. Add an entry with: mt vault add <name> --provider <provider>')
@@ -277,7 +283,7 @@ async function listCommand(): Promise<void> {
 
 async function showCommand(options: VaultOptions, name: string): Promise<void> {
   if (!name) fail('Usage: mt vault show <name>')
-  const vault = await loadVault(process.cwd(), process.env)
+  const vault = await loadVault(process.cwd(), process.env, { resolveVlt: false })
   const entry = vault.entries[name]
   if (!entry) fail(unknownEntryMessage(name, vault))
   const shown = options.reveal
@@ -357,6 +363,57 @@ async function initCommand(targets: VaultTargets): Promise<void> {
   }
 }
 
+/** Probe `vlt --version` (falling back to `vlt version`); undefined when it fails. */
+function vltVersion(binary: string): string | undefined {
+  for (const flag of ['--version', 'version']) {
+    try {
+      const out = execFileSync(binary, [flag], {
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 10_000,
+      })
+      const line = out.trim().split('\n')[0]?.trim()
+      if (line) return line
+    } catch {
+      // try the next invocation shape
+    }
+  }
+  return undefined
+}
+
+async function vltInstallCommand(): Promise<void> {
+  const installed = await installVlt()
+  console.log(`Installed vlt to ${installed}`)
+  const version = vltVersion(installed)
+  console.log(`  version: ${version ?? 'unknown (vlt --version failed)'}`)
+}
+
+async function vltStatusCommand(): Promise<void> {
+  const binary = await findVlt()
+  if (!binary) {
+    console.log('vlt: not found')
+    console.log('  Install with: mt vault vlt-install')
+    console.log(
+      '  or: curl -sSL https://raw.githubusercontent.com/ladzaretti/vlt-cli/main/install.sh | bash',
+    )
+    return
+  }
+  console.log(`vlt: found at ${binary}`)
+  const version = vltVersion(binary)
+  if (version) console.log(`  version: ${version}`)
+  // Probe the session without printing anything the vault holds (names or values).
+  try {
+    execFileSync(binary, ['find'], {
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 10_000,
+    })
+    console.log('  session: active (vault unlocked)')
+  } catch {
+    console.log('  session: locked or expired — run `vlt login` and retry')
+  }
+}
+
 async function dispatch(args: string[]): Promise<void> {
   const options = parseArgs(args)
   if (options.help) {
@@ -383,6 +440,10 @@ async function dispatch(args: string[]): Promise<void> {
       return pathCommand(targets)
     case 'init':
       return initCommand(targets)
+    case 'vlt-install':
+      return vltInstallCommand()
+    case 'vlt-status':
+      return vltStatusCommand()
     default:
       return fail(`Unknown vault subcommand: ${subcommand}\n\n${USAGE}`)
   }

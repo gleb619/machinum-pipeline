@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { VLT_REF_PREFIX, resolveVltValueSync } from './vlt.js'
 
 /**
  * Router-local vault reader. Deliberate duplicate of the read half of `packages/core/src/vault.ts`
@@ -127,9 +128,24 @@ function parseEntry(name: string, value: unknown, path: string): VaultEntry {
   return entry
 }
 
-/** Reads and merges all vault files (project overrides user, whole entry). Missing files = empty. */
+/**
+ * Reads and merges all vault files (project overrides user, whole entry). Missing files = empty.
+ * `vlt:` refs in apiKey/apiKeys are resolved in memory via the vlt CLI (memoized).
+ */
 export function readVaultEntries(paths: string[]): Record<string, VaultEntry> {
   const merged: Record<string, VaultEntry> = {}
   for (const path of paths) Object.assign(merged, readFile(path))
+  for (const [name, entry] of Object.entries(merged)) {
+    try {
+      if (entry.apiKey?.startsWith(VLT_REF_PREFIX)) {
+        entry.apiKey = resolveVltValueSync(entry.apiKey)
+      }
+      if (entry.apiKeys !== undefined) {
+        entry.apiKeys = entry.apiKeys.map((key) => resolveVltValueSync(key))
+      }
+    } catch (err) {
+      throw new Error(`Vault entry "${name}": ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
   return merged
 }

@@ -121,5 +121,7 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |
 | `MT_VAULT` | — | Path to a single vault file; when set, user/project vaults are ignored ([vault.md](../vault.md)) |
+| `MT_VLT` | `true` | Vault `vlt:<name>` secret refs: `false` disables vlt resolution entirely ([vault.md](../vault.md)) |
+| `VLT_CONFIG_PATH` | `~/.vlt.toml` | vlt config file location (vlt itself also reads this) |
 
 LLM precedence tables: [tools.md](tools.md#llm-toolkit). Secrets loaded from `.env` via `mt.json → secrets.envFile`.

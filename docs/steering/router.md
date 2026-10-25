@@ -105,6 +105,13 @@ registry is rebuilt and swapped; unchanged upstreams keep their pool state. Brok
 (first load: env-only). Missing vault = env-only. `RouterConfig.vault` / `MT_ROUTER_VAULT=false` disables. `/api/health`
 shows entry names only; no key or file content in `/api/pool`, `/api/dashboard`, logs or errors.
 
+`server/utils/vlt.ts` is a **deliberate duplicate** of `packages/core/src/vlt.ts` (sync, because the
+reader and hot-reload poll are sync): it resolves `vlt:<name>` refs in `apiKey`/`apiKeys` via
+`vlt show <name> --stdout`, memoized per secret name so the ≤2s poll never forks `vlt` repeatedly;
+a failed `vlt show` clears the memo entry so the next reload re-resolves. A resolution failure
+turns the reload into the standard broken-file path (previous entries kept). `redact.ts` scrubs
+resolved values and `vlt:` ref strings. Keep both copies in sync.
+
 The vault is written by `mt vault` (`packages/cli/src/commands/vault.ts`, see
 [docs/steering/cli.md](cli.md#srccommandsvaultts)); the router only reads it. Format and CLI:
 [docs/vault.md](../vault.md).

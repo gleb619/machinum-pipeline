@@ -2,11 +2,15 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { tmpPathFor } from './atomic.js'
+import { VLT_REF_PREFIX, resolveVltValue } from './vlt.js'
 
 /**
  * Vault — gitignored store of sensitive LLM endpoint data (URLs, keys, headers).
  * Loaded from `~/.mt/vault.json` and `<project>/.mt/vault.json`; never serialized
  * into checkpoints, meta or logs. Error messages never echo secret values.
+ *
+ * `apiKey` / `apiKeys[]` values of the form `vlt:<name>` are vlt secret references,
+ * resolved in memory at load time (see vlt.ts); the file on disk keeps the refs.
  */
 
 export const VAULT_PROVIDERS = [
@@ -59,16 +63,45 @@ export function vaultPaths(projectRoot: string, env: Record<string, string | und
   return [join(mtHome, 'vault.json'), join(resolve(projectRoot), '.mt', 'vault.json')]
 }
 
+export interface LoadVaultOptions {
+  /**
+   * Resolve `vlt:` refs in `apiKey`/`apiKeys` via the vlt CLI (default true).
+   * Pass false when only the stored values matter (e.g. editing the file).
+   */
+  resolveVlt?: boolean
+}
+
 export async function loadVault(
   projectRoot: string,
   env: Record<string, string | undefined> = process.env,
+  options: LoadVaultOptions = {},
 ): Promise<Vault> {
   const vault = emptyVault()
   for (const path of vaultPaths(projectRoot, env)) {
     const file = await readVaultFile(path)
     if (file) Object.assign(vault.entries, file.entries)
   }
+  if (options.resolveVlt !== false) await resolveVltRefs(vault, env)
   return vault
+}
+
+/** Resolve `vlt:` refs in place. Errors name the entry and secret, never values. */
+async function resolveVltRefs(
+  vault: Vault,
+  env: Record<string, string | undefined>,
+): Promise<void> {
+  for (const [name, entry] of Object.entries(vault.entries)) {
+    try {
+      if (entry.apiKey?.startsWith(VLT_REF_PREFIX)) {
+        entry.apiKey = await resolveVltValue(entry.apiKey, env)
+      }
+      if (entry.apiKeys !== undefined) {
+        entry.apiKeys = await Promise.all(entry.apiKeys.map((key) => resolveVltValue(key, env)))
+      }
+    } catch (err) {
+      throw new Error(`Vault entry "${name}": ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
 }
 
 async function readVaultFile(path: string): Promise<Vault | undefined> {

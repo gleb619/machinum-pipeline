@@ -237,6 +237,16 @@ When `tool.cacheable === true`, output is memoised by `hash(toolName + version +
 `loadVault`, `maskVault`, `parseVaultRef`/`resolveVaultRef` (`vault://entry/model`, `@vault/entry/model`), atomic 0600 `saveVault`.
 `loadGlobalContext` attaches it as non-enumerable `GlobalContext.vault` - never serialized. Details: [../vault.md](../vault.md).
 
+### `vlt.ts` — vlt secret backend
+
+Vault `apiKey`/`apiKeys[]` values of the form `vlt:<name>` are refs into
+[vlt](https://github.com/ladzaretti/vlt-cli), resolved in memory at `loadVault` time
+(never written back). `findVlt()` locates the binary (PATH, then `$MT_HOME|~/.mt/bin`,
+memoized), `getVltSecret()` shells out via `execFile` (arg array, sanitized errors —
+process output never leaks), `installVlt()` downloads the latest Linux release
+(tar.gz/zip, stdlib-only extraction) into `~/.mt/bin`, `resolveVltValue()` passes
+non-refs through, auto-installs once on a missing binary, and honors `MT_VLT=false`.
+
 A vault ref is also a config value: `settings.llm.use` in `mt.json` and env `MT_LLM_USE` expand into
 provider/baseUrl/keys/headers/model for the LLM gates ([tools.md](tools.md#llm-toolkit)). The router reads
 the same files with its own copy of the reader and turns entries into upstreams
