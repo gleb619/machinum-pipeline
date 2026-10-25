@@ -140,7 +140,7 @@ other OpenAI-compatible server. Details: [steering/router.md](steering/router.md
 │   ├── state.json             # state machine snapshot
 │   ├── checkpoint.json        # checkpoint tree (resume source of truth)
 │   ├── context.json           # frozen run context
-│   ├── events.jsonl           # append-only event log (SSE source)
+│   ├── events.jsonl           # append-only event log (SSE source); also published to in-process ctx.events subscribers (file first, then listeners)
 │   ├── dead-letter.jsonl      # failed envelopes (when onError: 'dead-letter')
 │   ├── logs/<stepId>.log
 │   └── artifacts/             # intermediate outputs

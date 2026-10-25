@@ -121,6 +121,15 @@ consumer pulls the last envelope, so upstream steps are recorded before the sink
 that lands in the tail window (stream drained, terminal transition not yet made) is unraveled by
 `markRunDone()` instead of stranding the run in `paused` — `paused → done` is not a legal edge.
 
+**In-process events (`RunEvents`)** — alongside the file log, the Runner exposes a subscription
+facade: `runner.subscribeEvents(listener)` returns an unsubscribe function, and
+`RunnerOptions.events` seeds initial listeners. The facade (`{ subscribe }` only, never the
+Runner) is also passed to sources/targets as `ctx.events`. Ordering guarantee: the events.jsonl
+line is appended *first*, listeners are published *after* (fire-and-forget, never awaited, so
+listener latency cannot stall the state machine). Listener errors (throws and rejections) are
+logged via the run logger at warn level (`run event listener failed`, meta `eventType`/`stepId`)
+and never thrown — a bad listener can never fail a run.
+
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
 

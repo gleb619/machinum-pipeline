@@ -110,6 +110,18 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - Shutdown ends all subscriber responses and calls `closeAllConnections()` before `close()` — an open
   SSE connection must not block run teardown
 
+## Listening to run lifecycle
+
+`SourceContext`/`TargetContext` carry an optional `events?: RunEvents` — a Runner-built facade
+exposing only `subscribe(listener): () => void`. Event types: `started`, `step-done` (with
+`stepId`), `paused`, `resumed`, `done`, `failed` (with `error`). The Runner writes each event to
+`events.jsonl` first and only then notifies listeners (fire-and-forget; listener errors are
+logged, never thrown). Pattern: subscribe in `start()`/`open()`, **unsubscribe in `close()` or a
+generator's `finally`** — a source must not hold a listener after the run released it.
+`http-server.ts` is the reference example: it mirrors `paused`/`resumed`/`done`/`failed` into its
+`/events` SSE stream as `{"type":"lifecycle","event":<RunEventType>}` frames, next to the
+per-envelope fan-out, and unsubscribes in the generator's `finally`.
+
 ### `git-worktree.ts`
 - `GitWorktreeSource` / `GitWorktreeTarget` — use `createWorktree()` / `removeWorktree()` from `@mt/core/engine/git-worktree`
 - Target calls `autoCommit()` in `close()` when `commit` query param is set

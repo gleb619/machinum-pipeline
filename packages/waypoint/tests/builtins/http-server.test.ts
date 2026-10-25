@@ -1,5 +1,5 @@
 import { type Server, createServer } from 'node:http'
-import type { Envelope, SourceContext } from '@mt/core'
+import type { Envelope, RunEventListener, SourceContext } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createHttpSource } from '../../src/http-server.js'
@@ -352,6 +352,91 @@ describe('http-server — shutdown with open SSE client', () => {
     expect(Date.now() - startedAt).toBeLessThan(2000)
 
     await sse.cancel()
+  })
+})
+
+describe('http-server — run lifecycle mirror', () => {
+  it('mirrors lifecycle run events to /events subscribers and unsubscribes on teardown', async () => {
+    const port = await getFreePort()
+    const listeners = new Set<RunEventListener>()
+    const ctx = {
+      ...makeMockContext(),
+      events: {
+        subscribe: (listener: RunEventListener) => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+      },
+    }
+    const source = createHttpSource<{ id: number }>(makeUri(port, '/ingest', { count: '1' }))
+    const iterator = source.start(ctx as SourceContext)[Symbol.asyncIterator]()
+
+    const first = iterator.next()
+    await vi.waitFor(
+      () => {
+        expect(ctx.run.logger.info).toHaveBeenCalled()
+      },
+      { timeout: 3000, interval: 20 },
+    )
+    expect(listeners.size).toBe(1)
+
+    const sse = await connectSse(port)
+    await vi.waitFor(
+      () => {
+        expect(sse.body).toContain(': connected')
+      },
+      { timeout: 3000, interval: 20 },
+    )
+
+    // Emit through the fake runner facade: lifecycle types are mirrored…
+    for (const listener of listeners) {
+      listener({ type: 'paused', ts: new Date().toISOString(), runId: 'fake-run' })
+    }
+    await vi.waitFor(
+      () => {
+        expect(sse.body).toContain('data: {"type":"lifecycle","event":"paused"}\n\n')
+      },
+      { timeout: 3000, interval: 20 },
+    )
+
+    // …but envelope-free types like step-done are not.
+    for (const listener of listeners) {
+      listener({ type: 'step-done', ts: new Date().toISOString(), runId: 'fake-run', stepId: 'x' })
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(sse.body).not.toContain('"event":"step-done"')
+
+    // Finish the generator (count limit) — teardown must unsubscribe.
+    await fetch(`http://localhost:${port}/ingest`, {
+      method: 'POST',
+      body: JSON.stringify({ id: 1 }),
+    })
+    expect((await first).done).toBe(false)
+    expect((await iterator.next()).done).toBe(true)
+    expect(listeners.size).toBe(0)
+
+    await sse.cancel()
+  })
+
+  it('works without an events facade in the context', async () => {
+    const port = await getFreePort()
+    const ctx = makeMockContext()
+    const source = createHttpSource(makeUri(port, '/ingest', { count: '1' }))
+    const iterator = source.start(ctx as SourceContext)[Symbol.asyncIterator]()
+    iterator.next().catch(() => {})
+    await vi.waitFor(
+      () => {
+        expect(ctx.run.logger.info).toHaveBeenCalled()
+      },
+      { timeout: 3000, interval: 20 },
+    )
+
+    await fetch(`http://localhost:${port}/ingest`, { method: 'POST', body: '{}' })
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    await iterator.return?.()
+
+    const healthRes = await fetch(`http://localhost:${port}/health`).catch(() => null)
+    expect(healthRes?.ok).toBeFalsy()
   })
 })
 

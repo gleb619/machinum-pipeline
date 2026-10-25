@@ -131,6 +131,21 @@ export interface RunEvent {
 }
 
 /**
+ * Listener for run lifecycle events (in-process counterpart of the events.jsonl log).
+ * May return a promise — the Runner never awaits it; rejections are logged, never thrown.
+ */
+export type RunEventListener = (event: RunEvent) => void | Promise<void>
+
+/**
+ * Read-only subscription surface for run lifecycle events, exposed to source/target
+ * contexts. Implemented by the Runner; waypoints never see the Runner itself.
+ */
+export interface RunEvents {
+  /** Subscribe to run lifecycle events. Returns an unsubscribe function. */
+  subscribe(listener: RunEventListener): () => void
+}
+
+/**
  * Run metadata — persisted to state.json.
  */
 export interface RunStateData {
@@ -154,6 +169,8 @@ export interface RunStateData {
 export interface RunnerOptions {
   pipelineFile?: string
   pipelineName?: string
+  /** Initial run event listeners, seeded before `start()` (same as `subscribeEvents`). */
+  events?: RunEventListener[]
 }
 
 /**

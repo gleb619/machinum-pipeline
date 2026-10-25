@@ -52,6 +52,8 @@ export type {
   RunState,
   RunEvent,
   RunEventType,
+  RunEventListener,
+  RunEvents,
   CheckpointNode,
   RunStateData,
   RunnerOptions,

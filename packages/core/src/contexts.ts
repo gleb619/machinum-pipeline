@@ -1,6 +1,6 @@
 import type { Book } from './domain.js'
 import type { Settings } from './settings.js'
-import type { Logger } from './types.js'
+import type { Logger, RunEvents } from './types.js'
 import type { Vault } from './vault.js'
 
 /**
@@ -54,6 +54,8 @@ export interface ToolContext {
  */
 export interface SourceContext {
   run: RunContext
+  /** In-process run lifecycle event subscription (Runner-built facade). Optional. */
+  events?: RunEvents
 }
 
 /**
@@ -61,6 +63,8 @@ export interface SourceContext {
  */
 export interface TargetContext {
   run: RunContext
+  /** In-process run lifecycle event subscription (Runner-built facade). Optional. */
+  events?: RunEvents
 }
 
 /**

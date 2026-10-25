@@ -9,7 +9,9 @@ import type {
   Pipeline,
   PipelineStep,
   RunEvent,
+  RunEventListener,
   RunEventType,
+  RunEvents,
   RunStateData,
   RunnerOptions,
   Tool,
@@ -112,11 +114,20 @@ export class Runner {
   private checkpoint = createRootCheckpoint('root')
   private stepSeq = 0
   private readonly options: RunnerOptions
+  private readonly eventListeners = new Set<RunEventListener>()
+  /**
+   * Read-only subscription facade handed to source/target contexts — exposes `subscribe`
+   * only, never the Runner itself.
+   */
+  private readonly eventsFacade: RunEvents = {
+    subscribe: (listener) => this.subscribeEvents(listener),
+  }
 
   constructor(pipeline: Pipeline, globalContext: GlobalContext, options?: RunnerOptions) {
     this.pipeline = pipeline
     this.globalContext = globalContext
     this.options = options ?? {}
+    for (const listener of this.options.events ?? []) this.eventListeners.add(listener)
     const mtRoot = join(globalContext.project.root, '.mt')
     this.store = new Store(mtRoot)
     this.cache = new Cache(mtRoot)
@@ -312,7 +323,7 @@ export class Runner {
           if (cursor !== undefined && source.resume) {
             this.logger(stepId).debug(`Resuming source '${uri}' from cursor ${cursor}`)
             sourceStart = cursor
-            stream = source.resume({ run: runContext }, cursor)
+            stream = source.resume({ run: runContext, events: this.eventsFacade }, cursor)
           } else {
             if (cursor !== undefined) {
               this.logger(stepId).debug(
@@ -321,7 +332,7 @@ export class Runner {
             }
             // A replay from item 0 re-derives every position, so the old cursor is dropped.
             sourceStart = 0
-            stream = source.start({ run: runContext })
+            stream = source.start({ run: runContext, events: this.eventsFacade })
           }
           break
         }
@@ -640,14 +651,14 @@ export class Runner {
     const target = registry.resolveTarget(uri)
     if (!stream) throw new Error('Target step requires a preceding stream or source step')
 
-    await target.open({ run: runContext })
+    await target.open({ run: runContext, events: this.eventsFacade })
     try {
       for await (const env of stream) {
-        await target.write(env, { run: runContext })
+        await target.write(env, { run: runContext, events: this.eventsFacade })
         onEnvelopeWritten()
       }
     } finally {
-      await target.close({ run: runContext })
+      await target.close({ run: runContext, events: this.eventsFacade })
     }
 
     // Check for auto-commit on close
@@ -744,6 +755,35 @@ export class Runner {
     if (stepId) event.stepId = stepId
     if (error) event.error = error
     await this.store.append(`${JSON.stringify(event)}\n`, 'runs', this.runId, 'events.jsonl')
+    this.publishEvent(event)
+  }
+
+  /**
+   * Notify in-process listeners, fire-and-forget: called only after the event line hit the
+   * file, and never awaited, so listener latency cannot stall the state machine. Listener
+   * failures (throws and rejections alike) are logged via the run logger and swallowed.
+   */
+  private publishEvent(event: RunEvent): void {
+    for (const listener of this.eventListeners) {
+      try {
+        const result = listener(event)
+        if (result instanceof Promise) {
+          result.catch((error: unknown) => this.logEventListenerError(event, error))
+        }
+      } catch (error) {
+        this.logEventListenerError(event, error)
+      }
+    }
+  }
+
+  private logEventListenerError(event: RunEvent, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error)
+    const logger = this.runContext?.logger ?? this.logger()
+    logger.warn('run event listener failed', {
+      eventType: event.type,
+      stepId: event.stepId,
+      error: message,
+    })
   }
 
   /**
@@ -866,6 +906,17 @@ export class Runner {
         }
         if (stepId) void this.logStep(stepId, 'debug', message, meta)
       },
+    }
+  }
+
+  /**
+   * Subscribe to run lifecycle events (in-process). Returns an unsubscribe function.
+   * Listener errors are logged and never affect the run.
+   */
+  subscribeEvents(listener: RunEventListener): () => void {
+    this.eventListeners.add(listener)
+    return () => {
+      this.eventListeners.delete(listener)
     }
   }
 

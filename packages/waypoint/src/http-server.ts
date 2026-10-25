@@ -1,6 +1,6 @@
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
 import type { SourceContext } from '@mt/core'
-import type { Envelope, Source } from '@mt/core'
+import type { Envelope, RunEvent, Source } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { registry } from '@mt/core'
 
@@ -23,6 +23,9 @@ import { registry } from '@mt/core'
  */
 const DEFAULT_MAX_BODY_BYTES = 1024 * 1024
 const DEFAULT_MAX_BUFFER = 1000
+
+/** Lifecycle events mirrored from the run event log to `/events` subscribers. */
+const MIRRORED_LIFECYCLE_TYPES = new Set(['paused', 'resumed', 'done', 'failed'])
 
 /** Seconds a producer should wait before retrying a 503 (buffer full). */
 const RETRY_AFTER_SECONDS = 1
@@ -71,10 +74,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
       let server: Server | null = null
       let receivedCount = 0
 
-      const deliverEnvelope = (envelope: Envelope<T>): void => {
-        // Mirror to subscribers before handing over to the pipeline — a failed
-        // socket must never break ingest.
-        const payload = `data: ${JSON.stringify(envelope)}\n\n`
+      const sendToSubscribers = (payload: string): void => {
         for (const subscriber of subscribers) {
           if (subscriber.writableEnded) {
             subscribers.delete(subscriber)
@@ -86,6 +86,12 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
             subscribers.delete(subscriber)
           }
         }
+      }
+
+      const deliverEnvelope = (envelope: Envelope<T>): void => {
+        // Mirror to subscribers before handing over to the pipeline — a failed
+        // socket must never break ingest.
+        sendToSubscribers(`data: ${JSON.stringify(envelope)}\n\n`)
 
         if (waiting.length > 0) {
           const resolver = waiting.shift() as (value: Envelope<T>) => void
@@ -94,6 +100,13 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
           buffer.push(envelope)
         }
       }
+
+      // Mirror run lifecycle events (paused/resumed/done/failed) into the same SSE stream,
+      // so a tailing client sees run state changes next to the envelope fan-out.
+      const unsubscribeEvents = ctx.events?.subscribe((event: RunEvent) => {
+        if (!MIRRORED_LIFECYCLE_TYPES.has(event.type)) return
+        sendToSubscribers(`data: ${JSON.stringify({ type: 'lifecycle', event: event.type })}\n\n`)
+      })
 
       // Create HTTP server
       server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -232,6 +245,7 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
           }
         }
       } finally {
+        unsubscribeEvents?.()
         // Clean up server
         const httpServer = server
         if (httpServer) {
