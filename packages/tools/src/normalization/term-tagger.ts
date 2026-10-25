@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
 import type { Envelope } from '@mt/core'
+import type { RuGrammar } from './ru-grammar.js'
 
 /** Kind of glossary entry (best-effort guess; humans may edit it). */
 export type GlossaryTermType = 'character' | 'place' | 'item' | 'skill' | 'term'
@@ -21,6 +22,8 @@ export interface GlossaryTerm {
   aliases: string[]
   /** Model-reported RU translations awaiting human approval (never auto-applied). */
   pending?: string[]
+  /** Optional Russian morphology metadata (gender, declension, inflection endings). */
+  ruGrammar?: RuGrammar
 }
 
 /** `chapters/glossary.json` shape. */

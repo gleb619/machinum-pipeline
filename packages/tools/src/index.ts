@@ -630,3 +630,23 @@ export {
   createTranslateOutputs,
   type TranslateOutputsOptions,
 } from './modification/translate-outputs.js'
+export {
+  ruGrammarTool,
+  createRuGrammarTool,
+  inferRuGrammar,
+  declineRu,
+  declineAllRu,
+  validateRuInflection,
+  inferRuGrammarForGlossary,
+  RU_CASES,
+  type RuGender,
+  type RuDeclension,
+  type RuCase,
+  type RuNumber,
+  type RuEndings,
+  type RuGrammar,
+  type RuDeclensionTable,
+  type RuGrammarIssue,
+  type RuGrammarReport,
+  type RuGrammarToolOptions,
+} from './normalization/ru-grammar.js'
