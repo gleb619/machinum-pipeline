@@ -28,7 +28,7 @@ const VLT_INSTALL_HINT =
 
 const VLT_STATIC_BUILD_HINT =
   'Build a static binary instead: ' +
-  "docker run --rm -v ~/.mt/bin:/out golang:1.24 bash -c " +
+  'docker run --rm -v ~/.mt/bin:/out golang:1.24 bash -c ' +
   "'git clone --depth 1 https://github.com/ladzaretti/vlt-cli /src && cd /src && " +
   "CGO_ENABLED=0 make build && cp bin/vlt bin/vltd /out/'"
 
@@ -211,8 +211,7 @@ export async function installVlt(env: Env = process.env): Promise<string> {
   if (!(await runsOk(main))) {
     for (const [fileName] of files) await rm(join(dir, fileName), { force: true })
     throw new Error(
-      'vlt install: the downloaded binary does not run on this system (glibc mismatch?). ' +
-        VLT_STATIC_BUILD_HINT,
+      `vlt install: the downloaded binary does not run on this system (glibc mismatch?). ${VLT_STATIC_BUILD_HINT}`,
     )
   }
   return main

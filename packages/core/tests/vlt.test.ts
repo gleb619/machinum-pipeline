@@ -90,11 +90,9 @@ describe('vlt', () => {
     resetVltCache()
     execFileMock.mockReset()
     // Default: every child process succeeds silently (probe + show stubs override).
-    execFileMock.mockImplementation(
-      (_f: unknown, _a: unknown, _o: unknown, cb: unknown) => {
-        ;(cb as (e: Error | null, so: string, se: string) => void)(null, '', '')
-      },
-    )
+    execFileMock.mockImplementation((_f: unknown, _a: unknown, _o: unknown, cb: unknown) => {
+      ;(cb as (e: Error | null, so: string, se: string) => void)(null, '', '')
+    })
     dir = await mkdtemp(join(tmpdir(), 'mt-vlt-'))
     home = join(dir, 'home')
     binDir = join(dir, 'bin')
