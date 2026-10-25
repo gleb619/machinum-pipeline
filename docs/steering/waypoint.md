@@ -75,6 +75,16 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 
 ### `jsonl.ts`
 - Source: streams lines from `.jsonl` file, supports glob patterns and a position cursor for resume
+- Each line must be a JSON object with an `item` property (`{ item, meta? }`); a missing `meta`
+  defaults to `{}`. Malformed JSON or a missing/invalid `item`/`meta` throws with a `file:line`
+  location (1-based physical line number)
+- Cursor: single file → envelope index among non-blank lines (blank lines are skipped and never
+  counted); glob → `{ fileIndex, line }` where `line` is the envelope index in the file at
+  `fileIndex` (legacy numeric cursors map to the first file). Non-numeric/non-glob cursors throw
+  `invalid jsonl cursor`
+- `batchSize` is honored on both `start()` and `resume()` — resumed runs see the same cardinality
+- One shared line reader (`readLines()`/`readFiles()`) backs start, resume and glob paths, so
+  numbering is identical everywhere
 - Target: `AtomicStreamWriter` on `open()`, JSON lines on `write()`, `commit()` (rename) on `close()`
 - `isGlobPattern()` / `isGlobCursor()` helpers for glob vs direct path detection
 

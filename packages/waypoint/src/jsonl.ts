@@ -1,6 +1,5 @@
 // @ts-expect-error globSync is available in Node 22 but @types/node v20 doesn't include it
 import { createReadStream, globSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
@@ -31,23 +30,77 @@ function isGlobPattern(path: string): boolean {
   return path.includes('*') || path.includes('?') || path.includes('[')
 }
 
-async function* readFileEnvelopes<T>(
-  filePath: string,
-  startLine: number,
-): AsyncGenerator<{ envelope: Envelope<T>; lineIndex: number }> {
+/**
+ * Parse one JSONL line into an Envelope. Malformed JSON or a missing `item`
+ * throws with the `file:line` location of the offending physical line.
+ */
+function parseEnvelopeLine<T>(text: string, filePath: string, lineNumber: number): Envelope<T> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (cause) {
+    throw new Error(`${filePath}:${lineNumber}: invalid JSON — ${(cause as Error).message}`)
+  }
+  if (
+    typeof parsed !== 'object' ||
+    parsed === null ||
+    Array.isArray(parsed) ||
+    !('item' in parsed)
+  ) {
+    throw new Error(
+      `${filePath}:${lineNumber}: invalid envelope — expected a JSON object with an "item" property`,
+    )
+  }
+  const { item, meta } = parsed as { item: T; meta?: unknown }
+  if (meta !== undefined && (typeof meta !== 'object' || meta === null || Array.isArray(meta))) {
+    throw new Error(`${filePath}:${lineNumber}: invalid envelope — "meta" must be an object`)
+  }
+  return { item, meta: (meta as Envelope<T>['meta']) ?? {} }
+}
+
+/** One envelope read from a JSONL file. */
+interface FileLine<T> {
+  envelope: Envelope<T>
+  /** Envelope index among non-blank lines (0-based) — the value used in cursors. */
+  lineIndex: number
+}
+
+/**
+ * Read envelopes from a JSONL file starting at envelope index `startLine`.
+ * Blank lines are skipped and never counted, so the numbering matches the
+ * cursors emitted by glob mode and stays consistent between start and resume.
+ */
+async function* readLines<T>(filePath: string, startLine: number): AsyncGenerator<FileLine<T>> {
   const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
   const rl = createInterface({ input: fileStream, crlfDelay: Number.POSITIVE_INFINITY })
 
+  // Physical line number (1-based) for error messages.
+  let lineNumber = 0
   let lineIndex = 0
   for await (const line of rl) {
+    lineNumber++
     const trimmed = line.trim()
     if (!trimmed) continue
     if (lineIndex < startLine) {
       lineIndex++
       continue
     }
-    yield { envelope: JSON.parse(trimmed) as Envelope<T>, lineIndex }
+    yield { envelope: parseEnvelopeLine<T>(trimmed, filePath, lineNumber), lineIndex }
     lineIndex++
+  }
+}
+
+/**
+ * Read envelopes across several files (glob mode), applying `startLine` only
+ * to the first file.
+ */
+async function* readFiles<T>(files: string[], firstLine: number): AsyncGenerator<FileLine<T>> {
+  let startLine = firstLine
+  for (const file of files) {
+    for await (const entry of readLines<T>(file, startLine)) {
+      yield entry
+    }
+    startLine = 0 // Only apply offset to the first resumed file
   }
 }
 
@@ -69,8 +122,38 @@ function* yieldBatch<T>(batch: Envelope<T>[], batchSize: number): Generator<Enve
 }
 
 /**
+ * Group a line stream into batches of `batchSize` envelopes.
+ */
+async function* yieldBatched<T>(
+  lines: AsyncIterable<FileLine<T>>,
+  batchSize: number,
+): AsyncGenerator<Envelope<T>> {
+  let batch: Envelope<T>[] = []
+  for await (const { envelope } of lines) {
+    batch.push(envelope)
+    if (batch.length >= batchSize) {
+      yield* yieldBatch(batch, batchSize)
+      batch = []
+    }
+  }
+  yield* yieldBatch(batch, batchSize)
+}
+
+function resolveGlobFiles(filePath: string): string[] {
+  const files = globSync(filePath).sort()
+  if (files.length === 0) {
+    throw new Error(`No files matched glob pattern: ${filePath}`)
+  }
+  return files
+}
+
+/**
  * Built-in JSONL Source — reads envelopes from a .jsonl file or glob pattern.
- * Each line is one JSON-encoded Envelope.
+ * Each line is one JSON-encoded Envelope (`{ item, meta? }`); a missing `meta`
+ * defaults to `{}`. Malformed lines throw with a `file:line` location.
+ *
+ * Cursor: for a single file, the envelope index among non-blank lines; for a
+ * glob, `{ fileIndex, line }` (legacy numeric cursors map to the first file).
  *
  * Glob examples:
  *   jsonl://./jsonl/*.jsonl        — all JSONL files in ./jsonl/
@@ -85,55 +168,15 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
       const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
-      const globMode = isGlobPattern(filePath)
-      if (globMode) {
-        const files = globSync(filePath).sort()
-        if (files.length === 0) {
-          throw new Error(`No files matched glob pattern: ${filePath}`)
-        }
-
-        let batch: Envelope<T>[] = []
-        for (const matchedFile of files) {
-          for await (const { envelope } of readFileEnvelopes<T>(matchedFile, 0)) {
-            batch.push(envelope)
-            if (batch.length >= batchSize) {
-              yield* yieldBatch(batch, batchSize)
-              batch = []
-            }
-          }
-        }
-        yield* yieldBatch(batch, batchSize)
+      if (isGlobPattern(filePath)) {
+        yield* yieldBatched(readFiles<T>(resolveGlobFiles(filePath), 0), batchSize)
       } else {
-        const fileStream = createReadStream(filePath, { encoding: 'utf-8' })
-        const rl = createInterface({ input: fileStream, crlfDelay: Number.POSITIVE_INFINITY })
-
-        let batch: Envelope<T>[] = []
-
-        for await (const line of rl) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-
-          const envelope = JSON.parse(trimmed) as Envelope<T>
-          batch.push(envelope)
-
-          if (batch.length >= batchSize) {
-            yield* yieldBatch(batch, batchSize)
-            batch = []
-          }
-        }
-
-        yield* yieldBatch(batch, batchSize)
+        yield* yieldBatched(readLines<T>(filePath, 0), batchSize)
       }
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
       const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
-      const globMode = isGlobPattern(filePath)
-      if (globMode) {
-        const files = globSync(filePath).sort()
-        if (files.length === 0) {
-          throw new Error(`No files matched glob pattern: ${filePath}`)
-        }
-
+      if (isGlobPattern(filePath)) {
         let startFileIndex = 0
         let startLine = 0
 
@@ -144,30 +187,17 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
           // Legacy single-file cursor — treat as first file at given line
           startFileIndex = 0
           startLine = cursor
+        } else {
+          throw new Error(`invalid jsonl cursor: ${JSON.stringify(cursor)}`)
         }
 
-        let batch: Envelope<T>[] = []
-        for (let fileIndex = startFileIndex; fileIndex < files.length; fileIndex++) {
-          for await (const { envelope } of readFileEnvelopes<T>(files[fileIndex], startLine)) {
-            startLine = 0 // Only apply offset to the first resumed file
-            batch.push(envelope)
-            if (batch.length >= batchSize) {
-              yield* yieldBatch(batch, batchSize)
-              batch = []
-            }
-          }
-        }
-        yield* yieldBatch(batch, batchSize)
+        const files = resolveGlobFiles(filePath)
+        yield* yieldBatched(readFiles<T>(files.slice(startFileIndex), startLine), batchSize)
       } else {
-        const cursorLine = cursor as number
-        const content = await readFile(filePath, 'utf-8')
-        const lines = content.split('\n').slice(cursorLine)
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-          yield JSON.parse(trimmed) as Envelope<T>
+        if (typeof cursor !== 'number' || !Number.isInteger(cursor) || cursor < 0) {
+          throw new Error(`invalid jsonl cursor: ${JSON.stringify(cursor)}`)
         }
+        yield* yieldBatched(readLines<T>(filePath, cursor), batchSize)
       }
     },
   }
