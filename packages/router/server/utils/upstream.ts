@@ -1,15 +1,15 @@
 import { poolSupplier as openRouterSupplier } from './openrouter-pool-supplier.js'
 import { type OpenRouterPool, OpenRouterPoolSupplier } from './openrouter-pool.js'
-import { getRouterConfig } from './router-config.js'
 import type { UpstreamKind, UpstreamSpec } from './upstream-spec.js'
+import { effectiveApiKeys, effectiveUpstreamSpecs } from './vault-upstreams.js'
 
 export type { UpstreamKind, UpstreamSpec } from './upstream-spec.js'
 export { upstreamSpecsFromEnv } from './upstream-spec.js'
 
 /**
  * Upstream registry: the set of OpenAI-compatible backends the router can forward to, and the model
- * routing rule that picks one. The registry is derived from the effective router config (env / code);
- * loading entries from a vault is a later concern and only has to feed `RouterConfig.upstreams`.
+ * routing rule that picks one. The registry is derived from the effective router config (env / code)
+ * plus the vault (`vault-upstreams.ts`), and is swapped atomically when either changes.
  */
 
 export const DEFAULT_UPSTREAM = 'openrouter'
@@ -77,6 +77,11 @@ export class UpstreamRegistry {
     return upstream
   }
 
+  /** Re-registers an existing upstream as is, keeping its pool state. */
+  adopt(upstream: Upstream): void {
+    this.upstreams.set(upstream.name, upstream)
+  }
+
   get(name: string): Upstream | undefined {
     return this.upstreams.get(name)
   }
@@ -127,14 +132,31 @@ export function buildRegistry(
 
 let registry: UpstreamRegistry | undefined
 let registrySignature = ''
+const specSignatures = new Map<string, string>()
 
-/** Registry for the effective router config; rebuilt only when keys or upstream specs change. */
+/**
+ * Registry for the effective config (env + code + vault); rebuilt only when keys or upstream specs
+ * change. Upstreams whose spec is unchanged are carried over so their pool state (rate-limit blocks,
+ * disabled keys) survives a reload; the swap is a single assignment.
+ */
 export function getUpstreamRegistry(): UpstreamRegistry {
-  const config = getRouterConfig()
-  const signature = JSON.stringify([config.apiKeys, config.upstreams])
-  if (!registry || signature !== registrySignature) {
-    registry = buildRegistry(config.apiKeys, config.upstreams, openRouterSupplier)
-    registrySignature = signature
+  const apiKeys = effectiveApiKeys()
+  const specs = effectiveUpstreamSpecs()
+  const signature = JSON.stringify([apiKeys, specs])
+  if (registry && signature === registrySignature) return registry
+  const next = buildRegistry(apiKeys, [], openRouterSupplier)
+  const nextSignatures = new Map<string, string>()
+  for (const spec of specs) {
+    if (spec.name === DEFAULT_UPSTREAM) continue
+    const sig = JSON.stringify(spec)
+    nextSignatures.set(spec.name, sig)
+    const previous = registry?.get(spec.name)
+    if (previous && specSignatures.get(spec.name) === sig) next.adopt(previous)
+    else next.register(spec)
   }
+  specSignatures.clear()
+  for (const [k, v] of nextSignatures) specSignatures.set(k, v)
+  registry = next
+  registrySignature = signature
   return registry
 }

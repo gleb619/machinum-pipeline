@@ -51,4 +51,9 @@ describe('router stays standalone (architectural)', () => {
   it('package.json declares no @mt/* dependency', async () => {
     expect(await mtDeps()).toEqual([])
   })
+
+  it('vault-reader.ts imports nothing from core paths', async () => {
+    const source = await readFile(join(srcDir, 'utils', 'vault-reader.ts'), 'utf8')
+    expect(source).not.toMatch(/from\s+['"][^'"]*(packages\/core|\.\.\/core)/)
+  })
 })

@@ -43,13 +43,26 @@ Wraps the router-local pool for use inside Nitro context, building clients from 
 Upstream registry (T117). `Upstream = { name, kind: openrouter|ollama|openai-compat, baseUrl, keys, headers, models, defaultModel }`,
 each with its own `OpenRouterPool` (round-robin / 429 / 402). The default upstream `openrouter` is always present, built from
 `apiKeys`, and reuses the shared pool singleton. Extra upstreams come from `RouterConfig.upstreams` (env
-`MT_ROUTER_UPSTREAMS`, `MT_ROUTER_OLLAMA_URL`, or code; vault feeding is T118).
+`MT_ROUTER_UPSTREAMS`, `MT_ROUTER_OLLAMA_URL`, or code) plus the vault (T118, below).
 
 Routing (`registry.resolve(model)`): `<name>/<model>` where `<name>` is a registered **non-default** upstream routes there and
 the prefix is stripped (`ollama/gemma4:latest` -> ollama, `gemma4:latest`). Everything else — bare ids, `openrouter/free`,
 `openrouter/auto`, unknown prefixes — goes to the default upstream unchanged. Keyless upstreams (no keys) send no
 `Authorization` header. Ollama `baseUrl` gets `/v1` appended if missing. Non-openrouter upstreams log cost 0; log entries gain an
 optional `upstream` field. `/api/pool` adds `upstreams[]` (name, kind, keyless, counts; never key values).
+
+### `server/utils/vault-reader.ts` / `vault-upstreams.ts`
+Vault feeding (T118). `vault-reader.ts` is a **deliberate duplicate** of the read half of `packages/core/src/vault.ts`
+(router must import no `@mt/*`): same format (`{version:1, entries}`), same lookup (`MT_VAULT` only, else `$MT_HOME|~/.mt/vault.json`
+then `<cwd>/.mt/vault.json`, project wins per entry). Keep both in sync. Errors name path + entry only, never content/keys.
+`vault-upstreams.ts` maps entries: `ollama` -> `ollama` (baseUrl default `http://localhost:11434`), `openai`/`custom` ->
+`openai-compat` (baseUrl required), `openrouter` -> keys appended to the default `openrouter` pool (after env keys, deduped),
+`router` ignored, `anthropic`/unusable entries skipped with a warning. Name = entry name; `apiKey`/`apiKeys`, `headers`,
+`models`, `defaultModel` carried over. Env/`RouterConfig.upstreams` win on name conflicts.
+Hot reload: on request, vault file mtimes+size are re-stat'ed at most every 2s (`MT_ROUTER_VAULT_POLL_MS`); on change the
+registry is rebuilt and swapped; unchanged upstreams keep their pool state. Broken file: warning, previous entries kept
+(first load: env-only). Missing vault = env-only. `RouterConfig.vault` / `MT_ROUTER_VAULT=false` disables. `/api/health`
+shows entry names only; no key or file content in `/api/pool`, `/api/dashboard`, logs or errors.
 
 ### `server/utils/cost-tracker.ts`
 - `logCall(model, usage, cost)` — appends to rolling log files under `~/.mt/router/<YYYY-MM-DD>/log.json`
@@ -91,6 +104,9 @@ Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Section
 | `OPENROUTER_API_KEYS` | — | Comma-separated keys |
 | `MT_ROUTER_UPSTREAMS` | — | JSON array of upstream specs `{name,kind,baseUrl,keys?,headers?,models?,defaultModel?}` |
 | `MT_ROUTER_OLLAMA_URL` | — | Registers keyless `ollama` upstream (e.g. `http://gpu:11434`) |
+| `MT_VAULT` | — | Vault file path override (only that file is read) |
+| `MT_ROUTER_VAULT` | `true` | `false` disables vault loading |
+| `MT_ROUTER_VAULT_POLL_MS` | `2000` | Min interval between vault mtime checks |
 | `MT_MOCK` | `false` | Enable mock mode |
 | `PORT` | `7777` | Router listen port |
 | `MT_LOG_RETENTION_DAYS` | `30` | Log file retention |
@@ -100,6 +116,7 @@ Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Section
 ```
 packages/router/tests/
 ├── upstream-registry.test.ts # resolve() + handler routing vs fake upstream
+├── vault-upstreams.test.ts # vault reader, entry mapping, hot reload, no-leak
 ├── routes.arch.test.ts    # Arch: all expected routes exist
 └── middleware.arch.test.ts # Arch: rate-limit middleware shape
 ```

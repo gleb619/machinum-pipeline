@@ -86,6 +86,7 @@ describe('handler routing (live mode, fake upstream)', () => {
       port: 0,
       host: '127.0.0.1',
       mock: false,
+      vault: false,
       logDir: join(dir, 'logs'),
       apiKeys: [],
       upstreams: [

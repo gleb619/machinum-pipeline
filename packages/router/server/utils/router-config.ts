@@ -20,6 +20,8 @@ export interface RouterConfig {
   apiKeys: string[]
   /** Extra upstreams (ollama, openai-compat, ...) besides the default OpenRouter one. */
   upstreams: UpstreamSpec[]
+  /** Load upstreams and keys from the vault file(s); `MT_ROUTER_VAULT=false` disables. */
+  vault: boolean
 }
 
 export type RouterConfigInput = Partial<RouterConfig>
@@ -52,6 +54,7 @@ function fromEnv(): RouterConfig {
     retentionDays: numberFrom(process.env.MT_RETENTION_DAYS, 30),
     apiKeys: envKeys(),
     upstreams: upstreamSpecsFromEnv(),
+    vault: process.env.MT_ROUTER_VAULT !== 'false',
   }
 }
 
@@ -77,6 +80,7 @@ export function setRouterConfig(input: RouterConfigInput = {}): RouterConfig {
     retentionDays: input.retentionDays ?? base.retentionDays,
     apiKeys: input.apiKeys ?? base.apiKeys,
     upstreams: input.upstreams ?? base.upstreams,
+    vault: input.vault ?? base.vault,
   }
   return config
 }

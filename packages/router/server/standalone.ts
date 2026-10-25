@@ -23,6 +23,7 @@ import translateRoute from './routes/api/translate.js'
 import translateConfigRoute from './routes/api/translate/config.js'
 import translateHealthRoute from './routes/api/translate/health.js'
 import { type RouterConfigInput, getRouterConfig, setRouterConfig } from './utils/router-config.js'
+import { resetVaultState } from './utils/vault-upstreams.js'
 
 /**
  * Nitro-free runtime for the LLM router. Mounts the very same h3 handlers that Nitro file-routing
@@ -133,6 +134,7 @@ export function createRouterApp(
 
 export async function startRouter(options: StartRouterOptions = {}): Promise<RouterHandle> {
   const config = setRouterConfig(options)
+  resetVaultState()
   startMockMode()
   await startLogRotation()
 
