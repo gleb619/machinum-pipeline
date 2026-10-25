@@ -257,6 +257,8 @@ Implemented (not part of the TL index above). Full reference: [steering/tools.md
 | `chatCompletion`, `runPrompt` | composable tool (slots `prepare, fit, call, parse, emit`) | Existing LLM tools, now gate-based; same I/O |
 | `llmGate` / `createLlmGate(opts)` | composable tool factory | Generic LLM gate; swap any slot with `.with()` |
 | `openrouterFree` / `OPENROUTER_FREE_LLM` | gate preset | Free-tier OpenRouter: provider `openrouter`, model `openrouter/free`, keys from `OPENROUTER_API_KEYS` / `OPENROUTER_API_KEY`; per-call model override wins |
+| `ollamaTool` / `OLLAMA_LLM` / `OLLAMA_DEFAULTS` | gate preset | Remote GPU server (ollama on `borispc3.ai:7869`): provider `ollama`, endpoint from `MT_OLLAMA_URL` (default `http://borispc3.ai:7869/v1`), model from `MT_OLLAMA_MODEL` (default `gemma4:latest`) |
+| `listOllamaModels`, `ollamaHealth` | helpers | Ollama native API: `GET /api/tags` (model list), `GET /api/version` (health, `ok: false` when unreachable) |
 | `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user`; shares one implementation with `translateText` |
 | `translateText` / `createTranslateText(opts)` | composable tool (slots `prepare, fit, call, parse, emit`) | Chapter translation; default backend router `/api/translate`, `backend: 'llm'` routes via the LLM client |
 | `titleTranslator` / `paragraphTranslator` / `createTitleTranslator(opts)` / `createParagraphTranslator(opts)` | composable tool | Chapter title / paragraph translation; `translate` slot (default `translateText`) swappable via options or `.with({ translate })` |

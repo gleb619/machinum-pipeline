@@ -81,6 +81,12 @@ export interface LlmGateOptions<I, O> {
   mdDescription?: string
   /** Tool-level LLM config (below per-call input, above meta/settings/env). */
   llm?: LlmConfigLayer
+  /**
+   * Preset defaults (below meta/settings, above the generic `MT_LLM_*` env layer): used when
+   * no layer above provides the field. Lets a preset pin its own model/endpoint that the user
+   * still overrides with a provider-specific env var (`MT_OLLAMA_URL`).
+   */
+  llmDefaults?: LlmConfigLayer
   /** Prompt template overrides for this tool: `{ name: text | '@file' }`. */
   prompts?: Record<string, string>
   /** Context-window options for the `fit` slot (no budget configured = no-op). */
@@ -207,6 +213,7 @@ export function llmPrepare<I, O>(opts: LlmGateOptions<I, O>): Tool<I, GateState<
         const cfg = resolveLlmConfigFromCtx(ctx, {
           input: llmLayer,
           tool: opts.llm,
+          defaults: opts.llmDefaults,
           meta: env.meta,
         })
         const request: LlmRequest = {
@@ -324,6 +331,7 @@ export function llmCall<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, Ga
         const cfg = resolveLlmConfigFromCtx(ctx, {
           input: state.llmLayer,
           tool: opts.llm,
+          defaults: opts.llmDefaults,
           meta: env.meta,
         })
         const client =

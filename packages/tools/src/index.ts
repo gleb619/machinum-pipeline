@@ -425,3 +425,17 @@ export {
   type OpenrouterPoolMeta,
   type PinStrategy,
 } from './core/openrouter-pool-tool.js'
+
+export {
+  ollamaTool,
+  ollamaApiRoot,
+  ollamaHealth,
+  listOllamaModels,
+  OLLAMA_LLM,
+  OLLAMA_DEFAULTS,
+  OLLAMA_BASE_URL,
+  OLLAMA_MODEL,
+  type OllamaHealth,
+  type OllamaModelInfo,
+  type OllamaRequestOptions,
+} from './core/ollama-tool.js'

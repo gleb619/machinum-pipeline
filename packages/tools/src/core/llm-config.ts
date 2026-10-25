@@ -63,6 +63,13 @@ export interface ResolveLlmConfigArgs {
   retryDefault?: RetryPolicy
   /** Environment (pass `process.env` merged with `ctx.run.global.env`). */
   env?: Record<string, string | undefined>
+  /**
+   * Preset defaults (e.g. `createLlmGate({ llmDefaults })`): used when no layer above provides
+   * the field. They sit above the generic `MT_LLM_*` env layer, so a preset pins its own
+   * model/endpoint while a provider-specific env var (`MT_OLLAMA_URL`) still overrides it.
+   * The provider is never read from this layer.
+   */
+  defaults?: LlmConfigLayer
 }
 
 export const DEFAULT_ROUTER_URL = 'http://localhost:7777'
@@ -155,6 +162,26 @@ function envLayer(env: Record<string, string | undefined>): LlmConfigLayer {
   }
 }
 
+/**
+ * Provider-specific env vars. They sit above the generic `MT_LLM_*` env layer and below the
+ * per-call / tool / meta / settings layers, so a preset can pin a provider default (e.g. the
+ * ollama endpoint) that the user still overrides with the dedicated env var.
+ */
+function providerEnvLayer(
+  provider: LlmProvider,
+  env: Record<string, string | undefined>,
+): LlmConfigLayer {
+  switch (provider) {
+    case 'ollama':
+      return {
+        model: nonEmpty(env.MT_OLLAMA_MODEL),
+        baseUrl: nonEmpty(env.MT_OLLAMA_URL),
+      }
+    default:
+      return {}
+  }
+}
+
 function parseTransport(v: unknown, where: string): LlmTransportKind | undefined {
   const s = nonEmpty(v)
   if (!s) return undefined
@@ -184,7 +211,7 @@ function envKeys(provider: LlmProvider, env: Record<string, string | undefined>)
 /**
  * Pure LLM config resolution. Precedence per field (first defined wins):
  *
- *   input > tool > meta.llm > mt.json settings (`llm.*`) > env > defaults
+ *   input > tool > meta.llm > mt.json settings (`llm.*`) > provider env > preset defaults > env > defaults
  *
  * Extras: `baseUrl` for provider `router` falls back to ctx `routerUrl`, `MT_ROUTER_URL`, then
  * `http://localhost:7777`; `retry` falls back to ctx `defaults.retry`; API keys never come from `meta`.
@@ -192,15 +219,23 @@ function envKeys(provider: LlmProvider, env: Record<string, string | undefined>)
  */
 export function resolveLlmConfig(args: ResolveLlmConfigArgs = {}): ResolvedLlmConfig {
   const env = args.env ?? {}
-  const layers: Array<[string, LlmConfigLayer]> = [
-    ['input', args.input ?? {}],
-    ['tool', args.tool ?? {}],
-    ['meta', metaLayer(args.meta)],
-    ['settings', settingsLayer(args.settings)],
-    ['env', envLayer(env)],
-  ]
-  for (const [, l] of layers) l.provider = parseProvider(l.provider, 'config')
+  const inputLayer = args.input ?? {}
+  const toolLayer = args.tool ?? {}
+  const metaL = metaLayer(args.meta)
+  const settingsL = settingsLayer(args.settings)
+  const envL = envLayer(env)
+  for (const l of [inputLayer, toolLayer, metaL, settingsL, envL]) {
+    l.provider = parseProvider(l.provider, 'config')
+  }
   const sources: Record<string, string> = {}
+
+  let layers: Array<[string, LlmConfigLayer]> = [
+    ['input', inputLayer],
+    ['tool', toolLayer],
+    ['meta', metaL],
+    ['settings', settingsL],
+    ['env', envL],
+  ]
 
   function pick<K extends keyof LlmConfigLayer>(key: K): LlmConfigLayer[K] | undefined {
     for (const [name, layer] of layers) {
@@ -219,7 +254,20 @@ export function resolveLlmConfig(args: ResolveLlmConfigArgs = {}): ResolvedLlmCo
     return fallback
   }
 
+  // Provider first: the provider-specific env layer depends on it.
   const provider = orDefault<LlmProvider>('provider', pick('provider'), 'router')
+  // Provider env (`MT_OLLAMA_*`) and preset defaults sit above the generic `MT_LLM_*` env layer:
+  // a preset pins its own model/endpoint, the user overrides it with the provider env var.
+  layers = [
+    ['input', inputLayer],
+    ['tool', toolLayer],
+    ['meta', metaL],
+    ['settings', settingsL],
+    ['provider-env', providerEnvLayer(provider, env)],
+    ['preset-defaults', args.defaults ?? {}],
+    ['env', envL],
+  ]
+
   const model = orDefault('model', pick('model'), DEFAULT_MODEL[provider])
 
   let baseUrl = pick('baseUrl')
@@ -322,7 +370,12 @@ export function readCtx(ctx?: ToolContext): CtxView {
 /** Resolve config for a tool invocation straight from ctx + envelope meta. */
 export function resolveLlmConfigFromCtx(
   ctx: ToolContext | undefined,
-  parts: { input?: LlmConfigLayer; tool?: LlmConfigLayer; meta?: Record<string, unknown> } = {},
+  parts: {
+    input?: LlmConfigLayer
+    tool?: LlmConfigLayer
+    defaults?: LlmConfigLayer
+    meta?: Record<string, unknown>
+  } = {},
 ): ResolvedLlmConfig {
   const v = readCtx(ctx)
   return resolveLlmConfig({

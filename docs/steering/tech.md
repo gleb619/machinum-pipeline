@@ -100,6 +100,8 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_LLM_MODEL` | provider default | Default model id |
 | `MT_LLM_BASE_URL` | provider default | API base URL (required for `custom`) |
 | `MT_LLM_API_KEY` | — | API key for any provider (wins over provider-specific vars) |
+| `MT_OLLAMA_URL` | `http://borispc3.ai:7869/v1` (`ollamaTool` preset) | Ollama endpoint (remote GPU server `borispc3.ai:7869`); provider `ollama` only, beats the generic `MT_LLM_BASE_URL` |
+| `MT_OLLAMA_MODEL` | `gemma4:latest` (`ollamaTool` preset) | Ollama model id; provider `ollama` only, beats the generic `MT_LLM_MODEL` |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | — | Provider keys |
 | `MT_LLM_TIMEOUT_MS` | `120000` | Per-call timeout |
 | `MT_LLM_TRANSPORT` | `sdk` when the provider SDK is installed, else `fetch` | `sdk` \| `fetch`; router provider always uses `fetch` |

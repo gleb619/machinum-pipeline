@@ -92,6 +92,21 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   Offline: `.with({ call: mockLlmCall([...]) })` (pin applied in `prepare`) or `client: () => mockLlmClient(...)`
   (re-pin logic lives in the client wrapper, so a replaced `call` slot bypasses re-pin).
 
+### `ollama-tool.ts`
+- `ollamaTool` — gate against the remote GPU server (`ollama` in docker on `borispc3.ai`, host port
+  7869 -> container 11434). Thin preset over `createLlmGate`: tool layer `OLLAMA_LLM`
+  (`{ provider: 'ollama', transport: 'fetch' }` — the server needs no API key, the OpenAI SDK
+  refuses to construct without one), preset defaults `OLLAMA_DEFAULTS`
+  (`baseUrl: http://borispc3.ai:7869/v1`, `model: gemma4:latest`).
+  Endpoint from `MT_OLLAMA_URL`, model from `MT_OLLAMA_MODEL` (both beat the preset defaults,
+  see [LLM config precedence](#llm-config-precedence-resolvellmconfig-pure)). A per-call
+  `model` / `llm` override still wins.
+- `listOllamaModels(baseUrl?)` — models of the server (`GET /api/tags`), returns
+  `{ name, sizeBytes?, digest?, modifiedAt? }[]`.
+- `ollamaHealth(baseUrl?)` — `GET /api/version`; never throws, returns `{ ok, baseUrl, version?, error? }`
+  (`ok: false` when the server is unreachable, e.g. `ECONNREFUSED`).
+- `ollamaApiRoot(baseUrl?)` — native API root of an Ollama base URL (drops the `/v1` suffix).
+
 ### `md-formatter.ts`
 - `mdFormatterTool` — reformats markdown with configurable line width. Uses remark/unified under the hood.
 
@@ -143,13 +158,14 @@ the non-streaming `chatCompletion` path is unchanged.
 
 First defined wins, per field: **call input** (`item.llm`, `item.model`) > **tool option** (`createLlmGate({ llm })`) >
 **`meta.llm`** > **mt.json `settings`** (`llm.provider`, `llm.model`, `llm.baseUrl`, `llm.apiKey`, `llm.timeoutMs`, `llm.retry`, `llm.cache`) >
+**provider env** (`MT_OLLAMA_MODEL`, `MT_OLLAMA_URL`) > **preset defaults** (`createLlmGate({ llmDefaults })`) >
 **env** > **default**.
 
 | Field | Env | Default |
 |---|---|---|
 | provider | `MT_LLM_PROVIDER` | `router` (never inferred from keys) |
-| model | `MT_LLM_MODEL` | `openai/gpt-4o-mini` (router/openrouter), `gpt-4o-mini`, `llama3.1`, `claude-haiku-4-5` |
-| baseUrl | `MT_LLM_BASE_URL`; router: `ctx.routerUrl`, `MT_ROUTER_URL` | provider URL; router `http://localhost:7777` |
+| model | `MT_OLLAMA_MODEL` (provider `ollama`), else `MT_LLM_MODEL` | `openai/gpt-4o-mini` (router/openrouter), `gpt-4o-mini`, `llama3.1`, `claude-haiku-4-5` |
+| baseUrl | `MT_OLLAMA_URL` (provider `ollama`), else `MT_LLM_BASE_URL`; router: `ctx.routerUrl`, `MT_ROUTER_URL` | provider URL; router `http://localhost:7777` |
 | apiKey(s) | `MT_LLM_API_KEY`, `OPENROUTER_API_KEYS` (pool), `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | none |
 | timeoutMs | `MT_LLM_TIMEOUT_MS` | 120000 |
 | retry | (layers) then `ctx.defaults.retry` | `{max:3, backoffMs:1000, strategy:'exp'}` |
