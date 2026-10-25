@@ -17,6 +17,7 @@
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:gpu": "vitest run --config vitest.gpu.config.ts",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {

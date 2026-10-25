@@ -42,12 +42,19 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
    Red → fix, do not commit.
 4. **Commit** — only when the pre-commit gate is green.
 5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
-   (`samples/sample*/tests/`). Red → stay on branch, fix, re-run.
+   (`samples/sample*/tests/`) **and** the GPU gate `pnpm test:gpu` has been **run**. Red → stay on
+   branch, fix, re-run.
 6. **Rebase + FF-merge + cleanup** — rebase the feature branch onto `main` (`git rebase main`),
    then merge → FF only (`git merge --ff-only`) → delete branch + worktree.
    **Regular merge commits are forbidden.** Never use `git merge --no-ff` or merge without rebase.
 
 A merge is allowed only when both gates are green. Any failure returns to the branch, never to main.
+
+**GPU gate (`pnpm test:gpu`)** — `packages/tools/tests/it/*.it.test.ts` hits the real ollama server
+on `borispc3.ai:7869` (health check + one short chat completion, <30s). It is excluded from `pnpm test`
+and must be run explicitly before FF-merge. If the server is unreachable the tests **fail with a clear
+message** — that failure is reported, never silently skipped: a skipped or unrun GPU gate is not a green
+merge, and the merge report must state the `pnpm test:gpu` result (or why it could not run).
 
 ---
 

@@ -115,6 +115,10 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
   rebase onto `main`, then FF-merge only (`git merge --ff-only`) → cleanup.
   **Regular merge commits are forbidden** — never use `git merge --no-ff` or merge without rebase.
   Full state machine: [docs/change-workflow.md](docs/change-workflow.md).
+- **Merge acceptance includes the GPU gate** — run `pnpm test:gpu` (`packages/tools/tests/it/`, real ollama
+  server on `borispc3.ai:7869`: health check + 1 short chat, <30s) before any FF-merge, and report its result.
+  It is excluded from `pnpm test`, so it must be run explicitly. An unreachable server **fails with a clear
+  message** — report that failure; never skip it silently or merge claiming the gate passed.
 - **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse; `cli/` may also import `waypoint/` for URI registration and `backend/standalone` for `mt serve` - lazy, so the CLI starts without h3/SQLite); `frontend/` → backend API only;
   `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
 - **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
