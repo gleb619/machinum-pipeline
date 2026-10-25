@@ -69,6 +69,7 @@ pnpm test           # All tests (workspace + sample integration tests)
 pnpm test --filter=@mt/tools                    # Tests for one package
 pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts   # One test file
 pnpm dev --filter=@mt/core                      # Dev watch mode
+pnpm build:bin                                  # Rebuild the standalone `mt` binary (packages/mt, Bun --compile)
 ```
 
 ## Quick architecture map
@@ -122,6 +123,7 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
 - **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse; `cli/` may also import `waypoint/` for URI registration and `backend/standalone` for `mt serve` - lazy, so the CLI starts without h3/SQLite); `frontend/` → backend API only;
   `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
 - **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
+- **Binary freshness** — after any change to packages embedded in the `mt` binary (`core`/`tools`/`waypoint`/`cli`/`router`/`backend`), rebuild it (`pnpm build:bin`, smoke via `pnpm smoke:bin`). A stale binary silently runs old code.
 - **Do not run git mutations** (commit/push/reset/rebase) unless explicitly asked.
 - **NEVER** `git stash` or `git reset` (`--hard`/`--mixed`/`--soft`) without explicit user approval - working tree
   changes are load-bearing, do not discard them.
