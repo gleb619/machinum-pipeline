@@ -82,5 +82,14 @@ build
 /samples/sample2/chapters/ru/*.md
 /samples/sample2/chapters/schema/*.md
 /samples/sample2/chapters/translate-mock/*.md
+/samples/sample3/vendor/
+/samples/sample3/package-lock.json
+/samples/sample3/runner.log
+/samples/sample3/mt-run.log
+/samples/sample3/jsonl/*.jsonl
+/samples/sample3/chapters/en/*.md
+/samples/sample3/chapters/ru/*.md
+/samples/sample3/chapters/schema/*.md
+/samples/sample3/chapters/translate-mock/*.md
 /docs/docs/plans/
 /docs/locks/*
