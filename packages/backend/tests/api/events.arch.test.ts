@@ -50,9 +50,12 @@ describe('UC-29 - SSE event streaming (architectural)', () => {
     expect(source).toMatch(/data:/)
   })
 
-  it('uses createReadStream for file reading', async () => {
+  it('tails the file via readNewLines (raw-byte createReadStream helper)', async () => {
     const source = await readFile(eventsPath, 'utf-8')
-    expect(source).toMatch(/createReadStream/)
+    expect(source).toMatch(/readNewLines/)
+    const helperPath = join(__dirname, '..', '..', 'server', 'utils', 'read-lines.ts')
+    const helper = await readFile(helperPath, 'utf-8')
+    expect(helper).toMatch(/createReadStream/)
   })
 
   it('uses getRouterParam for id parameter', async () => {

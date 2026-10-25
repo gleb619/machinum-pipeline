@@ -1,6 +1,8 @@
-import { createReadStream, existsSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { createError, defineEventHandler, getQuery, getRouterParam } from 'h3'
+import { readNewLines } from '../../../../utils/read-lines.js'
+import { runDirOf } from '../../../../utils/run-dir.js'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -11,7 +13,7 @@ export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const streamMode = query.stream === 'true'
 
-  const eventsPath = join(process.cwd(), '.mt', 'runs', id, 'events.jsonl')
+  const eventsPath = join(runDirOf(id), 'events.jsonl')
 
   if (!existsSync(eventsPath)) {
     throw createError({ statusCode: 404, statusMessage: 'Run events not found' })
@@ -28,83 +30,42 @@ export default defineEventHandler(async (event) => {
     event.node.res.write(`data: ${data}\n\n`)
   }
 
-  let lastPosition = 0
-
-  const streamExisting = async (): Promise<number> => {
-    return new Promise((resolve, reject) => {
-      const stream = createReadStream(eventsPath, { encoding: 'utf-8' })
-      let position = 0
-
-      stream.on('data', (chunk) => {
-        const data = typeof chunk === 'string' ? chunk : chunk.toString()
-        const lines = data.split('\n').filter((l) => l.trim())
-        for (const line of lines) {
-          try {
-            const evt = JSON.parse(line)
-            sendEvent(evt)
-          } catch {
-            // skip invalid lines
-          }
-        }
-        position += data.length
-      })
-
-      stream.on('end', () => {
-        lastPosition = position
-        resolve(position)
-      })
-
-      stream.on('error', reject)
-    })
+  const sendLines = (lines: string[]) => {
+    for (const line of lines) {
+      try {
+        sendEvent(JSON.parse(line))
+      } catch {
+        // skip invalid lines
+      }
+    }
   }
 
-  await streamExisting()
+  // Replay everything written so far; the offset is byte-accurate, so a later
+  // poll resumes exactly after the last complete line (multi-byte safe).
+  const initial = await readNewLines(eventsPath, 0)
+  let lastPosition = initial.nextOffset
+  sendLines(initial.lines)
 
   if (streamMode) {
     const pollInterval = 500
+    let timer: NodeJS.Timeout | undefined
 
     const poll = async () => {
       if (event.node.req.closed) return
-
       try {
-        const newStream = createReadStream(eventsPath, {
-          encoding: 'utf-8',
-          start: lastPosition,
-        })
-
-        let _foundNew = false
-
-        await new Promise<void>((resolve, reject) => {
-          newStream.on('data', (chunk) => {
-            const data = typeof chunk === 'string' ? chunk : chunk.toString()
-            const lines = data.split('\n').filter((l) => l.trim())
-            for (const line of lines) {
-              try {
-                const evt = JSON.parse(line)
-                sendEvent(evt)
-                _foundNew = true
-              } catch {
-                // skip invalid lines
-              }
-            }
-            lastPosition += data.length
-          })
-
-          newStream.on('end', resolve)
-          newStream.on('error', reject)
-        })
-
-        if (!event.node.req.closed) {
-          setTimeout(poll, pollInterval)
-        }
+        const { lines, nextOffset } = await readNewLines(eventsPath, lastPosition)
+        lastPosition = nextOffset
+        sendLines(lines)
       } catch {
-        if (!event.node.req.closed) {
-          setTimeout(poll, pollInterval)
-        }
+        // file may be mid-rename; retry on the next tick
       }
+      timer = setTimeout(poll, pollInterval)
     }
 
-    poll()
+    timer = setTimeout(poll, pollInterval)
+    event.node.req.on('close', () => {
+      if (timer) clearTimeout(timer)
+    })
   } else {
     event.node.res.write('event: done\ndata: {}\n\n')
     event.node.res.end()

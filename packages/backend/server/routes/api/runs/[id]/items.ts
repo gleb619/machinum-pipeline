@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { appendFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createError, defineEventHandler, getRouterParam, readBody } from 'h3'
+import { runDirOf } from '../../../../utils/run-dir.js'
 
 interface Envelope<T = unknown> {
   item: T
@@ -27,8 +28,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid JSON body' })
   }
 
-  const projectRoot = process.cwd()
-  const runDir = join(projectRoot, '.mt', 'runs', id)
+  const runDir = runDirOf(id)
 
   if (!existsSync(runDir)) {
     throw createError({ statusCode: 404, statusMessage: 'Run not found' })
