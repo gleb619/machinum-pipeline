@@ -1,3 +1,4 @@
+import { access } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { MtConfig, Settings } from '@mt/core'
 import { DEFAULT_MT_CONFIG, Store } from '@mt/core'
@@ -13,17 +14,40 @@ export interface InitOptions {
   projectName?: string
   /** Settings to include in mt.json (triggers sample pipeline creation when provided) */
   settings?: Settings
+  /** Overwrite existing mt.json / pipelines/example.ts instead of failing */
+  force?: boolean
 }
 
 /**
  * `mt init` — scaffold a new Mt project.
  * Creates mt.json, .mt/ directory, and optionally a sample pipeline.
  * Sample pipeline is only created when `settings` are provided.
+ * Refuses to overwrite an existing mt.json or pipelines/example.ts unless `force` is set.
  */
 export async function initCommand(options: InitOptions = {}): Promise<void> {
   const projectRoot = process.cwd()
   const projectName = options.projectName ?? 'my-book-project'
   const hasSettings = options.settings && Object.keys(options.settings).length > 0
+
+  // Guard: never overwrite user files without --force (checked before any write)
+  const configPath = join(projectRoot, 'mt.json')
+  const samplePipelinePath = join(projectRoot, 'pipelines', 'example.ts')
+  const targets = [configPath, ...(hasSettings ? [samplePipelinePath] : [])]
+  const existing: string[] = []
+  for (const target of targets) {
+    try {
+      await access(target)
+      existing.push(target)
+    } catch {
+      // does not exist — safe to write
+    }
+  }
+  if (existing.length > 0 && !options.force) {
+    console.error(
+      `Error: refusing to overwrite existing file(s): ${existing.join(', ')}. Use --force to overwrite.`,
+    )
+    process.exit(1)
+  }
 
   const config: MtConfig = {
     ...DEFAULT_MT_CONFIG,
@@ -34,7 +58,6 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   const store = new Store(join(projectRoot, '.mt'))
 
   // Create mt.json
-  const configPath = join(projectRoot, 'mt.json')
   const { writeFile: fsWriteFile, mkdir } = await import('node:fs/promises')
   await fsWriteFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf-8')
   console.log(`Created ${configPath}`)
@@ -55,7 +78,6 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   if (hasSettings) {
     const pipelinesDir = join(projectRoot, 'pipelines')
     await mkdir(pipelinesDir, { recursive: true })
-    const samplePipelinePath = join(pipelinesDir, 'example.ts')
     const sampleContent = `import { definePipeline, source, target } from '@mt/core'
 
 export default definePipeline({

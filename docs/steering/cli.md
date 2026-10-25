@@ -160,7 +160,7 @@ Details: [docs/vault.md](../vault.md).
 `.mt/vault*`) to `.gitignore`; idempotent, never duplicates a line.
 
 ### `src/utils/args.ts`
-`parseInitArgs()` — parses `mt init` flags (`--force`, `--yes`, `--template`).
+`parseInitArgs()` — parses `mt init` flags (`--settings <json>`/`-s`, `--force`); unknown flags fail with usage. `--force` overwrites an existing `mt.json`/`pipelines/example.ts` (without it `initCommand` refuses, exit 1).
 
 ## Adding a New Command
 

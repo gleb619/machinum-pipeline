@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,6 +14,9 @@ describe('init command (T001)', () => {
     process.chdir(testDir)
 
     vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
+      throw new Error(`exit ${code}`)
+    }) as () => never)
   })
 
   afterEach(async () => {
@@ -49,13 +52,19 @@ describe('init command (T001)', () => {
     expect(config.project.name).toBe('custom-book-name')
   })
 
-  it('T001-03: idempotent - can be run multiple times', async () => {
+  it('T001-03: rerun requires --force (T153)', async () => {
     await initCommand({ projectName: 'first-run' })
-    await expect(initCommand({ projectName: 'second-run' })).resolves.not.toThrow()
+    await expect(initCommand({ projectName: 'second-run' })).rejects.toThrow('exit 1')
 
+    // File untouched
     const configContent = await readFile(join(testDir, 'mt.json'), 'utf-8')
     const config = JSON.parse(configContent)
-    expect(config.project.name).toBe('second-run')
+    expect(config.project.name).toBe('first-run')
+
+    // With force it overwrites
+    await initCommand({ projectName: 'second-run', force: true })
+    const forcedContent = await readFile(join(testDir, 'mt.json'), 'utf-8')
+    expect(JSON.parse(forcedContent).project.name).toBe('second-run')
   })
 
   it('T001-04: registers sample pipeline in mt.json when settings provided', async () => {
@@ -132,7 +141,7 @@ describe('init command (T001)', () => {
     await writeFile(join(testDir, '.gitignore'), 'node_modules/\n.mt/\n', 'utf-8')
 
     await initCommand({})
-    await initCommand({})
+    await initCommand({ force: true })
 
     const gitignore = await readFile(join(testDir, '.gitignore'), 'utf-8')
     expect(gitignore).toContain('node_modules/')
@@ -140,6 +149,67 @@ describe('init command (T001)', () => {
     expect(gitignore.match(/^vault\.json$/gm)).toHaveLength(1)
     expect(gitignore.match(/^\*\.vault\.json$/gm)).toHaveLength(1)
     expect(gitignore.match(/^\.mt\/vault\*$/gm)).toHaveLength(1)
+  })
+
+  it('T153-01: refuses to overwrite an edited mt.json and exits 1', async () => {
+    await initCommand({})
+    const edited = '{"project":{"name":"edited"}}\n'
+    await writeFile(join(testDir, 'mt.json'), edited, 'utf-8')
+
+    await expect(initCommand({})).rejects.toThrow('exit 1')
+
+    expect(await readFile(join(testDir, 'mt.json'), 'utf-8')).toBe(edited)
+  })
+
+  it('T153-02: --force overwrites an existing mt.json', async () => {
+    await initCommand({})
+    const edited = '{"project":{"name":"edited"}}\n'
+    await writeFile(join(testDir, 'mt.json'), edited, 'utf-8')
+
+    await initCommand({ force: true })
+
+    const config = JSON.parse(await readFile(join(testDir, 'mt.json'), 'utf-8'))
+    expect(config.project.name).toBe('my-book-project')
+  })
+
+  it('T153-03: keeps an existing pipelines/example.ts without --force', async () => {
+    await mkdir(join(testDir, 'pipelines'), { recursive: true })
+    const edited = '// my custom pipeline\n'
+    await writeFile(join(testDir, 'pipelines/example.ts'), edited, 'utf-8')
+
+    await expect(initCommand({ settings: { 'tool.translator.model': 'gpt-4' } })).rejects.toThrow(
+      'exit 1',
+    )
+
+    expect(await readFile(join(testDir, 'pipelines/example.ts'), 'utf-8')).toBe(edited)
+    // mt.json must not have been written either
+    await expect(access(join(testDir, 'mt.json'))).rejects.toThrow()
+  })
+
+  it('T153-04: --force overwrites an existing pipelines/example.ts', async () => {
+    await mkdir(join(testDir, 'pipelines'), { recursive: true })
+    const edited = '// my custom pipeline\n'
+    await writeFile(join(testDir, 'pipelines/example.ts'), edited, 'utf-8')
+
+    await initCommand({ settings: { 'tool.translator.model': 'gpt-4' }, force: true })
+
+    const pipelineContent = await readFile(join(testDir, 'pipelines/example.ts'), 'utf-8')
+    expect(pipelineContent).toContain('definePipeline')
+    expect(pipelineContent).not.toBe(edited)
+  })
+
+  it('T153-05: error message names the existing file and --force', async () => {
+    await initCommand({})
+
+    let errorOutput = ''
+    vi.spyOn(console, 'error').mockImplementation((msg: unknown) => {
+      errorOutput += String(msg)
+    })
+
+    await expect(initCommand({})).rejects.toThrow('exit 1')
+
+    expect(errorOutput).toContain('mt.json')
+    expect(errorOutput).toContain('--force')
   })
 
   it('T116-03: leaves an existing .gitignore untouched when it already covers the patterns', async () => {

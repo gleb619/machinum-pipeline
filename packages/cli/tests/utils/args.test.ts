@@ -69,8 +69,35 @@ describe('parseInitArgs', () => {
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Invalid JSON'))
   })
 
-  it('ignores unknown flags', () => {
-    const result = parseInitArgs(['--unknown', 'value', 'my-project'])
-    expect(result).toEqual({ projectName: 'my-project' })
+  it('parses --force flag (T153)', () => {
+    const result = parseInitArgs(['--force'])
+    expect(result).toEqual({ force: true })
+  })
+
+  it('parses --force with project name and settings (T153)', () => {
+    const result = parseInitArgs(['my-project', '--force', '--settings', '{"model":"gpt-4"}'])
+    expect(result).toEqual({
+      projectName: 'my-project',
+      force: true,
+      settings: { model: 'gpt-4' },
+    })
+  })
+
+  it('errors on unknown flags (T153)', () => {
+    vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
+      throw new Error(`exit ${code}`)
+    }) as () => never)
+
+    expect(() => parseInitArgs(['--bogus'])).toThrow('exit 1')
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('--bogus'))
+  })
+
+  it('errors on unknown short flags (T153)', () => {
+    vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
+      throw new Error(`exit ${code}`)
+    }) as () => never)
+
+    expect(() => parseInitArgs(['-f'])).toThrow('exit 1')
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('-f'))
   })
 })
