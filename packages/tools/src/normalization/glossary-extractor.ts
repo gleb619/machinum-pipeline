@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { defineTool } from '@mt/core'
 import type { Envelope } from '@mt/core'
 import { compileTermMatcher, countTerms, mapProse } from './term-tagger.js'
@@ -236,6 +237,15 @@ export function parseGlossary(json: string): Glossary | undefined {
     const raw = JSON.parse(json) as Partial<Glossary>
     if (!raw || !Array.isArray(raw.terms)) return undefined
     return { terms: raw.terms, ...(raw.ignored ? { ignored: raw.ignored } : {}) }
+  } catch {
+    return undefined
+  }
+}
+
+/** Reads and parses a `glossary.json` file; `undefined` when absent or malformed. */
+export async function readGlossaryFile(path: string): Promise<Glossary | undefined> {
+  try {
+    return parseGlossary(await readFile(path, 'utf-8'))
   } catch {
     return undefined
   }

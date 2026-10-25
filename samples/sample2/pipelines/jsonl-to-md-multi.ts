@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { definePipeline, defineTool } from '@mt/core'
 import type { MdOutputEntry } from '@mt/core'
 import {
@@ -19,6 +20,7 @@ import {
   mdFormatter,
   mdOutputEmitter,
   paragraphTranslator,
+  pickLlmTool,
   schemaDocWriter,
   titleTranslator,
   toMarkdown,
@@ -30,7 +32,6 @@ import {
   wordCounter,
 } from '@mt/tools'
 import '@mt/waypoint'
-import { pickLlmTool } from './llm-picker.js'
 
 // === LLM backend (single config point) ===
 // `MT_LLM_TOOL` picks the backend (router | openrouter-free | openrouter-pool | ollama | mock),
@@ -38,6 +39,7 @@ import { pickLlmTool } from './llm-picker.js'
 // file-based fallback (env wins). Default is `mock`: offline, no API key, no router.
 // Every LLM-backed tool below is wired to this one choice.
 const llm = pickLlmTool({
+  configPath: join(import.meta.dirname, '..', 'mt.json'),
   mockSource: (req: LlmRequest) =>
     `mock-summary(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
 })

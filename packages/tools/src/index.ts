@@ -509,3 +509,57 @@ export {
   type OllamaModelInfo,
   type OllamaRequestOptions,
 } from './core/ollama-tool.js'
+
+export {
+  LLM_TOOLS,
+  readLlmConfig,
+  pickLlmTool,
+  type LlmTool,
+  type LlmConfig,
+  type LlmChoice,
+  type PickLlmToolOptions,
+} from './core/llm-picker.js'
+
+export {
+  toChapterRecord,
+  chapterRecordMapper,
+  lineTextToMarkdown,
+  unwrapMarkdownText,
+  type RawChapter,
+  type ChapterRecord,
+} from './normalization/chapter-record.js'
+export {
+  createLlmTypoFix,
+  LLM_TYPO_FIX_PROMPT,
+  type LlmTypoFixOptions,
+} from './normalization/llm-typo-fix.js'
+export {
+  createLlmSummaryWithFallback,
+  type LlmSummaryToolOptions,
+} from './normalization/llm-summary.js'
+export { readGlossaryFile } from './normalization/glossary-extractor.js'
+export {
+  analyzeOutputs,
+  createAnalyzeOutputs,
+  type AnalyzeOutputsOptions,
+} from './modification/analyze-outputs.js'
+export {
+  onlyChapters,
+  translateConcurrency,
+  loadGlossaryOrEmpty,
+  loadChapterSummary,
+  createGlossaryTitleTranslator,
+  chaptersToTitleInputs,
+  createChapterBodyTranslator,
+  translateTaggedChapter,
+  titleOf,
+  TITLE_RULES,
+  type GlossaryTitleTranslatorOptions,
+  type ChapterBodyTranslatorOptions,
+  type TranslateLinesOptions,
+} from './normalization/translation-stage.js'
+export { chapterPairsLinter } from './verification/chapter-pairs-linter.js'
+export {
+  createTranslateOutputs,
+  type TranslateOutputsOptions,
+} from './modification/translate-outputs.js'

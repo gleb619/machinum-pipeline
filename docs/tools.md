@@ -271,3 +271,18 @@ Implemented (not part of the TL index above). Full reference: [steering/tools.md
 | `createLlmClient(cfg, ctx)`, `withTimeout`, `withLlmRetry`, `withCache` | client layer | Provider adapters (OpenAI-compatible, Anthropic) + decorators; optional `chatCompletionStream` aggregates deltas |
 | `createOpenAiSdkClient`, `createAnthropicSdkClient`, `createSdkAdapter` | SDK transports | Official `openai` / `@anthropic-ai/sdk` adapters (lazy-loaded); same typed errors + pool 429/402 behaviour as the fetch adapters |
 | `resolveLlmConfig`, `resolvePrompt`, `resolveContextConfig` | pure resolvers | Config / prompt / context precedence (config key `llm.transport`: `sdk` \| `fetch`) |
+
+### Sample-stage tools (T129)
+
+Details: [steering/tools.md](steering/tools.md#sample-stage-tools-moved-from-samplessample3-t129).
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `pickLlmTool`, `readLlmConfig`, `LLM_TOOLS` | helper | `MT_LLM_TOOL` / `MT_LLM_MODEL` / `MT_LLM_USE` backend pick shared by sample2/sample3 (pass `configPath`) |
+| `chapterRecordMapper`, `toChapterRecord`, `lineTextToMarkdown`, `unwrapMarkdownText` | tools | Raw `{key,value}` line -> chapter text -> markdown `{ text }` -> string |
+| `createLlmTypoFix`, `createLlmSummaryWithFallback` | tool factories | Optional LLM steps (`enabled` flag), safe fallbacks |
+| `readGlossaryFile` | helper | Load `glossary.json` for `createGlossaryExtractor({ load })` |
+| `analyzeOutputs` / `createAnalyzeOutputs` | tool | Summaries, tagged copies and glossary as `md://` write intents |
+| `chaptersToTitleInputs`, `createGlossaryTitleTranslator`, `createChapterBodyTranslator`, `translateTaggedChapter`, `onlyChapters`, `translateConcurrency` | tools / helpers | EN->RU translate stage building blocks |
+| `chapterPairsLinter` | tool | `lineParityLinter` over every EN/RU pair of a batch |
+| `createTranslateOutputs` | tool factory | `ru/chapter<N>.md` + merged `titles.json` write intents |

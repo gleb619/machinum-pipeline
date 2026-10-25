@@ -15,11 +15,11 @@ Every stage is offline by default (mock LLM backend, optional LLM steps switched
 
 ## What you will learn
 
-- How to map a raw record to a chapter record in a small `defineTool`.
+- How to map a raw record to a chapter record with `chapterRecordMapper` (no bespoke tools: every step comes from `@mt/tools`).
 - How to use the `textNormalizer` tool (quotes, dashes, ellipsis, invisible/stray symbols, blank
   lines, punctuation spacing; one paragraph per line, `[system messages]` kept).
 - How to chain `typoFinder` and `markdownFormatter`, then emit with `mdOutputEmitter` into `@en`.
-- How to plug an optional LLM typo-fix step via the sample2 `llm-picker` pattern.
+- How to plug an optional LLM typo-fix step via `pickLlmTool` + `createLlmTypoFix` from `@mt/tools`.
 - How to build a cross-chapter glossary with `.batch()` + `createGlossaryExtractor` and keep the
   hand edits (`ru`, `type`, `aliases`) on re-run, then tag the text with `termTagger` so the next
   stage knows which term is which.
@@ -35,7 +35,6 @@ sample3/
 ├── pipelines/analyze.ts      # stage 2: summaries + glossary + <term> tagging
 ├── pipelines/translate.ts    # stage 3: titles + line-by-line EN->RU with parity linter
 ├── lint-parity.ts            # standalone EN/RU parity check (no mt needed)
-├── pipelines/llm-picker.ts   # MT_LLM_TOOL / MT_LLM_MODEL pick (default: offline mock)
 ├── prepare-input.ts          # wraps raw {key,value} lines into {item} envelopes
 ├── jsonl/                    # raw input; generated input.jsonl is gitignored
 ├── chapters/{en,ru}/         # outputs (gitignored *.md)
@@ -116,7 +115,7 @@ first!). Writes `chapters/ru/chapter<N>.md` and `chapters/titles.json`.
 - Each reply is checked with `lintLineParity`; a bad reply throws a retryable `LineParityError`, the engine retries
   (lines that already passed are memoised), and the run finally fails with the lint message. The finished chapter
   goes through `lineParityLinter` once more before it is written.
-- Env: `MT_LLM_TOOL`, `MT_LLM_MODEL` (llm-picker), `MT_ONLY_CHAPTERS` (e.g. `1,3`), `MT_TRANSLATE_CONCURRENCY`,
+- Env: `MT_LLM_TOOL`, `MT_LLM_MODEL` (`pickLlmTool` from `@mt/tools`), `MT_ONLY_CHAPTERS` (e.g. `1,3`), `MT_TRANSLATE_CONCURRENCY`,
   `MT_TRANSLATE_PROMPT_LOG` (mock backend only: jsonl dump of every prompt, used by the test).
 
 ## How to clean up

@@ -87,6 +87,31 @@ Building blocks of the sample3 translate stage (EN->RU, line by line).
   `LineParityError` (`retryable: true`) so the engine retry kicks in; after the last attempt the run fails with the
   message. Standalone check without `mt`: `samples/sample3/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
 
+### Sample-stage tools (moved from `samples/sample3`, T129)
+Reusable glue so sample pipelines only compose package tools (no bespoke `defineTool`).
+
+- `core/llm-picker.ts` — `pickLlmTool({ env, mockSource, configPath })` / `readLlmConfig` / `LLM_TOOLS`: single LLM
+  config point (`MT_LLM_TOOL`, `MT_LLM_MODEL`, `MT_LLM_USE`, mt.json `settings.llm.*`; default offline `mock`).
+  Returns `{ tool, model, gate, schemaCall, translate }`. Pass `configPath` = the project's `mt.json`
+  (default `./mt.json` of the cwd). Shared by sample2 and sample3.
+- `normalization/chapter-record.ts` — `toChapterRecord`, `chapterRecordMapper` (raw `{key,value}` -> `"title\nbody"`,
+  `meta.chapterNum`), `lineTextToMarkdown` (first line -> `# title`, other lines -> paragraphs, `{ text }`),
+  `unwrapMarkdownText` (`{ text }` -> string, undoes remark `\[` escaping).
+- `normalization/llm-typo-fix.ts` — `createLlmTypoFix({ call, enabled })`: rejects replies that change the line count.
+- `normalization/llm-summary.ts` — `createLlmSummaryWithFallback({ call, enabled })`: LLM summary, heuristic summary
+  (`meta.heuristicSummaryByItem`) when the loop guard fell back. `enabled: false` = pass-through.
+- `normalization/glossary-extractor.ts` — `readGlossaryFile(path)` (for `createGlossaryExtractor({ load })`).
+- `modification/analyze-outputs.ts` — `analyzeOutputs` / `createAnalyzeOutputs({ summaryDir, taggedDir, glossaryFile })`:
+  `meta.mdOutputs` for `schema/chapter<N>.summary.md`, `en-tagged/chapter<N>.md`, `glossary.json`.
+- `normalization/translation-stage.ts` — `onlyChapters()` (`MT_ONLY_CHAPTERS`), `translateConcurrency()`
+  (`MT_TRANSLATE_CONCURRENCY`), `chaptersToTitleInputs`, `createGlossaryTitleTranslator({ call, chaptersDir })` (slot for
+  `createTitleTranslator`), `createChapterBodyTranslator({ call, chaptersDir })` (per-line translate with glossary +
+  summary injection and retry memo), `translateTaggedChapter`, `titleOf`. `chaptersDir` holds `glossary.json` and
+  `schema/chapter<N>.summary.md`.
+- `verification/chapter-pairs-linter.ts` — `chapterPairsLinter`: `lineParityLinter` over each `{ en, ru }` pair,
+  `meta.parityByChapter`.
+- `modification/translate-outputs.ts` — `createTranslateOutputs({ chaptersDir })`: `ru/chapter<N>.md` + merged `titles.json`.
+
 ### `chapter-translator.ts`
 Higher-level translation tools, composable:
 - `titleTranslator` / `createTitleTranslator({ translate })` — slots `extract -> translate -> assemble`

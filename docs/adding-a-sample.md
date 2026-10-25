@@ -75,6 +75,7 @@ pnpm test                           # all samples still green
 
 ## Rules
 
+- Samples compose package tools: no bespoke `defineTool` in sample pipelines except tiny glue (prefer the DSL: `.flatMap`, `.tap`, `.batch`, `mt.json`); reusable tools go to the packages (`@mt/tools`) with tests and docs.
 - Sample = teaching material: small, readable, one idea, comments only where the DSL isn't obvious.
 - No secrets / API keys; no external services in tests.
 - Output dirs must be wiped by `cleanup` script and test `cleanup()`.

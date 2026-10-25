@@ -1,5 +1,5 @@
 /**
- * Single LLM config point of this sample.
+ * Single LLM config point of a pipeline (shared by the samples).
  *
  * - `MT_LLM_TOOL` picks the backend: `router` | `openrouter-free` | `openrouter-pool` |
  *   `ollama` | `mock` (default `mock` - offline, no API key, no router).
@@ -10,29 +10,34 @@
  * - `mt.json` -> `settings.llm.tool` / `settings.llm.model` are the file-based fallback;
  *   the env vars win over them.
  *
- * Everything the pipeline sends to an LLM (the optional typo-fix step) goes through the
- * returned {@link LlmChoice}.
+ * Everything the pipeline sends to an LLM (schema-doc extractors, chapter translators,
+ * typo fix, line translation) goes through the returned {@link LlmChoice}.
+ * Pass `configPath` (the project's mt.json); the default is `./mt.json` of the cwd.
  */
 import { readFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { defineTool, parseVaultRef } from '@mt/core'
 import type { ComposableTool, Tool, ToolContext } from '@mt/core'
+import type { SchemaDocLlmCall } from '../normalization/schema/llm.js'
 import {
-  type ChatCompletionInput,
-  type ChatCompletionOutput,
   type GateInput,
   type GateOutput,
   type GateSlot,
   type GateState,
   type MockSource,
-  OLLAMA_MODEL,
-  type SchemaDocLlmCall,
   llmGate,
   mockLlmCall,
-  ollamaTool,
-  openrouterFree,
-  openrouterPool,
-} from '@mt/tools'
+} from './llm-gate.js'
+import { OLLAMA_MODEL, ollamaTool } from './ollama-tool.js'
+import { openrouterFree } from './openrouter-free.js'
+import { openrouterPool } from './openrouter-pool-tool.js'
+import type { ChatCompletionInput, ChatCompletionOutput } from './openrouter-tool.js'
+import {
+  type TranslateInput,
+  type TranslateOutput,
+  translateNormalize,
+  translateToOutput,
+} from './translate-text.js'
 
 /** Backends selectable with `MT_LLM_TOOL`. */
 export const LLM_TOOLS = ['router', 'openrouter-free', 'openrouter-pool', 'ollama', 'mock'] as const
@@ -58,7 +63,7 @@ export interface LlmConfig {
   use?: string
 }
 
-/** The picked backend, wired for every LLM-backed tool of the sample. */
+/** The picked backend, wired for every LLM-backed tool of the pipeline. */
 export interface LlmChoice {
   /** Selected backend (`MT_LLM_TOOL`). */
   tool: LlmTool
@@ -68,6 +73,8 @@ export interface LlmChoice {
   gate: ComposableTool<GateInput, GateOutput, GateSlot>
   /** `call` backend for the schema-doc tools (summary / entities / schema). */
   schemaCall: SchemaDocLlmCall
+  /** `translate` slot for the chapter translators (title / paragraph). */
+  translate: Tool<TranslateInput, TranslateOutput>
 }
 
 export interface PickLlmToolOptions {
@@ -75,12 +82,12 @@ export interface PickLlmToolOptions {
   env?: Record<string, string | undefined>
   /** Scripted answers of the offline `mock` backend. */
   mockSource?: MockSource
-  /** mt.json to read `settings.llm.*` from. Default: the mt.json next to the pipeline. */
+  /** mt.json to read `settings.llm.*` from. Default: `./mt.json` of the cwd. */
   configPath?: string
 }
 
-/** mt.json of this sample (next to the pipeline). */
-const MT_JSON = join(resolve(import.meta.dirname, '..'), 'mt.json')
+/** Default mt.json: the one in the working directory. */
+const defaultConfigPath = () => join(process.cwd(), 'mt.json')
 
 /** `settings` of mt.json (empty when the file is missing or malformed). */
 function readProjectSettings(configPath: string): Record<string, unknown> {
@@ -112,7 +119,7 @@ function parseTool(value: string): LlmTool {
  */
 export function readLlmConfig(
   env: Record<string, string | undefined> = process.env,
-  configPath: string = MT_JSON,
+  configPath: string = defaultConfigPath(),
 ): LlmConfig {
   const settings = readProjectSettings(configPath)
   const tool = parseTool(env.MT_LLM_TOOL ?? text(settings['llm.tool']) ?? 'mock')
@@ -192,17 +199,52 @@ async function callGate(
 }
 
 /**
- * Pick the LLM backend and wire it for the LLM-backed tools of the sample.
+ * Translator that reuses the picked gate: its slots run in the usual order, only the
+ * input mapping (translate prompts) and the output shape (translated text) are local.
+ */
+function translateTool(
+  gate: ComposableTool<GateInput, GateOutput, GateSlot>,
+): Tool<TranslateInput, TranslateOutput> {
+  const normalize = translateNormalize()
+  const prepare = gate.slots.prepare as Tool<GateInput, GateState>
+  const fit = gate.slots.fit as Tool<GateState, GateState>
+  const call = gate.slots.call as Tool<GateState, GateState>
+  const parse = gate.slots.parse as Tool<GateState, GateState>
+
+  return defineTool<TranslateInput, TranslateOutput>({
+    name: 'picked-translate',
+    version: '1.0.0',
+    mdDescription: 'Translates text through the selected LLM backend (MT_LLM_TOOL).',
+    async invoke(env, ctx) {
+      const gateInput: GateInput = { ...normalize(env.item) }
+      let state = (await prepare.invoke({ item: gateInput, meta: env.meta }, ctx)).item
+      state = (await fit.invoke({ item: state, meta: env.meta }, ctx)).item
+      state = (await call.invoke({ item: state, meta: env.meta }, ctx)).item
+      state = (await parse.invoke({ item: state, meta: env.meta }, ctx)).item
+      return {
+        item: translateToOutput(state as unknown as GateState<TranslateInput>),
+        meta: env.meta,
+      }
+    },
+  })
+}
+
+/**
+ * Pick the LLM backend and wire it for every LLM-backed tool of the pipeline.
  *
  * ```ts
  * const llm = pickLlmTool()
- * const reply = await llm.schemaCall({ messages: [...] }, ctx)
+ * const summary = createSummaryTool({ model: llm.model, call: llm.schemaCall })
+ * const titles = createTitleTranslator({ translate: llm.translate })
  * ```
  */
 export function pickLlmTool(options: PickLlmToolOptions = {}): LlmChoice {
-  const config = readLlmConfig(options.env ?? process.env, options.configPath ?? MT_JSON)
+  const config = readLlmConfig(
+    options.env ?? process.env,
+    options.configPath ?? defaultConfigPath(),
+  )
   const env = options.env ?? process.env
-  const configPath = options.configPath ?? MT_JSON
+  const configPath = options.configPath ?? defaultConfigPath()
   const pinModel = Boolean(env.MT_LLM_MODEL ?? text(readProjectSettings(configPath)['llm.model']))
   const gate = withModel(
     gateFor(config.tool, options.mockSource ?? ['mock']),
@@ -214,5 +256,6 @@ export function pickLlmTool(options: PickLlmToolOptions = {}): LlmChoice {
     model: config.model,
     gate,
     schemaCall: (input, ctx) => callGate(gate, input, ctx),
+    translate: translateTool(gate),
   }
 }

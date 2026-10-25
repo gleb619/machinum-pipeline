@@ -67,7 +67,6 @@ Nothing else changes: same pipeline, same tools — only the backend behind them
 ```
 samples/sample2/
 ├── pipelines/jsonl-to-md-multi.ts   # Pipeline definition (subflow orchestration)
-├── pipelines/llm-picker.ts          # LLM backend picker (MT_LLM_TOOL / MT_LLM_MODEL)
 ├── prepare-input.ts                 # Script to read books/book1 chapters and create JSONL input
 ├── mt.json                          # Project configuration
 ├── vitest.config.ts                 # Vitest configuration
@@ -81,7 +80,6 @@ samples/sample2/
 └── tests/
     ├── jsonl-to-md-multi.test.ts    # Integration test (runs the real `mt` binary)
     ├── chapter-processing.test.ts   # Unit tests over the tools used by the flows
-    └── llm-picker.test.ts           # Unit tests over the LLM config point
 ```
 
 ## Pipeline flow
@@ -282,7 +280,7 @@ The integration test (`tests/jsonl-to-md-multi.test.ts`):
 `forbiddenCharDetector`, `typoFinder`, `markdownFormatter`) by importing them from `packages/tools/src`,
 without running the CLI.
 
-`tests/llm-picker.test.ts` covers the LLM config point: the default is the offline `mock` backend,
+`pickLlmTool` / `readLlmConfig` come from `@mt/tools` (`packages/tools/tests/llm-picker.test.ts` covers the LLM config point): the default is the offline `mock` backend,
 `MT_LLM_TOOL` / `MT_LLM_MODEL` select the backend and the model, `mt.json` `settings.llm.*` is the
 file-based fallback, an unknown backend fails fast, and the picked backend answers without network.
 

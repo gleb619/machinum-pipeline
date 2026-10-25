@@ -4,8 +4,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import type { ToolContext } from '@mt/core'
-import { mockLlmCall } from '@mt/tools'
-import { pickLlmTool, readLlmConfig } from '../pipelines/llm-picker.js'
+import { mockLlmCall } from '../src/core/llm-gate.js'
+import { pickLlmTool, readLlmConfig } from '../src/core/llm-picker.js'
 
 const ctx = { run: { global: {} } } as unknown as ToolContext
 
