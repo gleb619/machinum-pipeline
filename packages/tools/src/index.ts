@@ -151,6 +151,7 @@ export {
   slugify,
   parseGlossary,
   serializeGlossary,
+  mergeReportedTerms,
   chapterNumberOf,
   type GlossaryChapter,
   type GlossaryExtractOptions,
@@ -173,6 +174,8 @@ export {
   cleanTranslation,
   joinReplyLines,
   termIdsIn,
+  parseReportedTerms,
+  type ReportedTerm,
   type TranslationPrompt,
   type TranslationPromptInput,
 } from './normalization/translation-prompt.js'

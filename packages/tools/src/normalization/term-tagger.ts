@@ -19,6 +19,8 @@ export interface GlossaryTerm {
   ru: string | null
   /** Other EN surface forms tagged with the same id. */
   aliases: string[]
+  /** Model-reported RU translations awaiting human approval (never auto-applied). */
+  pending?: string[]
 }
 
 /** `chapters/glossary.json` shape. */
@@ -26,6 +28,8 @@ export interface Glossary {
   terms: GlossaryTerm[]
   /** Terms the extractor must never propose again (human-maintained). */
   ignored?: string[]
+  /** RU values the human rejected: auto-merge never applies or re-queues them. */
+  rejected?: string[]
 }
 
 const TAG_RE = /<term id="[^"]*">([\s\S]*?)<\/term>/g

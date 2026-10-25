@@ -67,7 +67,11 @@ Offline (no LLM) analysis tools, all accept a single `env.item` or a batched `en
   (`character|place|item|skill|term`), `count`, `firstChapter`. `buildGlossary(chapters, existing)` merges into an
   existing glossary: existing entries keep `id/type/ru/aliases` and manual edits (human-added terms too), only
   `count/firstChapter` are recounted; `ignored` terms are never re-added. Result in `meta.glossary` / `meta.glossaryJson`.
-  Shape: `{ terms: [{ id, term, type, count, firstChapter, ru, aliases }], ignored? }`.
+  Shape: `{ terms: [{ id, term, type, count, firstChapter, ru, aliases, pending? }], ignored?, rejected? }`.
+- `mergeReportedTerms(existing, reported)` (T139) — conservative auto-merge of model-reported terms
+  (`parseReportedTerms` output): new terms are auto-added (reported `type`/`ru`, unique slug id, `count: 0`),
+  never renames an existing entry — a differing `ru` is queued in `term.pending`; values in `rejected` are
+  never applied or re-queued; `ignored` terms are never added. Pure (no input mutation).
 - `termTagger` / `tagTerms(text, glossary)` — wraps occurrences as `<term id="ID">text</term>` (longest match
   first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
   `meta.taggedItems` (item untouched). `stripTerms(tagged)` restores the original text exactly.
@@ -77,9 +81,12 @@ Building blocks of the sample3 translate stage (EN->RU, line by line).
 
 - `buildTranslationPrompt({ text, glossary, summary, extraRules })` — `{ systemPrompt, userPrompt, usedTerms,
   untranslatedTerms }`. Injects ONLY glossary entries whose `<term id>` occurs in `text` (`term = ru`); terms with
-  `ru: null` get a "transliterate consistently" block; the chapter summary is added as context only. `userPrompt` is
-  the text with `<term>` tags stripped. `cleanTranslation(reply)` drops `<think>` blocks and `<term>` tags;
-  `termIdsIn(text)` lists tag ids.
+  `ru: null` get a "transliterate consistently" block; the chapter summary is added as context only. The system
+  prompt ends with a rule asking for a trailing `<terms>[...]</terms>` JSON block reporting source terms NOT in the
+  glossary. `userPrompt` is
+  the text with `<term>` tags stripped. `cleanTranslation(reply)` drops `<think>` blocks, `<terms>` report blocks
+  and `<term>` tags; `parseReportedTerms(reply)` (zod-validated, never throws) parses the report into
+  `ReportedTerm[]` (invalid entries dropped, deduped case-insensitively); `termIdsIn(text)` lists tag ids.
 - `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,
   cyrillicSeverity })` — `{ en, ru }` item in/out, `meta.parity` = `{ ok, enLines, ruLines, errors, warnings,
   cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,

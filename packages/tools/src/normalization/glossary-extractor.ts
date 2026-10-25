@@ -3,6 +3,7 @@ import { defineTool } from '@mt/core'
 import type { Envelope } from '@mt/core'
 import { compileTermMatcher, countTerms, mapProse } from './term-tagger.js'
 import type { Glossary, GlossaryTerm, GlossaryTermType } from './term-tagger.js'
+import type { ReportedTerm } from './translation-prompt.js'
 
 /** One chapter of the analysed corpus. */
 export interface GlossaryChapter {
@@ -231,12 +232,67 @@ export function buildGlossary(
   return glossary
 }
 
+/**
+ * Conservative auto-merge of model-reported terms (see {@link parseReportedTerms}) into a glossary.
+ * Pure: returns a new glossary, the input is never mutated.
+ *
+ * - A reported surface form matching an existing term or alias (case-insensitive) NEVER changes
+ *   `ru` — a differing value is queued in `pending` (skipped when equal, already pending, or in
+ *   `rejected`).
+ * - Unknown terms are appended as new entries (reported `type`/`ru` applied, id via `slugify`)
+ *   unless listed in `ignored`; a `ru` value in `rejected` is stored as `null` instead.
+ */
+export function mergeReportedTerms(existing: Glossary, reported: ReportedTerm[]): Glossary {
+  const rejected = new Set(existing.rejected ?? [])
+  const ignored = new Set((existing.ignored ?? []).map((s) => s.toLowerCase()))
+  const taken = new Set<string>()
+  const bySurface = new Map<string, GlossaryTerm>()
+  const terms: GlossaryTerm[] = []
+  for (const t of existing.terms) {
+    const copy: GlossaryTerm = { ...t, aliases: [...(t.aliases ?? [])] }
+    terms.push(copy)
+    taken.add(copy.id)
+    bySurface.set(copy.term.trim().toLowerCase(), copy)
+    for (const a of copy.aliases) bySurface.set(a.trim().toLowerCase(), copy)
+  }
+  for (const r of reported) {
+    const match = bySurface.get(r.term.toLowerCase())
+    if (match) {
+      if (r.ru === null || r.ru === (match.ru ?? null) || rejected.has(r.ru)) continue
+      const pending = match.pending ?? []
+      if (!pending.includes(r.ru)) match.pending = [...pending, r.ru]
+      continue
+    }
+    if (ignored.has(r.term.toLowerCase())) continue
+    const term: GlossaryTerm = {
+      id: uniqueId(slugify(r.term), taken),
+      term: r.term,
+      type: r.type ?? guessType(r.term),
+      count: 0,
+      firstChapter: null,
+      ru: r.ru !== null && !rejected.has(r.ru) ? r.ru : null,
+      aliases: [],
+    }
+    terms.push(term)
+    bySurface.set(r.term.toLowerCase(), term)
+  }
+  return {
+    terms,
+    ignored: existing.ignored ?? [],
+    ...(existing.rejected ? { rejected: existing.rejected } : {}),
+  }
+}
+
 /** Parses a `glossary.json` text; `undefined` for empty or malformed input. */
 export function parseGlossary(json: string): Glossary | undefined {
   try {
     const raw = JSON.parse(json) as Partial<Glossary>
     if (!raw || !Array.isArray(raw.terms)) return undefined
-    return { terms: raw.terms, ...(raw.ignored ? { ignored: raw.ignored } : {}) }
+    return {
+      terms: raw.terms,
+      ...(raw.ignored ? { ignored: raw.ignored } : {}),
+      ...(raw.rejected && raw.rejected.length > 0 ? { rejected: raw.rejected } : {}),
+    }
   } catch {
     return undefined
   }
@@ -253,7 +309,11 @@ export async function readGlossaryFile(path: string): Promise<Glossary | undefin
 
 /** Stable pretty JSON for `glossary.json` (human-editable). */
 export function serializeGlossary(glossary: Glossary): string {
-  return `${JSON.stringify({ terms: glossary.terms, ignored: glossary.ignored ?? [] }, null, 2)}\n`
+  return `${JSON.stringify(
+    { terms: glossary.terms, ignored: glossary.ignored ?? [], rejected: glossary.rejected ?? [] },
+    null,
+    2,
+  )}\n`
 }
 
 /** Chapter number from a `# Chapter N` heading, else the fallback. */
