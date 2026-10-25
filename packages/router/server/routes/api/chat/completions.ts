@@ -2,6 +2,7 @@ import { Readable } from 'node:stream'
 
 import { createError, defineEventHandler, getHeader, readBody, sendStream } from 'h3'
 import { isMockMode } from '../../../plugins/mock-mode.js'
+import { clientIdFrom } from '../../../utils/client-id.js'
 import { logCall } from '../../../utils/cost-tracker.js'
 import { redactError } from '../../../utils/redact.js'
 import { callUpstream } from '../../../utils/upstream-call.js'
@@ -80,7 +81,11 @@ export default defineEventHandler(async (event) => {
       stepId,
       requested,
       { promptTokens, completionTokens },
-      { upstream: upstream.name, free: upstream.kind !== 'openrouter' },
+      {
+        upstream: upstream.name,
+        free: upstream.kind !== 'openrouter',
+        client: clientIdFrom(event),
+      },
     )
 
     return data

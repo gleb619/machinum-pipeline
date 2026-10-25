@@ -311,6 +311,26 @@ describe('createLlmClient', () => {
     expect(seen[0]?.headers.Authorization).toBeUndefined()
     expect(seen).toHaveLength(2)
   })
+  it('router provider sends X-MT-Client from MT_CLIENT_ID; other providers never do', async () => {
+    const prev = process.env.MT_CLIENT_ID
+    process.env.MT_CLIENT_ID = 'sample-1'
+    try {
+      const r = scripted([{ status: 200, body: okBody() }])
+      const cfg = resolveLlmConfig({ routerUrl: 'http://router:7777' })
+      await createLlmClient(cfg, undefined, { transport: r.transport }).chatCompletion(req)
+      expect(r.seen[0]?.headers['X-MT-Client']).toBe('sample-1')
+      const o = scripted([{ status: 200, body: okBody() }])
+      const ocfg = resolveLlmConfig({ env: { MT_LLM_PROVIDER: 'openai', OPENAI_API_KEY: 'sk-e' } })
+      await createLlmClient(ocfg, undefined, { transport: o.transport }).chatCompletion(req)
+      expect(o.seen[0]?.headers['X-MT-Client']).toBeUndefined()
+      process.env.MT_CLIENT_ID = ''
+      const n = scripted([{ status: 200, body: okBody() }])
+      await createLlmClient(cfg, undefined, { transport: n.transport }).chatCompletion(req)
+      expect(n.seen[0]?.headers['X-MT-Client']).toBeUndefined()
+    } finally {
+      process.env.MT_CLIENT_ID = prev ?? ''
+    }
+  })
   it('cache enabled via config skips transport on 2nd call', async () => {
     const { transport, seen } = scripted([{ status: 200, body: okBody('c') }])
     const dir = mkdtempSync(join(tmpdir(), 'llm-cache-'))

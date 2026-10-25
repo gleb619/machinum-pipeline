@@ -1,5 +1,6 @@
 import { appendFile, mkdir, readFile, readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { ANONYMOUS_CLIENT } from './client-id.js'
 import { redact, redactError } from './redact.js'
 import { getRouterConfig } from './router-config.js'
 
@@ -13,12 +14,16 @@ export interface LogEntry {
   cost: number
   /** Upstream that served the call; absent in logs written before upstream routing. */
   upstream?: string
+  /** Sanitised `X-MT-Client` id; absent in older logs (counted as `anonymous`). */
+  client?: string
 }
 
 export interface DailyUsage {
   calls: number
   totalCost: number
   models: Record<string, { calls: number; cost: number }>
+  /** Per-client totals (client id -> calls/cost); never contains keys. */
+  clients: Record<string, { calls: number; cost: number }>
 }
 
 function getLogDir(): string {
@@ -31,7 +36,7 @@ export function getLogPath(date: string): string {
 
 export async function getDailyCost(date: string): Promise<DailyUsage> {
   const logPath = getLogPath(date)
-  const usage: DailyUsage = { calls: 0, totalCost: 0, models: {} }
+  const usage: DailyUsage = { calls: 0, totalCost: 0, models: {}, clients: {} }
 
   try {
     const content = await readFile(logPath, 'utf-8')
@@ -46,6 +51,11 @@ export async function getDailyCost(date: string): Promise<DailyUsage> {
         if (!usage.models[entry.model]) {
           usage.models[entry.model] = { calls: 0, cost: 0 }
         }
+        const clientId = entry.client || ANONYMOUS_CLIENT
+        const clientStats = usage.clients[clientId] ?? { calls: 0, cost: 0 }
+        clientStats.calls++
+        clientStats.cost += entry.cost
+        usage.clients[clientId] = clientStats
         const modelStats = usage.models[entry.model]
         if (modelStats) {
           modelStats.calls++
@@ -60,6 +70,15 @@ export async function getDailyCost(date: string): Promise<DailyUsage> {
   }
 
   return usage
+}
+
+/** Spend of one client today; legacy entries without `client` count as `anonymous`. */
+export async function getDailyClientCost(
+  date: string,
+  client: string,
+): Promise<{ calls: number; cost: number }> {
+  const usage = await getDailyCost(date)
+  return usage.clients[client] ?? { calls: 0, cost: 0 }
 }
 
 export async function getMonthlyCost(): Promise<{ calls: number; totalCost: number }> {
@@ -95,7 +114,7 @@ export async function logCall(
   stepId: string | null,
   model: string,
   usage: { promptTokens: number; completionTokens: number },
-  opts: { upstream?: string; free?: boolean } = {},
+  opts: { upstream?: string; free?: boolean; client?: string } = {},
 ): Promise<void> {
   // Upstreams without pricing (ollama, local openai-compat) are free; `free` forces cost 0.
   const cost = opts.free ? 0 : usage.promptTokens * 0.000001 + usage.completionTokens * 0.000002
@@ -108,6 +127,7 @@ export async function logCall(
     completionTokens: usage.completionTokens,
     cost,
     ...(opts.upstream ? { upstream: opts.upstream } : {}),
+    ...(opts.client ? { client: opts.client } : {}),
   }
 
   const today = new Date().toISOString().split('T')[0] as string

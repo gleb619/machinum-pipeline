@@ -15,5 +15,7 @@ export default defineEventHandler(async () => {
     month: monthUsage,
     budgetRemaining: Math.max(0, dailyBudget - dailyUsage.totalCost),
     budgetLimit: dailyBudget,
+    clientBudgetLimit: getRouterConfig().clientBudget ?? null,
+    clients: dailyUsage.clients,
   }
 })

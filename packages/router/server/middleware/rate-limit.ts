@@ -1,11 +1,15 @@
 import { defineEventHandler } from 'h3'
+import { clientIdFrom } from '../utils/client-id.js'
 import { getDailyCost } from '../utils/cost-tracker.js'
 import { getRouterConfig } from '../utils/router-config.js'
 
-export default defineEventHandler(async (event) => {
-  if (event.path !== '/api/chat/completions' || event.method !== 'POST') return
+const LIMITED_PATHS = new Set(['/api/chat/completions', '/api/translate'])
 
-  const dailyBudget = getRouterConfig().dailyBudget
+export default defineEventHandler(async (event) => {
+  const path = event.path.split('?')[0] ?? ''
+  if (!LIMITED_PATHS.has(path) || event.method !== 'POST') return
+
+  const { dailyBudget, clientBudget } = getRouterConfig()
   const today = new Date().toISOString().split('T')[0] as string
   const usage = await getDailyCost(today)
 
@@ -22,6 +26,23 @@ export default defineEventHandler(async (event) => {
         retryAfter: getSecondsUntilMidnight(),
       }),
     )
+    return
+  }
+
+  if (clientBudget) {
+    const client = clientIdFrom(event)
+    const spent = usage.clients[client]?.cost ?? 0
+    const clientRemaining = Math.max(0, clientBudget - spent)
+    event.node.res.setHeader('X-RateLimit-Client-Remaining', clientRemaining.toFixed(4))
+    if (clientRemaining <= 0) {
+      const retryAfter = getSecondsUntilMidnight()
+      event.node.res.statusCode = 429
+      event.node.res.setHeader('Content-Type', 'application/json')
+      event.node.res.setHeader('Retry-After', String(retryAfter))
+      event.node.res.end(
+        JSON.stringify({ error: 'Client daily budget exceeded', client, retryAfter }),
+      )
+    }
   }
 })
 

@@ -1,5 +1,6 @@
 import { createError, defineEventHandler, getHeader, getQuery, readBody } from 'h3'
 import { isMockMode } from '../../plugins/mock-mode.js'
+import { clientIdFrom } from '../../utils/client-id.js'
 import { logCall } from '../../utils/cost-tracker.js'
 import { OpenRouterPool } from '../../utils/openrouter-pool.js'
 import { redactError } from '../../utils/redact.js'
@@ -97,7 +98,11 @@ export default defineEventHandler(async (event) => {
           promptTokens: data.usage?.prompt_tokens ?? 0,
           completionTokens: data.usage?.completion_tokens ?? 0,
         },
-        { upstream: upstream.name, free: upstream.kind !== 'openrouter' },
+        {
+          upstream: upstream.name,
+          free: upstream.kind !== 'openrouter',
+          client: clientIdFrom(event),
+        },
       )
 
       results.push({ translatedText, model: requested, tokens })

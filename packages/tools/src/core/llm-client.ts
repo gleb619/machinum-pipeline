@@ -338,6 +338,15 @@ export interface CreateLlmClientDeps {
   bare?: boolean
 }
 
+/** Router-only: optional `MT_CLIENT_ID` becomes `X-MT-Client` (per-client budget); explicit headers win. */
+function routerHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  const id = process.env.MT_CLIENT_ID?.trim()
+  if (!id) return headers
+  return { 'X-MT-Client': id, ...headers }
+}
+
 /** Build the bare provider adapter for a resolved config. */
 export function createAdapter(cfg: ResolvedLlmConfig, transport?: LlmTransport): LlmClient {
   switch (cfg.provider) {
@@ -354,7 +363,7 @@ export function createAdapter(cfg: ResolvedLlmConfig, transport?: LlmTransport):
         chatPath: '/api/chat/completions',
         // Keyless gateway: apiKey is only the optional router token (MT_ROUTER_TOKEN / vault).
         apiKey: cfg.apiKey,
-        headers: cfg.headers,
+        headers: routerHeaders(cfg.headers),
         transport,
       })
     case 'openrouter': {

@@ -17,6 +17,8 @@ export interface RouterConfig {
   mock: boolean
   logDir: string
   dailyBudget: number
+  /** Daily USD budget per `X-MT-Client` id (`MT_CLIENT_BUDGET`); undefined = no per-client limit. */
+  clientBudget?: number
   retentionDays: number
   /** OpenRouter keys backing the pool; empty means "no key configured". */
   apiKeys: string[]
@@ -46,6 +48,11 @@ function numberFrom(raw: string | undefined, fallback: number): number {
   return Number.isNaN(parsed) ? fallback : parsed
 }
 
+function clientBudgetFrom(raw: string | undefined): number | undefined {
+  const n = numberFrom(raw, 0)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
 function fromEnv(): RouterConfig {
   return {
     port: numberFrom(process.env.PORT ?? process.env.MT_ROUTER_PORT, 7777),
@@ -54,6 +61,7 @@ function fromEnv(): RouterConfig {
     mock: process.env.MT_ROUTER_MOCK === 'true',
     logDir: defaultLogDir(),
     dailyBudget: numberFrom(process.env.MT_DAILY_BUDGET, 5),
+    clientBudget: clientBudgetFrom(process.env.MT_CLIENT_BUDGET),
     retentionDays: numberFrom(process.env.MT_RETENTION_DAYS, 30),
     apiKeys: envKeys(),
     upstreams: upstreamSpecsFromEnv(),
@@ -81,6 +89,7 @@ export function setRouterConfig(input: RouterConfigInput = {}): RouterConfig {
     mock: input.mock ?? base.mock,
     logDir: input.logDir ?? base.logDir,
     dailyBudget: input.dailyBudget ?? base.dailyBudget,
+    clientBudget: input.clientBudget ?? base.clientBudget,
     retentionDays: input.retentionDays ?? base.retentionDays,
     apiKeys: input.apiKeys ?? base.apiKeys,
     upstreams: input.upstreams ?? base.upstreams,

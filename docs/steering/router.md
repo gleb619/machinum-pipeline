@@ -123,7 +123,7 @@ Router is a keyless gateway: clients send no upstream key; router holds them (en
 - **Redaction** (`utils/redact.ts`): all known keys (env, vault, upstream specs, router token) plus `Bearer <x>` / `sk-...`
   patterns become `***` in upstream error echo, proxy errors, the global error handler, log lines, `/api/logs`, and
   console errors. `/api/pool`, `/api/health`, `/api/dashboard` expose names and counts only.
-- Rate limit = the daily spend budget only. Not done: per-client budget (`X-MT-Client`, `MT_CLIENT_BUDGET`).
+- Rate limit = global daily spend budget (`MT_DAILY_BUDGET`, checked first) plus optional per-client daily budget (`MT_CLIENT_BUDGET`) keyed by the `X-MT-Client` header, on `POST /api/chat/completions` and `/api/translate`. Client id is sanitised to `[A-Za-z0-9._-]`, max 64 chars, missing => `anonymous`; it is logged in the JSONL (`client`, optional; old rows count as `anonymous`) and is a label, not a credential (never put secrets in it). Exceeded => 429 `{ error, client, retryAfter }` with `Retry-After` (seconds to UTC midnight); `X-RateLimit-Client-Remaining` is sent while under budget. Upstream-free calls (cost 0) never trip it. `GET /api/dashboard` adds `clients` (per-client calls/cost today) and `clientBudgetLimit`.
 - **Translate path**: `POST /api/translate` resolves its model through the upstream registry exactly like chat
   (`ollama/<m>`, vault upstream names; bare ids go to openrouter; default `openai/gpt-4o-mini`) and shares the
   forward + 429-retry + 402 + redacted-502 logic in `utils/upstream-call.ts` (`callUpstream`) with
@@ -172,7 +172,7 @@ valid configuration — no build-time injected config.
 ### `server/middleware/rate-limit.ts`
 - Daily spend budget on `POST /api/chat/completions`: over budget -> 429 with `retryAfter`
   (`getSecondsUntilMidnight()`), always `X-RateLimit-Remaining` on the response
-- No per-IP or per-minute limit yet (see `MT_CLIENT_BUDGET` in the env table)
+- No per-IP or per-minute limit; per-client budget trusts the self-declared `X-MT-Client` header (cost control, not authentication)
 
 ## `completions.ts` Implementation Notes
 
@@ -201,7 +201,7 @@ Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Section
 | `MT_ROUTER_TOKEN` | — | Bearer token required on `/api/*` (except `GET /api/health`); also read by tools provider `router` |
 | `MT_ROUTER_VAULT` | `true` | `false` disables vault loading |
 | `MT_ROUTER_VAULT_POLL_MS` | `2000` | Min interval between vault mtime checks |
-| `MT_CLIENT_BUDGET` | — | Reserved for per-client budgets (`X-MT-Client`); **not implemented yet** |
+| `MT_CLIENT_BUDGET` | — | Daily USD budget per `X-MT-Client` client id; unset/0 = off |
 | `MT_ROUTER_MOCK` | `false` | Enable mock mode (same as `mt router --mock`) |
 | `PORT` / `MT_ROUTER_PORT` | `7777` | Router listen port |
 | `MT_DAILY_BUDGET` | `5` | Daily spend budget (USD) enforced by the rate-limit middleware |
