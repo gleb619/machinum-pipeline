@@ -1,6 +1,7 @@
 import type { Book } from './domain.js'
 import type { Settings } from './settings.js'
 import type { Logger } from './types.js'
+import type { Vault } from './vault.js'
 
 /**
  * Global context — one per project, derived from mt.json at CLI start.
@@ -19,6 +20,11 @@ export interface GlobalContext {
   settings: Settings
   routerUrl?: string
   env: Record<string, string>
+  /**
+   * Sensitive endpoint store. Attached as a NON-enumerable property so it never leaks
+   * into JSON.stringify / spreads / checkpoints / logs. Access via `ctx.vault` only.
+   */
+  vault?: Vault
 }
 
 /**

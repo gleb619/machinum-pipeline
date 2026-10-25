@@ -114,5 +114,6 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_CONTEXT_LIMITS` | — | JSON map `{"glob-or-prefix": tokens}` extending the built-in model context-limit table |
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |
+| `MT_VAULT` | — | Path to a single vault file; when set, user/project vaults are ignored ([vault.md](../vault.md)) |
 
 LLM precedence tables: [tools.md](tools.md#llm-toolkit). Secrets loaded from `.env` via `mt.json → secrets.envFile`.

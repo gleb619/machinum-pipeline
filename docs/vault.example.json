@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "entries": {
+    "local-ollama": {
+      "provider": "ollama",
+      "baseUrl": "http://localhost:11434",
+      "models": ["llama3.1:8b", "qwen2.5:14b"],
+      "defaultModel": "llama3.1:8b",
+      "notes": "Fake example: stock local Ollama"
+    },
+    "my-openrouter": {
+      "provider": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKeys": ["sk-or-v1-EXAMPLEKEYAAAA1111", "sk-or-v1-EXAMPLEKEYBBBB2222"],
+      "headers": { "X-Title": "example-project" },
+      "defaultModel": "openai/gpt-4o-mini",
+      "notes": "Fake example: key pool"
+    }
+  }
+}

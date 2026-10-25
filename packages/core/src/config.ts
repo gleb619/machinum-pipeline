@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RetryStrategy } from './contexts.js'
 import type { Settings } from './settings.js'
+import { loadVault } from './vault.js'
 
 /**
  * mt.json project configuration shape.
@@ -113,7 +114,11 @@ export async function loadGlobalContext(projectRoot: string): Promise<GlobalCont
   const settings: Settings = { ...config.settings }
   if (config.uris) settings.uris = config.uris
 
-  return {
+  const env = await loadEnv(
+    projectRoot,
+    config.secrets?.envFile ?? DEFAULT_MT_CONFIG.secrets.envFile,
+  )
+  const ctx: GlobalContext = {
     project: {
       name: config.project?.name ?? DEFAULT_MT_CONFIG.project.name,
       root: projectRoot,
@@ -124,8 +129,16 @@ export async function loadGlobalContext(projectRoot: string): Promise<GlobalCont
       concurrency: config.defaults?.concurrency ?? DEFAULT_MT_CONFIG.defaults.concurrency,
     },
     settings,
-    env: await loadEnv(projectRoot, config.secrets?.envFile ?? DEFAULT_MT_CONFIG.secrets.envFile),
+    env,
   }
+  // Non-enumerable: keeps secrets out of JSON.stringify, spreads, checkpoints and logs.
+  Object.defineProperty(ctx, 'vault', {
+    value: await loadVault(projectRoot, process.env),
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  })
+  return ctx
 }
 
 type PartialRetry = {

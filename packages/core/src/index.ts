@@ -14,6 +14,24 @@ export type {
   ErrorPolicy,
   RetryStrategy,
 } from './contexts.js'
+export type {
+  Vault,
+  VaultEntry,
+  VaultProvider,
+  VaultRef,
+  ResolvedVaultRef,
+} from './vault.js'
+export {
+  emptyVault,
+  loadVault,
+  maskSecret,
+  maskVault,
+  parseVaultRef,
+  resolveVaultRef,
+  saveVault,
+  vaultPaths,
+  VAULT_PROVIDERS,
+} from './vault.js'
 export type { Settings } from './settings.js'
 export { getSetting } from './settings.js'
 export type {
