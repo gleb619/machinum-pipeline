@@ -98,6 +98,26 @@ Offline (no LLM) statistical frequency analyzer (T147). Accepts `env.item` (stri
   Ranking: count desc, then term asc (code point, locale independent) — deterministic for the same input.
 - Pure helpers: `buildStatFreqReport(texts, options)`, `splitStatSentences(text)`, `tokenizeWords(text)`.
 
+### `stat-dict.ts`
+Ranked translation dictionary built from a frequency report (T148). Offline, no LLM. The envelope (and its
+cardinality) is returned untouched.
+
+- `statDict` / `defineStatDict(options)` / `createStatDict(options)` — options `{ minCount?, topK?,
+  glossaryFile?, reportFile?, outFile? }`: `minCount` (default 3) is the frequency threshold, `topK` (default 100)
+  caps the new candidates, `glossaryFile` is the existing glossary to merge into, `reportFile` reads the
+  `StatFreqReport` JSON from disk (overrides `meta.statFreq`), `outFile` writes the merged glossary as JSON
+  (atomic write, parent dir created).
+- Report source: `reportFile` → `meta.statFreq` → the envelope text (counted inline).
+- Candidates: every term of `top`, `words` and `ngrams` (once, highest count wins) with `count >= minCount`,
+  ranked count desc then term asc. Type = `guessType` on the capitalised term (n-grams default to `term`).
+- Merge is conservative: existing entries are copied verbatim (id, term, type, count, `ru`, aliases, pending) and
+  keep their order; new candidates are appended with an empty translation (`ru: null`) and a guessed type. A
+  candidate matching an existing term or alias (case-insensitive) is skipped, `ignored` terms are never re-added.
+  A missing glossary file means an empty glossary; a broken one is an error (translations are never dropped).
+- Result in `meta.statDict` = `Glossary` and `meta.statDictJson` = its serialized form.
+- Pure helpers: `buildStatDict(report, existing, options)`, `selectStatDictCandidates(report, options)`,
+  `isStatFreqReport(value)`.
+
 ### `translation-prompt.ts` / `line-parity-linter.ts`
 Building blocks of the sample3 translate stage (EN->RU, line by line).
 

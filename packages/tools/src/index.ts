@@ -175,6 +175,7 @@ export {
   buildStatFreqReport,
   splitStatSentences,
   tokenizeWords,
+  cmpTerm,
   type StatFreqOptions,
   type StatFreqReport,
   type StatFreqWord,
@@ -183,6 +184,17 @@ export {
   type StatFreqTopEntry,
   type StatFreqKind,
 } from './normalization/stat-freq.js'
+export {
+  statDict,
+  defineStatDict,
+  createStatDict,
+  buildStatDict,
+  selectStatDictCandidates,
+  isStatFreqReport,
+  type StatDictOptions,
+  type StatDictCandidate,
+  type StatDictSelectOptions,
+} from './normalization/stat-dict.js'
 export {
   termTagger,
   tagTerms,

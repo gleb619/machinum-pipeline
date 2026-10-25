@@ -169,7 +169,8 @@ export function extractCandidates(
   return out.filter((c) => !ignored.has(c.term))
 }
 
-function uniqueId(base: string, taken: Set<string>): string {
+/** Unique id from a slug base: `base`, `base-2`, `base-3`, … (`taken` is updated). */
+export function uniqueId(base: string, taken: Set<string>): string {
   let id = base
   for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
   taken.add(id)

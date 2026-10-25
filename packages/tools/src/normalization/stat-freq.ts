@@ -183,7 +183,7 @@ function normalizeSentence(sentence: string): string {
 }
 
 /** Compare two terms by code point (locale independent, deterministic). */
-function cmpTerm(a: string, b: string): number {
+export function cmpTerm(a: string, b: string): number {
   if (a === b) return 0
   return a < b ? -1 : 1
 }
