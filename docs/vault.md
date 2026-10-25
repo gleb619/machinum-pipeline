@@ -83,7 +83,8 @@ Precedence (per field, first defined wins):
 So explicit `llm.model` etc. beat the vault; the vault beats env/preset defaults (preset default models and
 endpoints of `ollamaTool` / `openrouterFree` / `openrouterPool` are defaults, not pins). Presets still pin
 the **provider**: a vault entry of another provider (e.g. `openrouter` entry with `ollamaTool`) throws an
-error naming the ref. `openrouterPool` skips its sticky model pin when the model comes from a vault ref.
+error naming the ref. `openrouterPool` skips its sticky model pin whenever a layer above the preset
+defaults picked the model (vault ref, mt.json `llm.model`, `meta.llm`, per-call input), so no pin is created.
 
 Errors: unknown entry / model (not in `models`) / no vault loaded name the ref and never contain secrets.
 `resolved.sources` reports `vault:<entry>`; `meta.llm` still ignores `apiKey(s)`; nothing from the vault

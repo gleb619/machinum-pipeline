@@ -138,10 +138,20 @@ function pinnedClient(
 }
 
 /**
+ * Sources of a resolved model that leave the sticky pin in charge: nothing above the preset
+ * defaults chose a model, so `candidates` own it.
+ */
+const PINNABLE_MODEL_SOURCES = new Set(['preset-defaults', 'default'])
+
+/**
  * Build an `openrouterPool` gate: like `openrouterFree`, but the first call pins ONE free model
  * (per key-set, module-level, process-wide) that every later call reuses. Re-pins to the next
  * candidate only on 404 (model unavailable), 429 with all keys blocked, or 402 (quota).
- * A per-call `model` / `llm.model` wins and leaves the pin untouched.
+ *
+ * The candidates are a **default, not a pin** (same layering as `openrouterFree`: the first one is
+ * passed as `llmDefaults`, only the provider sits on the tool layer). The pin applies only when no
+ * higher layer picked a model, so a per-call `model` / `llm.model`, `meta.llm.model`, mt.json
+ * `llm.model`, `MT_OLLAMA_MODEL` or a vault ref (`llm.use`) wins and leaves the pin map untouched.
  */
 export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
   const candidates = options.models?.length
@@ -149,13 +159,16 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
     : [...OPENROUTER_POOL_DEFAULT_MODELS]
   const strategy = options.strategy ?? 'first'
   const llm: LlmConfigLayer = { provider: 'openrouter' }
+  const llmDefaults: LlmConfigLayer = { model: candidates[0] as string }
 
   const gateOpts = {
     name: 'openrouter-pool',
     version: '1.0.0',
     mdDescription:
-      'OpenRouter free-model gate with sticky pinning: one model per key-set, re-pinned only on 404/429-exhausted/402.',
+      'OpenRouter free-model gate with sticky pinning: one model per key-set (default, overridable by any ' +
+      'higher config layer), re-pinned only on 404/429-exhausted/402.',
     llm,
+    llmDefaults,
     metaFlags: { openrouterPoolTool: true },
     client: (cfg: ResolvedLlmConfig, ctx: unknown): LlmClient => {
       const base =
@@ -175,15 +188,18 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
       const out = (await basePrepare.invoke(env, ctx)) as Envelope<PooledState>
       const states = out.items ?? [out.item]
       const next = states.map((s): PooledState => {
-        if (!s.request || s.llmLayer?.model) return s
+        if (!s.request) return s
 
         const cfg = resolveLlmConfigFromCtx(ctx, {
           input: s.llmLayer,
           tool: llm,
+          defaults: llmDefaults,
           meta: env.meta,
         })
-        // A vault ref (`llm.use`) fixes the model: the sticky free-model pin must not override it.
-        if (cfg.sources.model?.startsWith('vault:')) return s
+        // The model is a default, not a pin: any layer above the preset defaults (per-call input,
+        // `meta.llm`, mt.json `llm.model`, vault ref, provider env) already chose it, so the
+        // sticky free-model pin must not override it and must not touch the pin map.
+        if (!PINNABLE_MODEL_SOURCES.has(cfg.sources.model ?? 'default')) return s
         const id = pinId(cfg)
         const pin = pinFor(id, candidates, strategy)
         return { ...s, pinId: id, request: { ...s.request, model: model(pin) } }

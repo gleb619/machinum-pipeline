@@ -64,6 +64,51 @@ describe('openrouterPool sticky pin', () => {
     expect(mock.calls.map((c) => c.model)).toEqual(['other/model', 'openrouter/free'])
     expect(poolMeta(out.meta).repins).toBe(0)
   })
+
+  it('a model from any layer above the preset defaults beats the pin and never creates one', async () => {
+    const settingsCtx = (settings: Record<string, unknown>) =>
+      ({ run: { global: { settings, env: {} } } }) as unknown as ToolContext
+    const cases: Array<{
+      name: string
+      env: { item: Record<string, unknown>; meta: Record<string, unknown> }
+      ctx: ToolContext
+      model: string
+    }> = [
+      {
+        name: 'mt.json settings llm.model',
+        env: envOf({ prompt: 'x' }),
+        ctx: settingsCtx({ 'llm.model': 'settings/model' }),
+        model: 'settings/model',
+      },
+      {
+        name: 'meta.llm.model',
+        env: { item: { prompt: 'x' }, meta: { llm: { model: 'meta/model' } } },
+        ctx,
+        model: 'meta/model',
+      },
+      {
+        name: 'per-call llm.model',
+        env: envOf({ prompt: 'x', llm: { model: 'call/model' } }),
+        ctx,
+        model: 'call/model',
+      },
+    ]
+
+    for (const c of cases) {
+      resetOpenrouterPoolPins()
+      const mock = mockLlmCall(['ok'])
+      const gate = openrouterPool.with({ call: mock })
+      const out = await gate.invoke(c.env, c.ctx)
+      expect(mock.calls.map((r) => r.model)).toEqual([c.model])
+      // No pin was created for this key-set: `emit` records `meta.openrouterPool` only when a pin exists.
+      expect(out.meta.openrouterPool).toBeUndefined()
+
+      // A later call with no model layer still pins the first candidate, from scratch (repins 0).
+      const next = await gate.invoke(envOf({ prompt: 'y' }), ctx)
+      expect(mock.calls.at(-1)?.model).toBe('openrouter/free')
+      expect(poolMeta(next.meta)).toMatchObject({ model: 'openrouter/free', repins: 0 })
+    }
+  })
 })
 
 describe('openrouterPool re-pin', () => {
@@ -141,5 +186,8 @@ describe('openrouterPool llm.use (vault)', () => {
     const mock = mockLlmCall(['ok'])
     await openrouterPool.with({ call: mock }).invoke(envOf({ prompt: 'x' }), vctx)
     expect(mock.calls[0]?.model).toBe('vendor/model-x')
+    // The vault ref sits above the preset defaults: no sticky pin is created.
+    const out = await openrouterPool.with({ call: mock }).invoke(envOf({ prompt: 'y' }), vctx)
+    expect(out.meta.openrouterPool).toBeUndefined()
   })
 })

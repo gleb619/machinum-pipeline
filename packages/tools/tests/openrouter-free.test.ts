@@ -43,6 +43,7 @@ describe('openrouterFree preset config', () => {
       env: { MT_LLM_MODEL: 'deepseek/deepseek-chat' },
     })
     expect(env.model).toBe('openrouter/free')
+    expect(env.sources.model).toBe('preset-defaults')
 
     const call = resolveLlmConfig({
       input: { model: 'anthropic/claude-sonnet-4' },
@@ -50,6 +51,69 @@ describe('openrouterFree preset config', () => {
     })
     expect(call.model).toBe('anthropic/claude-sonnet-4')
     expect(call.provider).toBe('openrouter')
+  })
+})
+
+describe('openrouterFree model precedence (default, not pin)', () => {
+  const settingsCtx = (settings: Record<string, unknown>) =>
+    ({ run: { global: { settings, env: {} } } }) as unknown as ToolContext
+
+  it('mt.json settings llm.model beats the preset default', async () => {
+    const cfg = resolveLlmConfig({
+      tool: OPENROUTER_FREE_LLM,
+      defaults: OPENROUTER_FREE_DEFAULTS,
+      settings: { 'llm.model': 'settings/model' },
+    })
+    expect(cfg.model).toBe('settings/model')
+    expect(cfg.sources.model).toBe('settings')
+
+    const mock = mockLlmCall(['ok'])
+    await openrouterFree
+      .with({ call: mock })
+      .invoke({ item: { prompt: 'hi' }, meta: {} }, settingsCtx({ 'llm.model': 'settings/model' }))
+    expect(mock.calls[0]?.model).toBe('settings/model')
+  })
+
+  it('meta.llm.model beats the preset default', async () => {
+    const cfg = resolveLlmConfig({
+      tool: OPENROUTER_FREE_LLM,
+      defaults: OPENROUTER_FREE_DEFAULTS,
+      meta: { llm: { model: 'meta/model' } },
+    })
+    expect(cfg.model).toBe('meta/model')
+    expect(cfg.sources.model).toBe('meta')
+
+    const mock = mockLlmCall(['ok'])
+    await openrouterFree
+      .with({ call: mock })
+      .invoke({ item: { prompt: 'hi' }, meta: { llm: { model: 'meta/model' } } }, ctx)
+    expect(mock.calls[0]?.model).toBe('meta/model')
+  })
+
+  it('a model on the tool layer beats the preset default', () => {
+    const cfg = resolveLlmConfig({
+      tool: { ...OPENROUTER_FREE_LLM, model: 'tool/model' },
+      defaults: OPENROUTER_FREE_DEFAULTS,
+    })
+    expect(cfg.model).toBe('tool/model')
+    expect(cfg.sources.model).toBe('tool')
+  })
+
+  it('generic MT_LLM_MODEL env sits below the preset default, provider env above', () => {
+    const generic = resolveLlmConfig({
+      tool: OPENROUTER_FREE_LLM,
+      defaults: OPENROUTER_FREE_DEFAULTS,
+      env: { MT_LLM_MODEL: 'env/model' },
+    })
+    expect(generic.model).toBe('openrouter/free')
+    expect(generic.sources.model).toBe('preset-defaults')
+
+    const provider = resolveLlmConfig({
+      tool: OPENROUTER_FREE_LLM,
+      defaults: OPENROUTER_FREE_DEFAULTS,
+      env: { MT_OLLAMA_MODEL: 'ollama/model' },
+    })
+    expect(provider.model).toBe('openrouter/free')
   })
 })
 

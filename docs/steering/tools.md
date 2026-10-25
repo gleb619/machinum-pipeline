@@ -112,13 +112,16 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
 (round-robin, 429/402) is used by the `openrouter` provider.
 
 ### `openrouter-free.ts`
-- `openrouterFree` — free-tier gate: thin preset over `createLlmGate` with the tool-level config
-  `OPENROUTER_FREE_LLM` = `{ provider: 'openrouter', model: 'openrouter/free' }` (direct OpenRouter, no
-  MT router proxy). Keys come from the usual `resolveLlmConfig` env resolution (`OPENROUTER_API_KEYS`
-  pool, then `OPENROUTER_API_KEY`), `baseUrl` defaults to `https://openrouter.ai/api/v1`.
+- `openrouterFree` — free-tier gate: thin preset over `createLlmGate`. `OPENROUTER_FREE_LLM` is the
+  tool-level **provider pin** only (`{ provider: 'openrouter' }` — direct OpenRouter, no MT router proxy);
+  `OPENROUTER_FREE_DEFAULTS` is `llmDefaults` (`model: openrouter/free`). Keys come from the usual
+  `resolveLlmConfig` env resolution (`OPENROUTER_API_KEYS` pool, then `OPENROUTER_API_KEY`),
+  `baseUrl` defaults to `https://openrouter.ai/api/v1`.
   Standard slots, so tests stay offline: `openrouterFree.with({ call: mockLlmCall(['ok']) })`.
-  A per-call `model` / `llm` override still wins — the preset sits on the **tool option** layer
-  (see [LLM config precedence](#llm-config-precedence-resolvellmconfig-pure)), above `meta.llm`, settings and env.
+  **The model is a default, not a pin** (see [LLM config precedence](#llm-config-precedence-resolvellmconfig-pure)):
+  per-call `model` / `llm.model` > tool layer > `meta.llm.model` > mt.json `llm.model` > vault ref
+  (`llm.use`) > provider env (`MT_OLLAMA_MODEL`) > `openrouter/free`. Generic `MT_LLM_MODEL` env stays
+  *below* the preset default; the **provider** stays pinned (a vault entry of another provider errors).
 
 ### `openrouter-pool-tool.ts`
 - `openrouterPool` / `createOpenrouterPool({ models?, strategy?, client? })` — like `openrouterFree` but with
@@ -126,8 +129,12 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   `strategy` `first` | `random`), kept in a module-level Map keyed by baseUrl + key-set (shared across gate
   instances; `resetOpenrouterPoolPins()` for tests). Re-pins to the next candidate only on 404 (model
   unavailable), 429 with all keys blocked (`sharedPoolFor` pool state) or 402 quota; throws when every
-  candidate failed. Key rotation is the existing `OpenRouterPoolSupplier`. A per-call `model` / `llm.model`
-  wins and never touches the pin. Pin recorded in `meta.openrouterPool = { model, pinnedAt, repins }`.
+  candidate failed. Key rotation is the existing `OpenRouterPoolSupplier`.
+  The candidates are a **default, not a pin**: `models[0]` is passed as `llmDefaults`, only the provider sits
+  on the tool layer, and `prepare` applies the sticky pin **only when `cfg.sources.model` is `preset-defaults`
+  (or `default`)** — a per-call `model` / `llm.model`, `meta.llm.model`, mt.json `llm.model`, provider env or
+  vault ref wins and leaves the pin map untouched (no pin created, so `meta.openrouterPool` stays absent).
+  Pin recorded in `meta.openrouterPool = { model, pinnedAt, repins }`.
   Offline: `.with({ call: mockLlmCall([...]) })` (pin applied in `prepare`) or `client: () => mockLlmClient(...)`
   (re-pin logic lives in the client wrapper, so a replaced `call` slot bypasses re-pin).
 
