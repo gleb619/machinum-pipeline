@@ -64,6 +64,8 @@ export interface GateState<In = unknown> {
   json?: unknown
   fit?: ContextWindowRecord[]
   usage: LlmUsage & { calls: number; cached: number }
+  /** Set by `parse` on each corrective retry: the rejection reason injected into the next attempt. */
+  feedback?: string
   /** Set by `fit`: re-fit `request` to `factor` x its current token size (shrink-and-retry). */
   refit?: (
     state: GateState<In>,
@@ -100,8 +102,15 @@ export interface LlmGateOptions<I, O> {
   responseFormat?: LlmResponseFormat
   /** JSON-parse corrective retries. Default 2. */
   jsonRetries?: number
+  /** Content-validation corrective retries (see `check`). Default 2. */
+  checkRetries?: number
   /** Validate/convert parsed JSON; throw to reject (zod `schema.parse` fits). */
   validate?: (json: unknown) => unknown
+  /**
+   * Validate raw response content; throw to reject — the message (measured feedback, e.g.
+   * `parityFeedback`) is injected into the next attempt's prompt (ranobe-tl self-correction).
+   */
+  check?: (content: string, input: I) => void | Promise<void>
   /** Custom parser for the response content (replaces JSON extraction). */
   parse?: (content: string) => unknown
   /** On context-length error, shrink via the `fit` slot and retry. `true` = 2 attempts. Default off. */
@@ -357,37 +366,59 @@ export function llmCall<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, Ga
   })
 }
 
-/** `parse`: JSON mode / custom parser with bounded corrective retries. */
+/** `parse`: JSON mode / custom parser / content validation with bounded corrective retries. */
 export function llmParse<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, GateState<I>> {
-  const retries = opts.jsonRetries ?? 2
+  const jsonRetries = opts.jsonRetries ?? 2
+  const checkRetries = opts.checkRetries ?? 2
   return defineTool<GateState<I>, GateState<I>>({
     name: `${opts.name}:parse`,
     version: opts.version ?? '1.0.0',
-    mdDescription: 'Parses/validates output; on JSON failure re-asks with a corrective message.',
+    mdDescription:
+      'Parses/validates output; on failure re-asks with a corrective message carrying the rejection reason.',
     async invoke(env, ctx) {
       const ps = promptSourcesFromCtx(ctx, { tool: opts.prompts, meta: env.meta })
       return mapEnv(env, async (state) => {
-        const wantsParse = state.request?.responseFormat === 'json' || opts.parse || opts.validate
-        if (!wantsParse || !state.response || !state.request) return state
+        const wantsJson =
+          state.request?.responseFormat === 'json' || !!(opts.parse || opts.validate)
+        const check = opts.check
+        const wantsCheck = typeof check === 'function'
+        if ((!wantsJson && !wantsCheck) || !state.response || !state.request) return state
         let cur = state
         const parser = opts.parse ?? extractJson
         for (let attempt = 0; ; attempt++) {
           const content = (cur.response as LlmResponse).content
+          // Which failure are we correcting: content validation or JSON parse/validate.
+          let correctionName = 'json.correction'
+          let retries = jsonRetries
           try {
-            let json = parser(content)
-            if (opts.validate) json = opts.validate(json)
-            return { ...cur, json }
+            if (wantsCheck) {
+              correctionName = 'validation.correction'
+              retries = checkRetries
+              await check(content, cur.input)
+            }
+            let json = cur.json
+            if (wantsJson) {
+              correctionName = 'json.correction'
+              retries = jsonRetries
+              json = parser(content)
+              if (opts.validate) json = opts.validate(json)
+            }
+            return { ...cur, ...(wantsJson ? { json } : {}) }
           } catch (err) {
             const reason = err instanceof Error ? err.message : String(err)
             if (attempt >= retries || !cur.invoke) {
+              const what =
+                correctionName === 'validation.correction'
+                  ? 'Validation rejected'
+                  : 'Could not parse'
               throw new LlmParseError(
-                `Could not parse model output after ${attempt + 1} attempt(s): ${reason}`,
+                `${what} model output after ${attempt + 1} attempt(s): ${reason}`,
                 content,
                 { cause: err },
               )
             }
             const correction = resolvePrompt(
-              'json.correction',
+              correctionName,
               { error: reason },
               ps.sources as PromptSources,
               ps.env,
@@ -401,7 +432,13 @@ export function llmParse<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, G
               ],
             }
             const response = await cur.invoke(request)
-            cur = { ...cur, request, response, usage: addUsage(cur.usage, response) }
+            cur = {
+              ...cur,
+              request,
+              response,
+              usage: addUsage(cur.usage, response),
+              feedback: reason,
+            }
           }
         }
       })

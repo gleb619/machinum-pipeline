@@ -115,6 +115,13 @@ const DEFAULTS: PromptTemplate[] = [
       'Your previous answer was not valid JSON ({{error}}). ' +
       'Reply again with only the corrected JSON value, no prose, no code fences.',
   },
+  {
+    name: 'validation.correction',
+    description: 'Corrective user message after a reply failed content validation.',
+    template:
+      'Your previous answer failed validation ({{error}}). ' +
+      'Reply again with the corrected answer only, no prose, no explanations.',
+  },
 ]
 for (const p of DEFAULTS) registerPrompt(p)
 

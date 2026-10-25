@@ -85,7 +85,8 @@ Building blocks of the sample3 translate stage (EN->RU, line by line).
   cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,
   `term-tag-left`, `think-block`, `low-cyrillic`; warn: `untranslated-line`. On a hard error the tool throws
   `LineParityError` (`retryable: true`) so the engine retry kicks in; after the last attempt the run fails with the
-  message. Standalone check without `mt`: `samples/sample3/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
+  message. `LineParityError.feedback` / `parityFeedback(report)` = measured feedback for retry-prompt injection
+  (line counts + delta, Cyrillic ratio, hard-error messages; T138). Standalone check without `mt`: `samples/sample3/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
 
 ### Sample-stage tools (moved from `samples/sample3`, T129)
 Reusable glue so sample pipelines only compose package tools (no bespoke `defineTool`).
@@ -260,8 +261,8 @@ throws naming the ref. Secrets are reported as `vault:<entry>` in `sources` and 
 **tool option** (`createLlmGate({ prompts: { name: text } })`) > **`meta.prompts[name]`** > **settings `prompts.<name>`** >
 **env `MT_PROMPT_<NAME>`** (`.`/`-` -> `_`, upper-case) > **registered default**. A value starting with `@` is a file path
 (relative to the project root). Templates use `{{var}}`; a missing var throws `PromptVariableError`.
-Defaults: `translate.system`, `translate.user`, `summary`, `entities`, `context.summarize`, `json.correction`
-(`registerPrompt()` adds more).
+Defaults: `translate.system`, `translate.user`, `summary`, `entities`, `context.summarize`, `json.correction`,
+`validation.correction` (`registerPrompt()` adds more).
 
 ### Context window (`contextWindow` tool, `fit` slot)
 
@@ -292,7 +293,10 @@ Extend/override via mt.json `context.limits` or `MT_CONTEXT_LIMITS` (`{"glob": t
 `createLlmGate(opts)` = `defineComposableTool` with slots `prepare -> fit -> call -> parse -> emit` (state travels as
 `GateState` in `env.item`). Reliability: JSON mode (`responseFormat: 'json'`) parses with bounded corrective retries
 (`jsonRetries`, default 2), `shrinkOnContextError` re-fits via the `fit` slot and retries on `LlmContextLengthError`,
-usage/cost land in `meta.llmUsage`. `stream: true` (+ optional `onDelta(delta, input)`) makes the `call` slot use
+usage/cost land in `meta.llmUsage`. `check(content, input)` validates raw content (throw = reject): bounded
+`checkRetries` (default 2) re-ask the model with the rejection reason appended (`validation.correction` template,
+overridable; the reason also lands on `GateState.feedback`) — measured feedback e.g. `parityFeedback` steers the
+retry (ranobe-tl self-correction, T138). `stream: true` (+ optional `onDelta(delta, input)`) makes the `call` slot use
 `chatCompletionStream` when the transport supports it; the aggregated output and envelope shape are identical to
 non-streaming.
 

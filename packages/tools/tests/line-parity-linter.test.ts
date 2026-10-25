@@ -5,6 +5,7 @@ import {
   LineParityError,
   createLineParityLinter,
   lintLineParity,
+  parityFeedback,
 } from '../src/verification/line-parity-linter.js'
 
 const EN = ['# Chapter 1: Start', '', 'He walked in.', '', '[System: level up!]', ''].join('\n')
@@ -59,6 +60,32 @@ describe('lintLineParity', () => {
     const long = 'He walked slowly into the great hall of the old keep.'
     const r = lintLineParity(`${long}\nок`, `${long}\nок`, { cyrillicSeverity: 'warn' })
     expect(r.issues.some((i) => i.code === 'untranslated-line' && i.severity === 'warn')).toBe(true)
+  })
+})
+
+describe('parityFeedback (measured feedback for retry prompts, T138)', () => {
+  it('reports line counts, Cyrillic ratio and the hard errors', () => {
+    const report = lintLineParity(EN, EN) // untranslated: low-cyrillic error
+    const fb = parityFeedback(report)
+    expect(fb).toContain(`EN ${report.enLines} lines, RU ${report.ruLines} lines`)
+    expect(fb).toContain(`Cyrillic ratio ${report.cyrillicRatio}`)
+    expect(fb).toContain('below 0.3')
+  })
+
+  it('includes the line-count delta when counts differ', () => {
+    const report = lintLineParity(EN, RU.replace('\n\nОн вошёл.', ''))
+    expect(parityFeedback(report)).toContain(`line-count delta ${report.ruLines - report.enLines}`)
+  })
+
+  it('LineParityError carries the measured feedback', async () => {
+    const run = createLineParityLinter().invoke(
+      { item: { en: EN, ru: EN }, meta: {} },
+      {} as ToolContext,
+    )
+    await expect(run).rejects.toMatchObject({
+      retryable: true,
+      feedback: expect.stringContaining('Cyrillic ratio'),
+    })
   })
 })
 

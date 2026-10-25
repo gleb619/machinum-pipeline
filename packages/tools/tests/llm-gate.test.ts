@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LlmHttpRequest } from '../src/core/llm-client.js'
 import { LlmContextLengthError, LlmParseError } from '../src/core/llm-errors.js'
 import {
+  type GateOutput,
   type GateState,
   createLlmGate,
   extractJson,
@@ -12,6 +13,7 @@ import {
 } from '../src/core/llm-gate.js'
 import { llmTranslate } from '../src/core/llm-translate.js'
 import { chatCompletion, runPrompt } from '../src/core/openrouter-tool.js'
+import { lintLineParity, parityFeedback } from '../src/verification/line-parity-linter.js'
 
 const ctx = {} as ToolContext
 const ctxWith = (global: Record<string, unknown>): ToolContext =>
@@ -294,6 +296,93 @@ describe('json mode / parse slot', () => {
     }).with({ call: mock })
     const out = await gate.invoke({ item: jin, meta: {} }, ctx)
     expect((out.item as { json: unknown }).json).toEqual({ n: 2 })
+  })
+})
+
+describe('content validation retry: feedback into the next attempt (T138)', () => {
+  it('rejects via check(), re-asks with the rejection reason appended', async () => {
+    const mock = mockLlmCall(['He walked in.', 'Он вошёл.'])
+    const gate = createLlmGate({
+      name: 'g',
+      check: (content) => {
+        if (!/[Ѐ-ӿ]/.test(content)) throw new Error('no Cyrillic in reply')
+      },
+    }).with({ call: mock })
+    const out = await gate.invoke({ item: { prompt: 'translate' }, meta: {} }, ctx)
+    expect((out.item as GateOutput).content).toBe('Он вошёл.')
+    expect(mock.calls).toHaveLength(2)
+    const second = mock.calls[1]?.messages ?? []
+    expect(second.at(-2)).toEqual({ role: 'assistant', content: 'He walked in.' })
+    expect(second.at(-1)?.content).toMatch(/no Cyrillic/)
+    expect((out.meta.llmUsage as { calls: number }).calls).toBe(2)
+  })
+
+  it('records the last rejection reason on GateState.feedback', async () => {
+    const seen: Array<string | undefined> = []
+    const gate = createLlmGate({
+      name: 'g',
+      check: (content) => {
+        if (content === 'bad') throw new Error('measured: ratio 0.10 below 0.30')
+      },
+      toOutput: (state) => {
+        seen.push(state.feedback)
+        return {
+          content: state.response?.content ?? '',
+          model: state.response?.model ?? '',
+          tokens: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+        }
+      },
+    }).with({ call: mockLlmCall(['bad', 'good']) })
+    await gate.invoke({ item: { prompt: 'q' }, meta: {} }, ctx)
+    expect(seen).toEqual(['measured: ratio 0.10 below 0.30'])
+  })
+
+  it('gives up after checkRetries with the reason', async () => {
+    const mock = mockLlmCall(['He walked in.'])
+    const gate = createLlmGate({
+      name: 'g',
+      checkRetries: 1,
+      check: () => {
+        throw new Error('still latin')
+      },
+    }).with({ call: mock })
+    await expect(gate.invoke({ item: { prompt: 'q' }, meta: {} }, ctx)).rejects.toThrow(
+      /still latin/,
+    )
+    expect(mock.calls).toHaveLength(2)
+  })
+
+  it('check() is awaited and the corrective template is overridable', async () => {
+    const mock = mockLlmCall(['nope', 'fine'])
+    const gate = createLlmGate({
+      name: 'g',
+      prompts: { 'validation.correction': 'FIX THIS: {{error}}' },
+      check: async (content) => {
+        await Promise.resolve()
+        if (content === 'nope') throw new Error('ratio too low')
+      },
+    }).with({ call: mock })
+    await gate.invoke({ item: { prompt: 'q' }, meta: {} }, ctx)
+    expect(mock.calls[1]?.messages.at(-1)?.content).toBe('FIX THIS: ratio too low')
+  })
+
+  it('ports the ranobe-tl loop: lintLineParity feedback steers the retry', async () => {
+    const en = 'He walked slowly into the great hall of the old keep.'
+    const mock = mockLlmCall([en, 'Он медленно вошёл в большой зал старого замка.'])
+    const gate = createLlmGate<{ en: string }, GateOutput>({
+      name: 'g',
+      normalize: (input) => ({ prompt: input.en }),
+      check: (content, input) => {
+        const report = lintLineParity(input.en, content)
+        if (!report.ok) throw new Error(parityFeedback(report))
+      },
+    }).with({ call: mock })
+    const out = await gate.invoke({ item: { en }, meta: {} }, ctx)
+    expect(mock.calls).toHaveLength(2)
+    expect(mock.calls[1]?.messages.at(-1)?.content).toContain('Cyrillic ratio')
+    expect((out.item as GateOutput).content).toContain('вошёл')
   })
 })
 

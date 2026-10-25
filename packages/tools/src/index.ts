@@ -181,6 +181,7 @@ export {
   createLineParityLinter,
   lintLineParity,
   LineParityError,
+  parityFeedback,
   type LineParityInput,
   type ParityIssue,
   type ParityIssueCode,

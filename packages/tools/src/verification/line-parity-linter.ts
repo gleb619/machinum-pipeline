@@ -179,6 +179,8 @@ export function lintLineParity(
 /** Thrown by {@link lineParityLinter} on a hard error; `retryable` so the engine retries. */
 export class LineParityError extends Error {
   readonly retryable = true
+  /** Measured feedback (see {@link parityFeedback}) for retry-prompt injection. */
+  readonly feedback: string
   constructor(
     readonly report: LineParityReport,
     readonly where?: string,
@@ -188,7 +190,25 @@ export class LineParityError extends Error {
       `line parity check failed${where ? ` at ${where}` : ''} (${report.errors} error(s)): ${first.slice(0, 3).join('; ')}`,
     )
     this.name = 'LineParityError'
+    this.feedback = parityFeedback(report)
   }
+}
+
+/**
+ * Measured, human-readable feedback from a parity report: the numbers a retrying LLM call needs
+ * (line counts + delta, Cyrillic ratio) plus the hard-error messages. Throw it from an llm-gate
+ * `check` (or read it off {@link LineParityError}) so the retry prompt carries the measurements
+ * (ranobe-tl self-correction).
+ */
+export function parityFeedback(report: LineParityReport): string {
+  const parts = [`EN ${report.enLines} lines, RU ${report.ruLines} lines`]
+  if (report.enLines !== report.ruLines) {
+    parts.push(`line-count delta ${report.ruLines - report.enLines}`)
+  }
+  parts.push(`Cyrillic ratio ${report.cyrillicRatio}`)
+  const errors = report.issues.filter((i) => i.severity === 'error').map((i) => i.message)
+  if (errors.length > 0) parts.push(errors.slice(0, 5).join('; '))
+  return parts.join('; ')
 }
 
 export interface LineParityLinterOptions extends LineParityOptions {
