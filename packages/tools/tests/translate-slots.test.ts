@@ -180,6 +180,90 @@ Body text here.
     expect(out.item.text).toContain('«t»Second para here.«/t»')
   })
 
+  it('paragraph translator bounds in-flight calls and preserves order', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    const started: Array<() => void> = []
+    const tracker = defineTool<TranslateInput, TranslateOutput>({
+      name: 'tracker-translator',
+      version: '1.0.0',
+      mdDescription: 'Tracks in-flight calls; resolves when released.',
+      invoke: async (env) => {
+        inFlight++
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        await new Promise<void>((resolve) => started.push(resolve))
+        inFlight--
+        return { item: { translatedText: `«t»${env.item.text}«/t»` }, meta: env.meta }
+      },
+    })
+    const tool = createParagraphTranslator({ translate: tracker, concurrency: 3 })
+    const paras = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5']
+    const pending = tool.invoke(
+      { item: { text: paras.join('\n\n'), targetLang: 'ru' }, meta: {} },
+      ctx,
+    )
+    await vi.waitFor(() => expect(started).toHaveLength(3))
+    expect(maxInFlight).toBe(3)
+    for (const release of started.splice(0)) release()
+    await vi.waitFor(() => expect(started).toHaveLength(3))
+    expect(maxInFlight).toBe(3)
+    for (const release of started.splice(0)) release()
+    const out = await pending
+    expect(out.item.paragraphsTranslated).toBe(6)
+    expect(out.item.text).toBe(paras.map((p) => `«t»${p}«/t»`).join('\n\n'))
+  })
+
+  it('memoizes paragraph results across retries: only failed paragraphs are re-translated', async () => {
+    const calls: string[] = []
+    let failed = false
+    const flaky = defineTool<TranslateInput, TranslateOutput>({
+      name: 'flaky-translator',
+      version: '1.0.0',
+      mdDescription: 'Fails once on p3.',
+      invoke: async (env) => {
+        calls.push(env.item.text)
+        if (env.item.text === 'p3' && !failed) {
+          failed = true
+          throw new Error('boom p3')
+        }
+        return { item: { translatedText: `«t»${env.item.text}«/t»` }, meta: env.meta }
+      },
+    })
+    const tool = createParagraphTranslator({ translate: flaky, concurrency: 2 })
+    const paras = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5']
+    const input = { text: paras.join('\n\n'), targetLang: 'ru' }
+    await expect(tool.invoke({ item: input, meta: {} }, ctx)).rejects.toThrow('boom p3')
+    const out = await tool.invoke({ item: input, meta: {} }, ctx)
+    expect(out.item.text).toBe(paras.map((p) => `«t»${p}«/t»`).join('\n\n'))
+    expect(calls.filter((c) => c === 'p3')).toHaveLength(2)
+    expect(calls.filter((c) => c !== 'p3')).toEqual(['p0', 'p1', 'p2', 'p4', 'p5'])
+  })
+
+  it('skips the memo when the translator is non-idempotent', async () => {
+    const calls: string[] = []
+    let failed = false
+    const nonIdempotent = defineTool<TranslateInput, TranslateOutput>({
+      name: 'non-idempotent-translator',
+      version: '1.0.0',
+      mdDescription: 'Fails once; not idempotent.',
+      idempotent: false,
+      invoke: async (env) => {
+        calls.push(env.item.text)
+        if (!failed) {
+          failed = true
+          throw new Error('boom once')
+        }
+        return { item: { translatedText: `«t»${env.item.text}«/t»` }, meta: env.meta }
+      },
+    })
+    const tool = createParagraphTranslator({ translate: nonIdempotent })
+    const input = { text: 'para one\n\npara two', targetLang: 'ru' }
+    await expect(tool.invoke({ item: input, meta: {} }, ctx)).rejects.toThrow('boom once')
+    await tool.invoke({ item: input, meta: {} }, ctx)
+    // no memo: the retry re-translates every paragraph
+    expect(calls).toEqual(['para one', 'para two', 'para one', 'para two'])
+  })
+
   it('.with({ translate }) swaps the paragraph translator too', async () => {
     const slotMock = defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
       name: 'state-mock-p',

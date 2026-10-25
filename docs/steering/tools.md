@@ -60,7 +60,12 @@ Envelope type: `SchemaDocEnvelope`.
 Higher-level translation tools, composable:
 - `titleTranslator` / `createTitleTranslator({ translate })` — slots `extract -> translate -> assemble`
   (title from frontmatter, H1, or first line).
-- `paragraphTranslator` / `createParagraphTranslator({ translate })` — slots `split -> translate -> assemble`.
+- `paragraphTranslator` / `createParagraphTranslator({ translate, concurrency })` — slots `split -> translate -> assemble`.
+  The translate slot runs paragraphs through the core's bounded `mapConcurrent` (`concurrency` option,
+  default 4, output order preserved) and memoises each paragraph result for the lifetime of the tool
+  instance, keyed by `(text, targetLang, sourceLang, translator name)` (LRU-bounded). A runner retry
+  therefore only re-translates paragraphs that failed. Memo is skipped when the translator tool is
+  marked `idempotent: false`.
 
 The `translate` slot defaults to `translateText`; all invocations go through one shared helper
 (`translateVia`, no hand-built envelopes). Swap the translator for the whole tool either via the factory

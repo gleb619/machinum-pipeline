@@ -1,4 +1,4 @@
-import { defineComposableTool, defineTool } from '@mt/core'
+import { defineComposableTool, defineTool, mapConcurrent } from '@mt/core'
 import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
 import { type TranslateInput, type TranslateOutput, translateText } from '../core/translate-text.js'
 import { type ChapterDoc, readChapterDoc, writeChapterDoc } from './chapter-doc.js'
@@ -235,6 +235,43 @@ export type ParagraphTranslatorSlot = 'split' | 'translate' | 'assemble'
 export interface ParagraphTranslatorOptions {
   /** Translator for each paragraph. Default: `translateText`. */
   translate?: Tool<TranslateInput, TranslateOutput>
+  /**
+   * Max paragraphs translated concurrently (bounded, output order preserved).
+   * Default: 4.
+   */
+  concurrency?: number
+}
+
+/** Max entries kept in the per-tool paragraph memo (LRU eviction). */
+const PARAGRAPH_MEMO_MAX_ENTRIES = 512
+
+function paragraphMemoKey(
+  req: TranslateInput,
+  translator: Tool<TranslateInput, TranslateOutput>,
+): string {
+  return JSON.stringify([req.text, req.targetLang, req.sourceLang ?? null, translator.name])
+}
+
+function memoGet(memo: Map<string, string>, key: string): string | undefined {
+  const hit = memo.get(key)
+  if (hit === undefined) return undefined
+  // Refresh recency (LRU).
+  memo.delete(key)
+  memo.set(key, hit)
+  return hit
+}
+
+function memoSet(memo: Map<string, string>, key: string, value: string): void {
+  memo.set(key, value)
+  while (memo.size > PARAGRAPH_MEMO_MAX_ENTRIES) {
+    const oldest = memo.keys().next().value
+    if (oldest === undefined) break
+    memo.delete(oldest)
+  }
+}
+
+async function* asAsync<T>(items: readonly T[]): AsyncIterable<T> {
+  yield* items
 }
 
 const paragraphSplit = defineTool<ParagraphTranslatorInput, ParagraphTranslatorState>({
@@ -265,22 +302,38 @@ const paragraphSplit = defineTool<ParagraphTranslatorInput, ParagraphTranslatorS
 
 function paragraphTranslateSlot(
   translator: Tool<TranslateInput, TranslateOutput>,
+  options: { concurrency?: number } = {},
 ): Tool<ParagraphTranslatorState, ParagraphTranslatorState> {
+  const concurrency = Math.max(1, Math.floor(options.concurrency ?? 4))
+  // Per-paragraph memo, lifetime of this tool instance: the runner's retry re-invokes
+  // the whole slot, so a memo hit means the paragraph is not re-translated (retry only
+  // pays for paragraphs that failed). Skipped for non-idempotent translators.
+  const memo = translator.idempotent === false ? undefined : new Map<string, string>()
   return defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
     name: 'paragraph-translator:translate',
-    version: '1.0.0',
-    mdDescription: 'Translates every paragraph via the configured translator.',
+    version: '1.1.0',
+    mdDescription:
+      'Translates every paragraph via the configured translator (bounded concurrency, ' +
+      'per-paragraph memo so retries skip already-translated paragraphs).',
     async invoke(env, ctx) {
       const state = env.item
       const translated: string[] = []
-      for (const para of state.paragraphs) {
-        const out = await translateVia(
-          translator,
-          toTranslateInput(para, state.input),
-          env.meta,
-          ctx,
-        )
-        translated.push(out.translatedText)
+      for await (const text of mapConcurrent(
+        asAsync(state.paragraphs),
+        concurrency,
+        async (para) => {
+          const req = toTranslateInput(para, state.input)
+          const key = memo ? paragraphMemoKey(req, translator) : undefined
+          if (memo && key !== undefined) {
+            const hit = memoGet(memo, key)
+            if (hit !== undefined) return hit
+          }
+          const out = await translateVia(translator, req, env.meta, ctx)
+          if (memo && key !== undefined) memoSet(memo, key, out.translatedText)
+          return out.translatedText
+        },
+      )) {
+        translated.push(text)
       }
       return { item: { ...state, translated }, meta: env.meta }
     },
@@ -330,7 +383,9 @@ export function createParagraphTranslator(
       'Composable: slots split/translate/assemble; swap the translator via `.with({ translate })`.',
     slots: {
       split: paragraphSplit as Tool<never, unknown>,
-      translate: paragraphTranslateSlot(options.translate ?? translateText) as Tool<never, unknown>,
+      translate: paragraphTranslateSlot(options.translate ?? translateText, {
+        concurrency: options.concurrency,
+      }) as Tool<never, unknown>,
       assemble: paragraphAssemble as Tool<never, unknown>,
     },
   })
