@@ -12,6 +12,7 @@ import type { Pipeline } from '@mt/core'
 import '@mt/waypoint'
 
 import { DuplexLogger } from '../utils/logger.js'
+import { runLifecycleScript } from './utils/lifecycle.js'
 
 /**
  * `mt run <pipelineFile>` — execute a pipeline.
@@ -49,6 +50,9 @@ export async function runCommand(args: string[]): Promise<void> {
   logger.info(`Starting pipeline: ${pipeline.id}`)
   logger.info(`Pipeline file: ${pipelineFile}`)
 
+  // Lifecycle hooks: scripts.start before, scripts.end after (success or failure)
+  await runLifecycleScript(globalContext, 'start', { pipelineName, logger })
+
   // Create and start runner (record provenance so `mt resume <runId>` finds the file)
   const runner = new Runner(pipeline, globalContext, {
     pipelineFile: relative(projectRoot, resolve(projectRoot, pipelineFile)),
@@ -63,17 +67,29 @@ export async function runCommand(args: string[]): Promise<void> {
     process.exit(0)
   })
 
+  let failure: unknown
   try {
     const runContext = await runner.start()
     logger.info(`Pipeline completed successfully (runId: ${runContext.runId})`)
     console.log(`\n✅ Pipeline complete. Run ID: ${runContext.runId}`)
   } catch (error) {
+    failure = error
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline failed: ${errorMessage}`)
     console.error(`\n❌ Pipeline failed: ${errorMessage}${hint}`)
-    process.exit(1)
   }
+
+  // scripts.end runs on success AND failure; an end-hook error must not mask the outcome.
+  try {
+    await runLifecycleScript(globalContext, 'end', { pipelineName, logger })
+  } catch (hookError) {
+    const hookMessage = hookError instanceof Error ? hookError.message : String(hookError)
+    logger.warn(`end hook failed: ${hookMessage}`)
+    console.error(`\n⚠️ end hook failed: ${hookMessage}`)
+  }
+
+  if (failure !== undefined) process.exit(1)
 }
 
 /**

@@ -69,7 +69,8 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | Command | File | Description |
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
-| `mt run <pipeline.ts>` | `run.ts` | Execute a pipeline; build GlobalContext, load module, start Runner |
+| `mt run <pipeline.ts>` | `run.ts` | Execute a pipeline; build GlobalContext, load module, start Runner. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure) |
+| `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup); `--pipeline <name>` for named exports |
 | `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file comes from state.json unless given |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
@@ -105,8 +106,18 @@ Entry point: `main()` function, arg parsing, dispatch to command modules. Handle
 ### `src/commands/run.ts`
 1. `loadGlobalContext(projectRoot)` → `GlobalContext` (from `@mt/core`; no CLI-local `mt.json` parsing)
 2. `loadPipeline(file, name?)` → `Pipeline`
-3. `new Runner(pipeline, ctx)` → `runner.start()`
-4. Listen for SIGINT → `runner.pause()`
+3. `runLifecycleScript(ctx, 'start')` → no-op unless `scripts.start` is defined in mt.json
+4. `new Runner(pipeline, ctx)` → `runner.start()`
+5. Listen for SIGINT → `runner.pause()`
+6. `runLifecycleScript(ctx, 'end')` in a finally-style path (runs on success AND failure; an
+   end-hook error is logged as a warning and never masks the main outcome)
+
+### `src/commands/install.ts`
+`mt install` — runs the `scripts.install` pipeline from mt.json via the shared
+`commands/utils/lifecycle.ts` helper (`runLifecycleScript(ctx, name)`): resolves the script path
+inside the project root, `importPipelineModule`, default/named (`--pipeline <name>`) export,
+`new Runner(...)` → `runner.start()`. Exits 1 with a clear message when `scripts.install` is
+undefined or the script file is invalid. `mt resume` does NOT run lifecycle hooks.
 
 ### `src/commands/resume.ts`
 Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`. The pipeline file
@@ -165,7 +176,8 @@ packages/cli/tests/
 ├── index.test.ts              # Top-level dispatch
 ├── index.arch.test.ts         # Arch: all commands registered
 ├── commands/
-│   ├── run.test.ts            # run command (mock Runner)
+│   ├── run.test.ts            # run command (mock Runner) + start/end lifecycle hooks
+│   ├── install.test.ts        # install command (mock Runner): missing/absent script, named export
 │   ├── resume.test.ts         # resume command
 │   ├── init.test.ts           # init scaffolding
 │   ├── list.test.ts           # ls runs output format

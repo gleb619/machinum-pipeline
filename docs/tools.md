@@ -274,6 +274,12 @@ Implemented (not part of the TL index above). Full reference: [steering/tools.md
 | `createOpenAiSdkClient`, `createAnthropicSdkClient`, `createSdkAdapter` | SDK transports | Official `openai` / `@anthropic-ai/sdk` adapters (lazy-loaded); same typed errors + pool 429/402 behaviour as the fetch adapters |
 | `resolveLlmConfig`, `resolvePrompt`, `resolveContextConfig` | pure resolvers | Config / prompt / context precedence (config key `llm.transport`: `sdk` \| `fetch`) |
 
+### Dev-environment tools
+
+| Export | Kind | Purpose |
+|---|---|---|
+| `dockerComposeEmitter(options)` | tool factory | Generates `docker-compose.yml` (atomic write, hand-rolled YAML) with `ollama`/`qdrant`/`lightrag` service presets and optional top-level `include:` entries; `outPath` default `./docker-compose.yml` |
+
 ### Sample-stage tools (T129)
 
 Details: [steering/tools.md](steering/tools.md#sample-stage-tools-moved-from-samplessample3-t129).

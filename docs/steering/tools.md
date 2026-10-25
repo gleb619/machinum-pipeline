@@ -207,6 +207,15 @@ The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readT
 `readTextFileSync`, `readDirectory`, `isDirectory`); `fs-write.ts` delegates atomic writes to
 `@mt/core` (`atomicWriteFile`, temp-then-rename). Everything else in `src/` goes through these two.
 
+### `docker-compose.ts`
+- `dockerComposeEmitter(options)` — dev-environment generator tool: renders a `docker-compose.yml`
+  (hand-rolled YAML, no yaml dep) with minimal service presets (`services: Array<'ollama' | 'qdrant' |
+  'lightrag'>` — image/port/volume; the `lightrag` image is a documented placeholder) and optional
+  top-level docker compose `include:` entries (`include?: string[]`). `outPath?` defaults to
+  `./docker-compose.yml`, resolved against `ctx.run.global.project.root`; written atomically via
+  `fs-write.ts`. Returns `{ path, services, include }` as the item and records `meta.dockerCompose`.
+  The parent directory must already exist (same contract as `atomicWriteFile`).
+
 ### `token-splitter.ts`
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
 
@@ -373,6 +382,7 @@ New tools that write md should expose `build`/`emit` slots instead of hardcoding
 ## Tests
 
 Tests live in `packages/tools/tests/`:
+- `docker-compose.test.ts` — compose generator: service presets, `include:` block, atomic write
 - `chapter-doc.test.ts` — unit tests for doc read/write
 - `schema-doc.test.ts` — schema-doc format tests (`readDoc` / `writeDoc` round-trip)
 - `schema/prompt-retry.test.ts` — `runPromptWithRetry` loop guard, retries and attempt budget

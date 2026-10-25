@@ -12,7 +12,7 @@ Re-exports everything needed by consumers:
 - `definePipeline`, `defineTool`, `defineSource`, `defineTarget` (DSL builders)
 - `Envelope`, `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
-- `loadGlobalContext`, `parseEnvFile`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
+- `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
 - `UriRegistry`, `registry`, `registerSource`, `registerTarget`, `resolveSource`, `resolveTarget` (URI)
 - `Runner`, `Store`, `Cache`
 
@@ -41,6 +41,12 @@ The only `GlobalContext` builder: `mt.json` merged over `DEFAULT_MT_CONFIG`, top
 `settings.uris`, and `secrets.envFile` (default `.env`) read into `env`. Missing `mt.json` yields defaults;
 a malformed one throws naming the file path. `env` never overrides a key already set in `process.env` and never
 writes back into it. `mt run`, `mt resume` and the admin start route all call it — no caller hand-rolls a context.
+
+`scripts?: LifecycleScripts` (`Partial<Record<'install' | 'start' | 'end', string>>`) declares lifecycle
+hook pipelines: paths to pipeline module files (relative to the project root) run by the CLI —
+`mt install` runs `scripts.install`; `mt run` runs `scripts.start` before and `scripts.end` after the
+main pipeline. The raw config (incl. `scripts`) is read with `readMtConfig(projectRoot)` — no merging
+over defaults, missing file yields `{}`.
 
 ### `dsl.ts` — `PipelineBuilder`
 Fluent chain. The builder itself implements `Pipeline`, so it can be a `default export` without calling `.to()`.

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initCommand } from '../src/commands/init.js'
 import { inspectCommand } from '../src/commands/inspect.js'
+import { installCommand } from '../src/commands/install.js'
 import { listRunsCommand } from '../src/commands/list.js'
 import { runCommand } from '../src/commands/run.js'
 import { vaultCommand } from '../src/commands/vault.js'
@@ -8,6 +9,10 @@ import { main } from '../src/index.js'
 
 vi.mock('../src/commands/init.js', () => ({
   initCommand: vi.fn(),
+}))
+
+vi.mock('../src/commands/install.js', () => ({
+  installCommand: vi.fn(),
 }))
 
 vi.mock('../src/commands/run.js', () => ({
@@ -62,6 +67,12 @@ describe('CLI entry point', () => {
     process.argv = ['node', 'mt', 'run', 'pipeline.ts']
     await main()
     expect(runCommand).toHaveBeenCalledWith(['pipeline.ts'])
+  })
+
+  it('calls install command', async () => {
+    process.argv = ['node', 'mt', 'install']
+    await main()
+    expect(installCommand).toHaveBeenCalledWith([])
   })
 
   it('calls ls runs command', async () => {

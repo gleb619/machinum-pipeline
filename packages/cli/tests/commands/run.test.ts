@@ -158,4 +158,87 @@ describe('run command', () => {
       expect.stringContaining('Pipeline failed: Runner failed'),
     )
   })
+
+  describe('lifecycle hooks (scripts.start / scripts.end)', () => {
+    async function writeHook(id: string): Promise<string> {
+      const scriptPath = join(testDir, `${id}.ts`)
+      await writeFile(scriptPath, `export default { id: "${id}" }`)
+      vi.doMock(scriptPath, () => ({ default: { id } }))
+      return scriptPath
+    }
+
+    function recordRunOrder(order: string[]): void {
+      vi.mocked(Runner).mockImplementation(
+        (pipeline) =>
+          ({
+            start: vi.fn().mockImplementation(() => {
+              order.push((pipeline as { id: string }).id)
+              return Promise.resolve({ runId: 'test-run-id' })
+            }),
+          }) as unknown as Runner,
+      )
+    }
+
+    async function writeMainPipeline(): Promise<void> {
+      const pipelinePath = join(testDir, 'pipeline.ts')
+      await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+      vi.doMock(pipelinePath, () => ({
+        default: { id: 'test-pipeline' },
+      }))
+    }
+
+    it('runs start hook before and end hook after the main pipeline', async () => {
+      await writeHook('start-hook')
+      await writeHook('end-hook')
+      await writeMainPipeline()
+      await writeFile(
+        join(testDir, 'mt.json'),
+        JSON.stringify({
+          project: { name: 'p' },
+          scripts: { start: './start-hook.ts', end: './end-hook.ts' },
+        }),
+      )
+      const order: string[] = []
+      recordRunOrder(order)
+
+      await runCommand(['pipeline.ts'])
+
+      expect(order).toEqual(['start-hook', 'test-pipeline', 'end-hook'])
+    })
+
+    it('skips hooks when scripts are not defined', async () => {
+      await writeMainPipeline()
+      await writeFile(join(testDir, 'mt.json'), JSON.stringify({ project: { name: 'p' } }))
+      const order: string[] = []
+      recordRunOrder(order)
+
+      await runCommand(['pipeline.ts'])
+
+      expect(order).toEqual(['test-pipeline'])
+    })
+
+    it('runs the end hook even when the main pipeline fails', async () => {
+      await writeHook('end-hook')
+      await writeMainPipeline()
+      await writeFile(
+        join(testDir, 'mt.json'),
+        JSON.stringify({ project: { name: 'p' }, scripts: { end: './end-hook.ts' } }),
+      )
+      const order: string[] = []
+      vi.mocked(Runner).mockImplementation(
+        (pipeline) =>
+          ({
+            start: vi.fn().mockImplementation(() => {
+              order.push((pipeline as { id: string }).id)
+              return (pipeline as { id: string }).id === 'test-pipeline'
+                ? Promise.reject(new Error('Runner failed'))
+                : Promise.resolve({ runId: 'test-run-id' })
+            }),
+          }) as unknown as Runner,
+      )
+
+      await expect(runCommand(['pipeline.ts'])).rejects.toThrow('EXIT 1')
+      expect(order).toEqual(['test-pipeline', 'end-hook'])
+    })
+  })
 })

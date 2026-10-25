@@ -295,6 +295,13 @@ export {
 export { atomicWriteFile } from './core/fs-write.js'
 
 export {
+  dockerComposeEmitter,
+  type DockerComposeEmitterOptions,
+  type DockerComposeOutput,
+  type DockerComposeService,
+} from './core/docker-compose.js'
+
+export {
   markdownStats,
   markdownOutline,
   stripFrontmatter,

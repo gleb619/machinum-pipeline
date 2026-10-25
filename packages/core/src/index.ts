@@ -1,7 +1,7 @@
 export { Store } from './store.js'
 export { atomicWriteFile, AtomicStreamWriter, removeStaleTmpFiles, tmpPathFor } from './atomic.js'
-export type { MtConfig } from './config.js'
-export { DEFAULT_MT_CONFIG, loadGlobalContext, parseEnvFile } from './config.js'
+export type { LifecycleScripts, MtConfig } from './config.js'
+export { DEFAULT_MT_CONFIG, loadGlobalContext, parseEnvFile, readMtConfig } from './config.js'
 export type {
   GlobalContext,
   RunContext,

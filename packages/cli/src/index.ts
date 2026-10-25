@@ -51,6 +51,11 @@ export async function main(): Promise<void> {
       await routerCommand(args.slice(1))
       break
     }
+    case 'install': {
+      const { installCommand } = await import('./commands/install.js')
+      await installCommand(args.slice(1))
+      break
+    }
     case 'vault': {
       const { vaultCommand } = await import('./commands/vault.js')
       await vaultCommand(args.slice(1))
@@ -69,7 +74,8 @@ Usage: mt <command> [options]
 
 Commands:
   init                    Scaffold a new Mt project
-  run <pipeline.ts>      Execute a pipeline (foreground)
+  run <pipeline.ts>      Execute a pipeline (foreground; runs scripts.start/scripts.end hooks)
+  install                Run the scripts.install lifecycle hook from mt.json
   resume <runId>         Resume a paused/failed run
   ls runs                List all runs
   inspect <runId>        Show run details

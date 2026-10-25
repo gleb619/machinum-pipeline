@@ -5,6 +5,16 @@ import type { Settings } from './settings.js'
 import { loadVault } from './vault.js'
 
 /**
+ * Lifecycle hook scripts declared in `mt.json` under `scripts`.
+ * Each value is a path to a pipeline module file (relative to the project root)
+ * executed at that lifecycle moment:
+ * - `install` — run by `mt install` (one-time project setup, e.g. generating config files)
+ * - `start` — run by `mt run` before the main pipeline starts
+ * - `end` — run by `mt run` after the main pipeline finishes (success or failure)
+ */
+export type LifecycleScripts = Partial<Record<'install' | 'start' | 'end', string>>
+
+/**
  * mt.json project configuration shape.
  */
 export interface MtConfig {
@@ -42,6 +52,8 @@ export interface MtConfig {
   /** Named URI aliases (e.g. `{ "en": "md://./chapters/en" }`), surfaced as `settings.uris` */
   uris?: Record<string, string>
   pipelines?: string[]
+  /** Lifecycle hook pipeline modules (see {@link LifecycleScripts}). */
+  scripts?: LifecycleScripts
 }
 
 export const DEFAULT_MT_CONFIG = {
@@ -161,7 +173,12 @@ function resolveRetry(retry: PartialRetry | undefined): RetryPolicy {
   return policy
 }
 
-async function readMtConfig(projectRoot: string): Promise<Partial<MtConfig>> {
+/**
+ * Read and parse `mt.json` at `projectRoot` (no merging over defaults).
+ * Missing file yields `{}`; a malformed one throws naming the file path.
+ * Used by lifecycle hooks (`scripts.*`) which need the raw config, not a `GlobalContext`.
+ */
+export async function readMtConfig(projectRoot: string): Promise<Partial<MtConfig>> {
   const configPath = resolve(projectRoot, 'mt.json')
   let raw: string
   try {
