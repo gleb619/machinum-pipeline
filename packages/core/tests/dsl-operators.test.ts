@@ -57,3 +57,23 @@ describe('DSL Operators: flatMap, fork, tap', () => {
     expect(pipeline.steps.find((s) => s.type === 'fork')?.config.pipeline).toBeDefined()
   })
 })
+
+describe('DSL Operators: batch/window size validation', () => {
+  it('rejects non-positive, non-integer, and NaN sizes', () => {
+    const pipeline = definePipeline({ id: 'size-validation' })
+
+    expect(() => pipeline.batch(0)).toThrow(RangeError)
+    expect(() => pipeline.batch(-1)).toThrow(RangeError)
+    expect(() => pipeline.batch(1.5)).toThrow(RangeError)
+    expect(() => pipeline.batch(Number.NaN)).toThrow(RangeError)
+    expect(() => pipeline.window(0)).toThrow(RangeError)
+    expect(() => pipeline.window(-1)).toThrow(RangeError)
+    expect(() => pipeline.window(Number.NaN)).toThrow(RangeError)
+  })
+
+  it('accepts positive integer sizes', () => {
+    const pipeline = definePipeline({ id: 'size-validation-ok' }).batch(3).window(2)
+
+    expect(pipeline.steps.map((s) => s.type)).toEqual(['batch', 'window'])
+  })
+})

@@ -9,6 +9,16 @@ import { registry } from './uri.js'
 const DEFAULT_RETRY = { max: 3, backoffMs: 1000, strategy: 'exp' as const }
 const DEFAULT_ON_ERROR: 'fail-run' | 'skip-item' | 'dead-letter' = 'fail-run'
 
+/**
+ * Validate a `.batch()` / `.window()` size: must be a positive integer.
+ * Throws at pipeline-definition time so a bad size never reaches the Runner.
+ */
+function assertPositiveInt(size: number, op: 'batch' | 'window'): void {
+  if (!Number.isInteger(size) || size < 1) {
+    throw new RangeError(`.${op}(size): size must be a positive integer, got ${size}`)
+  }
+}
+
 let warnedAboutPipelineId = false
 
 /** One-shot warning: pipeline ids cannot be inferred from the stack under bun. */
@@ -216,12 +226,24 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this
   }
 
+  /**
+   * Group envelopes into `items[]` batches of `size`, flushing the remainder at end of stream.
+   *
+   * @param size - Positive integer batch size; anything else throws `RangeError` here.
+   */
   batch(size: number): PipelineBuilder<I[], O> {
+    assertPositiveInt(size, 'batch')
     this._steps.push({ type: 'batch', config: { size } })
     return this as unknown as PipelineBuilder<I[], O>
   }
 
+  /**
+   * Group envelopes into `items[]` sliding windows of `size` (one item per arrival).
+   *
+   * @param size - Positive integer window size; anything else throws `RangeError` here.
+   */
   window(size: number): PipelineBuilder<I[], O> {
+    assertPositiveInt(size, 'window')
     this._steps.push({ type: 'window', config: { size } })
     return this as unknown as PipelineBuilder<I[], O>
   }

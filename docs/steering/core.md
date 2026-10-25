@@ -199,7 +199,9 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
 
 `.batch(n)` groups envelopes into `items[]` (`item` holds the same array) and flushes the
 remainder at end of stream; `.window(n)` emits the same shape but slides one item per arrival, so
-consecutive groups overlap.
+consecutive groups overlap. Both reject non-positive-integer `n` (`0`, negatives, fractions,
+`NaN`, `Infinity`) with a `RangeError` at pipeline-definition time; the Runner-side grouping
+(`groupStream`) keeps a defensive fallback to size 1 for unchecked step configs.
 
 ## Retry & Error Policy
 
