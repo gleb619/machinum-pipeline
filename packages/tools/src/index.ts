@@ -169,6 +169,21 @@ export {
   type GlossaryExtractorToolOptions,
 } from './normalization/glossary-extractor.js'
 export {
+  statFreq,
+  defineStatFreq,
+  createStatFreq,
+  buildStatFreqReport,
+  splitStatSentences,
+  tokenizeWords,
+  type StatFreqOptions,
+  type StatFreqReport,
+  type StatFreqWord,
+  type StatFreqSentence,
+  type StatFreqNgram,
+  type StatFreqTopEntry,
+  type StatFreqKind,
+} from './normalization/stat-freq.js'
+export {
   termTagger,
   tagTerms,
   stripTerms,
@@ -292,7 +307,7 @@ export {
   readTextFileSync,
 } from './core/fs-read.js'
 
-export { atomicWriteFile } from './core/fs-write.js'
+export { atomicWriteFile, ensureParentDir } from './core/fs-write.js'
 
 export {
   dockerComposeEmitter,

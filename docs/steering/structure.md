@@ -124,6 +124,7 @@ All tools live in `packages/tools/src/`, each as a `defineTool()` export:
 | `md-formatter.ts` | `mdFormatterTool` | Markdown reformatting with configurable width |
 | `token-splitter.ts` | (internal) | Split chapters at paragraph boundaries respecting token limits |
 | `word-counter.ts` | `wordCounter` | Word count per envelope |
+| `stat-freq.ts` | `statFreq`, `defineStatFreq` | Word / sentence / n-gram frequency report per envelope (offline) |
 | `chapter-indexer.ts` | (internal) | Chapter indexing/ordering |
 
 ## Runtime State Directory (`.mt/`)

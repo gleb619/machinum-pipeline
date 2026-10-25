@@ -83,6 +83,21 @@ Offline (no LLM) analysis tools, all accept a single `env.item` or a batched `en
   first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
   `meta.taggedItems` (item untouched). `stripTerms(tagged)` restores the original text exactly.
 
+### `stat-freq.ts`
+Offline (no LLM) statistical frequency analyzer (T147). Accepts `env.item` (string) or a batched
+`env.items` corpus; the envelope (and its cardinality) is returned untouched.
+
+- `statFreq` / `defineStatFreq(options)` / `createStatFreq(options)` — options `{ stopwords?, minWordLen?,
+  maxNgram?, topK?, outFile? }`: `stopwords` extends the built-in EN+RU list, `minWordLen` (default 1) drops
+  shorter tokens, `maxNgram` (default 3) caps the n-gram size, `topK` (default 500) caps every ranked list,
+  `outFile` additionally writes the report as JSON (atomic write, parent dir created).
+- Result in `meta.statFreq` = `StatFreqReport`: `{ totalWords, uniqueWords, words: [{ word, count, share }],
+  sentences: [{ sentence, count }], ngrams: [{ ngram, count }], top: [{ term, count, kind: 'word'|'ngram' }] }`.
+  `totalWords` / `uniqueWords` count every token (stopwords included); `words` lists non-stopword tokens only,
+  `sentences` only sentences occurring at least twice, `ngrams` only candidates without a stopword inside.
+  Ranking: count desc, then term asc (code point, locale independent) — deterministic for the same input.
+- Pure helpers: `buildStatFreqReport(texts, options)`, `splitStatSentences(text)`, `tokenizeWords(text)`.
+
 ### `translation-prompt.ts` / `line-parity-linter.ts`
 Building blocks of the sample3 translate stage (EN->RU, line by line).
 
