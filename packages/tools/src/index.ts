@@ -196,6 +196,11 @@ export {
   type StatDictSelectOptions,
 } from './normalization/stat-dict.js'
 export {
+  createStatTranslateDict,
+  statTranslateDict,
+  type StatTranslateDictOptions,
+} from './modification/stat-translate-dict.js'
+export {
   termTagger,
   tagTerms,
   stripTerms,
