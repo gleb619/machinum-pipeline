@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { constants } from 'node:fs'
-import { access, mkdir, rename, writeFile } from 'node:fs/promises'
+import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { gunzipSync, inflateRawSync } from 'node:zlib'
@@ -26,6 +26,12 @@ const VLT_INSTALL_HINT =
   'vlt binary not found. Install it with `mt vault vlt-install`, or run: ' +
   'curl -sSL https://raw.githubusercontent.com/ladzaretti/vlt-cli/main/install.sh | bash'
 
+const VLT_STATIC_BUILD_HINT =
+  'Build a static binary instead: ' +
+  "docker run --rm -v ~/.mt/bin:/out golang:1.24 bash -c " +
+  "'git clone --depth 1 https://github.com/ladzaretti/vlt-cli /src && cd /src && " +
+  "CGO_ENABLED=0 make build && cp bin/vlt bin/vltd /out/'"
+
 type Env = Record<string, string | undefined>
 
 /** Directory holding the mt-managed vlt binary. */
@@ -42,6 +48,13 @@ async function isExecutable(path: string): Promise<boolean> {
   return access(path, constants.X_OK)
     .then(() => true)
     .catch(() => false)
+}
+
+/** True when the binary actually runs (guards against glibc-mismatched downloads). */
+async function runsOk(path: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    execFile(path, ['version'], { timeout: 10_000 }, (error) => resolve(error === null))
+  })
 }
 
 let cachedBinary: Promise<string | undefined> | undefined
@@ -66,6 +79,7 @@ async function locateVlt(env: Env): Promise<string | undefined> {
   return undefined
 }
 
+/** Same as {@link findVlt}, but the candidate must also respond to `vlt version`. */
 /** Forget memoized state (post-install, tests). */
 export function resetVltCache(): void {
   cachedBinary = undefined
@@ -194,6 +208,13 @@ export async function installVlt(env: Env = process.env): Promise<string> {
   }
   resetVltCache()
   if (main === undefined) throw new Error('vlt install: archive contained no vlt binary')
+  if (!(await runsOk(main))) {
+    for (const [fileName] of files) await rm(join(dir, fileName), { force: true })
+    throw new Error(
+      'vlt install: the downloaded binary does not run on this system (glibc mismatch?). ' +
+        VLT_STATIC_BUILD_HINT,
+    )
+  }
   return main
 }
 

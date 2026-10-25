@@ -62,6 +62,9 @@ Resolution is **in memory only** — the vault file keeps the original refs and
 - **Binary acquisition** (first match wins): `vlt` on PATH → mt-managed
   `$MT_HOME|~/.mt/bin/vlt` → on-demand auto-install into `~/.mt/bin` (Linux only;
   x64/arm64/386). Install or check with `mt vault vlt-install` / `mt vault vlt-status`.
+  The install verifies the binary actually runs; on older glibc (e.g. Ubuntu 20.04,
+  glibc 2.31) the prebuilt download fails with a static-build hint — build with
+  `CGO_ENABLED=0` in a `golang:1.24` container and copy `bin/vlt`/`bin/vltd` to `~/.mt/bin`.
 - **Session model**: vlt is served by the `vltd` daemon; after `vlt login` a session
   stays unlocked for `session_duration` (default 1min, extendable in `~/.vlt.toml`
   `[vault] session_duration`). An expired session fails resolution with a

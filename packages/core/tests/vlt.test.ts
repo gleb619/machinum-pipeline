@@ -89,6 +89,12 @@ describe('vlt', () => {
   beforeEach(async () => {
     resetVltCache()
     execFileMock.mockReset()
+    // Default: every child process succeeds silently (probe + show stubs override).
+    execFileMock.mockImplementation(
+      (_f: unknown, _a: unknown, _o: unknown, cb: unknown) => {
+        ;(cb as (e: Error | null, so: string, se: string) => void)(null, '', '')
+      },
+    )
     dir = await mkdtemp(join(tmpdir(), 'mt-vlt-'))
     home = join(dir, 'home')
     binDir = join(dir, 'bin')
@@ -241,6 +247,27 @@ describe('vlt', () => {
     const st = await stat(installed)
     expect(st.mode & 0o777).toBe(0o755)
     expect((await stat(installed)).size).toBeGreaterThan(0)
+  })
+
+  it('installVlt removes the binary and points at a static build when it does not run', async () => {
+    const archive = makeTarGz({ vlt: Buffer.from('not a runnable binary') })
+    stubFetch('https://example.test/vlt.tar.gz', archive)
+    execFileMock.mockImplementation((_f: unknown, args: unknown, _o: unknown, cb: unknown) => {
+      if ((args as string[])[0] === 'version') {
+        ;(cb as (e: Error | null, so: string, se: string) => void)(
+          execError(1),
+          '',
+          'GLIBC_2.34 not found',
+        )
+      } else {
+        ;(cb as (e: Error | null, so: string, se: string) => void)(null, '', '')
+      }
+    })
+    const err = (await installVlt(process.env).catch((e: Error) => e)) as Error
+    expect(err.message).toMatch(/does not run/)
+    expect(err.message).toContain('docker run')
+    expect(err.message).not.toContain('GLIBC_2.34')
+    await expect(stat(join(home, '.mt', 'bin', 'vlt'))).rejects.toThrow()
   })
 
   it('resolveVltValue auto-installs a missing binary once, then resolves', async () => {
