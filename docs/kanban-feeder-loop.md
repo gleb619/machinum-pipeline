@@ -22,6 +22,7 @@ Invoke before any work:
 - Never `git commit/push/stash/reset`. Never edit `~/.at/*`.
 - One task per tick. Quality over quantity: no strong idea → register nothing.
 - Task IDs: `T` + 3 digits (`T074`). Pass `--id` explicitly (auto-ID emits `T74`, breaks sort).
+- **Channel**: always pass `--channel kanban-loop` to `at kanban add` (default is `loop`, which is wrong for feeder tasks).
 - Caveman/ultra-brief reports.
 
 ## State machine
@@ -78,7 +79,7 @@ Reject ideas that are style nits, speculative, or need a product decision. None 
 
 ```bash
 at kanban add --id T### --title "<imperative, ≤ 60 chars>" --priority <High|Medium|Low> \
-  --plan docs/plans/<kebab-slug>.md --keywords "<files,symbols,concepts>" \
+  --channel kanban-loop --plan docs/plans/<kebab-slug>.md --keywords "<files,symbols,concepts>" \
   --description "<≤ 128 chars: what + why>"
 ```
 

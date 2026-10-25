@@ -29,7 +29,7 @@ const MACHINE_MANAGED = new Set([
 ])
 
 /** The real GPU host / vault entry of this workstation. Never commit it. */
-const PRIVATE_HOSTS = ['borispc3']
+const PRIVATE_HOSTS = ['serverpc3']
 
 /** Live-looking credentials. Placeholders are allowed. */
 const LIVE_KEYS = [
