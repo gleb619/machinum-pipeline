@@ -43,6 +43,6 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignore": [".remember", "node_modules", "dist", ".output", ".turbo", ".mt"]
+    "ignore": [".remember", "node_modules", "dist", ".output", ".turbo", ".mt", "sandbox/results"]
   }
 }

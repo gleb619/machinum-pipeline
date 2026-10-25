@@ -165,3 +165,7 @@ my-book-project/
 - All file writes are atomic (write temp → rename) — no partial state on crash
 - Checkpoint tree is the only resume mechanism — no implicit "last good state"
 - Tools always run in-process — the engine calls `tool.invoke()` directly
+
+## Sandbox
+
+`sandbox/` is a top-level playground outside the pnpm workspace globs and the turbo/`pnpm test` gates: a model bench (`sandbox/src/bench.ts`) that runs a built-in EN fixture through the LLM gate tools (`ollama`, `openrouter-free`, `openrouter-pool`, `mock`) and ranks models for EN->RU translation. It imports `packages/tools/src` by relative path and has its own deps (`pnpm --dir sandbox install --ignore-workspace`). See `sandbox/README.md`.
