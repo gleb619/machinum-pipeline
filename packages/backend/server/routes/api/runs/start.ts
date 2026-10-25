@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { access } from 'node:fs/promises'
 import {
   Runner,
   importPipelineModule,
@@ -10,6 +10,7 @@ import {
 } from '@mt/core'
 import type { Pipeline } from '@mt/core'
 import { createError, defineEventHandler, readBody } from 'h3'
+import { PathOutsideRootError, resolveInsideRoot } from '../../../utils/resolve-inside-root.js'
 import { registerRunner, removeRunner } from '../../../utils/runner-registry.js'
 
 interface StartRunBody {
@@ -24,7 +25,22 @@ export default defineEventHandler(async (event) => {
 
   const projectRoot = process.cwd()
   const declaredPath = body.pipeline
-  const resolvedPath = join(projectRoot, declaredPath)
+
+  let resolvedPath: string
+  try {
+    resolvedPath = resolveInsideRoot(projectRoot, declaredPath)
+  } catch (err) {
+    if (err instanceof PathOutsideRootError) {
+      throw createError({ statusCode: 400, statusMessage: 'Pipeline path outside project' })
+    }
+    throw err
+  }
+
+  try {
+    await access(resolvedPath)
+  } catch {
+    throw createError({ statusCode: 404, statusMessage: `Pipeline not found: ${declaredPath}` })
+  }
 
   let pipelineModule: { default?: Pipeline }
   try {
@@ -37,9 +53,10 @@ export default defineEventHandler(async (event) => {
         statusMessage: `Pipeline cannot be loaded: ${declaredPath}${hint}`,
       })
     }
+    const message = err instanceof Error ? err.message : String(err)
     throw createError({
-      statusCode: 404,
-      statusMessage: `Pipeline not found: ${declaredPath}`,
+      statusCode: 500,
+      statusMessage: `Pipeline failed to load: ${declaredPath}: ${message}`,
     })
   }
 
