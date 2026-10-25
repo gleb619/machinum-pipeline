@@ -237,6 +237,19 @@ export {
   type LineParityReport,
 } from './verification/line-parity-linter.js'
 export {
+  statProofread,
+  createStatProofread,
+  checkTermConsistency,
+  checkTranslatedShare,
+  buildProofreadReport,
+  proofreadFeedback,
+  StatProofreadError,
+  type ProofreadIssue,
+  type ProofreadIssueKind,
+  type ProofreadReport,
+  type StatProofreadOptions,
+} from './verification/stat-proofread.js'
+export {
   heuristicSummaryTool,
   createHeuristicSummaryTool,
   summarizeHeuristic,
