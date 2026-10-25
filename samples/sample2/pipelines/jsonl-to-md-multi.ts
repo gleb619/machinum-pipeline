@@ -1,23 +1,25 @@
 import { definePipeline, defineTool } from '@mt/core'
 import type { MdOutputEntry } from '@mt/core'
 import {
+  type LlmRequest,
   type ParagraphTranslatorState,
   type TitleTranslatorInput,
   type TitleTranslatorState,
   chapterDoc,
   chapterIndexer,
   chapterValidator,
+  createEntitiesTool,
   createLlmGate,
-  entitiesTool,
+  createParagraphTranslator,
+  createSchemaTool,
+  createSummaryTool,
+  createTitleTranslator,
   forbiddenCharDetector,
   markdownFormatter,
   mdFormatter,
   mdOutputEmitter,
-  mockLlmCall,
   paragraphTranslator,
   schemaDocWriter,
-  schemaTool,
-  summaryTool,
   titleTranslator,
   toMarkdown,
   tokenCounter,
@@ -28,6 +30,25 @@ import {
   wordCounter,
 } from '@mt/tools'
 import '@mt/waypoint'
+import { pickLlmTool } from './llm-picker.js'
+
+// === LLM backend (single config point) ===
+// `MT_LLM_TOOL` picks the backend (router | openrouter-free | openrouter-pool | ollama | mock),
+// `MT_LLM_MODEL` the model; mt.json `settings.llm.tool` / `settings.llm.model` are the
+// file-based fallback (env wins). Default is `mock`: offline, no API key, no router.
+// Every LLM-backed tool below is wired to this one choice.
+const llm = pickLlmTool({
+  mockSource: (req: LlmRequest) =>
+    `mock-summary(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
+})
+
+// Schema-doc extractors (summary / entities / schema) and the chapter translators
+// (title / paragraph) all run through the picked backend.
+const summary = createSummaryTool({ model: llm.model, call: llm.schemaCall })
+const entities = createEntitiesTool({ model: llm.model, call: llm.schemaCall })
+const schema = createSchemaTool({ model: llm.model, call: llm.schemaCall })
+const titles = createTitleTranslator({ translate: llm.translate })
+const paragraphs = createParagraphTranslator({ translate: llm.translate })
 
 // === URI shortcuts (aliases) ===
 // Source/target URIs can be written as '@name' shortcuts instead of full URIs.
@@ -121,9 +142,9 @@ export const schemaDocPipeline = definePipeline()
   .use(wordCounter)
   .use(tokenCounter)
   .use(chapterIndexer)
-  .use(summaryTool)
-  .use(entitiesTool)
-  .use(schemaTool)
+  .use(summary)
+  .use(entities)
+  .use(schema)
   .use(mdFormatter)
   .use(schemaDocWriter)
   .to('md://./chapters')
@@ -157,9 +178,9 @@ export const schemaDocMockPipeline = definePipeline()
   .use(wordCounter)
   .use(tokenCounter)
   .use(chapterIndexer)
-  .use(summaryTool)
-  .use(entitiesTool)
-  .use(schemaTool)
+  .use(summary)
+  .use(entities)
+  .use(schema)
   .use(mdFormatter)
   .use(schemaDocWriter.with({ emit: mockSchemaEmit }))
   .to('md://./chapters')
@@ -173,7 +194,7 @@ export const fixChapterPipeline = definePipeline()
 export const translateTitlesPipeline = definePipeline()
   .from('ephemeral://titles-input')
   .batch(5)
-  .use(titleTranslator)
+  .use(titles)
   .flatMap(async (items: unknown) => (items as unknown[]) ?? [])
   .to('ephemeral://titles-output')
 
@@ -181,18 +202,19 @@ export const translateChapterPipeline = definePipeline()
   .from('ephemeral://translate-input')
   .flatMap(async (item: unknown) => {
     const record = item as { body: string; [k: string]: unknown }
-    const paragraphs = record.body.split('\n\n')
-    return paragraphs.map((p) => ({ ...record, body: p }))
+    const parts = record.body.split('\n\n')
+    return parts.map((p) => ({ ...record, body: p }))
   })
-  .use(paragraphTranslator)
+  .use(paragraphs)
   .to('ephemeral://translate-output')
 
-// === LLM gate demo (offline): mock `call` slot + custom prompt + context shrink ===
+// === LLM gate demo (offline): picked `call` slot + custom prompt + context shrink ===
 // Gate = composable tool with slots prepare -> fit -> call -> parse -> emit.
 // - prompts:  override the built-in 'summary' template (also possible via meta.prompts,
 //             mt.json settings `prompts.summary`, or env MT_PROMPT_SUMMARY=text|@file)
 // - context:  token budget + ordered shrink strategies for the `fit` slot
-// - .with({ call: mockLlmCall(...) }) swaps the network call for a scripted answer (no API key)
+// - .with({ call: llm.gate.slots.call }) takes the `call` slot of the picked backend
+//             (mock by default: a scripted answer, no API key, no router)
 const chapterSummaryGate = createLlmGate<
   { title: string; body: string; history: string[] },
   { content: string; model: string }
@@ -211,11 +233,11 @@ const chapterSummaryGate = createLlmGate<
     ]),
     promptName: 'summary',
     vars: { sentences: 2, text: input.body },
+    // the picked model wins over the gate's own default
+    model: llm.model,
   }),
 }).with({
-  call: mockLlmCall(
-    (req) => `mock-summary(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
-  ),
+  call: llm.gate.slots.call,
 })
 
 // Record -> gate input (history is synthetic filler so the context budget has something to trim).

@@ -1,10 +1,20 @@
 import type { ToolContext } from '@mt/core'
 import { chatCompletionSingle } from '../../core/openrouter-tool.js'
-import type { ChatCompletionInput } from '../../core/openrouter-tool.js'
+import type { ChatCompletionInput, ChatCompletionOutput } from '../../core/openrouter-tool.js'
 
 export const DEFAULT_LLM_MODEL = 'openai/gpt-4o-mini'
 export const DEFAULT_MAX_ATTEMPTS = 3
 export const DEFAULT_ROUTER_URL = 'http://localhost:7777'
+
+/**
+ * Custom LLM backend for the schema-doc tools: replaces the router-proxy request with the
+ * caller's own backend (an LLM gate, a mock, ...). It receives the request the proxy would
+ * have got and returns the same answer shape.
+ */
+export type SchemaDocLlmCall = (
+  input: ChatCompletionInput,
+  ctx: ToolContext,
+) => Promise<ChatCompletionOutput>
 
 /**
  * LLM knobs shared by every schema-doc extraction tool. Prompts are templates:
@@ -19,6 +29,8 @@ export interface SchemaDocLlmOptions {
   /** Loop-guard budget: LLM calls per chapter before the deterministic fallback. */
   maxAttempts?: number
   routerUrl?: string
+  /** Custom LLM backend; when set, the router proxy is not called. */
+  call?: SchemaDocLlmCall
 }
 
 export type PromptValidation<T> = { ok: true; value: T } | { ok: false; reason: string }
@@ -41,8 +53,9 @@ export interface PromptRetryResult<T> {
 }
 
 /**
- * Sends one user message with a system prompt through the OpenRouter proxy and
- * re-prompts with rejection feedback until `validate` accepts the answer.
+ * Sends one user message with a system prompt through the OpenRouter proxy (or through the
+ * custom backend given as `options.call`) and re-prompts with rejection feedback until
+ * `validate` accepts the answer.
  *
  * Never throws: transport errors and rejected answers are recorded as failures,
  * and the caller falls back to its deterministic parse after `maxAttempts`.
@@ -72,7 +85,9 @@ export async function runPromptWithRetry<T>(
     }
 
     try {
-      const result = await chatCompletionSingle(chatInput, routerUrl)
+      const result = options.call
+        ? await options.call(chatInput, ctx)
+        : await chatCompletionSingle(chatInput, routerUrl)
       tokens += result.tokens
       model = result.model
       content = result.content.trim()

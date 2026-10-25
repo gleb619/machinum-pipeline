@@ -37,8 +37,11 @@ value already in the document, else the pre-LLM heuristic) so the run never hard
 records `attempts`, `tokens`, `model`, `fallbackUsed`, `lastFailure`.
 
 **Configuration:** `create*Tool({ model, temperature, maxTokens, systemPrompt, userPrompt, maxAttempts,
-routerUrl })`, default model `openai/gpt-4o-mini`; per-envelope overrides via `meta.schemaDocLlm` and
-`meta.<key>Prompt` / `meta.<key>SystemPrompt`. Templates render `{{title}}`, `{{body}}`, `{{chapter}}`, …
+routerUrl, call })`, default model `openai/gpt-4o-mini`; per-envelope overrides via `meta.schemaDocLlm` and
+`meta.<key>Prompt` / `meta.<key>SystemPrompt`. `call` (`SchemaDocLlmCall`: `(input, ctx) =>
+Promise<ChatCompletionOutput>`) replaces the router-proxy request with a custom backend — used by
+`samples/sample2` to run the extractors through a picked LLM gate. Templates render `{{title}}`,
+`{{body}}`, `{{chapter}}`, …
 Batched envelopes store per-item results in `meta.<key>ByItem`.
 
 - `schemaDocWriter` — persists to `schema-doc://` target (pure, no LLM call)

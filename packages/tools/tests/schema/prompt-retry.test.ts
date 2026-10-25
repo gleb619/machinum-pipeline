@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { ChatCompletionInput } from '../../src/core/openrouter-tool.js'
 import {
   DEFAULT_LLM_MODEL,
   DEFAULT_MAX_ATTEMPTS,
@@ -174,6 +175,54 @@ describe('runPromptWithRetry', () => {
 
     expect(result.tokens).toBe(240)
     expect(result.model).toBe(DEFAULT_LLM_MODEL)
+  })
+})
+
+describe('runPromptWithRetry with an injected call backend', () => {
+  it('calls the injected backend instead of the router proxy', async () => {
+    router = installRouter(['router answer'])
+    const seen: ChatCompletionInput[] = []
+
+    const result = await runPromptWithRetry(toolContext('http://router.test'), {
+      systemPrompt: 's',
+      userPrompt: 'u',
+      validate: acceptThreeWords,
+      call: async (input) => {
+        seen.push(input)
+        return {
+          content: 'an injected answer',
+          model: 'my/model',
+          tokens: 9,
+          promptTokens: 6,
+          completionTokens: 3,
+        }
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: 'an injected answer',
+      model: 'my/model',
+      tokens: 9,
+    })
+    expect(router.calls).toHaveLength(0)
+    expect(seen[0]?.messages).toEqual([{ role: 'user', content: 'u' }])
+    expect(seen[0]?.systemPrompt).toBe('s')
+  })
+
+  it('records a failing injected backend as a failed attempt', async () => {
+    const result = await runPromptWithRetry(toolContext(), {
+      systemPrompt: 's',
+      userPrompt: 'u',
+      validate: acceptThreeWords,
+      call: async () => {
+        throw new Error('backend down')
+      },
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.attempts).toBe(DEFAULT_MAX_ATTEMPTS)
+    expect(result.lastFailure).toContain('backend down')
   })
 })
 

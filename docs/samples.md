@@ -11,6 +11,14 @@ Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 Integration tests for samples live under `samples/sample*/tests/` and are part of the
 pre-merge gate (see [change-workflow.md](change-workflow.md)).
 
+## LLM backend of a sample
+
+`sample2` routes every LLM-backed tool through one pick (`samples/sample2/pipelines/llm-picker.ts`):
+`MT_LLM_TOOL` (`router` | `openrouter-free` | `openrouter-pool` | `ollama` | `mock`) selects the
+backend and `MT_LLM_MODEL` the model; `mt.json` → `settings.llm.tool` / `settings.llm.model` are the
+file-based fallback (the env wins). The default is the offline `mock` backend, so the sample tests
+need no credentials — swap the backend without touching the pipeline.
+
 ## Running a sample manually
 
 Requires packing local deps first:

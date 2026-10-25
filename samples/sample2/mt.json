@@ -14,5 +14,9 @@
   "uris": {
     "en": "md://./chapters/en",
     "ru": "chapter-output://./chapters"
+  },
+  "settings": {
+    "llm.tool": "mock",
+    "llm.model": ""
   }
 }

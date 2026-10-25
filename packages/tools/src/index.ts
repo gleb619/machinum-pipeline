@@ -44,6 +44,7 @@ export {
   DEFAULT_MAX_ATTEMPTS,
   DEFAULT_ROUTER_URL,
   type SchemaDocLlmOptions,
+  type SchemaDocLlmCall,
   type PromptValidation,
   type PromptRetryOptions,
   type PromptRetryResult,

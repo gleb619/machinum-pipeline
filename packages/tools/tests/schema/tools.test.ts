@@ -150,6 +150,29 @@ describe('summaryTool (LLM)', () => {
     expect(router.lastPrompt()).toBe('custom: Chapter 1: The Road from Thornhaven')
   })
 
+  it('uses an injected LLM backend instead of the router proxy', async () => {
+    router = installRouter(['router answer'])
+    const tool = createSummaryTool({
+      call: async () => ({
+        content: SUMMARY_REPLY,
+        model: 'my/model',
+        tokens: 30,
+        promptTokens: 20,
+        completionTokens: 10,
+      }),
+    })
+
+    const result = await tool.invoke(envelopeOf(CHAPTER), toolContext())
+
+    expect(result.meta.summary).toBe(SUMMARY_REPLY)
+    expect(result.meta.summaryLlm).toMatchObject({
+      attempts: 1,
+      fallbackUsed: false,
+      model: 'my/model',
+    })
+    expect(router.calls).toHaveLength(0)
+  })
+
   it('processes batched envelopes and keeps per-item summaries', async () => {
     router = installRouter((_call, index) =>
       index === 0 ? SUMMARY_REPLY : 'Aldric is ambushed in the Darkwood by the Duke’s men.',
