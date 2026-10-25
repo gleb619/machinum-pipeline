@@ -5,6 +5,7 @@
 | sample0 | `samples/sample0` | `mt init` integration test — validates scaffolded artifacts   |
 | sample1 | `samples/sample1` | HTTP → JSONL pipeline (`hs://` source, `jsonl://` target)     |
 | sample2 | `samples/sample2` | Multi-tool pipeline: JSONL → tools → fork → batch → MD output |
+| sample3 | `samples/sample3` | Normalize raw web-novel JSONL → clean MD (`textNormalizer`, optional LLM typo fix) |
 
 Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 

@@ -1,0 +1,28 @@
+{
+  "name": "sample3",
+  "version": "1.0.0",
+  "description": "Machinum Pipeline sample — normalize raw web-novel chapters (JSONL) into clean markdown",
+  "type": "module",
+  "scripts": {
+    "prepare-input": "tsx prepare-input.ts",
+    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/normalize.ts",
+    "normalize": "pnpm run prepare-input && pnpm run runner",
+    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md jsonl/input.jsonl .mt",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@mt/core": "workspace:*",
+    "@mt/cli": "workspace:*",
+    "@mt/tools": "workspace:*",
+    "@mt/waypoint": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

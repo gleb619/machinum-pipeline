@@ -130,6 +130,12 @@ export type FixerOutput = FO
 
 export { wordCounter } from './normalization/word-counter.js'
 export {
+  textNormalizer,
+  createTextNormalizer,
+  normalizeText,
+  type TextNormalizerOptions,
+} from './normalization/text-normalizer.js'
+export {
   tokenCounter,
   tokenCounterBatch,
   tokenCounterBatchCached,

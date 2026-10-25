@@ -1,0 +1,22 @@
+{
+  "project": {
+    "name": "sample3"
+  },
+  "defaults": {
+    "retry": {
+      "max": 3,
+      "backoffMs": 1000,
+      "strategy": "exp"
+    },
+    "onError": "fail-run",
+    "concurrency": 4
+  },
+  "uris": {
+    "en": "md://./chapters/en",
+    "ru": "md://./chapters/ru"
+  },
+  "settings": {
+    "llm.tool": "mock",
+    "llm.model": ""
+  }
+}
