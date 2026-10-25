@@ -3,6 +3,16 @@
 Reads raw web-novel chapters (`{ key, value }` JSONL lines, `value` = `Chapter N: Title\n<body lines>`),
 normalizes the text offline and writes one markdown file per chapter to `chapters/en/chapter<N>.md`.
 
+Three stages run one after another, each reading the files the previous one wrote in `chapters/`:
+
+| # | Stage | Reads | Writes |
+|---|---|---|---|
+| 1 | `pipelines/normalize.ts` | `jsonl/input.jsonl` | `chapters/en/chapter<N>.md` |
+| 2 | `pipelines/analyze.ts` | `chapters/en/` | `chapters/schema/`, `chapters/glossary.json`, `chapters/en-tagged/` |
+| 3 | `pipelines/translate.ts` | `chapters/en-tagged/` + glossary + summaries | `chapters/ru/chapter<N>.md`, `chapters/titles.json` |
+
+Every stage is offline by default (mock LLM backend, optional LLM steps switched off).
+
 ## What you will learn
 
 - How to map a raw record to a chapter record in a small `defineTool`.
@@ -10,6 +20,12 @@ normalizes the text offline and writes one markdown file per chapter to `chapter
   lines, punctuation spacing; one paragraph per line, `[system messages]` kept).
 - How to chain `typoFinder` and `markdownFormatter`, then emit with `mdOutputEmitter` into `@en`.
 - How to plug an optional LLM typo-fix step via the sample2 `llm-picker` pattern.
+- How to build a cross-chapter glossary with `.batch()` + `createGlossaryExtractor` and keep the
+  hand edits (`ru`, `type`, `aliases`) on re-run, then tag the text with `termTagger` so the next
+  stage knows which term is which.
+- How to translate a chapter one line per LLM call, injecting only that line's glossary entries plus
+  the chapter summary as context, and gate every reply with the line-parity linter.
+- How to chain separate pipelines through the shared `chapters/` dir (`@en` -> `@chapters` -> `@chapters`).
 
 ## Directory layout
 
@@ -27,13 +43,28 @@ sample3/
 ├── chapters/en-tagged/       # analyze: EN with <term id="..."> tags
 ├── chapters/glossary.json    # analyze: editable glossary
 ├── chapters/titles.json      # translate: { "<n>": { en, ru } }
-└── tests/{normalize,analyze,translate}.test.ts
+└── tests/
+    ├── full-flow.test.ts     # all three stages chained end to end
+    └── {normalize,analyze,translate}.test.ts   # one stage each
 ```
 
 ## How to run
 
+The three stages in order (all offline, no API key):
+
 ```bash
-pnpm run normalize                       # prepare-input + run (heuristics only, offline)
+pnpm install && pnpm build          # once, from the repo root: links mt + builds dist
+pnpm run normalize                  # prepare-input + stage 1 -> chapters/en
+pnpm run analyze                    # stage 2 -> schema/ + glossary.json + en-tagged/
+$EDITOR chapters/glossary.json      # fill `ru` for the terms you care about, by hand
+pnpm run translate                  # stage 3 -> chapters/ru + titles.json (mock RU text)
+pnpm run lint-parity                # check chapters/en vs chapters/ru, exit 1 on mismatch
+```
+
+## Stage 1: normalize
+
+```bash
+pnpm run normalize                                # prepare-input + run (heuristics only, offline)
 MT_LLM_TYPO_FIX=1 MT_LLM_TOOL=ollama pnpm run runner   # + LLM typo fix
 ```
 
@@ -94,7 +125,34 @@ first!). Writes `chapters/ru/chapter<N>.md` and `chapters/titles.json`.
 pnpm run cleanup
 ```
 
+Wipes every generated file (`chapters/{en,ru}/*.md`, `chapters/schema/`, `chapters/en-tagged/`,
+`chapters/glossary.json`, `chapters/titles.json`, `jsonl/input.jsonl`) and the `.mt` checkpoint tree.
+Keep `chapters/glossary.json` if you have hand edits worth keeping.
+
+## How to run manually
+
+One stage per `mt run`; the TS modules are the pipelines, so no build step is needed (`tsx` loads them):
+
+```bash
+cd samples/sample3
+NODE_OPTIONS='--import tsx' ./node_modules/.bin/mt run ./pipelines/normalize.ts
+NODE_OPTIONS='--import tsx' ./node_modules/.bin/mt run ./pipelines/analyze.ts
+NODE_OPTIONS='--import tsx' ./node_modules/.bin/mt run ./pipelines/translate.ts
+```
+
+`node_modules/.bin/mt` comes from `pnpm install` at the repo root; `mt` resolves `@en`, `@chapters`,
+`@ru` from `mt.json` → `"uris"`. A stage that failed is resumable — the checkpoint tree in `.mt/`
+holds the completed items, so re-running the same command continues where it stopped.
+
 ## How the test works
+
+`tests/full-flow.test.ts` is the integration test of the chain: one tiny raw JSONL fixture goes
+through all three stages with the mock LLM, each stage reading the files the previous one wrote —
+`chapters/en` -> glossary + `<term>`-tagged text -> `chapters/ru`. It asserts the tagged copy equals
+the stage-1 text once the tags are stripped, that a hand-edited `ru` in `chapters/glossary.json` and
+the stage-2 summary both reach the captured stage-3 prompts, that the RU heading equals
+`chapters/titles.json`, and finally that `lint-parity.ts` exits 0 on the generated EN/RU pair.
+No network, no LLM, no credentials.
 
 `tests/analyze.test.ts` writes tiny synthetic chapters and checks summaries, glossary types/counts, tag
 round trip (`stripTerms(tagged) === original`, same line count) and that manual `ru` edits survive a re-run.
