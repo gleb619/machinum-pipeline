@@ -56,6 +56,22 @@ Envelope type: `SchemaDocEnvelope`.
   `llm`, `routerUrl`, `prompts`); legacy `TranslateToolConfig` type kept for compatibility.
   `llmTranslate` (`llm-translate.ts`) shares this one implementation with the `llm` backend.
 
+### `heuristic-summary.ts` / `glossary-extractor.ts` / `term-tagger.ts`
+Offline (no LLM) analysis tools, all accept a single `env.item` or a batched `env.items` corpus.
+
+- `heuristicSummaryTool` / `createHeuristicSummaryTool({ sentences })` — extractive summary (lead sentence +
+  highest term-frequency sentences, original order). Same meta contract as `summaryTool`: `meta.summary`,
+  `meta.summaryByItem`, plus `meta.heuristicSummaryByItem` (fallback for an LLM step).
+- `glossaryExtractor` / `createGlossaryExtractor({ load, minCount, ignored })` — candidates = capitalised
+  multiword names, `[Bracketed]` short terms, repeated capitalised singles; type guess
+  (`character|place|item|skill|term`), `count`, `firstChapter`. `buildGlossary(chapters, existing)` merges into an
+  existing glossary: existing entries keep `id/type/ru/aliases` and manual edits (human-added terms too), only
+  `count/firstChapter` are recounted; `ignored` terms are never re-added. Result in `meta.glossary` / `meta.glossaryJson`.
+  Shape: `{ terms: [{ id, term, type, count, firstChapter, ru, aliases }], ignored? }`.
+- `termTagger` / `tagTerms(text, glossary)` — wraps occurrences as `<term id="ID">text</term>` (longest match
+  first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
+  `meta.taggedItems` (item untouched). `stripTerms(tagged)` restores the original text exactly.
+
 ### `chapter-translator.ts`
 Higher-level translation tools, composable:
 - `titleTranslator` / `createTitleTranslator({ translate })` — slots `extract -> translate -> assemble`

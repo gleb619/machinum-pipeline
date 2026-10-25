@@ -142,6 +142,41 @@ export {
   countTextTokens,
 } from './normalization/token-counter.js'
 
+export {
+  glossaryExtractor,
+  createGlossaryExtractor,
+  buildGlossary,
+  extractCandidates,
+  guessType,
+  slugify,
+  parseGlossary,
+  serializeGlossary,
+  chapterNumberOf,
+  type GlossaryChapter,
+  type GlossaryExtractOptions,
+  type GlossaryExtractorToolOptions,
+} from './normalization/glossary-extractor.js'
+export {
+  termTagger,
+  tagTerms,
+  stripTerms,
+  countTerms,
+  compileTermMatcher,
+  mapProse,
+  type Glossary,
+  type GlossaryTerm,
+  type GlossaryTermType,
+  type TermMatcher,
+} from './normalization/term-tagger.js'
+export {
+  heuristicSummaryTool,
+  createHeuristicSummaryTool,
+  summarizeHeuristic,
+  splitSentences,
+  chapterTitle,
+  type HeuristicSummaryOptions,
+} from './normalization/heuristic-summary.js'
+
 export { chapterIndexer } from './normalization/chapter-indexer.js'
 
 export { tokenSplitter } from './normalization/token-splitter.js'

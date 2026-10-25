@@ -90,6 +90,8 @@ build
 /samples/sample3/chapters/en/*.md
 /samples/sample3/chapters/ru/*.md
 /samples/sample3/chapters/schema/*.md
+/samples/sample3/chapters/en-tagged/
+/samples/sample3/chapters/glossary.json
 /samples/sample3/chapters/translate-mock/*.md
 /docs/docs/plans/
 /docs/locks/*

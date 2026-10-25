@@ -1,4 +1,4 @@
-# Sample 3 — Normalize raw chapters (JSONL to clean MD)
+# Sample 3 — Normalize raw chapters, then analyze (summary, glossary, term tags)
 
 Reads raw web-novel chapters (`{ key, value }` JSONL lines, `value` = `Chapter N: Title\n<body lines>`),
 normalizes the text offline and writes one markdown file per chapter to `chapters/en/chapter<N>.md`.
@@ -16,11 +16,15 @@ normalizes the text offline and writes one markdown file per chapter to `chapter
 ```
 sample3/
 ├── pipelines/normalize.ts    # default + named export `normalizeFlow`
+├── pipelines/analyze.ts      # stage 2: summaries + glossary + <term> tagging
 ├── pipelines/llm-picker.ts   # MT_LLM_TOOL / MT_LLM_MODEL pick (default: offline mock)
 ├── prepare-input.ts          # wraps raw {key,value} lines into {item} envelopes
 ├── jsonl/                    # raw input; generated input.jsonl is gitignored
 ├── chapters/{en,ru}/         # outputs (gitignored *.md)
-└── tests/normalize.test.ts
+├── chapters/schema/          # analyze: chapter<N>.summary.md
+├── chapters/en-tagged/       # analyze: EN with <term id="..."> tags
+├── chapters/glossary.json    # analyze: editable glossary
+└── tests/{normalize,analyze}.test.ts
 ```
 
 ## How to run
@@ -36,6 +40,28 @@ MT_LLM_TYPO_FIX=1 MT_LLM_TOOL=ollama pnpm run runner   # + LLM typo fix
 
 Decorative-only lines (`***`, `~~~`) are dropped; all other lines are preserved one to one.
 
+## Stage 2: analyze
+
+```bash
+pnpm run analyze                  # reads chapters/en/*.md (run normalize first), offline
+MT_LLM_SUMMARY=1 MT_LLM_TOOL=ollama pnpm run analyze   # optional LLM summary
+```
+
+Writes, with no LLM needed:
+
+- `chapters/schema/chapter<N>.summary.md` — heuristic summary (lead + most informative sentences).
+  `MT_LLM_SUMMARY=1` asks the picked backend instead and falls back to the heuristic one.
+- `chapters/glossary.json` — `{ terms: [{ id, term, type, count, firstChapter, ru, aliases }] }`
+  (capitalised names, `[Bracketed]` terms, repeated capitalised nouns). Edit it by hand: fill `ru`,
+  fix `type`, add `aliases`, drop noise by moving a term string into `ignored`. Re-running keeps `ru`,
+  `aliases`, `type`, manual terms; only `count` / `firstChapter` are recomputed. Delete the file to
+  start over.
+- `chapters/en-tagged/chapter<N>.md` — EN text with `<term id="ID">text</term>` around every glossary
+  term (longest match first, no nesting, code skipped, idempotent, same line count). `stripTerms()`
+  from `@mt/tools` restores the original text exactly.
+
+Tools: `heuristicSummaryTool`, `glossaryExtractor`, `termTagger` (see `docs/steering/tools.md`).
+
 ## How to clean up
 
 ```bash
@@ -43,6 +69,9 @@ pnpm run cleanup
 ```
 
 ## How the test works
+
+`tests/analyze.test.ts` writes tiny synthetic chapters and checks summaries, glossary types/counts, tag
+round trip (`stripTerms(tagged) === original`, same line count) and that manual `ru` edits survive a re-run.
 
 `tests/normalize.test.ts` writes a tiny synthetic fixture to `jsonl/input.jsonl`, runs the pipeline
 through `mt`, and asserts file count, preserved paragraph lines, no curly quotes / zero-width chars,

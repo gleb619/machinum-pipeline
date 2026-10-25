@@ -13,7 +13,8 @@
   },
   "uris": {
     "en": "md://./chapters/en",
-    "ru": "md://./chapters/ru"
+    "ru": "md://./chapters/ru",
+    "chapters": "md://./chapters"
   },
   "settings": {
     "llm.tool": "mock",
