@@ -75,6 +75,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
 | `mt tool <name>` | `tool.ts` | Invoke a tool standalone (JSON envelope on stdin/stdout) |
 | `mt serve [--port N\|0] [--host H] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/backend/standalone`); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
+| `mt router [--port N\|0] [--host H] [--mock] [--log-dir D] [-d\|--detach]` | `router.ts` | Start the keyless LLM gateway + dashboard (`@mt/router/standalone`); no `--token` flag — the token is `MT_ROUTER_TOKEN`; `--detach` re-execs self in background (`.mt/router/{pid,server.log}`) |
 | `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init` (secrets masked unless `--reveal`) |
 
 ## Pipeline Loading
@@ -125,11 +126,20 @@ from the recorded run.
 ### `src/utils/logger.ts` — `DuplexLogger`
 Writes to both console (with ANSI colour) and a log file under `.mt/runs/<runId>/`. Implements `Logger` from `@mt/core/types`.
 
+### `src/commands/router.ts`
+- `routerCommand()` lazy-imports `@mt/router/standalone` and calls `startRouter()`; keys come from
+  `loadGlobalContext()` (`mt.json → secrets.envFile`, `process.env` wins) as `OPENROUTER_API_KEYS`
+- Dashboard dir: `$MT_ROUTER_UI_DIR` > `<pkg>/dist/router-ui` > `packages/router/public`
+- `detachRouter()` re-spawns `process.execPath ... router` detached; PID + logs under `.mt/router/`
+- No `--token` flag: the bearer token is `MT_ROUTER_TOKEN` only, and the router's bind guard refuses a
+  non-loopback `MT_ROUTER_HOST` / `--host` without it — see [router.md](router.md#security-model-t119)
+
 ### `src/commands/vault.ts`
 `mt vault` — `list` / `show` / `add` / `rm` / `path` / `init` over the `@mt/core` vault. Writes go
 through `saveVault` (atomic, mode 0600). Secrets are masked in every output unless `--reveal` is
 given. `--user` targets `~/.mt/vault.json`, otherwise `<project>/.mt/vault.json`; `MT_VAULT` wins
-over both. Details: [docs/vault.md](../vault.md).
+over both. The router reads those same files as upstream key sources ([router.md](router.md#vault-t118)).
+Details: [docs/vault.md](../vault.md).
 
 ### `src/utils/gitignore.ts`
 `ensureIgnorePatterns()` — appends the missing ignore lines (`.mt/`, `vault.json`, `*.vault.json`,
@@ -159,6 +169,7 @@ packages/cli/tests/
 │   ├── inspect.test.ts        # inspect checkpoint tree
 │   ├── tool.test.ts           # tool stdin/stdout pipe
 │   ├── vault.test.ts          # vault command (init/add/list/show/rm/path)
+│   ├── router.arch.test.ts    # Arch: router command wiring + lazy @mt/router/standalone import
 │   └── serve.arch.test.ts     # serve command shape
 └── utils/
     ├── logger.test.ts         # DuplexLogger behaviour
@@ -167,4 +178,6 @@ packages/cli/tests/
 
 ## Dependency Rule
 
-`@mt/cli` imports from `@mt/core` only. It may dynamically spawn `@mt/backend` or `@mt/router` as child processes but does not statically import them.
+`@mt/cli` imports from `@mt/core` only. `@mt/backend/standalone` (`mt serve`) and
+`@mt/router/standalone` (`mt router`) are reached through lazy `await import()` — never statically;
+`--detach` additionally re-executes the `mt` binary as a child process.

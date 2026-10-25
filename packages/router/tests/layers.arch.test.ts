@@ -56,4 +56,16 @@ describe('router stays standalone (architectural)', () => {
     const source = await readFile(join(srcDir, 'utils', 'vault-reader.ts'), 'utf8')
     expect(source).not.toMatch(/from\s+['"][^'"]*(packages\/core|\.\.\/core)/)
   })
+
+  it('vault-reader.ts imports only node builtins and local files', async () => {
+    const source = await readFile(join(srcDir, 'utils', 'vault-reader.ts'), 'utf8')
+    const specifiers = [...source.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1] as string)
+    expect(specifiers.length).toBeGreaterThan(0)
+    for (const specifier of specifiers) {
+      expect(
+        specifier.startsWith('node:') || specifier.startsWith('./'),
+        `vault-reader.ts must not import '${specifier}'`,
+      ).toBe(true)
+    }
+  })
 })

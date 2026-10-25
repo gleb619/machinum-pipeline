@@ -96,6 +96,10 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `OPENROUTER_API_KEYS` | — | Comma-separated keys; pool rotates round-robin |
 | `MT_HOME` | `~/.mt` | Global state directory (router logs, etc.) |
 | `MT_ROUTER_URL` | `http://localhost:7777` | OpenRouter proxy URL |
+| `MT_ROUTER_HOST` | `localhost` | Router bind host; a non-loopback host requires `MT_ROUTER_TOKEN` ([router.md](router.md)) |
+| `MT_ROUTER_TOKEN` | — | Bearer token for the router `/api/*` routes (except `GET /api/health`); also the only credential of the tools provider `router` |
+| `MT_ROUTER_VAULT` | `true` | Load router upstreams/keys from the vault file(s); `false` disables ([router.md](router.md)) |
+| `MT_CLIENT_BUDGET` | — | Reserved for per-client router budgets (`X-MT-Client`); not implemented yet |
 | `MT_LLM_PROVIDER` | `router` | `router` \| `openrouter` \| `openai` \| `ollama` \| `anthropic` \| `custom` |
 | `MT_LLM_USE` | — | Vault ref `vault://<entry>[/<model>]` \| `@vault/<entry>[/<model>]`; expands to provider/baseUrl/keys/headers/model (same as mt.json `settings.llm.use`, which wins). See [vault.md](../vault.md) |
 | `MT_LLM_MODEL` | provider default | Default model id |

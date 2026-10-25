@@ -64,6 +64,8 @@ is standalone, keep formats in sync). Each entry becomes an upstream named after
 pool (after `OPENROUTER_API_KEYS`). `anthropic` is skipped with a warning, `router` entries are ignored by the router itself (they are client-side refs, below). Env upstreams
 (`MT_ROUTER_UPSTREAMS`, `MT_ROUTER_OLLAMA_URL`) win on name conflicts. Edits are picked up without restart (mtime check, at
 most every 2s); a broken file keeps the previous entries. Key values are never logged or returned by the router API.
+Router side in detail: [steering/router.md](steering/router.md) (upstreams, routing prefixes, hot reload, keyless
+security model); end-to-end flows: [uc.md](uc.md) (UC063–UC065).
 
 ## Using a vault entry (`llm.use`)
 

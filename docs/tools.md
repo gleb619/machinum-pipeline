@@ -258,9 +258,10 @@ Implemented (not part of the TL index above). Full reference: [steering/tools.md
 | `llmGate` / `createLlmGate(opts)` | composable tool factory | Generic LLM gate; swap any slot with `.with()` |
 | `openrouterFree` / `OPENROUTER_FREE_LLM` | gate preset | Free-tier OpenRouter: provider `openrouter`, model `openrouter/free`, keys from `OPENROUTER_API_KEYS` / `OPENROUTER_API_KEY`; per-call model override wins |
 | `ollamaTool` / `OLLAMA_LLM` / `OLLAMA_DEFAULTS` | gate preset | Ollama (local by default; remote GPU server via `MT_OLLAMA_URL`): provider `ollama`, endpoint from `MT_OLLAMA_URL` (default `http://localhost:11434/v1`), model from `MT_OLLAMA_MODEL` (default `gemma4:latest`) |
-| `listRouterModels` | helper | Router `GET /api/models` (routable ids, e.g. `openrouter/free`, `ollama/gemma4:latest`); provider `router` needs no API key |
+| `listRouterModels` | helper | Router `GET /api/models` (routable ids, e.g. `openrouter/free`, `ollama/gemma4:latest`); provider `router` needs no API key — see [steering/router.md](steering/router.md) |
 | `listOllamaModels`, `ollamaHealth` | helpers | Ollama native API: `GET /api/tags` (model list), `GET /api/version` (health, `ok: false` when unreachable) |
 | `llm.use` (`MT_LLM_USE`) | config | Vault ref `vault://<entry>[/<model>]` / `@vault/<entry>[/<model>]` honoured by every LLM gate (`ollamaTool`, `openrouterFree`, `openrouterPool`, `llmGate`): endpoint/keys/model from the vault; see [vault.md](vault.md) |
+| provider `router` | config | Keyless gateway: the router holds the upstream keys, the client sends only the router token (`MT_ROUTER_TOKEN`); a `router` vault entry points `llm.use` at it — see [steering/router.md](steering/router.md) and [vault.md](vault.md) |
 | `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user`; shares one implementation with `translateText` |
 | `translateText` / `createTranslateText(opts)` | composable tool (slots `prepare, fit, call, parse, emit`) | Chapter translation; default backend router `/api/translate`, `backend: 'llm'` routes via the LLM client |
 | `titleTranslator` / `paragraphTranslator` / `createTitleTranslator(opts)` / `createParagraphTranslator(opts)` | composable tool | Chapter title / paragraph translation; `translate` slot (default `translateText`) swappable via options or `.with({ translate })` |

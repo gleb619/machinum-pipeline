@@ -68,6 +68,9 @@
 | UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](tools.md), [TL051](tools.md), [TL054](tools.md) |
 | UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](tools.md), [TL051](tools.md) |
 | UC062 | Manage OpenRouter API key pool (was UC-62) | —          |
+| UC063 | Use remote GPU Ollama via a vault ref      | —          |
+| UC064 | Call LLM through a keyless router          | —          |
+| UC065 | Share a team router behind a token         | —          |
 
 ## Legacy ID Mapping
 
@@ -91,6 +94,7 @@
 - **Admin UI User** — Operator interacting via the Vue/Tailwind frontend.
 - **MCP Client** — External LLM agent (e.g. Claude Desktop) talking to the MCP server over stdio.
 - **Chrome User** — Operator using the Chrome extension on a webpage.
+- **Team Member** — Colleague calling a shared router with the router token.
 - **VSCode User** — Author working in VSCode with the Mt extension installed.
 - **External Producer** — Any system POSTing data to a long-lived HTTP Source.
 - **Mt Engine** — Internal actor (Runner) listed where it acts autonomously (e.g. checkpointing).
@@ -162,6 +166,9 @@
 | UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | Author              | Split chapter into paragraphs, translate each via LLM, reassemble                          | Chapter markdown; target language set             | Fully translated chapter, paragraph structure preserved        | 1. Split at double-newline 2. Translate each paragraph 3. Reassemble in order 4. Return translated chapter                                                          |
 | UC061 | Translate text via OpenRouter pool (was UC-61) | Tool/Mt Engine      | Use multi-key OpenRouter pool for LLM translation with rate-limit handling                 | OpenRouter API keys configured; text + targetLang | Translated text returned                                       | 1. Select key via round-robin 2. Call OpenRouter translate 3. Handle 429/402 with retry 4. Return result                                                            |
 | UC062 | Manage OpenRouter API key pool (was UC-62) | Mt Engine (Router)  | Round-robin across API keys, handle 429/402, TTL-based pool recreation                     | OPENROUTER_API_KEYS env var set                   | Keys rotated, exhausted keys temporarily disabled              | 1. Parse keys from env 2. Maintain pool with TTL 3. Rotate on call 4. Handle 429 (mark exhausted) 5. Handle 402 (remove permanently) 6. Recreate pool on TTL expiry |
+| UC063 | Use remote GPU Ollama via a vault ref | Author | Point an LLM tool at a remote GPU Ollama server through a vault entry instead of hardcoding its URL | Vault entry exists (`mt vault add gpu --provider ollama --base-url http://gpu-host:7869/v1`); `mt.json` sets `settings.llm.use` | Pipeline calls the remote model; endpoint and keys never reach code, meta or logs | 1. `mt vault add gpu --provider ollama --base-url … --default-model gemma4:latest` 2. Set `settings.llm.use = "@vault/gpu"` in `mt.json` 3. Pipeline runs `ollamaTool` 4. Tool expands the ref from `ctx.run.global.vault` 5. Request goes to the GPU server |
+| UC064 | Call LLM through a keyless router | Author/Operator | Send tool calls to the router without any upstream key; the router holds the OpenRouter keys and picks the upstream | Router running (`mt router`); keys configured for the router (env `OPENROUTER_API_KEYS` or a vault `openrouter` entry) | Call completes; the client never holds an upstream key | 1. `mt router` starts and loads keys from env/vault 2. Pipeline sets provider `router` (or `llm.use` to a `router` vault entry) 3. Tool POSTs `/api/chat/completions` 4. Router resolves the upstream and attaches its key 5. Response returned; cost/usage logged |
+| UC065 | Share a team router behind a token | Operator/Team Member | Bind the router to a shared host and let colleagues call it with one bearer token | `MT_ROUTER_HOST` is non-loopback and `MT_ROUTER_TOKEN` is set — otherwise the router refuses to start; clients know the token | Authorized calls succeed, a missing/wrong token gets 401, upstream keys never leave the router | 1. `MT_ROUTER_HOST=0.0.0.0 MT_ROUTER_TOKEN=… mt router` 2. Client sends `Authorization: Bearer <token>` 3. Router compares the token in constant time 4. Request forwarded with the upstream key 5. Unauthenticated request → 401 |
 
 ---
 
@@ -170,7 +177,7 @@
 - **Goals (§1):** UC002..004 (pluggable), UC006/015/016 (resumable), UC012..014 (parallel/forks), UC026/027/028 (hybrid runtime), UC024/025 (git-aware), UC015/029/053 (observable).
 - **CLI commands (§9.2):** UC001, 005, 006, 008, 009, 010, 026, 027, plus UC037..041 (MCP).
 - **Backend/Frontend (§9.3–9.4):** UC028..032, UC054.
-- **Router (§9.5):** UC032..036.
+- **Router (§9.5):** UC032..036, UC063..065 (keyless gateway, vault-fed upstreams, token guard).
 - **Extensions (§9.7–9.8):** UC042..046.
 - **Execution model (§7):** UC015..020.
 - **URI DSL (§6) & I/O (§9.1):** UC021..025, UC051.

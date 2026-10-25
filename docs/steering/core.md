@@ -236,3 +236,8 @@ When `tool.cacheable === true`, output is memoised by `hash(toolName + version +
 `vault.ts`: gitignored store of LLM endpoints/keys (`~/.mt/vault.json` + `<root>/.mt/vault.json`, or only `MT_VAULT`).
 `loadVault`, `maskVault`, `parseVaultRef`/`resolveVaultRef` (`vault://entry/model`, `@vault/entry/model`), atomic 0600 `saveVault`.
 `loadGlobalContext` attaches it as non-enumerable `GlobalContext.vault` - never serialized. Details: [../vault.md](../vault.md).
+
+A vault ref is also a config value: `settings.llm.use` in `mt.json` and env `MT_LLM_USE` expand into
+provider/baseUrl/keys/headers/model for the LLM gates ([tools.md](tools.md#llm-toolkit)). The router reads
+the same files with its own copy of the reader and turns entries into upstreams
+([router.md](router.md#vault-t118)).

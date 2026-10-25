@@ -74,7 +74,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 | `@mt/waypoint` | Source/Target implementations; URI scheme registrations (side-effect import) | [`waypoint.md`](steering/waypoint.md) |
 | `@mt/backend` | h3 admin API + SSE event stream + SQLite indicator; serves frontend (Nitro in dev only) | [`backend.md`](steering/backend.md) |
 | `@mt/frontend` | Vue 3 + Tailwind admin UI (bundled into backend) | [`structure.md`](steering/structure.md) |
-| `@mt/router` | Standalone Nuxt: OpenRouter proxy, key pool, cost tracking, mock mode | [`router.md`](steering/router.md) |
+| `@mt/router` | Standalone Nuxt: keyless LLM gateway — OpenRouter proxy, upstream routing, key pool, cost tracking, mock mode | [`router.md`](steering/router.md) |
 | `@mt/mcp` | MCP server over stdio; wraps core/cli — no HTTP | [`mcp.md`](steering/mcp.md) |
 | `chrome-extension` | MV3 — scrape chapters, auto-upload to web editors | [`extensions.md`](steering/extensions.md) |
 | `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens | [`extensions.md`](steering/extensions.md) |
@@ -98,6 +98,38 @@ For full workspace layout, see [`structure.md`](steering/structure.md).
 - **Caching**: When `cacheable === true`, output is memoised by content hash at `.mt/cache/<hash>.json`. Replay short-circuits the tool; cache is never required for correctness.
 - **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://`, `chapter://`, `schema-doc://`, `git://`.
 
+### Secrets & the Keyless Gateway
+
+Endpoints and API keys live in a **vault** — a gitignored JSON file (`.mt/vault.json` in the project,
+`~/.mt/vault.json` for the user, or one file via `MT_VAULT`). The core engine loads it and attaches it to
+`GlobalContext.vault` as a non-enumerable property, so it never reaches checkpoints, meta or logs. Tools do
+not read files: they resolve a vault ref (`vault://entry/model`, `@vault/entry/model`) against that
+in-memory vault.
+
+The router is the inverse arrangement — a **gateway that holds the keys** so clients never need them:
+
+```
+   pipeline (provider "router")                   any OpenAI client
+                 |                                              |
+                 |  no upstream key                             |  Authorization: Bearer $MT_ROUTER_TOKEN
+                 v                                              v
+   +--------------------------------------------------------------------------+
+   | @mt/router — keyless OpenAI-compatible gateway                           |
+   | keys: OPENROUTER_API_KEYS + vault entries                                |
+   | routes by model prefix: <upstream>/<model>                               |
+   +--------------------------------------------------------------------------+
+         |                     |                        |
+    openrouter/free        ollama/<model>           openai-compat/<model>
+   (default upstream)      (vault/env entry)        (vault/env entry)
+         |                     |                        |
+         v                     v                        v
+  openrouter.ai/api/v1  http://gpu-host:7869/v1    http://vllm:8000/v1
+```
+
+A client only names a model; the router resolves the upstream, attaches that upstream's key and forwards
+the request. Prefix routing lets one endpoint serve OpenRouter's free pool, a remote GPU Ollama and any
+other OpenAI-compatible server. Details: [steering/router.md](steering/router.md), [vault.md](vault.md).
+
 ---
 
 ## 6. `.mt/` Runtime State (Summary)
@@ -113,6 +145,7 @@ For full workspace layout, see [`structure.md`](steering/structure.md).
 │   ├── logs/<stepId>.log
 │   └── artifacts/             # intermediate outputs
 ├── cache/                     # tool memoisation
+├── vault.json                 # gitignored secret store (endpoints, API keys) — never committed
 ├── schedules/                 # reserved (post-MVP)
 ├── worktrees/                 # git worktree roots when used
 └── backend/
@@ -121,6 +154,10 @@ For full workspace layout, see [`structure.md`](steering/structure.md).
 ```
 
 `mt.json` (project root) holds project/book metadata, pipeline paths, secrets env file (`.env`), model defaults, and global retry/concurrency defaults.
+
+The vault lives outside `mt.json`: `.mt/vault.json` (project scope) and `~/.mt/vault.json` (user scope);
+project entries override user entries by name, and `MT_VAULT` pins a single file. Both are gitignored and
+written atomically with mode 0600.
 
 ---
 
@@ -138,7 +175,8 @@ Every topic below links to the steering file that holds the full specification, 
 | Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](steering/tools.md) |
 | URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`) | [`waypoint.md`](steering/waypoint.md) |
 | Backend (Nuxt): routes, SSE, SQLite, runner registry, frontend integration | [`backend.md`](steering/backend.md) |
-| Router (standalone Nuxt): OpenRouter proxy, pool, cost tracking, mock mode, logs | [`router.md`](steering/router.md) |
+| Router (standalone Nuxt): keyless gateway, upstream routing, vault-fed keys, pool, cost tracking, mock mode, logs | [`router.md`](steering/router.md) |
+| Vault: gitignored secret store, refs (`llm.use`), `mt vault` CLI | [`vault.md`](vault.md), [`router.md`](steering/router.md) |
 | MCP server (stdio): methods, handlers, test shape | [`mcp.md`](steering/mcp.md) |
 | Chrome extension (MV3) & VS Code extension (schema, hover, code lens) | [`extensions.md`](steering/extensions.md) |
 
