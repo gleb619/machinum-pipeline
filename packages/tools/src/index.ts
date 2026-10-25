@@ -56,7 +56,18 @@ export {
   createSummaryTool,
   SUMMARY_SYSTEM_PROMPT,
   SUMMARY_USER_PROMPT,
+  notesSummaryTool,
+  createNotesSummaryTool,
+  renderSummaryNotes,
+  DEFAULT_NOTE_COUNT,
+  type NotesSummaryOptions,
 } from './normalization/schema/summary.js'
+
+export {
+  loadBundledPrompt,
+  listBundledPrompts,
+  type BundledPromptName,
+} from './core/bundled-prompts.js'
 
 export {
   entitiesTool,

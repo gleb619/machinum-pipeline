@@ -13,10 +13,11 @@
   "types": "./dist/index.d.ts",
   "files": ["dist"],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "gen:prompts": "node scripts/gen-prompts.mjs",
+    "build": "node scripts/gen-prompts.mjs && tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "typecheck": "node scripts/gen-prompts.mjs && tsc --noEmit",
+    "test": "node scripts/gen-prompts.mjs && vitest run",
     "test:gpu": "vitest run --config vitest.gpu.config.ts",
     "clean": "rm -rf dist .turbo"
   },

@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from 'node:path'
 import type { ToolContext } from '@mt/core'
+import { listBundledPrompts, loadBundledPrompt } from './bundled-prompts.js'
 import { readTextFileSync } from './fs-read.js'
 import { readCtx } from './llm-config.js'
 
@@ -124,6 +125,17 @@ const DEFAULTS: PromptTemplate[] = [
   },
 ]
 for (const p of DEFAULTS) registerPrompt(p)
+
+// Prompts shipped with the package (compiled from `prompts/*.md` at build time). They are
+// regular registry entries, so `meta.prompts`, mt.json `prompts.<name>` and
+// `MT_PROMPT_<NAME>` can override them like any other default.
+for (const name of listBundledPrompts()) {
+  registerPrompt({
+    name,
+    template: loadBundledPrompt(name),
+    description: `Bundled prompt (packages/tools/prompts/${name}.md).`,
+  })
+}
 
 // ---------------------------------------------------------------------------
 // Resolution

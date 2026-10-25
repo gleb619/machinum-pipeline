@@ -20,7 +20,7 @@ LLM-powered schema document generation. The mdshape document format (`SchemaDocE
 `writeDoc`, `schemaDocWriter`) lives in `schema-doc.ts` and stays pure; the five extraction tools live in
 `packages/tools/src/schema/`, one file each:
 
-- `summary.ts` — `summaryTool` / `createSummaryTool` → `meta.summary`
+- `summary.ts` — `summaryTool` / `createSummaryTool` → `meta.summary`; `notesSummaryTool` / `createNotesSummaryTool({ count })` → `meta.summaryNotes` + `meta.summary` (rendered `- ` bullet block), prompted with the bundled `summary.system` / `summary.user` prompts (see below)
 - `entities.ts` — `entitiesTool` / `createEntitiesTool` → `meta.entities`
 - `schema.ts` — `schemaTool` / `createSchemaTool` → `meta.schema` (mermaid)
 - `metadata.ts` — `metadataTool` / `createMetadataTool` → `meta.metadata`
@@ -29,6 +29,13 @@ LLM-powered schema document generation. The mdshape document format (`SchemaDocE
 Each calls `runPromptWithRetry` (`schema/llm.ts`), which wraps `chatCompletionSingle` from
 `openrouter-tool.ts` against `ctx.run.global.routerUrl`. Shared pieces: `schema/doc.ts` (chapter parsing,
 prompt rendering, CSV/table parsers, mdshape round-trip check) and `schema/llm.ts` (retry loop guard).
+
+**Bundled prompts** (`core/bundled-prompts.ts`): `packages/tools/prompts/*.md` is compiled into
+`src/generated/prompts.ts` by `scripts/gen-prompts.mjs` (wired into the package `build` / `typecheck` /
+`test` scripts), so prompt texts ship inside `dist` and the single-file `mt` CLI bundle with no runtime
+fs reads. `loadBundledPrompt(name)` / `listBundledPrompts()` expose them; `llm-prompts.ts` registers each
+one as a prompt-registry default (`summary.system`, `summary.user`), overridable like any other default.
+`tests/bundled-prompts.test.ts` keeps the generated module in sync with the md sources.
 
 **Loop guard:** a reply must be non-empty, parse as mdshape, and keep the section's required content (key
 terms covered, entities/terms present in the chapter, diagram keyword + edges, metadata counters unchanged).
@@ -370,6 +377,8 @@ Tests live in `packages/tools/tests/`:
 - `schema-doc.test.ts` — schema-doc format tests (`readDoc` / `writeDoc` round-trip)
 - `schema/prompt-retry.test.ts` — `runPromptWithRetry` loop guard, retries and attempt budget
 - `schema/tools.test.ts` — the five extraction tools against a stubbed router, fallbacks included
+- `schema/summary-notes.test.ts` — `createNotesSummaryTool` against a stubbed router (mocked LLM): bundled prompts, strict bullet validator, retries, heuristic fallback
+- `bundled-prompts.test.ts` — generated prompt module in sync with `prompts/*.md`, loads with the `prompts/` dir absent
 - `schema/mock-router.ts` — shared `fetch` stub and chapter fixtures (helper, not a test file)
 - `md-formatter.test.ts` — formatter output tests
 - `translate-text.test.ts` — translation tests (requires `OPENROUTER_API_KEYS`)
