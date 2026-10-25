@@ -412,3 +412,5 @@ export {
   type LlmTranslateInput,
   type LlmTranslateOutput,
 } from './core/llm-translate.js'
+
+export { openrouterFree, OPENROUTER_FREE_LLM } from './core/openrouter-free.js'

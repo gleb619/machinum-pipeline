@@ -256,6 +256,7 @@ Implemented (not part of the TL index above). Full reference: [steering/tools.md
 |---|---|---|
 | `chatCompletion`, `runPrompt` | composable tool (slots `prepare, fit, call, parse, emit`) | Existing LLM tools, now gate-based; same I/O |
 | `llmGate` / `createLlmGate(opts)` | composable tool factory | Generic LLM gate; swap any slot with `.with()` |
+| `openrouterFree` / `OPENROUTER_FREE_LLM` | gate preset | Free-tier OpenRouter: provider `openrouter`, model `openrouter/free`, keys from `OPENROUTER_API_KEYS` / `OPENROUTER_API_KEY`; per-call model override wins |
 | `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user`; shares one implementation with `translateText` |
 | `translateText` / `createTranslateText(opts)` | composable tool (slots `prepare, fit, call, parse, emit`) | Chapter translation; default backend router `/api/translate`, `backend: 'llm'` routes via the LLM client |
 | `titleTranslator` / `paragraphTranslator` / `createTitleTranslator(opts)` / `createParagraphTranslator(opts)` | composable tool | Chapter title / paragraph translation; `translate` slot (default `translateText`) swappable via options or `.with({ translate })` |

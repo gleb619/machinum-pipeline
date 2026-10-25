@@ -72,6 +72,15 @@ LLM gates built on the LLM toolkit (see [LLM toolkit](#llm-toolkit)); I/O unchan
 Default provider is the MT router proxy (`/api/chat/completions`). The key pool from `openrouter-pool.ts`
 (round-robin, 429/402) is used by the `openrouter` provider.
 
+### `openrouter-free.ts`
+- `openrouterFree` — free-tier gate: thin preset over `createLlmGate` with the tool-level config
+  `OPENROUTER_FREE_LLM` = `{ provider: 'openrouter', model: 'openrouter/free' }` (direct OpenRouter, no
+  MT router proxy). Keys come from the usual `resolveLlmConfig` env resolution (`OPENROUTER_API_KEYS`
+  pool, then `OPENROUTER_API_KEY`), `baseUrl` defaults to `https://openrouter.ai/api/v1`.
+  Standard slots, so tests stay offline: `openrouterFree.with({ call: mockLlmCall(['ok']) })`.
+  A per-call `model` / `llm` override still wins — the preset sits on the **tool option** layer
+  (see [LLM config precedence](#llm-config-precedence-resolvellmconfig-pure)), above `meta.llm`, settings and env.
+
 ### `md-formatter.ts`
 - `mdFormatterTool` — reformats markdown with configurable line width. Uses remark/unified under the hood.
 
