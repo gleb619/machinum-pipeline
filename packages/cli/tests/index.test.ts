@@ -3,6 +3,7 @@ import { initCommand } from '../src/commands/init.js'
 import { inspectCommand } from '../src/commands/inspect.js'
 import { listRunsCommand } from '../src/commands/list.js'
 import { runCommand } from '../src/commands/run.js'
+import { vaultCommand } from '../src/commands/vault.js'
 import { main } from '../src/index.js'
 
 vi.mock('../src/commands/init.js', () => ({
@@ -19,6 +20,10 @@ vi.mock('../src/commands/list.js', () => ({
 
 vi.mock('../src/commands/inspect.js', () => ({
   inspectCommand: vi.fn(),
+}))
+
+vi.mock('../src/commands/vault.js', () => ({
+  vaultCommand: vi.fn(),
 }))
 
 describe('CLI entry point', () => {
@@ -69,6 +74,12 @@ describe('CLI entry point', () => {
     process.argv = ['node', 'mt', 'inspect', 'run-123']
     await main()
     expect(inspectCommand).toHaveBeenCalledWith(['run-123'])
+  })
+
+  it('calls vault command', async () => {
+    process.argv = ['node', 'mt', 'vault', 'list']
+    await main()
+    expect(vaultCommand).toHaveBeenCalledWith(['list'])
   })
 
   it('shows help for --help', async () => {

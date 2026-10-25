@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import type { MtConfig, Settings } from '@mt/core'
 import { DEFAULT_MT_CONFIG, Store } from '@mt/core'
+import { VAULT_IGNORE_PATTERNS, ensureIgnorePatterns } from '../utils/gitignore.js'
 
 export type { Settings }
 
@@ -43,6 +44,12 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   await store.ensureDir('runs')
   await store.ensureDir('cache')
   console.log(`Created ${store.getRoot()}/`)
+
+  // Keep the state dir and every vault file out of git
+  const ignored = await ensureIgnorePatterns(projectRoot, VAULT_IGNORE_PATTERNS)
+  if (ignored.length > 0) {
+    console.log(`Added to .gitignore: ${ignored.join(', ')}`)
+  }
 
   // Create sample pipeline only when settings are provided
   if (hasSettings) {

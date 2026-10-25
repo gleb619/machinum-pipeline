@@ -51,6 +51,11 @@ export async function main(): Promise<void> {
       await routerCommand(args.slice(1))
       break
     }
+    case 'vault': {
+      const { vaultCommand } = await import('./commands/vault.js')
+      await vaultCommand(args.slice(1))
+      break
+    }
     case 'mcp':
       console.error('mt mcp — not yet implemented')
       process.exit(1)
@@ -71,6 +76,7 @@ Commands:
   tool <name>            Invoke a tool standalone
   serve [-d|--detach]    Start admin backend
   router [opts]          Start LLM router proxy (--help)
+  vault <sub>            Manage the vault: list|show|add|rm|path|init (--help)
   mcp                    Start MCP server over stdio
 
 Options:

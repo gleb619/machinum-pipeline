@@ -9,6 +9,32 @@ See [vault.example.json](vault.example.json) (fake values). `{ "version": 1, "en
 `VaultEntry`: `provider` (`ollama|openrouter|openai|anthropic|custom|router`), optional `baseUrl`,
 `apiKey`, `apiKeys[]`, `headers{}`, `models[]`, `defaultModel`, `notes`. Entry names contain no `/`.
 
+## CLI (`mt vault`)
+
+`mt vault` lives in `packages/cli/src/commands/vault.ts` and imports `@mt/core` only.
+
+| Command | Effect |
+|---|---|
+| `mt vault list` | One line per entry: name, provider, base URL, model count |
+| `mt vault show <name>` | The entry as JSON — secrets masked |
+| `mt vault show <name> --reveal` | The entry as JSON — secrets unmasked |
+| `mt vault add <name> [flags]` | Adds an entry to the project vault (see below) |
+| `mt vault rm <name>` | Removes the entry (project vault first, then the user vault) |
+| `mt vault path` | The resolved vault paths and whether they exist |
+| `mt vault init` | Creates an empty `{ "version": 1, "entries": {} }` vault file |
+
+`add` flags: `--provider` (`ollama|openrouter|openai|anthropic|custom|router`), `--base-url`,
+`--api-key`, `--api-keys k1,k2`, `--models a,b`, `--default-model`, `--notes`. Missing flags are
+prompted for on a TTY (the API key prompt hides the keystrokes); without a TTY the flag is required.
+`--force` overwrites an existing entry, `--user` targets `~/.mt/vault.json` instead of
+`<project>/.mt/vault.json`. Entry names may not contain `/`.
+
+Secrets are masked in every output (`sk-…1234`) unless `--reveal` is given. Writes go through
+`saveVault`: atomic (temp-then-rename), file mode 0600.
+
+`mt vault init` and `mt init` both keep `.gitignore` covered — `.mt/`, `vault.json`, `*.vault.json`
+and `.mt/vault*` are appended only when missing, so running either twice changes nothing.
+
 ## Precedence
 
 1. `MT_VAULT=<path>` set: only that file.

@@ -1,0 +1,4 @@
+.mt/
+vault.json
+*.vault.json
+.mt/vault*

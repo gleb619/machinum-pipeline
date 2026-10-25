@@ -68,13 +68,14 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 
 | Command | File | Description |
 |---|---|---|
-| `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project |
+| `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
 | `mt run <pipeline.ts>` | `run.ts` | Execute a pipeline; build GlobalContext, load module, start Runner |
 | `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file comes from state.json unless given |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
 | `mt tool <name>` | `tool.ts` | Invoke a tool standalone (JSON envelope on stdin/stdout) |
 | `mt serve [--port N\|0] [--host H] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/backend/standalone`); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
+| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init` (secrets masked unless `--reveal`) |
 
 ## Pipeline Loading
 
@@ -124,6 +125,16 @@ from the recorded run.
 ### `src/utils/logger.ts` — `DuplexLogger`
 Writes to both console (with ANSI colour) and a log file under `.mt/runs/<runId>/`. Implements `Logger` from `@mt/core/types`.
 
+### `src/commands/vault.ts`
+`mt vault` — `list` / `show` / `add` / `rm` / `path` / `init` over the `@mt/core` vault. Writes go
+through `saveVault` (atomic, mode 0600). Secrets are masked in every output unless `--reveal` is
+given. `--user` targets `~/.mt/vault.json`, otherwise `<project>/.mt/vault.json`; `MT_VAULT` wins
+over both. Details: [docs/vault.md](../vault.md).
+
+### `src/utils/gitignore.ts`
+`ensureIgnorePatterns()` — appends the missing ignore lines (`.mt/`, `vault.json`, `*.vault.json`,
+`.mt/vault*`) to `.gitignore`; idempotent, never duplicates a line.
+
 ### `src/utils/args.ts`
 `parseInitArgs()` — parses `mt init` flags (`--force`, `--yes`, `--template`).
 
@@ -147,6 +158,7 @@ packages/cli/tests/
 │   ├── list.test.ts           # ls runs output format
 │   ├── inspect.test.ts        # inspect checkpoint tree
 │   ├── tool.test.ts           # tool stdin/stdout pipe
+│   ├── vault.test.ts          # vault command (init/add/list/show/rm/path)
 │   └── serve.arch.test.ts     # serve command shape
 └── utils/
     ├── logger.test.ts         # DuplexLogger behaviour

@@ -22,11 +22,15 @@ export type {
   ResolvedVaultRef,
 } from './vault.js'
 export {
+  addEntry,
   emptyVault,
+  isValidEntryName,
+  isVaultProvider,
   loadVault,
   maskSecret,
   maskVault,
   parseVaultRef,
+  removeEntry,
   resolveVaultRef,
   saveVault,
   vaultPaths,

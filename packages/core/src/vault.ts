@@ -178,6 +178,39 @@ export function maskVault(vault: Vault): Vault {
   return { version: 1, entries }
 }
 
+/** True for a known provider id. */
+export function isVaultProvider(value: string): value is VaultProvider {
+  return (VAULT_PROVIDERS as readonly string[]).includes(value)
+}
+
+/** Entry names are plain identifiers — non-empty and free of path separators. */
+export function isValidEntryName(name: string): boolean {
+  return name !== '' && !name.includes('/')
+}
+
+/** Add or replace an entry in a copy of the vault. Throws on an invalid name or provider. */
+export function addEntry(vault: Vault, name: string, entry: VaultEntry): Vault {
+  if (!isValidEntryName(name)) {
+    throw new Error(`Invalid vault entry name "${name}": must be non-empty and contain no "/"`)
+  }
+  if (!isVaultProvider(entry.provider)) {
+    throw new Error(
+      `Invalid vault entry "${name}": "provider" must be one of ${VAULT_PROVIDERS.join(', ')}`,
+    )
+  }
+  return { version: 1, entries: { ...vault.entries, [name]: entry } }
+}
+
+/** Remove an entry from a copy of the vault. Throws when the entry is missing. */
+export function removeEntry(vault: Vault, name: string): Vault {
+  if (!Object.hasOwn(vault.entries, name)) {
+    throw new Error(`Unknown vault entry "${name}"`)
+  }
+  const entries = { ...vault.entries }
+  delete entries[name]
+  return { version: 1, entries }
+}
+
 /** Parse `vault://<entry>[/<model>]` or `@vault/<entry>[/<model>]`; undefined if not a ref. */
 export function parseVaultRef(ref: string): VaultRef | undefined {
   let rest: string

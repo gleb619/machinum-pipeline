@@ -1,4 +1,5 @@
 {
+  "_comment": "Example vault with fake keys. Manage real vaults with `mt vault add` — see docs/vault.md.",
   "version": 1,
   "entries": {
     "local-ollama": {

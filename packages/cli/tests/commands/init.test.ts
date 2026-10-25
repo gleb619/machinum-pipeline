@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -116,5 +116,38 @@ describe('init command (T001)', () => {
     const configContent = await readFile(join(testDir, 'mt.json'), 'utf-8')
     const config = JSON.parse(configContent)
     expect(config.settings).toEqual(testSettings)
+  })
+
+  it('T116-01: creates .gitignore with the vault patterns', async () => {
+    await initCommand({})
+
+    const gitignore = await readFile(join(testDir, '.gitignore'), 'utf-8')
+    expect(gitignore).toContain('.mt/')
+    expect(gitignore).toContain('vault.json')
+    expect(gitignore).toContain('*.vault.json')
+    expect(gitignore).toContain('.mt/vault*')
+  })
+
+  it('T116-02: appends only the missing patterns and stays idempotent', async () => {
+    await writeFile(join(testDir, '.gitignore'), 'node_modules/\n.mt/\n', 'utf-8')
+
+    await initCommand({})
+    await initCommand({})
+
+    const gitignore = await readFile(join(testDir, '.gitignore'), 'utf-8')
+    expect(gitignore).toContain('node_modules/')
+    expect(gitignore.match(/^\.mt\/$/gm)).toHaveLength(1)
+    expect(gitignore.match(/^vault\.json$/gm)).toHaveLength(1)
+    expect(gitignore.match(/^\*\.vault\.json$/gm)).toHaveLength(1)
+    expect(gitignore.match(/^\.mt\/vault\*$/gm)).toHaveLength(1)
+  })
+
+  it('T116-03: leaves an existing .gitignore untouched when it already covers the patterns', async () => {
+    const existing = 'node_modules/\n.mt/\nvault.json\n*.vault.json\n.mt/vault*\n'
+    await writeFile(join(testDir, '.gitignore'), existing, 'utf-8')
+
+    await initCommand({})
+
+    expect(await readFile(join(testDir, '.gitignore'), 'utf-8')).toBe(existing)
   })
 })

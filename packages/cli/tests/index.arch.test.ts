@@ -40,4 +40,10 @@ describe('CLI command registry (architectural)', () => {
     expect(src).toMatch(/case\s+['"]tool['"]/)
     expect(src).toMatch(/toolCommand/)
   })
+
+  it('CLI index registers vault command', async () => {
+    const src = await readCliIndex()
+    expect(src).toMatch(/case\s+['"]vault['"]/)
+    expect(src).toMatch(/vaultCommand/)
+  })
 })
