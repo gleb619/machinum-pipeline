@@ -1,4 +1,4 @@
-# Sample 3 — Normalize raw chapters, then analyze (summary, glossary, term tags)
+# Sample 3 — Normalize raw chapters, analyze (summary, glossary, term tags), translate EN->RU
 
 Reads raw web-novel chapters (`{ key, value }` JSONL lines, `value` = `Chapter N: Title\n<body lines>`),
 normalizes the text offline and writes one markdown file per chapter to `chapters/en/chapter<N>.md`.
@@ -17,6 +17,8 @@ normalizes the text offline and writes one markdown file per chapter to `chapter
 sample3/
 ├── pipelines/normalize.ts    # default + named export `normalizeFlow`
 ├── pipelines/analyze.ts      # stage 2: summaries + glossary + <term> tagging
+├── pipelines/translate.ts    # stage 3: titles + line-by-line EN->RU with parity linter
+├── lint-parity.ts            # standalone EN/RU parity check (no mt needed)
 ├── pipelines/llm-picker.ts   # MT_LLM_TOOL / MT_LLM_MODEL pick (default: offline mock)
 ├── prepare-input.ts          # wraps raw {key,value} lines into {item} envelopes
 ├── jsonl/                    # raw input; generated input.jsonl is gitignored
@@ -24,7 +26,8 @@ sample3/
 ├── chapters/schema/          # analyze: chapter<N>.summary.md
 ├── chapters/en-tagged/       # analyze: EN with <term id="..."> tags
 ├── chapters/glossary.json    # analyze: editable glossary
-└── tests/{normalize,analyze}.test.ts
+├── chapters/titles.json      # translate: { "<n>": { en, ru } }
+└── tests/{normalize,analyze,translate}.test.ts
 ```
 
 ## How to run
@@ -62,6 +65,29 @@ Writes, with no LLM needed:
 
 Tools: `heuristicSummaryTool`, `glossaryExtractor`, `termTagger` (see `docs/steering/tools.md`).
 
+## Stage 3: translate
+
+```bash
+pnpm run translate                         # offline mock LLM (echo-style fake RU), needs normalize + analyze first
+MT_LLM_TOOL=ollama MT_ONLY_CHAPTERS=1 pnpm run translate   # real: remote ollama (gemma4:latest), chapter 1 only
+pnpm run lint-parity                       # post-run check chapters/en vs chapters/ru, exit 1 on mismatch
+```
+
+Reads `chapters/en-tagged/*.md`, `chapters/schema/*.summary.md` and `chapters/glossary.json` (fill `ru` there
+first!). Writes `chapters/ru/chapter<N>.md` and `chapters/titles.json`.
+
+- Titles: `titleTranslator` over `.batch(5)`, glossary-aware, then the body.
+- Body: every non-empty line is translated on its own (blank lines and fenced code are kept; the `# ` heading
+  becomes the translated title). Slow by design: `MT_TRANSLATE_CONCURRENCY` (default 1).
+- Prompt per line: chapter summary (context only) + glossary entries (`term = ru`) only for terms whose
+  `<term id>` is in that line; terms with `ru: null` are sent as "transliterate consistently". Replies are
+  stripped of `<think>` blocks and `<term>` tags.
+- Each reply is checked with `lintLineParity`; a bad reply throws a retryable `LineParityError`, the engine retries
+  (lines that already passed are memoised), and the run finally fails with the lint message. The finished chapter
+  goes through `lineParityLinter` once more before it is written.
+- Env: `MT_LLM_TOOL`, `MT_LLM_MODEL` (llm-picker), `MT_ONLY_CHAPTERS` (e.g. `1,3`), `MT_TRANSLATE_CONCURRENCY`,
+  `MT_TRANSLATE_PROMPT_LOG` (mock backend only: jsonl dump of every prompt, used by the test).
+
 ## How to clean up
 
 ```bash
@@ -72,6 +98,10 @@ pnpm run cleanup
 
 `tests/analyze.test.ts` writes tiny synthetic chapters and checks summaries, glossary types/counts, tag
 round trip (`stripTerms(tagged) === original`, same line count) and that manual `ru` edits survive a re-run.
+
+`tests/translate.test.ts` writes synthetic tagged chapters + glossary + summaries, runs the pipeline with the mock
+LLM and asserts RU/EN line parity, stripped tags, glossary `ru` / summary in the captured prompts (only for the terms
+present in the line), `titles.json`, `lint-parity.ts` pass/fail, `MT_ONLY_CHAPTERS` and the engine retry of a bad reply.
 
 `tests/normalize.test.ts` writes a tiny synthetic fixture to `jsonl/input.jsonl`, runs the pipeline
 through `mt`, and asserts file count, preserved paragraph lines, no curly quotes / zero-width chars,

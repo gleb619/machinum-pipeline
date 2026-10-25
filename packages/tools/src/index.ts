@@ -169,6 +169,27 @@ export {
   type TermMatcher,
 } from './normalization/term-tagger.js'
 export {
+  buildTranslationPrompt,
+  cleanTranslation,
+  joinReplyLines,
+  termIdsIn,
+  type TranslationPrompt,
+  type TranslationPromptInput,
+} from './normalization/translation-prompt.js'
+export {
+  lineParityLinter,
+  createLineParityLinter,
+  lintLineParity,
+  LineParityError,
+  type LineParityInput,
+  type ParityIssue,
+  type ParityIssueCode,
+  type ParitySeverity,
+  type LineParityOptions,
+  type LineParityLinterOptions,
+  type LineParityReport,
+} from './verification/line-parity-linter.js'
+export {
   heuristicSummaryTool,
   createHeuristicSummaryTool,
   summarizeHeuristic,

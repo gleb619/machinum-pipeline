@@ -8,7 +8,9 @@
     "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/normalize.ts",
     "normalize": "pnpm run prepare-input && pnpm run runner",
     "analyze": "NODE_OPTIONS='--import tsx' mt run ./pipelines/analyze.ts",
-    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/en-tagged chapters/glossary.json jsonl/input.jsonl .mt",
+    "translate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate.ts",
+    "lint-parity": "tsx lint-parity.ts chapters/en chapters/ru",
+    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/en-tagged chapters/glossary.json chapters/titles.json jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest"

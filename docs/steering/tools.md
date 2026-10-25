@@ -72,6 +72,21 @@ Offline (no LLM) analysis tools, all accept a single `env.item` or a batched `en
   first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
   `meta.taggedItems` (item untouched). `stripTerms(tagged)` restores the original text exactly.
 
+### `translation-prompt.ts` / `line-parity-linter.ts`
+Building blocks of the sample3 translate stage (EN->RU, line by line).
+
+- `buildTranslationPrompt({ text, glossary, summary, extraRules })` — `{ systemPrompt, userPrompt, usedTerms,
+  untranslatedTerms }`. Injects ONLY glossary entries whose `<term id>` occurs in `text` (`term = ru`); terms with
+  `ru: null` get a "transliterate consistently" block; the chapter summary is added as context only. `userPrompt` is
+  the text with `<term>` tags stripped. `cleanTranslation(reply)` drops `<think>` blocks and `<term>` tags;
+  `termIdsIn(text)` lists tag ids.
+- `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,
+  cyrillicSeverity })` — `{ en, ru }` item in/out, `meta.parity` = `{ ok, enLines, ruLines, errors, warnings,
+  cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,
+  `term-tag-left`, `think-block`, `low-cyrillic`; warn: `untranslated-line`. On a hard error the tool throws
+  `LineParityError` (`retryable: true`) so the engine retry kicks in; after the last attempt the run fails with the
+  message. Standalone check without `mt`: `samples/sample3/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
+
 ### `chapter-translator.ts`
 Higher-level translation tools, composable:
 - `titleTranslator` / `createTitleTranslator({ translate })` — slots `extract -> translate -> assemble`
