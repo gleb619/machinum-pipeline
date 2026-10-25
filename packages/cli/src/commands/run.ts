@@ -1,4 +1,4 @@
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import {
   Runner,
   importPipelineModule,
@@ -49,8 +49,11 @@ export async function runCommand(args: string[]): Promise<void> {
   logger.info(`Starting pipeline: ${pipeline.id}`)
   logger.info(`Pipeline file: ${pipelineFile}`)
 
-  // Create and start runner
-  const runner = new Runner(pipeline, globalContext)
+  // Create and start runner (record provenance so `mt resume <runId>` finds the file)
+  const runner = new Runner(pipeline, globalContext, {
+    pipelineFile: relative(projectRoot, resolve(projectRoot, pipelineFile)),
+    pipelineName,
+  })
 
   process.on('SIGINT', async () => {
     logger.warn('SIGINT received: pausing pipeline...')

@@ -107,6 +107,7 @@ describe('run command', () => {
         defaults: expect.objectContaining({ concurrency: 10 }),
         settings: {},
       }),
+      expect.anything(),
     )
   })
 
@@ -139,6 +140,7 @@ describe('run command', () => {
           'tool.translator.model': 'gpt-4',
         },
       }),
+      expect.anything(),
     )
   })
 

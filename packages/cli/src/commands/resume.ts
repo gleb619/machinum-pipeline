@@ -1,37 +1,63 @@
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import {
   Runner,
+  Store,
   importPipelineModule,
   loadGlobalContext,
   nativeAddonHint,
   packageResolutionHint,
 } from '@mt/core'
-import type { Pipeline } from '@mt/core'
+import type { Pipeline, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
 
 /**
- * `mt resume <runId>` — resume a previous run.
+ * `mt resume <runId> [pipeline.ts]` — resume a previous run.
+ *
+ * The pipeline file recorded in `.mt/runs/<runId>/state.json` is used when no file
+ * argument is given, so the operator does not have to remember what started the run.
  */
 export async function resumeCommand(args: string[]): Promise<void> {
-  if (args.length < 2) {
-    console.error('Usage: mt resume <runId> <pipeline.ts>')
+  const [runId, pipelineFileArg] = args
+  if (!runId) {
+    console.error('Usage: mt resume <runId> [pipeline.ts]')
     process.exit(1)
   }
 
-  const [runId, pipelineFile] = args
-  if (!runId || !pipelineFile) {
-    throw new Error('Usage: mt resume <runId> <pipeline.ts>')
-  }
   const projectRoot = process.cwd()
 
   // Build global context
   const globalContext = await loadGlobalContext(projectRoot)
 
-  // Load pipeline
-  const pipeline = await loadPipeline(pipelineFile)
+  // Resolve pipeline file: explicit arg wins, otherwise read it from the run's state.json
+  let pipelineFile = pipelineFileArg
+  let pipelineName: string | undefined
+  if (!pipelineFile) {
+    const store = new Store(join(projectRoot, '.mt'))
+    if (!(await store.exists('runs', runId, 'state.json'))) {
+      throw new Error(
+        `No state found for run '${runId}' (expected .mt/runs/${runId}/state.json). Pass the pipeline file explicitly: mt resume <runId> <pipeline.ts>`,
+      )
+    }
+    const state = await store.readJson<RunStateData>('runs', runId, 'state.json')
+    if (!state.pipelineFile) {
+      throw new Error(
+        `Run '${runId}' was started by an older version and has no pipelineFile in state.json. ` +
+          `Pass the pipeline file explicitly: mt resume ${runId} <pipeline.ts>`,
+      )
+    }
+    pipelineFile = state.pipelineFile
+    pipelineName = state.pipelineName
+  }
 
-  // Initialize Runner
-  const runner = new Runner(pipeline, globalContext)
+  // Load pipeline
+  const pipeline = await loadPipeline(pipelineFile, pipelineName)
+
+  // Initialize Runner (re-record provenance so later pauses/resumes keep it)
+  const pipelineFileRel = relative(projectRoot, resolve(projectRoot, pipelineFile))
+  const runner = new Runner(pipeline, globalContext, {
+    pipelineFile: pipelineFileRel,
+    pipelineName,
+  })
 
   // Create logger
   const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
@@ -54,12 +80,13 @@ export async function resumeCommand(args: string[]): Promise<void> {
 /**
  * Load a pipeline module from a file path.
  */
-async function loadPipeline(filePath: string): Promise<Pipeline> {
+async function loadPipeline(filePath: string, name?: string): Promise<Pipeline> {
   const resolvedPath = resolve(process.cwd(), filePath)
   const mod = await importPipelineModule(resolvedPath)
-  const pipeline = (mod.default ?? mod.pipeline) as Pipeline | undefined
+  const pipeline = (name ? mod[name] : (mod.default ?? mod.pipeline)) as Pipeline | undefined
   if (!pipeline || typeof pipeline.id !== 'string') {
-    throw new Error(`Invalid pipeline module: ${filePath}.`)
+    const hint = name ? ` (named export '${name}' not found or invalid)` : ''
+    throw new Error(`Invalid pipeline module: ${filePath}.${hint}`)
   }
   return pipeline
 }

@@ -188,4 +188,28 @@ describe('runner source cursor', () => {
     expect(sourceCalls).toEqual(['start'])
     expect(written).toEqual(items)
   })
+
+  it('records pipelineFile/pipelineName options in state.json', async () => {
+    await new Runner(cursorPipeline('cursor-file', 'cursor-source'), globalContext, {
+      pipelineFile: 'pipelines/example.ts',
+      pipelineName: 'myPipeline',
+    }).start()
+
+    expect(lastState().pipelineFile).toBe('pipelines/example.ts')
+    expect(lastState().pipelineName).toBe('myPipeline')
+  })
+
+  it('rejects resume when the pipeline id differs from the recorded run', async () => {
+    failOn = 3
+    await expect(
+      new Runner(cursorPipeline('cursor-mismatch', 'cursor-source'), globalContext).start(),
+    ).rejects.toThrow('gate exploded on 3')
+
+    failOn = 0
+    await expect(
+      new Runner(cursorPipeline('other-pipeline', 'cursor-source'), globalContext).resume(
+        'run-under-test',
+      ),
+    ).rejects.toThrow(/pipelineId mismatch/)
+  })
 })

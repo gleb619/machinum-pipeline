@@ -51,11 +51,64 @@ describe('resume command', () => {
     vi.restoreAllMocks()
   })
 
-  it('fails if no runId and pipeline file are provided', async () => {
+  it('fails if no runId is provided', async () => {
     await expect(resumeCommand([])).rejects.toThrow('EXIT 1')
     expect(console.error).toHaveBeenCalledWith(
-      expect.stringContaining('Usage: mt resume <runId> <pipeline.ts>'),
+      expect.stringContaining('Usage: mt resume <runId> [pipeline.ts]'),
     )
+  })
+
+  it('resumes from the pipeline file recorded in state.json when no file arg is given', async () => {
+    const pipelinePath = join(testDir, 'pipeline.ts')
+    await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    const runDir = join(testDir, '.mt', 'runs', 'test-run-id')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(
+      join(runDir, 'state.json'),
+      JSON.stringify({
+        runId: 'test-run-id',
+        pipelineId: 'test-pipeline',
+        pipelineFile: 'pipeline.ts',
+        state: 'paused',
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        checkpoint: { stepId: 'root' },
+        contextRef: 'runs/test-run-id/context.json',
+      }),
+    )
+
+    await resumeCommand(['test-run-id'])
+
+    expect(mockResume).toHaveBeenCalledWith('test-run-id')
+    expect(vi.mocked(Runner)).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'test-pipeline' }),
+      expect.anything(),
+      { pipelineFile: 'pipeline.ts', pipelineName: undefined },
+    )
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('Pipeline resumed and complete. Run ID: test-run-id'),
+    )
+  })
+
+  it('errors helpfully when runId-only resume finds no recorded pipelineFile', async () => {
+    const runDir = join(testDir, '.mt', 'runs', 'old-run-id')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(runDir, { recursive: true })
+    await writeFile(
+      join(runDir, 'state.json'),
+      JSON.stringify({
+        runId: 'old-run-id',
+        pipelineId: 'old-pipeline',
+        state: 'paused',
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        checkpoint: { stepId: 'root' },
+        contextRef: 'runs/old-run-id/context.json',
+      }),
+    )
+
+    await expect(resumeCommand(['old-run-id'])).rejects.toThrow(/pipelineFile|pipeline file|Usage/i)
   })
 
   it('resumes a valid pipeline', async () => {

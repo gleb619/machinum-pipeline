@@ -136,11 +136,24 @@ export interface RunEvent {
 export interface RunStateData {
   runId: string
   pipelineId: string
+  /** Pipeline source file relative to the project root, recorded so `mt resume <runId>` can find it. */
+  pipelineFile?: string
+  /** Named export of the pipeline in `pipelineFile`, when the run was started with `--pipeline`. */
+  pipelineName?: string
   state: RunState
   startedAt: string
   updatedAt: string
   checkpoint: CheckpointNode
   contextRef: string
+}
+
+/**
+ * Runner constructor options — provenance recorded into state.json so a run can be
+ * resumed (`mt resume <runId>`) without the operator remembering the pipeline file.
+ */
+export interface RunnerOptions {
+  pipelineFile?: string
+  pipelineName?: string
 }
 
 /**

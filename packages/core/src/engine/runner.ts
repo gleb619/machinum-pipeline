@@ -11,6 +11,7 @@ import type {
   RunEvent,
   RunEventType,
   RunStateData,
+  RunnerOptions,
   Tool,
 } from '../types.js'
 import { registry } from '../uri.js'
@@ -110,10 +111,12 @@ export class Runner {
   private runContext: RunContext | null = null
   private checkpoint = createRootCheckpoint('root')
   private stepSeq = 0
+  private readonly options: RunnerOptions
 
-  constructor(pipeline: Pipeline, globalContext: GlobalContext) {
+  constructor(pipeline: Pipeline, globalContext: GlobalContext, options?: RunnerOptions) {
     this.pipeline = pipeline
     this.globalContext = globalContext
+    this.options = options ?? {}
     const mtRoot = join(globalContext.project.root, '.mt')
     this.store = new Store(mtRoot)
     this.cache = new Cache(mtRoot)
@@ -181,6 +184,12 @@ export class Runner {
   async resume(runId: string): Promise<RunContext> {
     // Load state
     const stateData = await this.store.readJson<RunStateData>('runs', runId, 'state.json')
+    if (stateData.pipelineId !== this.pipeline.id) {
+      const recorded = stateData.pipelineFile ? ` (${stateData.pipelineFile})` : ''
+      throw new Error(
+        `pipelineId mismatch: run '${runId}' was started with pipeline '${stateData.pipelineId}' but resume was given '${this.pipeline.id}'. Use the pipeline file recorded in .mt/runs/${runId}/state.json${recorded}.`,
+      )
+    }
     this.runId = runId
     this.stateMachine.reset(stateData.state)
     this.checkpoint = stateData.checkpoint
@@ -780,6 +789,8 @@ export class Runner {
     const stateData: RunStateData = {
       runId: this.runId,
       pipelineId: this.pipeline.id,
+      pipelineFile: this.options.pipelineFile,
+      pipelineName: this.options.pipelineName,
       state: this.stateMachine.current,
       startedAt: this.runContext?.startedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),

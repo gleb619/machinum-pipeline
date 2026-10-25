@@ -77,6 +77,12 @@ Runner, which has `GlobalContext.settings`). Alias chains are capped at
 ### `engine/runner.ts` — `Runner`
 Main execution loop. Methods: `start()`, `pause()`, `resume()`, `unpause()`. Manages state machine, checkpoint writes, event log, dead-letter.
 
+The constructor takes optional `RunnerOptions` (`pipelineFile`, `pipelineName` — the pipeline's
+source file relative to the project root and its named export). They are recorded in
+`state.json`, so `mt resume <runId>` can reload the right pipeline without the operator
+remembering it; `resume()` rejects the run with a clear `pipelineId mismatch` error when the
+loaded pipeline's `id` differs from the one the run was started with.
+
 One recursive builder drives every level of nesting:
 
 ```

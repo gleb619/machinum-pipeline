@@ -70,7 +70,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project |
 | `mt run <pipeline.ts>` | `run.ts` | Execute a pipeline; build GlobalContext, load module, start Runner |
-| `mt resume <runId>` | `resume.ts` | Load checkpoint.json, resume from first non-done node |
+| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file comes from state.json unless given |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
 | `mt tool <name>` | `tool.ts` | Invoke a tool standalone (JSON envelope on stdin/stdout) |
@@ -107,7 +107,12 @@ Entry point: `main()` function, arg parsing, dispatch to command modules. Handle
 4. Listen for SIGINT → `runner.pause()`
 
 ### `src/commands/resume.ts`
-Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`.
+Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`. The pipeline file
+is resolved in this order: the explicit `[pipeline.ts]` argument, then `pipelineFile`/`pipelineName`
+recorded in `.mt/runs/<runId>/state.json` (written by `mt run` since T096). Runs started by older
+versions without a recorded file get an error naming the exact `mt resume <runId> <pipeline.ts>`
+fallback. `Runner.resume()` throws `pipelineId mismatch` when the loaded pipeline's `id` differs
+from the recorded run.
 
 ### `src/commands/serve.ts`
 - `serveCommand()` lazy-imports `@mt/backend/standalone` and calls `startBackend()` (plain h3 on `node:http`; no Nitro

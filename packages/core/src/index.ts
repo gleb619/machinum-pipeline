@@ -30,6 +30,7 @@ export type {
   RunEventType,
   CheckpointNode,
   RunStateData,
+  RunnerOptions,
   MdOutputEntry,
 } from './types.js'
 export type { Book, Chapter, Paragraph, Line } from './domain.js'
