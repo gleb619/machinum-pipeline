@@ -202,6 +202,24 @@ export function withoutVariable<T>(
   }
 }
 
+/**
+ * Set several `new` variables at once (`undefined` values are skipped). Existing same-name `new`
+ * variables are replaced. Convenience for tools that publish computed results.
+ */
+export function setVariables<T>(
+  ex: Exchange<T>,
+  values: Record<string, unknown>,
+  opts: VariableOptions = {},
+): Exchange<T> {
+  const vars = Object.entries(values)
+    .filter(([, v]) => v !== undefined)
+    .map(([name, value]) => variable(name, value, opts))
+  return vars.length === 0 ? ex : withVariable(ex, ...vars)
+}
+
+/** Name of the variable carrying `MdOutputEntry[]` write intents for the `md://` target. */
+export const MD_OUTPUTS_VARIABLE = 'mdOutputs'
+
 /** Replace the `new` variable `name` with a new value, keeping no history. Adds when absent. */
 export function replaceVariable<T, U>(ex: Exchange<T>, name: string, value: U): Exchange<T> {
   const cur = findVariable(ex, name)
