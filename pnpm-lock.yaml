@@ -165,6 +165,9 @@ importers:
       '@rewdy/md-formatter':
         specifier: ^0.4.1
         version: 0.4.1
+      compromise:
+        specifier: ^14.19.0
+        version: 14.19.0
       cspell-lib:
         specifier: ^8.0.0
         version: 8.19.4
@@ -276,6 +279,9 @@ importers:
       '@rewdy/md-formatter':
         specifier: ^0.4.1
         version: 0.4.1
+      compromise:
+        specifier: ^14.19.0
+        version: 14.19.0
       cspell-lib:
         specifier: ^8.0.0
         version: 8.19.4
@@ -2278,6 +2284,10 @@ packages:
     resolution: {integrity: sha512-6FqVXeETqWPoGcfzrXb37E50NP0LXT8kAMu5ooZayhWWdgEY4lBEEcbQNXtkuKQsGduxiIcI4gOTsxTmuq/bSg==}
     engines: {node: '>= 14'}
 
+  compromise@14.19.0:
+    resolution: {integrity: sha512-nA/ClpXt0PaS2Ne389wClhxFBBxV0el3nv6V7XFpoRRQBr8eCnV3Iv4ZY6C5H06UHq1k7bqth73nVc/hv/rrCg==}
+    engines: {node: '>=18'}
+
   confbox@0.1.8:
     resolution: {integrity: sha512-RMtmw0iFkeR4YV+fUOSucriAQNb9g8zFR52MWCtl+cCZOFRNL6zeB395vPzFhEjjn4fMxXudmELnl/KF/WrK6w==}
 
@@ -2467,6 +2477,10 @@ packages:
 
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
+
+  efrt@2.9.0:
+    resolution: {integrity: sha512-ZMAvlcu4AfmtJ4K/0hs0uofVUZPSeLG/w4yOyZawQLl9YEy8iDKIxIIPsUAlS907clC7bgD17e73vi5unwNE/g==}
+    engines: {node: '>=12.0.0'}
 
   electron-to-chromium@1.5.349:
     resolution: {integrity: sha512-QsWVGyRuY07Aqb234QytTfwd5d9AJlfNIQ5wIOl1L+PZDzI9d9+Fn0FRale/QYlFxt/bUnB0/nLd1jFPGxGK1A==}
@@ -3628,6 +3642,10 @@ packages:
     resolution: {integrity: sha512-DhuTmvZWux4H1UOnWMB3sk0sbaCVOoQZjv8u1rDoTV0HTdGem9hkAZtl4JZy8P2z4Bg0nT+YMeOFyVr4zcG5Tw==}
     engines: {node: '>=16 || 14 >=14.17'}
     hasBin: true
+
+  suffix-thumb@6.0.0:
+    resolution: {integrity: sha512-HsCTMLaupbob5ZG//ZW6PSj446tHT5kSJ1qXS5F/qO2Nt13uAn6ZLPhJQ/H6bN/jVQCb+pcqe2psEwy4Mp5+Vw==}
+    engines: {node: '>=18'}
 
   supports-color@10.2.2:
     resolution: {integrity: sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g==}
@@ -5599,6 +5617,11 @@ snapshots:
       normalize-path: 3.0.0
       readable-stream: 4.7.0
 
+  compromise@14.19.0:
+    dependencies:
+      efrt: 2.9.0
+      suffix-thumb: 6.0.0
+
   confbox@0.1.8: {}
 
   confbox@0.2.4: {}
@@ -5759,6 +5782,8 @@ snapshots:
   eastasianwidth@0.2.0: {}
 
   ee-first@1.1.1: {}
+
+  efrt@2.9.0: {}
 
   electron-to-chromium@1.5.349: {}
 
@@ -7280,6 +7305,8 @@ snapshots:
       pirates: 4.0.7
       tinyglobby: 0.2.16
       ts-interface-checker: 0.1.13
+
+  suffix-thumb@6.0.0: {}
 
   supports-color@10.2.2: {}
 

@@ -26,6 +26,7 @@
     "@markschema/mdshape": "^1.0.0",
     "@mt/core": "workspace:*",
     "@rewdy/md-formatter": "^0.4.1",
+    "compromise": "^14.19.0",
     "cspell-lib": "^8.0.0",
     "gpt-tokenizer": "^2.5.0",
     "gray-matter": "^4.0.3",

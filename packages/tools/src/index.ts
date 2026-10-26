@@ -197,6 +197,23 @@ export {
   type NerKind,
 } from './normalization/ner-candidates.js'
 export {
+  createNamedEntityRecognizer,
+  createHeuristicEntityBackend,
+  heuristicEntityBackend,
+  createCompromiseNerBackend,
+  createOpenNlpNerBackend,
+  openNlpModelsFromEnv,
+  createCandidateNerBackend,
+  createNamedEntityTool,
+  namedEntityTool,
+  type NerBackend as EntityNerBackend,
+  type NerEntity,
+  type NamedEntityRecognizer,
+  type NamedEntityRecognizerOptions,
+  type NamedEntityToolOptions,
+  type OpenNlpNerBackendOptions,
+} from './normalization/named-entity-recognizer.js'
+export {
   GLOSSARY_PROMPTS,
   extractGlossaryWithLlm,
   relateTermWithLlm,
