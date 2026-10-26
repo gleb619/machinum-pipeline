@@ -1,6 +1,6 @@
 import type { ParsedUri } from '@mt/core'
 import { describe, expect, it } from 'vitest'
-import { resolveWaypointPath } from '../src/settings.js'
+import { resolveWaypointPath, resolveWaypointRoot } from '../src/settings.js'
 
 function makeUri(path: string, host = ''): ParsedUri {
   return {
@@ -13,39 +13,64 @@ function makeUri(path: string, host = ''): ParsedUri {
   }
 }
 
+const projectRoot = '/project'
+
 describe('resolveWaypointPath', () => {
-  it('returns raw path when no defaultFolder is configured', () => {
+  it('anchors a bare filename at projectRoot when no defaultFolder is configured', () => {
     const uri = makeUri('data.jsonl')
-    expect(resolveWaypointPath(uri, 'jsonl', undefined)).toBe('data.jsonl')
+    expect(resolveWaypointPath(uri, 'jsonl', undefined, projectRoot)).toBe('/project/data.jsonl')
   })
 
-  it('applies defaultFolder to bare filename', () => {
+  it('applies defaultFolder to bare filename under projectRoot', () => {
     const uri = makeUri('data.jsonl')
     const settings = { 'waypoint.jsonl.defaultFolder': './custom/jsonl' }
-    expect(resolveWaypointPath(uri, 'jsonl', settings)).toBe('custom/jsonl/data.jsonl')
+    expect(resolveWaypointPath(uri, 'jsonl', settings, projectRoot)).toBe(
+      '/project/custom/jsonl/data.jsonl',
+    )
   })
 
   it('does not apply defaultFolder when path has directory separator', () => {
     const uri = makeUri('./data/test.jsonl')
     const settings = { 'waypoint.jsonl.defaultFolder': './custom/jsonl' }
-    expect(resolveWaypointPath(uri, 'jsonl', settings)).toBe('./data/test.jsonl')
+    expect(resolveWaypointPath(uri, 'jsonl', settings, projectRoot)).toBe(
+      '/project/data/test.jsonl',
+    )
   })
 
   it('does not apply defaultFolder to absolute paths', () => {
     const uri = makeUri('/absolute/path.jsonl')
     const settings = { 'waypoint.jsonl.defaultFolder': './custom/jsonl' }
-    expect(resolveWaypointPath(uri, 'jsonl', settings)).toBe('/absolute/path.jsonl')
+    expect(resolveWaypointPath(uri, 'jsonl', settings, projectRoot)).toBe('/absolute/path.jsonl')
   })
 
-  it('does not apply defaultFolder to glob patterns', () => {
+  it('anchors glob patterns at projectRoot', () => {
     const uri = makeUri('*.jsonl')
     const settings = { 'waypoint.jsonl.defaultFolder': './custom/jsonl' }
-    expect(resolveWaypointPath(uri, 'jsonl', settings)).toBe('*.jsonl')
+    expect(resolveWaypointPath(uri, 'jsonl', settings, projectRoot)).toBe('/project/*.jsonl')
   })
 
-  it('does not apply defaultFolder to paths with wildcards', () => {
+  it('anchors paths with wildcards at projectRoot', () => {
     const uri = makeUri('data?.jsonl')
     const settings = { 'waypoint.jsonl.defaultFolder': './custom/jsonl' }
-    expect(resolveWaypointPath(uri, 'jsonl', settings)).toBe('data?.jsonl')
+    expect(resolveWaypointPath(uri, 'jsonl', settings, projectRoot)).toBe('/project/data?.jsonl')
+  })
+})
+
+describe('resolveWaypointRoot', () => {
+  it('resolves a relative path against projectRoot', () => {
+    const uri = makeUri('./chapters')
+    expect(resolveWaypointRoot(uri, 'md', undefined, projectRoot)).toBe('/project/chapters')
+  })
+
+  it('joins defaultFolder under projectRoot', () => {
+    const uri = makeUri('chapters')
+    const settings = { 'waypoint.md.defaultFolder': 'out' }
+    expect(resolveWaypointRoot(uri, 'md', settings, projectRoot)).toBe('/project/out/chapters')
+  })
+
+  it('returns absolute paths unchanged', () => {
+    const uri = makeUri('/var/out')
+    const settings = { 'waypoint.md.defaultFolder': 'out' }
+    expect(resolveWaypointRoot(uri, 'md', settings, projectRoot)).toBe('/var/out')
   })
 })

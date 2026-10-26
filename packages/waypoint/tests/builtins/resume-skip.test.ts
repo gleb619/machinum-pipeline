@@ -8,7 +8,9 @@ import { createEphemeralSource, createEphemeralTarget } from '../../src/ephemera
 import { createMdSource } from '../../src/md.js'
 import { createSchemaDocSource } from '../../src/schema-doc.js'
 
-const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+const ctx = {
+  run: { global: { project: { name: 'test', root: tmpdir() }, settings: {} } },
+} as unknown as SourceContext
 
 function ephemeralUri(name: string): ParsedUri {
   return { raw: `ephemeral://${name}`, host: name, path: name, query: {} }

@@ -183,10 +183,13 @@ per-envelope fan-out, and unsubscribes in the generator's `finally`.
 
 ### `settings.ts`
 - `getWaypointSetting(key)` — reads from `mt.json` waypoint section
-- `resolveWaypointPath(uri, scheme, settings)` — bare-filename `defaultFolder` rule for file-style
-  waypoints (returns the raw path when it already contains a directory separator)
-- `resolveWaypointRoot(uri, scheme, settings, projectRoot)` — absolute base directory, independent of
-  `process.cwd()`; used where a waypoint composes paths under a root (`md://` dir mode)
+- `resolveWaypointPath(uri, scheme, settings, projectRoot)` — the single resolver for all
+  waypoint paths: absolute URI paths are returned unchanged, every relative path (including glob
+  patterns) anchors at `projectRoot` (`ctx.run.global.project.root`), never `process.cwd()`;
+  `waypoint.<scheme>.defaultFolder` is prepended only for bare filenames (no directory separator)
+- `resolveWaypointRoot(uri, scheme, settings, projectRoot)` — thin wrapper over
+  `resolveWaypointPath` (the bare-filename rule is a no-op for directory-style URIs); used where
+  a waypoint composes paths under a root (`md://` dir mode)
 
 ## `md://` dir mode — write intents
 

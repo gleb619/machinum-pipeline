@@ -65,7 +65,12 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       chapterIndex = 0
-      baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
+      baseDir = resolveWaypointPath(
+        uri,
+        'chapter-output',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       mkdirSync(baseDir, { recursive: true })
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
@@ -130,11 +135,21 @@ export function createChapterOutputSource<T>(uri: ParsedUri): Source<T> {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
-      const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
+      const baseDir = resolveWaypointPath(
+        uri,
+        'chapter-output',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       yield* readChapterEnvelopes(baseDir)
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
-      const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
+      const baseDir = resolveWaypointPath(
+        uri,
+        'chapter-output',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       yield* resumeFrom(() => readChapterEnvelopes(baseDir), cursor)
     },
   }

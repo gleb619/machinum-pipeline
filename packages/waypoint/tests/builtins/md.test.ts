@@ -33,7 +33,9 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     const results = []
     for await (const env of source.start(ctx)) {
       results.push(env)
@@ -55,7 +57,9 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     const results = []
     if (!source.resume) throw new Error('resume not supported')
     for await (const env of source.resume(ctx, 0)) {
@@ -81,7 +85,9 @@ describe('md source', () => {
     }
 
     const source = createMdSource(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     const results = []
     for await (const env of source.start(ctx)) {
       results.push(env)
@@ -121,7 +127,9 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     await target.open(ctx)
     await target.write({ item: '# Line 1', meta: {} }, ctx)
     await target.write({ item: '# Line 2', meta: {} }, ctx)
@@ -140,7 +148,9 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     await expect(target.write({ item: 'x', meta: {} }, ctx)).rejects.toThrow(
       'Target not opened. Call open() before write().',
     )
@@ -156,7 +166,9 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     await target.open(ctx)
     await target.write({ item: '# Chapter 1', meta: {} }, ctx)
     await target.write({ item: '# Chapter 2', meta: {} }, ctx)
@@ -176,7 +188,9 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     await target.open(ctx)
     await target.write({ item: '# First', meta: { chapterNum: 5 } }, ctx)
     await target.write({ item: '# Second', meta: { chapter: 10 } }, ctx)
@@ -196,7 +210,9 @@ describe('md target', () => {
     }
 
     const target = createMdTarget(uri)
-    const ctx = { run: { global: { settings: {} } } } as unknown as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    } as unknown as SourceContext
     await target.open(ctx)
     await target.write(
       {
@@ -281,7 +297,8 @@ describe('md target — mdOutputs intents', () => {
       },
     } as unknown as TargetContext
 
-    const target = createMdTarget<string>(uri())
+    // defaultFolder only applies to bare directory names (no separator)
+    const target = createMdTarget<string>(uri('chapters'))
     await target.open(ctx)
     await target.write(
       {

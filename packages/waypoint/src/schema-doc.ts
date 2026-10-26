@@ -41,7 +41,12 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
-      baseDir = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
+      baseDir = resolveWaypointPath(
+        uri,
+        'schema-doc',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       mkdirSync(baseDir, { recursive: true })
     },
     async write(env: Exchange<string>, _ctx: TargetContext): Promise<void> {
@@ -137,7 +142,12 @@ export function createSchemaDocSource(uri: ParsedUri): Source<SchemaDocEnvelope>
   const readEnvelope = async function* (
     ctx: SourceContext,
   ): AsyncIterable<ExchangeInput<SchemaDocEnvelope>> {
-    const filePath = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
+    const filePath = resolveWaypointPath(
+      uri,
+      'schema-doc',
+      ctx.run.global.settings,
+      ctx.run.global.project.root,
+    )
     const text = await readFile(filePath, 'utf-8')
     const doc = parseSchemaDoc(text)
     yield { id: `schema-doc:${filePath}`, item: doc, meta: {} }

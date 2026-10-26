@@ -76,11 +76,21 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
-      const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
+      const filePath = resolveWaypointPath(
+        uri,
+        'md',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       yield* readMdEnvelopes(filePath)
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
-      const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
+      const filePath = resolveWaypointPath(
+        uri,
+        'md',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       yield* resumeFrom(() => readMdEnvelopes(filePath), cursor)
     },
   }
@@ -107,7 +117,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       autoIndex = 0
-      const projectRoot = ctx.run.global.project?.root ?? process.cwd()
+      const projectRoot = ctx.run.global.project.root
       filePath = resolveWaypointRoot(uri, 'md', ctx.run.global.settings, projectRoot)
       isFileMode = filePath.endsWith('.md')
       if (isFileMode) {

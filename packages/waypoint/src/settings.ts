@@ -1,4 +1,4 @@
-import { isAbsolute, join, resolve } from 'node:path'
+import { isAbsolute, resolve } from 'node:path'
 import { type Settings, getSetting } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 
@@ -6,27 +6,37 @@ import type { ParsedUri } from '@mt/core'
  * Resolve a file path for a waypoint source/target, applying any
  * project-level settings such as `waypoint.<scheme>.defaultFolder`.
  *
+ * Relative paths anchor at `projectRoot` — the project root, never
+ * `process.cwd()`; absolute paths are returned unchanged.
+ *
  * Rules:
- * - If no defaultFolder is configured, returns the raw path unchanged.
- * - If the raw path contains a directory separator, returns it unchanged.
- * - If the raw path looks like a glob pattern, returns it unchanged.
  * - If the raw path is absolute (starts with `/`), returns it unchanged.
- * - Otherwise, prepends defaultFolder to the bare filename.
+ * - If no defaultFolder is configured, returns `<projectRoot>/<rawPath>`.
+ * - If the raw path contains a directory separator, returns
+ *   `<projectRoot>/<rawPath>` (defaultFolder not applied).
+ * - If the raw path looks like a glob pattern, returns `<projectRoot>/<rawPath>`
+ *   (glob anchoring preserved, re-anchored at the project root).
+ * - Otherwise (bare filename), prepends defaultFolder:
+ *   `<projectRoot>/<defaultFolder>/<rawPath>`.
  */
 export function resolveWaypointPath(
   uri: ParsedUri,
   scheme: string,
   settings: Settings | undefined,
+  projectRoot: string,
 ): string {
   const rawPath = uri.path || uri.host
+  if (isAbsolute(rawPath)) return rawPath
+
   const defaultFolder = getWaypointSetting<string>(settings, scheme, 'defaultFolder')
 
-  if (!defaultFolder) return rawPath
-  if (rawPath.includes('/') || rawPath.includes('\\')) return rawPath
-  if (rawPath.includes('*') || rawPath.includes('?') || rawPath.includes('[')) return rawPath
-  if (rawPath.length > 0 && rawPath[0] === '/') return rawPath
+  if (!defaultFolder) return resolve(projectRoot, rawPath)
+  if (rawPath.includes('/') || rawPath.includes('\\')) return resolve(projectRoot, rawPath)
+  if (rawPath.includes('*') || rawPath.includes('?') || rawPath.includes('[')) {
+    return resolve(projectRoot, rawPath)
+  }
 
-  return join(defaultFolder, rawPath)
+  return resolve(projectRoot, defaultFolder, rawPath)
 }
 
 /**
@@ -40,6 +50,10 @@ export function resolveWaypointPath(
  *
  * Use this where a waypoint needs a *root* it composes paths under (e.g. the
  * `md://` directory target and its `mdOutputs` variable intents).
+ *
+ * Thin wrapper over `resolveWaypointPath` — the bare-filename defaultFolder
+ * rule is a no-op for directory-style URIs (they always contain a separator),
+ * so both resolvers share one implementation.
  */
 export function resolveWaypointRoot(
   uri: ParsedUri,
@@ -47,12 +61,7 @@ export function resolveWaypointRoot(
   settings: Settings | undefined,
   projectRoot: string,
 ): string {
-  const rawPath = uri.path || uri.host
-  if (isAbsolute(rawPath)) return rawPath
-  const defaultFolder = getWaypointSetting<string>(settings, scheme, 'defaultFolder')
-  return defaultFolder
-    ? resolve(projectRoot, defaultFolder, rawPath)
-    : resolve(projectRoot, rawPath)
+  return resolveWaypointPath(uri, scheme, settings, projectRoot)
 }
 
 /**

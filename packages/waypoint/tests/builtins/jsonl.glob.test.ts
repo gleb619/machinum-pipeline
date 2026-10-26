@@ -22,7 +22,9 @@ describe('jsonl glob source', () => {
     }
     const source = createJsonlSource(uri)
 
-    const ctx = { run: { global: { settings: {} } } } as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: dir }, settings: {} } },
+    } as SourceContext
     const results: unknown[] = []
     for await (const env of source.start(ctx)) {
       results.push(env)

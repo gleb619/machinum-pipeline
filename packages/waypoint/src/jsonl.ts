@@ -203,7 +203,12 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
-      const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
+      const filePath = resolveWaypointPath(
+        uri,
+        'jsonl',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       if (isGlobPattern(filePath)) {
         yield* yieldBatched(readFiles<T>(resolveGlobFiles(filePath), 0), batchSize)
       } else {
@@ -211,7 +216,12 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
       }
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
-      const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
+      const filePath = resolveWaypointPath(
+        uri,
+        'jsonl',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       if (isGlobPattern(filePath)) {
         let startFileIndex = 0
         let startLine = 0
@@ -253,7 +263,12 @@ export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
-      const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
+      const filePath = resolveWaypointPath(
+        uri,
+        'jsonl',
+        ctx.run.global.settings,
+        ctx.run.global.project.root,
+      )
       writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {

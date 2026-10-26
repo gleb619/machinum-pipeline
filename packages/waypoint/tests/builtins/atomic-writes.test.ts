@@ -28,7 +28,12 @@ describe('waypoint targets — atomic writes', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'mt-atomic-wp-'))
-    ctx = { run: { runId: 'run-1', global: { settings: {} } } } as unknown as TargetContext
+    ctx = {
+      run: {
+        runId: 'run-1',
+        global: { project: { name: 'test', root: tempDir }, settings: {} },
+      },
+    } as unknown as TargetContext
   })
 
   afterEach(() => {
@@ -87,7 +92,10 @@ describe('waypoint targets — atomic writes', () => {
       for (const runId of ['run-1', 'run-2']) {
         const target = createMdTarget<string>(uri)
         const runCtx = {
-          run: { runId, global: { settings: {} } },
+          run: {
+            runId,
+            global: { project: { name: 'test', root: tempDir }, settings: {} },
+          },
         } as unknown as TargetContext
         await target.open(runCtx)
         await target.write({ item: '# Chapter 1', meta: {} }, runCtx)
@@ -206,7 +214,10 @@ describe('waypoint targets — atomic writes', () => {
       for (const runId of ['run-1', 'run-2']) {
         const target = createJsonlTarget<unknown>(uri)
         const runCtx = {
-          run: { runId, global: { settings: {} } },
+          run: {
+            runId,
+            global: { project: { name: 'test', root: tempDir }, settings: {} },
+          },
         } as unknown as TargetContext
         await target.open(runCtx)
         await target.write({ item: 'a', meta: {} }, runCtx)

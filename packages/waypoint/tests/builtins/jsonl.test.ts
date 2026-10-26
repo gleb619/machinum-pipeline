@@ -71,7 +71,11 @@ describe('jsonl', () => {
     }
     const source = createJsonlSource(uri)
 
-    const ctx = { run: { global: { settings: {} } } } as SourceContext
+    const ctx = {
+      run: {
+        global: { project: { name: 'test', root: '/project' }, settings: {} },
+      },
+    } as SourceContext
     const results = []
     for await (const env of source.start(ctx)) {
       results.push(env)
@@ -98,10 +102,14 @@ describe('jsonl', () => {
       rlMock as unknown as ReturnType<typeof readline.createInterface>,
     )
     const uri: ParsedUri = { raw: 'jsonl://t.jsonl', host: 't.jsonl', path: 't.jsonl', query: {} }
-    const ctx = { run: { global: { settings: {} } } } as SourceContext
+    const ctx = {
+      run: {
+        global: { project: { name: 'test', root: '/project' }, settings: {} },
+      },
+    } as SourceContext
     const out = []
     for await (const env of createJsonlSource(uri).start(ctx)) out.push(env)
-    expect(out[0]?.id).toBe('t.jsonl#0')
+    expect(out[0]?.id).toBe('/project/t.jsonl#0')
     expect(out[0]?.variables.map((v) => v.name)).toEqual(['item'])
     expect(out[1]?.id).toBe('custom')
     expect(out[1]?.variables.filter((v) => v.name !== 'item')).toEqual(variables)
@@ -133,6 +141,7 @@ describe('jsonl', () => {
     const ctx = {
       run: {
         global: {
+          project: { name: 'test', root: '/project' },
           settings: { 'waypoint.jsonl.defaultFolder': './custom/jsonl' },
         },
       },
@@ -174,6 +183,7 @@ describe('jsonl', () => {
     const ctx = {
       run: {
         global: {
+          project: { name: 'test', root: '/project' },
           settings: { 'waypoint.jsonl.defaultFolder': './custom/jsonl' },
         },
       },
@@ -184,7 +194,7 @@ describe('jsonl', () => {
     }
 
     expect(fs.createReadStream).toHaveBeenCalledWith(
-      expect.stringContaining('./data/test.jsonl'),
+      expect.stringContaining('data/test.jsonl'),
       expect.anything(),
     )
   })
@@ -217,6 +227,7 @@ describe('jsonl', () => {
       run: {
         runId: 'run-1',
         global: {
+          project: { name: 'test', root: '/project' },
           settings: { 'waypoint.jsonl.defaultFolder': './custom/jsonl' },
         },
       },
@@ -232,7 +243,9 @@ describe('jsonl', () => {
   })
 
   describe('envelope validation', () => {
-    const ctx = { run: { global: { settings: {} } } } as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: '/project' }, settings: {} } },
+    } as SourceContext
 
     function makeSource(file: string, query: Record<string, string> = {}) {
       const uri: ParsedUri = { raw: `jsonl://${file}`, host: file, path: file, query }
@@ -277,7 +290,9 @@ describe('jsonl', () => {
   })
 
   describe('resume', () => {
-    const ctx = { run: { global: { settings: {} } } } as SourceContext
+    const ctx = {
+      run: { global: { project: { name: 'test', root: '/project' }, settings: {} } },
+    } as SourceContext
 
     function makeSource(file: string, query: Record<string, string> = {}) {
       const uri: ParsedUri = { raw: `jsonl://${file}`, host: file, path: file, query }
