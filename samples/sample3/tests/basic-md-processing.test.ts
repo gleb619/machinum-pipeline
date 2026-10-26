@@ -17,7 +17,6 @@ let hasFailure = false
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'output.md'), { force: true })
-  await rm(join(SAMPLE_DIR, 'events.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'counts.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
@@ -93,22 +92,15 @@ describe('voidDemoPipeline', () => {
   })
 })
 
-describe('eventsDemoPipeline + replayEventsPipeline', () => {
-  it('captures lifecycle events to ./events.jsonl', () => {
-    run('eventsDemoPipeline')
+describe('ephemeralDemoPipeline', () => {
+  it('runs to completion using the built-in ephemeral:// target', () => {
+    run('ephemeralDemoPipeline')
   })
 
-  it('writes ./events.jsonl containing step-done and done events', async () => {
-    const content = await readFile(join(SAMPLE_DIR, 'events.jsonl'), 'utf-8')
-    expect(content).toContain('"type":"step-done"')
-    expect(content).toContain('"type":"done"')
-  })
-
-  it('replays captured events through the events-file source', () => {
-    run('eventsDemoPipeline')
-    const stdout = run('replayEventsPipeline')
-    expect(stdout).toContain('[replay]')
-    expect(stdout).toContain('"type":"step-done"')
+  it('emits a console event for each input line', () => {
+    const stdout = run('ephemeralDemoPipeline')
+    expect(stdout).toMatch(/"type":"line-seen"/g)
+    expect(stdout.match(/"type":"line-seen"/g)?.length).toBe(RECORDS.length)
   })
 })
 

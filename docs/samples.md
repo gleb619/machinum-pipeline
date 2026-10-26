@@ -5,7 +5,7 @@
 | sample0 | `samples/sample0` | `mt init` integration test — validates scaffolded artifacts   |
 | sample1 | `samples/sample1` | HTTP → JSONL pipeline (`hs://` source, `jsonl://` target)     |
 | sample2 | `samples/sample2` | Multi-tool pipeline: JSONL → tools → fork → batch → MD output |
-| sample3 | `samples/sample3` | Basic Markdown processing: sources, events, fork/subflow, range:// and void:// |
+| sample3 | `samples/sample3` | Basic Markdown processing: sources, fork/subflow, range://, void://, ephemeral:// and a non-blocking counter branch |
 | sample4 | `samples/sample4` | Book flow in three chained stages: raw JSONL -> normalize -> summary/glossary/`<term>` tagging -> line-by-line EN->RU with a parity linter |
 
 Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).

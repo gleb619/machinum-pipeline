@@ -9,13 +9,12 @@
     "runner:void": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline voidDemoPipeline",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf output.md events.jsonl counts.jsonl jsonl/input.jsonl .mt",
+    "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "runner:events": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline eventsDemoPipeline",
-    "runner:replay": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline replayEventsPipeline",
-    "runner:count": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline countSidePipeline"
+    "runner:count": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline countSidePipeline",
+    "runner:ephemeral": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline ephemeralDemoPipeline"
   },
   "dependencies": {
     "@mt/core": "workspace:*",
