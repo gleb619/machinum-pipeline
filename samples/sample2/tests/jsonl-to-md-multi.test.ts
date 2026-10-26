@@ -91,7 +91,7 @@ describe('jsonl-to-md-multi pipeline', () => {
     }
   })
 
-  it('subflow enriches chapters with meta fields', async () => {
+  it('subflow enriches chapters with exchange fields', async () => {
     for (let i = 0; i < CHAPTERS.length; i++) {
       const content = await readFile(
         join(SAMPLE_DIR, 'chapters', 'en', `chapter${i + 1}.md`),

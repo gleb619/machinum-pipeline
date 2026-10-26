@@ -162,3 +162,12 @@ describe('exchange', () => {
     ])
   })
 })
+
+describe('hand-built literals', () => {
+  it('helpers tolerate literals missing id/variables', () => {
+    const literal = { item: 'a', meta: {} } as unknown as Parameters<typeof setVariable>[0]
+    const out = setVariable(literal, 'x', 1)
+    expect(getVariable(out, 'x')).toBe(1)
+    expect(getVariable(literal, 'x')).toBeUndefined()
+  })
+})

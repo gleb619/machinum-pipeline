@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { definePipeline } from '@mt/core'
+import { definePipeline, getVariable } from '@mt/core'
 import {
   type LlmRequest,
   chapterRecordMapper,
@@ -30,11 +30,9 @@ const normalizeFlow = definePipeline()
   .use(createLlmTypoFix({ call: llm.schemaCall, enabled: process.env.MT_LLM_TYPO_FIX === '1' }))
   .use(lineTextToMarkdown)
   .use(typoFinder)
-  .tap(async (env: unknown) => {
-    const meta = (env as { meta?: { chapterNum?: number; warnings?: unknown[] } }).meta
-    console.log(
-      `[normalize] chapter ${meta?.chapterNum}: ${meta?.warnings?.length ?? 0} typo hints`,
-    )
+  .tap(async (ex) => {
+    const warnings = getVariable<unknown[]>(ex, 'warnings')
+    console.log(`[normalize] chapter ${ex.meta.chapterNum}: ${warnings?.length ?? 0} typo hints`)
   })
   .use(markdownFormatter)
   .use(unwrapMarkdownText)

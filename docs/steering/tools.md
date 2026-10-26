@@ -3,7 +3,15 @@
 
 Path: `packages/tools/`
 
-Chapter processing tools for validation, translation, schema extraction, and formatting. All tools are `defineTool()` instances exported from `src/index.ts`. Tools operate on `Envelope<Chapter>` or domain-specific envelope types.
+Chapter processing tools for validation, translation, schema extraction, and formatting. All tools are `defineTool()` instances exported from `src/index.ts`. Tools operate on `Exchange<Chapter>` or domain-specific payload types.
+
+**Exchange contract.** A tool receives `Exchange<I>` and returns `Exchange<O>` *derived from the input*
+(`withItem(ex, out)`, `setVariable(s)`, `pushVariable`) so `id`, `meta` and `variables` propagate - never
+rebuild `{ item, meta }`. `meta` stays identity-only (`chapterId`, `chapterNum`, `lang`, ...); everything a
+tool computes (`summary`, `tokenCount`, `glossary`, `llm` config, `mdOutputs` write intents, ...) is a
+**variable** of the same name, exported as a `VAR_*` constant where the module owns it. Entries below that say
+"`X` variable" are read/written with `getVariable(ex, 'X')` / `setVariable(ex, 'X', v)`; per-envelope config
+variables (`llm`, `prompts`, `context`, `schemaDocLlm`) also accept the legacy `meta.<name>` as a read fallback.
 
 ## Tool Catalogue
 
@@ -20,11 +28,11 @@ LLM-powered schema document generation. The mdshape document format (`SchemaDocE
 `writeDoc`, `schemaDocWriter`) lives in `schema-doc.ts` and stays pure; the five extraction tools live in
 `packages/tools/src/schema/`, one file each:
 
-- `summary.ts` — `summaryTool` / `createSummaryTool` → `meta.summary`; `notesSummaryTool` / `createNotesSummaryTool({ count })` → `meta.summaryNotes` + `meta.summary` (rendered `- ` bullet block), prompted with the bundled `summary.system` / `summary.user` prompts (see below)
-- `entities.ts` — `entitiesTool` / `createEntitiesTool` → `meta.entities`
-- `schema.ts` — `schemaTool` / `createSchemaTool` → `meta.schema` (mermaid)
-- `metadata.ts` — `metadataTool` / `createMetadataTool` → `meta.metadata`
-- `vocabulary.ts` — `vocabularyTool` / `createVocabularyTool` → `meta.vocabulary`, `meta.knownWords`
+- `summary.ts` — `summaryTool` / `createSummaryTool` → `summary` variable; `notesSummaryTool` / `createNotesSummaryTool({ count })` → `summaryNotes` variable + `summary` variable (rendered `- ` bullet block), prompted with the bundled `summary.system` / `summary.user` prompts (see below)
+- `entities.ts` — `entitiesTool` / `createEntitiesTool` → `entities` variable
+- `schema.ts` — `schemaTool` / `createSchemaTool` → `schema` variable (mermaid)
+- `metadata.ts` — `metadataTool` / `createMetadataTool` → `metadata` variable
+- `vocabulary.ts` — `vocabularyTool` / `createVocabularyTool` → `vocabulary` variable, `knownWords` variable
 
 Each calls `runPromptWithRetry` (`schema/llm.ts`), which wraps `chatCompletionSingle` from
 `openrouter-tool.ts` against `ctx.run.global.routerUrl`. Shared pieces: `schema/doc.ts` (chapter parsing,
@@ -41,16 +49,16 @@ one as a prompt-registry default (`summary.system`, `summary.user`, `translate.s
 **Loop guard:** a reply must be non-empty, parse as mdshape, and keep the section's required content (key
 terms covered, entities/terms present in the chapter, diagram keyword + edges, metadata counters unchanged).
 Rejections are re-prompted with the reason appended, max 3 attempts, then the deterministic fallback (the
-value already in the document, else the pre-LLM heuristic) so the run never hard-fails. `meta.<tool>Llm`
+value already in the document, else the pre-LLM heuristic) so the run never hard-fails. the `<tool>Llm` variable
 records `attempts`, `tokens`, `model`, `fallbackUsed`, `lastFailure`.
 
 **Configuration:** `create*Tool({ model, temperature, maxTokens, systemPrompt, userPrompt, maxAttempts,
-routerUrl, call })`, default model `openai/gpt-4o-mini`; per-envelope overrides via `meta.schemaDocLlm` and
-`meta.<key>Prompt` / `meta.<key>SystemPrompt`. `call` (`SchemaDocLlmCall`: `(input, ctx) =>
+routerUrl, call })`, default model `openai/gpt-4o-mini`; per-envelope overrides via `schemaDocLlm` variable and
+`<key>Prompt` / `<key>SystemPrompt` variables. `call` (`SchemaDocLlmCall`: `(input, ctx) =>
 Promise<ChatCompletionOutput>`) replaces the router-proxy request with a custom backend — used by
 `samples/sample2` to run the extractors through a picked LLM gate. Templates render `{{title}}`,
 `{{body}}`, `{{chapter}}`, …
-Batched envelopes store per-item results in `meta.<key>ByItem`.
+Batched envelopes store per-item results in the `<key>ByItem` variable.
 
 - `schemaDocWriter` — persists to `schema-doc://` target (pure, no LLM call)
 
@@ -69,8 +77,8 @@ Analysis tools, all accept a single `env.item` or a batched `env.items` corpus. 
 offline by default and uses an LLM backend when one is given.
 
 - `heuristicSummaryTool` / `createHeuristicSummaryTool({ sentences })` — extractive summary (lead sentence +
-  highest term-frequency sentences, original order). Same meta contract as `summaryTool`: `meta.summary`,
-  `meta.summaryByItem`, plus `meta.heuristicSummaryByItem` (fallback for an LLM step).
+  highest term-frequency sentences, original order). Same meta contract as `summaryTool`: `summary` variable,
+  `summaryByItem` variable, plus `heuristicSummaryByItem` variable (fallback for an LLM step).
 - `glossaryExtractor` / `createGlossaryExtractor({ load, minCount, ignored, call, model, temperature, maxTokens,
   maxAttempts, nerBackend, relations, enrich, coOccurrence })` (T136) — candidates = capitalised multiword names,
   `[Bracketed]` short terms, repeated capitalised singles, **plus the NER candidates** (proper names and locative
@@ -82,7 +90,7 @@ offline by default and uses an LLM backend when one is given.
   `pickLlmTool().schemaCall`) the corpus is analysed with the bundled
   `glossary.system` / `glossary.user` prompts: the terms of the previous glossary are **reused** (their `ru` and
   `type` win), only the new candidates are extracted, and a failed reply falls back to the heuristic glossary.
-  Result in `meta.glossary` / `meta.glossaryJson` / `meta.glossaryGraph` / `meta.glossaryGraphJson` / `meta.chapterNums`.
+  Result in `glossary` variable / `glossaryJson` variable / `glossaryGraph` variable / `glossaryGraphJson` variable / `chapterNums` variable.
   Shape: `{ terms: [{ id, term, type, count, firstChapter, ru, aliases, pending?, references?, description? }],
   ignored?, rejected? }`.
 - `mergeExtractedEntries(glossary, entries, protectedIds)` — merges the entries reported by the model: a known term
@@ -100,7 +108,7 @@ offline by default and uses an LLM backend when one is given.
   terms are never added. Pure (no input mutation).
 - `termTagger` / `tagTerms(text, glossary)` — wraps occurrences as `<term id="ID">text</term>` (longest match
   first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
-  `meta.taggedItems` (item untouched). `stripTerms(tagged)` restores the original text exactly.
+  `taggedItems` variable (item untouched). `stripTerms(tagged)` restores the original text exactly.
 - `glossary-llm.ts` — the LLM stages of the extractor: `extractGlossaryWithLlm` (the `glossary.system` /
   `glossary.user` prompts), `relateTermWithLlm` (the `glossary-relations.*` prompts), `enrichTermWithLlm` (the
   `glossary-enrich.*` prompts); `mapCategory` maps a model category to a glossary type, `parseGlossaryEntries` /
@@ -115,7 +123,7 @@ Offline (no LLM) statistical frequency analyzer (T147). Accepts `env.item` (stri
   maxNgram?, topK?, outFile? }`: `stopwords` extends the built-in EN+RU list, `minWordLen` (default 1) drops
   shorter tokens, `maxNgram` (default 3) caps the n-gram size, `topK` (default 500) caps every ranked list,
   `outFile` additionally writes the report as JSON (atomic write, parent dir created).
-- Result in `meta.statFreq` = `StatFreqReport`: `{ totalWords, uniqueWords, words: [{ word, count, share }],
+- Result in `statFreq` variable = `StatFreqReport`: `{ totalWords, uniqueWords, words: [{ word, count, share }],
   sentences: [{ sentence, count }], ngrams: [{ ngram, count }], top: [{ term, count, kind: 'word'|'ngram' }] }`.
   `totalWords` / `uniqueWords` count every token (stopwords included); `words` lists non-stopword tokens only,
   `sentences` only sentences occurring at least twice, `ngrams` only candidates without a stopword inside.
@@ -129,16 +137,16 @@ cardinality) is returned untouched.
 - `statDict` / `defineStatDict(options)` / `createStatDict(options)` — options `{ minCount?, topK?,
   glossaryFile?, reportFile?, outFile? }`: `minCount` (default 3) is the frequency threshold, `topK` (default 100)
   caps the new candidates, `glossaryFile` is the existing glossary to merge into, `reportFile` reads the
-  `StatFreqReport` JSON from disk (overrides `meta.statFreq`), `outFile` writes the merged glossary as JSON
+  `StatFreqReport` JSON from disk (overrides `statFreq` variable), `outFile` writes the merged glossary as JSON
   (atomic write, parent dir created).
-- Report source: `reportFile` → `meta.statFreq` → the envelope text (counted inline).
+- Report source: `reportFile` → `statFreq` variable → the envelope text (counted inline).
 - Candidates: every term of `top`, `words` and `ngrams` (once, highest count wins) with `count >= minCount`,
   ranked count desc then term asc. Type = `guessType` on the capitalised term (n-grams default to `term`).
 - Merge is conservative: existing entries are copied verbatim (id, term, type, count, `ru`, aliases, pending) and
   keep their order; new candidates are appended with an empty translation (`ru: null`) and a guessed type. A
   candidate matching an existing term or alias (case-insensitive) is skipped, `ignored` terms are never re-added.
   A missing glossary file means an empty glossary; a broken one is an error (translations are never dropped).
-- Result in `meta.statDict` = `Glossary` and `meta.statDictJson` = its serialized form.
+- Result in `statDict` variable = `Glossary` and `statDictJson` variable = its serialized form.
 - Pure helpers: `buildStatDict(report, existing, options)`, `selectStatDictCandidates(report, options)`,
   `isStatFreqReport(value)`.
 
@@ -165,7 +173,7 @@ Building blocks of the sample4 translate stage (EN->RU, line by line).
   id/key, requiring contiguous 1..N — missing/duplicate ids/keys throw a retryable `TranslationReplyParseError`
   (same retry contract as `LineParityError`).
 - `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,
-  cyrillicSeverity })` — `{ en, ru }` item in/out, `meta.parity` = `{ ok, enLines, ruLines, errors, warnings,
+  cyrillicSeverity })` — `{ en, ru }` item in/out, `parity` variable = `{ ok, enLines, ruLines, errors, warnings,
   cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,
   `term-tag-left`, `think-block`, `low-cyrillic`; warn: `untranslated-line`. On a hard error the tool throws
   `LineParityError` (`retryable: true`) so the engine retry kicks in; after the last attempt the run fails with the
@@ -190,10 +198,10 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
   `unwrapMarkdownText` (`{ text }` -> string, undoes remark `\[` escaping).
 - `normalization/llm-typo-fix.ts` — `createLlmTypoFix({ call, enabled })`: rejects replies that change the line count.
 - `normalization/llm-summary.ts` — `createLlmSummaryWithFallback({ call, enabled })`: LLM summary, heuristic summary
-  (`meta.heuristicSummaryByItem`) when the loop guard fell back. `enabled: false` = pass-through.
+  (`heuristicSummaryByItem` variable) when the loop guard fell back. `enabled: false` = pass-through.
 - `normalization/glossary-extractor.ts` — `readGlossaryFile(path)` (for `createGlossaryExtractor({ load })`).
 - `modification/analyze-outputs.ts` — `analyzeOutputs` / `createAnalyzeOutputs({ summaryDir, taggedDir, glossaryFile })`:
-  `meta.mdOutputs` for `schema/chapter<N>.summary.md`, `en-tagged/chapter<N>.md`, `glossary.json`.
+  `mdOutputs` variable for `schema/chapter<N>.summary.md`, `en-tagged/chapter<N>.md`, `glossary.json`.
 - `normalization/translation-stage.ts` — `onlyChapters()` (`MT_ONLY_CHAPTERS`), `translateConcurrency()`
   (`MT_TRANSLATE_CONCURRENCY`), `chaptersToTitleInputs`, `createGlossaryTitleTranslator({ call, chaptersDir, mode })` (slot for
   `createTitleTranslator`), `createChapterBodyTranslator({ call, chaptersDir, mode })` (per-line translate with glossary +
@@ -202,7 +210,7 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
   error on missing/duplicate ids/keys); the line-parity check compares against the source line. `chaptersDir` holds
   `glossary.json` and `schema/chapter<N>.summary.md`.
 - `verification/chapter-pairs-linter.ts` — `chapterPairsLinter`: `lineParityLinter` over each `{ en, ru }` pair,
-  `meta.parityByChapter`.
+  `parityByChapter` variable.
 - `modification/translate-outputs.ts` — `createTranslateOutputs({ chaptersDir })`: `ru/chapter<N>.md` + merged `titles.json`.
 
 ### `chapter-translator.ts`
@@ -237,7 +245,7 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   `baseUrl` defaults to `https://openrouter.ai/api/v1`.
   Standard slots, so tests stay offline: `openrouterFree.with({ call: mockLlmCall(['ok']) })`.
   **The model is a default, not a pin** (see [LLM config precedence](#llm-config-precedence-resolvellmconfig-pure)):
-  per-call `model` / `llm.model` > tool layer > `meta.llm.model` > mt.json `llm.model` > vault ref
+  per-call `model` / `llm.model` > tool layer > `llm` variable `.model` > mt.json `llm.model` > vault ref
   (`llm.use`) > provider env (`MT_OLLAMA_MODEL`) > `openrouter/free`. Generic `MT_LLM_MODEL` env stays
   *below* the preset default; the **provider** stays pinned (a vault entry of another provider errors).
 
@@ -250,9 +258,9 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   candidate failed. Key rotation is the existing `OpenRouterPoolSupplier`.
   The candidates are a **default, not a pin**: `models[0]` is passed as `llmDefaults`, only the provider sits
   on the tool layer, and `prepare` applies the sticky pin **only when `cfg.sources.model` is `preset-defaults`
-  (or `default`)** — a per-call `model` / `llm.model`, `meta.llm.model`, mt.json `llm.model`, provider env or
-  vault ref wins and leaves the pin map untouched (no pin created, so `meta.openrouterPool` stays absent).
-  Pin recorded in `meta.openrouterPool = { model, pinnedAt, repins }`.
+  (or `default`)** — a per-call `model` / `llm.model`, `llm` variable `.model`, mt.json `llm.model`, provider env or
+  vault ref wins and leaves the pin map untouched (no pin created, so `openrouterPool` variable stays absent).
+  Pin recorded in the `openrouterPool` variable = `{ model, pinnedAt, repins }`.
   Offline: `.with({ call: mockLlmCall([...]) })` (pin applied in `prepare`) or `client: () => mockLlmClient(...)`
   (re-pin logic lives in the client wrapper, so a replaced `call` slot bypasses re-pin).
 
@@ -291,22 +299,22 @@ The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readT
   'lightrag'>` — image/port/volume; the `lightrag` image is a documented placeholder) and optional
   top-level docker compose `include:` entries (`include?: string[]`). `outPath?` defaults to
   `./docker-compose.yml`, resolved against `ctx.run.global.project.root`; written atomically via
-  `fs-write.ts`. Returns `{ path, services, include }` as the item and records `meta.dockerCompose`.
+  `fs-write.ts`. Returns `{ path, services, include }` as the item and records `dockerCompose` variable.
   The parent directory must already exist (same contract as `atomicWriteFile`).
 
 ### `token-splitter.ts`
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
 
 ### `word-counter.ts`
-- `wordCounter` — counts words in an envelope, adds to metadata.
+- `wordCounter` — counts words in an exchange, sets the `wordCount` variable.
 
 ### `chapter-indexer.ts`
 Assigns ordering indexes to chapters based on filename patterns.
 
 ### `token-counter.ts`
 Token counting via tiktoken (`cl100k_base`):
-- `tokenCounter` — counts tokens of a string envelope item, adds `tokenCount` to meta. Creates/frees the encoder on every call (clean, no shared state).
-- `tokenCounterBatch` — for batched envelopes (after `.batch(n)`): one encoder create/free per batch invoke. Adds `tokenCounts` (per item) and `tokenCount` (batch total) to meta.
+- `tokenCounter` — counts tokens of a string envelope item, sets the `tokenCount` variable. Creates/frees the encoder on every call (clean, no shared state).
+- `tokenCounterBatch` — for batched envelopes (after `.batch(n)`): one encoder create/free per batch invoke. Adds `tokenCounts` (per item) and `tokenCount` (batch total) variables.
 - `tokenCounterBatchCached` — same batch semantics, but reuses one process-wide cached encoder, freed via a `process.on('exit')` hook (one create/free per process). Use for large runs where encoder construction dominates.
 
 ## LLM toolkit
@@ -336,7 +344,7 @@ the non-streaming `chatCompletion` path is unchanged.
 ### LLM config precedence (`resolveLlmConfig`, pure)
 
 First defined wins, per field: **call input** (`item.llm`, `item.model`) > **tool option** (`createLlmGate({ llm })`) >
-**`meta.llm`** > **mt.json `settings`** (`llm.provider`, `llm.model`, `llm.baseUrl`, `llm.apiKey`, `llm.timeoutMs`, `llm.retry`, `llm.cache`) >
+**`llm` variable** > **mt.json `settings`** (`llm.provider`, `llm.model`, `llm.baseUrl`, `llm.apiKey`, `llm.timeoutMs`, `llm.retry`, `llm.cache`) >
 **vault ref** (`llm.use` / `MT_LLM_USE` / `use` on any layer; expands `ctx.run.global.vault`, directly below the layer carrying the ref) >
 **provider env** (`MT_OLLAMA_MODEL`, `MT_OLLAMA_URL`) > **preset defaults** (`createLlmGate({ llmDefaults })`) >
 **env** > **default**.
@@ -359,7 +367,7 @@ throws naming the ref. Secrets are reported as `vault:<entry>` in `sources` and 
 
 ### Prompt precedence (`resolvePrompt(name, vars, sources, env)`)
 
-**tool option** (`createLlmGate({ prompts: { name: text } })`) > **`meta.prompts[name]`** > **settings `prompts.<name>`** >
+**tool option** (`createLlmGate({ prompts: { name: text } })`) > **`prompts[name]` variable** > **settings `prompts.<name>`** >
 **env `MT_PROMPT_<NAME>`** (`.`/`-` -> `_`, upper-case) > **registered default**. A value starting with `@` is a file path
 (relative to the project root). Templates use `{{var}}`; a missing var throws `PromptVariableError`.
 Defaults: `translate.system`, `translate.user`, `summary`, `entities`, `context.summarize`, `json.correction`,
@@ -368,18 +376,18 @@ Defaults: `translate.system`, `translate.user`, `summary`, `entities`, `context.
 ### Context window (`contextWindow` tool, `fit` slot)
 
 Budget = `min(maxTokens, contextLimit - reserve)`; no budget = no-op. Precedence: **item `context`** > **factory options** >
-**`meta.context`** > **settings `context.*`** > **env** (`MT_CONTEXT_MAX_TOKENS`, `MT_CONTEXT_LIMIT`, `MT_CONTEXT_RESERVE`,
+**`context` variable** > **settings `context.*`** > **env** (`MT_CONTEXT_MAX_TOKENS`, `MT_CONTEXT_LIMIT`, `MT_CONTEXT_RESERVE`,
 `MT_CONTEXT_STRATEGIES`). Strategies run in order until the messages fit; system messages and the last user message are
 protected by default. Built-ins: `truncateLines`, `truncateTail`, `truncateHead`, `summarize` (LLM, prompt `context.summarize`,
 falls back to `dropOldest`), `dropOldest`, `dropMiddle`, `slidingWindow`; custom: pass a `ShrinkStrategy`
 (`{ name, apply(messages, budget, helpers) }`) or `registerShrinkStrategy(name, factory)`. Token counting is injectable
-(`countTokens`, default `countTextTokens` from `token-counter.ts`). Records `meta.contextWindow`
+(`countTokens`, default `countTextTokens` from `token-counter.ts`). Records `contextWindow` variable
 `{before, after, budget, fits, applied[{name,before,after,note?}]}`.
 
 **Oversize last user message** (`lastMessage`, default `off`): strategies protect the final user message from
 shrinking, so a single oversize message can exceed the budget. `lastMessage: 'truncate'` keeps head+tail with an
 elision marker, `'summarize'` rewrites it via the `context.summarize` prompt (needs an LLM), `'error'` throws a
-clear `LlmContextLengthError`; the result is still reported in `meta.contextWindow.applied` (`truncateLastMessage` /
+clear `LlmContextLengthError`; the result is still reported in `contextWindow.applied` variable (`truncateLastMessage` /
 `summarizeLastMessage`). The system message is never dropped. Config: settings `context.lastMessage` /
 `MT_CONTEXT_LAST_MESSAGE`.
 
@@ -394,7 +402,7 @@ Extend/override via mt.json `context.limits` or `MT_CONTEXT_LIMITS` (`{"glob": t
 `createLlmGate(opts)` = `defineComposableTool` with slots `prepare -> fit -> call -> parse -> emit` (state travels as
 `GateState` in `env.item`). Reliability: JSON mode (`responseFormat: 'json'`) parses with bounded corrective retries
 (`jsonRetries`, default 2), `shrinkOnContextError` re-fits via the `fit` slot and retries on `LlmContextLengthError`,
-usage/cost land in `meta.llmUsage`. `check(content, input)` validates raw content (throw = reject): bounded
+usage/cost land in `llmUsage` variable. `check(content, input)` validates raw content (throw = reject): bounded
 `checkRetries` (default 2) re-ask the model with the rejection reason appended (`validation.correction` template,
 overridable; the reason also lands on `GateState.feedback`) — measured feedback e.g. `parityFeedback` steers the
 retry (ranobe-tl self-correction, T138). `stream: true` (+ optional `onDelta(delta, input)`) makes the `call` slot use
@@ -441,14 +449,14 @@ export const myTool = defineTool<Input, Output>({
 export const myDoc = defineComposableTool({
   name: 'my-doc', version: '1.0.0', mdDescription: '...',
   slots: {
-    build: myBuildTool,                                        // pure: meta -> markdown
+    build: myBuildTool,                                        // pure: variables -> markdown
     emit: mdOutputEmitter({ name: 'my-doc', subdir: 'x', filename: (m) => `c${m.chapterNum}.md` }),
   },
 })
 // pipeline author: reuse build, replace emit (any Tool or fn); original stays intact
 .use(myDoc.with({ emit: mockEmit }))
 ```
-`appendMdOutput(meta, entry)` is the shared non-mutating `meta.mdOutputs` append; `mdOutputEmitter` supports `when()` to skip.
+`appendMdOutput(ex, entry)` is the shared non-mutating `mdOutputs` variable append; `mdOutputEmitter` supports `when()` to skip.
 New tools that write md should expose `build`/`emit` slots instead of hardcoding both. Tests: `tests/composition.test.ts`.
 
 **OpenRouter pool** (`openrouter-pool.ts`):

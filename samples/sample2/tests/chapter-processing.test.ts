@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import {
   paragraphTranslator,
@@ -49,23 +50,25 @@ describe('chapterValidator', () => {
   it('validates a well-formed chapter', async () => {
     const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await chapterValidator.invoke({ item: sampleChapter, meta: {} }, ctx)
-    expect(result.meta.valid).toBe(true)
-    expect(result.meta.errors).toEqual([])
+    expect(getVariable(result, 'valid')).toBe(true)
+    expect(getVariable(result, 'errors')).toEqual([])
   })
 
   it('detects missing H1 heading', async () => {
     const ctx = { run: { global: {} } } as unknown as ToolContext
     const noH1 = '## Just a level 2\n\nContent here.'
     const result = await chapterValidator.invoke({ item: noH1, meta: {} }, ctx)
-    expect(result.meta.valid).toBe(false)
-    expect(result.meta.errors.some((e: string) => e.includes('H1'))).toBe(true)
+    expect(getVariable(result, 'valid')).toBe(false)
+    expect(
+      (getVariable<string[]>(result, 'errors') ?? []).some((e: string) => e.includes('H1')),
+    ).toBe(true)
   })
 
   it('detects code blocks without language tags', async () => {
     const ctx = { run: { global: {} } } as unknown as ToolContext
     const noLangChapter = '# Test\n\n```\ncode without language tag\n```\n'
     const result = await chapterValidator.invoke({ item: noLangChapter, meta: {} }, ctx)
-    const codeErrors = result.meta.errors.filter(
+    const codeErrors = (getVariable<string[]>(result, 'errors') ?? []).filter(
       (e: string) => e.toLowerCase().includes('code') || e.toLowerCase().includes('language'),
     )
     expect(codeErrors.length).toBeGreaterThan(0)
@@ -92,20 +95,20 @@ describe('forbiddenCharDetector', () => {
   it('passes clean text', async () => {
     const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await forbiddenCharDetector.invoke({ item: 'Normal text.', meta: {} }, ctx)
-    expect(result.meta.forbidden).toBeDefined()
-    expect(result.meta.forbidden.length).toBe(0)
+    expect(getVariable(result, 'forbidden')).toBeDefined()
+    expect(getVariable<unknown[]>(result, 'forbidden')?.length).toBe(0)
   })
 
   it('detects zero-width characters', async () => {
     const ctx = { run: { global: {} } } as unknown as ToolContext
     const textWithZW = 'Normal text\u200Bwith zero-width space.'
     const result = await forbiddenCharDetector.invoke({ item: textWithZW, meta: {} }, ctx)
-    expect(result.meta.forbidden.length).toBeGreaterThan(0)
+    expect(getVariable<unknown[]>(result, 'forbidden')?.length).toBeGreaterThan(0)
   })
 })
 
 describe('typoFinder', () => {
-  it('returns an issues list and sets typoWarned meta', async () => {
+  it('returns an issues list and sets typoWarned variable', async () => {
     const ctx = { run: { global: {} } } as unknown as ToolContext
     const result = await typoFinder.invoke(
       { item: { text: 'Please recieve this package.' }, meta: {} },
@@ -113,8 +116,8 @@ describe('typoFinder', () => {
     )
     expect(Array.isArray(result.item.issues)).toBe(true)
     expect(result.item.text).toBe('Please recieve this package.')
-    expect(result.meta.typoWarned).toBe(true)
-    expect(Array.isArray(result.meta.warnings)).toBe(true)
+    expect(getVariable(result, 'typoWarned')).toBe(true)
+    expect(Array.isArray(getVariable(result, 'warnings'))).toBe(true)
   })
 })
 

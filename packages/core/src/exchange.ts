@@ -139,7 +139,7 @@ export function findVariable<U = unknown>(
   qualifier: Qualifier = 'new',
 ): Variable<U> | undefined {
   // `variables` may be absent on hand-built literals handed straight to a Target/Tool in tests.
-  return (ex.variables ?? []).find((v) => v.name === name && v.qualifier === qualifier) as
+  return varsOf(ex).find((v) => v.name === name && v.qualifier === qualifier) as
     | Variable<U>
     | undefined
 }
@@ -169,13 +169,18 @@ export function hasVariable(
   return findVariable(ex, name, qualifier) !== undefined
 }
 
+/** Variables of an exchange, tolerating hand-built literals that omit them. */
+function varsOf(ex: Pick<Exchange, 'variables'>): Variable[] {
+  return ex.variables ?? []
+}
+
 function sameKey(a: Variable, b: Variable): boolean {
   return a.name === b.name && a.qualifier === b.qualifier
 }
 
 /** Add variables; an existing variable with the same name+qualifier is replaced. */
 export function withVariable<T>(ex: Exchange<T>, ...vars: Variable[]): Exchange<T> {
-  const kept = ex.variables.filter((v) => !vars.some((n) => sameKey(v, n)))
+  const kept = varsOf(ex).filter((v) => !vars.some((n) => sameKey(v, n)))
   return { ...ex, variables: [...kept, ...vars] }
 }
 
@@ -197,7 +202,7 @@ export function withoutVariable<T>(
 ): Exchange<T> {
   return {
     ...ex,
-    variables: ex.variables.filter(
+    variables: varsOf(ex).filter(
       (v) => !(v.name === name && (qualifier === undefined || v.qualifier === qualifier)),
     ),
   }
@@ -266,20 +271,20 @@ export function copyVariable<T>(
 
 /** Drop ephemeral variables. */
 export function withoutEphemeral<T>(ex: Exchange<T>): Exchange<T> {
-  return { ...ex, variables: ex.variables.filter((v) => !v.ephemeral) }
+  return { ...ex, variables: varsOf(ex).filter((v) => !v.ephemeral) }
 }
 
 /** Drop `old` and empty variables. */
 export function withoutOldAndEmpty<T>(ex: Exchange<T>): Exchange<T> {
   return {
     ...ex,
-    variables: ex.variables.filter((v) => v.qualifier !== 'old' && !isEmptyValue(v.value)),
+    variables: varsOf(ex).filter((v) => v.qualifier !== 'old' && !isEmptyValue(v.value)),
   }
 }
 
 /** Drop empty variables. */
 export function withoutEmpty<T>(ex: Exchange<T>): Exchange<T> {
-  return { ...ex, variables: ex.variables.filter((v) => !isEmptyValue(v.value)) }
+  return { ...ex, variables: varsOf(ex).filter((v) => !isEmptyValue(v.value)) }
 }
 
 /**
@@ -288,7 +293,7 @@ export function withoutEmpty<T>(ex: Exchange<T>): Exchange<T> {
 export function mergeVariables(exchanges: ReadonlyArray<Pick<Exchange, 'variables'>>): Variable[] {
   const out: Variable[] = []
   for (const e of exchanges) {
-    for (const v of e.variables) {
+    for (const v of varsOf(e)) {
       const i = out.findIndex((o) => sameKey(o, v))
       if (i >= 0) out[i] = v
       else out.push(v)
@@ -299,7 +304,7 @@ export function mergeVariables(exchanges: ReadonlyArray<Pick<Exchange, 'variable
 
 /** Stable view of the non-ephemeral variables for hashing (id/timestamp excluded). */
 export function hashableVariables(ex: Pick<Exchange, 'variables'>): unknown[] {
-  return ex.variables
+  return varsOf(ex)
     .filter((v) => !v.ephemeral)
     .map((v) => ({ name: v.name, qualifier: v.qualifier, value: v.value }))
 }

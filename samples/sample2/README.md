@@ -14,7 +14,7 @@ no source or target of its own and runs ten named subflows on the same Runner. E
 - How to use `.flatMap()` to fan one envelope out into many (paragraph-level translation).
 - How to use `.batch(n)` to group items before a tool, then `.flatMap()` to unwrap them again.
 - How to use `.tap()` for side-effect logging, reading the meta keys the tools actually write
-  (`chapterValidator` sets `meta.errors`, not `meta.warnings`).
+  (`chapterValidator` sets `errors` variable, not `warnings` variable).
 - How to write source/target URIs as `'@name'` shortcuts, resolved from `mt.json` → `"uris"`
   (`en` → `md://./chapters/en`, `ru` → `chapter-output://./chapters`), so the pipeline writes
   `.to('@en')` / `.to('@ru')` instead of the full URIs.
@@ -99,12 +99,12 @@ default
 
 ```
 jsonl://./jsonl/input.jsonl
-  → use(chapterDoc)             ← {title, body} record → chapter markdown; meta.chapterDoc
-  → use(wordCounter)            ← meta.wordCount
+  → use(chapterDoc)             ← {title, body} record → chapter markdown; chapterDoc variable
+  → use(wordCounter)            ← wordCount variable
   → use(chapterIndexer)         ← meta.chapterNum
-  → use(chapterValidator)       ← meta.valid + meta.errors
-  → use(forbiddenCharDetector)  ← meta.forbidden
-  → tap (log meta.errors)
+  → use(chapterValidator)       ← valid variable + errors variable
+  → use(forbiddenCharDetector)  ← forbidden variable
+  → tap (log errors variable)
   → @en (md://./chapters/en)    ← directory target → chapters/en/chapter<N>.md
 ```
 
@@ -113,14 +113,14 @@ jsonl://./jsonl/input.jsonl
 ```
 jsonl://./jsonl/input.jsonl
   → use(toMarkdown)        ← native tool from packages/tools/src/to-markdown.ts (remark mdast → markdown)
-  → use(wordCounter)       ← meta.wordCount (feeds the schema doc Metadata table)
-  → use(tokenCounter)      ← meta.tokenCount (feeds the schema doc Metadata table)
+  → use(wordCounter)       ← wordCount variable (feeds the schema doc Metadata table)
+  → use(tokenCounter)      ← tokenCount variable (feeds the schema doc Metadata table)
   → use(chapterIndexer)    ← meta.chapterNum
-  → use(summary)           ← meta.summary        (picked LLM backend, see "LLM backend")
-  → use(entities)          ← meta.entities      (picked LLM backend)
-  → use(schema)            ← meta.schema        (picked LLM backend)
-  → use(mdFormatter)       ← meta.mdFormatted / mdAlreadyFormatted
-  → use(schemaDocWriter)   ← builds the schema doc, appends a write intent (subdir 'schema') to meta.mdOutputs
+  → use(summary)           ← summary variable        (picked LLM backend, see "LLM backend")
+  → use(entities)          ← entities variable      (picked LLM backend)
+  → use(schema)            ← schema variable        (picked LLM backend)
+  → use(mdFormatter)       ← mdFormatted variable / mdAlreadyFormatted
+  → use(schemaDocWriter)   ← builds the schema doc, appends a write intent (subdir 'schema') to mdOutputs variable
   → md://./chapters        ← target root; writes <root>/schema/chapter<N>.schema.md
 ```
 
@@ -142,7 +142,7 @@ jsonl://./jsonl/input.jsonl
         prepare: custom 'summary' prompt template (override of the built-in default)
         fit:     context budget maxTokens=60, strategies ['dropOldest','truncateLines']
         call:    the picked backend's call slot (mock by default: scripted answer, no network)
-  → use(llmSummaryToMd)        ← markdown incl. `context: <before> -> <after> tokens` (meta.contextWindow)
+  → use(llmSummaryToMd)        ← markdown incl. `context: <before> -> <after> tokens` (contextWindow variable)
   → use(mdOutputEmitter(...))  ← write intent (subdir 'llm') -> <root>/llm/chapter<N>.llm.md
   → md://./chapters
 ```
@@ -157,7 +157,7 @@ against the GPU server (see "LLM backend" above). Override the prompt without co
 md://./chapters/en
   → use(wordCounter)
   → use(chapterIndexer)
-  → use(stubTranslator)   ← local defineTool stub: wraps paragraphs in [ru]…[/ru], sets meta.translated + meta.lang='ru'
+  → use(stubTranslator)   ← local defineTool stub: wraps paragraphs in [ru]…[/ru], sets translated variable + meta.lang='ru'
   → @ru (chapter-output://./chapters)  ← chapters/<lang>/chapter<N>.md → chapters/ru/chapter<N>.md
 ```
 
@@ -187,7 +187,7 @@ Unlike the ephemeral flows below, this one reads the JSONL source directly and w
 jsonl://./jsonl/input.jsonl
   → flatMap (fan out to title + body)
   → batch(5)
-  → use(tokenCounterBatch)        ← meta.tokenCount (batch-level meta)
+  → use(tokenCounterBatch)        ← tokenCount variable (batch-level meta)
   → use(tokenCounterBatchCached)  ← cached variant
   → ephemeral://tokens-output
 ```
@@ -201,7 +201,7 @@ the DSL grammar.
 |---|---|
 | `smokeTestPipeline` | `chapterValidator` → `tap` |
 | `splitChaptersPipeline` | `tokenSplitter` |
-| `collectWarningsPipeline` | `forbiddenCharDetector` → `tap` (logs `meta.forbidden`) |
+| `collectWarningsPipeline` | `forbiddenCharDetector` → `tap` (logs `forbidden` variable) |
 | `fixChapterPipeline` | `typoFinder` → `markdownFormatter` |
 | `translateTitlesPipeline` | `batch(5)` → `titles` (title translator on the picked backend) → `flatMap` |
 | `translateChapterPipeline` | `flatMap` (split body on blank lines) → `paragraphs` (paragraph translator on the picked backend) |
@@ -288,7 +288,7 @@ file-based fallback, an unknown backend fails fast, and the picked backend answe
 
 ### chapterDoc
 Turns a `{ title, body }` record into a chapter markdown document (frontmatter + H1 + body) and keeps the
-parsed document in `meta.chapterDoc`.
+parsed document in `chapterDoc` variable.
 
 ### wordCounter
 Counts the words in a chapter (whitespace split) and attaches `wordCount` to meta.
@@ -309,15 +309,15 @@ markdown through a remark mdast, and sets `toMarkdown: true` in meta.
 
 ### summaryTool / entitiesTool / schemaTool
 LLM-backed extractors (`packages/tools/src/schema/`). Each sends the chapter to the LLM and attaches
-`meta.summary`, `meta.entities`, and `meta.schema` (mermaid) respectively. Every answer goes through a retry
+`summary` variable, `entities` variable, and `schema` variable (mermaid) respectively. Every answer goes through a retry
 loop guard: the response must be non-empty, mdshape-parseable, and keep the section content intact
 (summary covers the chapter's key terms, entities/vocabulary actually occur in the text, the diagram has a
 type declaration and edges). A rejected answer is re-prompted with the rejection reason, up to 3 attempts.
 When the guard is exhausted — or no backend answers — the tool falls back to the deterministic value already
 present in the chapter document, so the sample still produces `chapters/schema/chapter<N>.schema.md` without
-credentials. Attempt count and last failure land in `meta.summaryLlm` / `entitiesLlm` / `schemaLlm`.
+credentials. Attempt count and last failure land in `summaryLlm` variable / `entitiesLlm` / `schemaLlm`.
 Prompts, model, temperature and `maxTokens` are set per tool via `create*Tool({ ... })` or per envelope via
-`meta.schemaDocLlm` and `meta.<tool>Prompt`.
+`schemaDocLlm` variable and `meta.<tool>Prompt`.
 
 In this sample the three extractors are built with the picked backend instead of the router proxy:
 `createSummaryTool({ model: llm.model, call: llm.schemaCall })` — `call` replaces the router request with
@@ -326,17 +326,17 @@ the OpenRouter proxy (`ctx.run.global.routerUrl`, default `http://localhost:7777
 `MT_ROUTER_URL`) and the default model `openai/gpt-4o-mini`.
 
 ### mdFormatter
-Reformats the markdown through the shared formatter, setting `meta.mdFormatted` and `meta.mdAlreadyFormatted`
-(`meta.mdFormatError` on failure). Options come from `meta.mdFormatOptions`.
+Reformats the markdown through the shared formatter, setting `mdFormatted` variable and `mdAlreadyFormatted` variable
+(`mdFormatError` variable on failure). Options come from `mdFormatOptions` variable.
 
 ### schemaDocWriter
 Assembles the schema document (frontmatter + Metadata table + Summary + Entities CSV) and appends it to
-`meta.mdOutputs` as a write intent (`subdir: 'schema'`); the `md://` directory target resolves it under
+`mdOutputs` variable as a write intent (`subdir: 'schema'`); the `md://` directory target resolves it under
 its own root, i.e. `chapters/schema/` for the sample's `md://./chapters` target. `wordCount`, `tokenCount`,
 and `charLength` are read from meta, falling back to 0 and the item length.
 
 ### stubTranslator
-Sample-local `defineTool()` stub: wraps each paragraph in `[ru]…[/ru]` and sets `meta.translated` plus
+Sample-local `defineTool()` stub: wraps each paragraph in `[ru]…[/ru]` and sets `translated` variable plus
 `meta.lang='ru'`, so the translation flow runs without any API call and lands in `chapters/ru/`.
 
 ### tokenSplitter / typoFinder / markdownFormatter / titleTranslator / paragraphTranslator

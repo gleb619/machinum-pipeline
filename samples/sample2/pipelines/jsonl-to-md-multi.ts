@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { definePipeline, defineTool, registry } from '@mt/core'
+import { definePipeline, defineTool, getVariable, registry, withItem } from '@mt/core'
 import type { MdOutputEntry, ParsedUri, RunEvent, Target, TargetContext } from '@mt/core'
 import {
   type LlmRequest,
@@ -75,9 +75,8 @@ const verifyFlow = definePipeline()
   .use(chapterValidator)
   .use(forbiddenCharDetector)
   .use(tokenCounter)
-  .tap(async (item: unknown) => {
-    const meta = (item as { meta?: { errors?: unknown } }).meta
-    console.log('[verify] errors:', meta?.errors)
+  .tap(async (ex) => {
+    console.log('[verify] errors:', getVariable(ex, 'errors'))
   })
   .to('@en')
 
@@ -105,9 +104,8 @@ const countTokensFlow = definePipeline()
   })
   .batch(5)
   .use(tokenCounterBatch)
-  .tap(async (batch: unknown) => {
-    const meta = (batch as { meta?: { tokenCount?: unknown } }).meta
-    console.log('[tokens] batch total:', meta?.tokenCount)
+  .tap(async (batch) => {
+    console.log('[tokens] batch total:', getVariable(batch, 'tokenCount'))
   })
   .use(tokenCounterBatchCached)
   .to('ephemeral://tokens-output')
@@ -127,9 +125,8 @@ export const splitChaptersPipeline = definePipeline()
 export const collectWarningsPipeline = definePipeline()
   .from('ephemeral://warnings-input')
   .use(forbiddenCharDetector)
-  .tap(async (item: unknown) => {
-    const meta = (item as { meta?: { forbidden?: unknown } }).meta
-    console.log('[forbidden]', meta?.forbidden)
+  .tap(async (ex) => {
+    console.log('[forbidden]', getVariable(ex, 'forbidden'))
   })
   .to('ephemeral://warnings-output')
 
@@ -186,7 +183,7 @@ export const translateChapterPipeline = definePipeline()
 
 // === LLM gate demo (offline): picked `call` slot + custom prompt + context shrink ===
 // Gate = composable tool with slots prepare -> fit -> call -> parse -> emit.
-// - prompts:  override the built-in 'summary' template (also possible via meta.prompts,
+// - prompts:  override the built-in 'summary' template (also possible via the `prompts` variable,
 //             mt.json settings `prompts.summary`, or env MT_PROMPT_SUMMARY=text|@file)
 // - context:  token budget + ordered shrink strategies for the `fit` slot
 // - .with({ call: llm.gate.slots.call }) takes the `call` slot of the picked backend
@@ -225,7 +222,7 @@ const toLlmGateInput = defineTool<{ title: string; body: string }, unknown>({
     const { title, body } = env.item
     const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
     const history = Array.from({ length: 6 }, (_, i) => `earlier note ${i + 1} about ${title}`)
-    return { item: { title, body, history }, meta: { ...env.meta, chapterNum: n } }
+    return { ...withItem(env, { title, body, history }), meta: { ...env.meta, chapterNum: n } }
   },
 })
 
@@ -235,9 +232,9 @@ const llmSummaryToMd = defineTool<{ content: string; model: string }, string>({
   version: '1.0.0',
   mdDescription: 'Markdown description',
   invoke: async (env, _ctx) => {
-    const cw = env.meta.contextWindow as { before: number; after: number } | undefined
+    const cw = getVariable<{ before: number; after: number }>(env, 'contextWindow')
     const md = `## LLM summary\n\n${env.item.content}\n\ncontext: ${cw?.before} -> ${cw?.after} tokens\n`
-    return { item: md, meta: env.meta }
+    return withItem(env, md)
   },
 })
 
@@ -270,7 +267,7 @@ const toChapterTranslateInput = defineTool<{ title: string; body: string }, Titl
     const { title, body } = env.item
     const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
     return {
-      item: { text: `# ${title}\n\n${body}`, targetLang: 'ru' },
+      ...withItem(env, { text: `# ${title}\n\n${body}`, targetLang: 'ru' }),
       meta: { ...env.meta, chapterNum: n },
     }
   },
@@ -281,7 +278,7 @@ const translateOutputToMd = defineTool<{ text: string }, string>({
   name: 'translate-output-to-md',
   version: '1.0.0',
   mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => ({ item: env.item.text, meta: env.meta }),
+  invoke: async (env, _ctx) => withItem(env, env.item.text),
 })
 
 export const translateSlotsMockPipeline = definePipeline()

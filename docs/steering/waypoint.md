@@ -122,7 +122,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - Target-only glossary review queue (T140): `review://./glossary.review.md` renders the pending
   proposals (`term.pending`) of the glossary envelope as a markdown worksheet, plus a locked-terms
   section; the last glossary envelope wins and the file is written atomically in `close()`
-- The glossary is read from the `glossary` variable (legacy `meta.glossary` accepted), or parsed from a JSON-string / object `item`
+- The glossary is read from the `glossary` variable (legacy `glossary` variable accepted), or parsed from a JSON-string / object `item`
   (structural `ReviewGlossary` mirror of `@mt/tools` `Glossary` — waypoint must not import
   `@mt/tools`, keep the mirror in sync); envelopes without a glossary throw a clear error
 - Deliberately **no `checkpoint()`** — nothing is durable mid-run, so a crash resume replays safely
@@ -190,7 +190,7 @@ per-envelope fan-out, and unsubscribes in the generator's `finally`.
 
 ## `md://` dir mode — write intents
 
-A tool never names an output root. It appends an entry to the `mdOutputs` variable (the target also still reads legacy `meta.mdOutputs`):
+A tool never names an output root. It appends an entry to the `mdOutputs` variable (the target also still reads legacy `mdOutputs` variable):
 
 ```typescript
 {
