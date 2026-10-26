@@ -1,8 +1,8 @@
-import { defineComposableTool, defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { defineComposableTool, defineTool, getVariable, setVariable, withItem } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
-import { mdOutputEmitter } from '../core/md-outputs.js'
+import { appendMdOutput } from '../core/md-outputs.js'
 import { formatString } from './md-formatter.js'
 
 // ---------------------------------------------------------------------------
@@ -236,6 +236,9 @@ export function readChapterDoc(markdown: string): ChapterDoc {
 // Tool
 // ---------------------------------------------------------------------------
 
+/** Variable holding the built {@link ChapterDoc}. */
+export const VAR_CHAPTER_DOC = 'chapterDoc'
+
 export interface ChapterDocToolInput {
   title: string
   body: string | ChapterDocParagraph[]
@@ -244,13 +247,13 @@ export interface ChapterDocToolInput {
   warnings?: ChapterDocWarning[]
 }
 
-/** Slot `build`: chapter input -> YAML-frontmatter markdown; records `meta.chapterDoc`. */
+/** Slot `build`: chapter input -> YAML-frontmatter markdown; records the `chapterDoc` variable. */
 export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
   name: 'chapter-doc-build',
   version: '1.0.0',
   mdDescription: 'Serializes chapter metadata into YAML-frontmatter markdown.',
 
-  async invoke(env: Envelope<ChapterDocToolInput>, _ctx: ToolContext): Promise<Envelope<string>> {
+  async invoke(env: Exchange<ChapterDocToolInput>, _ctx: ToolContext): Promise<Exchange<string>> {
     const input = env.item
 
     const number =
@@ -259,9 +262,13 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
       (env.meta?.chapter as number | undefined) ??
       1
 
-    const series = input.series ?? (env.meta?.chapterSeries as string | undefined)
+    const series =
+      input.series ??
+      getVariable<string>(env, 'chapterSeries') ??
+      (env.meta?.chapterSeries as string | undefined)
 
-    const warnings = input.warnings ?? normalizeWarnings(env.meta?.warnings)
+    const warnings =
+      input.warnings ?? normalizeWarnings(getVariable(env, 'warnings') ?? env.meta?.warnings)
 
     const doc: ChapterDoc = {
       title: input.title,
@@ -272,17 +279,25 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
     }
 
     const formatted = await writeChapterDoc(doc)
-    return { item: formatted, meta: { ...env.meta, chapterDoc: doc } }
+    return setVariable(withItem(env, formatted), VAR_CHAPTER_DOC, doc)
   },
 })
 
 /** Slot `emit`: only when meta carries a chapter number; intent targets the md:// root. */
-export const chapterDocEmit = mdOutputEmitter({
-  name: 'chapter',
-  subdir: '',
-  filename: (meta) => `chapter${(meta.chapterDoc as ChapterDoc).number}.md`,
-  when: (meta) => meta.chapterNum !== undefined || meta.chapter !== undefined,
-  toolName: 'chapter-doc-emit',
+export const chapterDocEmit = defineTool<string, string>({
+  name: 'chapter-doc-emit',
+  version: '1.0.0',
+  mdDescription: "Appends item markdown to the mdOutputs variable as 'chapter' in .",
+  async invoke(ex: Exchange<string>) {
+    if (ex.meta?.chapterNum === undefined && ex.meta?.chapter === undefined) return ex
+    const doc = getVariable<ChapterDoc>(ex, VAR_CHAPTER_DOC)
+    return appendMdOutput(ex, {
+      name: 'chapter',
+      subdir: '',
+      filename: `chapter${doc?.number}.md`,
+      content: ex.item,
+    })
+  },
 })
 
 /** Slots: `build`, `emit`. Override with `chapterDoc.with({ emit: myTool })`. */

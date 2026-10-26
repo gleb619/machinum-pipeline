@@ -1,5 +1,5 @@
-import { defineComposableTool, defineTool, mapConcurrent } from '@mt/core'
-import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
+import { defineComposableTool, defineTool, mapConcurrent, setVariables, withItem } from '@mt/core'
+import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import { type TranslateInput, type TranslateOutput, translateText } from '../core/translate-text.js'
 import { type ChapterDoc, readChapterDoc, writeChapterDoc } from './chapter-doc.js'
 
@@ -40,10 +40,10 @@ export interface ParagraphTranslatorOutput {
 async function translateVia(
   translator: Tool<TranslateInput, TranslateOutput>,
   req: TranslateInput,
-  meta: Record<string, unknown>,
+  ex: Exchange<unknown>,
   ctx: ToolContext,
 ): Promise<TranslateOutput> {
-  const res = await translator.invoke({ item: req, meta }, ctx)
+  const res = await translator.invoke(withItem(ex, req), ctx)
   return res.item
 }
 
@@ -64,17 +64,16 @@ function splitParagraphs(text: string): string[] {
 }
 
 async function mapState<A, B>(
-  env: Envelope<A>,
+  env: Exchange<A>,
   fn: (item: A, index: number) => Promise<B>,
-): Promise<Envelope<B>> {
+): Promise<Exchange<B>> {
   const items = env.items ?? [env.item]
   const out: B[] = []
   for (let i = 0; i < items.length; i++) {
     out.push(await fn(items[i] as A, i))
   }
-  return env.items
-    ? { item: out[0] as B, items: out, meta: env.meta }
-    : { item: out[0] as B, meta: env.meta }
+  const next = withItem(env, out[0] as B)
+  return env.items ? { ...next, items: out } : next
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +148,7 @@ function titleTranslateSlot(
         const out = await translateVia(
           translator,
           toTranslateInput(state.title, state.input),
-          env.meta,
+          env,
           ctx,
         )
         return { ...state, translatedTitle: out.translatedText }
@@ -183,14 +182,14 @@ const titleAssemble = defineTool<TitleTranslatorState, TitleTranslatorOutput>({
       }
     }
     const anyTranslated = results.some((r) => r.titleTranslated)
-    return {
-      item: (env.items ? results : (results[0] as TitleTranslatorOutput)) as TitleTranslatorOutput,
-      meta: {
-        ...env.meta,
-        titleTranslated: env.items ? results.map((r) => r.titleTranslated) : anyTranslated,
-        count: results.length,
-      },
-    }
+    const next = withItem(
+      env,
+      (env.items ? results : (results[0] as TitleTranslatorOutput)) as TitleTranslatorOutput,
+    )
+    return setVariables(next, {
+      titleTranslated: env.items ? results.map((r) => r.titleTranslated) : anyTranslated,
+      count: results.length,
+    })
   },
 })
 
@@ -282,20 +281,14 @@ const paragraphSplit = defineTool<ParagraphTranslatorInput, ParagraphTranslatorS
     const input = env.item
     try {
       const doc = readChapterDoc(input.text)
-      return {
-        item: {
-          input,
-          legacy: false,
-          doc,
-          paragraphs: doc.body.map((p) => p.lines.join(' ')),
-        },
-        meta: env.meta,
-      }
+      return withItem(env, {
+        input,
+        legacy: false,
+        doc,
+        paragraphs: doc.body.map((p) => p.lines.join(' ')),
+      })
     } catch {
-      return {
-        item: { input, legacy: true, paragraphs: splitParagraphs(input.text) },
-        meta: env.meta,
-      }
+      return withItem(env, { input, legacy: true, paragraphs: splitParagraphs(input.text) })
     }
   },
 })
@@ -328,14 +321,14 @@ function paragraphTranslateSlot(
             const hit = memoGet(memo, key)
             if (hit !== undefined) return hit
           }
-          const out = await translateVia(translator, req, env.meta, ctx)
+          const out = await translateVia(translator, req, env, ctx)
           if (memo && key !== undefined) memoSet(memo, key, out.translatedText)
           return out.translatedText
         },
       )) {
         translated.push(text)
       }
-      return { item: { ...state, translated }, meta: env.meta }
+      return withItem(env, { ...state, translated })
     },
   })
 }
@@ -357,10 +350,9 @@ const paragraphAssemble = defineTool<ParagraphTranslatorState, ParagraphTranslat
             })),
           })
         : translated.join('\n\n')
-    return {
-      item: { text, paragraphsTranslated: translated.length },
-      meta: { ...env.meta, paragraphsTranslated: translated.length },
-    }
+    return setVariables(withItem(env, { text, paragraphsTranslated: translated.length }), {
+      paragraphsTranslated: translated.length,
+    })
   },
 })
 

@@ -1,3 +1,4 @@
+import { createExchange, getVariable, variable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -341,12 +342,14 @@ describe('md-formatter compatibility', () => {
 // Tool
 // ---------------------------------------------------------------------------
 
+type MdOut = { name: string; subdir: string; filename: string; content: string }
+
 describe('chapterDoc tool', () => {
-  it('wraps writeChapterDoc and sets meta.mdOutputs when chapterNum present', async () => {
-    const env = {
-      item: { title: 'Test Chapter', body: 'Hello world.' },
-      meta: { chapterNum: 2 },
-    }
+  it('wraps writeChapterDoc and sets mdOutputs variable when chapterNum present', async () => {
+    const env = createExchange(
+      { title: 'Test Chapter', body: 'Hello world.' },
+      { id: 'ch-1', meta: { chapterNum: 2 }, variables: [variable('keep', 7)] },
+    )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
 
@@ -354,21 +357,14 @@ describe('chapterDoc tool', () => {
     expect(result.item).toContain('Hello world.')
     expect(result.item).toContain('number: 2')
 
-    const mdOutputs = result.meta.mdOutputs as Array<{
-      name: string
-      subdir: string
-      filename: string
-      content: string
-    }>
-    expect(mdOutputs).toEqual([
-      {
-        name: 'chapter',
-        subdir: '',
-        filename: 'chapter2.md',
-        content: result.item,
-      },
+    expect(getVariable<MdOut[]>(result, 'mdOutputs')).toEqual([
+      { name: 'chapter', subdir: '', filename: 'chapter2.md', content: result.item },
     ])
-    expect((result.meta.chapterDoc as ChapterDoc).title).toBe('Test Chapter')
+    expect(getVariable<ChapterDoc>(result, 'chapterDoc')?.title).toBe('Test Chapter')
+    expect(result.meta.mdOutputs).toBeUndefined()
+    // id + pre-existing variables propagate
+    expect(result.id).toBe('ch-1')
+    expect(getVariable(result, 'keep')).toBe(7)
   })
 
   it('accepts structured body as Paragraph[]', async () => {
@@ -376,10 +372,10 @@ describe('chapterDoc tool', () => {
       { lines: ['Line one', 'Line two'] },
       { lines: ['Para two'] },
     ]
-    const env = {
-      item: { title: 'Structured', body, number: 5 },
-      meta: { chapterNum: 5 },
-    }
+    const env = createExchange(
+      { title: 'Structured', body, number: 5 },
+      { meta: { chapterNum: 5 } },
+    )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
     expect(result.item).toContain('Line one')
@@ -388,37 +384,33 @@ describe('chapterDoc tool', () => {
   })
 
   it('reads number from item when meta.chapterNum is absent', async () => {
-    const env = {
-      item: { title: 'Test', body: 'Body.', number: 9 },
-      meta: {},
-    }
+    const env = createExchange({ title: 'Test', body: 'Body.', number: 9 })
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
     expect(result.item).toContain('number: 9')
-    expect(result.meta.mdOutputs).toBeUndefined()
+    expect(getVariable(result, 'mdOutputs')).toBeUndefined()
   })
 
   it('defaults number to 1 when no source available', async () => {
-    const env = {
-      item: { title: 'Test', body: 'Body.' },
-      meta: {},
-    }
+    const env = createExchange({ title: 'Test', body: 'Body.' })
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
     expect(result.item).toContain('number: 1')
   })
 
-  it('reads warnings from meta.warnings', async () => {
-    const env = {
-      item: { title: 'Warned', body: 'Body.' },
-      meta: {
-        chapterNum: 1,
-        warnings: [
-          { id: 'w1', text: 'Warning one' },
-          { id: 'w2', text: 'Warning two' },
+  it('reads warnings from the warnings variable', async () => {
+    const env = createExchange(
+      { title: 'Warned', body: 'Body.' },
+      {
+        meta: { chapterNum: 1 },
+        variables: [
+          variable('warnings', [
+            { id: 'w1', text: 'Warning one' },
+            { id: 'w2', text: 'Warning two' },
+          ]),
         ],
       },
-    }
+    )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
     expect(result.item).toContain('warnings:')
@@ -427,42 +419,38 @@ describe('chapterDoc tool', () => {
   })
 
   it('reads series from meta.chapterSeries', async () => {
-    const env = {
-      item: { title: 'Series', body: 'Body.' },
-      meta: { chapterNum: 1, chapterSeries: 'chapter09.en.md, chapter10.en.md' },
-    }
+    const env = createExchange(
+      { title: 'Series', body: 'Body.' },
+      { meta: { chapterNum: 1, chapterSeries: 'chapter09.en.md, chapter10.en.md' } },
+    )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
     expect(result.item).toContain('series: chapter09.en.md, chapter10.en.md')
   })
 
   it('does not set mdOutputs when chapterNum is missing', async () => {
-    const env = {
-      item: { title: 'Test', body: 'Body.' },
-      meta: {},
-    }
+    const env = createExchange({ title: 'Test', body: 'Body.' })
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
-    expect(result.meta.mdOutputs).toBeUndefined()
+    expect(getVariable(result, 'mdOutputs')).toBeUndefined()
   })
 
   it('appends to existing mdOutputs without overwriting', async () => {
-    const env = {
-      item: { title: 'Test', body: 'Body.' },
-      meta: {
-        chapterNum: 3,
-        mdOutputs: [{ name: 'existing', subdir: 'tmp', filename: 'x.md', content: 'x' }],
+    const env = createExchange(
+      { title: 'Test', body: 'Body.' },
+      {
+        meta: { chapterNum: 3 },
+        variables: [
+          variable('mdOutputs', [
+            { name: 'existing', subdir: 'tmp', filename: 'x.md', content: 'x' },
+          ]),
+        ],
       },
-    }
+    )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
 
-    const mdOutputs = result.meta.mdOutputs as Array<{
-      name: string
-      subdir: string
-      filename: string
-      content: string
-    }>
+    const mdOutputs = getVariable<MdOut[]>(result, 'mdOutputs') ?? []
     expect(mdOutputs).toHaveLength(2)
     expect(mdOutputs[0]).toEqual({
       name: 'existing',
@@ -479,10 +467,10 @@ describe('chapterDoc tool', () => {
   })
 
   it('does not duplicate h1 title when string body starts with "# Title"', async () => {
-    const env = {
-      item: { title: 'Test Title', body: '# Test Title\n\nBody text here.' },
-      meta: { chapterNum: 1 },
-    }
+    const env = createExchange(
+      { title: 'Test Title', body: '# Test Title\n\nBody text here.' },
+      { meta: { chapterNum: 1 } },
+    )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
     const matches = result.item.match(/^# Test Title$/gm)
@@ -490,16 +478,16 @@ describe('chapterDoc tool', () => {
   })
 
   it('splits string body by blank lines into paragraphs', async () => {
-    const env = {
-      item: {
+    const env = createExchange(
+      {
         title: 'String Body',
         body: 'Paragraph one line one.\n\nParagraph two line one.\nParagraph two line two.\n\nParagraph three.',
       },
-      meta: { chapterNum: 1 },
-    }
+      { meta: { chapterNum: 1 } },
+    )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
-    const doc = result.meta.chapterDoc as ChapterDoc
+    const doc = getVariable<ChapterDoc>(result, 'chapterDoc') as ChapterDoc
 
     expect(doc.body).toHaveLength(3)
     expect(doc.body[0]?.lines).toEqual(['Paragraph one line one.'])

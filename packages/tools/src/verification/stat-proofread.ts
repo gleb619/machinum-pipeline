@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, Tool, ToolContext } from '@mt/core'
+import { setVariable } from '@mt/core'
+import type { Exchange, Tool, ToolContext } from '@mt/core'
 import type { Glossary, TermMatcher } from '../normalization/term-tagger.js'
 import { compileTermMatcher } from '../normalization/term-tagger.js'
 
@@ -23,7 +24,7 @@ export interface ProofreadIssue {
   share?: number
 }
 
-/** Proofread report written to `meta.proofread`. */
+/** Proofread report written to the `proofread` variable. */
 export interface ProofreadReport {
   /** `true` when no issues were found. */
   ok: boolean
@@ -234,12 +235,8 @@ export class StatProofreadError extends Error {
 // Tool factory + default instance
 // ---------------------------------------------------------------------------
 
-function cloneMeta<T>(env: Envelope<T>): Envelope<T>['meta'] {
-  return { ...env.meta }
-}
-
 /**
- * Tool factory: `string` in, same string out, `meta.proofread` = {@link ProofreadReport}.
+ * Tool factory: `string` in, same string out, `proofread` variable = {@link ProofreadReport}.
  *
  * Default mode (`fix: 'report'`) reports issues without mutating the text.
  * With `fix: 'llm'` the tool throws a retryable {@link StatProofreadError} carrying measured
@@ -251,16 +248,15 @@ export function createStatProofread(options: StatProofreadOptions = {}): Tool<st
     version: '1.0.0',
     mdDescription:
       'Offline proofreader for translated text: term consistency vs a glossary and ' +
-      'Cyrillic/untranslated-share checks. Report in meta.proofread; with fix: "llm" it throws ' +
+      'Cyrillic/untranslated-share checks. Report in the proofread variable; with fix: "llm" it throws ' +
       'a retryable StatProofreadError carrying measured feedback.',
-    async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
+    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const text = env.item
       const report = buildProofreadReport(text, options)
-      const meta = { ...cloneMeta(env), proofread: report }
       if (!report.ok && options.fix === 'llm') {
         throw new StatProofreadError(report)
       }
-      return { item: text, meta }
+      return setVariable(env, 'proofread', report)
     },
   })
 }

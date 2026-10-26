@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { getVariable, variable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -92,33 +93,44 @@ describe('empty input', () => {
 describe('mdFormatter tool invoke', () => {
   it('should format envelope item', async () => {
     const result = await mdFormatter.invoke(
-      { item: '# Test\n\nContent.', meta: {} },
+      { id: 'ex-test', variables: [], item: '# Test\n\nContent.', meta: {} },
       {} as ToolContext,
     )
     expect(result.item).toBeTruthy()
     expect(typeof result.item).toBe('string')
-    expect(result.meta.mdFormatted).toBe(true)
+    expect(getVariable(result, 'mdFormatted')).toBe(true)
   })
 
   it('should set mdAlreadyFormatted true when no change needed', async () => {
     const input = '# Title\n\nBody text.\n'
-    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as ToolContext)
-    expect(result.meta.mdAlreadyFormatted).toBe(true)
+    const result = await mdFormatter.invoke(
+      { id: 'ex-test', variables: [], item: input, meta: {} },
+      {} as ToolContext,
+    )
+    expect(getVariable(result, 'mdAlreadyFormatted')).toBe(true)
   })
 
   it('should set mdAlreadyFormatted false when reformatted', async () => {
     const input = '# Title\n\nBody text.'
-    const result = await mdFormatter.invoke({ item: input, meta: {} }, {} as ToolContext)
-    expect(result.meta.mdAlreadyFormatted).toBe(false)
+    const result = await mdFormatter.invoke(
+      { id: 'ex-test', variables: [], item: input, meta: {} },
+      {} as ToolContext,
+    )
+    expect(getVariable(result, 'mdAlreadyFormatted')).toBe(false)
   })
 
-  it('should use per-envelope options from meta.mdFormatOptions', async () => {
+  it('should use per-envelope options from the mdFormatOptions variable', async () => {
     const result = await mdFormatter.invoke(
-      { item: 'test', meta: { mdFormatOptions: { wrapMode: 'never' } } },
+      {
+        id: 'ex-test',
+        item: 'test',
+        meta: {},
+        variables: [variable('mdFormatOptions', { wrapMode: 'never' })],
+      },
       {} as ToolContext,
     )
     expect(result.item).toBeTruthy()
-    expect(result.meta.mdFormatted).toBe(true)
+    expect(getVariable(result, 'mdFormatted')).toBe(true)
   })
 })
 

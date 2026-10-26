@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { getVariable, setVariable, setVariables, withItem } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { spellCheckDocument } from 'cspell-lib'
 import { remark } from 'remark'
 import remarkGfm from 'remark-gfm'
@@ -66,7 +67,7 @@ export const forbiddenCharDetector = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Detects zero-width characters and forbidden control characters. Reports findings in envelope metadata.',
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
+  async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const text = env.item
     const lines = text.split('\n')
     const forbidden: ForbiddenEntry[] = []
@@ -86,7 +87,7 @@ export const forbiddenCharDetector = defineTool<string, string>({
       globalPos += line.length + 1
     }
 
-    return { item: env.item, meta: { ...env.meta, forbidden } }
+    return setVariable(env, 'forbidden', forbidden)
   },
 })
 
@@ -222,7 +223,7 @@ export const chapterValidator = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Validates markdown structure: H1 presence, heading level skips, code block languages, link references.',
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
+  async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const text = env.item
     const errors: string[] = []
 
@@ -240,14 +241,7 @@ export const chapterValidator = defineTool<string, string>({
     errors.push(...checkCodeBlockLanguages(text))
     errors.push(...checkBrokenLinks(text))
 
-    return {
-      item: env.item,
-      meta: {
-        ...env.meta,
-        valid: errors.length === 0,
-        errors,
-      },
-    }
+    return setVariables(env, { valid: errors.length === 0, errors })
   },
 })
 
@@ -261,7 +255,7 @@ export const typoFinder = defineTool<FinderInput, FinderOutput>({
   mdDescription:
     'Detects spelling typos using cspell-lib. Reports suggestions in envelope metadata.',
 
-  async invoke(env: Envelope<FinderInput>, _ctx: ToolContext): Promise<Envelope<FinderOutput>> {
+  async invoke(env: Exchange<FinderInput>, _ctx: ToolContext): Promise<Exchange<FinderOutput>> {
     const { text } = env.item
 
     const document = {
@@ -295,17 +289,16 @@ export const typoFinder = defineTool<FinderInput, FinderOutput>({
       }
     }
 
-    const existingWarnings = (env.meta?.warnings as ChapterDocWarning[] | undefined) ?? []
+    const existingWarnings =
+      getVariable<ChapterDocWarning[]>(env, 'warnings') ??
+      (env.meta?.warnings as ChapterDocWarning[] | undefined) ??
+      []
     const allWarnings: ChapterDocWarning[] = [...existingWarnings, ...issues]
 
-    return {
-      item: { text, issues },
-      meta: {
-        ...env.meta,
-        typoWarned: true,
-        warnings: allWarnings,
-      },
-    }
+    return setVariables(withItem(env, { text, issues }), {
+      typoWarned: true,
+      warnings: allWarnings,
+    })
   },
 })
 
@@ -320,9 +313,9 @@ export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownForm
     'Lightweight markdown formatter: fixes list bullets, tabs, and fence spacing. Uses remark.',
 
   async invoke(
-    env: Envelope<MarkdownFormatterInput>,
+    env: Exchange<MarkdownFormatterInput>,
     _ctx: ToolContext,
-  ): Promise<Envelope<MarkdownFormatterOutput>> {
+  ): Promise<Exchange<MarkdownFormatterOutput>> {
     const { text } = env.item
     let fixes = 0
 
@@ -364,14 +357,7 @@ export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownForm
 
     fixes = listFixCount + tabFixCount + fenceFixCount
 
-    return {
-      item: { text: formatted, fixes },
-      meta: {
-        ...env.meta,
-        formatted: true,
-        fixes,
-      },
-    }
+    return setVariables(withItem(env, { text: formatted, fixes }), { formatted: true, fixes })
   },
 })
 

@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { setVariable, withItem } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import type { Heading, Paragraph, Root, RootContent, Text } from 'mdast'
 import { remark } from 'remark'
 import remarkFrontmatter from 'remark-frontmatter'
@@ -64,20 +65,14 @@ export const toMarkdown = defineTool<ToMarkdownInput, string>({
   mdDescription:
     'Builds markdown from structured input (title + body). Uses remark with GFM and frontmatter support.',
 
-  async invoke(env: Envelope<ToMarkdownInput>, _ctx: ToolContext): Promise<Envelope<string>> {
+  async invoke(env: Exchange<ToMarkdownInput>, _ctx: ToolContext): Promise<Exchange<string>> {
     const item = env.item
     const input: ToMarkdownInput =
       typeof item === 'string' ? { body: item } : { title: item.title, body: item.body }
 
     const markdown = recordToMarkdown(input)
 
-    return {
-      item: markdown,
-      meta: {
-        ...env.meta,
-        toMarkdown: true,
-      },
-    }
+    return setVariable(withItem(env, markdown), 'toMarkdown', true)
   },
 })
 

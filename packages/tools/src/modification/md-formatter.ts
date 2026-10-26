@@ -1,6 +1,10 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { getVariable, setVariables, withItem } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import type { Options as StringifyOptions } from 'remark-stringify'
+
+/** Variable holding per-exchange `FormatOptions` overrides. */
+export const VAR_MD_FORMAT_OPTIONS = 'mdFormatOptions'
 
 import {
   DEFAULT_EXCLUDES,
@@ -153,37 +157,29 @@ function makeMdFormatter(defaults?: FormatOptions) {
     mdDescription:
       'Reformats markdown with configurable line width and wrapping. Uses remark (GFM + frontmatter aware).',
 
-    async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
+    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const input = env.item
-      const perEnvOpts = env.meta?.mdFormatOptions as FormatOptions | undefined
+      const perEnvOpts = getVariable<FormatOptions>(env, VAR_MD_FORMAT_OPTIONS)
       const opts: FormatOptions = { ...defaults, ...perEnvOpts }
 
       try {
         const result = await formatString(input, opts)
 
-        return {
-          item: result.formatted,
-          meta: {
-            ...env.meta,
-            mdFormatted: true,
-            mdAlreadyFormatted: result.alreadyFormatted,
-          },
-        }
+        return setVariables(withItem(env, result.formatted), {
+          mdFormatted: true,
+          mdAlreadyFormatted: result.alreadyFormatted,
+        })
       } catch (err) {
-        return {
-          item: input,
-          meta: {
-            ...env.meta,
-            mdFormatted: false,
-            mdFormatError: err instanceof Error ? err.message : String(err),
-          },
-        }
+        return setVariables(withItem(env, input), {
+          mdFormatted: false,
+          mdFormatError: err instanceof Error ? err.message : String(err),
+        })
       }
     },
   })
 }
 
-/** Markdown formatter tool with no option defaults (options come from `meta.mdFormatOptions`). */
+/** Markdown formatter tool with no option defaults (options come from the `mdFormatOptions` variable). */
 export const mdFormatter = makeMdFormatter()
 
 /** Markdown formatter tool pre-seeded with default options. */

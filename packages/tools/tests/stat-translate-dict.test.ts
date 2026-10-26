@@ -1,7 +1,8 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Envelope, ToolContext } from '@mt/core'
+import { createExchange, getVariable, variable } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
 import { mockLlmCall } from '../src/core/llm-gate.js'
@@ -62,13 +63,13 @@ describe('statTranslateDict', () => {
       term({ id: 'dogs', term: 'Dogs', type: 'character' }),
     ])
     const tool = createStatTranslateDict({ batchSize: 5 }).with({ call: mockAnswer() })
-    const out = await tool.invoke({ item: glossary, meta: {} }, CTX)
+    const out = await tool.invoke({ id: 'ex-test', variables: [], item: glossary, meta: {} }, CTX)
     const result = out.item as Glossary
     expect(result.terms[0]).toEqual(glossary.terms[0])
     expect(result.terms[1]?.ru).toBe('Пер-silver-sword')
     expect(result.terms[2]?.ru).toBe('Пер-dogs')
-    expect(out.meta.statTranslateDict).toBe(true)
-    expect(out.meta.llmUsage).toMatchObject({
+    expect(getVariable(out, 'statTranslateDict')).toBe(true)
+    expect(getVariable(out, 'llmUsage')).toMatchObject({
       calls: 1,
       promptTokens: expect.any(Number),
       completionTokens: expect.any(Number),
@@ -82,12 +83,12 @@ describe('statTranslateDict', () => {
     )
     const glossary = makeGlossary(terms)
     const tool = createStatTranslateDict({ batchSize: 2 }).with({ call: mockAnswer() })
-    const out = await tool.invoke({ item: glossary, meta: {} }, CTX)
+    const out = await tool.invoke({ id: 'ex-test', variables: [], item: glossary, meta: {} }, CTX)
     const result = out.item as Glossary
     expect(result.terms[0]?.ru).toBe('Пер-t0')
     expect(result.terms[1]?.ru).toBe('Пер-t1')
     expect(result.terms[2]?.ru).toBeNull()
-    expect((out.meta.llmUsage as { calls: number }).calls).toBe(1)
+    expect(getVariable<{ calls: number }>(out, 'llmUsage')?.calls).toBe(1)
   })
 
   it('retries on id-parity validation failure and succeeds when the model fixes it', async () => {
@@ -108,7 +109,7 @@ describe('statTranslateDict', () => {
         })
       }),
     })
-    const out = await tool.invoke({ item: glossary, meta: {} }, CTX)
+    const out = await tool.invoke({ id: 'ex-test', variables: [], item: glossary, meta: {} }, CTX)
     const result = out.item as Glossary
     expect(result.terms[0]?.ru).toBe('Пер-a')
     expect(result.terms[1]?.ru).toBe('Пер-b')
@@ -120,24 +121,28 @@ describe('statTranslateDict', () => {
     const tool = createStatTranslateDict({ batchSize: 5 }).with({
       call: mockLlmCall(() => JSON.stringify({ translations: [{ id: 'wrong', ru: 'X' }] })),
     })
-    await expect(tool.invoke({ item: glossary, meta: {} }, CTX)).rejects.toThrow(
-      /Returned ids do not match/,
-    )
+    await expect(
+      tool.invoke({ id: 'ex-test', variables: [], item: glossary, meta: {} }, CTX),
+    ).rejects.toThrow(/Returned ids do not match/)
   })
 
   it('handles batched envelope input', async () => {
     const g1 = makeGlossary([term({ id: 'x', term: 'X' }), term({ id: 'y', term: 'Y' })])
     const g2 = makeGlossary([term({ id: 'z', term: 'Z' })])
     const tool = createStatTranslateDict({ batchSize: 5 }).with({ call: mockAnswer() })
-    const env: Envelope<Glossary> = { item: g1, items: [g1, g2], meta: { keep: 1 } }
+    const env: Exchange<Glossary> = {
+      ...createExchange(g1, { id: 'batch-1', variables: [variable('keep', 1)] }),
+      items: [g1, g2],
+    }
     const out = await tool.invoke(env, CTX)
     const results = out.item as unknown as Glossary[]
     expect(results).toHaveLength(2)
     expect(results[0]?.terms.find((t) => t.id === 'x')?.ru).toBe('Пер-x')
     expect(results[0]?.terms.find((t) => t.id === 'y')?.ru).toBe('Пер-y')
     expect(results[1]?.terms.find((t) => t.id === 'z')?.ru).toBe('Пер-z')
-    expect(out.meta.keep).toBe(1)
-    expect((out.meta.llmUsage as { calls: number }).calls).toBe(2)
+    expect(getVariable(out, 'keep')).toBe(1)
+    expect(out.id).toBe('batch-1')
+    expect(getVariable<{ calls: number }>(out, 'llmUsage')?.calls).toBe(2)
   })
 
   it('writes the translated glossary to outFile atomically', async () => {
@@ -145,7 +150,7 @@ describe('statTranslateDict', () => {
     const outFile = join(dir, 'dict.json')
     const glossary = makeGlossary([term({ id: 'a', term: 'A' })])
     const tool = createStatTranslateDict({ outFile }).with({ call: mockAnswer() })
-    const out = await tool.invoke({ item: glossary, meta: {} }, CTX)
+    const out = await tool.invoke({ id: 'ex-test', variables: [], item: glossary, meta: {} }, CTX)
     const result = out.item as Glossary
     expect(result.terms[0]?.ru).toBe('Пер-a')
 

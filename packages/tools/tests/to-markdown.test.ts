@@ -1,3 +1,4 @@
+import { createExchange, getVariable, variable } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
 import { recordToMarkdown, toMarkdown } from '../src/modification/to-markdown.js'
@@ -23,14 +24,20 @@ describe('recordToMarkdown', () => {
 })
 
 describe('toMarkdown tool', () => {
-  it('produces markdown and sets meta flag', async () => {
+  it('produces markdown and sets the toMarkdown variable', async () => {
     const env = await toMarkdown.invoke(
-      { item: { title: 'T', body: 'B' }, meta: { existing: true } },
+      createExchange(
+        { title: 'T', body: 'B' },
+        { id: 'e1', meta: { existing: true }, variables: [variable('keep', 1)] },
+      ),
       // ToolContext is unused by the tool; cast minimal shape.
       {} as import('@mt/core').ToolContext,
     )
     expect(env.item).toContain('# T')
     expect(env.item).toContain('B')
-    expect(env.meta).toEqual({ existing: true, toMarkdown: true })
+    expect(env.meta).toEqual({ existing: true })
+    expect(getVariable(env, 'toMarkdown')).toBe(true)
+    expect(env.id).toBe('e1')
+    expect(getVariable(env, 'keep')).toBe(1)
   })
 })

@@ -1,7 +1,8 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { MdOutputEntry, ToolContext } from '@mt/core'
+import { createExchange, getVariable, variable } from '@mt/core'
+import type { Exchange, MdOutputEntry, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
 import { createAnalyzeOutputs } from '../src/modification/analyze-outputs.js'
@@ -56,14 +57,19 @@ describe('chapter record tools', () => {
 
   it('maps -> markdown -> unwrap', async () => {
     const mapped = await chapterRecordMapper.invoke(
-      { item: { key: 'k', value: 'Chapter 2: A\nl1\n\nl2' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { key: 'k', value: 'Chapter 2: A\nl1\n\nl2' },
+        meta: {},
+      },
       ctx,
     )
     expect(mapped.meta.chapterNum).toBe(2)
     const md = await lineTextToMarkdown.invoke(mapped, ctx)
     expect(md.item.text).toBe('# Chapter 2: A\n\nl1\n\nl2\n')
     const un = await unwrapMarkdownText.invoke(
-      { item: { text: '\\[sys\\]' } as never, meta: {} },
+      { id: 'ex-test', variables: [], item: { text: '\\[sys\\]' } as never, meta: {} },
       ctx,
     )
     expect(un.item).toBe('[sys]')
@@ -73,36 +79,45 @@ describe('chapter record tools', () => {
 describe('llm typo fix / summary', () => {
   it('keeps the original when the line count changes; pass-through when disabled', async () => {
     const bad = createLlmTypoFix({ call: reply('a\nb') })
-    expect((await bad.invoke({ item: 'x', meta: {} }, ctx)).item).toBe('x')
+    expect(
+      (await bad.invoke({ id: 'ex-test', variables: [], item: 'x', meta: {} }, ctx)).item,
+    ).toBe('x')
     const good = createLlmTypoFix({ call: reply(' fixed ') })
-    const out = await good.invoke({ item: 'x', meta: {} }, ctx)
+    const out = await good.invoke({ id: 'ex-test', variables: [], item: 'x', meta: {} }, ctx)
     expect(out.item).toBe('fixed')
-    expect(out.meta.llmFixed).toBe(true)
+    expect(getVariable(out, 'llmFixed')).toBe(true)
     const off = createLlmTypoFix({ call: reply('never'), enabled: false })
-    expect((await off.invoke({ item: 'x', meta: {} }, ctx)).item).toBe('x')
+    expect(
+      (await off.invoke({ id: 'ex-test', variables: [], item: 'x', meta: {} }, ctx)).item,
+    ).toBe('x')
   })
 
   it('summary tool passes through when disabled', async () => {
     const off = createLlmSummaryWithFallback({ call: reply('never'), enabled: false })
-    const env = { item: 'x', meta: { summary: 'h' } }
+    const env = createExchange('x', { variables: [variable('summary', 'h')] })
     expect(await off.invoke(env, ctx)).toBe(env)
   })
 })
 
 describe('analyze / translate outputs', () => {
-  const intents = (meta: Record<string, unknown>) => meta.mdOutputs as MdOutputEntry[]
+  const intents = (ex: Exchange<unknown>) => getVariable<MdOutputEntry[]>(ex, 'mdOutputs') ?? []
 
   it('analyze outputs: summary + tagged per chapter and the glossary', async () => {
     const tool = createAnalyzeOutputs({ log: false })
     const res = await tool.invoke(
       {
-        item: '',
+        ...createExchange('', {
+          variables: [
+            variable('summaryByItem', ['S1']),
+            variable('taggedItems', ['# Chapter 1: A\n\nTAG']),
+            variable('glossaryJson', '{}'),
+          ],
+        }),
         items: ['# Chapter 1: A\n\nHe ran.'],
-        meta: { summaryByItem: ['S1'], taggedItems: ['# Chapter 1: A\n\nTAG'], glossaryJson: '{}' },
       },
       ctx,
     )
-    const out = intents(res.meta)
+    const out = intents(res)
     expect(out.map((o) => `${o.subdir}/${o.filename}`)).toEqual([
       'schema/chapter1.summary.md',
       'en-tagged/chapter1.md',
@@ -118,13 +133,15 @@ describe('analyze / translate outputs', () => {
     const tool = createTranslateOutputs({ chaptersDir: dir, log: false })
     const res = await tool.invoke(
       {
-        item: { en: '# Chapter 1: A', ru: '# Глава 1: А' },
+        ...createExchange(
+          { en: '# Chapter 1: A', ru: '# Глава 1: А' },
+          { variables: [variable('chapterNums', [1]), variable('titlesRu', ['Глава 1: А'])] },
+        ),
         items: [{ en: '# Chapter 1: A', ru: '# Глава 1: А' }],
-        meta: { chapterNums: [1], titlesRu: ['Глава 1: А'] },
       },
       ctx,
     )
-    const out = intents(res.meta)
+    const out = intents(res)
     expect(out[0]).toMatchObject({ subdir: 'ru', filename: 'chapter1.md' })
     const titles = JSON.parse(out[1]?.content ?? '{}')
     expect(titles['9'].ru).toBe('Старый')
@@ -155,11 +172,17 @@ describe('translation stage', () => {
 
   it('chaptersToTitleInputs stashes the chapters', async () => {
     const res = await chaptersToTitleInputs.invoke(
-      { item: '' as never, items: ['# Chapter 1: A\nx', 'no heading'] as never, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: '' as never,
+        items: ['# Chapter 1: A\nx', 'no heading'] as never,
+        meta: {},
+      },
       ctx,
     )
     expect(res.items?.map((i) => i.text)).toEqual(['# Chapter 1: A', '# Untitled'])
-    expect(res.meta.chapters).toHaveLength(2)
+    expect(getVariable<string[]>(res, 'chapters')).toHaveLength(2)
   })
 
   it('translateTaggedChapter: line by line, keeps blanks/fences, memoises, rejects bad lines', async () => {
@@ -196,7 +219,12 @@ describe('translation stage', () => {
       chaptersDir: dir,
     })
     const t = await title.invoke(
-      { item: { text: '# Chapter 1: Start', targetLang: 'ru' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { text: '# Chapter 1: Start', targetLang: 'ru' },
+        meta: {},
+      },
       ctx,
     )
     expect(t.item.translatedText).toBe('Глава 1: Начало')
@@ -204,15 +232,17 @@ describe('translation stage', () => {
     const body = createChapterBodyTranslator({ call, chaptersDir: dir, log: false })
     const res = await body.invoke(
       {
-        item: { text: '# Глава 1: Начало' },
+        ...createExchange(
+          { text: '# Глава 1: Начало' },
+          { variables: [variable('chapters', ['# Chapter 1: Start\n\nHello there.'])] },
+        ),
         items: [{ text: '# Глава 1: Начало' }],
-        meta: { chapters: ['# Chapter 1: Start\n\nHello there.'] },
       },
       ctx,
     )
-    expect(res.meta.chapterNums).toEqual([1])
+    expect(getVariable(res, 'chapterNums')).toEqual([1])
     expect(res.items?.[0]?.ru).toBe('# Глава 1: Начало\n\nПривет')
     const linted = await chapterPairsLinter.invoke(res as never, ctx)
-    expect(linted.meta.parityByChapter).toEqual({ '1': { errors: 0, warnings: 0 } })
+    expect(getVariable(linted, 'parityByChapter')).toEqual({ '1': { errors: 0, warnings: 0 } })
   })
 })

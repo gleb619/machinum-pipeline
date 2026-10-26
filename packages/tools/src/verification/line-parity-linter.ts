@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, setVariable } from '@mt/core'
 
 /** Severity of a parity issue: `error` fails the check, `warn` is informational. */
 export type ParitySeverity = 'error' | 'warn'
@@ -226,11 +226,11 @@ export function createLineParityLinter(options: LineParityLinterOptions = {}) {
     name: 'line-parity-linter',
     version: '1.0.0',
     mdDescription:
-      'Compares EN vs RU: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and <think> blocks. Report in meta.parity; throws a retryable error on hard errors.',
+      'Compares EN vs RU: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and <think> blocks. Report in the parity variable; throws a retryable error on hard errors.',
     async invoke(env) {
       const report = lintLineParity(env.item.en, env.item.ru, options)
       if (!report.ok && options.throwOnError !== false) throw new LineParityError(report)
-      return { item: env.item, meta: { ...env.meta, parity: report } }
+      return setVariable(env, 'parity', report)
     },
   })
 }

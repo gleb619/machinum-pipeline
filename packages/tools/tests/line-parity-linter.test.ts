@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -79,7 +80,7 @@ describe('parityFeedback (measured feedback for retry prompts, T138)', () => {
 
   it('LineParityError carries the measured feedback', async () => {
     const run = createLineParityLinter().invoke(
-      { item: { en: EN, ru: EN }, meta: {} },
+      { id: 'ex-test', variables: [], item: { en: EN, ru: EN }, meta: {} },
       {} as ToolContext,
     )
     await expect(run).rejects.toMatchObject({
@@ -92,22 +93,28 @@ describe('parityFeedback (measured feedback for retry prompts, T138)', () => {
 describe('lineParityLinter tool', () => {
   const ctx = {} as ToolContext
 
-  it('writes meta.parity for a good pair', async () => {
-    const out = await createLineParityLinter().invoke({ item: { en: EN, ru: RU }, meta: {} }, ctx)
-    expect((out.meta.parity as { ok: boolean }).ok).toBe(true)
+  it('writes the parity variable for a good pair', async () => {
+    const out = await createLineParityLinter().invoke(
+      { id: 'ex-test', variables: [], item: { en: EN, ru: RU }, meta: {} },
+      ctx,
+    )
+    expect(getVariable<{ ok: boolean }>(out, 'parity')?.ok).toBe(true)
   })
 
   it('throws a retryable LineParityError on hard errors', async () => {
-    const run = createLineParityLinter().invoke({ item: { en: EN, ru: 'Он' }, meta: {} }, ctx)
+    const run = createLineParityLinter().invoke(
+      { id: 'ex-test', variables: [], item: { en: EN, ru: 'Он' }, meta: {} },
+      ctx,
+    )
     await expect(run).rejects.toBeInstanceOf(LineParityError)
     await expect(run).rejects.toMatchObject({ retryable: true })
   })
 
   it('reports without throwing when throwOnError is false', async () => {
     const out = await createLineParityLinter({ throwOnError: false }).invoke(
-      { item: { en: EN, ru: 'Он' }, meta: {} },
+      { id: 'ex-test', variables: [], item: { en: EN, ru: 'Он' }, meta: {} },
       ctx,
     )
-    expect((out.meta.parity as { ok: boolean }).ok).toBe(false)
+    expect(getVariable<{ ok: boolean }>(out, 'parity')?.ok).toBe(false)
   })
 })

@@ -1,7 +1,7 @@
 import { md } from '@markschema/mdshape'
 import type { TypeMdIssue } from '@markschema/mdshape'
-import { defineComposableTool, defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { defineComposableTool, defineTool, getVariable, withItem } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
 import { mdOutputEmitter } from '../core/md-outputs.js'
@@ -279,22 +279,22 @@ function extractTitleFromInput(item: unknown, chapterNum: number): string {
   return `Chapter ${chapterNum}`
 }
 
-/** Slot `build`: envelope meta -> schema-doc markdown (pure, no mdOutputs). */
+/** Slot `build`: exchange variables -> schema-doc markdown (pure, no mdOutputs). */
 export const schemaDocBuild = defineTool<unknown, string>({
   name: 'schema-doc-build',
   version: '1.0.0',
   mdDescription: 'Builds schema-doc markdown from envelope metadata.',
-  async invoke(env: Envelope<unknown>, _ctx: ToolContext): Promise<Envelope<string>> {
+  async invoke(env: Exchange<unknown>, _ctx: ToolContext): Promise<Exchange<string>> {
     const meta = (env.meta || {}) as Record<string, unknown>
     const chapterNum = schemaDocChapterNum(meta)
-    const summary = (meta.summary as string) || ''
-    const entities = (meta.entities as { index: number; name: string }[]) || []
-    const vocabulary = (meta.vocabulary as string[]) || []
-    const schema = meta.schema as string | undefined
-    const wordCount = (meta.wordCount as number) || 0
-    const tokenCount = (meta.tokenCount as number) || 0
+    const summary = getVariable<string>(env, 'summary') || ''
+    const entities = getVariable<{ index: number; name: string }[]>(env, 'entities') || []
+    const vocabulary = getVariable<string[]>(env, 'vocabulary') || []
+    const schema = getVariable<string>(env, 'schema')
+    const wordCount = getVariable<number>(env, 'wordCount') || 0
+    const tokenCount = getVariable<number>(env, 'tokenCount') || 0
     const charLength =
-      (meta.charLength as number) || (typeof env.item === 'string' ? env.item.length : 0)
+      getVariable<number>(env, 'charLength') || (typeof env.item === 'string' ? env.item.length : 0)
 
     const doc: SchemaDocEnvelope = {
       title: extractTitleFromInput(env.item, chapterNum),
@@ -305,7 +305,7 @@ export const schemaDocBuild = defineTool<unknown, string>({
       schema,
     }
 
-    return { item: writeDoc(doc), meta: { ...env.meta } }
+    return withItem(env, writeDoc(doc))
   },
 })
 
@@ -313,7 +313,7 @@ function schemaDocChapterNum(meta: Record<string, unknown>): number {
   return (meta.chapterNum as number) || (meta.chapter as number) || 1
 }
 
-/** Slot `emit`: markdown -> `meta.mdOutputs` intent for `<target-root>/schema`. */
+/** Slot `emit`: markdown -> `mdOutputs` intent for `<target-root>/schema`. */
 export const schemaDocEmit = mdOutputEmitter({
   name: 'schema-doc',
   subdir: 'schema',
@@ -322,13 +322,13 @@ export const schemaDocEmit = mdOutputEmitter({
 })
 
 /**
- * Tool: builds a schema-doc markdown from meta and sets meta.mdOutputs for schema-doc writes.
+ * Tool: builds a schema-doc markdown from meta and sets the mdOutputs variable for schema-doc writes.
  * Slots: `build`, `emit`. Override with `schemaDocWriter.with({ emit: myTool })`.
  */
 export const schemaDocWriter = defineComposableTool<unknown, string, 'build' | 'emit'>({
   name: 'schema-doc-writer',
   version: '1.0.0',
   mdDescription:
-    'Builds schema-doc markdown from envelope metadata. Sets `meta.mdOutputs` for writes.',
+    'Builds schema-doc markdown from envelope metadata. Sets the `mdOutputs` variable for writes.',
   slots: { build: schemaDocBuild, emit: schemaDocEmit },
 })

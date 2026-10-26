@@ -189,8 +189,8 @@ function buildEmit(
  *
  * Sends untranslated entries from a {@link Glossary} to the LLM in batches, validates that the
  * returned ids match exactly, and merges the non-empty translations back into the original
- * glossary. Usage is recorded in `meta.llmUsage`; the result is also available in
- * `meta.statDict` when the caller places it there.
+ * glossary. Usage is recorded in the `llmUsage` variable; the result is also available in
+ * the `statDict` variable when the caller places it there.
  *
  * Composable slots: `prepare -> fit -> call -> parse -> emit`. Swap any part, e.g.
  * `gate.with({ call: mockLlmCall([...]) })` for tests.

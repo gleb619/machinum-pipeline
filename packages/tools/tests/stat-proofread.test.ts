@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -140,21 +141,24 @@ describe('proofreadFeedback', () => {
 })
 
 describe('createStatProofread tool', () => {
-  it('writes meta.proofread for clean text', async () => {
-    const out = await createStatProofread({ glossary }).invoke({ item: cleanRu, meta: {} }, ctx)
-    expect((out.meta.proofread as { ok: boolean }).ok).toBe(true)
+  it('writes the proofread variable for clean text', async () => {
+    const out = await createStatProofread({ glossary }).invoke(
+      { id: 'ex-test', variables: [], item: cleanRu, meta: {} },
+      ctx,
+    )
+    expect(getVariable<{ ok: boolean }>(out, 'proofread')?.ok).toBe(true)
     expect(out.item).toBe(cleanRu)
   })
 
   it('flags an injected inconsistency with exact issue', async () => {
     const out = await createStatProofread({ glossary }).invoke(
-      { item: inconsistentRu, meta: {} },
+      { id: 'ex-test', variables: [], item: inconsistentRu, meta: {} },
       ctx,
     )
-    const report = out.meta.proofread as {
+    const report = getVariable<{
       ok: boolean
       issues: Array<{ kind: string; term?: string }>
-    }
+    }>(out, 'proofread') as { ok: boolean; issues: Array<{ kind: string; term?: string }> }
     expect(report.ok).toBe(false)
     const termIssues = report.issues.filter((i) => i.kind === 'term-consistency')
     expect(termIssues).toHaveLength(2)
@@ -166,13 +170,13 @@ describe('createStatProofread tool', () => {
     const out = await createStatProofread({
       minCyrillicShare: 0.5,
       maxUntranslatedShare: 0.5,
-    }).invoke({ item: half, meta: {} }, ctx)
-    expect((out.meta.proofread as { ok: boolean }).ok).toBe(true)
+    }).invoke({ id: 'ex-test', variables: [], item: half, meta: {} }, ctx)
+    expect(getVariable<{ ok: boolean }>(out, 'proofread')?.ok).toBe(true)
   })
 
   it('throws a retryable StatProofreadError in fix:llm mode', async () => {
     const run = createStatProofread({ glossary, fix: 'llm' }).invoke(
-      { item: inconsistentRu, meta: {} },
+      { id: 'ex-test', variables: [], item: inconsistentRu, meta: {} },
       ctx,
     )
     await expect(run).rejects.toBeInstanceOf(StatProofreadError)
@@ -184,7 +188,7 @@ describe('createStatProofread tool', () => {
 
   it('does not mutate text by default', async () => {
     const out = await createStatProofread({ glossary }).invoke(
-      { item: inconsistentRu, meta: {} },
+      { id: 'ex-test', variables: [], item: inconsistentRu, meta: {} },
       ctx,
     )
     expect(out.item).toBe(inconsistentRu)

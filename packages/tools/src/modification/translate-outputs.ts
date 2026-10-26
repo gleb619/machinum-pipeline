@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { defineTool } from '@mt/core'
+import { defineTool, getVariable, withItem } from '@mt/core'
 import { appendMdOutput } from '../core/md-outputs.js'
 import type { LineParityInput } from '../verification/line-parity-linter.js'
 
@@ -26,7 +26,7 @@ function readTitles(path: string): Record<string, { en: string; ru: string }> {
 
 /**
  * Write intents for translated `{ en, ru }` pairs: `<ruDir>/chapter<N>.md` per chapter and the
- * merged `<titlesFile>`. Needs `meta.chapterNums` and `meta.titlesRu` (from
+ * merged `<titlesFile>`. Needs variables `chapterNums` and `titlesRu` (from
  * `createChapterBodyTranslator`). Item becomes `''`.
  */
 export function createTranslateOutputs(options: TranslateOutputsOptions) {
@@ -38,13 +38,13 @@ export function createTranslateOutputs(options: TranslateOutputsOptions) {
     mdDescription: `Emits ${ruDir}/chapter<N>.md and ${titlesFile}.`,
     async invoke(env) {
       const pairs = env.items ?? [env.item]
-      const nums = env.meta.chapterNums as number[]
-      const titlesRu = env.meta.titlesRu as string[]
+      const nums = getVariable<number[]>(env, 'chapterNums') ?? []
+      const titlesRu = getVariable<string[]>(env, 'titlesRu') ?? []
       const titles = readTitles(join(options.chaptersDir, titlesFile))
-      let meta: Record<string, unknown> = { ...env.meta }
+      let out = withItem(env, '')
       pairs.forEach((pair, i) => {
         const n = nums[i]
-        meta = appendMdOutput(meta, {
+        out = appendMdOutput(out, {
           name: ruDir,
           subdir: ruDir,
           filename: `chapter${n}.md`,
@@ -55,7 +55,7 @@ export function createTranslateOutputs(options: TranslateOutputsOptions) {
           ru: titlesRu[i] ?? '',
         }
       })
-      meta = appendMdOutput(meta, {
+      out = appendMdOutput(out, {
         name: 'titles',
         subdir: '',
         filename: titlesFile,
@@ -64,7 +64,7 @@ export function createTranslateOutputs(options: TranslateOutputsOptions) {
       if (options.log !== false) {
         console.log(`[translate] wrote ${pairs.length} chapter(s) [${nums.join(', ')}]`)
       }
-      return { item: '', meta }
+      return out
     },
   })
 }
