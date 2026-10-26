@@ -1,7 +1,7 @@
 {
   "name": "sample3",
   "version": "1.0.0",
-  "description": "Machinum Pipeline sample — basic markdown processing with fork, subflow, range:// and void://",
+  "description": "Machinum Pipeline sample \u2014 basic markdown processing with fork, subflow, range:// and void://",
   "type": "module",
   "scripts": {
     "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
@@ -9,10 +9,13 @@
     "runner:void": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline voidDemoPipeline",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf output.md jsonl/input.jsonl .mt",
+    "cleanup": "rm -rf output.md events.jsonl counts.jsonl jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "runner:events": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline eventsDemoPipeline",
+    "runner:replay": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline replayEventsPipeline",
+    "runner:count": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline countSidePipeline"
   },
   "dependencies": {
     "@mt/core": "workspace:*",

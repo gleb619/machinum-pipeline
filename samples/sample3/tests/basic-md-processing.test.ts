@@ -17,6 +17,8 @@ let hasFailure = false
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'output.md'), { force: true })
+  await rm(join(SAMPLE_DIR, 'events.jsonl'), { force: true })
+  await rm(join(SAMPLE_DIR, 'counts.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
 
@@ -88,5 +90,36 @@ describe('voidDemoPipeline', () => {
     run('voidDemoPipeline')
     // void:// discards all writes; output.md should be absent.
     await expect(readFile(join(SAMPLE_DIR, 'output.md'), 'utf-8')).rejects.toThrow()
+  })
+})
+
+describe('eventsDemoPipeline + replayEventsPipeline', () => {
+  it('captures lifecycle events to ./events.jsonl', () => {
+    run('eventsDemoPipeline')
+  })
+
+  it('writes ./events.jsonl containing step-done and done events', async () => {
+    const content = await readFile(join(SAMPLE_DIR, 'events.jsonl'), 'utf-8')
+    expect(content).toContain('"type":"step-done"')
+    expect(content).toContain('"type":"done"')
+  })
+
+  it('replays captured events through the events-file source', () => {
+    run('eventsDemoPipeline')
+    const stdout = run('replayEventsPipeline')
+    expect(stdout).toContain('[replay]')
+    expect(stdout).toContain('"type":"step-done"')
+  })
+})
+
+describe('countSidePipeline', () => {
+  it('counts all input lines in a non-blocking side branch', () => {
+    const stdout = run('countSidePipeline')
+    expect(stdout).toContain('[counter] side branch counted 3 lines')
+  })
+
+  it('writes the counted batch to ./counts.jsonl', async () => {
+    const content = await readFile(join(SAMPLE_DIR, 'counts.jsonl'), 'utf-8')
+    expect(content).toContain('"item":')
   })
 })
