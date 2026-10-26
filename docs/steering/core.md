@@ -26,7 +26,7 @@ Core interface shapes:
 ```typescript
 interface Envelope<T> { item: T; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown } }
 interface Source<T> { uri: string; lifestyle: Lifecycle; start(ctx): AsyncIterable<Envelope<T>>; resume?(ctx, cursor) }
-interface Target<T> { uri: string; open(ctx): Promise<void>; write(env, ctx): Promise<void>; close(ctx): Promise<void> }
+interface Target<T> { uri: string; open(ctx): Promise<void>; write(env, ctx): Promise<void>; close(ctx): Promise<void>; checkpoint?(ctx): Promise<number | undefined> }
 interface Tool<I, O> { name: string; version: string; mdDescription: string; invoke(env, ctx): Promise<Envelope<O>>; cacheable?; idempotent? }
 ```
 
@@ -132,6 +132,19 @@ and never thrown — a bad listener can never fail a run.
 
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
+
+### Mid-run persist and durable cursors (UC015/UC016)
+`persistState()` runs at start/pause/unpause/done/fail **and** mid-run: after every
+`runner.persist.every` target writes (mt.json, default 50) and at each target-step boundary.
+Mid-run persists are throttled through a single in-flight write plus a dirty flag
+(`schedulePersist`/`drainPersists`), so an older snapshot can never overwrite a newer one, and a
+failure is warn-logged, never thrown. Before serializing, `clampCursorsToCommitted()` clamps every
+open target's cursor node to `baseCursor + checkpoint()` — the envelopes that target has durably
+committed in its current open session. `Target.checkpoint?()` is optional: temp+rename targets
+(`jsonl://`, `md://`) deliberately omit it, so their mid-run cursor stays at the pre-run position
+and a crash resume replays from the start instead of skipping items whose output died in the temp
+file. Targets with true append semantics (e.g. HTTP sinks) implement it so resume skips exactly
+the committed prefix.
 
 ### Source cursor (`CheckpointNode.cursor`)
 Each pipeline level keeps its source position on its own checkpoint node (root for the

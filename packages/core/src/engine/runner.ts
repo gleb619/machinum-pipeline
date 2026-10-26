@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
+import { getSetting } from '../settings.js'
 import { Store } from '../store.js'
 import type {
   CheckpointNode,
@@ -14,6 +15,7 @@ import type {
   RunEvents,
   RunStateData,
   RunnerOptions,
+  Target,
   Tool,
 } from '../types.js'
 import { registry } from '../uri.js'
@@ -116,6 +118,22 @@ export class Runner {
   private readonly options: RunnerOptions
   private readonly eventListeners = new Set<RunEventListener>()
   /**
+   * Open targets tracked for durable-cursor clamping: the target plus the checkpoint
+   * node of its pipeline level and that node's cursor value when the target opened
+   * (envelopes written before this session are already covered by prior commits).
+   */
+  private readonly openTargets: Array<{
+    target: Target<unknown>
+    node: CheckpointNode
+    baseCursor: number
+  }> = []
+  /** Single in-flight mid-run persist; re-armed by the dirty flag while writes continue. */
+  private persistInFlight: Promise<void> | null = null
+  private persistDirty = false
+  private writesSincePersist = 0
+  /** Target writes between mid-run persists — `runner.persist.every` in mt.json, default 50. */
+  private readonly persistEvery: number
+  /**
    * Read-only subscription facade handed to source/target contexts — exposes `subscribe`
    * only, never the Runner itself.
    */
@@ -132,6 +150,8 @@ export class Runner {
     this.store = new Store(mtRoot)
     this.cache = new Cache(mtRoot)
     this.stateMachine = new RunStateMachine()
+    const every = getSetting<number>(globalContext.settings, 'runner', 'persist', 'every')
+    this.persistEvery = typeof every === 'number' && every > 0 ? Math.floor(every) : 50
   }
 
   /**
@@ -347,8 +367,9 @@ export class Runner {
           break
         }
         case 'target': {
-          await this.writeTarget(step, stepId, stream, runContext, recordCursor)
+          await this.writeTarget(step, stepId, stream, runContext, cursorNode, recordCursor)
           await this.emitEvent('step-done', stepId)
+          this.schedulePersist()
           break
         }
         case 'batch':
@@ -674,22 +695,40 @@ export class Runner {
     stepId: string,
     stream: EnvelopeStream | null,
     runContext: RunContext,
+    cursorNode: CheckpointNode,
     onEnvelopeWritten: () => void,
   ): Promise<void> {
     const rawUri = step.config.uri as string
     const uri = registry.expandAliases(rawUri, this.globalContext.settings)
     if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
-    const target = registry.resolveTarget(uri)
+    const target = registry.resolveTarget(uri) as Target<unknown>
     if (!stream) throw new Error('Target step requires a preceding stream or source step')
 
+    const entry = {
+      target,
+      node: cursorNode,
+      baseCursor: typeof cursorNode.cursor === 'number' ? cursorNode.cursor : 0,
+    }
+    this.openTargets.push(entry)
     await target.open({ run: runContext, events: this.eventsFacade })
     try {
       for await (const env of stream) {
         await target.write(env, { run: runContext, events: this.eventsFacade })
         onEnvelopeWritten()
+        // Mid-run persist (UC015/UC016): throttled to every `persistEvery` target writes.
+        if (++this.writesSincePersist >= this.persistEvery) {
+          this.writesSincePersist = 0
+          this.schedulePersist()
+        }
       }
     } finally {
+      // Close (commit) first, then untrack: a persist that runs any time after this
+      // point either still sees the open target and clamps to the committed count,
+      // or runs after the commit and may persist the full cursor — never a cursor
+      // ahead of durable output.
       await target.close({ run: runContext, events: this.eventsFacade })
+      const idx = this.openTargets.indexOf(entry)
+      if (idx >= 0) this.openTargets.splice(idx, 1)
     }
 
     // Check for auto-commit on close
@@ -735,6 +774,7 @@ export class Runner {
     const node = findNode(this.checkpoint, nodeId)
     if (node) markDone(node)
     await this.emitEvent('step-done', nodeId)
+    this.schedulePersist()
   }
 
   /**
@@ -829,6 +869,9 @@ export class Runner {
         yield env
       }
       await runner.emitEvent('step-done', stepId)
+      // No persist here: intermediate streams drain inside the target's write loop,
+      // before the target closes — a persist at this point would clamp the cursor
+      // to not-yet-committed output. The target step's step-done persist covers it.
     })()
   }
 
@@ -857,6 +900,8 @@ export class Runner {
   private async persistState(): Promise<void> {
     if (!this.runId) return
 
+    await this.clampCursorsToCommitted()
+
     const stateData: RunStateData = {
       runId: this.runId,
       pipelineId: this.pipeline.id,
@@ -873,6 +918,54 @@ export class Runner {
     await this.store.ensureDir('runs', this.runId, 'artifacts')
     await this.store.writeJson(stateData, 'runs', this.runId, 'state.json')
     await this.store.writeJson(this.runContext ?? {}, 'runs', this.runId, 'context.json')
+  }
+
+  /**
+   * Clamp every tracked source cursor to the output its target has durably committed
+   * (UC015/UC016): a persisted cursor ahead of durable target output would make a
+   * crash resume skip items whose output never reached disk. Targets without a
+   * `checkpoint()` hook commit nothing mid-run, so their cursors stay at the value
+   * they had when the target opened — resume replays from there, safely.
+   */
+  private async clampCursorsToCommitted(): Promise<void> {
+    const runContext = this.runContext
+    if (!runContext) return
+    for (const { target, node, baseCursor } of this.openTargets) {
+      let committed = 0
+      try {
+        committed = (await target.checkpoint?.({ run: runContext, events: this.eventsFacade })) ?? 0
+      } catch (error) {
+        this.logger().warn(`Target checkpoint() failed, cursor not advanced: ${error}`)
+        committed = 0
+      }
+      const safe = baseCursor + Math.max(0, committed)
+      if (typeof node.cursor === 'number' && node.cursor > safe) node.cursor = safe
+    }
+  }
+
+  /**
+   * Schedule a mid-run persist: a single in-flight `persistState()` at a time, with a
+   * dirty flag so a persist triggered while one is running is re-executed afterwards
+   * — an older snapshot can never overwrite a newer one.
+   */
+  private schedulePersist(): void {
+    this.persistDirty = true
+    if (this.persistInFlight) return
+    this.persistInFlight = this.drainPersists()
+  }
+
+  private async drainPersists(): Promise<void> {
+    try {
+      while (this.persistDirty) {
+        this.persistDirty = false
+        await this.persistState()
+      }
+    } catch (error) {
+      // Mid-run persistence is an optimisation over crash recovery — it must not fail the run.
+      this.logger().warn(`Mid-run persist failed: ${error}`)
+    } finally {
+      this.persistInFlight = null
+    }
   }
 
   /**

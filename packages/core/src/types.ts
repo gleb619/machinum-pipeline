@@ -40,6 +40,18 @@ export interface Target<T> {
   open(ctx: TargetContext): Promise<void>
   write(env: Envelope<T>, ctx: TargetContext): Promise<void>
   close(ctx: TargetContext): Promise<void>
+  /**
+   * Durably committed envelope count for the current open session (since `open()`),
+   * read by the Runner at mid-run persist time (UC015/UC016). The persisted source
+   * cursor is clamped to `baseCursor + checkpoint()`, so a resumed run never skips
+   * items whose output has not reached durable storage.
+   *
+   * Targets that buffer and publish atomically on `close()` (e.g. temp+rename file
+   * targets) must NOT implement this hook: without it the engine treats nothing as
+   * committed mid-run, so the cursor stays at its pre-run position and a crash
+   * resume replays safely instead of losing output.
+   */
+  checkpoint?(ctx: TargetContext): Promise<number | undefined>
 }
 
 /**

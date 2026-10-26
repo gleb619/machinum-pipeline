@@ -92,7 +92,7 @@ For full workspace layout, see [`structure.md`](steering/structure.md).
 
 ## 5. Key Runtime Concepts (Summary)
 
-- **Run lifecycle**: `pending → running → checkpoint → paused → resumed → done | failed`. Every state transition writes atomically to `.mt/runs/<runId>/state.json` (temp + rename).
+- **Run lifecycle**: `pending → running → checkpoint → paused → resumed → done | failed`. Every state transition writes atomically to `.mt/runs/<runId>/state.json` (temp + rename), plus mid-run: every `runner.persist.every` target writes (default 50) and at each target-step boundary, throttled via a single in-flight persist + dirty flag. The persisted source cursor is clamped to the target's durably committed count (`Target.checkpoint?()`), so a crash resume never skips items whose output has not reached durable storage; targets that only publish on `close()` (temp+rename) leave the cursor at the pre-run position and resume replays safely.
 - **Concurrency**: In-process only (`p-limit`-style limiter from URI/DSL/global); tools always run in-process via `tool.invoke()`; `.fork()` creates nested checkpoint subtrees; `.subflow()` is the lightweight in-process variant.
 - **Retry & error**: `RetryPolicy` (`fixed` | `linear` | `exp`); `ErrorPolicy` (`fail-run` | `skip-item` | `dead-letter`). Merge order: tool step > pipeline > global (`mt.json`). Dead-letter writes to `.mt/runs/<id>/dead-letter.jsonl`.
 - **Caching**: When `cacheable === true`, output is memoised by content hash at `.mt/cache/<hash>.json`. Replay short-circuits the tool; cache is never required for correctness.
@@ -137,8 +137,7 @@ other OpenAI-compatible server. Details: [steering/router.md](steering/router.md
 ```
 .mt/
 ├── runs/<runId>/
-│   ├── state.json             # state machine snapshot
-│   ├── checkpoint.json        # checkpoint tree (resume source of truth)
+│   ├── state.json             # state machine snapshot + checkpoint tree (resume source of truth)
 │   ├── context.json           # frozen run context
 │   ├── events.jsonl           # append-only event log (SSE source); also published to in-process ctx.events subscribers (file first, then listeners)
 │   ├── dead-letter.jsonl      # failed envelopes (when onError: 'dead-letter')
