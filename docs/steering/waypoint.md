@@ -145,6 +145,14 @@ per-envelope fan-out, and unsubscribes in the generator's `finally`.
 - Parses/serialises custom schema-doc format (YAML + CSV sections)
 - `parseSchemaDoc()` / `extractTextContent()` helpers
 
+### `chapter-output.ts`
+- Writes `<base-dir>/<lang>/chapter<num>.md` per envelope (lang optional → `<base-dir>/chapter<num>.md`)
+- Path-safety (mirrors the `md://` intent rules): `meta.lang` must match `/^[\p{L}\p{N}_-]+$/u`
+  (single segment — no separators, no `..`); `meta.chapterNum` (or legacy `chapter`) must be a
+  non-negative integer; the auto-increment fallback is always safe. Violations throw an error
+  naming the key, never silently rewrite. The final path is additionally asserted inside
+  `baseDir` via `relative()` (no `..` prefix) as defence in depth
+
 ### `settings.ts`
 - `getWaypointSetting(key)` — reads from `mt.json` waypoint section
 - `resolveWaypointPath(uri, scheme, settings)` — bare-filename `defaultFolder` rule for file-style
@@ -186,6 +194,7 @@ layouts. `md://<file>` single-file mode ignores `mdOutputs` entirely.
 packages/waypoint/tests/builtins/
 ├── jsonl.test.ts          # JSONL read/write, glob source
 ├── md.test.ts             # Markdown source/target
+├── chapter-output.test.ts # lang/chapterNum path-validation rejections + happy path
 ├── http-server.test.ts    # HTTP source (real Fastify server)
 ├── git-worktree.arch.test.ts
 └── settings.test.ts

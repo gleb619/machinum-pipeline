@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import type { Stats } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
-import { basename, extname, join } from 'node:path'
+import { basename, extname, isAbsolute, join, relative } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Envelope, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
@@ -22,11 +22,41 @@ import { resolveWaypointPath } from './settings.js'
  * Output path: <base-dir>/<lang>/chapter<num>.md
  * If lang is not provided, writes directly to <base-dir>/chapter<num>.md
  *
+ * Path-safety contract (mirrors md.ts T087): `meta` arrives uncast from
+ * sources/LLMs/flatMaps, so both keys are validated before any mkdir —
+ * violations throw a descriptive error naming the key, never silently
+ * rewritten:
+ *   - lang must be a single safe path segment: /^[\p{L}\p{N}_-]+$/u
+ *     (no separators, no '..', so it cannot escape <base-dir>)
+ *   - chapterNum (or legacy chapter) must be a non-negative integer;
+ *     the auto-increment fallback is always safe
+ * The final path is additionally asserted inside <base-dir> (no '..'
+ * prefix) as defence in depth.
+ *
  * Each chapter file is written atomically (temp → rename), so a crash never
  * leaves a half-written chapter behind.
  *
  * Template: chapters/{lang}/chapter{num}.md
  */
+
+const LANG_SEGMENT_RE = /^[\p{L}\p{N}_-]+$/u
+
+function assertSafeLang(lang: unknown): asserts lang is string | undefined {
+  if (lang === undefined || lang === null || lang === '') return
+  if (typeof lang !== 'string' || !LANG_SEGMENT_RE.test(lang)) {
+    throw new Error(
+      `chapter-output target: meta.lang must be a single safe path segment (letters, digits, '_' or '-'), got ${JSON.stringify(lang)}`,
+    )
+  }
+}
+
+function assertChapterNum(chapterNum: unknown): asserts chapterNum is number {
+  if (typeof chapterNum !== 'number' || !Number.isInteger(chapterNum) || chapterNum < 0) {
+    throw new Error(
+      `chapter-output target: meta.chapterNum must be a non-negative integer, got ${JSON.stringify(chapterNum)}`,
+    )
+  }
+}
 export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
   let chapterIndex = 0
   let baseDir = ''
@@ -40,8 +70,12 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
     },
     async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
       const meta = (env.meta || {}) as Record<string, unknown>
+      assertSafeLang(meta.lang)
       const lang = meta.lang as string | undefined
-      const chapterNum = (meta.chapterNum as number) ?? (meta.chapter as number) ?? ++chapterIndex
+      const explicitNum = meta.chapterNum ?? meta.chapter
+      const chapterNum =
+        explicitNum === undefined || explicitNum === null ? ++chapterIndex : (explicitNum as number)
+      assertChapterNum(chapterNum)
 
       const filename = `chapter${chapterNum}.md`
 
@@ -52,6 +86,10 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
       mkdirSync(dir, { recursive: true })
 
       const filePath = join(dir, filename)
+      const rel = relative(baseDir, filePath)
+      if (rel.startsWith('..') || isAbsolute(rel)) {
+        throw new Error(`chapter-output target: output path escapes the target root: '${rel}'`)
+      }
       const text = String(env.item)
       // Atomic: a crash mid-write leaves the previous chapter intact, never a truncated one.
       await atomicWriteFile(filePath, text)
