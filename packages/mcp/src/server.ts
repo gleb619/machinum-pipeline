@@ -31,73 +31,117 @@ function writeResponse(response: JsonRpcResponse): void {
   process.stdout.write(`${JSON.stringify(response)}\n`)
 }
 
-async function handleRequest(request: JsonRpcRequest): Promise<void> {
+async function handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> {
   const { id, method, params } = request
 
   try {
     switch (method) {
       case 'initialize':
-        writeResponse({
+        return {
           jsonrpc: '2.0',
           id,
           result: handleInitialize(),
-        })
-        break
+        }
 
       case 'tools/list':
-        writeResponse({
+        return {
           jsonrpc: '2.0',
           id,
           result: handleToolsList(),
-        })
-        break
+        }
 
       case 'tools/call':
-        writeResponse({
+        return {
           jsonrpc: '2.0',
           id,
           result: await handleToolsCall(
             params as { name: string; arguments: Record<string, unknown> },
           ),
-        })
-        break
+        }
 
       case 'resources/list':
-        writeResponse({
+        return {
           jsonrpc: '2.0',
           id,
           result: await handleResourcesList(projectRoot),
-        })
-        break
+        }
 
       case 'resources/read':
-        writeResponse({
+        return {
           jsonrpc: '2.0',
           id,
           result: await handleResourcesRead(params as { uri: string }),
-        })
-        break
+        }
+
+      case 'ping':
+        return {
+          jsonrpc: '2.0',
+          id,
+          result: {},
+        }
 
       default:
-        writeResponse({
+        return {
           jsonrpc: '2.0',
           id,
           error: {
             code: -32601,
             message: 'Method not found',
           },
-        })
+        }
     }
   } catch (error) {
-    writeResponse({
+    return {
       jsonrpc: '2.0',
       id,
       error: {
         code: -32603,
         message: error instanceof Error ? error.message : 'Internal error',
       },
-    })
+    }
   }
+}
+
+/**
+ * Handle one raw line of stdio input. Returns the JSON-RPC response to write,
+ * or `undefined` for notifications (requests without an `id` must not get a reply).
+ */
+export async function handleMessage(line: string): Promise<JsonRpcResponse | undefined> {
+  let request: JsonRpcRequest
+  try {
+    request = JSON.parse(line) as JsonRpcRequest
+  } catch {
+    return {
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32700,
+        message: 'Parse error',
+      },
+    }
+  }
+
+  if (
+    typeof request !== 'object' ||
+    request === null ||
+    request.jsonrpc !== '2.0' ||
+    typeof request.method !== 'string'
+  ) {
+    return {
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32600,
+        message: 'Invalid Request',
+      },
+    }
+  }
+
+  if (request.id === undefined) {
+    return undefined
+  }
+
+  return handleRequest(request)
 }
 
 export async function startMcpServer(): Promise<void> {
@@ -114,33 +158,10 @@ export async function startMcpServer(): Promise<void> {
       continue
     }
 
-    let request: JsonRpcRequest
-    try {
-      request = JSON.parse(line) as JsonRpcRequest
-      if (request.jsonrpc !== '2.0' || typeof request.method !== 'string') {
-        writeResponse({
-          jsonrpc: '2.0',
-          id: null,
-          error: {
-            code: -32700,
-            message: 'Parse error',
-          },
-        })
-        continue
-      }
-    } catch {
-      writeResponse({
-        jsonrpc: '2.0',
-        id: null,
-        error: {
-          code: -32700,
-          message: 'Parse error',
-        },
-      })
-      continue
+    const response = await handleMessage(line)
+    if (response !== undefined) {
+      writeResponse(response)
     }
-
-    await handleRequest(request)
   }
 }
 
