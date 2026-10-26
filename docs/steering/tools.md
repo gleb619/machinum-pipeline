@@ -34,7 +34,8 @@ prompt rendering, CSV/table parsers, mdshape round-trip check) and `schema/llm.t
 `src/generated/prompts.ts` by `scripts/gen-prompts.mjs` (wired into the package `build` / `typecheck` /
 `test` scripts), so prompt texts ship inside `dist` and the single-file `mt` CLI bundle with no runtime
 fs reads. `loadBundledPrompt(name)` / `listBundledPrompts()` expose them; `llm-prompts.ts` registers each
-one as a prompt-registry default (`summary.system`, `summary.user`), overridable like any other default.
+one as a prompt-registry default (`summary.system`, `summary.user`, `translate.system`, `translate.format.<mode>`,
+`translate.output.<mode>`, …), overridable like any other default.
 `tests/bundled-prompts.test.ts` keeps the generated module in sync with the md sources.
 
 **Loop guard:** a reply must be non-empty, parse as mdshape, and keep the section's required content (key
@@ -144,15 +145,25 @@ cardinality) is returned untouched.
 ### `translation-prompt.ts` / `line-parity-linter.ts`
 Building blocks of the sample4 translate stage (EN->RU, line by line).
 
-- `buildTranslationPrompt({ text, glossary, summary, extraRules })` — `{ systemPrompt, userPrompt, usedTerms,
-  untranslatedTerms, lockedTerms }`. Injects ONLY glossary entries whose `<term id>` occurs in `text` (`term = ru`);
-  terms with `ru: null` get a "transliterate consistently" block; **locked terms are always injected even when
-  their id does not occur in the text** (returned separately in `lockedTerms`), so fixed translations are rendered
-  exactly as the human decided. The chapter summary is added as context only. The system prompt ends with a rule
-  asking for a trailing `<terms>[...]</terms>` JSON block reporting source terms NOT in the glossary. `userPrompt` is
-  the text with `<term>` tags stripped. `cleanTranslation(reply)` drops `<think>` blocks, `<terms>` report blocks
-  and `<term>` tags; `parseReportedTerms(reply)` (zod-validated, never throws) parses the report into
-  `ReportedTerm[]` (invalid entries dropped, deduped case-insensitively); `termIdsIn(text)` lists tag ids.
+- `buildTranslationPrompt({ text, glossary, summary, extraRules, mode })` — `{ systemPrompt, userPrompt, usedTerms,
+  untranslatedTerms, lockedTerms }`. `mode` is the `TranslateWorkMode` (`'plain' | 'plan' | 'xml' | 'properties'`,
+  default `'plain'` = previous behaviour). The system prompt is composed from the bundled `translate.system`,
+  `translate.format.<mode>` and `translate.output.<mode>` templates (registered prompt-registry defaults;
+  `{{sourceLang}}`, `{{targetLang}}`, `{{text}}`, `{{glossaryBlock}}`, `{{summaryBlock}}`, `{{extraRules}}`,
+  `{{mode}}` vars), with the previous hand-built composition kept only as a fallback when a template is missing.
+  Injects ONLY glossary entries whose `<term id>` occurs in `text` (`term = ru`); terms with `ru: null` get a
+  "transliterate consistently" block; **locked terms are always injected even when their id does not occur in the
+  text** (returned separately in `lockedTerms`), so fixed translations are rendered exactly as the human decided.
+  The chapter summary is added as context only. The system prompt ends with a rule asking for a trailing
+  `<terms>[...]</terms>` JSON block reporting source terms NOT in the glossary. `userPrompt` is the text with
+  `<term>` tags stripped, wrapped per mode (`<context>` block; `xml` wraps each line as
+  `<result><id>N</id><origin>…</origin></result>`, `properties` as `N=text`). `cleanTranslation(reply)` drops
+  `<think>` blocks, `<terms>` report blocks and `<term>` tags; `parseReportedTerms(reply)` (zod-validated, never
+  throws) parses the report into `ReportedTerm[]` (invalid entries dropped, deduped case-insensitively);
+  `termIdsIn(text)` lists tag ids. `parseTranslationReply(reply, mode)` (in `translation-reply.ts`) parses a reply
+  per mode: `plan` extracts the `<plan>…</plan>` block separately; `xml`/`properties` extract and sort by numeric
+  id/key, requiring contiguous 1..N — missing/duplicate ids/keys throw a retryable `TranslationReplyParseError`
+  (same retry contract as `LineParityError`).
 - `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,
   cyrillicSeverity })` — `{ en, ru }` item in/out, `meta.parity` = `{ ok, enLines, ruLines, errors, warnings,
   cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,
@@ -160,6 +171,12 @@ Building blocks of the sample4 translate stage (EN->RU, line by line).
   `LineParityError` (`retryable: true`) so the engine retry kicks in; after the last attempt the run fails with the
   message. `LineParityError.feedback` / `parityFeedback(report)` = measured feedback for retry-prompt injection
   (line counts + delta, Cyrillic ratio, hard-error messages; T138). Standalone check without `mt`: `samples/sample4/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
+- `lintPromptTemplate(name, text, { allowedVars })` (pure) / `lintTranslatePromptSet(templates)` (pure) — prompt
+  template linter (issue objects, never throws): `placeholder-syntax` (unbalanced `{{`/`}}`, invalid names, triple
+  braces), `single-brace-var` (ST-style `{text}` leftovers; ignored inside code fences), `unknown-var` (against
+  `allowedVars`), `empty-template`. `lintTranslatePromptSet` guards the full `translate.*` prompt set used by
+  `buildTranslationPrompt` (all 4 modes have non-empty format/output blocks; `translate.system` renders with the
+  builder var set). Exercised by `tests/prompt-linter.test.ts` (not called at runtime).
 
 ### Sample-stage tools (moved from `samples/sample4`, T129)
 Reusable glue so sample pipelines only compose package tools (no bespoke `defineTool`).
@@ -178,10 +195,12 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
 - `modification/analyze-outputs.ts` — `analyzeOutputs` / `createAnalyzeOutputs({ summaryDir, taggedDir, glossaryFile })`:
   `meta.mdOutputs` for `schema/chapter<N>.summary.md`, `en-tagged/chapter<N>.md`, `glossary.json`.
 - `normalization/translation-stage.ts` — `onlyChapters()` (`MT_ONLY_CHAPTERS`), `translateConcurrency()`
-  (`MT_TRANSLATE_CONCURRENCY`), `chaptersToTitleInputs`, `createGlossaryTitleTranslator({ call, chaptersDir })` (slot for
-  `createTitleTranslator`), `createChapterBodyTranslator({ call, chaptersDir })` (per-line translate with glossary +
-  summary injection and retry memo), `translateTaggedChapter`, `titleOf`. `chaptersDir` holds `glossary.json` and
-  `schema/chapter<N>.summary.md`.
+  (`MT_TRANSLATE_CONCURRENCY`), `chaptersToTitleInputs`, `createGlossaryTitleTranslator({ call, chaptersDir, mode })` (slot for
+  `createTitleTranslator`), `createChapterBodyTranslator({ call, chaptersDir, mode })` (per-line translate with glossary +
+  summary injection and retry memo; `mode` selects the `TranslateWorkMode`, default `'plain'` = unchanged behaviour),
+  `translateTaggedChapter`, `titleOf`. Non-plain replies are parsed with `parseTranslationReply` (retryable parse
+  error on missing/duplicate ids/keys); the line-parity check compares against the source line. `chaptersDir` holds
+  `glossary.json` and `schema/chapter<N>.summary.md`.
 - `verification/chapter-pairs-linter.ts` — `chapterPairsLinter`: `lineParityLinter` over each `{ en, ru }` pair,
   `meta.parityByChapter`.
 - `modification/translate-outputs.ts` — `createTranslateOutputs({ chaptersDir })`: `ru/chapter<N>.md` + merged `titles.json`.

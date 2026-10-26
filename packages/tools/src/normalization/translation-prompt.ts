@@ -1,6 +1,24 @@
 import { z } from 'zod'
+import { getDefaultPrompt, renderTemplate } from '../core/llm-prompts.js'
 import { type Glossary, type GlossaryTerm, stripTerms } from './term-tagger.js'
 import type { GlossaryTermType } from './term-tagger.js'
+
+/**
+ * Work mode of a translation unit:
+ * - `plain` — raw translated text, 1 line in → 1 line out (default, backward compatible).
+ * - `plan` — the model first outputs a short `<plan>…</plan>` block, then the plain translation.
+ * - `xml` — input lines wrapped as `<result><id>N</id><origin>…</origin></result>`, the model replies with
+ *   `<result><id>N</id><translated>…</translated></result>` blocks.
+ * - `properties` — input lines wrapped as `N=text`, the model replies with `N=translation` lines.
+ */
+export type TranslateWorkMode = 'plain' | 'plan' | 'xml' | 'properties'
+
+export const TRANSLATE_WORK_MODES: readonly TranslateWorkMode[] = [
+  'plain',
+  'plan',
+  'xml',
+  'properties',
+]
 
 export interface TranslationPromptInput {
   /** EN text of the unit to translate; may carry `<term id="..">..</term>` tags. */
@@ -12,6 +30,12 @@ export interface TranslationPromptInput {
   targetLang?: string
   /** Extra rules appended to the rule list (e.g. title-specific hints). */
   extraRules?: string[]
+  /**
+   * Work mode of the unit. Default `'plain'` (current behaviour). The bundled prompt templates
+   * `translate.system` / `translate.format.<mode>` / `translate.output.<mode>` are rendered and
+   * composed; the hand-built composition is kept only as a fallback when a template is missing.
+   */
+  mode?: TranslateWorkMode
 }
 
 export interface TranslationPrompt {
@@ -92,16 +116,140 @@ export function termIdsIn(text: string): string[] {
 }
 
 /**
+ * `{{var}}` placeholders the bundled translate.* templates may use. {@link buildTranslationPrompt}
+ * renders every block with this full var set, so a block only needs the vars it actually uses.
+ */
+export const TRANSLATE_TEMPLATE_VARS = [
+  'sourceLang',
+  'targetLang',
+  'text',
+  'glossaryBlock',
+  'summaryBlock',
+  'extraRules',
+] as const
+
+/** `{{var}}` names accepted by the translate.* templates: the builder vars plus `{{mode}}`. */
+export const TRANSLATE_ALLOWED_TEMPLATE_VARS: readonly string[] = [
+  ...TRANSLATE_TEMPLATE_VARS,
+  'mode',
+]
+
+function translateTemplateVars(
+  mode: TranslateWorkMode,
+  input: TranslationPromptInput,
+  from: string,
+  to: string,
+  glossaryBlock: string,
+  summaryBlock: string,
+): Record<string, string> {
+  return {
+    sourceLang: from,
+    targetLang: to,
+    text: input.text,
+    glossaryBlock,
+    summaryBlock,
+    extraRules: (input.extraRules ?? []).map((r) => `- ${r}`).join('\n'),
+    mode,
+  }
+}
+
+function renderTranslateTemplate(name: string, vars: Record<string, string>): string | undefined {
+  const template = getDefaultPrompt(name)?.template
+  if (template === undefined) return undefined
+  return renderTemplate(template, vars, name).trim()
+}
+
+/** Wraps the unit text per work mode for the user prompt. */
+export function wrapTranslationInput(text: string, mode: TranslateWorkMode): string {
+  if (mode === 'xml') {
+    const body = text
+      .split('\n')
+      .map((line, i) => `<result><id>${i + 1}</id><origin>${line}</origin></result>`)
+      .join('\n')
+    return `<context>\n${body}\n</context>`
+  }
+  if (mode === 'properties') {
+    const body = text
+      .split('\n')
+      .map((line, i) => `${i + 1}=${line}`)
+      .join('\n')
+    return `<context>\n${body}\n</context>`
+  }
+  return `<context>\n${text}\n</context>`
+}
+
+/**
  * Builds the system + user prompt for translating one unit (line/paragraph). Only the glossary
  * entries whose `<term id>` appears in the unit are injected; terms with `ru: null` are listed
  * separately with a transliterate-consistently instruction.
  *
  * Locked terms are ALWAYS injected — even when their `<term id>` does not occur in the unit —
  * so the model renders fixed translations (names, terms) exactly as decided by the human.
+ *
+ * The system prompt is composed from the bundled `translate.system`, `translate.format.<mode>` and
+ * `translate.output.<mode>` templates (registered defaults, overridable via the prompt registry);
+ * the previous hand-built composition is kept only as a fallback when a template is missing.
  */
 export function buildTranslationPrompt(input: TranslationPromptInput): TranslationPrompt {
   const from = input.sourceLang ?? 'English'
   const to = input.targetLang ?? 'Russian'
+  const mode = input.mode ?? 'plain'
+  const byId = new Map(input.glossary.terms.map((t) => [t.id, t]))
+  const usedTerms = termIdsIn(input.text)
+    .map((id) => byId.get(id))
+    .filter((t): t is GlossaryTerm => t !== undefined)
+  const known = usedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
+  const untranslatedTerms = usedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
+  const usedIds = new Set(usedTerms.map((t) => t.id))
+  const lockedTerms = input.glossary.terms.filter((t) => t.locked === true && !usedIds.has(t.id))
+  const lockedKnown = lockedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
+  const lockedUntranslated = lockedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
+
+  const glossaryParts: string[] = []
+  if (known.length > 0 || lockedKnown.length > 0) {
+    glossaryParts.push(
+      'Glossary (translate these terms exactly as given, never alter them):',
+      ...known.map((t) => `${t.term} = ${t.ru}`),
+      ...lockedKnown.map((t) => `${t.term} = ${t.ru}`),
+    )
+  }
+  if (untranslatedTerms.length > 0 || lockedUntranslated.length > 0) {
+    glossaryParts.push(
+      `No ${to} translation yet for these terms: transliterate them consistently, the same way every time:`,
+      ...untranslatedTerms.map((t) => t.term),
+      ...lockedUntranslated.map((t) => t.term),
+    )
+  }
+  const glossaryBlock = glossaryParts.join('\n')
+  const summaryBlock = input.summary?.trim()
+    ? `Chapter summary (context only, do not translate or repeat it):\n${input.summary.trim()}`
+    : ''
+
+  const vars = translateTemplateVars(mode, input, from, to, glossaryBlock, summaryBlock)
+  const systemParts = [
+    renderTranslateTemplate('translate.system', vars),
+    renderTranslateTemplate(`translate.format.${mode}`, vars),
+    renderTranslateTemplate(`translate.output.${mode}`, vars),
+  ].filter((p): p is string => p !== undefined && p !== '')
+  const systemPrompt =
+    systemParts.length === 3
+      ? systemParts.join('\n\n')
+      : buildHandBuiltSystemPrompt(input, from, to)
+  return {
+    systemPrompt,
+    userPrompt: wrapTranslationInput(stripTerms(input.text), mode),
+    usedTerms,
+    untranslatedTerms,
+    lockedTerms,
+  }
+}
+
+/** Previous hand-built system prompt; used only when a bundled translate.* template is missing. */
+function buildHandBuiltSystemPrompt(
+  input: TranslationPromptInput,
+  from: string,
+  to: string,
+): string {
   const byId = new Map(input.glossary.terms.map((t) => [t.id, t]))
   const usedTerms = termIdsIn(input.text)
     .map((id) => byId.get(id))
@@ -148,13 +296,7 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
       input.summary.trim(),
     )
   }
-  return {
-    systemPrompt: parts.join('\n'),
-    userPrompt: stripTerms(input.text),
-    usedTerms,
-    untranslatedTerms,
-    lockedTerms,
-  }
+  return parts.join('\n')
 }
 
 /** Removes reasoning blocks, `<terms>` report blocks and `<term>` tags from a model reply. */

@@ -12,7 +12,14 @@ import {
   resolvePromptTemplate,
 } from '../src/core/llm-prompts.js'
 
-const vars = { text: 'hello', targetLang: 'ru', sourceLang: 'en' }
+const vars = {
+  text: 'hello',
+  targetLang: 'ru',
+  sourceLang: 'en',
+  glossaryBlock: '',
+  summaryBlock: '',
+  extraRules: '',
+}
 
 describe('renderTemplate', () => {
   it('interpolates {{var}} with whitespace tolerance and objects', () => {
@@ -82,5 +89,6 @@ describe('resolvePrompt override chain', () => {
   })
   it('built-in translate defaults render', () => {
     expect(resolvePrompt('translate.system', vars, {}, {})).toContain('from en to ru')
+    expect(resolvePrompt('translate.user', vars, {}, {})).toBe('hello')
   })
 })

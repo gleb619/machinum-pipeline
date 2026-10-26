@@ -9,7 +9,10 @@ import { chapterNumberOf, parseGlossary } from './glossary-extractor.js'
 import type { SchemaDocLlmCall } from './schema/llm.js'
 import { stripTerms, tagTerms } from './term-tagger.js'
 import type { Glossary } from './term-tagger.js'
+import type { TranslateWorkMode } from './translation-prompt.js'
 import { buildTranslationPrompt, cleanTranslation, joinReplyLines } from './translation-prompt.js'
+import { TranslationReplyParseError } from './translation-reply.js'
+import { parseTranslationReply } from './translation-reply.js'
 
 // Building blocks of the EN->RU chapter translate stage (titles + line by line body).
 // Layout convention under `chaptersDir`: `glossary.json`, `schema/chapter<N>.summary.md`.
@@ -52,12 +55,18 @@ export async function loadChapterSummary(chaptersDir: string, n: number): Promis
   }
 }
 
-/** One LLM call for a (system, user) prompt pair; returns the cleaned reply. */
+/**
+ * One LLM call for a (system, user) prompt pair. `mode: 'plain'` (default) returns the cleaned
+ * reply as before; other modes parse the structured reply (plan/xml/properties) and join the
+ * translated lines with `\n`; a reply with missing/duplicate ids/keys throws a retryable
+ * {@link TranslationReplyParseError}.
+ */
 async function ask(
   call: SchemaDocLlmCall,
   system: string,
   user: string,
   ctx: ToolContext,
+  mode: TranslateWorkMode = 'plain',
 ): Promise<string> {
   const res = await call(
     {
@@ -68,7 +77,8 @@ async function ask(
     },
     ctx,
   )
-  return cleanTranslation(res.content)
+  if (mode === 'plain') return cleanTranslation(res.content)
+  return parseTranslationReply(res.content, mode).lines.join('\n')
 }
 
 export const TITLE_RULES = [
@@ -82,6 +92,8 @@ export interface GlossaryTitleTranslatorOptions {
   chaptersDir: string
   /** Extra prompt rules. Default: {@link TITLE_RULES}. */
   rules?: string[]
+  /** Work mode of the translation prompt. Default: `'plain'` (backward compatible). */
+  mode?: TranslateWorkMode
 }
 
 /**
@@ -93,8 +105,9 @@ export function createGlossaryTitleTranslator(
 ): Tool<TranslateInput, TranslateOutput> {
   return defineTool<TranslateInput, TranslateOutput>({
     name: 'glossary-title-translate',
-    version: '1.0.0',
-    mdDescription: 'Translates a chapter title through the picked LLM with glossary hints.',
+    version: '1.1.0',
+    mdDescription:
+      'Translates a chapter title through the picked LLM with glossary hints (optional work mode).',
     async invoke(env, ctx) {
       const title = env.item.text
       const glossary = await loadGlossaryOrEmpty(options.chaptersDir)
@@ -102,8 +115,9 @@ export function createGlossaryTitleTranslator(
         text: tagTerms(title, glossary),
         glossary,
         extraRules: options.rules ?? TITLE_RULES,
+        mode: options.mode,
       })
-      const ru = await ask(options.call, prompt.systemPrompt, prompt.userPrompt, ctx)
+      const ru = await ask(options.call, prompt.systemPrompt, prompt.userPrompt, ctx, options.mode)
       const verdict = lintLineParity(title, ru, { cyrillicSeverity: 'error' })
       if (!verdict.ok) throw new LineParityError(verdict)
       return { item: { translatedText: ru }, meta: env.meta }
@@ -146,6 +160,8 @@ export interface TranslateLinesOptions {
   ask: (system: string, user: string) => Promise<string>
   /** Per-line memo of replies that already passed the line check (retry skips them). */
   memo?: Map<string, string>
+  /** Work mode of the translation prompt. Default: `'plain'` (backward compatible). */
+  mode?: TranslateWorkMode
 }
 
 async function* lines<T>(xs: readonly T[]): AsyncIterable<T> {
@@ -185,13 +201,17 @@ export async function translateTaggedChapter(
       text: job.text,
       glossary: opts.glossary,
       summary: opts.summary,
+      mode: opts.mode,
     })
     const key = JSON.stringify([prompt.systemPrompt, prompt.userPrompt])
     const hit = opts.memo?.get(key)
     if (hit !== undefined) return { index: job.index, ru: hit }
-    // the model sometimes splits a long line: join it back (empty/bracket/other faults still fail)
-    const ru = joinReplyLines(await opts.ask(prompt.systemPrompt, prompt.userPrompt))
-    const verdict = lintLineParity(prompt.userPrompt, ru, { cyrillicSeverity: 'warn' })
+    // plain mode: the model sometimes splits a long line: join it back (empty/bracket/other
+    // faults still fail); other modes already return exactly one line per input line
+    const reply = await opts.ask(prompt.systemPrompt, prompt.userPrompt)
+    const ru = opts.mode === undefined || opts.mode === 'plain' ? joinReplyLines(reply) : reply
+    // parity is checked against the source line, not the (mode-wrapped) user prompt
+    const verdict = lintLineParity(stripTerms(job.text), ru, { cyrillicSeverity: 'warn' })
     if (!verdict.ok) throw new LineParityError(verdict, `chapter line ${job.index + 1}`)
     opts.memo?.set(key, ru)
     return { index: job.index, ru }
@@ -208,6 +228,8 @@ export interface ChapterBodyTranslatorOptions {
   concurrency?: number
   /** Log per-chapter timing. Default: true. */
   log?: boolean
+  /** Work mode of the translation prompt. Default: `'plain'` (backward compatible). */
+  mode?: TranslateWorkMode
 }
 
 /**
@@ -220,8 +242,9 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
   const memo = new Map<string, string>() // survives engine retries of this step
   return defineTool<{ text: string }, LineParityInput>({
     name: 'chapter-body-translator',
-    version: '1.0.0',
-    mdDescription: 'Translates each tagged chapter line by line (glossary + summary injection).',
+    version: '1.1.0',
+    mdDescription:
+      'Translates each tagged chapter line by line (glossary + summary injection, optional work mode).',
     async invoke(env, ctx) {
       const chapters = (env.meta.chapters as string[]) ?? []
       // titleTranslator's assemble slot returns a batch as `item: [...]` (no `items`)
@@ -240,7 +263,8 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
           titleRu: titles[i] ?? '',
           concurrency,
           memo,
-          ask: (system, user) => ask(options.call, system, user, ctx),
+          mode: options.mode,
+          ask: (system, user) => ask(options.call, system, user, ctx, options.mode),
         })
         if (options.log !== false) console.log(`[translate] chapter ${n}: ${Date.now() - t0} ms`)
         pairs.push({ en: stripTerms(tagged), ru })

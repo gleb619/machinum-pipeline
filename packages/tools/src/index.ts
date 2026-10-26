@@ -275,10 +275,20 @@ export {
   joinReplyLines,
   termIdsIn,
   parseReportedTerms,
+  wrapTranslationInput,
+  TRANSLATE_TEMPLATE_VARS,
+  TRANSLATE_ALLOWED_TEMPLATE_VARS,
+  TRANSLATE_WORK_MODES,
   type ReportedTerm,
+  type TranslateWorkMode,
   type TranslationPrompt,
   type TranslationPromptInput,
 } from './normalization/translation-prompt.js'
+export {
+  parseTranslationReply,
+  TranslationReplyParseError,
+  type ParsedTranslation,
+} from './normalization/translation-reply.js'
 export {
   lineParityLinter,
   createLineParityLinter,
@@ -293,6 +303,12 @@ export {
   type LineParityLinterOptions,
   type LineParityReport,
 } from './verification/line-parity-linter.js'
+export {
+  lintPromptTemplate,
+  lintTranslatePromptSet,
+  type PromptIssue,
+  type PromptLintOptions,
+} from './verification/prompt-linter.js'
 export {
   statProofread,
   createStatProofread,

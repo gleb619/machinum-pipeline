@@ -63,6 +63,10 @@ export function translateNormalize(targetLangDefault?: string) {
         text: i.text,
         targetLang,
         sourceLang: i.sourceLang ?? 'the source language',
+        // the bundled translate.system template composes these optional blocks
+        glossaryBlock: '',
+        summaryBlock: '',
+        extraRules: '',
       },
       model: i.model,
     }
