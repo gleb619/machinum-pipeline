@@ -1,4 +1,4 @@
-import type { Envelope, ParsedUri } from '@mt/core'
+import type { ExchangeInput, ParsedUri } from '@mt/core'
 import type { Source, SourceContext } from '@mt/core'
 import { registry } from '@mt/core'
 import { resumeFrom } from './resume.js'
@@ -39,19 +39,19 @@ export function createRangeSource(uri: ParsedUri): Source<number> {
 
   const direction = start <= end ? 1 : -1
 
-  const generate = async function* (): AsyncIterable<Envelope<number>> {
+  const generate = async function* (): AsyncIterable<ExchangeInput<number>> {
     for (let n = start; direction > 0 ? n <= end : n >= end; n += direction * step) {
-      yield { item: n, meta: {} }
+      yield { id: `range:${n}`, item: n, meta: {} }
     }
   }
 
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(_ctx: SourceContext): AsyncIterable<Envelope<number>> {
+    async *start(_ctx: SourceContext): AsyncIterable<ExchangeInput<number>> {
       yield* generate()
     },
-    async *resume(_ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<number>> {
+    async *resume(_ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<number>> {
       yield* resumeFrom(generate, cursor)
     },
   }

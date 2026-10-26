@@ -1,8 +1,8 @@
 import { type IncomingMessage, type Server, type ServerResponse, createServer } from 'node:http'
 import type { SourceContext } from '@mt/core'
-import type { Envelope, RunEvent, Source } from '@mt/core'
+import type { Exchange, ExchangeInput, RunEvent, Source } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { newExchangeId, registry } from '@mt/core'
 
 /**
  * Built-in HTTP Source — long-lived HTTP server that receives envelopes via POST.
@@ -64,10 +64,10 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
     uri: uri.raw,
     lifestyle: 'long-lived',
 
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
       // Producer-consumer pattern: buffer + waiting resolvers
-      const buffer: Envelope<T>[] = []
-      const waiting: ((value: Envelope<T>) => void)[] = []
+      const buffer: Exchange<T>[] = []
+      const waiting: ((value: Exchange<T>) => void)[] = []
       // Read-only fan-out of delivered envelopes to /events subscribers
       const subscribers = new Set<ServerResponse>()
 
@@ -88,13 +88,13 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
         }
       }
 
-      const deliverEnvelope = (envelope: Envelope<T>): void => {
+      const deliverEnvelope = (envelope: Exchange<T>): void => {
         // Mirror to subscribers before handing over to the pipeline — a failed
         // socket must never break ingest.
         sendToSubscribers(`data: ${JSON.stringify(envelope)}\n\n`)
 
         if (waiting.length > 0) {
-          const resolver = waiting.shift() as (value: Envelope<T>) => void
+          const resolver = waiting.shift() as (value: Exchange<T>) => void
           resolver(envelope)
         } else {
           buffer.push(envelope)
@@ -182,9 +182,11 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
 
           try {
             const parsedBody = JSON.parse(body) as T
-            const envelope: Envelope<T> = {
+            const envelope: Exchange<T> = {
+              id: newExchangeId('http-'),
               item: parsedBody,
               meta: {},
+              variables: [],
             }
 
             receivedCount++
@@ -228,13 +230,13 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
         // Yield envelopes as they arrive
         while (true) {
           // Wait for an envelope to be available
-          const envelope = await new Promise<Envelope<T>>((resolve) => {
+          const envelope = await new Promise<Exchange<T>>((resolve) => {
             // If buffer has items, take from there
             if (buffer.length > 0) {
-              resolve(buffer.shift() as Envelope<T>)
+              resolve(buffer.shift() as Exchange<T>)
             } else {
               // Otherwise wait for a producer to deliver
-              waiting.push(resolve as (value: Envelope<T>) => void)
+              waiting.push(resolve as (value: Exchange<T>) => void)
             }
           })
 

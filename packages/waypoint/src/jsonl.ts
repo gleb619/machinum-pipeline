@@ -2,9 +2,9 @@
 import { createReadStream, globSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
-import type { Envelope, Source, Target } from '@mt/core'
+import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { AtomicStreamWriter, registry } from '@mt/core'
+import { AtomicStreamWriter, mergeVariables, registry } from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
 
 /**
@@ -34,7 +34,12 @@ function isGlobPattern(path: string): boolean {
  * Parse one JSONL line into an Envelope. Malformed JSON or a missing `item`
  * throws with the `file:line` location of the offending physical line.
  */
-function parseEnvelopeLine<T>(text: string, filePath: string, lineNumber: number): Envelope<T> {
+function parseEnvelopeLine<T>(
+  text: string,
+  filePath: string,
+  lineNumber: number,
+  lineIndex: number,
+): Exchange<T> {
   let parsed: unknown
   try {
     parsed = JSON.parse(text)
@@ -51,16 +56,30 @@ function parseEnvelopeLine<T>(text: string, filePath: string, lineNumber: number
       `${filePath}:${lineNumber}: invalid envelope — expected a JSON object with an "item" property`,
     )
   }
-  const { item, meta } = parsed as { item: T; meta?: unknown }
+  const { item, meta, id, variables } = parsed as {
+    item: T
+    meta?: unknown
+    id?: unknown
+    variables?: unknown
+  }
   if (meta !== undefined && (typeof meta !== 'object' || meta === null || Array.isArray(meta))) {
     throw new Error(`${filePath}:${lineNumber}: invalid envelope — "meta" must be an object`)
   }
-  return { item, meta: (meta as Envelope<T>['meta']) ?? {} }
+  if (variables !== undefined && !Array.isArray(variables)) {
+    throw new Error(`${filePath}:${lineNumber}: invalid envelope — "variables" must be an array`)
+  }
+  return {
+    // Stable id: explicit `id` in the line, else file position (survives resume replays).
+    id: typeof id === 'string' && id ? id : `${filePath}#${lineIndex}`,
+    item,
+    meta: (meta as Exchange<T>['meta']) ?? {},
+    variables: (variables as Exchange<T>['variables']) ?? [],
+  }
 }
 
 /** One envelope read from a JSONL file. */
 interface FileLine<T> {
-  envelope: Envelope<T>
+  envelope: Exchange<T>
   /** Envelope index among non-blank lines (0-based) — the value used in cursors. */
   lineIndex: number
 }
@@ -85,7 +104,7 @@ async function* readLines<T>(filePath: string, startLine: number): AsyncGenerato
       lineIndex++
       continue
     }
-    yield { envelope: parseEnvelopeLine<T>(trimmed, filePath, lineNumber), lineIndex }
+    yield { envelope: parseEnvelopeLine<T>(trimmed, filePath, lineNumber, lineIndex), lineIndex }
     lineIndex++
   }
 }
@@ -104,7 +123,7 @@ async function* readFiles<T>(files: string[], firstLine: number): AsyncGenerator
   }
 }
 
-function* yieldBatch<T>(batch: Envelope<T>[], batchSize: number): Generator<Envelope<T>> {
+function* yieldBatch<T>(batch: Exchange<T>[], batchSize: number): Generator<Exchange<T>> {
   if (batch.length === 0) return
   if (batchSize === 1) {
     for (const env of batch) {
@@ -114,9 +133,11 @@ function* yieldBatch<T>(batch: Envelope<T>[], batchSize: number): Generator<Enve
     const first = batch[0]
     if (!first) return
     yield {
+      id: `batch:${first.id}`,
       item: first.item,
       items: batch.map((e) => e.item),
       meta: first.meta ?? {},
+      variables: mergeVariables(batch),
     }
   }
 }
@@ -127,8 +148,8 @@ function* yieldBatch<T>(batch: Envelope<T>[], batchSize: number): Generator<Enve
 async function* yieldBatched<T>(
   lines: AsyncIterable<FileLine<T>>,
   batchSize: number,
-): AsyncGenerator<Envelope<T>> {
-  let batch: Envelope<T>[] = []
+): AsyncGenerator<Exchange<T>> {
+  let batch: Exchange<T>[] = []
   for await (const { envelope } of lines) {
     batch.push(envelope)
     if (batch.length >= batchSize) {
@@ -166,7 +187,7 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
       const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
       if (isGlobPattern(filePath)) {
         yield* yieldBatched(readFiles<T>(resolveGlobFiles(filePath), 0), batchSize)
@@ -174,7 +195,7 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
         yield* yieldBatched(readLines<T>(filePath, 0), batchSize)
       }
     },
-    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
       const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
       if (isGlobPattern(filePath)) {
         let startFileIndex = 0
@@ -220,7 +241,7 @@ export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
       const filePath = resolveWaypointPath(uri, 'jsonl', ctx.run.global.settings)
       writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
     },
-    async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       if (!writer) {
         throw new Error('Target not opened. Call open() before write().')
       }

@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
-import type { Envelope, Source, Target } from '@mt/core'
+import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { atomicWriteFile, registry } from '@mt/core'
 import matter from 'gray-matter'
@@ -43,7 +43,7 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
       baseDir = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
       mkdirSync(baseDir, { recursive: true })
     },
-    async write(env: Envelope<string>, _ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<string>, _ctx: TargetContext): Promise<void> {
       const meta = (env.meta || {}) as Record<string, unknown>
       const chapterNum = (meta.chapterNum as number) || 0
       const summary = (meta.summary as string) || ''
@@ -135,20 +135,23 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
 export function createSchemaDocSource(uri: ParsedUri): Source<SchemaDocEnvelope> {
   const readEnvelope = async function* (
     ctx: SourceContext,
-  ): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+  ): AsyncIterable<ExchangeInput<SchemaDocEnvelope>> {
     const filePath = resolveWaypointPath(uri, 'schema-doc', ctx.run.global.settings)
     const text = await readFile(filePath, 'utf-8')
     const doc = parseSchemaDoc(text)
-    yield { item: doc, meta: {} }
+    yield { id: `schema-doc:${filePath}`, item: doc, meta: {} }
   }
 
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+    async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<SchemaDocEnvelope>> {
       yield* readEnvelope(ctx)
     },
-    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<SchemaDocEnvelope>> {
+    async *resume(
+      ctx: SourceContext,
+      cursor: unknown,
+    ): AsyncIterable<ExchangeInput<SchemaDocEnvelope>> {
       yield* resumeFrom(() => readEnvelope(ctx), cursor)
     },
   }

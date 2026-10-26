@@ -1,5 +1,5 @@
 import type { ParsedUri } from '@mt/core'
-import type { Envelope, Target, TargetContext } from '@mt/core'
+import type { Exchange, Target, TargetContext } from '@mt/core'
 import { registry } from '@mt/core'
 
 /**
@@ -17,7 +17,7 @@ export function createVoidTarget<T>(uri: ParsedUri): Target<T> {
     async open(_ctx: TargetContext): Promise<void> {
       // No-op
     },
-    async write(_env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+    async write(_env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       // No-op: discard the envelope
     },
     async close(_ctx: TargetContext): Promise<void> {

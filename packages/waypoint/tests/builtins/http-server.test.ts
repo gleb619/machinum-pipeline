@@ -248,7 +248,7 @@ describe('http-server — /events fan-out', () => {
       method: 'POST',
       body: JSON.stringify({ id: 1 }),
     })
-    expect((await first).value).toEqual({ item: { id: 1 }, meta: {} })
+    expect((await first).value).toMatchObject({ item: { id: 1 }, meta: {}, variables: [] })
 
     // Consumer is not reading now, so these two land in the pipeline buffer
     for (const id of [2, 3]) {
@@ -304,12 +304,14 @@ describe('http-server — /events fan-out', () => {
     })
     await vi.waitFor(
       () => {
-        expect(sse.body).toContain('data: {"item":{"id":42},"meta":{}}\n\n')
+        expect(sse.body).toMatch(
+          /data: \{"id":"http-\d+","item":\{"id":42\},"meta":\{\},"variables":\[\]\}\n\n/,
+        )
       },
       { timeout: 3000, interval: 20 },
     )
 
-    expect((await first).value).toEqual({ item: { id: 42 }, meta: {} })
+    expect((await first).value).toMatchObject({ item: { id: 42 }, meta: {}, variables: [] })
 
     await sse.cancel()
     await iterator.return?.()

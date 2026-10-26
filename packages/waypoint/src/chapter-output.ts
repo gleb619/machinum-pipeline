@@ -3,7 +3,7 @@ import type { Stats } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, relative } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
-import type { Envelope, Source, Target } from '@mt/core'
+import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { atomicWriteFile, registry } from '@mt/core'
 import { resumeFrom } from './resume.js'
@@ -68,7 +68,7 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
       baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
       mkdirSync(baseDir, { recursive: true })
     },
-    async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       const meta = (env.meta || {}) as Record<string, unknown>
       assertSafeLang(meta.lang)
       const lang = meta.lang as string | undefined
@@ -109,11 +109,12 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
  *   - chapterNum: parsed from filename
  *   - filePath: full path to the chapter file
  */
-async function* readChapterEnvelopes<T>(baseDir: string): AsyncIterable<Envelope<T>> {
+async function* readChapterEnvelopes<T>(baseDir: string): AsyncIterable<ExchangeInput<T>> {
   const files = await discoverChapterFiles(baseDir)
   for (const file of files) {
     const content = await readFile(file.path, 'utf-8')
     yield {
+      id: `chapter-output:${file.path}`,
       item: content as T,
       meta: {
         chapterNum: file.chapterNum,
@@ -128,11 +129,11 @@ export function createChapterOutputSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
       const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
       yield* readChapterEnvelopes(baseDir)
     },
-    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
       const baseDir = resolveWaypointPath(uri, 'chapter-output', ctx.run.global.settings)
       yield* resumeFrom(() => readChapterEnvelopes(baseDir), cursor)
     },

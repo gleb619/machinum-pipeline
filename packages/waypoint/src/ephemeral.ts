@@ -1,5 +1,5 @@
 import type { SourceContext, TargetContext } from '@mt/core'
-import type { Envelope, Source, Target } from '@mt/core'
+import type { Exchange, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { registry } from '@mt/core'
 import { resumeFrom } from './resume.js'
@@ -8,7 +8,7 @@ import { resumeFrom } from './resume.js'
  * Module-level in-memory buffer shared between ephemeral sources and targets.
  * Keyed by buffer name (derived from the URI path).
  */
-const buffers = new Map<string, Envelope[]>()
+const buffers = new Map<string, Exchange[]>()
 
 /**
  * Read all envelopes from a named ephemeral buffer.
@@ -22,11 +22,11 @@ const buffers = new Map<string, Envelope[]>()
 export function createEphemeralSource<T>(uri: ParsedUri): Source<T> {
   const bufferName = uri.path || uri.host
 
-  const readEnvelopes = async function* (): AsyncIterable<Envelope<T>> {
+  const readEnvelopes = async function* (): AsyncIterable<Exchange<T>> {
     const batch = buffers.get(bufferName)
     if (batch && batch.length > 0) {
       for (const env of batch) {
-        yield env as Envelope<T>
+        yield env as Exchange<T>
       }
     }
   }
@@ -34,10 +34,10 @@ export function createEphemeralSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(_ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(_ctx: SourceContext): AsyncIterable<Exchange<T>> {
       yield* readEnvelopes()
     },
-    async *resume(_ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(_ctx: SourceContext, cursor: unknown): AsyncIterable<Exchange<T>> {
       yield* resumeFrom(readEnvelopes, cursor)
     },
   }
@@ -61,7 +61,7 @@ export function createEphemeralTarget<T>(uri: ParsedUri): Target<T> {
     async open(_ctx: TargetContext): Promise<void> {
       buffers.set(bufferName, [])
     },
-    async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       const batch = buffers.get(bufferName)
       if (!batch) {
         buffers.set(bufferName, [env])

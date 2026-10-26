@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
-import type { Envelope, MdOutputEntry, Source, Target } from '@mt/core'
+import type { Exchange, ExchangeInput, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { AtomicStreamWriter, atomicWriteFile, registry } from '@mt/core'
 import { resumeFrom } from './resume.js'
@@ -55,16 +55,16 @@ async function discoverMarkdownFiles(dir: string): Promise<string[]> {
   return files.sort()
 }
 
-async function* readMdEnvelopes<T>(filePath: string): AsyncIterable<Envelope<T>> {
+async function* readMdEnvelopes<T>(filePath: string): AsyncIterable<ExchangeInput<T>> {
   const stats = await stat(filePath)
   if (stats.isFile()) {
     const content = await readFile(filePath, 'utf-8')
-    yield { item: content as T, meta: { filePath } }
+    yield { id: `md:${filePath}`, item: content as T, meta: { filePath } }
   } else {
     const files = await discoverMarkdownFiles(filePath)
     for (const f of files) {
       const content = await readFile(f, 'utf-8')
-      yield { item: content as T, meta: { filePath: f } }
+      yield { id: `md:${f}`, item: content as T, meta: { filePath: f } }
     }
   }
 }
@@ -73,11 +73,11 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
       const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
       yield* readMdEnvelopes(filePath)
     },
-    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+    async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
       const filePath = resolveWaypointPath(uri, 'md', ctx.run.global.settings)
       yield* resumeFrom(() => readMdEnvelopes(filePath), cursor)
     },
@@ -112,7 +112,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
         writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
       }
     },
-    async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       if (!filePath) {
         throw new Error('Target not opened. Call open() before write().')
       }

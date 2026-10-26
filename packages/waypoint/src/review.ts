@@ -1,5 +1,5 @@
 import type { ParsedUri } from '@mt/core'
-import type { Envelope, Target, TargetContext } from '@mt/core'
+import type { Exchange, Target, TargetContext } from '@mt/core'
 import { atomicWriteFile, registry } from '@mt/core'
 import { resolveWaypointRoot } from './settings.js'
 
@@ -32,7 +32,7 @@ function isGlossary(value: unknown): value is ReviewGlossary {
 }
 
 /** Extracts a glossary from an envelope: `meta.glossary`, else a JSON-string `item`, else an object `item`. */
-function glossaryOf<T>(env: Envelope<T>): ReviewGlossary | undefined {
+function glossaryOf<T>(env: Exchange<T>): ReviewGlossary | undefined {
   const fromMeta = (env.meta as Record<string, unknown> | undefined)?.glossary
   if (isGlossary(fromMeta)) return fromMeta
   if (typeof env.item === 'string') {
@@ -122,7 +122,7 @@ export function createReviewTarget<T>(uri: ParsedUri): Target<T> {
       filePath = resolveWaypointRoot(uri, 'review', ctx.run.global.settings, projectRoot)
       pending = null
     },
-    async write(env: Envelope<T>, _ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       if (!filePath) {
         throw new Error('Target not opened. Call open() before write().')
       }

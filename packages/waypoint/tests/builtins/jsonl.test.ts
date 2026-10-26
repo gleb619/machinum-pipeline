@@ -81,6 +81,32 @@ describe('jsonl', () => {
     expect(results[0].item).toBe('test')
   })
 
+  it('stamps stable ids and keeps explicit id/variables from the line', async () => {
+    vi.mocked(fs.createReadStream).mockReturnValue(
+      new Readable() as unknown as ReturnType<typeof fs.createReadStream>,
+    )
+    const variables = [
+      { id: 'v1', name: 'k', qualifier: 'new', value: 1, timestamp: 't', ephemeral: false },
+    ]
+    const rlMock = {
+      [Symbol.asyncIterator]: async function* () {
+        yield JSON.stringify({ item: 'a' })
+        yield JSON.stringify({ id: 'custom', item: 'b', variables })
+      },
+    }
+    vi.mocked(readline.createInterface).mockReturnValue(
+      rlMock as unknown as ReturnType<typeof readline.createInterface>,
+    )
+    const uri: ParsedUri = { raw: 'jsonl://t.jsonl', host: 't.jsonl', path: 't.jsonl', query: {} }
+    const ctx = { run: { global: { settings: {} } } } as SourceContext
+    const out = []
+    for await (const env of createJsonlSource(uri).start(ctx)) out.push(env)
+    expect(out[0]?.id).toBe('t.jsonl#0')
+    expect(out[0]?.variables).toEqual([])
+    expect(out[1]?.id).toBe('custom')
+    expect(out[1]?.variables).toEqual(variables)
+  })
+
   it('applies defaultFolder setting to bare filename', async () => {
     const mockReadStream = new Readable()
     vi.mocked(fs.createReadStream).mockReturnValue(
