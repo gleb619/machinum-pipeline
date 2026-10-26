@@ -1,7 +1,7 @@
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { exField } from './fields.js'
-import type { RuGrammar } from './ru-grammar.js'
+import type { RuGender, RuGrammar } from './ru-grammar.js'
 
 /** Kind of glossary entry (best-effort guess; humans may edit it). */
 export type GlossaryTermType = 'character' | 'place' | 'item' | 'skill' | 'term'
@@ -10,6 +10,20 @@ export type GlossaryTermType = 'character' | 'place' | 'item' | 'skill' | 'term'
 export interface GlossaryChapter {
   chapter: number
   text: string
+}
+
+/** One point on a term's chapter timeline: `value` applies from `chapter` onward. */
+export interface TermTimelineEntry<V> {
+  chapter: number
+  value: V
+}
+
+/** Verbatim source evidence backing a gender flip (chapter number + exact EN quote). */
+export interface GenderEvidence {
+  /** Chapter the quote is taken from. */
+  chapter: number
+  /** Exact quote from the chapter source text (verbatim, no translation). */
+  quote: string
 }
 
 /** One glossary entry. `ru` and `aliases` are meant to be filled/edited by a human. */
@@ -41,6 +55,18 @@ export interface GlossaryTerm {
   locked?: boolean
   /** Optional Russian morphology metadata (gender, declension, inflection endings). */
   ruGrammar?: RuGrammar
+  /**
+   * RU translation corrections effective from `chapter` onward (re-translation fixes).
+   * The base `ru` applies before the first entry; the latest entry at or below the
+   * translated chapter wins. Chapters must be ascending.
+   */
+  ruTimeline?: TermTimelineEntry<string>[]
+  /**
+   * Gender flips effective from `chapter` onward. Each flip MUST carry verbatim
+   * source {@link GenderEvidence}. The base `ruGrammar.gender` applies before the
+   * first entry. Chapters must be ascending.
+   */
+  genderTimeline?: Array<TermTimelineEntry<RuGender> & { evidence: GenderEvidence }>
 }
 
 /** `chapters/glossary.json` shape. */

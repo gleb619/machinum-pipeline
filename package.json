@@ -11,7 +11,7 @@
     "typecheck": "turbo typecheck",
     "build:bin": "turbo build --filter=mt && pnpm --filter=mt run build:bin",
     "smoke:bin": "pnpm build:bin && pnpm --filter=mt run smoke:bin -- --no-build",
-    "test": "turbo test && pnpm -C samples/sample0 run test && pnpm -C samples/sample1 run test && pnpm -C samples/sample2 run test && pnpm -C samples/sample3 run test 00260026 pnpm -C samples/sample4 run test",
+    "test": "turbo test && pnpm -C samples/sample0 run test && pnpm -C samples/sample1 run test && pnpm -C samples/sample2 run test && pnpm -C samples/sample3 run test && pnpm -C samples/sample4 run test",
     "test:gpu": "pnpm --filter=@mt/tools run test:gpu",
     "clean": "turbo clean"
   },

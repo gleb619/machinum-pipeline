@@ -264,10 +264,12 @@ export {
   countTerms,
   compileTermMatcher,
   mapProse,
+  type GenderEvidence,
   type Glossary,
   type GlossaryTerm,
   type GlossaryTermType,
   type TermMatcher,
+  type TermTimelineEntry,
 } from './normalization/term-tagger.js'
 export {
   buildTranslationPrompt,
@@ -289,6 +291,17 @@ export {
   TranslationReplyParseError,
   type ParsedTranslation,
 } from './normalization/translation-reply.js'
+export {
+  resolveTermAtChapter,
+  resolveGlossaryAtChapter,
+  genderFlipsAt,
+  validateTimeline,
+  verifyEvidenceQuotes,
+  type GenderFlipEntry,
+  type ResolvedTermState,
+  type TimelineIssue,
+  type TimelineIssueCode,
+} from './normalization/term-timeline.js'
 export {
   lineParityLinter,
   createLineParityLinter,

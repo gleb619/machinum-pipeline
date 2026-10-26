@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { getDefaultPrompt, renderTemplate } from '../core/llm-prompts.js'
 import { type Glossary, type GlossaryTerm, stripTerms } from './term-tagger.js'
 import type { GlossaryTermType } from './term-tagger.js'
+import { genderFlipsAt, resolveGlossaryAtChapter } from './term-timeline.js'
+import type { GenderFlipEntry } from './term-timeline.js'
 
 /**
  * Work mode of a translation unit:
@@ -30,6 +32,13 @@ export interface TranslationPromptInput {
    * composed; the hand-built composition is kept only as a fallback when a template is missing.
    */
   mode?: TranslateWorkMode
+  /**
+   * Chapter number of the unit being translated. When set, glossary term state
+   * (ru/gender timelines, firstChapter) is resolved at this chapter: later corrections
+   * and not-yet-introduced terms stay out of the prompt; active gender flips are
+   * announced with their verbatim source evidence.
+   */
+  chapter?: number
 }
 
 export interface TranslationPrompt {
@@ -175,6 +184,41 @@ export function wrapTranslationInput(text: string, mode: TranslateWorkMode): str
 }
 
 /**
+ * Resolves the glossary (and active gender flips) at `input.chapter`, when set: term state
+ * (ru/gender timelines, firstChapter) is frozen at that chapter for the prompt.
+ */
+function resolveGlossaryAndFlips(input: TranslationPromptInput): {
+  glossary: Glossary
+  flips: Map<string, GenderFlipEntry>
+} {
+  const chapter = input.chapter
+  return {
+    glossary:
+      chapter === undefined ? input.glossary : resolveGlossaryAtChapter(input.glossary, chapter),
+    flips:
+      chapter === undefined
+        ? new Map<string, GenderFlipEntry>()
+        : genderFlipsAt(input.glossary, chapter),
+  }
+}
+
+/** Gender-flip announcement lines for the prompt (empty when no active flip among `terms`). */
+function flipNoteLines(terms: GlossaryTerm[], flips: Map<string, GenderFlipEntry>): string[] {
+  return terms
+    .map((t) => {
+      const flip = flips.get(t.id)
+      if (!flip) return null
+      const genderWord =
+        flip.value === 'm' ? 'masculine' : flip.value === 'f' ? 'feminine' : 'neuter'
+      const quote = flip.evidence?.quote
+        ? `, revealed in chapter ${flip.evidence.chapter}: "${flip.evidence.quote}"`
+        : ''
+      return `- ${t.term} is ${genderWord} from chapter ${flip.chapter}${quote}; inflect pronouns and adjectives accordingly.`
+    })
+    .filter((l): l is string => l !== null)
+}
+
+/**
  * Builds the system + user prompt for translating one unit (line/paragraph). Only the glossary
  * entries whose `<term id>` appears in the unit are injected; terms with `ru: null` are listed
  * separately with a transliterate-consistently instruction.
@@ -190,14 +234,15 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
   const from = input.sourceLang ?? 'English'
   const to = input.targetLang ?? 'Russian'
   const mode = input.mode ?? 'plain'
-  const byId = new Map(input.glossary.terms.map((t) => [t.id, t]))
+  const { glossary, flips } = resolveGlossaryAndFlips(input)
+  const byId = new Map(glossary.terms.map((t) => [t.id, t]))
   const usedTerms = termIdsIn(input.text)
     .map((id) => byId.get(id))
     .filter((t): t is GlossaryTerm => t !== undefined)
   const known = usedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
   const untranslatedTerms = usedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
   const usedIds = new Set(usedTerms.map((t) => t.id))
-  const lockedTerms = input.glossary.terms.filter((t) => t.locked === true && !usedIds.has(t.id))
+  const lockedTerms = glossary.terms.filter((t) => t.locked === true && !usedIds.has(t.id))
   const lockedKnown = lockedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
   const lockedUntranslated = lockedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
 
@@ -215,6 +260,10 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
       ...untranslatedTerms.map((t) => t.term),
       ...lockedUntranslated.map((t) => t.term),
     )
+  }
+  const flipNotes = flipNoteLines([...known, ...lockedKnown], flips)
+  if (flipNotes.length > 0) {
+    glossaryParts.push('Gender notes for this chapter:', ...flipNotes)
   }
   const glossaryBlock = glossaryParts.join('\n')
   const summaryBlock = input.summary?.trim()
@@ -246,14 +295,15 @@ function buildHandBuiltSystemPrompt(
   from: string,
   to: string,
 ): string {
-  const byId = new Map(input.glossary.terms.map((t) => [t.id, t]))
+  const { glossary, flips } = resolveGlossaryAndFlips(input)
+  const byId = new Map(glossary.terms.map((t) => [t.id, t]))
   const usedTerms = termIdsIn(input.text)
     .map((id) => byId.get(id))
     .filter((t): t is GlossaryTerm => t !== undefined)
   const known = usedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
   const untranslatedTerms = usedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
   const usedIds = new Set(usedTerms.map((t) => t.id))
-  const lockedTerms = input.glossary.terms.filter((t) => t.locked === true && !usedIds.has(t.id))
+  const lockedTerms = glossary.terms.filter((t) => t.locked === true && !usedIds.has(t.id))
   const lockedKnown = lockedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
   const lockedUntranslated = lockedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
 
@@ -279,6 +329,10 @@ function buildHandBuiltSystemPrompt(
       ...untranslatedTerms.map((t) => t.term),
       ...lockedUntranslated.map((t) => t.term),
     )
+  }
+  const flipNotes = flipNoteLines([...known, ...lockedKnown], flips)
+  if (flipNotes.length > 0) {
+    parts.push('Gender notes for this chapter:', ...flipNotes)
   }
   parts.push(
     'After the translated lines, append exactly one <terms>[...]</terms> block: a JSON array of ' +

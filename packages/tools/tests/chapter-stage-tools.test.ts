@@ -211,6 +211,50 @@ describe('translation stage', () => {
     ).rejects.toThrow()
   })
 
+  it('translateTaggedChapter: passes the chapter so term timelines resolve at it', async () => {
+    const systems: string[] = []
+    const glossary = {
+      terms: [
+        {
+          id: 'arin',
+          term: 'Arin',
+          type: 'character' as const,
+          count: 2,
+          firstChapter: 1,
+          ru: 'Арин',
+          aliases: [],
+          ruTimeline: [{ chapter: 2, value: 'Арина' }],
+        },
+      ],
+    }
+    const src = '# Chapter 2\n\n<term id="arin">Arin</term> left.'
+    await translateTaggedChapter(src, {
+      glossary,
+      summary: '',
+      chapter: 1,
+      titleRu: 'Глава 2',
+      concurrency: 1,
+      ask: async (s) => {
+        systems.push(s)
+        return 'Ушёл'
+      },
+    })
+    expect(systems.some((s) => s.includes('Arin = Арин'))).toBe(true)
+    expect(systems.some((s) => s.includes('Arin = Арина'))).toBe(false)
+    await translateTaggedChapter(src, {
+      glossary,
+      summary: '',
+      chapter: 2,
+      titleRu: 'Глава 2',
+      concurrency: 1,
+      ask: async (s) => {
+        systems.push(s)
+        return 'Ушёл'
+      },
+    })
+    expect(systems.some((s) => s.includes('Arin = Арина'))).toBe(true)
+  })
+
   it('body translator + title translator + pairs linter work together', async () => {
     const dir = chaptersDir()
     const call = reply('Привет')

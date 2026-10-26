@@ -109,6 +109,13 @@ offline by default and uses an LLM backend when one is given.
 - `termTagger` / `tagTerms(text, glossary)` — wraps occurrences as `<term id="ID">text</term>` (longest match
   first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
   `taggedItems` variable (item untouched). `stripTerms(tagged)` restores the original text exactly.
+- `term-timeline.ts` (T141) — per-chapter term state for re-translation: `GlossaryTerm.ruTimeline` /
+  `genderTimeline` hold `{chapter, value}` overrides effective from `chapter` onward (gender flips MUST carry
+  verbatim `GenderEvidence`). `resolveTermAtChapter` / `resolveGlossaryAtChapter` / `genderFlipsAt` apply the
+  timelines (terms with `firstChapter` after the chapter are "not yet introduced"), `validateTimeline` reports
+  unsorted timelines / missing-or-empty evidence, `verifyEvidenceQuotes` checks each quote occurs verbatim in
+  its chapter source. `buildTranslationPrompt({ chapter })` resolves the glossary at that chapter and announces
+  active gender flips with their evidence quote; `translateTaggedChapter` passes the chapter through.
 - `glossary-llm.ts` — the LLM stages of the extractor: `extractGlossaryWithLlm` (the `glossary.system` /
   `glossary.user` prompts), `relateTermWithLlm` (the `glossary-relations.*` prompts), `enrichTermWithLlm` (the
   `glossary-enrich.*` prompts); `mapCategory` maps a model category to a glossary type, `parseGlossaryEntries` /

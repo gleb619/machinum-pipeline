@@ -135,6 +135,73 @@ describe('buildTranslationPrompt with locked terms', () => {
   })
 })
 
+describe('buildTranslationPrompt with chapter resolution', () => {
+  const timelineGlossary: Glossary = {
+    terms: [
+      {
+        id: 'arin',
+        term: 'Arin',
+        type: 'character',
+        count: 5,
+        firstChapter: 1,
+        ru: 'Арин',
+        aliases: [],
+        ruGrammar: { gender: 'm', declension: 2, endings: {} as never },
+        ruTimeline: [{ chapter: 5, value: 'Арина' }],
+        genderTimeline: [
+          { chapter: 8, value: 'f', evidence: { chapter: 8, quote: 'she took off her helmet' } },
+        ],
+      },
+      {
+        id: 'mira',
+        term: 'Mira',
+        type: 'character',
+        count: 2,
+        firstChapter: 10,
+        ru: 'Мира',
+        aliases: [],
+      },
+    ],
+  }
+  const tagged =
+    '<term id="arin">Arin</term> smiled, then <term id="mira">Mira</term> entered the room.'
+
+  it('resolves ruTimeline at the chapter: old ru before, new ru from the entry', () => {
+    const before = buildTranslationPrompt({ text: tagged, glossary: timelineGlossary, chapter: 4 })
+    expect(before.systemPrompt).toContain('Arin = Арин')
+    expect(before.systemPrompt).not.toContain('Арина')
+    const after = buildTranslationPrompt({ text: tagged, glossary: timelineGlossary, chapter: 6 })
+    expect(after.systemPrompt).toContain('Arin = Арина')
+    expect(after.systemPrompt).not.toContain('Arin = Арин\n')
+  })
+
+  it('excludes terms not yet introduced at the chapter', () => {
+    const p = buildTranslationPrompt({ text: tagged, glossary: timelineGlossary, chapter: 6 })
+    expect(p.usedTerms.map((t) => t.id)).toEqual(['arin'])
+    expect(p.systemPrompt).not.toContain('Mira = Мира')
+    const later = buildTranslationPrompt({ text: tagged, glossary: timelineGlossary, chapter: 10 })
+    expect(later.usedTerms.map((t) => t.id)).toEqual(['arin', 'mira'])
+    expect(later.systemPrompt).toContain('Mira = Мира')
+  })
+
+  it('announces active gender flips with verbatim evidence, silent before the flip', () => {
+    const before = buildTranslationPrompt({ text: tagged, glossary: timelineGlossary, chapter: 7 })
+    expect(before.systemPrompt).not.toContain('Gender notes')
+    const at = buildTranslationPrompt({ text: tagged, glossary: timelineGlossary, chapter: 8 })
+    expect(at.systemPrompt).toContain('Gender notes for this chapter:')
+    expect(at.systemPrompt).toContain(
+      '- Arin is feminine from chapter 8, revealed in chapter 8: "she took off her helmet"; inflect pronouns and adjectives accordingly.',
+    )
+  })
+
+  it('behaves like before when no chapter is given', () => {
+    const p = buildTranslationPrompt({ text: tagged, glossary: timelineGlossary })
+    expect(p.systemPrompt).toContain('Arin = Арин')
+    expect(p.systemPrompt).toContain('Mira = Мира')
+    expect(p.systemPrompt).not.toContain('Gender notes')
+  })
+})
+
 describe('cleanTranslation', () => {
   it('removes think blocks and term tags', () => {
     expect(cleanTranslation('<think>hm\nhm</think>\n<term id="a">Арин</term> пришёл. ')).toBe(

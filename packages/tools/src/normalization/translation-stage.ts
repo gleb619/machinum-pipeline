@@ -155,6 +155,8 @@ export function titleOf(text: string): string {
 export interface TranslateLinesOptions {
   glossary: Glossary
   summary: string
+  /** Chapter number of `tagged`: term state (ru/gender timelines) resolves at this chapter. */
+  chapter?: number
   /** Translated `# ` heading text (without the `# `). */
   titleRu: string
   concurrency: number
@@ -204,6 +206,7 @@ export async function translateTaggedChapter(
       glossary: opts.glossary,
       summary: opts.summary,
       mode: opts.mode,
+      chapter: opts.chapter,
     })
     const key = JSON.stringify([prompt.systemPrompt, prompt.userPrompt])
     const hit = opts.memo?.get(key)
@@ -262,6 +265,7 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
         const ru = await translateTaggedChapter(tagged, {
           glossary,
           summary: await loadChapterSummary(options.chaptersDir, n),
+          chapter: n,
           titleRu: titles[i] ?? '',
           concurrency,
           memo,
