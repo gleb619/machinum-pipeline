@@ -707,3 +707,11 @@ export {
   type RuGrammarReport,
   type RuGrammarToolOptions,
 } from './normalization/ru-grammar.js'
+
+export {
+  installStubs,
+  stubTranslator,
+  stubSchemaEmit,
+  stubTitleTranslateSlot,
+  stubParagraphTranslateSlot,
+} from './stubs/index.js'

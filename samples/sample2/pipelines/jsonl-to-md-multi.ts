@@ -16,12 +16,17 @@ import {
   createSummaryTool,
   createTitleTranslator,
   forbiddenCharDetector,
+  installStubs,
   markdownFormatter,
   mdFormatter,
   mdOutputEmitter,
   paragraphTranslator,
   pickLlmTool,
   schemaDocWriter,
+  stubParagraphTranslateSlot,
+  stubSchemaEmit,
+  stubTitleTranslateSlot,
+  stubTranslator,
   titleTranslator,
   toMarkdown,
   tokenCounter,
@@ -61,22 +66,6 @@ const paragraphs = createParagraphTranslator({ translate: llm.translate })
 // Tools never name these roots: they emit write intents (subdir + filename) and
 // the md:// target resolves them under whichever root the URI points at.
 
-// === Stub translation tool (in-memory, no API call) ===
-const stubTranslator = defineTool<string, string>({
-  name: 'stub-translator',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => {
-    const text = env.item as string
-    // Simple stub: wrap paragraphs in [ru]...[/ru] markers
-    const translated = text
-      .split('\n\n')
-      .map((p) => `[ru]${p}[/ru]`)
-      .join('\n\n')
-    return { ...env, item: translated, meta: { ...env.meta, translated: true, lang: 'ru' } }
-  },
-})
-
 // === Flow 1: JSONL → Verified MD ===
 const verifyFlow = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
@@ -99,6 +88,11 @@ const translateFlow = definePipeline()
   .use(chapterIndexer)
   .use(stubTranslator)
   .to('@ru')
+
+// === Install stubs for dry runs ===
+// Call installStubs() to swap real tool slots with stub implementations.
+// Uncomment the line below to enable dry-run mode (no API calls, no LLM).
+// installStubs()
 
 // === Flow 3: token counting demo (batch-optimized tools) ===
 // Batch tools consume a batched envelope (after `.batch(n)`); meta here is
@@ -154,27 +148,6 @@ export const schemaDocPipeline = definePipeline()
 
 // Same build as schemaDocPipeline, but the emit slot is swapped for a mock writer:
 // markdown is tagged and redirected to the target root's schema-mock subfolder.
-const mockSchemaEmit = defineTool<string, string>({
-  name: 'mock-schema-emit',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => {
-    const n = (env.meta.chapterNum as number | undefined) ?? 1
-    const content = `<!-- mock-emit -->\n${env.item}`
-    const existing = (env.meta.mdOutputs as MdOutputEntry[] | undefined) ?? []
-    const mdOutputs = [
-      ...existing,
-      {
-        name: 'schema-doc-mock',
-        subdir: 'schema-mock',
-        filename: `chapter${n}.mock.md`,
-        content,
-      },
-    ]
-    return { item: content, meta: { ...env.meta, mdOutputs } }
-  },
-})
-
 export const schemaDocMockPipeline = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
   .use(toMarkdown)
@@ -185,7 +158,7 @@ export const schemaDocMockPipeline = definePipeline()
   .use(entities)
   .use(schema)
   .use(mdFormatter)
-  .use(schemaDocWriter.with({ emit: mockSchemaEmit }))
+  .use(schemaDocWriter.with({ emit: stubSchemaEmit }))
   .to('md://./chapters')
 
 export const fixChapterPipeline = definePipeline()
@@ -288,28 +261,7 @@ export const llmGatePipeline = definePipeline()
 // split/assemble) is untouched. (To swap in another `Tool<TranslateInput, TranslateOutput>`
 // without writing a state-level slot, use `createTitleTranslator({ translate })` /
 // `createParagraphTranslator({ translate })`.)
-const titleTranslateSlotMock = defineTool<TitleTranslatorState, TitleTranslatorState>({
-  name: 'title-translate-slot-mock',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => ({
-    item: env.item.title
-      ? { ...env.item, translatedTitle: `[mock]${env.item.title}[/mock]` }
-      : env.item,
-    meta: env.meta,
-  }),
-})
-
-const paragraphTranslateSlotMock = defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
-  name: 'paragraph-translate-slot-mock',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => ({
-    item: { ...env.item, translated: env.item.paragraphs.map((p) => `[mock]${p}[/mock]`) },
-    meta: env.meta,
-  }),
-})
-
+// Alternative: call `installStubs()` at module top to auto-swap all stub slots at once.
 const toChapterTranslateInput = defineTool<{ title: string; body: string }, TitleTranslatorInput>({
   name: 'to-chapter-translate-input',
   version: '1.0.0',
@@ -335,8 +287,8 @@ const translateOutputToMd = defineTool<{ text: string }, string>({
 export const translateSlotsMockPipeline = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
   .use(toChapterTranslateInput)
-  .use(titleTranslator.with({ translate: titleTranslateSlotMock }))
-  .use(paragraphTranslator.with({ translate: paragraphTranslateSlotMock }))
+  .use(titleTranslator.with({ translate: stubTitleTranslateSlot }))
+  .use(paragraphTranslator.with({ translate: stubParagraphTranslateSlot }))
   .use(translateOutputToMd)
   .use(
     mdOutputEmitter({
