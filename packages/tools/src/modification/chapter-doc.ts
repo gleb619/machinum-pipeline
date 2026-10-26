@@ -20,7 +20,8 @@ export interface ChapterDocParagraph {
 
 export interface ChapterDoc {
   title: string
-  number: number
+  /** Chapter number from frontmatter; `undefined` when absent or non-numeric (0 is kept). */
+  number: number | undefined
   series?: string
   warnings: ChapterDocWarning[]
   body: ChapterDocParagraph[]
@@ -49,7 +50,9 @@ function yamlEscapeString(value: string): string {
 function serializeFrontmatter(doc: ChapterDoc): string {
   const lines: string[] = ['---']
 
-  lines.push(`number: ${doc.number}`)
+  if (doc.number !== undefined) {
+    lines.push(`number: ${doc.number}`)
+  }
 
   if (doc.series !== undefined && doc.series !== '') {
     lines.push(`series: ${yamlEscapeString(doc.series)}`)
@@ -223,9 +226,11 @@ export function readChapterDoc(markdown: string): ChapterDoc {
   const { title, bodyStartLine } = extractTitle(content)
   const body = parseBody(content, bodyStartLine)
 
+  const n = Number(data.number)
+
   return {
     title,
-    number: Number(data.number) || 1,
+    number: Number.isFinite(n) ? n : undefined,
     series: data.series ? String(data.series) : undefined,
     warnings: normalizeWarnings(data.warnings),
     body,
@@ -256,11 +261,13 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
   async invoke(env: Exchange<ChapterDocToolInput>, _ctx: ToolContext): Promise<Exchange<string>> {
     const input = env.item
 
+    // No default: an absent number stays `undefined` so the frontmatter omits it
+    // and downstream tools (chapterIndexer, emit filename) fall back to the
+    // heading/title match instead of colliding on chapter1.md.
     const number =
       input.number ??
       (env.meta?.chapterNum as number | undefined) ??
-      (env.meta?.chapter as number | undefined) ??
-      1
+      (env.meta?.chapter as number | undefined)
 
     const series =
       input.series ??
@@ -291,10 +298,20 @@ export const chapterDocEmit = defineTool<string, string>({
   async invoke(ex: Exchange<string>) {
     if (ex.meta?.chapterNum === undefined && ex.meta?.chapter === undefined) return ex
     const doc = getVariable<ChapterDoc>(ex, VAR_CHAPTER_DOC)
+    const number =
+      doc?.number ??
+      (ex.meta?.chapterNum as number | undefined) ??
+      (ex.meta?.chapter as number | undefined)
+    if (number === undefined) {
+      throw new Error(
+        'chapter-doc-emit: cannot build output filename: no chapter number known ' +
+          '(frontmatter `number` and meta.chapterNum/meta.chapter are all absent)',
+      )
+    }
     return appendMdOutput(ex, {
       name: 'chapter',
       subdir: '',
-      filename: `chapter${doc?.number}.md`,
+      filename: `chapter${number}.md`,
       content: ex.item,
     })
   },

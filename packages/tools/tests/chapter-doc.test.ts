@@ -6,6 +6,7 @@ import {
   type ChapterDoc,
   type ChapterDocParagraph,
   chapterDoc,
+  chapterDocEmit,
   readChapterDoc,
   writeChapterDoc,
 } from '../src/modification/chapter-doc.js'
@@ -123,7 +124,7 @@ describe('readChapterDoc', () => {
     const parsed = readChapterDoc(md)
 
     expect(parsed.title).toBe('Simple Title')
-    expect(parsed.number).toBe(1)
+    expect(parsed.number).toBeUndefined()
     expect(parsed.series).toBeUndefined()
     expect(parsed.warnings).toEqual([])
     expect(parsed.body).toEqual([{ lines: ['First paragraph.'] }, { lines: ['Second paragraph.'] }])
@@ -157,6 +158,16 @@ describe('readChapterDoc', () => {
       'This is one long paragraph that spans multiple words without any hard line breaks.',
     ])
     expect(parsed.body[1]?.lines).toEqual(['Second paragraph here.'])
+  })
+
+  it('keeps a frontmatter number of 0', () => {
+    const md = '---\nnumber: 0\n---\n\n# Prologue\n\nBody.'
+    expect(readChapterDoc(md).number).toBe(0)
+  })
+
+  it('returns undefined for a missing or non-numeric frontmatter number', () => {
+    expect(readChapterDoc('# Title\n\nBody.').number).toBeUndefined()
+    expect(readChapterDoc('---\nnumber: abc\n---\n\n# Title\n\nBody.').number).toBeUndefined()
   })
 
   it('throws on missing h1', () => {
@@ -391,11 +402,11 @@ describe('chapterDoc tool', () => {
     expect(getVariable(result, 'mdOutputs')).toBeUndefined()
   })
 
-  it('defaults number to 1 when no source available', async () => {
+  it('omits number from frontmatter when no source available', async () => {
     const env = createExchange({ title: 'Test', body: 'Body.' })
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
-    expect(result.item).toContain('number: 1')
+    expect(result.item).not.toContain('number:')
   })
 
   it('reads warnings from the warnings variable', async () => {
@@ -433,6 +444,14 @@ describe('chapterDoc tool', () => {
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
     expect(getVariable(result, 'mdOutputs')).toBeUndefined()
+  })
+
+  it('chapterDocEmit throws when no chapter number is known for the filename', async () => {
+    const env = createExchange('Body.', { meta: { chapterNum: null } })
+
+    await expect(chapterDocEmit.invoke(env, {} as ToolContext)).rejects.toThrow(
+      'no chapter number known',
+    )
   })
 
   it('appends to existing mdOutputs without overwriting', async () => {

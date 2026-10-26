@@ -12,23 +12,17 @@ export const chapterIndexer = defineTool<string, string>({
   mdDescription:
     'Extracts chapter number from frontmatter or heading. Stores `chapterNum` in envelope metadata.',
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
-    let chapterNum = 0
+    let chapterNum: number | undefined
 
     try {
       const doc = readChapterDoc(env.item)
-      chapterNum = doc.number
-
-      if (chapterNum === 1) {
-        const titleMatch = doc.title.match(/Chapter\s+(\d+)/i)
-        if (titleMatch?.[1]) {
-          chapterNum = Number.parseInt(titleMatch[1], 10)
-        }
-      }
+      const titleMatch = doc.title.match(/Chapter\s+(\d+)/i)
+      chapterNum = doc.number ?? (titleMatch?.[1] ? Number.parseInt(titleMatch[1], 10) : undefined)
     } catch {
       const chapterMatch = env.item.match(/^#\s*Chapter\s*(\d+)/im)
-      chapterNum = chapterMatch?.[1] ? Number.parseInt(chapterMatch[1], 10) : 0
+      chapterNum = chapterMatch?.[1] ? Number.parseInt(chapterMatch[1], 10) : undefined
     }
 
-    return withMeta(env, { chapterNum })
+    return withMeta(env, { chapterNum: chapterNum ?? 0 })
   },
 })
