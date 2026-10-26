@@ -10,6 +10,7 @@ Three stages run one after another, each reading the files the previous one wrot
 | 1 | `pipelines/normalize.ts` | `jsonl/input.jsonl` | `chapters/en/chapter<N>.md` |
 | 2 | `pipelines/analyze.ts` | `chapters/en/` | `chapters/schema/`, `chapters/glossary.json`, `chapters/glossary.graph.json`, `chapters/en-tagged/` |
 | 3 | `pipelines/translate.ts` | `chapters/en-tagged/` + glossary + summaries | `chapters/ru/chapter<N>.md`, `chapters/titles.json` |
+| – | `pipelines/waypoint-log.ts` | `jsonl/input.jsonl` (same as stage 1) | `chapters/en/chapter<N>.md` + `chapters/waypoint-log.jsonl` audit log |
 
 Every stage is offline by default (mock LLM backend, optional LLM steps switched off).
 
@@ -29,6 +30,9 @@ Every stage is offline by default (mock LLM backend, optional LLM steps switched
 - How to translate a chapter one line per LLM call, injecting only that line's glossary entries plus
   the chapter summary as context, and gate every reply with the line-parity linter.
 - How to chain separate pipelines through the shared `chapters/` dir (`@en` -> `@chapters` -> `@chapters`).
+- How to compose a new waypoint from a stock one with `defineWaypoint` lifecycle hooks
+  (`onStart`/`filter`/`onItem`, `onOpen`/`onWrite`/`onClose`) and write a custom audit log — see
+  `pipelines/waypoint-log.ts`, which reruns the normalize chain through wrapped `jsonl`/`md` endpoints.
 
 ## Directory layout
 
@@ -37,6 +41,7 @@ sample4/
 ├── pipelines/normalize.ts    # default + named export `normalizeFlow`
 ├── pipelines/analyze.ts      # stage 2: summaries + glossary + <term> tagging
 ├── pipelines/translate.ts    # stage 3: titles + line-by-line EN->RU with parity linter
+├── pipelines/waypoint-log.ts # normalize chain via defineWaypoint-wrapped endpoints + audit log
 ├── lint-parity.ts            # standalone EN/RU parity check (no mt needed)
 ├── prepare-input.ts          # wraps raw {key,value} lines into {item} envelopes
 ├── jsonl/                    # raw input; generated input.jsonl is gitignored
@@ -139,7 +144,8 @@ pnpm run cleanup
 ```
 
 Wipes every generated file (`chapters/{en,ru}/*.md`, `chapters/schema/`, `chapters/en-tagged/`,
-`chapters/glossary.json`, `chapters/glossary.graph.json`, `chapters/titles.json`, `jsonl/input.jsonl`)
+`chapters/glossary.json`, `chapters/glossary.graph.json`, `chapters/titles.json`,
+`chapters/waypoint-log.jsonl`, `jsonl/input.jsonl`)
 and the `.mt` checkpoint tree. Keep `chapters/glossary.json` if you have hand edits worth keeping.
 
 ## How to run manually

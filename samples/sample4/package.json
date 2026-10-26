@@ -10,7 +10,7 @@
     "analyze": "NODE_OPTIONS='--import tsx' mt run ./pipelines/analyze.ts",
     "translate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate.ts",
     "lint-parity": "tsx lint-parity.ts chapters/en chapters/ru",
-    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/en-tagged chapters/glossary.json chapters/glossary.graph.json chapters/titles.json jsonl/input.jsonl .mt",
+    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/en-tagged chapters/glossary.json chapters/glossary.graph.json chapters/titles.json chapters/waypoint-log.jsonl jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest"

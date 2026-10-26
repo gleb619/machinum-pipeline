@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { definePipeline, getVariable } from '@mt/core'
+import { type Source, type Target, definePipeline, getVariable } from '@mt/core'
 import {
   type LlmRequest,
   chapterRecordMapper,
@@ -23,26 +23,37 @@ const llm = pickLlmTool({
   mockSource: (req: LlmRequest) => req.messages.at(-1)?.content ?? '',
 })
 
-const normalizeFlow = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .use(chapterRecordMapper)
-  .use(textNormalizer)
-  .use(createLlmTypoFix({ call: llm.schemaCall, enabled: process.env.MT_LLM_TYPO_FIX === '1' }))
-  .use(lineTextToMarkdown)
-  .use(typoFinder)
-  .tap(async (ex) => {
-    const warnings = getVariable<unknown[]>(ex, 'warnings')
-    console.log(`[normalize] chapter ${ex.meta.chapterNum}: ${warnings?.length ?? 0} typo hints`)
-  })
-  .use(markdownFormatter)
-  .use(unwrapMarkdownText)
-  .use(
-    mdOutputEmitter({
-      name: 'normalized',
-      filename: (meta) => `chapter${meta.chapterNum}.md`,
-    }),
-  )
-  .to('@en')
+/**
+ * The full normalize tool chain with injectable endpoints — `normalize.ts` plugs in the plain
+ * URIs, `waypoint-log.ts` plugs in `defineWaypoint`-wrapped source/target with audit-log hooks.
+ */
+export function buildNormalizeFlow(
+  source: Source<unknown> | string,
+  target: Target<unknown> | string,
+) {
+  return definePipeline()
+    .from(source)
+    .use(chapterRecordMapper)
+    .use(textNormalizer)
+    .use(createLlmTypoFix({ call: llm.schemaCall, enabled: process.env.MT_LLM_TYPO_FIX === '1' }))
+    .use(lineTextToMarkdown)
+    .use(typoFinder)
+    .tap(async (ex) => {
+      const warnings = getVariable<unknown[]>(ex, 'warnings')
+      console.log(`[normalize] chapter ${ex.meta.chapterNum}: ${warnings?.length ?? 0} typo hints`)
+    })
+    .use(markdownFormatter)
+    .use(unwrapMarkdownText)
+    .use(
+      mdOutputEmitter({
+        name: 'normalized',
+        filename: (meta) => `chapter${meta.chapterNum}.md`,
+      }),
+    )
+    .to(target)
+}
+
+const normalizeFlow = buildNormalizeFlow('jsonl://./jsonl/input.jsonl', '@en')
 
 export { normalizeFlow }
 export default normalizeFlow
