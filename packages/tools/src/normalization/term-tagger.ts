@@ -32,6 +32,12 @@ export interface GlossaryTerm {
   description?: string
   /** Model-reported RU translations awaiting human approval (never auto-applied). */
   pending?: string[]
+  /**
+   * Human-fixed term: `ru`/`type` are final — auto-merge never changes them and model
+   * proposals are never queued. Always injected into translation prompts, even when
+   * the term does not occur in the unit text.
+   */
+  locked?: boolean
   /** Optional Russian morphology metadata (gender, declension, inflection endings). */
   ruGrammar?: RuGrammar
 }

@@ -85,16 +85,18 @@ offline by default and uses an LLM backend when one is given.
   Shape: `{ terms: [{ id, term, type, count, firstChapter, ru, aliases, pending?, references?, description? }],
   ignored?, rejected? }`.
 - `mergeExtractedEntries(glossary, entries, protectedIds)` — merges the entries reported by the model: a known term
-  keeps its `ru` (and its `type` when it is protected, i.e. reused from the previous glossary), an unknown term is
-  appended with the reported type/description. Pure.
+  keeps its `ru` (and its `type` when it is protected, i.e. reused from the previous glossary — locked terms are
+  always protected, T140: their `ru`/`type` are final), an unknown term is appended with the reported
+  type/description. Pure.
 - `applyRelations(glossary, relations)` / `coOccurrenceRelations(chapters, glossary)` — relation graph of the terms:
   `term.references` holds the names of the related terms (the ones that share a sentence of the corpus, plus the
   ones the model reported). `buildGlossaryGraph(glossary)` turns them into nodes/edges, `findReferences(graph, term,
   hops)` looks the related terms up within 1..3 hops. Pure.
 - `mergeReportedTerms(existing, reported)` (T139) — conservative auto-merge of model-reported terms
   (`parseReportedTerms` output): new terms are auto-added (reported `type`/`ru`, unique slug id, `count: 0`),
-  never renames an existing entry — a differing `ru` is queued in `term.pending`; values in `rejected` are
-  never applied or re-queued; `ignored` terms are never added. Pure (no input mutation).
+  never renames an existing entry — a differing `ru` is queued in `term.pending` (skipped for locked terms,
+  T140: a locked term is never re-proposed); values in `rejected` are never applied or re-queued; `ignored`
+  terms are never added. Pure (no input mutation).
 - `termTagger` / `tagTerms(text, glossary)` — wraps occurrences as `<term id="ID">text</term>` (longest match
   first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
   `meta.taggedItems` (item untouched). `stripTerms(tagged)` restores the original text exactly.
@@ -143,10 +145,11 @@ cardinality) is returned untouched.
 Building blocks of the sample3 translate stage (EN->RU, line by line).
 
 - `buildTranslationPrompt({ text, glossary, summary, extraRules })` — `{ systemPrompt, userPrompt, usedTerms,
-  untranslatedTerms }`. Injects ONLY glossary entries whose `<term id>` occurs in `text` (`term = ru`); terms with
-  `ru: null` get a "transliterate consistently" block; the chapter summary is added as context only. The system
-  prompt ends with a rule asking for a trailing `<terms>[...]</terms>` JSON block reporting source terms NOT in the
-  glossary. `userPrompt` is
+  untranslatedTerms, lockedTerms }`. Injects ONLY glossary entries whose `<term id>` occurs in `text` (`term = ru`);
+  terms with `ru: null` get a "transliterate consistently" block; **locked terms are always injected even when
+  their id does not occur in the text** (returned separately in `lockedTerms`), so fixed translations are rendered
+  exactly as the human decided. The chapter summary is added as context only. The system prompt ends with a rule
+  asking for a trailing `<terms>[...]</terms>` JSON block reporting source terms NOT in the glossary. `userPrompt` is
   the text with `<term>` tags stripped. `cleanTranslation(reply)` drops `<think>` blocks, `<terms>` report blocks
   and `<term>` tags; `parseReportedTerms(reply)` (zod-validated, never throws) parses the report into
   `ReportedTerm[]` (invalid entries dropped, deduped case-insensitively); `termIdsIn(text)` lists tag ids.

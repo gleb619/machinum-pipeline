@@ -86,6 +86,54 @@ describe('buildTranslationPrompt', () => {
   })
 })
 
+describe('buildTranslationPrompt with locked terms', () => {
+  const lockedGlossary: Glossary = {
+    terms: [
+      ...glossary.terms,
+      {
+        id: 'mira',
+        term: 'Mira',
+        type: 'character',
+        count: 1,
+        firstChapter: 3,
+        ru: 'Мира',
+        aliases: [],
+        locked: true,
+      },
+      {
+        id: 'vale',
+        term: 'Vale',
+        type: 'place',
+        count: 1,
+        firstChapter: 3,
+        ru: null,
+        aliases: [],
+        locked: true,
+      },
+    ],
+  }
+
+  it('injects locked terms even when their id does not occur in the text', () => {
+    const p = buildTranslationPrompt({ text: TAGGED, glossary: lockedGlossary })
+    expect(p.systemPrompt).toContain('Mira = Мира')
+    expect(p.systemPrompt).toMatch(/transliterate[\s\S]*Vale/)
+    expect(p.lockedTerms.map((t) => t.id)).toEqual(['mira', 'vale'])
+    expect(p.usedTerms.map((t) => t.id)).toEqual(['arin', 'zorg', 'keep'])
+  })
+
+  it('does not duplicate a locked term that also occurs in the text', () => {
+    const tagged = `${TAGGED} She is <term id="mira">Mira</term> of the <term id="vale">Vale</term>.`
+    const p = buildTranslationPrompt({ text: tagged, glossary: lockedGlossary })
+    expect(p.lockedTerms).toEqual([])
+    expect(p.systemPrompt.match(/Mira = Мира/g)).toHaveLength(1)
+  })
+
+  it('injects nothing extra when no term is locked', () => {
+    const p = buildTranslationPrompt({ text: TAGGED, glossary })
+    expect(p.lockedTerms).toEqual([])
+  })
+})
+
 describe('cleanTranslation', () => {
   it('removes think blocks and term tags', () => {
     expect(cleanTranslation('<think>hm\nhm</think>\n<term id="a">Арин</term> пришёл. ')).toBe(

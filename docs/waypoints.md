@@ -21,6 +21,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample2                                   |
 | WP008 | range://         | ✓      | —      | resumable     | —                                         |
 | WP009 | void://          | —      | ✓      | —             | —                                         |
+| WP010 | review://        | —      | ✓      | —             | —                                         |
 
 ---
 
@@ -35,6 +36,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | 7     | WP007 | `ephemeral://`      | ✓      | ✓      | resumable  | `T`       | `T`       | In-memory buffer keyed by URI path; for testing and in-memory pipelines; process-local, no persistence.                                   |
 | 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
 | 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
+| 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
 
 ---
 
@@ -182,6 +184,30 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 **Checkpoint:** deliberately NOT implemented. Nothing is durable mid-run, so the runner keeps its cursor pre-run and a crash replays the source — harmless for a sink that keeps no state.
 
 **Use case:** benchmarking/tool-only pipelines where output is irrelevant, dry-running a chain without writing files.
+
+---
+
+### WP010: review://
+
+**Scheme:** `review://<path>` (e.g. `review://./chapters/glossary.review.md`)
+
+**Target-only:** no source registered — `.from('review://…')` throws the registry's "No source registered" error.
+
+**Target:** Renders the pending-change review queue of the glossary carried by the envelope: one row per value in
+`term.pending` (the model-proposed RU translations awaiting human approval), plus a locked-terms section. The
+glossary is read from `meta.glossary`, or parsed from a JSON-string / object `item` — so a bare
+`.from('md://./chapters/glossary.json')` → `.to('review://…')` chain works. The output is a human worksheet:
+approve = set `ru` + drop the value from `pending`; reject = move it to top-level `rejected`; locked terms are
+listed for reference only (proposals for them are never generated).
+
+**Write model:** the last glossary envelope wins; the file is written atomically (temp + rename) in `close()`.
+
+**Checkpoint:** deliberately NOT implemented. Nothing is durable mid-run, so a crash resume replays the source.
+
+**Use case:** T140 — surfacing `mergeReportedTerms` pending proposals for human review after (or between) runs.
+
+**Note:** the glossary shape is mirrored structurally (`ReviewGlossary` in `review.ts`) — `waypoint/` depends on
+`@mt/core` only and must not import `@mt/tools`; keep the mirror in sync with `GlossaryTerm`.
 
 ---
 

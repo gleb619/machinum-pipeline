@@ -11,6 +11,7 @@ export { createChapterOutputSource, createChapterOutputTarget } from './chapter-
 export { createEphemeralSource, createEphemeralTarget } from './ephemeral.js'
 export { createRangeSource } from './range.js'
 export { createVoidTarget } from './void.js'
+export { createReviewTarget, renderGlossaryReview } from './review.js'
 export {
   GitWorktreeSource,
   GitWorktreeTarget,
@@ -28,3 +29,4 @@ import './chapter-output.js'
 import './ephemeral.js'
 import './range.js'
 import './void.js'
+import './review.js'

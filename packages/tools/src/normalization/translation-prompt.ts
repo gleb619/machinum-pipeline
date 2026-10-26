@@ -22,6 +22,11 @@ export interface TranslationPrompt {
   usedTerms: GlossaryTerm[]
   /** Subset of `usedTerms` without a `ru` translation yet. */
   untranslatedTerms: GlossaryTerm[]
+  /**
+   * Locked terms that do NOT occur in `text`; injected into the prompt anyway
+   * (empty when no locked terms or all of them occur in `text`).
+   */
+  lockedTerms: GlossaryTerm[]
 }
 
 const TERM_ID_RE = /<term id="([^"]*)">/g
@@ -90,6 +95,9 @@ export function termIdsIn(text: string): string[] {
  * Builds the system + user prompt for translating one unit (line/paragraph). Only the glossary
  * entries whose `<term id>` appears in the unit are injected; terms with `ru: null` are listed
  * separately with a transliterate-consistently instruction.
+ *
+ * Locked terms are ALWAYS injected — even when their `<term id>` does not occur in the unit —
+ * so the model renders fixed translations (names, terms) exactly as decided by the human.
  */
 export function buildTranslationPrompt(input: TranslationPromptInput): TranslationPrompt {
   const from = input.sourceLang ?? 'English'
@@ -100,6 +108,10 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
     .filter((t): t is GlossaryTerm => t !== undefined)
   const known = usedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
   const untranslatedTerms = usedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
+  const usedIds = new Set(usedTerms.map((t) => t.id))
+  const lockedTerms = input.glossary.terms.filter((t) => t.locked === true && !usedIds.has(t.id))
+  const lockedKnown = lockedTerms.filter((t) => t.ru !== null && t.ru.trim() !== '')
+  const lockedUntranslated = lockedTerms.filter((t) => t.ru === null || t.ru.trim() === '')
 
   const parts = [
     `You are a professional literary translator. Translate the user text from ${from} to ${to}.`,
@@ -110,16 +122,18 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
     '- Output only the translation: no notes, no quotes around it, no explanations, no <think> blocks.',
     ...(input.extraRules ?? []).map((r) => `- ${r}`),
   ]
-  if (known.length > 0) {
+  if (known.length > 0 || lockedKnown.length > 0) {
     parts.push(
-      'Glossary (translate these terms exactly as given):',
+      'Glossary (translate these terms exactly as given, never alter them):',
       ...known.map((t) => `${t.term} = ${t.ru}`),
+      ...lockedKnown.map((t) => `${t.term} = ${t.ru}`),
     )
   }
-  if (untranslatedTerms.length > 0) {
+  if (untranslatedTerms.length > 0 || lockedUntranslated.length > 0) {
     parts.push(
       `No ${to} translation yet for these terms: transliterate them consistently, the same way every time:`,
       ...untranslatedTerms.map((t) => t.term),
+      ...lockedUntranslated.map((t) => t.term),
     )
   }
   parts.push(
@@ -139,6 +153,7 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
     userPrompt: stripTerms(input.text),
     usedTerms,
     untranslatedTerms,
+    lockedTerms,
   }
 }
 

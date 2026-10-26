@@ -301,7 +301,8 @@ export function buildGlossary(
  * Merges the entries reported by the model into a glossary (pure).
  *
  * - A term that is already in the glossary keeps its `ru`; its `type` is only refined when
- *   the term is new in this run (`protectedIds` holds the ids of the reused terms).
+ *   the term is new in this run (`protectedIds` holds the ids of the reused terms). A locked
+ *   term is never refined (`type`/`ru` stay exactly as the human fixed them).
  * - An unknown term is appended (reported type/description applied, id via `slugify`).
  * - `references` of an entry point to the terms that exist in the glossary.
  */
@@ -327,7 +328,7 @@ export function mergeExtractedEntries(
     const match = bySurface.get(key)
     if (match) {
       if (entry.description !== '' && !match.description) match.description = entry.description
-      if (!protectedIds.has(match.id) && entry.category !== '') {
+      if (!match.locked && !protectedIds.has(match.id) && entry.category !== '') {
         match.type = mapCategory(entry.category)
       }
       const merged = [...new Set([...(match.references ?? []), ...entry.references])]
@@ -435,8 +436,8 @@ export function sortGlossary(glossary: Glossary): Glossary {
  * Pure: returns a new glossary, the input is never mutated.
  *
  * - A reported surface form matching an existing term or alias (case-insensitive) NEVER changes
- *   `ru` — a differing value is queued in `pending` (skipped when equal, already pending, or in
- *   `rejected`).
+ *   `ru` — a differing value is queued in `pending` (skipped when equal, already pending, in
+ *   `rejected`, or the term is locked: a locked term is never re-proposed, its `ru` is final).
  * - Unknown terms are appended as new entries (reported `type`/`ru` applied, id via `slugify`)
  *   unless listed in `ignored`; a `ru` value in `rejected` is stored as `null` instead.
  */
@@ -456,6 +457,7 @@ export function mergeReportedTerms(existing: Glossary, reported: ReportedTerm[])
   for (const r of reported) {
     const match = bySurface.get(r.term.toLowerCase())
     if (match) {
+      if (match.locked) continue
       if (r.ru === null || r.ru === (match.ru ?? null) || rejected.has(r.ru)) continue
       const pending = match.pending ?? []
       if (!pending.includes(r.ru)) match.pending = [...pending, r.ru]

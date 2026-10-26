@@ -151,6 +151,18 @@ describe('mergeReportedTerms', () => {
     expect(out.terms.find((x) => x.term === 'Grog')?.ru).toBeNull()
   })
 
+  it('never queues a proposal for a locked term (ru is final)', () => {
+    const locked: Glossary = {
+      ...glossary,
+      terms: glossary.terms.map((t) => (t.id === 'arin-vale' ? { ...t, locked: true } : t)),
+    }
+    const out = mergeReportedTerms(locked, [{ term: 'Arin Vale', ru: 'Арин Вэйл', type: null }])
+    const t = out.terms.find((x) => x.id === 'arin-vale')
+    expect(t?.ru).toBe('Арин Вейл')
+    expect(t?.pending).toBeUndefined()
+    expect(t?.locked).toBe(true)
+  })
+
   it('never adds terms listed in ignored', () => {
     const out = mergeReportedTerms(glossary, [{ term: 'Marta', ru: 'Марта', type: null }])
     expect(out.terms.some((x) => x.term === 'Marta')).toBe(false)

@@ -9,7 +9,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `review://`.
 
 ## URI Scheme Reference
 
@@ -23,6 +23,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
 | `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
+| `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 
 ## Source/Target Shape
 
@@ -116,6 +117,15 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - Target-only sink: `void://` discards every envelope (open/write/close are no-ops)
 - Deliberately **no `checkpoint()`** — nothing is durable mid-run; the runner keeps its cursor
   pre-run and a crash replays the source, which is harmless for a stateless sink
+
+### `review.ts`
+- Target-only glossary review queue (T140): `review://./glossary.review.md` renders the pending
+  proposals (`term.pending`) of the glossary envelope as a markdown worksheet, plus a locked-terms
+  section; the last glossary envelope wins and the file is written atomically in `close()`
+- The glossary is read from `meta.glossary`, or parsed from a JSON-string / object `item`
+  (structural `ReviewGlossary` mirror of `@mt/tools` `Glossary` — waypoint must not import
+  `@mt/tools`, keep the mirror in sync); envelopes without a glossary throw a clear error
+- Deliberately **no `checkpoint()`** — nothing is durable mid-run, so a crash resume replays safely
 
 ### `http-server.ts`
 - `Lifecycle: 'long-lived'` — persists across pauses/resumes
@@ -217,6 +227,7 @@ packages/waypoint/tests/builtins/
 ├── git-worktree.arch.test.ts
 ├── range.test.ts / range.arch.test.ts   # integer generator: directions, step, validation, resume skip
 ├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
+├── review.test.ts / review.arch.test.ts # glossary review queue render + atomic write; target-only registration
 └── settings.test.ts
 ```
 

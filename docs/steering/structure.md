@@ -108,6 +108,7 @@ Import `'@mt/waypoint'` as a side-effect to register all URI schemes:
 | `git://` | `git-worktree.ts` | Git worktree-aware source/target with optional commit |
 | `range://` | `range.ts` | Integer range source (`<start>..<end>`, `?step=` magnitude) |
 | `void://` | `void.ts` | Discard-everything target sink |
+| `review://` | `review.ts` | Glossary pending-change review-queue target (markdown worksheet) |
 | (ephemeral) | `ephemeral.ts` | In-memory source/target for tests |
 
 ## @mt/tools — Tool Catalogue

@@ -163,6 +163,21 @@ describe('old-term reuse', () => {
     expect(byTerm(merged, 'Marta')?.type).toBe('character')
   })
 
+  it('never refines the type of a locked term', () => {
+    const glossary = buildGlossary(chapters, existing)
+    const locked: Glossary = {
+      ...glossary,
+      terms: glossary.terms.map((t) => (t.id === 'marta' ? { ...t, locked: true } : t)),
+    }
+    const merged = mergeExtractedEntries(
+      locked,
+      [{ name: 'Marta', category: 'Location', description: '', references: [] }],
+      new Set(),
+    )
+    expect(byTerm(merged, 'Marta')?.type).toBe('character')
+    expect(byTerm(merged, 'Marta')?.locked).toBe(true)
+  })
+
   it('never re-adds an ignored term, not even through the NER seeding or the model', async () => {
     const tool = createGlossaryExtractor({
       load: () => ({ terms: [], ignored: ['Iron Keep'] }),
