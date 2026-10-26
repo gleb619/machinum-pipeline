@@ -117,7 +117,7 @@ describe('toolCommand', () => {
     Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true })
     try {
       await expect(toolCommand(['echo'])).rejects.toThrow('EXIT 1')
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Pipe a JSON envelope'))
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Pipe a JSON exchange'))
       expect(vi.mocked(console.log).mock.calls.length).toBe(0)
     } finally {
       Reflect.deleteProperty(process.stdin, 'isTTY')

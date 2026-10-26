@@ -1,6 +1,6 @@
 import { basename, dirname } from 'node:path'
 import type { RetryPolicy, SourceContext, TargetContext, ToolContext } from './contexts.js'
-import type { Exchange } from './exchange.js'
+import { type Exchange, type ExchangeInput, toExchange } from './exchange.js'
 import type { Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
 
@@ -394,9 +394,10 @@ function wrapWaypointSource<T>(inner: Source<T>, hooks: WaypointSourceHooks<T>):
   const wrapper: Source<T> = {
     uri: inner.uri,
     lifestyle: inner.lifestyle,
-    async *start(ctx: SourceContext): AsyncIterable<Exchange<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
       await hooks.onStart?.(ctx)
-      for await (const env of inner.start(ctx)) {
+      for await (const raw of inner.start(ctx)) {
+        const env = toExchange(raw)
         if (hooks.filter && !(await hooks.filter(env))) continue
         await hooks.onItem?.(env)
         yield env
@@ -408,8 +409,9 @@ function wrapWaypointSource<T>(inner: Source<T>, hooks: WaypointSourceHooks<T>):
     wrapper.resume = async function* (
       ctx: SourceContext,
       cursor: unknown,
-    ): AsyncIterable<Exchange<T>> {
-      for await (const env of innerResume.call(inner, ctx, cursor)) {
+    ): AsyncIterable<ExchangeInput<T>> {
+      for await (const raw of innerResume.call(inner, ctx, cursor)) {
+        const env = toExchange(raw)
         if (hooks.filter && !(await hooks.filter(env))) continue
         await hooks.onItem?.(env)
         yield env

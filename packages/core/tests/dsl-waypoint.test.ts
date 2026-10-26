@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { SourceContext, TargetContext } from '../src/contexts.js'
 import { definePipeline, defineWaypoint } from '../src/dsl.js'
-import type { Envelope, Lifecycle, Source, Target } from '../src/index.js'
+import {
+  type ExchangeInput,
+  type Lifecycle,
+  type Source,
+  type Target,
+  createExchange,
+} from '../src/index.js'
 import { registry } from '../src/uri.js'
 
 // Minimal stand-in contexts — the fake sources/targets below never read them.
@@ -10,9 +16,9 @@ const tgtCtx = {} as TargetContext
 
 /** Fake inner Source yielding a canned set of envelopes. */
 function mockSource<T>(
-  envelopes: Envelope<T>[],
+  envelopes: ExchangeInput<T>[],
   lifestyle: Lifecycle = 'long-lived',
-  resumeEnvelopes?: Envelope<T>[],
+  resumeEnvelopes?: ExchangeInput<T>[],
 ): Source<T> {
   return {
     uri: 'mock://source',
@@ -32,10 +38,10 @@ function mockSource<T>(
 
 /** Fake inner Target recording writes and lifecycle calls. */
 function mockTarget<T>(opts: { checkpoint?: boolean } = {}): Target<T> & {
-  written: Envelope<T>[]
+  written: ExchangeInput<T>[]
   calls: string[]
 } {
-  const t: Target<T> & { written: Envelope<T>[]; calls: string[] } = {
+  const t: Target<T> & { written: ExchangeInput<T>[]; calls: string[] } = {
     uri: 'mock://target',
     written: [],
     calls: [],
@@ -56,8 +62,8 @@ function mockTarget<T>(opts: { checkpoint?: boolean } = {}): Target<T> & {
   return t
 }
 
-async function collect<T>(src: Source<T>, useResume = false): Promise<Envelope<T>[]> {
-  const out: Envelope<T>[] = []
+async function collect<T>(src: Source<T>, useResume = false): Promise<ExchangeInput<T>[]> {
+  const out: ExchangeInput<T>[] = []
   const iter = useResume ? src.resume?.(srcCtx, 0) : src.start(srcCtx)
   if (!iter) throw new Error('resume missing')
   for await (const env of iter) out.push(env)
@@ -65,19 +71,19 @@ async function collect<T>(src: Source<T>, useResume = false): Promise<Envelope<T
 }
 
 // URI-string fixtures: one source scheme (yields a..c), one target scheme (records writes).
-const uriTargetWritten: Envelope<string>[] = []
+const uriTargetWritten: ExchangeInput<string>[] = []
 registry.registerSource<string>('jsonl', () => ({
   uri: 'jsonl://./in.jsonl',
   lifestyle: 'resumable',
   async *start() {
-    yield { item: 'a', meta: {} }
-    yield { item: 'b', meta: {} }
-    yield { item: 'c', meta: {} }
+    yield createExchange('a')
+    yield createExchange('b')
+    yield createExchange('c')
   },
   async *resume(_ctx, cursor) {
-    yield { item: 'a', meta: {} }
-    yield { item: 'b', meta: {} }
-    yield { item: 'c', meta: {} }
+    yield createExchange('a')
+    yield createExchange('b')
+    yield createExchange('c')
     void cursor
   },
 }))
@@ -122,8 +128,8 @@ describe('defineWaypoint', () => {
     const wrapper = defineWaypoint<number>(inner, { filter: (env) => env.item > 0 })
 
     await wrapper.open(tgtCtx)
-    await wrapper.write({ item: -1, meta: {} }, tgtCtx)
-    await wrapper.write({ item: 1, meta: {} }, tgtCtx)
+    await wrapper.write(createExchange(-1), tgtCtx)
+    await wrapper.write(createExchange(1), tgtCtx)
     await wrapper.close(tgtCtx)
 
     expect(inner.written.map((e) => e.item)).toEqual([1])
@@ -139,7 +145,7 @@ describe('defineWaypoint', () => {
     })
 
     await wrapper.open(tgtCtx)
-    await wrapper.write({ item: 1, meta: {} }, tgtCtx)
+    await wrapper.write(createExchange(1), tgtCtx)
     await wrapper.close(tgtCtx)
 
     expect(order).toEqual(['onOpen', 'onWrite', 'onClose'])
@@ -151,7 +157,7 @@ describe('defineWaypoint', () => {
     const wrapperWith = defineWaypoint<number>(withCp, {})
     expect(typeof wrapperWith.checkpoint).toBe('function')
     await wrapperWith.open(tgtCtx)
-    await wrapperWith.write({ item: 1, meta: {} }, tgtCtx)
+    await wrapperWith.write(createExchange(1), tgtCtx)
     expect(await wrapperWith.checkpoint?.(tgtCtx)).toBe(1)
 
     const withoutCp = mockTarget<number>()
@@ -181,7 +187,7 @@ describe('defineWaypoint', () => {
   })
 
   it('T002-20: hook errors propagate (source filter and target onWrite)', async () => {
-    const src = defineWaypoint<number>(mockSource([{ item: 1, meta: {} }]), {
+    const src = defineWaypoint<number>(mockSource([createExchange(1)]), {
       filter: () => {
         throw new Error('filter boom')
       },
@@ -195,7 +201,7 @@ describe('defineWaypoint', () => {
       },
     })
     await tgt.open(tgtCtx)
-    await expect(tgt.write({ item: 1, meta: {} }, tgtCtx)).rejects.toThrow('onWrite boom')
+    await expect(tgt.write(createExchange(1), tgtCtx)).rejects.toThrow('onWrite boom')
   })
 
   it('T002-21: wrapper works in definePipeline().from() / .to() with the inner uri in steps', () => {
