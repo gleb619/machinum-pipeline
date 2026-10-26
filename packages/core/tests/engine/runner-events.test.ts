@@ -93,7 +93,7 @@ describe('runner events.jsonl', () => {
   })
 
   it('appends started and done lines for a normal run', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const runner = new Runner(pipeline('events-happy', echoTool), context())
     await runner.start()
@@ -113,7 +113,7 @@ describe('runner events.jsonl', () => {
   })
 
   it('names each step-done event with its step id', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const runner = new Runner(pipeline('events-steps', echoTool), context())
     await runner.start()
@@ -125,8 +125,8 @@ describe('runner events.jsonl', () => {
   })
 
   it('records nested fork nodes as they complete', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
-    sourceItems.push({ item: 'b', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'b', meta: {} })
 
     const child: Pipeline = {
       id: 'events-fork-child',
@@ -160,7 +160,7 @@ describe('runner events.jsonl', () => {
   })
 
   it('ends with a failed line carrying the error message', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const runner = new Runner(pipeline('events-fail', explodeTool), context())
     await expect(runner.start()).rejects.toThrow('exploder exploded')
@@ -174,7 +174,7 @@ describe('runner events.jsonl', () => {
   })
 
   it('appends paused and resumed lines around a pause', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     let arrived = false
     let release = (): void => {}
@@ -218,7 +218,7 @@ describe('runner events.jsonl', () => {
   })
 
   it('appends a resumed line when a run is resumed from disk', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     let explode = true
     const flakyTool: Tool<unknown, unknown> = {

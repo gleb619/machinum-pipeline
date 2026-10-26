@@ -99,6 +99,38 @@ export type {
   RunnerOptions,
   MdOutputEntry,
 } from './types.js'
+export type {
+  Exchange,
+  ExchangeInput,
+  ExchangeMeta,
+  Qualifier,
+  Variable,
+  VariableOptions,
+} from './exchange.js'
+export {
+  copyVariable,
+  createExchange,
+  findVariable,
+  getOldVariable,
+  getVariable,
+  hasVariable,
+  hashableVariables,
+  isEmptyValue,
+  mergeVariables,
+  newExchangeId,
+  pushVariable,
+  replaceVariable,
+  setVariable,
+  toExchange,
+  variable,
+  withItem,
+  withMeta,
+  withVariable,
+  withoutEmpty,
+  withoutEphemeral,
+  withoutOldAndEmpty,
+  withoutVariable,
+} from './exchange.js'
 export type { Book, Chapter, Paragraph, Line } from './domain.js'
 export {
   definePipeline,

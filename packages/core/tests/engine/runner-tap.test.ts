@@ -79,7 +79,12 @@ describe('runner tap', () => {
   })
 
   it('tap receives the full envelope including meta written by an upstream tool', async () => {
-    mockSourceItems.push({ item: 'hello', meta: { source: 'tap-source' } })
+    mockSourceItems.push({
+      id: 'ex-test',
+      variables: [],
+      item: 'hello',
+      meta: { source: 'tap-source' },
+    })
 
     const seen: Envelope<unknown>[] = []
     const pipeline: Pipeline = {

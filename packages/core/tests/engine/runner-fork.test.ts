@@ -111,8 +111,8 @@ describe('runner fork', () => {
   })
 
   it('runs child tool steps per parent envelope', async () => {
-    sourceItems.push({ item: { value: 1 }, meta: {} })
-    sourceItems.push({ item: { value: 2 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 2 }, meta: {} })
 
     const child = childPipeline([
       { type: 'tool', config: { name: 'multiply', tool: multiplierTool() } },
@@ -124,8 +124,18 @@ describe('runner fork', () => {
   })
 
   it('supports batch/flatMap/tap inside the forked child', async () => {
-    sourceItems.push({ item: { value: 1 }, meta: { chapterId: 'c1' } })
-    sourceItems.push({ item: { value: 2 }, meta: { chapterId: 'c2' } })
+    sourceItems.push({
+      id: 'ex-test',
+      variables: [],
+      item: { value: 1 },
+      meta: { chapterId: 'c1' },
+    })
+    sourceItems.push({
+      id: 'ex-test',
+      variables: [],
+      item: { value: 2 },
+      meta: { chapterId: 'c2' },
+    })
 
     const tapped: Envelope<unknown>[] = []
     const child = childPipeline(
@@ -155,7 +165,7 @@ describe('runner fork', () => {
   })
 
   it('supports a target inside the forked child (child output is a sink)', async () => {
-    sourceItems.push({ item: { value: 3 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 3 }, meta: {} })
 
     const childWrites: Array<Envelope<unknown>> = []
     registry.registerTarget('fork-child-target', (_uri) => ({
@@ -179,8 +189,8 @@ describe('runner fork', () => {
   })
 
   it('records one nested checkpoint node per forked envelope', async () => {
-    sourceItems.push({ item: { value: 1 }, meta: {} })
-    sourceItems.push({ item: { value: 2 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 2 }, meta: {} })
 
     const child = childPipeline([
       { type: 'tool', config: { name: 'multiply', tool: multiplierTool() } },
@@ -194,7 +204,7 @@ describe('runner fork', () => {
   })
 
   it('fails the parent run when the child pipeline throws', async () => {
-    sourceItems.push({ item: { value: 1 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
 
     const child = childPipeline([
       {

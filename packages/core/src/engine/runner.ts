@@ -1,6 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
+import {
+  type ExchangeInput,
+  createExchange,
+  hashableVariables,
+  mergeVariables,
+  newExchangeId,
+  toExchange,
+} from '../exchange.js'
 import { getSetting } from '../settings.js'
 import { Store } from '../store.js'
 import type {
@@ -54,7 +62,7 @@ async function* singleEnvelope(env: Envelope<unknown>): EnvelopeStream {
  * Stream of one empty envelope — lets tool-only pipelines run without a source.
  */
 async function* emptyEnvelope(): EnvelopeStream {
-  yield { item: {}, meta: {} }
+  yield createExchange({})
 }
 
 /**
@@ -72,7 +80,27 @@ async function drainStream(stream: EnvelopeStream): Promise<void> {
  */
 function toBatchEnvelope(group: Envelope<unknown>[]): Envelope<unknown> {
   const items = group.map((env) => env.item)
-  return { item: items, items, meta: group[0]?.meta ?? {} }
+  // Variables merge across the group (later wins on name+qualifier clash); meta is the first item's.
+  return {
+    id: newExchangeId('batch-'),
+    item: items,
+    items,
+    meta: group[0]?.meta ?? {},
+    variables: mergeVariables(group),
+  }
+}
+
+/**
+ * Normalize every exchange of a stream (loose Source/tool output -> full Exchange) so the engine
+ * always sees `id`, `meta` and `variables`.
+ */
+async function* normalizeStream(source: AsyncIterable<ExchangeInput<unknown>>): EnvelopeStream {
+  for await (const raw of source) yield toExchange(raw)
+}
+
+/** Cache-key view of an exchange: volatile `id` and ephemeral variables are excluded. */
+function cacheInput(ex: Envelope<unknown>): unknown {
+  return { item: ex.item, items: ex.items, meta: ex.meta, variables: hashableVariables(ex) }
 }
 
 /**
@@ -347,7 +375,9 @@ export class Runner {
           if (cursor !== undefined && source.resume) {
             this.logger(stepId).debug(`Resuming source '${uri}' from cursor ${cursor}`)
             sourceStart = cursor
-            stream = source.resume({ run: runContext, events: this.eventsFacade }, cursor)
+            stream = normalizeStream(
+              source.resume({ run: runContext, events: this.eventsFacade }, cursor),
+            )
           } else {
             if (cursor !== undefined) {
               this.logger(stepId).debug(
@@ -356,7 +386,7 @@ export class Runner {
             }
             // A replay from item 0 re-derives every position, so the old cursor is dropped.
             sourceStart = 0
-            stream = source.start({ run: runContext, events: this.eventsFacade })
+            stream = normalizeStream(source.start({ run: runContext, events: this.eventsFacade }))
           }
           break
         }
@@ -400,8 +430,15 @@ export class Runner {
           stream = (async function* () {
             for await (const env of sourceStream) {
               const items = await fn(env.item)
+              let n = 0
               for (const item of items) {
-                yield { item, meta: env.meta }
+                // Children inherit the parent's meta + variables and get a fresh id.
+                yield {
+                  id: `${env.id}.${n++}`,
+                  item,
+                  meta: { ...env.meta, parentId: env.id },
+                  variables: [...env.variables],
+                }
               }
             }
           })()
@@ -563,13 +600,13 @@ export class Runner {
     const { key: cacheKey, value: cached } = await this.tryCacheGet(tool, env, toolContext, logger)
     if (cached !== undefined) {
       logger.debug(`Cache hit for tool ${tool.name}`)
-      return cached as Envelope<O>
+      return { ...(cached as Envelope<O>), id: env.id }
     }
 
     let output: Envelope<O> | undefined
     try {
       output = await withRetry(
-        async () => tool.invoke(env, { run: runContext, step: stepInfo }),
+        async () => toExchange(await tool.invoke(env, { run: runContext, step: stepInfo })),
         retryPolicy,
         (err, attempt) => {
           logger.warn(`Tool ${tool.name} failed (attempt ${attempt + 1}): ${err}`)
@@ -597,7 +634,7 @@ export class Runner {
           {
             toolName: tool.name,
             version: tool.version,
-            input: env,
+            input: cacheInput(env),
             context: toolContext,
           },
           output,
@@ -628,7 +665,7 @@ export class Runner {
       key = this.cache.computeKey({
         toolName: tool.name,
         version: tool.version,
-        input: env,
+        input: cacheInput(env),
         context: toolContext,
       })
     } catch (error) {

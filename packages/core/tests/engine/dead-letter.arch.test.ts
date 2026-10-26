@@ -15,7 +15,7 @@ describe('UC-18 — Dead-letter queue (architectural)', () => {
   it('DeadLetterEntry shape — timestamp, envelope, error, stepId', () => {
     const entry: DeadLetterEntry = {
       timestamp: new Date().toISOString(),
-      envelope: { item: { test: true }, meta: {} },
+      envelope: { id: 'ex-test', variables: [], item: { test: true }, meta: {} },
       error: { message: 'test error', name: 'Error' },
       stepId: 'tool-test-123',
     }
@@ -34,7 +34,7 @@ describe('UC-18 — Dead-letter queue (architectural)', () => {
     await writeDeadLetter(
       store,
       runId,
-      { item: { bad: true }, meta: {} },
+      { id: 'ex-test', variables: [], item: { bad: true }, meta: {} },
       new Error('simulated failure'),
       'tool-foo-1',
     )

@@ -47,7 +47,9 @@ vi.mock('../../src/engine/cache.js', () => ({
 }))
 
 function envelopesFrom(startAt: number): Array<Envelope<{ value: number }>> {
-  return items.slice(startAt).map((value) => ({ item: { value }, meta: {} }))
+  return items
+    .slice(startAt)
+    .map((value) => ({ id: 'ex-test', variables: [], item: { value }, meta: {} }))
 }
 
 registry.registerSource('cursor-source', (uri) => ({
@@ -99,7 +101,7 @@ const gateTool: Tool<{ value: number }, { value: number }> = {
   mdDescription: 'passes items through, throws on the configured value',
   invoke: async (env) => {
     if (env.item.value === failOn) throw new Error(`gate exploded on ${env.item.value}`)
-    return { item: env.item, meta: env.meta }
+    return env
   },
 }
 

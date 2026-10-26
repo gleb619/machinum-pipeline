@@ -122,7 +122,7 @@ describe('runner error policy', () => {
   })
 
   it('fails the run when a fail-run tool throws', async () => {
-    sourceItems.push({ item: { value: 1, boom: true }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1, boom: true }, meta: {} })
 
     await expect(
       new Runner(policyPipeline('fail-run-single', 'fail-run', 1), globalContext).start(),
@@ -134,8 +134,8 @@ describe('runner error policy', () => {
 
   it('does not let a sibling success mask a fail-run rejection', async () => {
     // Item 1 resolves slowly, item 2 rejects quickly: a first-*success* race would swallow it.
-    sourceItems.push({ item: { value: 1 }, meta: {} })
-    sourceItems.push({ item: { value: 2, boom: true }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 2, boom: true }, meta: {} })
 
     await expect(
       new Runner(policyPipeline('fail-run-masked', 'fail-run', 2), globalContext).start(),
@@ -146,7 +146,7 @@ describe('runner error policy', () => {
   })
 
   it('marks the root checkpoint failed with the error message', async () => {
-    sourceItems.push({ item: { value: 1, boom: true }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1, boom: true }, meta: {} })
 
     await expect(
       new Runner(policyPipeline('fail-run-checkpoint', 'fail-run', 1), globalContext).start(),
@@ -158,9 +158,9 @@ describe('runner error policy', () => {
   })
 
   it('drops the item and completes the run under skip-item', async () => {
-    sourceItems.push({ item: { value: 1 }, meta: {} })
-    sourceItems.push({ item: { value: 2, boom: true }, meta: {} })
-    sourceItems.push({ item: { value: 3 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 2, boom: true }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 3 }, meta: {} })
 
     await new Runner(policyPipeline('skip-item', 'skip-item', 2), globalContext).start()
 
@@ -169,8 +169,8 @@ describe('runner error policy', () => {
   })
 
   it('writes a dead-letter entry and completes the run under dead-letter', async () => {
-    sourceItems.push({ item: { value: 1 }, meta: {} })
-    sourceItems.push({ item: { value: 2, boom: true }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 2, boom: true }, meta: {} })
 
     await new Runner(policyPipeline('dead-letter', 'dead-letter', 1), globalContext).start()
 
@@ -185,7 +185,7 @@ describe('runner error policy', () => {
   })
 
   it('re-runs a failed run on resume instead of tripping the state machine', async () => {
-    sourceItems.push({ item: { value: 1, boom: true }, meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: { value: 1, boom: true }, meta: {} })
 
     await expect(
       new Runner(policyPipeline('fail-run-resume', 'fail-run', 1), globalContext).start(),

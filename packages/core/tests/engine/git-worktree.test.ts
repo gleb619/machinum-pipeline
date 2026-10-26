@@ -419,7 +419,7 @@ describe('GitWorktreeSource', () => {
   })
 
   it('delegates start() to the inner source without changing cwd', async () => {
-    const inner = mockSource([{ item: 'hello', meta: {} }])
+    const inner = mockSource([{ id: 'ex-test', variables: [], item: 'hello', meta: {} }])
     const wrapper = new GitWorktreeSource(inner, worktreePath)
 
     const chdirSpy = vi.spyOn(process, 'chdir')
@@ -439,7 +439,7 @@ describe('GitWorktreeSource', () => {
   })
 
   it('delegates resume() to the inner source without changing cwd', async () => {
-    const inner = mockSource([{ item: 'resumed', meta: {} }])
+    const inner = mockSource([{ id: 'ex-test', variables: [], item: 'resumed', meta: {} }])
     const wrapper = new GitWorktreeSource(inner, worktreePath)
 
     const chdirSpy = vi.spyOn(process, 'chdir')
@@ -511,9 +511,9 @@ describe('GitWorktreeSource', () => {
       uri: 'mock://yielder',
       lifestyle: 'long-lived',
       async *start(_ctx: SourceContext): AsyncIterable<Envelope<string>> {
-        yield { item: 'a', meta: {} }
-        yield { item: 'b', meta: {} }
-        yield { item: 'c', meta: {} }
+        yield { id: 'ex-test', variables: [], item: 'a', meta: {} }
+        yield { id: 'ex-test', variables: [], item: 'b', meta: {} }
+        yield { id: 'ex-test', variables: [], item: 'c', meta: {} }
       },
     }
     const wrapper = new GitWorktreeSource(inner, worktreePath)
@@ -582,7 +582,7 @@ describe('GitWorktreeTarget', () => {
     expect(inner.opened).toBe(true)
 
     // Write
-    await target.write({ item: 'data1', meta: {} }, ctx)
+    await target.write({ id: 'ex-test', variables: [], item: 'data1', meta: {} }, ctx)
     expect(inner.written).toHaveLength(1)
 
     // Close: should commit + merge + clean up worktree
@@ -677,8 +677,8 @@ describe('GitWorktreeTarget', () => {
     expect(existsSync(wtPath)).toBe(true)
 
     await Promise.all([
-      target.write({ item: 'a', meta: {} }, ctx),
-      target.write({ item: 'b', meta: {} }, ctx),
+      target.write({ id: 'ex-test', variables: [], item: 'a', meta: {} }, ctx),
+      target.write({ id: 'ex-test', variables: [], item: 'b', meta: {} }, ctx),
     ])
 
     const outPath = join(wtPath, 'out.txt')
@@ -703,9 +703,9 @@ describe('GitWorktreeTarget', () => {
       true,
     )
 
-    await expect(target.write({ item: 'x', meta: {} }, makeTargetContext())).rejects.toThrow(
-      /Target not opened/,
-    )
+    await expect(
+      target.write({ id: 'ex-test', variables: [], item: 'x', meta: {} }, makeTargetContext()),
+    ).rejects.toThrow(/Target not opened/)
   })
 
   it('close() is a no-op when not opened', async () => {
@@ -793,7 +793,7 @@ describe('createGitWorktreeSource (composite URI)', () => {
 
   it('resolves inner jsonl scheme and wraps in GitWorktreeSource', () => {
     // Register a mock jsonl source factory
-    const innerSource = mockSource([{ item: 'wrapped', meta: {} }])
+    const innerSource = mockSource([{ id: 'ex-test', variables: [], item: 'wrapped', meta: {} }])
     registry.registerSource('jsonl', () => innerSource)
 
     const uri: ParsedUri = {

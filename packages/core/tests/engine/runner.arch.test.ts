@@ -29,6 +29,8 @@ describe('UC-05/06/07 — Runner lifecycle (architectural)', () => {
 describe('UC-12/UC-13/UC-14 — Concurrency, Batching & Forking (architectural)', () => {
   it('Envelope supports items array for batched output', () => {
     const env: import('../../src/types.js').Envelope = {
+      id: 'ex-test',
+      variables: [],
       item: { x: 1 },
       items: [{ x: 1 }, { x: 2 }],
       meta: {},

@@ -1,4 +1,5 @@
 import type { RetryPolicy, SourceContext, TargetContext, ToolContext } from './contexts.js'
+import type { Exchange, ExchangeInput } from './exchange.js'
 
 /**
  * Lifecycle type for sources.
@@ -8,19 +9,9 @@ import type { RetryPolicy, SourceContext, TargetContext, ToolContext } from './c
 export type Lifecycle = 'long-lived' | 'resumable'
 
 /**
- * Item envelope — the unit of data flowing through a pipeline.
- * Either a single item or a batch of items.
+ * @deprecated Use {@link Exchange}. Kept as an alias so call sites migrate incrementally.
  */
-export interface Envelope<T = unknown> {
-  item: T
-  items?: T[]
-  meta: {
-    chapterId?: string
-    paragraphId?: string
-    lineId?: string
-    [k: string]: unknown
-  }
-}
+export type Envelope<T = unknown> = Exchange<T>
 
 /**
  * Source abstraction — produces items into a pipeline.
@@ -28,8 +19,8 @@ export interface Envelope<T = unknown> {
 export interface Source<T> {
   uri: string
   lifestyle: Lifecycle
-  start(ctx: SourceContext): AsyncIterable<Envelope<T>>
-  resume?(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>>
+  start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>>
+  resume?(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>>
 }
 
 /**
@@ -38,7 +29,7 @@ export interface Source<T> {
 export interface Target<T> {
   uri: string
   open(ctx: TargetContext): Promise<void>
-  write(env: Envelope<T>, ctx: TargetContext): Promise<void>
+  write(ex: Exchange<T>, ctx: TargetContext): Promise<void>
   close(ctx: TargetContext): Promise<void>
   /**
    * Durably committed envelope count for the current open session (since `open()`),
@@ -55,7 +46,9 @@ export interface Target<T> {
 }
 
 /**
- * Tool abstraction — transforms items in a pipeline.
+ * Tool abstraction — transforms an Exchange in a pipeline. `I`/`O` are payload types wrapped in
+ * the Exchange; the output must be derived from the input (`withItem`, `pushVariable`, ...) so
+ * `id`, `meta` and `variables` propagate.
  *
  * Error contract (read by the engine's retry layer, `engine/retry.ts`): an error thrown from
  * `invoke` with `retryable === false` is fatal — the engine rethrows it immediately, without
@@ -66,7 +59,7 @@ export interface Tool<I, O> {
   name: string
   version: string
   mdDescription: string
-  invoke(env: Envelope<I>, ctx: ToolContext): Promise<Envelope<O>>
+  invoke(ex: Exchange<I>, ctx: ToolContext): Promise<Exchange<O>>
   cacheable?: boolean
   idempotent?: boolean
 }

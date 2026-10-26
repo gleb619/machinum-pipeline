@@ -1,6 +1,7 @@
 import { basename, dirname } from 'node:path'
 import type { RetryPolicy, SourceContext, TargetContext, ToolContext } from './contexts.js'
-import type { Envelope, Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
+import type { Exchange } from './exchange.js'
+import type { Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
 
 /**
@@ -263,7 +264,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this
   }
 
-  tap(fn: (env: Envelope<I>) => Promise<void>): PipelineBuilder<I, O> {
+  tap(fn: (ex: Exchange<I>) => Promise<void>): PipelineBuilder<I, O> {
     this._steps.push({ type: 'tap', config: { fn } })
     return this
   }
@@ -276,7 +277,7 @@ export function defineTool<I, O>(config: {
   name: string
   version: string
   mdDescription: string
-  invoke: (env: Envelope<I>, ctx: ToolContext) => Promise<Envelope<O>>
+  invoke: (ex: Exchange<I>, ctx: ToolContext) => Promise<Exchange<O>>
   cacheable?: boolean
   idempotent?: boolean
 }): Tool<I, O> {
@@ -321,9 +322,9 @@ export interface WaypointSourceHooks<T> {
   /** Called once before the inner source starts yielding. */
   onStart?: (ctx: SourceContext) => void | Promise<void>
   /** Return false to drop an envelope from the stream (hardcoded-style filters). */
-  filter?: (env: Envelope<T>) => boolean | Promise<boolean>
+  filter?: (env: Exchange<T>) => boolean | Promise<boolean>
   /** Called for every envelope that passes the filter (observation tap). */
-  onItem?: (env: Envelope<T>) => void | Promise<void>
+  onItem?: (env: Exchange<T>) => void | Promise<void>
 }
 
 /**
@@ -333,9 +334,9 @@ export interface WaypointSourceHooks<T> {
 export interface WaypointTargetHooks<T> {
   onOpen?: (ctx: TargetContext) => void | Promise<void>
   /** Return false to skip writing this envelope to the inner target. */
-  filter?: (env: Envelope<T>) => boolean | Promise<boolean>
+  filter?: (env: Exchange<T>) => boolean | Promise<boolean>
   /** Called after the inner target accepted the envelope (only for written ones). */
-  onWrite?: (env: Envelope<T>) => void | Promise<void>
+  onWrite?: (env: Exchange<T>) => void | Promise<void>
   onClose?: (ctx: TargetContext) => void | Promise<void>
 }
 
@@ -393,7 +394,7 @@ function wrapWaypointSource<T>(inner: Source<T>, hooks: WaypointSourceHooks<T>):
   const wrapper: Source<T> = {
     uri: inner.uri,
     lifestyle: inner.lifestyle,
-    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+    async *start(ctx: SourceContext): AsyncIterable<Exchange<T>> {
       await hooks.onStart?.(ctx)
       for await (const env of inner.start(ctx)) {
         if (hooks.filter && !(await hooks.filter(env))) continue
@@ -407,7 +408,7 @@ function wrapWaypointSource<T>(inner: Source<T>, hooks: WaypointSourceHooks<T>):
     wrapper.resume = async function* (
       ctx: SourceContext,
       cursor: unknown,
-    ): AsyncIterable<Envelope<T>> {
+    ): AsyncIterable<Exchange<T>> {
       for await (const env of innerResume.call(inner, ctx, cursor)) {
         if (hooks.filter && !(await hooks.filter(env))) continue
         await hooks.onItem?.(env)
@@ -426,7 +427,7 @@ function wrapWaypointTarget<T>(inner: Target<T>, hooks: WaypointTargetHooks<T>):
       await inner.open(ctx)
       await hooks.onOpen?.(ctx)
     },
-    async write(env: Envelope<T>, ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<T>, ctx: TargetContext): Promise<void> {
       if (hooks.filter && !(await hooks.filter(env))) return
       await inner.write(env, ctx)
       await hooks.onWrite?.(env)
@@ -452,9 +453,9 @@ export function target<T>(uri: string): Target<T> {
 
 /** A plain function usable wherever a slot Tool is expected. */
 export type ToolFn<I = unknown, O = unknown> = (
-  env: Envelope<I>,
+  ex: Exchange<I>,
   ctx: ToolContext,
-) => Promise<Envelope<O>>
+) => Promise<Exchange<O>>
 
 /**
  * Compose tools into one sequential Tool: each tool's output envelope feeds the next.
@@ -469,10 +470,10 @@ export function chain<I = unknown, O = unknown>(
     name,
     version: '1.0.0',
     mdDescription: `Chain: ${steps.map((t) => t.name).join(' -> ')}`,
-    async invoke(env, ctx) {
-      let current = env as unknown as Envelope<unknown>
+    async invoke(ex, ctx) {
+      let current = ex as unknown as Exchange<unknown>
       for (const tool of steps) current = await tool.invoke(current, ctx)
-      return current as unknown as Envelope<O>
+      return current as unknown as Exchange<O>
     },
   })
 }
@@ -505,12 +506,12 @@ export function defineComposableTool<I, O, S extends string>(config: {
     name: config.name,
     version: config.version,
     mdDescription: config.mdDescription,
-    async invoke(env, ctx) {
-      let current = env as unknown as Envelope<unknown>
+    async invoke(ex, ctx) {
+      let current = ex as unknown as Exchange<unknown>
       for (const key of names) {
         current = await (slots[key] as Tool<unknown, unknown>).invoke(current, ctx)
       }
-      return current as unknown as Envelope<O>
+      return current as unknown as Exchange<O>
     },
   })
   return {

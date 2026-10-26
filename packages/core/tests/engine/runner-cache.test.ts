@@ -130,9 +130,14 @@ describe('runner caching', () => {
   })
 
   it('should return tool output when the cache write fails (BigInt output) under fail-run', async () => {
-    const output: Envelope<unknown> = { item: { n: BigInt(42) }, meta: {} }
+    const output: Envelope<unknown> = {
+      id: 'ex-test',
+      variables: [],
+      item: { n: BigInt(42) },
+      meta: {},
+    }
     const tool = cacheableTool(output)
-    cacheSourceItems.push({ item: 'input', meta: {} })
+    cacheSourceItems.push({ id: 'ex-test', variables: [], item: 'input', meta: {} })
 
     const runner = new Runner(cacheTestPipeline(tool), makeGlobalContext(tempDir))
     await expect(runner.start()).resolves.toBeDefined()
@@ -149,14 +154,14 @@ describe('runner caching', () => {
   it('should treat a circular-meta input as a cache miss instead of throwing', async () => {
     const circular: Record<string, unknown> = {}
     circular.self = circular
-    const tool = cacheableTool({ item: 'done', meta: {} })
-    cacheSourceItems.push({ item: 'input', meta: circular })
+    const tool = cacheableTool({ id: 'ex-test', variables: [], item: 'done', meta: {} })
+    cacheSourceItems.push({ id: 'ex-test', variables: [], item: 'input', meta: circular })
 
     const runner = new Runner(cacheTestPipeline(tool), makeGlobalContext(tempDir))
     await expect(runner.start()).resolves.toBeDefined()
 
     expect(tool.invoke).toHaveBeenCalledTimes(1)
-    expect(cacheTargetItems).toEqual([{ item: 'done', meta: {} }])
+    expect(cacheTargetItems).toEqual([expect.objectContaining({ item: 'done', meta: {} })])
     expect(
       warnSpy.mock.calls.some(
         ([msg]) => typeof msg === 'string' && msg.toLowerCase().includes('cache'),

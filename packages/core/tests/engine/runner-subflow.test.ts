@@ -101,8 +101,8 @@ describe('runner subflow', () => {
   })
 
   it('inline mode: splices a steps-only subflow into the parent stream', async () => {
-    mockSourceItems.push({ item: { value: 1 }, meta: {} })
-    mockSourceItems.push({ item: { value: 2 }, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: { value: 2 }, meta: {} })
 
     const subPipeline: Pipeline = {
       id: 'sub-pipeline',
@@ -131,7 +131,12 @@ describe('runner subflow', () => {
   })
 
   it('inline mode: preserves envelope item data through the subflow', async () => {
-    mockSourceItems.push({ item: { id: 'chapter-1', text: 'hello' }, meta: { chapterId: 'c1' } })
+    mockSourceItems.push({
+      id: 'ex-test',
+      variables: [],
+      item: { id: 'chapter-1', text: 'hello' },
+      meta: { chapterId: 'c1' },
+    })
 
     const subPipeline: Pipeline = {
       id: 'pass-sub',
@@ -161,7 +166,7 @@ describe('runner subflow', () => {
   })
 
   it('inline mode: runs after upstream is consumed, not while the stream is built', async () => {
-    mockSourceItems.push({ item: { value: 1 }, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
 
     const order: string[] = []
     const recordingTool: Tool<unknown, unknown> = {
@@ -204,9 +209,9 @@ describe('runner subflow', () => {
   })
 
   it('inline mode: supports batch/flatMap/tap steps in the subflow', async () => {
-    mockSourceItems.push({ item: 1, meta: {} })
-    mockSourceItems.push({ item: 2, meta: {} })
-    mockSourceItems.push({ item: 3, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: 1, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: 2, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: 3, meta: {} })
 
     const tapped: Envelope<unknown>[] = []
     const subPipeline: Pipeline = {
@@ -240,9 +245,9 @@ describe('runner subflow', () => {
   })
 
   it('self-contained mode: subflow with its own source runs independently of the parent stream', async () => {
-    mockSourceItems.push({ item: { value: 1 }, meta: {} })
-    mockSourceItems.push({ item: { value: 2 }, meta: {} })
-    orchSourceItems.push({ item: { data: 'orch-item' }, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: { value: 1 }, meta: {} })
+    mockSourceItems.push({ id: 'ex-test', variables: [], item: { value: 2 }, meta: {} })
+    orchSourceItems.push({ id: 'ex-test', variables: [], item: { data: 'orch-item' }, meta: {} })
 
     const orchTool: Tool<unknown, unknown> = {
       name: 'orch-tool',
@@ -277,7 +282,7 @@ describe('runner subflow', () => {
 
     expect(orchTool.invoke).toHaveBeenCalledTimes(1)
     expect(orchTool.invoke).toHaveBeenCalledWith(
-      { item: { data: 'orch-item' }, meta: {} },
+      expect.objectContaining({ item: { data: 'orch-item' }, meta: {}, variables: [] }),
       expect.anything(),
     )
     // Parent stream is untouched by the self-contained subflow
@@ -285,7 +290,7 @@ describe('runner subflow', () => {
   })
 
   it('orchestration mode: parent with no source/target still runs its subflows', async () => {
-    orchSourceItems.push({ item: { data: 'orch-item' }, meta: {} })
+    orchSourceItems.push({ id: 'ex-test', variables: [], item: { data: 'orch-item' }, meta: {} })
 
     const orchTool: Tool<unknown, unknown> = {
       name: 'orch-tool',
@@ -318,7 +323,7 @@ describe('runner subflow', () => {
   })
 
   it('runs self-contained subflows in pipeline order', async () => {
-    orchSourceItems.push({ item: { data: 'orch-item' }, meta: {} })
+    orchSourceItems.push({ id: 'ex-test', variables: [], item: { data: 'orch-item' }, meta: {} })
     const order: string[] = []
     const makeSub = (id: string, label: string): Pipeline => ({
       id,

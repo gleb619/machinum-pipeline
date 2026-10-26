@@ -221,6 +221,8 @@ describe('DSL', () => {
 
   it('T002-12: Envelope structure is correct', () => {
     const envelope: Envelope<string> = {
+      id: 'ex-test',
+      variables: [],
       item: 'test-item',
       meta: {
         chapterId: 'chap-1',

@@ -84,7 +84,7 @@ describe('runner event subscription', () => {
   })
 
   it('delivers started, step-done(s), and done in order to a subscribed listener', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const received: RunEvent[] = []
     const runner = new Runner(pipeline('sub-happy', echoTool), context())
@@ -106,7 +106,7 @@ describe('runner event subscription', () => {
   })
 
   it('seeds initial listeners via RunnerOptions.events', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const received: RunEvent[] = []
     const runner = new Runner(pipeline('sub-opts', echoTool), context(), {
@@ -129,7 +129,7 @@ describe('runner event subscription', () => {
   })
 
   it('delivers a failed event when the pipeline throws', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const received: RunEvent[] = []
     const runner = new Runner(pipeline('sub-fail', explodeTool), context())
@@ -145,7 +145,7 @@ describe('runner event subscription', () => {
   })
 
   it('never fails the run when a listener throws or rejects', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const runner = new Runner(pipeline('sub-throwing', echoTool), context())
     runner.subscribeEvents(() => {
@@ -165,7 +165,7 @@ describe('runner event subscription', () => {
   })
 
   it('stops delivery after unsubscribe', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     const received: RunEvent[] = []
     const runner = new Runner(pipeline('sub-unsub', echoTool), context())
@@ -181,7 +181,7 @@ describe('runner event subscription', () => {
   })
 
   it('does not await slow listeners before finishing the run', async () => {
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
 
     let release = (): void => {}
     const gate = new Promise<void>((resolve) => {

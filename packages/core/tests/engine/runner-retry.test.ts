@@ -118,7 +118,7 @@ describe('Runner retry policy merge', () => {
     sourceItems.length = 0
     written.length = 0
     appendedLines.length = 0
-    sourceItems.push({ item: 'a', meta: {} })
+    sourceItems.push({ id: 'ex-test', variables: [], item: 'a', meta: {} })
   })
 
   it('a partial step override keeps the pipeline max (tool is still invoked)', async () => {

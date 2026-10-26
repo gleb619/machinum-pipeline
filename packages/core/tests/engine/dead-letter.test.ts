@@ -17,7 +17,12 @@ describe('writeDeadLetter', () => {
 
   it('writes a dead-letter entry to the dead-letter queue', async () => {
     const runId = 'test-run-id'
-    const envelope: Envelope<unknown> = { item: { foo: 'bar' }, meta: {} }
+    const envelope: Envelope<unknown> = {
+      id: 'ex-test',
+      variables: [],
+      item: { foo: 'bar' },
+      meta: {},
+    }
     const error = new Error('Tool failed')
     const stepId = 'tool-step-1'
 
@@ -39,8 +44,8 @@ describe('writeDeadLetter', () => {
 
   it('appends multiple entries to the dead-letter queue', async () => {
     const runId = 'test-run-id'
-    const envelope1: Envelope<unknown> = { item: { id: 1 }, meta: {} }
-    const envelope2: Envelope<unknown> = { item: { id: 2 }, meta: {} }
+    const envelope1: Envelope<unknown> = { id: 'ex-test', variables: [], item: { id: 1 }, meta: {} }
+    const envelope2: Envelope<unknown> = { id: 'ex-test', variables: [], item: { id: 2 }, meta: {} }
 
     await writeDeadLetter(store, runId, envelope1, new Error('Error 1'), 'step-1')
     await writeDeadLetter(store, runId, envelope2, new Error('Error 2'), 'step-2')

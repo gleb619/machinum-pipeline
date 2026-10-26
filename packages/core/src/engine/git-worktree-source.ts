@@ -1,6 +1,7 @@
 import { basename, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '../contexts.js'
-import type { Envelope, Lifecycle, Source, Target } from '../types.js'
+import type { Exchange, ExchangeInput } from '../exchange.js'
+import type { Lifecycle, Source, Target } from '../types.js'
 import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
 import { createWorktree, mergeWorktreeToMain, removeWorktree } from './git-worktree.js'
@@ -38,11 +39,11 @@ export class GitWorktreeSource<T> implements Source<T> {
     return this.innerSource.lifestyle
   }
 
-  async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+  async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
     yield* this.innerSource.start(ctx)
   }
 
-  async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> {
+  async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
     if (!this.innerSource.resume) {
       throw new Error('Inner source does not support resume')
     }
@@ -91,7 +92,7 @@ export class GitWorktreeTarget<T> implements Target<T> {
     await this.innerTarget.open(ctx)
   }
 
-  async write(env: Envelope<T>, ctx: TargetContext): Promise<void> {
+  async write(env: Exchange<T>, ctx: TargetContext): Promise<void> {
     if (!this.opened) {
       throw new Error('Target not opened. Call open() before write().')
     }
