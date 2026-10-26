@@ -53,11 +53,11 @@ pnpm lint / format / typecheck   # biome + tsc
 NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts   # run a pipeline
 ```
 
-Canonical translation sample: `samples/sample3/pipelines/` — `analyze.ts` (summaries + glossary) → `normalize.ts` → `translate.ts` (titles batched by 5, body line-by-line, parity-linted, output via `@chapters` URI alias).
+Canonical translation sample: `samples/sample4/pipelines/` — `analyze.ts` (summaries + glossary) → `normalize.ts` → `translate.ts` (titles batched by 5, body line-by-line, parity-linted, output via `@chapters` URI alias).
 
 ## Gotchas
 
 - `@mt/core` must stay dependency-free; arch tests enforce import layers.
 - Kanban board (`docs/kanban.md`) is machine-mutated — only via `at kanban`, never hand-edit.
 - Vault files are gitignored secrets; never log key material.
-- `MT_MOCK_FLAKY` in sample3 IT simulates a bad LLM reply to prove parity-lint + retry works offline.
+- `MT_MOCK_FLAKY` in sample4 IT simulates a bad LLM reply to prove parity-lint + retry works offline.

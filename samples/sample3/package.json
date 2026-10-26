@@ -1,16 +1,15 @@
 {
   "name": "sample3",
   "version": "1.0.0",
-  "description": "Machinum Pipeline sample — normalize raw web-novel chapters (JSONL) into clean markdown",
+  "description": "Machinum Pipeline sample — basic markdown processing with fork, subflow, range:// and void://",
   "type": "module",
   "scripts": {
+    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
+    "runner:range": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline rangeDemoPipeline",
+    "runner:void": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline voidDemoPipeline",
     "prepare-input": "tsx prepare-input.ts",
-    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/normalize.ts",
-    "normalize": "pnpm run prepare-input && pnpm run runner",
-    "analyze": "NODE_OPTIONS='--import tsx' mt run ./pipelines/analyze.ts",
-    "translate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate.ts",
-    "lint-parity": "tsx lint-parity.ts chapters/en chapters/ru",
-    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/en-tagged chapters/glossary.json chapters/glossary.graph.json chapters/titles.json jsonl/input.jsonl .mt",
+    "example": "pnpm run prepare-input && pnpm run runner",
+    "cleanup": "rm -rf output.md jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -18,7 +17,6 @@
   "dependencies": {
     "@mt/core": "workspace:*",
     "@mt/cli": "workspace:*",
-    "@mt/tools": "workspace:*",
     "@mt/waypoint": "workspace:*"
   },
   "devDependencies": {

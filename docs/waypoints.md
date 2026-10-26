@@ -12,8 +12,8 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 
 | ID   | Waypoint         | Source | Target | Lifestyle     | Used in Samples                           |
 |------|------------------|--------|--------|---------------|-------------------------------------------|
-| WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3                 |
-| WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3                 |
+| WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
+| WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
 | WP003 | hs:// / http://  | ✓      | —      | long-lived    | sample1                                   |
 | WP004 | chapter-output://| ✓      | ✓      | resumable     | sample2                                   |
 | WP005 | schema-doc://    | ✓      | ✓      | resumable     | sample2                                   |

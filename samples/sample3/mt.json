@@ -10,15 +10,5 @@
     },
     "onError": "fail-run",
     "concurrency": 4
-  },
-  "uris": {
-    "en": "md://./chapters/en",
-    "ru": "md://./chapters/ru",
-    "chapters": "md://./chapters",
-    "en-tagged": "md://./chapters/en-tagged"
-  },
-  "settings": {
-    "llm.tool": "mock",
-    "llm.model": ""
   }
 }

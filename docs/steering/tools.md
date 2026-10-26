@@ -142,7 +142,7 @@ cardinality) is returned untouched.
   `isStatFreqReport(value)`.
 
 ### `translation-prompt.ts` / `line-parity-linter.ts`
-Building blocks of the sample3 translate stage (EN->RU, line by line).
+Building blocks of the sample4 translate stage (EN->RU, line by line).
 
 - `buildTranslationPrompt({ text, glossary, summary, extraRules })` — `{ systemPrompt, userPrompt, usedTerms,
   untranslatedTerms, lockedTerms }`. Injects ONLY glossary entries whose `<term id>` occurs in `text` (`term = ru`);
@@ -159,15 +159,15 @@ Building blocks of the sample3 translate stage (EN->RU, line by line).
   `term-tag-left`, `think-block`, `low-cyrillic`; warn: `untranslated-line`. On a hard error the tool throws
   `LineParityError` (`retryable: true`) so the engine retry kicks in; after the last attempt the run fails with the
   message. `LineParityError.feedback` / `parityFeedback(report)` = measured feedback for retry-prompt injection
-  (line counts + delta, Cyrillic ratio, hard-error messages; T138). Standalone check without `mt`: `samples/sample3/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
+  (line counts + delta, Cyrillic ratio, hard-error messages; T138). Standalone check without `mt`: `samples/sample4/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
 
-### Sample-stage tools (moved from `samples/sample3`, T129)
+### Sample-stage tools (moved from `samples/sample4`, T129)
 Reusable glue so sample pipelines only compose package tools (no bespoke `defineTool`).
 
 - `core/llm-picker.ts` — `pickLlmTool({ env, mockSource, configPath })` / `readLlmConfig` / `LLM_TOOLS`: single LLM
   config point (`MT_LLM_TOOL`, `MT_LLM_MODEL`, `MT_LLM_USE`, mt.json `settings.llm.*`; default offline `mock`).
   Returns `{ tool, model, gate, schemaCall, translate }`. Pass `configPath` = the project's `mt.json`
-  (default `./mt.json` of the cwd). Shared by sample2 and sample3.
+  (default `./mt.json` of the cwd). Shared by sample2 and sample4.
 - `normalization/chapter-record.ts` — `toChapterRecord`, `chapterRecordMapper` (raw `{key,value}` -> `"title\nbody"`,
   `meta.chapterNum`), `lineTextToMarkdown` (first line -> `# title`, other lines -> paragraphs, `{ text }`),
   `unwrapMarkdownText` (`{ text }` -> string, undoes remark `\[` escaping).

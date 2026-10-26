@@ -1,17 +1,18 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
-// Wraps raw `{ key, value }` lines into JSONL envelopes (`{ item: { key, value } }`)
-// that the `jsonl://` source reads. Usage: tsx prepare-input.ts [raw.jsonl] [out.jsonl]
-const ROOT = import.meta.dirname
-const raw = resolve(process.argv[2] ?? join(ROOT, 'jsonl', 'kidnapped_dragons_en_0-10.jsonl'))
-const out = resolve(process.argv[3] ?? join(ROOT, 'jsonl', 'input.jsonl'))
+const SAMPLE_DIR = import.meta.dirname
+const RECORDS = [
+  { id: 1, text: 'First line of the document.' },
+  { id: 2, text: 'Second line of the document.' },
+  { id: 3, text: 'Third line of the document.' },
+]
 
-const lines = readFileSync(raw, 'utf-8')
-  .split('\n')
-  .filter((line) => line.trim() !== '')
-  .map((line) => JSON.stringify({ item: JSON.parse(line) }))
+async function main(): Promise<void> {
+  await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
+  const jsonlContent = `${RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
+  await writeFile(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
+  console.log('Wrote jsonl/input.jsonl')
+}
 
-mkdirSync(dirname(out), { recursive: true })
-writeFileSync(out, `${lines.join('\n')}\n`, 'utf-8')
-console.log(`prepared ${lines.length} chapters -> ${out}`)
+main()
