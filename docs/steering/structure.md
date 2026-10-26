@@ -106,6 +106,8 @@ Import `'@mt/waypoint'` as a side-effect to register all URI schemes:
 | `chapter://` | `chapter-output.ts` | Chapter output (language-folder target) |
 | `schema-doc://` | `schema-doc.ts` | Per-chapter schema-doc output |
 | `git://` | `git-worktree.ts` | Git worktree-aware source/target with optional commit |
+| `range://` | `range.ts` | Integer range source (`<start>..<end>`, `?step=` magnitude) |
+| `void://` | `void.ts` | Discard-everything target sink |
 | (ephemeral) | `ephemeral.ts` | In-memory source/target for tests |
 
 ## @mt/tools — Tool Catalogue

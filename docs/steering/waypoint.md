@@ -9,7 +9,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`.
 
 ## URI Scheme Reference
 
@@ -21,6 +21,8 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout |
 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
+| `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
+| `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
 
 ## Source/Target Shape
 
@@ -53,7 +55,7 @@ the runner double-count and the next resume silently skips unprocessed work. A n
 means "skip nothing" (`sourceStart = 0`). All waypoint resumable orderings are deterministic
 (sorted file walks, buffer insertion order), so a plain skip is exact. Shared helper:
 `src/resume.ts` (`resumeFrom(startFn, cursor)` / `skipEnvelopes(stream, n)`), used by `md://`,
-`chapter-output://`, `ephemeral://` and `schema-doc://`.
+`chapter-output://`, `ephemeral://`, `schema-doc://` and `range://`.
 
 ## Atomicity Contract (hard rule)
 
@@ -98,6 +100,22 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
   numbering is identical everywhere
 - Target: `AtomicStreamWriter` on `open()`, JSON lines on `write()`, `commit()` (rename) on `close()`
 - `isGlobPattern()` / `isGlobCursor()` helpers for glob vs direct path detection
+
+### `range.ts`
+- Source-only integer generator: `range://<start>..<end>` yields `{ item: n, meta: {} }` per number
+  from `start` to `end` inclusive (`uri.path || uri.host` carries the range; the parser puts `1..10`
+  in the host for `range://1..10`)
+- Direction derived from start/end comparison (`5..3` yields 5,4,3); `?step=` is a positive-integer
+  **magnitude** applied in that direction. `0..0` / `3..3` yield exactly one envelope
+- Validation throws naming the bad component (`start`, `end`, `step`): missing `..`, non-integer,
+  non-positive step
+- `lifestyle: 'resumable'`; `resume()` via `resumeFrom()` — the numeric ordering is deterministic
+  by construction. No `batchSize`: use the engine's `.batch(n)` for cardinality changes
+
+### `void.ts`
+- Target-only sink: `void://` discards every envelope (open/write/close are no-ops)
+- Deliberately **no `checkpoint()`** — nothing is durable mid-run; the runner keeps its cursor
+  pre-run and a crash replays the source, which is harmless for a stateless sink
 
 ### `http-server.ts`
 - `Lifecycle: 'long-lived'` — persists across pauses/resumes
@@ -197,6 +215,8 @@ packages/waypoint/tests/builtins/
 ├── chapter-output.test.ts # lang/chapterNum path-validation rejections + happy path
 ├── http-server.test.ts    # HTTP source (real Fastify server)
 ├── git-worktree.arch.test.ts
+├── range.test.ts / range.arch.test.ts   # integer generator: directions, step, validation, resume skip
+├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
 └── settings.test.ts
 ```
 

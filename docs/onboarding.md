@@ -15,7 +15,7 @@ Pluggable, resumable document-processing orchestration engine for long-form text
 |---|---|
 | `@mt/core` | Engine: types, domain, contexts, DSL, URI registry, Runner, checkpoint tree, state machine, retry/cache/dead-letter/store/vault. **Zero runtime deps; may not import other @mt/\* pkgs** (enforced by `*.arch.test.ts`) |
 | `@mt/tools` | Book tools: LLM toolkit (gate/client/prompts/decorators/translates), normalization (glossary, term-tagger, translation-prompt/stage, summaries, typo-fix), verification (chapter-validator, line-parity/pairs linters), modification (chapter-translator, md outputs) |
-| `@mt/waypoint` | Source/Target URI implementations: `jsonl://`, `md://`, `hs://http://`, `chapter://`, `schema-doc://`, `git://` (worktree) |
+| `@mt/waypoint` | Source/Target URI implementations: `jsonl://`, `md://`, `hs://http://`, `chapter://`, `schema-doc://`, `git://` (worktree), `range://` (source), `void://` (target) |
 | `@mt/cli` | `mt` binary: `init`, `run`, `resume`, `ls runs`, `inspect`, `tool`, `serve`, `router`, `vault` |
 | `@mt/router` | Standalone keyless LLM gateway: OpenRouter proxy, API-key pool, upstream routing by model prefix, cost/budget tracking, `/api/translate` |
 | `@mt/backend` + `@mt/frontend` | Admin API (h3) + SSE + SQLite; Vue 3 UI |

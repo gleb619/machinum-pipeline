@@ -9,6 +9,8 @@ export { createMdSource, createMdTarget } from './md.js'
 export { createSchemaDocSource, createSchemaDocTarget } from './schema-doc.js'
 export { createChapterOutputSource, createChapterOutputTarget } from './chapter-output.js'
 export { createEphemeralSource, createEphemeralTarget } from './ephemeral.js'
+export { createRangeSource } from './range.js'
+export { createVoidTarget } from './void.js'
 export {
   GitWorktreeSource,
   GitWorktreeTarget,
@@ -24,3 +26,5 @@ import './http-server.js'
 import './git-worktree.js'
 import './chapter-output.js'
 import './ephemeral.js'
+import './range.js'
+import './void.js'

@@ -96,7 +96,7 @@ For full workspace layout, see [`structure.md`](steering/structure.md).
 - **Concurrency**: In-process only (`p-limit`-style limiter from URI/DSL/global); tools always run in-process via `tool.invoke()`; `.fork()` creates nested checkpoint subtrees; `.subflow()` is the lightweight in-process variant.
 - **Retry & error**: `RetryPolicy` (`fixed` | `linear` | `exp`); `ErrorPolicy` (`fail-run` | `skip-item` | `dead-letter`). Merge order: tool step > pipeline > global (`mt.json`). Dead-letter writes to `.mt/runs/<id>/dead-letter.jsonl`.
 - **Caching**: When `cacheable === true`, output is memoised by content hash at `.mt/cache/<hash>.json`. Replay short-circuits the tool; cache is never required for correctness.
-- **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://`, `chapter://`, `schema-doc://`, `git://`.
+- **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`.
 
 ### Secrets & the Keyless Gateway
 
@@ -172,7 +172,7 @@ Every topic below links to the steering file that holds the full specification, 
 | Core: types (`Envelope`, `Source`, `Tool`, `Target`), DSL, URI registry, Runner, checkpoint tree, state machine, retry, cache, store | [`core.md`](steering/core.md) |
 | CLI commands (`init`, `run`, `resume`, `ls`, `inspect`, `serve`, `router`, `mcp`) | [`cli.md`](steering/cli.md) |
 | Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](steering/tools.md) |
-| URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`) | [`waypoint.md`](steering/waypoint.md) |
+| URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`, `range`, `void`) | [`waypoint.md`](steering/waypoint.md) |
 | Backend (Nuxt): routes, SSE, SQLite, runner registry, frontend integration | [`backend.md`](steering/backend.md) |
 | Router (standalone Nuxt): keyless gateway, upstream routing, vault-fed keys, pool, cost tracking, mock mode, logs | [`router.md`](steering/router.md) |
 | Vault: gitignored secret store, refs (`llm.use`), `mt vault` CLI | [`vault.md`](vault.md), [`router.md`](steering/router.md) |
