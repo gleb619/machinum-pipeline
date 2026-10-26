@@ -18,6 +18,7 @@ import type {
   Target,
   Tool,
 } from '../types.js'
+import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
 import { Cache } from './cache.js'
 import {
@@ -731,12 +732,42 @@ export class Runner {
       if (idx >= 0) this.openTargets.splice(idx, 1)
     }
 
-    // Check for auto-commit on close
+    // Check for auto-commit on close: stage only the target's output path,
+    // never the whole project (T169 — `git add -A` swept WIP edits and
+    // untracked secrets like `.env` into the commit).
     const parsed = registry.parse(uri)
     if (parsed.query.commit === 'on-close') {
-      this.logger('commit').debug(`Auto-committing changes in: ${runContext.global.project.root}`)
-      await autoCommit(runContext.global.project.root)
+      const outputPath = this.targetOutputPath(parsed)
+      this.logger('commit').debug(
+        `Auto-committing changes in: ${runContext.global.project.root} (${outputPath || 'whole repo'})`,
+      )
+      await autoCommit(
+        runContext.global.project.root,
+        undefined,
+        outputPath ? [outputPath] : undefined,
+      )
     }
+  }
+
+  /**
+   * Output path of a target URI as a git pathspec relative to the project root.
+   * Mirrors `resolveWaypointPath` in @mt/waypoint (core cannot import it):
+   * raw URI path, with `waypoint.<scheme>.defaultFolder` prepended for bare filenames.
+   * Directory targets (md/chapter-output) naturally match recursively as pathspecs.
+   */
+  private targetOutputPath(parsed: ParsedUri): string {
+    const rawPath = parsed.path || parsed.host
+    const defaultFolder = getSetting<string>(
+      this.globalContext.settings,
+      'waypoint',
+      parsed.scheme,
+      'defaultFolder',
+    )
+    if (!defaultFolder) return rawPath
+    if (rawPath.includes('/') || rawPath.includes('\\')) return rawPath
+    if (rawPath.includes('*') || rawPath.includes('?') || rawPath.includes('[')) return rawPath
+    if (rawPath.length > 0 && rawPath[0] === '/') return rawPath
+    return join(defaultFolder, rawPath)
   }
 
   /**

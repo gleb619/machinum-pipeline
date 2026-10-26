@@ -125,6 +125,14 @@ per-envelope fan-out, and unsubscribes in the generator's `finally`.
 ### `git-worktree.ts`
 - `GitWorktreeSource` / `GitWorktreeTarget` — use `createWorktree()` / `removeWorktree()` from `@mt/core/engine/git-worktree`
 - Target calls `autoCommit()` in `close()` when `commit` query param is set
+
+### Runner auto-commit (`commit=on-close`)
+- On Target close the Runner calls `autoCommit(projectRoot, undefined, [outputPath])` — it
+  stages **only the target's output path** (git pathspec commit), never `git add -A`, so
+  unrelated WIP edits and untracked files (e.g. `.env`) stay out of the commit (T169)
+- Output path derives from the target URI via `resolveWaypointPath` semantics
+  (`uri.path || uri.host`, `waypoint.<scheme>.defaultFolder` for bare filenames); directory
+  targets match recursively
 - Both implement `lifestyle: 'resumable'`
 
 ### `schema-doc.ts`
