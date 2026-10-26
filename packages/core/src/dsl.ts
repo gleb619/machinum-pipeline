@@ -1,5 +1,5 @@
 import { basename, dirname } from 'node:path'
-import type { RetryPolicy, ToolContext } from './contexts.js'
+import type { RetryPolicy, SourceContext, TargetContext, ToolContext } from './contexts.js'
 import type { Envelope, Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
 
@@ -311,6 +311,136 @@ export function defineTarget<T>(uri: string): Target<T> {
  */
 export function source<T>(uri: string): Source<T> {
   return defineSource<T>(uri)
+}
+
+/**
+ * Hooks for a `defineWaypoint` source wrapper — compose a new Source from an
+ * existing one (instance or URI string) without writing a new class.
+ */
+export interface WaypointSourceHooks<T> {
+  /** Called once before the inner source starts yielding. */
+  onStart?: (ctx: SourceContext) => void | Promise<void>
+  /** Return false to drop an envelope from the stream (hardcoded-style filters). */
+  filter?: (env: Envelope<T>) => boolean | Promise<boolean>
+  /** Called for every envelope that passes the filter (observation tap). */
+  onItem?: (env: Envelope<T>) => void | Promise<void>
+}
+
+/**
+ * Hooks for a `defineWaypoint` target wrapper — compose a new Target from an
+ * existing one (instance or URI string) without writing a new class.
+ */
+export interface WaypointTargetHooks<T> {
+  onOpen?: (ctx: TargetContext) => void | Promise<void>
+  /** Return false to skip writing this envelope to the inner target. */
+  filter?: (env: Envelope<T>) => boolean | Promise<boolean>
+  /** Called after the inner target accepted the envelope (only for written ones). */
+  onWrite?: (env: Envelope<T>) => void | Promise<void>
+  onClose?: (ctx: TargetContext) => void | Promise<void>
+}
+
+/**
+ * Compose a new Source from an existing Source (or URI string), adding
+ * lifecycle/filter hooks around it. The wrapper passes `uri` and `lifestyle`
+ * through unchanged, and exposes `resume` only when the inner source has one.
+ *
+ * @example
+ * // Keep only chapters matching a predicate, wrap any jsonl:// input
+ * const filtered = defineWaypoint<Chapter>('jsonl://./chapters.jsonl', {
+ *   filter: (env) => env.item.title.startsWith('Part 1:'),
+ * })
+ */
+export function defineWaypoint<T>(
+  base: Source<T> | string,
+  hooks: WaypointSourceHooks<T>,
+): Source<T>
+/**
+ * Compose a new Target from an existing Target (or URI string), adding
+ * lifecycle/filter hooks around it. The inner `checkpoint(ctx)` hook is
+ * forwarded ONLY when the inner target implements it — the wrapper never
+ * invents one (targets that commit atomically on close must stay checkpoint-less).
+ */
+export function defineWaypoint<T>(
+  base: Target<T> | string,
+  hooks: WaypointTargetHooks<T>,
+): Target<T>
+export function defineWaypoint<T>(
+  base: Source<T> | Target<T> | string,
+  hooks: WaypointSourceHooks<T> & WaypointTargetHooks<T>,
+): Source<T> | Target<T> {
+  const inner = resolveWaypointBase<T>(base)
+  if (typeof (inner as Source<T>).start === 'function') {
+    return wrapWaypointSource(inner as Source<T>, hooks)
+  }
+  return wrapWaypointTarget(inner as Target<T>, hooks)
+}
+
+/**
+ * Resolve a `base` argument: strings try `resolveSource` first and fall back
+ * to `resolveTarget`; instances pass through.
+ */
+function resolveWaypointBase<T>(base: Source<T> | Target<T> | string): Source<T> | Target<T> {
+  if (typeof base !== 'string') return base
+  try {
+    return registry.resolveSource<T>(base)
+  } catch {
+    return registry.resolveTarget<T>(base)
+  }
+}
+
+/** Wrap a Source with `WaypointSourceHooks`; `resume` exists only if the inner source has one. */
+function wrapWaypointSource<T>(inner: Source<T>, hooks: WaypointSourceHooks<T>): Source<T> {
+  const wrapper: Source<T> = {
+    uri: inner.uri,
+    lifestyle: inner.lifestyle,
+    async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> {
+      await hooks.onStart?.(ctx)
+      for await (const env of inner.start(ctx)) {
+        if (hooks.filter && !(await hooks.filter(env))) continue
+        await hooks.onItem?.(env)
+        yield env
+      }
+    },
+  }
+  const innerResume = inner.resume
+  if (innerResume) {
+    wrapper.resume = async function* (
+      ctx: SourceContext,
+      cursor: unknown,
+    ): AsyncIterable<Envelope<T>> {
+      for await (const env of innerResume.call(inner, ctx, cursor)) {
+        if (hooks.filter && !(await hooks.filter(env))) continue
+        await hooks.onItem?.(env)
+        yield env
+      }
+    }
+  }
+  return wrapper
+}
+
+/** Wrap a Target with `WaypointTargetHooks`; forwards `checkpoint` only if the inner target has it. */
+function wrapWaypointTarget<T>(inner: Target<T>, hooks: WaypointTargetHooks<T>): Target<T> {
+  const wrapper: Target<T> = {
+    uri: inner.uri,
+    async open(ctx: TargetContext): Promise<void> {
+      await inner.open(ctx)
+      await hooks.onOpen?.(ctx)
+    },
+    async write(env: Envelope<T>, ctx: TargetContext): Promise<void> {
+      if (hooks.filter && !(await hooks.filter(env))) return
+      await inner.write(env, ctx)
+      await hooks.onWrite?.(env)
+    },
+    async close(ctx: TargetContext): Promise<void> {
+      await inner.close(ctx)
+      await hooks.onClose?.(ctx)
+    },
+  }
+  const innerCheckpoint = inner.checkpoint
+  if (innerCheckpoint) {
+    wrapper.checkpoint = (ctx: TargetContext) => innerCheckpoint.call(inner, ctx)
+  }
+  return wrapper
 }
 
 /**

@@ -107,11 +107,12 @@ export {
   defineComposableTool,
   defineSource,
   defineTarget,
+  defineWaypoint,
   source,
   target,
   PipelineBuilder,
 } from './dsl.js'
-export type { ComposableTool, ToolFn } from './dsl.js'
+export type { ComposableTool, ToolFn, WaypointSourceHooks, WaypointTargetHooks } from './dsl.js'
 export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
 export type {
   ParsedUri,

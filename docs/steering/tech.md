@@ -43,7 +43,7 @@ Run `pnpm lint` to check, `pnpm format` to auto-fix.
 |---|---|
 | Files | `kebab-case.ts` |
 | Types / Interfaces | `PascalCase` |
-| DSL builders | `define*` prefix (`definePipeline`, `defineTool`, `defineSource`, `defineTarget`) |
+| DSL builders | `define*` prefix (`definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`) |
 | Functions | `camelCase` |
 | Error types | `PascalCase` + `Error` suffix |
 | CLI commands | lowercase verbs (`run`, `resume`, `ls runs`) |

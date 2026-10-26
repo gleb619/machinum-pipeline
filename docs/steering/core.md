@@ -9,7 +9,7 @@ Core is the engine library — it contains all types, the DSL, the URI registry,
 ## Public API (`src/index.ts`)
 
 Re-exports everything needed by consumers:
-- `definePipeline`, `defineTool`, `defineSource`, `defineTarget` (DSL builders)
+- `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint` (DSL builders)
 - `Envelope`, `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
@@ -72,6 +72,25 @@ definePipeline()
 .use(schemaDocWriter.with({ emit: myMockEmit }))   // keep build, swap emit
 ```
 Slot rule: put pure build logic in one slot and I/O/emit (e.g. `meta.mdOutputs`) in another so authors can swap either.
+
+**Waypoint composition** (`defineWaypoint(base, hooks)`) — wrap an existing Source/Target (instance or URI string) with
+lifecycle/filter hooks, no engine changes:
+- Source hooks: `onStart(ctx)`, `filter(env)` (return false to drop), `onItem(env)` (kept envelopes only).
+  `resume` exists on the wrapper only if the inner source has one; same filter applies on resume.
+- Target hooks: `onOpen(ctx)`, `filter(env)` (false skips the inner write), `onWrite(env)` (written ones only), `onClose(ctx)`.
+- `checkpoint(ctx)` is forwarded ONLY when the inner target implements it — the wrapper never invents one.
+- `uri`/`lifestyle` pass through unchanged. Hook errors propagate.
+```typescript
+// Source: keep only items matching a predicate
+const filtered = defineWaypoint<Chapter>('jsonl://./chapters.jsonl', {
+  filter: (env) => env.item.title.startsWith('Part 1:'),
+})
+
+// Target: lifecycle hooks around an existing target
+const observed = defineWaypoint<Chapter>(target('md://./out'), {
+  onWrite: (env) => console.log('wrote', env.item.id),
+})
+```
 
 ### `uri.ts` — `UriRegistry`
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.

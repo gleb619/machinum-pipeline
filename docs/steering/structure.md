@@ -41,7 +41,7 @@ packages/core/src/
 ├── domain.ts         # Book, Chapter, Paragraph, Line interfaces
 ├── types.ts          # Source<T>, Tool<I,O>, Target<T>, Envelope<T>, Lifecycle, RunState
 ├── contexts.ts       # GlobalContext → RunContext → ToolContext chain (backrefs, no copies)
-├── dsl.ts            # definePipeline(), defineTool(), defineSource(), defineTarget()
+├── dsl.ts            # definePipeline(), defineTool(), defineSource(), defineTarget(), defineWaypoint()
 ├── uri.ts            # UriRegistry: registerSource/Target, resolveSource/Target, parse
 ├── config.ts         # mt.json loader and shape
 ├── settings.ts       # getSetting() helper
