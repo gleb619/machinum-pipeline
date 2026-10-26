@@ -27,11 +27,11 @@ deprecated alias of `Exchange<T>`). Modeled on the Java `FlowContext` / `FlowArg
 ```typescript
 type Qualifier = 'new' | 'old' | 'copy' | 'alt'
 interface Variable<U> { id; name; qualifier: Qualifier; value: U; timestamp: string; ephemeral: boolean }
-interface Exchange<T> { id: string; item: T; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown }; variables: Variable[] }
+interface Exchange<T> { id: string; item: T /* materialized copy of the `item` variable */; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown }; variables: Variable[] }
 interface ExchangeInput<T> { id?; item: T; items?; meta?; variables? }   // loose shape Sources may yield
 ```
 An Exchange is a **plain JSON-serializable object**; all operations are pure free functions returning a NEW exchange:
-`createExchange`, `toExchange` (normalizer), `withItem` (derive output from input), `withMeta`,
+`createExchange`, `toExchange` (normalizer), `withItem` (derive output from input; pushes the `item` variable), `itemOf` / `oldItemOf` / `itemsOf` (accessors), `withMeta`,
 `variable`, `getVariable` / `findVariable` / `getOldVariable` / `hasVariable`, `setVariable(s)`,
 `withVariable`, `withoutVariable`, `replaceVariable`, `pushVariable` (current `new` becomes `old`,
 the value becomes `new`; Java `push`/`rearrange`), `copyVariable`, `withoutEphemeral`,
@@ -45,8 +45,20 @@ Conventions:
   name exported from the tool module (`VAR_*`).
 - **Tools derive output from input** (`withItem(ex, out)`, `setVariable(ex, ...)`) so `id`, `meta`
   and `variables` propagate. Never rebuild `{ item, meta }` from scratch.
+- **The payload is a variable.** `ITEM_VARIABLE = 'item'` (qualifier `new`) is the single source of truth, so
+  the payload has the same history as any variable: `withItem(ex, v)` is `pushVariable(ex, 'item', v)` (+ clears
+  `items`), the previous payload stays as the `old` item variable (`oldItemOf(ex)`). Design choice (b):
+  `ex.item` stays as a materialized convenience field (~345 `.item` call sites; plain-JSON and spread-friendly)
+  kept in sync by every helper (`createExchange`, `withItem`, `withVariable` family, `toExchange`,
+  `fromPersisted`); `fromPersisted`/`itemOf` rebuild `item` from the variable (variable wins), `toPersisted`
+  never writes an `item` field. `toExchange` treats a literal whose `item` field differs from its variable
+  (`{ ...env, item: x }`) as a payload edit and pushes it (history kept); prefer `withItem`. `items` (batch/window
+  list) stays a plain field (`itemsOf(ex)` = `items ?? [item]`) and is persisted as-is. Item variables (new+old)
+  are excluded from `hashableVariables`/cache keys and from `mergeVariables` (batch/flatMap build their own);
+  cache keys hash the payload via `ex.item`, so equal payloads hash equally regardless of history. The `item`
+  variable is never ephemeral and survives `withoutEmpty`/`withoutOldAndEmpty`/`withoutEphemeral`/`withoutVariable`.
 - **Persistence contract: `meta` is in-flight only; `variables` are persisted.** `toPersisted(ex)` /
-  `fromPersisted(p)` define the persisted form `{ id, item, items?, variables }`: `meta` is dropped
+  `fromPersisted(p)` define the persisted form `{ id, items?, variables }` (the payload is the `item` variable, no separate `item` field): `meta` is dropped
   (rehydrates as `{}`), ephemeral variables are dropped, all other variables keep id/qualifier/timestamp.
   Where it applies: dead-letter entries (`dead-letter.jsonl`) and the `jsonl://` target write the persisted
   form. Checkpoints (`state.json`) and `events.jsonl` hold no exchange payload at all; resume replays from the

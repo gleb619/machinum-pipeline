@@ -7,7 +7,7 @@ Chapter processing tools for validation, translation, schema extraction, and for
 
 **Exchange contract.** A tool receives `Exchange<I>` and returns `Exchange<O>` *derived from the input*
 (`withItem(ex, out)`, `setVariable(s)`, `pushVariable`) so `id`, `meta` and `variables` propagate - never
-rebuild `{ item, meta }`. `meta` stays identity-only (`chapterId`, `chapterNum`, `lang`, ...); everything a
+rebuild `{ item, meta }` and never `{ ...ex, item: x }` (use `withItem`: it pushes the `item` variable and keeps the previous payload as `oldItemOf(ex)`; `ex.item` is a synced copy of that variable). `meta` stays identity-only (`chapterId`, `chapterNum`, `lang`, ...); everything a
 tool computes (`summary`, `tokenCount`, `glossary`, `llm` config, `mdOutputs` write intents, ...) is a
 **variable** of the same name, exported as a `VAR_*` constant where the module owns it. Entries below that say
 "`X` variable" are read/written with `getVariable(ex, 'X')` / `setVariable(ex, 'X', v)`; per-envelope config

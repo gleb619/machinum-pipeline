@@ -69,7 +69,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 | **Source** | `start()` / `resume()`; lifestyle `long-lived` or `resumable` | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
 | **Tool** | `invoke(ex, ctx) → Promise<Exchange<O>>` (always in-process) | [`core.md`](steering/core.md), [`tools.md`](steering/tools.md) |
 | **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
-| **Exchange** | `{ id, item, items?, meta, variables }` — single or batch; `Envelope` = deprecated alias | [`core.md`](steering/core.md) |
+| **Exchange** | `{ id, item, items?, meta, variables }` — `item` mirrors the `item` variable (payload history via `old`); single or batch; `Envelope` = deprecated alias | [`core.md`](steering/core.md) |
 | **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](steering/core.md) |
 | **Pipeline DSL** | `.from()` `.use()` `.fork()` `.subflow()` `.batch()` `.to()` | [`core.md`](steering/core.md) |
 | **Run state** | `pending → running → [checkpoint → paused → resumed →] done/failed` | [`core.md`](steering/core.md) |

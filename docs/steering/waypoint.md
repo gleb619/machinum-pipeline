@@ -89,7 +89,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 
 ### `jsonl.ts`
 - Source: streams lines from `.jsonl` file, supports glob patterns and a position cursor for resume
-- Each line must be a JSON object with an `item` property (`{ id?, item, meta?, variables? }`); a missing `meta`
+- Each line must be a JSON object with an `item` property or an `item` variable (`{ id?, item, meta?, variables? }`; the `jsonl://` target writes the persisted form `{ id, items?, variables }` where the payload is only the `item` variable); a missing `meta`
   defaults to `{}`, `variables` to `[]`, and a missing `id` to the stable `<file>#<line-index>`. Malformed JSON or a missing/invalid `item`/`meta` throws with a `file:line`
   location (1-based physical line number)
 - Cursor: single file → envelope index among non-blank lines (blank lines are skipped and never
