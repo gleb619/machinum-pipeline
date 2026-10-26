@@ -216,6 +216,9 @@ export class Runner {
   async resume(runId: string): Promise<RunContext> {
     // Load state
     const stateData = await this.store.readJson<RunStateData>('runs', runId, 'state.json')
+    if (stateData.state === 'done') {
+      throw new Error(`Run '${runId}' is already done; nothing to resume`)
+    }
     if (stateData.pipelineId !== this.pipeline.id) {
       const recorded = stateData.pipelineFile ? ` (${stateData.pipelineFile})` : ''
       throw new Error(

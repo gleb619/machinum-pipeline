@@ -10,6 +10,8 @@ const persistedStates: RunStateData[] = []
 const sourceCalls: string[] = []
 /** Items handed to the target, in write order. */
 const written: number[] = []
+/** Raw lines appended to run files (events.jsonl), in order. */
+const appendedLines: string[] = []
 
 const items = [1, 2, 3, 4, 5]
 /** Value the tool throws on; 0 disables the failure. */
@@ -29,7 +31,9 @@ vi.mock('../../src/store.js', () => ({
         ? (JSON.parse(JSON.stringify(last)) as RunStateData)
         : { state: 'running', checkpoint: { stepId: 'root' } }
     })
-    append = vi.fn().mockResolvedValue(undefined)
+    append = vi.fn().mockImplementation(async (line: string) => {
+      appendedLines.push(line)
+    })
   },
 }))
 
@@ -125,6 +129,7 @@ describe('runner source cursor', () => {
     persistedStates.length = 0
     sourceCalls.length = 0
     written.length = 0
+    appendedLines.length = 0
     failOn = 0
   })
 
@@ -228,6 +233,25 @@ describe('runner source cursor', () => {
 
     expect(lastState().pipelineFile).toBe('pipelines/example.ts')
     expect(lastState().pipelineName).toBe('myPipeline')
+  })
+
+  it('rejects resume of a done run without mutating state or emitting resumed (T133)', async () => {
+    await new Runner(cursorPipeline('cursor-done', 'cursor-source'), globalContext).start()
+    expect(lastState().state).toBe('done')
+
+    const statesBefore = persistedStates.length
+    await expect(
+      new Runner(cursorPipeline('cursor-done', 'cursor-source'), globalContext).resume(
+        'run-under-test',
+      ),
+    ).rejects.toThrow(/already done/)
+
+    // Nothing new persisted, no 'resumed' event appended.
+    expect(persistedStates.length).toBe(statesBefore)
+    expect(lastState().state).toBe('done')
+    expect(appendedLines.filter((line) => line.includes('"type":"resumed"'))).toHaveLength(0)
+    // No source ran either.
+    expect(sourceCalls).toEqual(['start'])
   })
 
   it('rejects resume when the pipeline id differs from the recorded run', async () => {

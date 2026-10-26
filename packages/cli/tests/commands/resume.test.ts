@@ -155,4 +155,21 @@ describe('resume command', () => {
       expect.stringContaining('Pipeline resume failed: Runner failed'),
     )
   })
+
+  it('prints the already-done message without a stack when resume rejects (T133)', async () => {
+    const pipelinePath = join(testDir, 'pipeline.ts')
+    await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    vi.doMock(pipelinePath, () => ({
+      default: { id: 'test-pipeline' },
+    }))
+
+    mockResume.mockRejectedValue(new Error("Run 'test-run-id' is already done; nothing to resume"))
+
+    await expect(resumeCommand(['test-run-id', 'pipeline.ts'])).rejects.toThrow('EXIT 1')
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining("Pipeline resume failed: Run 'test-run-id' is already done"),
+    )
+    const printed = vi.mocked(console.error).mock.calls.flat().join(' ')
+    expect(printed).not.toContain('Invalid state transition')
+  })
 })
