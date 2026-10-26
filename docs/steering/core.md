@@ -277,6 +277,22 @@ process output never leaks), `installVlt()` downloads the latest Linux release
 (tar.gz/zip, stdlib-only extraction) into `~/.mt/bin`, `resolveVltValue()` passes
 non-refs through, auto-installs once on a missing binary, and honors `MT_VLT=false`.
 
+### `keepass.ts` — KeePass secret backend
+
+Vault `apiKey`/`apiKeys[]` values of the form `keepass:<title|uuid>` (or
+`keepass://…`) are refs into a `.kdbx` database. `kdbxweb` parses the file and
+`hash-wasm` supplies Argon2 (WASM embedded in JS; no native addon or external
+binary). `getKeepassSecret()` matches UUID, then `Group/Title` path, then title;
+`listKeepassEntries()` returns metadata without passwords. The database is
+memoized per process by path + mtime + size + credential fingerprint.
+`createKeepassDatabase()` / `addKeepassSecret()` provision databases atomically
+(mode 0600); `resolveKeepassValue()` honors `MT_KEEPASS=false`. Config:
+`MT_KEEPASS_PATH` (default `$MT_HOME|~/.mt/secrets.kdbx`), `MT_KEEPASS_PASSWORD` /
+`MT_KEEPASS_PASSWORD_FILE`, `MT_KEEPASS_KEY_FILE`. Errors name the path/entry only.
+
+`loadVault` resolves both ref kinds (`resolveRefs: false` keeps stored refs for
+editing); details: [../vault.md](../vault.md).
+
 A vault ref is also a config value: `settings.llm.use` in `mt.json` and env `MT_LLM_USE` expand into
 provider/baseUrl/keys/headers/model for the LLM gates ([tools.md](tools.md#llm-toolkit)). The router reads
 the same files with its own copy of the reader and turns entries into upstreams

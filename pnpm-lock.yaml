@@ -90,6 +90,13 @@ importers:
         version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
 
   packages/core:
+    dependencies:
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
+      kdbxweb:
+        specifier: ^2.1.1
+        version: 2.1.1
     devDependencies:
       '@types/node':
         specifier: ^20.14.0
@@ -180,6 +187,12 @@ importers:
       h3:
         specifier: ^1.13.0
         version: 1.15.11
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
+      kdbxweb:
+        specifier: ^2.1.1
+        version: 2.1.1
       mdast-util-to-string:
         specifier: ^4.0.0
         version: 4.0.0
@@ -251,6 +264,12 @@ importers:
       h3:
         specifier: ^1.13.0
         version: 1.15.11
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
+      kdbxweb:
+        specifier: ^2.1.1
+        version: 2.1.1
       nitropack:
         specifier: ^2.10.0
         version: 2.13.4(better-sqlite3@9.6.0)
@@ -1987,6 +2006,11 @@ packages:
   '@vue/shared@3.5.33':
     resolution: {integrity: sha512-5vR2QIlmaLG77Ygd4pMP6+SGQ5yox9VhtnbDWTy9DzMzdmeLxZ1QqxrywEZ9sa1AVubfIJyaCG3ytyWU81ufcQ==}
 
+  '@xmldom/xmldom@0.7.13':
+    resolution: {integrity: sha512-lm2GW5PkosIzccsaZIz7tp8cPADSIlIHWDFTR1N0SzfinhhYgeIQjFMz4rYzanCScr3DqQLeomUDArp6MWKm+g==}
+    engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
+
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
     engines: {node: ^18.17.0 || >=20.5.0}
@@ -2623,6 +2647,9 @@ packages:
       picomatch:
         optional: true
 
+  fflate@0.7.5:
+    resolution: {integrity: sha512-QieYf//cis6ywHNi5qW1+PXPQ4bC+XVJAtS4AXIML8P76GroEiOxm/oQtn1f02UkJY1+KsXMJcC+R2v/Eg4G3g==}
+
   file-uri-to-path@1.0.0:
     resolution: {integrity: sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==}
 
@@ -2722,6 +2749,9 @@ packages:
 
   h3@1.15.11:
     resolution: {integrity: sha512-L3THSe2MPeBwgIZVSH5zLdBBU90TOxarvhK9d04IDY2AmVS8j2Jz2LIWtwsGOU3lu2I5jCN7FNvVfY2+XyF+mg==}
+
+  hash-wasm@4.12.0:
+    resolution: {integrity: sha512-+/2B2rYLb48I/evdOIhP+K/DD2ca2fgBjp6O+GBEnCDk2e4rpeXIK8GvIyRPjTezgmWn9gmKwkQjjx6BtqDHVQ==}
 
   hasown@2.0.3:
     resolution: {integrity: sha512-ej4AhfhfL2Q2zpMmLo7U1Uv9+PyhIZpgQLGT1F9miIGmiCJIoCgSmczFdrc97mWT4kVY72KA+WnnhJ5pghSvSg==}
@@ -2871,6 +2901,9 @@ packages:
   katex@0.16.45:
     resolution: {integrity: sha512-pQpZbdBu7wCTmQUh7ufPmLr0pFoObnGUoL/yhtwJDgmmQpbkg/0HSVti25Fu4rmd1oCR6NGWe9vqTWuWv3GcNA==}
     hasBin: true
+
+  kdbxweb@2.1.1:
+    resolution: {integrity: sha512-z+a2+BEzyK2kUh0xDekY7gwc9CkbzSetUyvc78NKVawxV06UG1KYbg9W9hZCJdQPYizIVePTvQsYUXIO1qtAhQ==}
 
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
@@ -5331,6 +5364,8 @@ snapshots:
 
   '@vue/shared@3.5.33': {}
 
+  '@xmldom/xmldom@0.7.13': {}
+
   abbrev@3.0.1: {}
 
   abort-controller@3.0.0:
@@ -5986,6 +6021,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.4
 
+  fflate@0.7.5: {}
+
   file-uri-to-path@1.0.0: {}
 
   fill-range@7.1.1:
@@ -6088,6 +6125,8 @@ snapshots:
       radix3: 1.1.2
       ufo: 1.6.4
       uncrypto: 0.1.3
+
+  hash-wasm@4.12.0: {}
 
   hasown@2.0.3:
     dependencies:
@@ -6220,6 +6259,11 @@ snapshots:
   katex@0.16.45:
     dependencies:
       commander: 8.3.0
+
+  kdbxweb@2.1.1:
+    dependencies:
+      '@xmldom/xmldom': 0.7.13
+      fflate: 0.7.5
 
   kind-of@6.0.3: {}
 

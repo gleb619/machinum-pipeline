@@ -6,10 +6,15 @@ import { createInterface } from 'node:readline/promises'
 import {
   VAULT_PROVIDERS,
   addEntry,
+  addKeepassSecret,
+  createKeepassDatabase,
+  defaultKeepassPath,
   emptyVault,
   findVlt,
   installVlt,
   isVaultProvider,
+  keepassCredentialsConfigured,
+  listKeepassEntries,
   loadVault,
   maskSecret,
   maskVault,
@@ -33,6 +38,10 @@ Subcommands:
   init                  Create an empty vault file
   vlt-install           Download the vlt binary into ~/.mt/bin
   vlt-status            Show vlt binary location, version and session state
+  keepass-init          Create an empty KeePass database
+  keepass-add <title>   Add or update an entry in the KeePass database
+  keepass-list          List KeePass entry titles (no secrets)
+  keepass-status        KeePass database path and whether it can be unlocked
 
 Options:
   --provider <name>     Provider: ${VAULT_PROVIDERS.join(' | ')}
@@ -42,6 +51,11 @@ Options:
   --models <a,b>        Available models
   --default-model <m>   Default model
   --notes <text>        Free-form note
+  --secret <value>      Secret value for keepass-add (never logged)
+  --username <name>     User name for keepass-add
+  --group <path>        KeePass group for keepass-add (e.g. LLM/API)
+  --path <file>         KeePass database path (default $MT_KEEPASS_PATH or ~/.mt/secrets.kdbx)
+  --key-file <file>     KeePass key file
   --user                Use the user vault (~/.mt/vault.json) instead of the project one
   --reveal              Print secret values unmasked
   --force               Overwrite an existing entry
@@ -60,6 +74,11 @@ interface VaultOptions {
   models?: string[]
   defaultModel?: string
   notes?: string
+  secret?: string
+  username?: string
+  group?: string
+  path?: string
+  keyFile?: string
   positionals: string[]
 }
 
@@ -129,6 +148,26 @@ function parseArgs(args: string[]): VaultOptions {
         options.notes = takeValue(args, i, arg)
         i++
         break
+      case '--secret':
+        options.secret = takeValue(args, i, arg)
+        i++
+        break
+      case '--username':
+        options.username = takeValue(args, i, arg)
+        i++
+        break
+      case '--group':
+        options.group = takeValue(args, i, arg)
+        i++
+        break
+      case '--path':
+        options.path = takeValue(args, i, arg)
+        i++
+        break
+      case '--key-file':
+        options.keyFile = takeValue(args, i, arg)
+        i++
+        break
       case '--user':
         options.user = true
         break
@@ -161,9 +200,9 @@ function resolveTargets(options: VaultOptions, cwd: string, env: NodeJS.ProcessE
 }
 
 /** Load a single vault file (the merged view would pull in the other files' entries).
- * Resolution of `vlt:` refs is skipped so stored refs round-trip unchanged on save. */
+ * Resolution of secret refs is skipped so stored refs round-trip unchanged on save. */
 function loadSingle(path: string, env: NodeJS.ProcessEnv): Promise<Vault> {
-  return loadVault(process.cwd(), { ...env, MT_VAULT: path }, { resolveVlt: false })
+  return loadVault(process.cwd(), { ...env, MT_VAULT: path }, { resolveRefs: false })
 }
 
 function unknownEntryMessage(name: string, vault: Vault): string {
@@ -255,7 +294,7 @@ async function buildEntry(options: VaultOptions): Promise<VaultEntry> {
 }
 
 async function listCommand(): Promise<void> {
-  const vault = await loadVault(process.cwd(), process.env, { resolveVlt: false })
+  const vault = await loadVault(process.cwd(), process.env, { resolveRefs: false })
   const names = Object.keys(vault.entries).sort()
   if (names.length === 0) {
     console.log('Vault is empty. Add an entry with: mt vault add <name> --provider <provider>')
@@ -283,7 +322,7 @@ async function listCommand(): Promise<void> {
 
 async function showCommand(options: VaultOptions, name: string): Promise<void> {
   if (!name) fail('Usage: mt vault show <name>')
-  const vault = await loadVault(process.cwd(), process.env, { resolveVlt: false })
+  const vault = await loadVault(process.cwd(), process.env, { resolveRefs: false })
   const entry = vault.entries[name]
   if (!entry) fail(unknownEntryMessage(name, vault))
   const shown = options.reveal
@@ -414,6 +453,111 @@ async function vltStatusCommand(): Promise<void> {
   }
 }
 
+/**
+ * Environment for the KeePass commands. `--path` / `--key-file` override the
+ * environment; when no credentials are configured and a TTY is attached, the
+ * master password is prompted for (keystrokes hidden). Otherwise the core
+ * resolver reports the missing configuration.
+ */
+async function keepassEnv(options: VaultOptions, prompt: boolean): Promise<NodeJS.ProcessEnv> {
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  if (options.path) env.MT_KEEPASS_PATH = options.path
+  if (options.keyFile) env.MT_KEEPASS_KEY_FILE = options.keyFile
+  if (prompt && !keepassCredentialsConfigured(env)) {
+    const password = await askSecret('KeePass master password')
+    if (password) env.MT_KEEPASS_PASSWORD = password
+  }
+  return env
+}
+
+async function keepassInitCommand(options: VaultOptions): Promise<void> {
+  const path = resolve(options.path ?? defaultKeepassPath(process.env))
+  if (existsSync(path)) {
+    fail(`KeePass database already exists: ${path} (remove it first or pick --path)`)
+  }
+  const env = await keepassEnv(options, false)
+  let password = env.MT_KEEPASS_PASSWORD
+  if (!keepassCredentialsConfigured(env)) {
+    if (!process.stdin.isTTY) {
+      fail(
+        'Missing KeePass credentials: set MT_KEEPASS_PASSWORD (or MT_KEEPASS_KEY_FILE) for non-interactive use',
+      )
+    }
+    const first = await askSecret('Master password')
+    if (!first) fail('Master password must be non-empty (or pass --key-file)')
+    const second = await askSecret('Repeat master password')
+    if (first !== second) fail('Passwords do not match')
+    password = first
+  }
+  const created = await createKeepassDatabase({ path, password, keyFile: options.keyFile }, env)
+  console.log(`Created ${created}`)
+  console.log('  mode: 0600')
+}
+
+async function keepassAddCommand(options: VaultOptions): Promise<void> {
+  const title = options.positionals[1]
+  if (!title) {
+    fail(
+      'Usage: mt vault keepass-add <title> [--secret <value>] [--username <name>] [--group <path>]',
+    )
+  }
+  const env = await keepassEnv(options, true)
+  const secret = options.secret ?? (await askSecret(`Secret for "${title}"`))
+  if (!secret) fail('Missing secret: pass --secret (or run on a TTY to be prompted)')
+  const result = await addKeepassSecret(
+    {
+      title,
+      secret,
+      username: options.username,
+      group: options.group,
+      notes: options.notes,
+    },
+    { path: options.path, keyFile: options.keyFile },
+    env,
+  )
+  console.log(`Saved KeePass entry "${title}" in ${result.path}`)
+  console.log(`  uuid: ${result.uuid}`)
+}
+
+async function keepassListCommand(options: VaultOptions): Promise<void> {
+  const env = await keepassEnv(options, true)
+  const path = defaultKeepassPath(env)
+  const entries = await listKeepassEntries(env)
+  console.log(path)
+  if (entries.length === 0) {
+    console.log('  No entries.')
+    return
+  }
+  const rows = entries.map((entry) => ({
+    title: entry.group ? `${entry.group}/${entry.title}` : entry.title,
+    username: entry.username ?? '-',
+    uuid: entry.uuid,
+  }))
+  const titleWidth = Math.max(5, ...rows.map((row) => row.title.length))
+  const userWidth = Math.max(8, ...rows.map((row) => row.username.length))
+  for (const row of rows) {
+    console.log(`  ${row.title.padEnd(titleWidth)}  ${row.username.padEnd(userWidth)}  ${row.uuid}`)
+  }
+}
+
+async function keepassStatusCommand(options: VaultOptions): Promise<void> {
+  const env = await keepassEnv(options, false)
+  const path = defaultKeepassPath(env)
+  console.log(`database: ${path}`)
+  console.log(`  state: ${existsSync(path) ? 'exists' : 'missing'}`)
+  const configured = keepassCredentialsConfigured(env)
+  console.log(
+    `  credentials: ${configured ? 'configured' : 'missing — set MT_KEEPASS_PASSWORD or MT_KEEPASS_PASSWORD_FILE'}`,
+  )
+  if (!existsSync(path) || !configured) return
+  try {
+    const entries = await listKeepassEntries(env)
+    console.log(`  unlocked: ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`)
+  } catch (err) {
+    console.log(`  locked: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 async function dispatch(args: string[]): Promise<void> {
   const options = parseArgs(args)
   if (options.help) {
@@ -444,6 +588,14 @@ async function dispatch(args: string[]): Promise<void> {
       return vltInstallCommand()
     case 'vlt-status':
       return vltStatusCommand()
+    case 'keepass-init':
+      return keepassInitCommand(options)
+    case 'keepass-add':
+      return keepassAddCommand(options)
+    case 'keepass-list':
+      return keepassListCommand(options)
+    case 'keepass-status':
+      return keepassStatusCommand(options)
     default:
       return fail(`Unknown vault subcommand: ${subcommand}\n\n${USAGE}`)
   }

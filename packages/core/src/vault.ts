@@ -2,15 +2,17 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { tmpPathFor } from './atomic.js'
-import { VLT_REF_PREFIX, resolveVltValue } from './vlt.js'
+import { isKeepassRef, resolveKeepassValue } from './keepass.js'
+import { isVltRef, resolveVltValue } from './vlt.js'
 
 /**
  * Vault — gitignored store of sensitive LLM endpoint data (URLs, keys, headers).
  * Loaded from `~/.mt/vault.json` and `<project>/.mt/vault.json`; never serialized
  * into checkpoints, meta or logs. Error messages never echo secret values.
  *
- * `apiKey` / `apiKeys[]` values of the form `vlt:<name>` are vlt secret references,
- * resolved in memory at load time (see vlt.ts); the file on disk keeps the refs.
+ * `apiKey` / `apiKeys[]` values may be secret references instead of plaintext:
+ * `vlt:<name>` (vlt CLI) or `keepass:<title|uuid>` (KeePass database). Refs are
+ * resolved in memory at load time; the file on disk keeps the refs.
  */
 
 export const VAULT_PROVIDERS = [
@@ -65,9 +67,11 @@ export function vaultPaths(projectRoot: string, env: Record<string, string | und
 
 export interface LoadVaultOptions {
   /**
-   * Resolve `vlt:` refs in `apiKey`/`apiKeys` via the vlt CLI (default true).
+   * Resolve secret refs (`vlt:`, `keepass:`) in `apiKey`/`apiKeys` (default true).
    * Pass false when only the stored values matter (e.g. editing the file).
    */
+  resolveRefs?: boolean
+  /** @deprecated use {@link resolveRefs}. */
   resolveVlt?: boolean
 }
 
@@ -81,27 +85,36 @@ export async function loadVault(
     const file = await readVaultFile(path)
     if (file) Object.assign(vault.entries, file.entries)
   }
-  if (options.resolveVlt !== false) await resolveVltRefs(vault, env)
+  if (options.resolveRefs !== false && options.resolveVlt !== false) {
+    await resolveSecretRefs(vault, env)
+  }
   return vault
 }
 
-/** Resolve `vlt:` refs in place. Errors name the entry and secret, never values. */
-async function resolveVltRefs(
+/** Resolve secret refs in place. Errors name the entry and secret, never values. */
+async function resolveSecretRefs(
   vault: Vault,
   env: Record<string, string | undefined>,
 ): Promise<void> {
   for (const [name, entry] of Object.entries(vault.entries)) {
     try {
-      if (entry.apiKey?.startsWith(VLT_REF_PREFIX)) {
-        entry.apiKey = await resolveVltValue(entry.apiKey, env)
-      }
+      if (entry.apiKey !== undefined) entry.apiKey = await resolveSecretValue(entry.apiKey, env)
       if (entry.apiKeys !== undefined) {
-        entry.apiKeys = await Promise.all(entry.apiKeys.map((key) => resolveVltValue(key, env)))
+        entry.apiKeys = await Promise.all(entry.apiKeys.map((key) => resolveSecretValue(key, env)))
       }
     } catch (err) {
       throw new Error(`Vault entry "${name}": ${err instanceof Error ? err.message : String(err)}`)
     }
   }
+}
+
+async function resolveSecretValue(
+  value: string,
+  env: Record<string, string | undefined>,
+): Promise<string> {
+  if (isVltRef(value)) return resolveVltValue(value, env)
+  if (isKeepassRef(value)) return resolveKeepassValue(value, env)
+  return value
 }
 
 async function readVaultFile(path: string): Promise<Vault | undefined> {

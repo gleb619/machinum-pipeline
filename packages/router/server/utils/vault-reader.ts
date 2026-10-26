@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { isKeepassRef, keepassSignature, resolveKeepassValue } from './keepass.js'
 import { VLT_REF_PREFIX, resolveVltValueSync } from './vlt.js'
 
 /**
@@ -43,7 +44,7 @@ export function vaultPaths(cwd: string = process.cwd(), env: Env = process.env):
 
 /** Cheap change detector: mtime + size per path, `missing` when absent. Never reads content. */
 export function vaultSignature(paths: string[]): string {
-  return paths
+  return `${paths
     .map((p) => {
       try {
         const s = statSync(p)
@@ -52,14 +53,14 @@ export function vaultSignature(paths: string[]): string {
         return 'missing'
       }
     })
-    .join('|')
+    .join('|')}|kp:${keepassSignature()}`
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
-function readFile(path: string): Record<string, VaultEntry> | undefined {
+function readVaultFile(path: string): Record<string, VaultEntry> | undefined {
   let raw: string
   try {
     raw = readFileSync(path, 'utf-8')
@@ -128,20 +129,67 @@ function parseEntry(name: string, value: unknown, path: string): VaultEntry {
   return entry
 }
 
+function readRawEntries(paths: string[]): Record<string, VaultEntry> {
+  const merged: Record<string, VaultEntry> = {}
+  for (const path of paths) Object.assign(merged, readVaultFile(path))
+  return merged
+}
+
+function entryRefs(entry: VaultEntry): string[] {
+  return [...(entry.apiKey ? [entry.apiKey] : []), ...(entry.apiKeys ?? [])]
+}
+
+/** True when any entry holds a `keepass:` ref (checked before the async load). */
+export function vaultHasKeepassRefs(paths: string[]): boolean {
+  for (const entry of Object.values(readRawEntries(paths))) {
+    if (entryRefs(entry).some((value) => isKeepassRef(value))) return true
+  }
+  return false
+}
+
+function resolveVltEntry(entry: VaultEntry): VaultEntry {
+  if (entry.apiKey?.startsWith(VLT_REF_PREFIX)) {
+    entry.apiKey = resolveVltValueSync(entry.apiKey)
+  }
+  if (entry.apiKeys !== undefined) {
+    entry.apiKeys = entry.apiKeys.map((key) => resolveVltValueSync(key))
+  }
+  return entry
+}
+
 /**
  * Reads and merges all vault files (project overrides user, whole entry). Missing files = empty.
- * `vlt:` refs in apiKey/apiKeys are resolved in memory via the vlt CLI (memoized).
+ * `vlt:` refs are resolved synchronously; `keepass:` refs are left untouched — use
+ * {@link readVaultEntriesAsync} when they must be resolved.
  */
 export function readVaultEntries(paths: string[]): Record<string, VaultEntry> {
-  const merged: Record<string, VaultEntry> = {}
-  for (const path of paths) Object.assign(merged, readFile(path))
+  const merged = readRawEntries(paths)
   for (const [name, entry] of Object.entries(merged)) {
     try {
-      if (entry.apiKey?.startsWith(VLT_REF_PREFIX)) {
-        entry.apiKey = resolveVltValueSync(entry.apiKey)
+      resolveVltEntry(entry)
+    } catch (err) {
+      throw new Error(`Vault entry "${name}": ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  return merged
+}
+
+/**
+ * Same as {@link readVaultEntries}, but also resolves `keepass:` refs. Async because
+ * kdbxweb decrypts through WebCrypto; the database is memoized per process.
+ */
+export async function readVaultEntriesAsync(paths: string[]): Promise<Record<string, VaultEntry>> {
+  const merged = readRawEntries(paths)
+  for (const [name, entry] of Object.entries(merged)) {
+    try {
+      resolveVltEntry(entry)
+      if (entry.apiKey !== undefined && isKeepassRef(entry.apiKey)) {
+        entry.apiKey = await resolveKeepassValue(entry.apiKey)
       }
       if (entry.apiKeys !== undefined) {
-        entry.apiKeys = entry.apiKeys.map((key) => resolveVltValueSync(key))
+        entry.apiKeys = await Promise.all(
+          entry.apiKeys.map((key) => (isKeepassRef(key) ? resolveKeepassValue(key) : key)),
+        )
       }
     } catch (err) {
       throw new Error(`Vault entry "${name}": ${err instanceof Error ? err.message : String(err)}`)

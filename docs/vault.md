@@ -24,6 +24,10 @@ See [vault.example.json](vault.example.json) (fake values). `{ "version": 1, "en
 | `mt vault init` | Creates an empty `{ "version": 1, "entries": {} }` vault file |
 | `mt vault vlt-install` | Downloads the vlt binary into `~/.mt/bin` (prints path + version) |
 | `mt vault vlt-status` | vlt binary location, version and session state (no secrets printed) |
+| `mt vault keepass-init` | Creates an empty KeePass database (mode 0600) at `--path`/`MT_KEEPASS_PATH` |
+| `mt vault keepass-add <title>` | Adds or updates a KeePass entry (`--secret`, `--username`, `--group`) |
+| `mt vault keepass-list` | Entry titles, group paths and UUIDs — never passwords |
+| `mt vault keepass-status` | Database path, existence, credential config and unlock state |
 
 `add` flags: `--provider` (`ollama|openrouter|openai|anthropic|custom|router`), `--base-url`,
 `--api-key`, `--api-keys k1,k2`, `--models a,b`, `--default-model`, `--notes`. Missing flags are
@@ -31,11 +35,16 @@ prompted for on a TTY (the API key prompt hides the keystrokes); without a TTY t
 `--force` overwrites an existing entry, `--user` targets `~/.mt/vault.json` instead of
 `<project>/.mt/vault.json`. Entry names may not contain `/`.
 
+KeePass flags: `--path <file>` (database), `--key-file <file>`, `--secret <value>` (entry password,
+never logged), `--username <name>`, `--group <path>`. The master password is read from
+`MT_KEEPASS_PASSWORD` / `MT_KEEPASS_PASSWORD_FILE`; `keepass-init` / `keepass-add` / `keepass-list`
+prompt for it with hidden input when a TTY is attached and no credential is configured.
+
 Secrets are masked in every output (`sk-…1234`) unless `--reveal` is given. Writes go through
 `saveVault`: atomic (temp-then-rename), file mode 0600.
 
-`mt vault init` and `mt init` both keep `.gitignore` covered — `.mt/`, `vault.json`, `*.vault.json`
-and `.mt/vault*` are appended only when missing, so running either twice changes nothing.
+`mt vault init` and `mt init` both keep `.gitignore` covered — `.mt/`, `vault.json`, `*.vault.json`,
+`.mt/vault*` and `*.kdbx` are appended only when missing, so running either twice changes nothing.
 
 ## Precedence
 
@@ -51,13 +60,20 @@ Missing file = empty vault. Malformed JSON / bad entry = error naming file + ent
 (`vault://my-openrouter/openai/gpt-4o-mini`). Model defaults to `defaultModel`; if the entry lists
 `models`, anything else is an error. See [Using a vault entry](#using-a-vault-entry-llmuse).
 
-## vlt backend
+## Secret backends
 
-`apiKey` / `apiKeys[]` values may be vlt secret references instead of plaintext:
-`"apiKey": "vlt:openrouter_main"` resolves at load time via
-[vlt](https://github.com/ladzaretti/vlt-cli) (`vlt show openrouter_main --stdout`).
-Resolution is **in memory only** — the vault file keeps the original refs and
-`saveVault` never persists resolved values.
+`apiKey` / `apiKeys[]` values may be secret references instead of plaintext. Resolution happens
+**in memory only** — the vault file keeps the original refs and `saveVault` never persists resolved
+values. A value that is not a known ref prefix passes through unchanged.
+
+| Ref | Backend | Config |
+|---|---|---|
+| `vlt:<name>` | [vlt](https://github.com/ladzaretti/vlt-cli) CLI | `MT_VLT`, vlt's own session (`vlt login`) |
+| `keepass:<title\|uuid>` | KeePass `.kdbx` (kdbxweb + WASM Argon2) | `MT_KEEPASS_PATH`, `MT_KEEPASS_PASSWORD`, `MT_KEEPASS_KEY_FILE` |
+
+### vlt
+
+`"apiKey": "vlt:openrouter_main"` resolves at load time via `vlt show openrouter_main --stdout`.
 
 - **Binary acquisition** (first match wins): `vlt` on PATH → mt-managed
   `$MT_HOME|~/.mt/bin/vlt` → on-demand auto-install into `~/.mt/bin` (Linux only;
@@ -77,9 +93,43 @@ Resolution is **in memory only** — the vault file keeps the original refs and
   poll never forks `vlt` repeatedly; a failed `vlt show` clears the memo entry so the
   next reload re-resolves.
 
+### KeePass
+
+`packages/core/src/keepass.ts` reads `.kdbx` files directly (no external binary, no native
+addon): `kdbxweb` parses the database, `hash-wasm` supplies Argon2 (WASM embedded as base64, so
+the standalone `mt` binary stays self-contained). `keepass://<title>` is accepted as an alias of
+`keepass:<title>`.
+
+- **Lookup**: exact UUID, then `Group/Sub/Title` path, then title (case-insensitive fallback).
+  Duplicate titles resolve to the first match; use the UUID or a group path to disambiguate.
+  `mt vault keepass-list` prints paths and UUIDs.
+- **Config**: `MT_KEEPASS_PATH` (default `$MT_HOME|~/.mt/secrets.kdbx`), `MT_KEEPASS_PASSWORD`
+  or `MT_KEEPASS_PASSWORD_FILE` (one trailing newline stripped), optional
+  `MT_KEEPASS_KEY_FILE`. A key file alone is enough. Missing credentials are a clear error;
+  the core resolver never prompts (pipelines may run without a TTY). The CLI commands prompt
+  with hidden input when a TTY is attached.
+- **Caching**: an opened database is memoized per process by path + mtime + size + credential
+  fingerprint; edits to the file reload it. Decrypted entries never leave the resolver.
+- **Provisioning**:
+  ```bash
+  export MT_KEEPASS_PASSWORD='…'          # CI only; interactive commands prompt
+  mt vault keepass-init                    # empty db, mode 0600
+  mt vault keepass-add OpenRouter-Key --secret "$OPENROUTER_KEY" --group LLM/API
+  mt vault add or --provider openrouter --api-key keepass:OpenRouter-Key
+  ```
+  KeePassXC can edit the same file; AES-KDF (KDBX 3.1) and Argon2 (KDBX 4) databases are supported.
+- **Opt-out**: `MT_KEEPASS=false` disables resolution entirely (refs pass through as-is).
+- **Errors are sanitized**: a wrong password, missing file or missing entry names the path/entry
+  and never includes the master password or a secret value.
+- **Router**: `packages/router/server/utils/keepass.ts` is a standalone duplicate. Loading is
+  async (WebCrypto), so a changed vault with `keepass:` refs triggers a background refresh and
+  keeps serving the previous result until it completes; `startRouter()` awaits the first load.
+  Database mtime is part of the hot-reload signature.
+
 ## Security
 
-- `.mt/vault*`, `vault.json`, `*.vault.json` are gitignored. Never commit real vaults.
+- `.mt/vault*`, `vault.json`, `*.vault.json` and `*.kdbx` are gitignored. Never commit real vaults
+  or databases.
 - `saveVault` writes atomically with mode 0600.
 - `GlobalContext.vault` is non-enumerable: excluded from `JSON.stringify`, spreads, checkpoints, meta, logs.
 - Use `maskVault()` before displaying/logging any entry.

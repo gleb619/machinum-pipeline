@@ -77,7 +77,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON envelope on stdin/stdout); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
 | `mt serve [--port N\|0] [--host H] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/backend/standalone`); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
 | `mt router [--port N\|0] [--host H] [--mock] [--log-dir D] [-d\|--detach]` | `router.ts` | Start the keyless LLM gateway + dashboard (`@mt/router/standalone`); no `--token` flag — the token is `MT_ROUTER_TOKEN`; `--detach` re-execs self in background (`.mt/router/{pid,server.log}`) |
-| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init`, `vlt-install`, `vlt-status` (secrets masked unless `--reveal`) |
+| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init`, `vlt-install`, `vlt-status`, `keepass-init`, `keepass-add`, `keepass-list`, `keepass-status` (secrets masked unless `--reveal`) |
 
 ## Pipeline Loading
 
@@ -151,15 +151,18 @@ Writes to both console (with ANSI colour) and a log file under `.mt/runs/<runId>
 `mt vault` — `list` / `show` / `add` / `rm` / `path` / `init` over the `@mt/core` vault. Writes go
 through `saveVault` (atomic, mode 0600). Secrets are masked in every output unless `--reveal` is
 given. `--user` targets `~/.mt/vault.json`, otherwise `<project>/.mt/vault.json`; `MT_VAULT` wins
-over both. `list`/`show` and the file-editing flows load with `resolveVlt: false` so stored
-`vlt:` refs display and round-trip unchanged. `vlt-install` runs `installVlt()` (prints path +
-version); `vlt-status` prints binary location, version and session state (probes `vlt find`,
-never prints secrets). The router reads those same files as upstream key sources ([router.md](router.md#vault-t118)).
-Details: [docs/vault.md](../vault.md).
+over both. `list`/`show` and the file-editing flows load with `resolveRefs: false` so stored
+`vlt:` / `keepass:` refs display and round-trip unchanged. `vlt-install` runs `installVlt()`
+(prints path + version); `vlt-status` prints binary location, version and session state (probes
+`vlt find`, never prints secrets). `keepass-init` / `keepass-add` / `keepass-list` /
+`keepass-status` manage the KeePass backend (`--path`, `--key-file`, `--secret`, `--username`,
+`--group`); the master password comes from `MT_KEEPASS_PASSWORD` / `_FILE` or a hidden TTY prompt,
+and no secret is ever printed. The router reads those same files as upstream key sources
+([router.md](router.md#vault-t118)). Details: [docs/vault.md](../vault.md).
 
 ### `src/utils/gitignore.ts`
 `ensureIgnorePatterns()` — appends the missing ignore lines (`.mt/`, `vault.json`, `*.vault.json`,
-`.mt/vault*`) to `.gitignore`; idempotent, never duplicates a line.
+`.mt/vault*`, `*.kdbx`) to `.gitignore`; idempotent, never duplicates a line.
 
 ### `src/utils/args.ts`
 `parseInitArgs()` — parses `mt init` flags (`--settings <json>`/`-s`, `--force`); unknown flags fail with usage. `--force` overwrites an existing `mt.json`/`pipelines/example.ts` (without it `initCommand` refuses, exit 1).

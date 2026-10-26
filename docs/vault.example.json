@@ -16,6 +16,12 @@
       "headers": { "X-Title": "example-project" },
       "defaultModel": "openai/gpt-4o-mini",
       "notes": "Fake example: key pool"
+    },
+    "keepass-openrouter": {
+      "provider": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "keepass:EXAMPLE-OpenRouter-Key",
+      "notes": "Fake example: key lives in a KeePass entry (see docs/vault.md)"
     }
   }
 }

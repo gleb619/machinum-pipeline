@@ -27,7 +27,7 @@ import translateHealthRoute from './routes/api/translate/health.js'
 import { assertSafeBind } from './utils/bind-guard.js'
 import { redact } from './utils/redact.js'
 import { type RouterConfigInput, getRouterConfig, setRouterConfig } from './utils/router-config.js'
-import { resetVaultState } from './utils/vault-upstreams.js'
+import { refreshVaultUpstreams, resetVaultState } from './utils/vault-upstreams.js'
 
 /**
  * Nitro-free runtime for the LLM router. Mounts the very same h3 handlers that Nitro file-routing
@@ -152,6 +152,7 @@ export async function startRouter(options: StartRouterOptions = {}): Promise<Rou
   const config = setRouterConfig(options)
   assertSafeBind(config.host, config.token)
   resetVaultState()
+  if (config.vault) await refreshVaultUpstreams()
   startMockMode()
   await startLogRotation()
 

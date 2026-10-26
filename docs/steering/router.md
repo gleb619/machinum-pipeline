@@ -110,7 +110,15 @@ reader and hot-reload poll are sync): it resolves `vlt:<name>` refs in `apiKey`/
 `vlt show <name> --stdout`, memoized per secret name so the ≤2s poll never forks `vlt` repeatedly;
 a failed `vlt show` clears the memo entry so the next reload re-resolves. A resolution failure
 turns the reload into the standard broken-file path (previous entries kept). `redact.ts` scrubs
-resolved values and `vlt:` ref strings. Keep both copies in sync.
+resolved values plus `vlt:` and `keepass:` ref strings. Keep both copies in sync.
+
+`server/utils/keepass.ts` is the standalone KeePass backend (`kdbxweb` + `hash-wasm` Argon2).
+`keepass:<title|uuid>` refs need an async WebCrypto load, so `vault-reader.ts` exposes
+`readVaultEntriesAsync()` (vlt + keepass) and `vaultHasKeepassRefs()`; `vault-upstreams.ts` keeps
+`getVaultUpstreams()` sync and, when a changed vault holds keepass refs, starts
+`refreshVaultUpstreams()` in the background and serves the previous result until it completes.
+`startRouter()` awaits the first refresh. The hot-reload signature includes the database
+mtime/size. Errors name path/entry only; a failed load keeps the previous entries.
 
 The vault is written by `mt vault` (`packages/cli/src/commands/vault.ts`, see
 [docs/steering/cli.md](cli.md#srccommandsvaultts)); the router only reads it. Format and CLI:
@@ -212,6 +220,10 @@ always load. Pinned by [packages/router/tests/dashboard-auth.test.ts](../../pack
 | `MT_ROUTER_UPSTREAMS` | — | JSON array of upstream specs `{name,kind,baseUrl,keys?,headers?,models?,defaultModel?}` |
 | `MT_ROUTER_OLLAMA_URL` | — | Registers keyless `ollama` upstream (e.g. `http://gpu:11434`) |
 | `MT_VAULT` | — | Vault file path override (only that file is read) |
+| `MT_KEEPASS` | `true` | `false` disables `keepass:` ref resolution |
+| `MT_KEEPASS_PATH` | `$MT_HOME\|~/.mt/secrets.kdbx` | KeePass database for `keepass:` refs |
+| `MT_KEEPASS_PASSWORD` / `_FILE` | — | Master password (or file containing it) |
+| `MT_KEEPASS_KEY_FILE` | — | Optional KeePass key file |
 | `MT_ROUTER_HOST` | `localhost` | Bind host; non-loopback requires `MT_ROUTER_TOKEN` |
 | `MT_ROUTER_TOKEN` | — | Bearer token required on `/api/*` (except `GET /api/health`); also read by tools provider `router` |
 | `MT_ROUTER_VAULT` | `true` | `false` disables vault loading |
