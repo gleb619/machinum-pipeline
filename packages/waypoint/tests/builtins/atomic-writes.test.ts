@@ -183,7 +183,12 @@ describe('waypoint targets — atomic writes', () => {
 
       const lines = readFileSync(file, 'utf-8').trim().split('\n')
       expect(lines).toHaveLength(2)
-      expect(lines.map((l) => JSON.parse(l).item)).toEqual(['a', 'b'])
+      expect(lines.map((l) => JSON.parse(l).item)).toEqual([undefined, undefined])
+      expect(
+        lines.map(
+          (l) => JSON.parse(l).variables.find((v: { name: string }) => v.name === 'item').value,
+        ),
+      ).toEqual(['a', 'b'])
       expect(tmpFilesIn(tempDir)).toEqual([])
     })
 

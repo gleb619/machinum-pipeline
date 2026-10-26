@@ -143,7 +143,8 @@ describe('runner caching', () => {
     await expect(runner.start()).resolves.toBeDefined()
 
     expect(tool.invoke).toHaveBeenCalledTimes(1)
-    expect(cacheTargetItems).toEqual([output])
+    expect(cacheTargetItems).toHaveLength(1)
+    expect(cacheTargetItems[0]?.item).toEqual(output.item)
     expect(
       warnSpy.mock.calls.some(
         ([msg]) => typeof msg === 'string' && msg.toLowerCase().includes('cache'),

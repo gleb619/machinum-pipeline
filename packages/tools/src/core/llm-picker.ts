@@ -17,7 +17,7 @@
  */
 import { dirname, join } from 'node:path'
 import { createExchange, defineTool, parseVaultRef, readMtConfigSync, withItem } from '@mt/core'
-import type { ComposableTool, Tool, ToolContext } from '@mt/core'
+import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import type { SchemaDocLlmCall } from '../normalization/schema/llm.js'
 import {
   type GateInput,
@@ -101,6 +101,12 @@ function readProjectSettings(configPath: string): Record<string, unknown> {
   }
 }
 
+/** `withItem` that keeps a batch's `items` (the pinned input replaces the payload only). */
+function withItemKeepItems<I, O>(env: Exchange<I>, item: O): Exchange<O> {
+  const next = withItem(env, item)
+  return env.items ? ({ ...next, items: env.items } as unknown as Exchange<O>) : next
+}
+
 function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 }
@@ -168,14 +174,14 @@ function withModel(
     version: '1.0.0',
     mdDescription: `Pins the picked model (${model}) on the gate input.`,
     async invoke(env, ctx) {
-      if (!vault) return prepare.invoke({ ...env, item: { ...env.item, model } }, ctx)
+      if (!vault) return prepare.invoke(withItemKeepItems(env, { ...env.item, model }), ctx)
       const { model: _callerModel, ...rest } = env.item
       const item: GateInput = {
         ...rest,
         llm: { ...env.item.llm, use: vault.use },
         ...(vault.pinModel ? { model } : {}),
       }
-      return prepare.invoke({ ...env, item }, ctx)
+      return prepare.invoke(withItemKeepItems(env, item), ctx)
     },
   })
   return gate.with({ prepare: pinned })

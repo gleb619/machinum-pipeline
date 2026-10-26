@@ -1,4 +1,4 @@
-import { definePipeline, defineTool } from '@mt/core'
+import { definePipeline, defineTool, withItem } from '@mt/core'
 import {
   type LlmRequest,
   type TitleTranslatorInput,
@@ -21,7 +21,7 @@ const toInput = defineTool<string, TitleTranslatorInput>({
   version: '1.0.0',
   mdDescription: 'Wraps the chapter text as a title translator request (EN -> RU).',
   async invoke(env) {
-    return { ...env, item: { text: env.item, sourceLang: 'English', targetLang: 'Russian' } }
+    return withItem(env, { text: env.item, sourceLang: 'English', targetLang: 'Russian' })
   },
 })
 

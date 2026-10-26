@@ -8,7 +8,7 @@ import type { Envelope } from '../types.js'
 export interface DeadLetterEntry {
   timestamp: string
   /** Persisted form: variables yes (non-ephemeral), `meta` no. */
-  envelope: PersistedExchange<unknown>
+  envelope: PersistedExchange
   error: {
     message: string
     name: string

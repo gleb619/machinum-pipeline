@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import {
   type ExchangeInput,
+  ITEM_VARIABLE,
   createExchange,
   hashableVariables,
   mergeVariables,
@@ -82,13 +83,12 @@ async function drainStream(stream: EnvelopeStream): Promise<void> {
 function toBatchEnvelope(group: Envelope<unknown>[]): Envelope<unknown> {
   const items = group.map((env) => env.item)
   // Variables merge across the group (later wins on name+qualifier clash); meta is the first item's.
-  return {
+  return createExchange(items, {
     id: newExchangeId('batch-'),
-    item: items,
     items,
     meta: group[0]?.meta ?? {},
     variables: mergeVariables(group),
-  }
+  })
 }
 
 /**
@@ -435,12 +435,11 @@ export class Runner {
               let n = 0
               for (const item of items) {
                 // Children inherit the parent's meta + variables and get a fresh id.
-                yield {
+                yield createExchange(item, {
                   id: `${env.id}.${n++}`,
-                  item,
                   meta: { ...env.meta, parentId: env.id },
-                  variables: [...env.variables],
-                }
+                  variables: env.variables.filter((v) => v.name !== ITEM_VARIABLE),
+                })
               }
             }
           })()

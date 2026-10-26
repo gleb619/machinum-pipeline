@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { writeDeadLetter } from '../../src/engine/dead-letter.js'
 import type { DeadLetterEntry } from '../../src/engine/dead-letter.js'
+import { fromPersisted, variable } from '../../src/exchange.js'
 import { Store } from '../../src/store.js'
 
 describe('UC-18 — Dead-letter queue (architectural)', () => {
@@ -15,12 +16,12 @@ describe('UC-18 — Dead-letter queue (architectural)', () => {
   it('DeadLetterEntry shape — timestamp, envelope, error, stepId', () => {
     const entry: DeadLetterEntry = {
       timestamp: new Date().toISOString(),
-      envelope: { id: 'ex-test', variables: [], item: { test: true } },
+      envelope: { id: 'ex-test', variables: [variable('item', { test: true })] },
       error: { message: 'test error', name: 'Error' },
       stepId: 'tool-test-123',
     }
     expect(typeof entry.timestamp).toBe('string')
-    expect(entry.envelope.item).toEqual({ test: true })
+    expect(fromPersisted(entry.envelope).item).toEqual({ test: true })
     expect(entry.error.message).toBe('test error')
     expect(entry.error.name).toBe('Error')
     expect(entry.stepId).toBe('tool-test-123')
@@ -46,7 +47,8 @@ describe('UC-18 — Dead-letter queue (architectural)', () => {
     // Verify content is NDJSON
     const content = await store.read('runs', runId, 'dead-letter.jsonl')
     const parsed = JSON.parse(content.trim())
-    expect(parsed.envelope.item).toEqual({ bad: true })
+    expect(parsed.envelope.item).toBeUndefined()
+    expect(parsed.envelope.variables[0].value).toEqual({ bad: true })
     expect(parsed.error.message).toBe('simulated failure')
     expect(parsed.stepId).toBe('tool-foo-1')
 

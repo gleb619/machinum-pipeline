@@ -89,9 +89,13 @@ describe('HTTP to JSONL pipeline', () => {
 
     const titles: string[] = []
     for (const line of lines) {
-      const envelope = JSON.parse(line) as { item?: { title?: string } }
-      expect(envelope.item?.title).toBeDefined()
-      titles.push(envelope.item?.title as string)
+      // persisted form: the payload lives only in the `item` variable
+      const envelope = JSON.parse(line) as {
+        variables?: { name: string; qualifier: string; value: { title?: string } }[]
+      }
+      const item = envelope.variables?.find((v) => v.name === 'item' && v.qualifier === 'new')
+      expect(item?.value.title).toBeDefined()
+      titles.push(item?.value.title as string)
     }
 
     expect(titles).toContain('Chapter 1: The Road from Thornhaven')

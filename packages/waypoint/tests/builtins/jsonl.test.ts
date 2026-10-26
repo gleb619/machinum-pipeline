@@ -102,9 +102,9 @@ describe('jsonl', () => {
     const out = []
     for await (const env of createJsonlSource(uri).start(ctx)) out.push(env)
     expect(out[0]?.id).toBe('t.jsonl#0')
-    expect(out[0]?.variables).toEqual([])
+    expect(out[0]?.variables.map((v) => v.name)).toEqual(['item'])
     expect(out[1]?.id).toBe('custom')
-    expect(out[1]?.variables).toEqual(variables)
+    expect(out[1]?.variables.filter((v) => v.name !== 'item')).toEqual(variables)
   })
 
   it('applies defaultFolder setting to bare filename', async () => {

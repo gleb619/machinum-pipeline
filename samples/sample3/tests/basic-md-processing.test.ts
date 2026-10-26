@@ -112,6 +112,6 @@ describe('countSidePipeline', () => {
 
   it('writes the counted batch to ./counts.jsonl', async () => {
     const content = await readFile(join(SAMPLE_DIR, 'counts.jsonl'), 'utf-8')
-    expect(content).toContain('"item":')
+    expect(content).toContain('"name":"item"')
   })
 })

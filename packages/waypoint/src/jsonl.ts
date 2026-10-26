@@ -4,7 +4,15 @@ import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { AtomicStreamWriter, mergeVariables, registry, toPersisted } from '@mt/core'
+import {
+  AtomicStreamWriter,
+  ITEM_VARIABLE,
+  createExchange,
+  mergeVariables,
+  registry,
+  toExchange,
+  toPersisted,
+} from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
 
 /**
@@ -50,14 +58,14 @@ function parseEnvelopeLine<T>(
     typeof parsed !== 'object' ||
     parsed === null ||
     Array.isArray(parsed) ||
-    !('item' in parsed)
+    !('item' in parsed || hasItemVariable((parsed as { variables?: unknown }).variables))
   ) {
     throw new Error(
-      `${filePath}:${lineNumber}: invalid envelope — expected a JSON object with an "item" property`,
+      `${filePath}:${lineNumber}: invalid envelope — expected a JSON object with an "item" property or an "item" variable`,
     )
   }
   const { item, meta, id, variables } = parsed as {
-    item: T
+    item?: T
     meta?: unknown
     id?: unknown
     variables?: unknown
@@ -68,13 +76,21 @@ function parseEnvelopeLine<T>(
   if (variables !== undefined && !Array.isArray(variables)) {
     throw new Error(`${filePath}:${lineNumber}: invalid envelope — "variables" must be an array`)
   }
-  return {
+  return toExchange<T>({
     // Stable id: explicit `id` in the line, else file position (survives resume replays).
     id: typeof id === 'string' && id ? id : `${filePath}#${lineIndex}`,
-    item,
+    item: item as T,
     meta: (meta as Exchange<T>['meta']) ?? {},
     variables: (variables as Exchange<T>['variables']) ?? [],
-  }
+  })
+}
+
+/** True when a persisted `variables` array carries the payload (`item` variable). */
+function hasItemVariable(variables: unknown): boolean {
+  return (
+    Array.isArray(variables) &&
+    variables.some((v) => typeof v === 'object' && v !== null && v.name === ITEM_VARIABLE)
+  )
 }
 
 /** One envelope read from a JSONL file. */
@@ -132,13 +148,12 @@ function* yieldBatch<T>(batch: Exchange<T>[], batchSize: number): Generator<Exch
   } else {
     const first = batch[0]
     if (!first) return
-    yield {
+    yield createExchange(first.item, {
       id: `batch:${first.id}`,
-      item: first.item,
       items: batch.map((e) => e.item),
       meta: first.meta ?? {},
       variables: mergeVariables(batch),
-    }
+    })
   }
 }
 

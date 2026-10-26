@@ -13,6 +13,7 @@ import {
   setVariable,
   toPersisted,
   variable,
+  withVariable,
 } from '../../src/exchange.js'
 import { Store } from '../../src/store.js'
 import type { Pipeline, Tool } from '../../src/types.js'
@@ -108,12 +109,15 @@ describe('persistence contract', () => {
   it('toPersisted/fromPersisted: variables keep qualifier+timestamp, meta and ephemeral dropped', () => {
     const ts = '2024-01-02T03:04:05.000Z'
     let ex = createExchange('x', { id: 'a', meta: { chapterId: 'c' } })
-    ex = { ...ex, variables: [variable('k', 1, { id: 'v1', qualifier: 'old', timestamp: ts })] }
+    ex = withVariable(ex, variable('k', 1, { id: 'v1', qualifier: 'old', timestamp: ts }))
     ex = setVariable(ex, 'tmp', 2, { ephemeral: true })
-    const back = fromPersisted(JSON.parse(JSON.stringify(toPersisted(ex))))
+    const persisted = JSON.parse(JSON.stringify(toPersisted(ex)))
+    expect(persisted.item).toBeUndefined()
+    const back = fromPersisted(persisted)
     expect(back.meta).toEqual({})
     expect(back.id).toBe('a')
-    expect(back.variables).toEqual([
+    expect(back.item).toBe('x')
+    expect(back.variables.filter((v) => v.name !== 'item')).toEqual([
       { id: 'v1', name: 'k', qualifier: 'old', value: 1, timestamp: ts, ephemeral: false },
     ])
   })
@@ -130,8 +134,10 @@ describe('persistence contract', () => {
     expect(getVariable(back, 'chapterId')).toBe('ch-1')
     expect(getVariable(back, 'scratch')).toBeUndefined()
     const orig = src.variables.find((v) => v.name === 'chapterId')
-    expect(back.variables[0]?.timestamp).toBe(orig?.timestamp)
-    expect(back.variables[0]?.qualifier).toBe('new')
+    const got = back.variables.find((v) => v.name === 'chapterId')
+    expect(got?.timestamp).toBe(orig?.timestamp)
+    expect(got?.qualifier).toBe('new')
+    expect(back.item).toBe(1)
   })
 
   it('runner dead-letter policy persists variables, never meta', async () => {

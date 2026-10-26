@@ -1,9 +1,17 @@
 /**
  * Exchange - the unit of data flowing through a pipeline (Camel-style).
  *
- * An Exchange carries the payload (`item` / `items`), identity-ish `meta`, and a list of named
- * `variables` with qualifiers (`new | old | copy | alt`). Modeled on the Java `FlowContext` /
- * `FlowArgument` pair.
+ * An Exchange carries the payload, identity-ish `meta`, and a list of named `variables` with
+ * qualifiers (`new | old | copy | alt`). Modeled on the Java `FlowContext` / `FlowArgument` pair.
+ *
+ * The payload is itself a variable: the `item` variable ({@link ITEM_VARIABLE}, qualifier `new`) is
+ * the single source of truth, so it gets the same history as any other variable (`withItem` keeps
+ * the previous payload as the `old` item variable, see {@link oldItemOf}). `Exchange.item` is a
+ * materialized convenience copy of that variable, kept in sync by every helper in this file;
+ * on disagreement the variable wins when rebuilding ({@link fromPersisted}, {@link itemOf}); a
+ * loose input literal whose `item` field differs from its variable (`{ ...env, item: x }`) is
+ * normalized by {@link toExchange} as a payload edit (pushed like {@link withItem}).
+ * The batch/window payload list stays the plain `items` field ({@link itemsOf}).
  *
  * An Exchange is a plain JSON-serializable object (checkpoints, events.jsonl and dead-letter
  * `JSON.stringify` it). All operations here are pure free functions returning a NEW exchange.
@@ -35,7 +43,9 @@ export interface ExchangeMeta {
 /** Full exchange: the engine always sees this shape. */
 export interface Exchange<T = unknown> {
   id: string
+  /** Materialized copy of the `item` variable (see {@link ITEM_VARIABLE}); read via {@link itemOf}. */
   item: T
+  /** Batch/window payload list (the `item` is the same array); read via {@link itemsOf}. */
   items?: T[]
   /**
    * In-flight identity data ONLY. Never persisted: dead-letter entries and jsonl targets drop it
@@ -51,29 +61,41 @@ export interface Exchange<T = unknown> {
   variables: Variable[]
 }
 
-/** Persisted form of an Exchange: no `meta`, no ephemeral variables. */
-export interface PersistedExchange<T = unknown> {
+/** Name of the variable carrying the payload (qualifier `new`; previous payload is `old`). */
+export const ITEM_VARIABLE = 'item'
+
+/**
+ * Persisted form of an Exchange: no `meta`, no ephemeral variables, and NO separate `item` field -
+ * the payload lives only in the `item` variable.
+ */
+export interface PersistedExchange {
   id: string
-  item: T
-  items?: T[]
+  items?: unknown[]
   variables: Variable[]
 }
 
-/** Project an exchange to its persisted form: drops `meta` and ephemeral variables. */
-export function toPersisted<T>(ex: Exchange<T>): PersistedExchange<T> {
-  const out: PersistedExchange<T> = {
+/** Project an exchange to its persisted form: drops `meta`, `item` field and ephemeral variables. */
+export function toPersisted<T>(ex: Exchange<T>): PersistedExchange {
+  const out: PersistedExchange = {
     id: ex.id,
-    item: ex.item,
-    variables: (ex.variables ?? []).filter((v) => !v.ephemeral),
+    variables: syncItem(ex).variables.filter((v) => !v.ephemeral),
   }
   if (ex.items !== undefined) out.items = ex.items
   return out
 }
 
-/** Rehydrate a persisted exchange: `meta` comes back empty (re-derive it from the Source/ids). */
-export function fromPersisted<T>(p: PersistedExchange<T>): Exchange<T> {
-  const ex: Exchange<T> = { id: p.id, item: p.item, meta: {}, variables: [...(p.variables ?? [])] }
-  if (p.items !== undefined) ex.items = p.items
+/**
+ * Rehydrate a persisted exchange: `meta` comes back empty (re-derive it from the Source/ids) and
+ * `item` is rebuilt from the `item` variable.
+ */
+export function fromPersisted<T = unknown>(p: PersistedExchange): Exchange<T> {
+  const ex = syncItem({
+    id: p.id,
+    item: undefined as T,
+    meta: {},
+    variables: [...(p.variables ?? [])],
+  } as Exchange<T>)
+  if (p.items !== undefined) ex.items = p.items as T[]
   return ex
 }
 
@@ -129,14 +151,48 @@ export function createExchange<T>(
   item: T,
   init: { id?: string; meta?: ExchangeMeta; variables?: Variable[]; items?: T[] } = {},
 ): Exchange<T> {
+  const vars = (init.variables ?? []).filter((v) => !isNewItem(v))
   const ex: Exchange<T> = {
     id: init.id ?? newExchangeId(),
     item,
     meta: { ...(init.meta ?? {}) },
-    variables: [...(init.variables ?? [])],
+    variables: [...vars, variable(ITEM_VARIABLE, item)],
   }
   if (init.items !== undefined) ex.items = init.items
   return ex
+}
+
+function isNewItem(v: Variable): boolean {
+  return v.name === ITEM_VARIABLE && v.qualifier === 'new'
+}
+
+/**
+ * Make `item` agree with the `new` item variable (the variable wins). When the variable is absent
+ * it is created from `ex.item`. Returns the same object when already in sync.
+ */
+function syncItem<T>(ex: Exchange<T>): Exchange<T> {
+  const vars = varsOf(ex)
+  const cur = vars.find(isNewItem)
+  if (!cur) {
+    return { ...ex, variables: [...vars, variable(ITEM_VARIABLE, ex.item)] }
+  }
+  if (Object.is(cur.value, ex.item)) return ex
+  return { ...ex, item: cur.value as T, variables: vars }
+}
+
+/** Payload of an exchange (the `new` `item` variable). */
+export function itemOf<T>(ex: Exchange<T>): T {
+  return syncItem(ex).item
+}
+
+/** Previous payload kept by {@link withItem} (the `old` `item` variable); `undefined` if none. */
+export function oldItemOf<T = unknown>(ex: Pick<Exchange, 'variables'>): T | undefined {
+  return getVariable<T>(ex, ITEM_VARIABLE, 'old')
+}
+
+/** Batch/window payload list; `[item]` for a plain single-item exchange. */
+export function itemsOf<T>(ex: Exchange<T>): T[] {
+  return ex.items ?? [itemOf(ex)]
 }
 
 /**
@@ -144,23 +200,36 @@ export function createExchange<T>(
  * (no copy); otherwise a shallow copy with `id` / `meta` / `variables` filled in.
  */
 export function toExchange<T>(input: ExchangeInput<T> | Exchange<T>): Exchange<T> {
-  if (input.id !== undefined && input.meta !== undefined && input.variables !== undefined) {
-    return input as Exchange<T>
-  }
-  const ex: Exchange<T> = {
-    ...input,
-    id: input.id ?? newExchangeId(),
-    item: input.item,
-    meta: input.meta ?? {},
-    variables: input.variables ?? [],
-  }
-  return ex
+  const full: Exchange<T> =
+    input.id !== undefined && input.meta !== undefined && input.variables !== undefined
+      ? (input as Exchange<T>)
+      : {
+          ...input,
+          id: input.id ?? newExchangeId(),
+          item: input.item,
+          meta: input.meta ?? {},
+          variables: input.variables ?? [],
+        }
+  const cur = full.variables.find(isNewItem)
+  if (!cur) return addItemVariable(full)
+  if (Object.is(cur.value, full.item) || full.item === undefined) return syncItem(full)
+  // A literal such as `{ ...env, item: next }` edited the payload field of an exchange that
+  // already has an `item` variable: treat the field as the new payload (pushed, history kept).
+  const pushed = pushVariable(full, ITEM_VARIABLE, full.item)
+  return full.items !== undefined ? { ...pushed, items: full.items } : pushed
 }
 
-/** Derive an exchange with a new payload; id/meta/variables propagate. Clears `items`. */
+function addItemVariable<T>(ex: Exchange<T>): Exchange<T> {
+  return { ...ex, variables: [...ex.variables, variable(ITEM_VARIABLE, ex.item)] }
+}
+
+/**
+ * Derive an exchange with a new payload; id/meta/variables propagate. Clears `items`. The previous
+ * payload is kept as the `old` item variable (see {@link oldItemOf}).
+ */
 export function withItem<I, O>(ex: Exchange<I>, item: O): Exchange<O> {
-  const { items: _items, item: _item, ...rest } = ex
-  return { ...rest, item }
+  const { items: _items, ...rest } = syncItem(ex)
+  return pushVariable(rest as unknown as Exchange<O>, ITEM_VARIABLE, item)
 }
 
 /** Derive an exchange with `meta` merged in. */
@@ -217,7 +286,9 @@ function sameKey(a: Variable, b: Variable): boolean {
 /** Add variables; an existing variable with the same name+qualifier is replaced. */
 export function withVariable<T>(ex: Exchange<T>, ...vars: Variable[]): Exchange<T> {
   const kept = varsOf(ex).filter((v) => !vars.some((n) => sameKey(v, n)))
-  return { ...ex, variables: [...kept, ...vars] }
+  const next = { ...ex, variables: [...kept, ...vars] }
+  const item = vars.find(isNewItem)
+  return item ? { ...next, item: item.value as T } : next
 }
 
 /** Shortcut: set a `new` variable by name/value. */
@@ -239,7 +310,13 @@ export function withoutVariable<T>(
   return {
     ...ex,
     variables: varsOf(ex).filter(
-      (v) => !(v.name === name && (qualifier === undefined || v.qualifier === qualifier)),
+      (v) =>
+        !(
+          v.name === name &&
+          (qualifier === undefined || v.qualifier === qualifier) &&
+          // the payload variable cannot be removed, only replaced (withItem / pushVariable)
+          !isNewItem(v)
+        ),
     ),
   }
 }
@@ -307,29 +384,33 @@ export function copyVariable<T>(
 
 /** Drop ephemeral variables. */
 export function withoutEphemeral<T>(ex: Exchange<T>): Exchange<T> {
-  return { ...ex, variables: varsOf(ex).filter((v) => !v.ephemeral) }
+  return { ...ex, variables: varsOf(ex).filter((v) => !v.ephemeral || isNewItem(v)) }
 }
 
 /** Drop `old` and empty variables. */
 export function withoutOldAndEmpty<T>(ex: Exchange<T>): Exchange<T> {
   return {
     ...ex,
-    variables: varsOf(ex).filter((v) => v.qualifier !== 'old' && !isEmptyValue(v.value)),
+    variables: varsOf(ex).filter(
+      (v) => isNewItem(v) || (v.qualifier !== 'old' && !isEmptyValue(v.value)),
+    ),
   }
 }
 
 /** Drop empty variables. */
 export function withoutEmpty<T>(ex: Exchange<T>): Exchange<T> {
-  return { ...ex, variables: varsOf(ex).filter((v) => !isEmptyValue(v.value)) }
+  return { ...ex, variables: varsOf(ex).filter((v) => isNewItem(v) || !isEmptyValue(v.value)) }
 }
 
 /**
  * Merge variables of several exchanges (later wins on name+qualifier clash). Used by batch/window.
+ * The payload (`item` variables) is NOT merged: the caller builds the merged exchange's own.
  */
 export function mergeVariables(exchanges: ReadonlyArray<Pick<Exchange, 'variables'>>): Variable[] {
   const out: Variable[] = []
   for (const e of exchanges) {
     for (const v of varsOf(e)) {
+      if (v.name === ITEM_VARIABLE) continue
       const i = out.findIndex((o) => sameKey(o, v))
       if (i >= 0) out[i] = v
       else out.push(v)
@@ -338,9 +419,13 @@ export function mergeVariables(exchanges: ReadonlyArray<Pick<Exchange, 'variable
   return out
 }
 
-/** Stable view of the non-ephemeral variables for hashing (id/timestamp excluded). */
+/**
+ * Stable view of the non-ephemeral variables for hashing (id/timestamp excluded). The payload
+ * (`item` variables, incl. history) is excluded: hash it via the item value so equal payloads
+ * hash equally regardless of how they were produced.
+ */
 export function hashableVariables(ex: Pick<Exchange, 'variables'>): unknown[] {
   return varsOf(ex)
-    .filter((v) => !v.ephemeral)
+    .filter((v) => !v.ephemeral && v.name !== ITEM_VARIABLE)
     .map((v) => ({ name: v.name, qualifier: v.qualifier, value: v.value }))
 }

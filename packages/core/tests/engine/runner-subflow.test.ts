@@ -282,7 +282,7 @@ describe('runner subflow', () => {
 
     expect(orchTool.invoke).toHaveBeenCalledTimes(1)
     expect(orchTool.invoke).toHaveBeenCalledWith(
-      expect.objectContaining({ item: { data: 'orch-item' }, meta: {}, variables: [] }),
+      expect.objectContaining({ item: { data: 'orch-item' }, meta: {} }),
       expect.anything(),
     )
     // Parent stream is untouched by the self-contained subflow

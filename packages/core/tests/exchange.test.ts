@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ITEM_VARIABLE,
   copyVariable,
   createExchange,
   findVariable,
+  fromPersisted,
   getOldVariable,
   getVariable,
   hashableVariables,
   isEmptyValue,
+  itemOf,
+  itemsOf,
   mergeVariables,
+  oldItemOf,
   pushVariable,
   replaceVariable,
   setVariable,
   toExchange,
+  toPersisted,
   variable,
   withItem,
   withMeta,
@@ -27,7 +33,8 @@ describe('exchange', () => {
     const ex = createExchange('a')
     expect(ex.id).toMatch(/^ex-/)
     expect(ex.meta).toEqual({})
-    expect(ex.variables).toEqual([])
+    expect(ex.item).toBe('a')
+    expect(ex.variables.map((v) => [v.name, v.value])).toEqual([['item', 'a']])
   })
 
   it('qualifiers: new is default, old/copy/alt are distinct slots', () => {
@@ -46,7 +53,7 @@ describe('exchange', () => {
 
   it('withVariable replaces same name+qualifier', () => {
     const ex = setVariable(setVariable(createExchange('a'), 'x', 1), 'x', 2)
-    expect(ex.variables).toHaveLength(1)
+    expect(ex.variables.filter((v) => v.name === 'x')).toHaveLength(1)
     expect(getVariable(ex, 'x')).toBe(2)
   })
 
@@ -58,7 +65,7 @@ describe('exchange', () => {
     ex = pushVariable(ex, 'x', 'v3')
     expect(getVariable(ex, 'x')).toBe('v3')
     expect(getOldVariable(ex, 'x')).toBe('v2')
-    expect(ex.variables).toHaveLength(2)
+    expect(ex.variables.filter((v) => v.name === 'x')).toHaveLength(2)
   })
 
   it('replaceVariable keeps no history', () => {
@@ -75,8 +82,10 @@ describe('exchange', () => {
 
   it('withoutVariable removes by name, optionally by qualifier', () => {
     const base = pushVariable(pushVariable(createExchange('a'), 'x', 1), 'x', 2)
-    expect(withoutVariable(base, 'x').variables).toEqual([])
-    expect(withoutVariable(base, 'x', 'old').variables).toHaveLength(1)
+    expect(withoutVariable(base, 'x').variables.map((v) => v.name)).toEqual(['item'])
+    expect(withoutVariable(base, 'x', 'old').variables.filter((v) => v.name === 'x')).toHaveLength(
+      1,
+    )
   })
 
   it('ephemeral variables are dropped and excluded from hash view', () => {
@@ -85,7 +94,7 @@ describe('exchange', () => {
       variable('keep', 1),
       variable('tmp', 2, { ephemeral: true }),
     )
-    expect(withoutEphemeral(ex).variables.map((v) => v.name)).toEqual(['keep'])
+    expect(withoutEphemeral(ex).variables.map((v) => v.name)).toEqual(['item', 'keep'])
     expect(hashableVariables(ex)).toEqual([{ name: 'keep', qualifier: 'new', value: 1 }])
   })
 
@@ -106,8 +115,9 @@ describe('exchange', () => {
       withoutEmpty(ex)
         .variables.map((v) => v.name)
         .sort(),
-    ).toEqual(['x', 'x'])
+    ).toEqual(['item', 'x', 'x'])
     expect(withoutOldAndEmpty(ex).variables.map((v) => `${v.name}:${v.qualifier}`)).toEqual([
+      'item:new',
       'x:new',
     ])
   })
@@ -146,7 +156,7 @@ describe('exchange', () => {
     const loose = toExchange({ item: 'a' })
     expect(loose.id).toMatch(/^ex-/)
     expect(loose.meta).toEqual({})
-    expect(loose.variables).toEqual([])
+    expect(loose.variables.map((v) => [v.name, v.value])).toEqual([['item', 'a']])
     const full = createExchange('b')
     expect(toExchange(full)).toBe(full)
     expect(toExchange({ id: 'k', item: 'c', meta: { chapterId: 'x' } }).id).toBe('k')
@@ -160,6 +170,69 @@ describe('exchange', () => {
       ['x', 'b'],
       ['y', 'y'],
     ])
+  })
+})
+
+describe('item variable', () => {
+  it('withItem pushes the item variable keeping the previous payload as old', () => {
+    const a = createExchange('a')
+    const b = withItem(a, 'b')
+    const c = withItem(b, 'c')
+    expect([itemOf(c), c.item, oldItemOf(c)]).toEqual(['c', 'c', 'b'])
+    expect(getVariable(c, ITEM_VARIABLE)).toBe('c')
+    expect(c.variables.filter((v) => v.name === ITEM_VARIABLE)).toHaveLength(2)
+  })
+
+  it('every helper keeps ex.item in sync with the item variable', () => {
+    const ex = createExchange('a')
+    const viaSet = setVariable(ex, ITEM_VARIABLE, 'b')
+    expect(viaSet.item).toBe('b')
+    expect(pushVariable(ex, ITEM_VARIABLE, 'c').item).toBe('c')
+    expect(replaceVariable(ex, ITEM_VARIABLE, 'd').item).toBe('d')
+    expect(withVariable(ex, variable(ITEM_VARIABLE, 'e')).item).toBe('e')
+    expect(withoutVariable(ex, ITEM_VARIABLE).item).toBe('a')
+    expect(withoutEmpty(createExchange('')).variables.some((v) => v.name === 'item')).toBe(true)
+    expect(withoutOldAndEmpty(withItem(ex, 'z')).item).toBe('z')
+    expect(withoutEphemeral(ex).item).toBe('a')
+  })
+
+  it('variable wins on rebuild; field edit on a loose literal is a payload push', () => {
+    const ex = createExchange('a')
+    expect(itemOf({ ...ex, item: 'stale' })).toBe('a')
+    const edited = toExchange({ ...ex, item: 'new' })
+    expect([edited.item, getVariable(edited, ITEM_VARIABLE), oldItemOf(edited)]).toEqual([
+      'new',
+      'new',
+      'a',
+    ])
+  })
+
+  it('toExchange builds the item variable for { item, meta } literals', () => {
+    const ex = toExchange({ item: { n: 1 }, meta: { chapterId: 'c' } })
+    expect(getVariable(ex, ITEM_VARIABLE)).toEqual({ n: 1 })
+    expect(ex.item).toEqual({ n: 1 })
+  })
+
+  it('toPersisted writes the payload only as a variable; fromPersisted rebuilds item', () => {
+    const ex = withItem(createExchange('a', { meta: { chapterId: 'c' } }), 'b')
+    const p = JSON.parse(JSON.stringify(toPersisted(ex)))
+    expect('item' in p).toBe(false)
+    const back = fromPersisted(p)
+    expect(back.item).toBe('b')
+    expect(oldItemOf(back)).toBe('a')
+    expect(back.meta).toEqual({})
+  })
+
+  it('itemsOf returns items or [item]; item history is not part of the hash view', () => {
+    expect(itemsOf(createExchange('a'))).toEqual(['a'])
+    expect(itemsOf(createExchange('a', { items: ['a', 'b'] }))).toEqual(['a', 'b'])
+    const x = withItem(withItem(createExchange('a'), 'b'), 'c')
+    expect(hashableVariables(x)).toEqual([])
+    expect(hashableVariables(createExchange('c'))).toEqual([])
+  })
+
+  it('mergeVariables does not merge payload variables', () => {
+    expect(mergeVariables([createExchange(1), createExchange(2)])).toEqual([])
   })
 })
 

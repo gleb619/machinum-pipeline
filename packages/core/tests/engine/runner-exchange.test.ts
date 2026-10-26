@@ -6,8 +6,11 @@ import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import {
   type Exchange,
+  ITEM_VARIABLE,
   createExchange,
   getVariable,
+  itemsOf,
+  oldItemOf,
   setVariable,
   withItem,
 } from '../../src/exchange.js'
@@ -110,6 +113,36 @@ describe('runner exchange semantics', () => {
     expect(outputs[1]?.id).toBe('a.1')
     expect(outputs[0]?.meta.parentId).toBe('a')
     expect(getVariable(outputs[2] as Exchange, 'k')).toBe('second')
+  })
+
+  it('item variable stays in sync through tool, batch and flatMap', async () => {
+    inputs.push({ item: 2 }, { item: 3 })
+    await new Runner(
+      pipe([{ type: 'tool', config: { name: 'tag', tool: tag } }]),
+      ctx(root),
+    ).start()
+    for (const o of outputs) {
+      expect(getVariable(o, ITEM_VARIABLE)).toBe(o.item)
+    }
+    expect(outputs.map((o) => oldItemOf(o))).toEqual([2, 3])
+
+    outputs.length = 0
+    await new Runner(pipe([{ type: 'batch', config: { size: 2 } }]), ctx(root)).start()
+    expect(outputs[0]?.item).toEqual([2, 3])
+    expect(getVariable(outputs[0] as Exchange, ITEM_VARIABLE)).toEqual([2, 3])
+    expect(itemsOf(outputs[0] as Exchange)).toEqual([2, 3])
+
+    outputs.length = 0
+    await new Runner(
+      pipe([{ type: 'flatmap', config: { fn: async (n: unknown) => [`${n}a`, `${n}b`] } }]),
+      ctx(root),
+    ).start()
+    expect(outputs.map((o) => [o.item, getVariable(o, ITEM_VARIABLE)])).toEqual([
+      ['2a', '2a'],
+      ['2b', '2b'],
+      ['3a', '3a'],
+      ['3b', '3b'],
+    ])
   })
 
   it('cache key ignores ephemeral variables', async () => {
