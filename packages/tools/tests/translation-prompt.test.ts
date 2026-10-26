@@ -75,8 +75,8 @@ describe('buildTranslationPrompt', () => {
 
   it('adds the summary as context and strips tags from the user prompt', () => {
     expect(p.systemPrompt).toContain('A short summary.')
-    // tags stripped; plain-mode input wrapped in the <context> block
-    expect(p.userPrompt).toBe('<context>\nArin met Zorg at the Iron Keep.\n</context>')
+    // tags stripped; plain-mode input is the bare text (no wrapper)
+    expect(p.userPrompt).toBe('Arin met Zorg at the Iron Keep.')
   })
 
   it('has no glossary block when no term is present', () => {

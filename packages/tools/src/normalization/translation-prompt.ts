@@ -169,7 +169,9 @@ export function wrapTranslationInput(text: string, mode: TranslateWorkMode): str
       .join('\n')
     return `<context>\n${body}\n</context>`
   }
-  return `<context>\n${text}\n</context>`
+  // `plain` stays unwrapped: the reply is expected to be the translation line-by-line with no
+  // framing, so any wrapper would leak into the output (and break reply echo mocks).
+  return text
 }
 
 /**

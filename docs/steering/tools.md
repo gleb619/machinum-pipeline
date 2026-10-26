@@ -164,8 +164,9 @@ Building blocks of the sample4 translate stage (EN->RU, line by line).
   text** (returned separately in `lockedTerms`), so fixed translations are rendered exactly as the human decided.
   The chapter summary is added as context only. The system prompt ends with a rule asking for a trailing
   `<terms>[...]</terms>` JSON block reporting source terms NOT in the glossary. `userPrompt` is the text with
-  `<term>` tags stripped, wrapped per mode (`<context>` block; `xml` wraps each line as
-  `<result><id>N</id><origin>…</origin></result>`, `properties` as `N=text`). `cleanTranslation(reply)` drops
+  `<term>` tags stripped, wrapped per mode: `plain` is the bare text (no wrapper — the reply must be the
+  translation line-by-line); `xml` wraps each line as
+  `<result><id>N</id><origin>…</origin></result>`, `properties` as `N=text`, both inside a `<context>` block. `cleanTranslation(reply)` drops
   `<think>` blocks, `<terms>` report blocks and `<term>` tags; `parseReportedTerms(reply)` (zod-validated, never
   throws) parses the report into `ReportedTerm[]` (invalid entries dropped, deduped case-insensitively);
   `termIdsIn(text)` lists tag ids. `parseTranslationReply(reply, mode)` (in `translation-reply.ts`) parses a reply

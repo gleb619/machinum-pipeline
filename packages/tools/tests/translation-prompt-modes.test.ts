@@ -39,7 +39,7 @@ describe('buildTranslationPrompt modes', () => {
     expect(p.systemPrompt).toContain('Output contract (plain mode)')
     expect(p.systemPrompt).toContain('Arin = Арин')
     expect(p.systemPrompt).toContain('Iron Keep = Железная крепость')
-    expect(p.userPrompt).toBe('<context>\nArin met Iron Keep.\n</context>')
+    expect(p.userPrompt).toBe('Arin met Iron Keep.')
   })
 
   it('xml mode wraps each line as <result><id>N</id><origin>…</origin></result>', () => {
@@ -84,7 +84,7 @@ describe('buildTranslationPrompt modes', () => {
   })
 
   it('wrapTranslationInput handles empty-ish and single-line input', () => {
-    expect(wrapTranslationInput('one', 'plain')).toBe('<context>\none\n</context>')
+    expect(wrapTranslationInput('one', 'plain')).toBe('one')
     expect(wrapTranslationInput('one', 'properties')).toBe('<context>\n1=one\n</context>')
     expect(wrapTranslationInput('one', 'xml')).toBe(
       '<context>\n<result><id>1</id><origin>one</origin></result>\n</context>',
@@ -166,7 +166,7 @@ describe('parseTranslationReply', () => {
 describe('backward compatibility', () => {
   it('default mode output matches the previous user prompt contract (tags stripped, text preserved)', () => {
     const p = buildTranslationPrompt({ text: TAGGED, glossary })
-    expect(p.userPrompt).toBe(`<context>\n${'Arin met Iron Keep.'}\n</context>`)
+    expect(p.userPrompt).toBe('Arin met Iron Keep.')
     expect(p.userPrompt).toContain('Arin met Iron Keep.')
     expect(p.userPrompt).not.toContain('<term')
   })
