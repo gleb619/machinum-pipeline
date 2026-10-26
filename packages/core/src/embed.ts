@@ -134,9 +134,9 @@ async function masterPassword(env: Env, explicit: string | undefined): Promise<s
 
 async function requirePassword(env: Env, explicit: string | undefined): Promise<string> {
   const password = await masterPassword(env, explicit)
-  if (password === undefined) {
+  if (password === undefined || password === '') {
     throw new Error(
-      'Embedded store master password required: set MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE)',
+      'Embedded store master password required (non-empty): set MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE)',
     )
   }
   return password
@@ -165,6 +165,9 @@ function validateEnvelope(data: unknown, path: string): EmbedEnvelope {
     if (typeof env[key] !== 'number' || !Number.isInteger(env[key]) || (env[key] as number) <= 0) {
       fail(`"${key}" must be a positive integer`)
     }
+  }
+  if (env.n !== EMBED_KDF_N || env.r !== EMBED_KDF_R || env.p !== EMBED_KDF_P) {
+    fail(`"n"/"r"/"p" must be ${EMBED_KDF_N}/${EMBED_KDF_R}/${EMBED_KDF_P} (fixed KDF parameters)`)
   }
   for (const key of ['salt', 'iv', 'tag', 'ciphertext'] as const) {
     if (typeof env[key] !== 'string') fail(`"${key}" must be a base64 string`)
@@ -357,8 +360,9 @@ export async function setEmbedSecret(
   if (input.username !== undefined) entry.username = input.username
   if (input.url !== undefined) entry.url = input.url
   if (input.notes !== undefined) entry.notes = input.notes
-  store.entries[name] = entry
-  await writeStore(path, store, password)
+  // Clone before mutating: the cached store must not gain an unsaved entry if the write fails.
+  const next: EmbedStore = { version: 1, entries: { ...store.entries, [name]: entry } }
+  await writeStore(path, next, password)
   return { path }
 }
 

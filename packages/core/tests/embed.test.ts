@@ -123,12 +123,16 @@ describe('embed backend', () => {
     expect(secret.secret).toBe(SECRET)
   })
 
-  it('requires configured credentials', async () => {
+  it('requires configured non-empty credentials', async () => {
     expect(embedCredentialsConfigured(env)).toBe(true)
     expect(embedCredentialsConfigured({})).toBe(false)
+    expect(embedCredentialsConfigured({ MT_EMBED_PASSWORD: '' })).toBe(false)
     const err = await getEmbedSecret('Key', { MT_EMBED_PATH: storePath }).catch((e: Error) => e)
     expect((err as Error).message).toContain('master password required')
     expect((err as Error).message).toContain('MT_EMBED_PASSWORD')
+
+    const empty = await createEmbedStore({ path: storePath, password: '' }).catch((e: Error) => e)
+    expect((empty as Error).message).toContain('non-empty')
   })
 
   it('detects tampering and malformed envelopes', async () => {
@@ -152,6 +156,24 @@ describe('embed backend', () => {
     resetEmbedCache(storePath)
     const bad = await getEmbedSecret('Key', env).catch((e: Error) => e)
     expect((bad as Error).message).toContain('Invalid embedded store')
+
+    await writeFile(
+      storePath,
+      JSON.stringify({
+        version: 1,
+        kdf: 'scrypt',
+        n: 32768,
+        r: 8,
+        p: 1,
+        salt: '',
+        iv: '',
+        tag: '',
+        ciphertext: '',
+      }),
+    )
+    resetEmbedCache(storePath)
+    const kdf = await getEmbedSecret('Key', env).catch((e: Error) => e)
+    expect((kdf as Error).message).toContain('fixed KDF parameters')
   })
 
   it('recognizes refs and passes them through when disabled', async () => {

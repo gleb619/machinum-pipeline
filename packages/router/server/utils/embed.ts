@@ -16,6 +16,10 @@ import { join, resolve } from 'node:path'
 export const EMBED_REF_PREFIX = 'embed:'
 
 const EMBED_AAD = Buffer.from('mt-embed-v1', 'ascii')
+const EMBED_KDF_N = 16384
+const EMBED_KDF_R = 8
+const EMBED_KDF_P = 1
+const EMBED_MAXMEM = 64 * 1024 * 1024
 
 type Env = Record<string, string | undefined>
 
@@ -48,9 +52,9 @@ function masterPassword(env: Env): string | undefined {
 
 function requirePassword(env: Env): string {
   const password = masterPassword(env)
-  if (password === undefined) {
+  if (password === undefined || password === '') {
     throw new Error(
-      'Embedded store master password required: set MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE)',
+      'Embedded store master password required (non-empty): set MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE)',
     )
   }
   return password
@@ -83,10 +87,10 @@ function decryptStore(envelope: EmbedEnvelope, password: string, path: string): 
   let plaintext: string
   try {
     const key = scryptSync(password, Buffer.from(envelope.salt, 'base64'), 32, {
-      N: envelope.n,
-      r: envelope.r,
-      p: envelope.p,
-      maxmem: 64 * 1024 * 1024,
+      N: EMBED_KDF_N,
+      r: EMBED_KDF_R,
+      p: EMBED_KDF_P,
+      maxmem: EMBED_MAXMEM,
     })
     const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64'))
     decipher.setAAD(EMBED_AAD)
@@ -105,6 +109,14 @@ function decryptStore(envelope: EmbedEnvelope, password: string, path: string): 
       Array.isArray(store.entries)
     ) {
       throw openFailure(path)
+    }
+    for (const entry of Object.values(store.entries)) {
+      if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+        throw openFailure(path)
+      }
+      if (typeof (entry as Record<string, unknown>).secret !== 'string') {
+        throw openFailure(path)
+      }
     }
     return store as unknown as EmbedStore
   } catch (err) {
@@ -175,6 +187,11 @@ function openStore(path: string, password: string): EmbedStore {
     envelope.kdf !== 'scrypt'
   ) {
     throw new Error(`Invalid embedded store ${path}: expected version 1 with kdf "scrypt"`)
+  }
+  if (envelope.n !== EMBED_KDF_N || envelope.r !== EMBED_KDF_R || envelope.p !== EMBED_KDF_P) {
+    throw new Error(
+      `Invalid embedded store ${path}: unsupported scrypt parameters (expected n/r/p ${EMBED_KDF_N}/${EMBED_KDF_R}/${EMBED_KDF_P})`,
+    )
   }
   const store = decryptStore(envelope, password, path)
   storeCache.set(key, { signature, store })

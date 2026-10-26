@@ -49,8 +49,9 @@ Embedded-store flags: `--path <file>` (store), `--secret <value>` (never logged)
 `MT_EMBED_PASSWORD` / `MT_EMBED_PASSWORD_FILE`; `embed-init` / `embed-add` / `embed-list` prompt for
 it with hidden input when a TTY is attached and no credential is configured.
 
-Secrets are masked in every output (`sk-…1234`) unless `--reveal` is given. Writes go through
-`saveVault`: atomic (temp-then-rename), file mode 0600.
+Secrets are masked in every output (`sk-…1234`) unless `--reveal` is given. Vault-entry writes go
+through `saveVault`: atomic (temp-then-rename), file mode 0600. KeePass and embedded stores use their
+own atomic 0600 writers.
 
 `mt vault init` and `mt init` both keep `.gitignore` covered — `.mt/`, `vault.json`, `*.vault.json`,
 `.mt/vault*`, `*.kdbx` and `*.embed.json` are appended only when missing, so running either twice
@@ -147,8 +148,9 @@ no native addon, no external binary; `node:crypto` only. `embed://<name>` is acc
   base64 except the KDF params); the plaintext before encryption is
   `{ "version": 1, "entries": { "<name>": { "secret", "username"?, "url"?, "notes"? } } }`.
   Key: `scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64MiB })`; cipher:
-  AES-256-GCM with a random 12-byte IV and AAD `mt-embed-v1`. Writes are atomic (temp-then-rename)
-  with mode 0600 and a fresh salt/IV per write.
+  AES-256-GCM with a random 12-byte IV and AAD `mt-embed-v1`. The envelope KDF parameters are
+  validated against these fixed values before deriving a key (no attacker-controlled work factor).
+  Writes are atomic (temp-then-rename) with mode 0600 and a fresh salt/IV per write.
 - **Config**: `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`), `MT_EMBED_PASSWORD`
   or `MT_EMBED_PASSWORD_FILE` (one trailing newline stripped). Missing credentials are a clear
   error naming the vars; the core resolver never prompts (the CLI prompts with hidden input on a
@@ -189,7 +191,7 @@ most every 2s); a broken file keeps the previous entries. `embed:` refs resolve 
 same poll; `keepass:` refs refresh in the background. Key values are never logged or returned by the
 router API.
 Router side in detail: [steering/router.md](steering/router.md) (upstreams, routing prefixes, hot reload, keyless
-security model); end-to-end flows: [uc.md](uc.md) (UC063–UC065).
+security model); end-to-end flows: [uc.md](uc.md) (UC063–UC067).
 
 ## Using a vault entry (`llm.use`)
 

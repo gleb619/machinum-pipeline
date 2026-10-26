@@ -124,6 +124,16 @@ describe('router embed', () => {
     expect((err as Error).message).not.toContain(SECRET)
   })
 
+  it('rejects unsupported KDF parameters before decrypting', async () => {
+    const raw = JSON.parse(await readFile(storePath, 'utf-8')) as Record<string, unknown>
+    await writeFile(storePath, JSON.stringify({ ...raw, n: 32768 }), { mode: 0o600 })
+    resetEmbedState()
+    await writeVault({ a: { provider: 'openrouter', apiKey: 'embed:OpenRouter-Key' } })
+    const err = await readVaultEntriesAsync([vaultFile]).catch((e: Error) => e)
+    expect((err as Error).message).toContain('unsupported scrypt parameters')
+    expect((err as Error).message).not.toContain(SECRET)
+  })
+
   it('redacts embed refs', () => {
     expect(redact('failed for embed:OpenRouter-Key and embed://Other/Key')).not.toContain(
       'OpenRouter-Key',
