@@ -25,16 +25,6 @@ Before finalizing your response:
 
 ---
 
-### Rules for Working with Output Format
-
-- Use **plain text only**.
-- Each item must start with a dash (`-`) followed by a space.
-- Each summary item must be on its own line.
-- Do not add numbering, paragraphs, or additional formatting.
-- Do not include any text outside of the list.
-
----
-
 ### Guidelines
 
 1. **Identify Key Information:** Extract the most important facts, events, arguments, quotes, and contextual details.

@@ -67,6 +67,17 @@ describe('summaryTool (LLM)', () => {
     expect(router.lastPrompt()).toContain('harvest festival')
   })
 
+  it('composes the default system prompt from the summary.* + llm.format.* blocks', async () => {
+    router = installRouter([SUMMARY_REPLY])
+
+    await createSummaryTool().invoke(envelopeOf(CHAPTER), toolContext())
+
+    const system = router.calls[0]?.messages[0]?.content ?? ''
+    expect(system).toContain('Web Novel Summary Notes Generator')
+    expect(system).toContain('Input format (plain mode)')
+    expect(system).toContain('Output contract (bullet-list mode)')
+  })
+
   it('retries with feedback when the answer is rejected, then accepts', async () => {
     router = installRouter(['# Chapter summary\n\nAldric travels.', SUMMARY_REPLY])
 

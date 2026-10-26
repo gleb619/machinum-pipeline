@@ -1,6 +1,7 @@
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { loadBundledPrompt } from '../../core/bundled-prompts.js'
+import { composePromptBlocks } from '../../core/prompt-blocks.js'
 import { splitSentences } from '../heuristic-summary.js'
 import {
   chapterVars,
@@ -21,6 +22,17 @@ export const SUMMARY_SYSTEM_PROMPT =
   'sections, no preamble.'
 
 export const SUMMARY_USER_PROMPT = 'Summarise this chapter.\n\n# {{title}}\n\n{{body}}'
+
+/**
+ * Default system prompt of the summary family: the bundled `summary.system` block + the global
+ * `llm.format.plain` input block + the `summary.output.bullets` output contract (see
+ * `packages/tools/prompts/*.md`). Falls back to the legacy inline {@link SUMMARY_SYSTEM_PROMPT}
+ * when a block template is missing.
+ */
+export function defaultSummarySystemPrompt(): string {
+  const composed = composePromptBlocks('summary', 'plain', {}, { output: 'summary.output.bullets' })
+  return composed.complete ? composed.systemPrompt : SUMMARY_SYSTEM_PROMPT
+}
 
 /** Share of the chapter's key terms a summary must mention to count as covering the chapter. */
 const MIN_TERM_COVERAGE = 0.15
@@ -60,7 +72,6 @@ function validateSummary(content: string, source: ChapterSource): PromptValidati
 }
 
 const DEFAULTS: SchemaDocLlmOptions = {
-  systemPrompt: SUMMARY_SYSTEM_PROMPT,
   userPrompt: SUMMARY_USER_PROMPT,
 }
 
@@ -76,10 +87,12 @@ const DEFAULTS: SchemaDocLlmOptions = {
 export function createSummaryTool(options?: SchemaDocLlmOptions) {
   return defineTool<string, string>({
     name: 'summary',
-    version: '1.1.0',
+    version: '1.2.0',
     mdDescription:
       'Summarises the chapter with an LLM through the OpenRouter proxy (configurable prompts, ' +
-      'loop-guarded retries, deterministic schema-doc parse as fallback). Stores variable `summary`.',
+      'loop-guarded retries, deterministic schema-doc parse as fallback). The default system ' +
+      'prompt is composed from the bundled summary.* blocks (plain input + bullet-list output). ' +
+      'Stores variable `summary`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'summary')
       const inputs = env.items ?? [env.item]
@@ -92,7 +105,7 @@ export function createSummaryTool(options?: SchemaDocLlmOptions) {
         const outcome = await runPromptWithRetry(ctx, {
           ...resolved,
           systemPrompt: renderPrompt(
-            resolved.systemPrompt ?? SUMMARY_SYSTEM_PROMPT,
+            resolved.systemPrompt ?? defaultSummarySystemPrompt(),
             chapterVars(source),
           ),
           userPrompt: renderPrompt(resolved.userPrompt ?? SUMMARY_USER_PROMPT, chapterVars(source)),
@@ -131,7 +144,6 @@ export interface NotesSummaryOptions extends SchemaDocLlmOptions {
 
 /** The bullet-note prompts ported from machinum-llm `SummarySystem.ST` / `Summary.ST`. */
 const NOTES_DEFAULTS: SchemaDocLlmOptions = {
-  systemPrompt: loadBundledPrompt('summary.system'),
   userPrompt: loadBundledPrompt('summary.user'),
 }
 
@@ -173,8 +185,9 @@ export function renderSummaryNotes(notes: string[]): string {
 
 /**
  * Builds the LLM-backed "summary notes" tool: `count` plain-text `- ` notes instead of one
- * flowing paragraph, prompted with the bundled `summary.system` / `summary.user` prompts
- * (`packages/tools/prompts/*.md`, compiled into the package).
+ * flowing paragraph. The system prompt is composed from the bundled `summary.system`, the global
+ * `llm.format.plain` and the `summary.output.bullets` blocks; the user prompt is the bundled
+ * `summary.user` (`packages/tools/prompts/*.md`, compiled into the package).
  *
  * Same option surface as `createSummaryTool` plus `count`; prompts stay overridable through
  * variable `schemaDocLlm` or variables `summaryNotesPrompt` / `summaryNotesSystemPrompt`. When the
@@ -187,11 +200,13 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions) {
 
   return defineTool<string, string>({
     name: 'summary-notes',
-    version: '1.0.0',
+    version: '1.1.0',
     mdDescription:
       'Extracts `count` plain-text summary notes (`- ` bullets) from the chapter with an LLM ' +
-      'through the OpenRouter proxy, using the bundled summary prompts. Loop-guarded retries ' +
-      'fall back to the chapter lead sentences. Stores variables `summaryNotes` and `summary`.',
+      'through the OpenRouter proxy. The system prompt is composed from the bundled summary.* ' +
+      'blocks (plain input + bullet-list output); the user prompt is the bundled `summary.user`. ' +
+      'Loop-guarded retries fall back to the chapter lead sentences. Stores variables ' +
+      '`summaryNotes` and `summary`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...NOTES_DEFAULTS, ...llmOptions }, env, 'summaryNotes')
       const inputs = env.items ?? [env.item]
@@ -220,10 +235,7 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions) {
         const vars = chapterVars(source, { count: noteCount, text: source.body })
         const outcome = await runPromptWithRetry(ctx, {
           ...resolved,
-          systemPrompt: renderPrompt(
-            resolved.systemPrompt ?? NOTES_DEFAULTS.systemPrompt ?? '',
-            vars,
-          ),
+          systemPrompt: renderPrompt(resolved.systemPrompt ?? defaultSummarySystemPrompt(), vars),
           userPrompt: renderPrompt(resolved.userPrompt ?? NOTES_DEFAULTS.userPrompt ?? '', vars),
           validate: validateNotes,
         })

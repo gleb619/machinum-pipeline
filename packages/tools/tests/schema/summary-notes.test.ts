@@ -56,6 +56,8 @@ describe('createNotesSummaryTool (LLM summary notes)', () => {
     const user = router.lastPrompt()
     expect(system).toContain('Web Novel Summary Notes Generator')
     expect(system).toContain('Each item must start with a dash')
+    expect(system).toContain('Input format (plain mode)')
+    expect(system).toContain('Output contract (bullet-list mode)')
     expect(user).toContain('exactly 3** plain text summary notes')
     expect(user).toContain('<context>')
     expect(user).toContain('Sir Aldric rode out of Thornhaven at dawn')

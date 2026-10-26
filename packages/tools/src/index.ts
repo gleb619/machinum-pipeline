@@ -56,6 +56,7 @@ export {
   createSummaryTool,
   SUMMARY_SYSTEM_PROMPT,
   SUMMARY_USER_PROMPT,
+  defaultSummarySystemPrompt,
   notesSummaryTool,
   createNotesSummaryTool,
   renderSummaryNotes,
@@ -68,6 +69,23 @@ export {
   listBundledPrompts,
   type BundledPromptName,
 } from './core/bundled-prompts.js'
+export {
+  PROMPT_WORK_MODES,
+  wrapPromptInput,
+  composePromptBlocks,
+  buildLlmPrompt,
+  parseStructuredReply,
+  extractXmlResultEntries,
+  extractPropertiesEntries,
+  StructuredReplyParseError,
+  type PromptWorkMode,
+  type StructuredReplyMode,
+  type StructuredReplyEntry,
+  type PropertiesExtractionOptions,
+  type PromptBlockComposition,
+  type ComposePromptBlocksOptions,
+  type BuildLlmPromptInput,
+} from './core/prompt-blocks.js'
 
 export {
   entitiesTool,
@@ -318,9 +336,11 @@ export {
 } from './verification/line-parity-linter.js'
 export {
   lintPromptTemplate,
+  lintPromptSet,
   lintTranslatePromptSet,
   type PromptIssue,
   type PromptLintOptions,
+  type PromptSetLintOptions,
 } from './verification/prompt-linter.js'
 export {
   statProofread,

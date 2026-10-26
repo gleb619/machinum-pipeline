@@ -19,7 +19,7 @@ export function createLlmSummaryWithFallback(options: LlmSummaryToolOptions) {
   const inner = createSummaryTool(llmOptions)
   return defineTool<string | string[], string | string[]>({
     name: enabled ? 'llm-summary-with-fallback' : 'llm-summary-off',
-    version: '1.0.0',
+    version: '1.1.0',
     mdDescription: enabled
       ? 'LLM summary through the picked backend; heuristic summary on fallback.'
       : 'Pass-through (LLM summary disabled).',

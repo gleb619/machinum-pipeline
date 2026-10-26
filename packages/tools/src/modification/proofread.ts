@@ -2,7 +2,7 @@ import { defineTool } from '@mt/core'
 import type { Envelope, Tool, ToolContext } from '@mt/core'
 
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
-import { stripCodeFence } from '../normalization/schema/doc.js'
+import { extractPropertiesEntries, extractXmlResultEntries } from '../core/prompt-blocks.js'
 import { renderPrompt } from '../normalization/schema/doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from '../normalization/schema/llm.js'
 import type {
@@ -100,31 +100,12 @@ function buildProofreadOutputXml(paragraphs: readonly string[]): string {
   return lines.join('\n')
 }
 
-function stripXmlPreamble(xml: string): string {
-  return stripCodeFence(xml.trim(), 'xml')
-    .replace(/<\?xml[^?]*\?>/, '')
-    .trim()
-}
-
 function parseResultBlocks(xml: string, tag: 'text' | 'proofread'): ResultBlock[] {
-  const content = stripXmlPreamble(xml)
-  const resultRe = /<result>([\s\S]*?)<\/result>/g
-  const tagRe = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 's')
-  const blocks: ResultBlock[] = []
-
-  for (const match of content.matchAll(resultRe)) {
-    const block = match[1] ?? ''
-    const idMatch = /<id>(\d+)<\/id>/.exec(block)
-    const tagMatch = tagRe.exec(block)
-    if (!idMatch || !tagMatch) continue
-    blocks.push({
-      id: Number(idMatch[1]),
-      text: unescapeXml(tagMatch[1] ?? '').trimEnd(),
-    })
-  }
-
-  blocks.sort((a, b) => a.id - b.id)
-  return blocks
+  // tolerant block extraction lives in the shared prompt-blocks module (same engine the
+  // translation reply parser uses); proofread only adds entity unescaping and the id sort.
+  return extractXmlResultEntries(xml, tag)
+    .map((e) => ({ id: e.key, text: unescapeXml(e.value).trimEnd() }))
+    .sort((a, b) => a.id - b.id)
 }
 
 function toResultMap(blocks: readonly ResultBlock[]): Map<number, string> {
@@ -307,22 +288,13 @@ function escapeProperties(text: string): string {
   return text.replace(/\\\\/g, '\\\\\\\\').replace(/\n/g, '\\n').replace(/=/g, '\\=')
 }
 
-function unescapeProperties(text: string): string {
-  return text.replace(/\\n/g, '\n').replace(/\\=/g, '=').replace(/\\\\/g, '\\')
-}
-
 function parsePropertiesBlock(content: string): ResultBlock[] {
-  const blocks: ResultBlock[] = []
-  for (const rawLine of content.split('\n')) {
-    const line = rawLine.trim()
-    if (line === '' || line.startsWith('#')) continue
-    const eq = line.indexOf('=')
-    if (eq === -1) continue
-    const id = Number(line.slice(0, eq).trim())
-    if (!Number.isInteger(id)) continue
-    blocks.push({ id, text: unescapeProperties(line.slice(eq + 1)) })
-  }
-  return blocks
+  // shared tolerant `N=value` extraction (with the Java-properties value unescaping the
+  // proofread properties format uses); keys stay in document order.
+  return extractPropertiesEntries(content, { unescape: true }).map((e) => ({
+    id: e.key,
+    text: e.value,
+  }))
 }
 
 function validateProofreadProperties(

@@ -1,20 +1,28 @@
 import { z } from 'zod'
-import { getDefaultPrompt, renderTemplate } from '../core/llm-prompts.js'
+import {
+  PROMPT_WORK_MODES,
+  type PromptWorkMode,
+  composePromptBlocks,
+  wrapPromptInput,
+} from '../core/prompt-blocks.js'
 import { type Glossary, type GlossaryTerm, stripTerms } from './term-tagger.js'
 import type { GlossaryTermType } from './term-tagger.js'
 import { genderFlipsAt, resolveGlossaryAtChapter } from './term-timeline.js'
 import type { GenderFlipEntry } from './term-timeline.js'
 
 /**
- * Work mode of a translation unit:
+ * Work mode of a translation unit. Backward-compatible alias of the global
+ * {@link PromptWorkMode} (`src/core/prompt-blocks.ts`); new code should use `PromptWorkMode`.
+ *
  * - `plain` — raw translated text, 1 line in → 1 line out (default, backward compatible).
  * - `xml` — input lines wrapped as `<result><id>N</id><origin>…</origin></result>`, the model replies with
  *   `<result><id>N</id><translated>…</translated></result>` blocks.
  * - `properties` — input lines wrapped as `N=text`, the model replies with `N=translation` lines.
  */
-export type TranslateWorkMode = 'plain' | 'xml' | 'properties'
+export type TranslateWorkMode = PromptWorkMode
 
-export const TRANSLATE_WORK_MODES: readonly TranslateWorkMode[] = ['plain', 'xml', 'properties']
+/** @deprecated Use the global {@link PROMPT_WORK_MODES} (`src/core/prompt-blocks.ts`). */
+export const TRANSLATE_WORK_MODES: readonly TranslateWorkMode[] = PROMPT_WORK_MODES
 
 export interface TranslationPromptInput {
   /** EN text of the unit to translate; may carry `<term id="..">..</term>` tags. */
@@ -28,8 +36,9 @@ export interface TranslationPromptInput {
   extraRules?: string[]
   /**
    * Work mode of the unit. Default `'plain'` (current behaviour). The bundled prompt templates
-   * `translate.system` / `translate.format.<mode>` / `translate.output.<mode>` are rendered and
-   * composed; the hand-built composition is kept only as a fallback when a template is missing.
+   * `translate.system` / the global `llm.format.<mode>` / `translate.output.<mode>` are rendered
+   * and composed; the hand-built composition is kept only as a fallback when a template is
+   * missing.
    */
   mode?: TranslateWorkMode
   /**
@@ -156,31 +165,13 @@ function translateTemplateVars(
   }
 }
 
-function renderTranslateTemplate(name: string, vars: Record<string, string>): string | undefined {
-  const template = getDefaultPrompt(name)?.template
-  if (template === undefined) return undefined
-  return renderTemplate(template, vars, name).trim()
-}
-
-/** Wraps the unit text per work mode for the user prompt. */
+/**
+ * Wraps the unit text per work mode for the user prompt. Backward-compatible alias of the
+ * global {@link wrapPromptInput}; new code should use that.
+ * @deprecated Use {@link wrapPromptInput} (`src/core/prompt-blocks.ts`).
+ */
 export function wrapTranslationInput(text: string, mode: TranslateWorkMode): string {
-  if (mode === 'xml') {
-    const body = text
-      .split('\n')
-      .map((line, i) => `<result><id>${i + 1}</id><origin>${line}</origin></result>`)
-      .join('\n')
-    return `<context>\n${body}\n</context>`
-  }
-  if (mode === 'properties') {
-    const body = text
-      .split('\n')
-      .map((line, i) => `${i + 1}=${line}`)
-      .join('\n')
-    return `<context>\n${body}\n</context>`
-  }
-  // `plain` stays unwrapped: the reply is expected to be the translation line-by-line with no
-  // framing, so any wrapper would leak into the output (and break reply echo mocks).
-  return text
+  return wrapPromptInput(text, mode)
 }
 
 /**
@@ -226,9 +217,10 @@ function flipNoteLines(terms: GlossaryTerm[], flips: Map<string, GenderFlipEntry
  * Locked terms are ALWAYS injected — even when their `<term id>` does not occur in the unit —
  * so the model renders fixed translations (names, terms) exactly as decided by the human.
  *
- * The system prompt is composed from the bundled `translate.system`, `translate.format.<mode>` and
- * `translate.output.<mode>` templates (registered defaults, overridable via the prompt registry);
- * the previous hand-built composition is kept only as a fallback when a template is missing.
+ * The system prompt is composed from the bundled `translate.system`, the global
+ * `llm.format.<mode>` and the `translate.output.<mode>` templates (registered defaults,
+ * overridable via the prompt registry); the previous hand-built composition is kept only as a
+ * fallback when a template is missing.
  */
 export function buildTranslationPrompt(input: TranslationPromptInput): TranslationPrompt {
   const from = input.sourceLang ?? 'English'
@@ -271,18 +263,13 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
     : ''
 
   const vars = translateTemplateVars(mode, input, from, to, glossaryBlock, summaryBlock)
-  const systemParts = [
-    renderTranslateTemplate('translate.system', vars),
-    renderTranslateTemplate(`translate.format.${mode}`, vars),
-    renderTranslateTemplate(`translate.output.${mode}`, vars),
-  ].filter((p): p is string => p !== undefined && p !== '')
-  const systemPrompt =
-    systemParts.length === 3
-      ? systemParts.join('\n\n')
-      : buildHandBuiltSystemPrompt(input, from, to)
+  const composed = composePromptBlocks('translate', mode, vars)
+  const systemPrompt = composed.complete
+    ? composed.systemPrompt
+    : buildHandBuiltSystemPrompt(input, from, to)
   return {
     systemPrompt,
-    userPrompt: wrapTranslationInput(stripTerms(input.text), mode),
+    userPrompt: wrapPromptInput(stripTerms(input.text), mode),
     usedTerms,
     untranslatedTerms,
     lockedTerms,

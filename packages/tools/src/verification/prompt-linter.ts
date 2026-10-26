@@ -1,10 +1,6 @@
 import { PromptVariableError, renderTemplate } from '../core/llm-prompts.js'
-import {
-  TRANSLATE_ALLOWED_TEMPLATE_VARS,
-  TRANSLATE_TEMPLATE_VARS,
-  TRANSLATE_WORK_MODES,
-} from '../normalization/translation-prompt.js'
-import type { TranslateWorkMode } from '../normalization/translation-prompt.js'
+import { PROMPT_WORK_MODES, type PromptWorkMode } from '../core/prompt-blocks.js'
+import { TRANSLATE_ALLOWED_TEMPLATE_VARS } from '../normalization/translation-prompt.js'
 
 /** One prompt-lint finding. `line` is 1-based (absent when the finding is not line-specific). */
 export interface PromptIssue {
@@ -132,43 +128,74 @@ export function lintPromptTemplate(
   return issues
 }
 
-function modeVarSet(mode: TranslateWorkMode): Record<string, string> {
+function modeVarSet(mode: PromptWorkMode, allowedVars: readonly string[]): Record<string, string> {
   const vars: Record<string, string> = { mode }
-  for (const v of TRANSLATE_TEMPLATE_VARS) vars[v] = ''
+  for (const v of allowedVars) vars[v] = ''
   return vars
 }
 
+export interface PromptSetLintOptions {
+  /** Work modes the family must provide format/output blocks for. Default: all {@link PROMPT_WORK_MODES}. */
+  modes?: readonly PromptWorkMode[]
+  /** Placeholder names allowed in the family's templates (builder var set). */
+  allowedVars?: readonly string[]
+  /** Explicit required output block (e.g. `'summary.output.bullets'`) instead of per-mode blocks. */
+  output?: string
+}
+
 /**
- * Validates the full set of translate.* templates used by `buildTranslationPrompt`
- * (`translate.system`, `translate.format.<mode>` / `translate.output.<mode>` for every work mode):
- * every template exists and is non-empty, lints clean with the builder's allowed vars, and
- * `translate.system` renders with the builder's var set (a missing var would throw
- * `PromptVariableError` at render time). Pure; intended for tests, not runtime.
+ * Validates the full set of prompt templates used by one tool family
+ * (`<family>.system`, the global `llm.format.<mode>` and `<family>.output.<mode>` for every
+ * work mode): every required template exists and is non-empty, lints clean with the builder's
+ * allowed vars, and `<family>.system` renders with the builder's var set (a missing var would
+ * throw `PromptVariableError` at render time). An output block may fall back to the single
+ * `<family>.output` template when the mode-specific one is absent (composer fallback).
+ * Pure; intended for tests, not runtime.
  */
-export function lintTranslatePromptSet(templates: Record<string, string>): PromptIssue[] {
+export function lintPromptSet(
+  family: string,
+  templates: Record<string, string>,
+  opts: PromptSetLintOptions = {},
+): PromptIssue[] {
+  const modes = opts.modes ?? PROMPT_WORK_MODES
   const issues: PromptIssue[] = []
-  const names = [
-    'translate.system',
-    ...TRANSLATE_WORK_MODES.flatMap((m) => [`translate.format.${m}`, `translate.output.${m}`]),
-  ]
-  for (const name of names) {
+  const required: string[] = [`${family}.system`]
+  const outputNames: string[] = []
+  if (opts.output !== undefined) {
+    outputNames.push(opts.output)
+  } else {
+    for (const mode of modes) {
+      const modeOutput = `${family}.output.${mode}`
+      const genericOutput = `${family}.output`
+      const text = templates[modeOutput] ?? templates[genericOutput]
+      if (text === undefined || text.trim() === '') {
+        issues.push({
+          rule: 'empty-template',
+          message: `prompt '${modeOutput}' is missing or empty`,
+        })
+      }
+      outputNames.push(templates[modeOutput] !== undefined ? modeOutput : genericOutput)
+    }
+  }
+  required.push(...modes.map((mode) => `llm.format.${mode}`), ...outputNames)
+  for (const name of [...new Set(required)]) {
     const text = templates[name]
     if (text === undefined || text.trim() === '') {
       issues.push({ rule: 'empty-template', message: `prompt '${name}' is missing or empty` })
       continue
     }
-    issues.push(...lintPromptTemplate(name, text, { allowedVars: TRANSLATE_ALLOWED_TEMPLATE_VARS }))
+    issues.push(...lintPromptTemplate(name, text, { allowedVars: opts.allowedVars }))
   }
-  const system = templates['translate.system']
+  const system = templates[`${family}.system`]
   if (system !== undefined && system.trim() !== '') {
-    for (const mode of TRANSLATE_WORK_MODES) {
+    for (const mode of modes) {
       try {
-        renderTemplate(system, modeVarSet(mode), 'translate.system')
+        renderTemplate(system, modeVarSet(mode, opts.allowedVars ?? []), `${family}.system`)
       } catch (err) {
         if (err instanceof PromptVariableError) {
           issues.push({
             rule: 'unknown-var',
-            message: `'translate.system' does not render for mode '${mode}': missing ${err.missing.join(', ')}`,
+            message: `'${family}.system' does not render for mode '${mode}': missing ${err.missing.join(', ')}`,
           })
         } else {
           throw err
@@ -177,4 +204,15 @@ export function lintTranslatePromptSet(templates: Record<string, string>): Promp
     }
   }
   return issues
+}
+
+/**
+ * Validates the full translate.* prompt set used by `buildTranslationPrompt`
+ * (`translate.system`, the global `llm.format.<mode>` and `translate.output.<mode>` for every
+ * work mode). Thin wrapper over {@link lintPromptSet}; kept for backward compatibility.
+ */
+export function lintTranslatePromptSet(templates: Record<string, string>): PromptIssue[] {
+  return lintPromptSet('translate', templates, {
+    allowedVars: TRANSLATE_ALLOWED_TEMPLATE_VARS,
+  })
 }

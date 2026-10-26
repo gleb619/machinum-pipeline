@@ -104,6 +104,23 @@ describe('proofreadTool', () => {
     expect(call.calls[0]?.messages[0]?.content).toContain('<results>')
   })
 
+  it('tolerates think-block noise and XML preamble via the shared structured parser', async () => {
+    const input = 'The fox jump over the fence.\n\nShe dont like apples.'
+    const call: SchemaDocLlmCall = async () => ({
+      content:
+        '<think>let me proofread…</think>\n<?xml version="1.0" encoding="UTF-8"?>\n<results>\n' +
+        '  <result>\n    <id>1</id>\n    <proofread>The fox jumps over the fence.</proofread>\n  </result>\n' +
+        '  <result>\n    <id>2</id>\n    <proofread>She does not like apples.</proofread>\n  </result>\n' +
+        '</results>',
+      model: 'mock',
+      tokens: 1,
+      promptTokens: 1,
+      completionTokens: 1,
+    })
+    const out = await createProofreadTool({ call }).invoke(makeEnv(input), ctx)
+    expect(out.item).toBe('The fox jumps over the fence.\n\nShe does not like apples.')
+  })
+
   it('lets meta override the user prompt', async () => {
     const call = mockProofreadCall()
     await createProofreadTool({ call }).invoke(
