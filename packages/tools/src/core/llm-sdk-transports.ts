@@ -50,12 +50,18 @@ interface SdkErrorLike {
   error?: unknown
 }
 
+interface OpenAiRequestOptions {
+  signal?: AbortSignal
+  /** Per-request headers (e.g. the Authorization of the picked pool key). */
+  headers?: Record<string, string>
+}
+
 interface OpenAiClientLike {
   chat: {
     completions: {
       create(
         params: Record<string, unknown>,
-        options?: { signal?: AbortSignal },
+        options?: OpenAiRequestOptions,
       ): Promise<unknown> | AsyncIterable<unknown>
     }
   }
@@ -260,20 +266,24 @@ function num(v: unknown): number {
 }
 
 export function createOpenAiSdkClient(options: OpenAiSdkClientOptions): LlmClient {
-  let clientPromise: Promise<OpenAiClientLike> | undefined
-  const client = (): Promise<OpenAiClientLike> => {
-    if (!clientPromise) {
-      clientPromise = loadOpenAiSdk().then(
-        (mod) =>
-          new mod.default({
-            ...(options.apiKey ? { apiKey: options.apiKey } : {}),
-            ...(options.baseUrl ? { baseURL: options.baseUrl } : {}),
-            timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-            maxRetries: 0, // retries live in withLlmRetry so the pool rotates per attempt
-          }),
-      )
-    }
-    return clientPromise
+  /** One SDK client per (apiKey, baseUrl): a pooled key must be the key actually sent. */
+  const clients = new Map<string, Promise<OpenAiClientLike>>()
+
+  const clientFor = (apiKey?: string, baseUrl?: string): Promise<OpenAiClientLike> => {
+    const id = `${apiKey ?? ''}\n${baseUrl ?? ''}`
+    const cached = clients.get(id)
+    if (cached) return cached
+    const created = loadOpenAiSdk().then(
+      (mod) =>
+        new mod.default({
+          ...(apiKey ? { apiKey } : {}),
+          ...(baseUrl ? { baseURL: baseUrl } : {}),
+          timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          maxRetries: 0, // retries live in withLlmRetry so the pool rotates per attempt
+        }),
+    )
+    clients.set(id, created)
+    return created
   }
 
   const buildParams = (req: LlmRequest): Record<string, unknown> => {
@@ -307,6 +317,11 @@ export function createOpenAiSdkClient(options: OpenAiSdkClientOptions): LlmClien
     }
   }
 
+  /**
+   * Picks the next usable pool entry. The returned `apiKey` / `baseUrl` are the
+   * credentials the request must use — the pool bookkeeping (429 block, 402
+   * disable) only makes sense when the request really carries that key.
+   */
   const pickPoolClient = (
     model: string,
   ): { picked?: OpenRouterClient; apiKey?: string; baseUrl?: string } => {
@@ -328,8 +343,11 @@ export function createOpenAiSdkClient(options: OpenAiSdkClientOptions): LlmClien
       try {
         const pooled = pickPoolClient(req.model)
         picked = pooled.picked
-        const data = await (await client()).chat.completions.create(buildParams(req), {
+        const data = await (
+          await clientFor(pooled.apiKey ?? options.apiKey, pooled.baseUrl ?? options.baseUrl)
+        ).chat.completions.create(buildParams(req), {
           signal: req.signal,
+          ...(pooled.apiKey ? { headers: { Authorization: `Bearer ${pooled.apiKey}` } } : {}),
         })
         return mapResponse(data, req)
       } catch (err) {
@@ -349,9 +367,10 @@ export function createOpenAiSdkClient(options: OpenAiSdkClientOptions): LlmClien
         params.stream = true
         params.stream_options = { include_usage: true }
         const stream = (await (
-          await client()
+          await clientFor(pooled.apiKey ?? options.apiKey, pooled.baseUrl ?? options.baseUrl)
         ).chat.completions.create(params, {
           signal: req.signal,
+          ...(pooled.apiKey ? { headers: { Authorization: `Bearer ${pooled.apiKey}` } } : {}),
         })) as AsyncIterable<unknown>
         let content = ''
         let finishReason: string | undefined

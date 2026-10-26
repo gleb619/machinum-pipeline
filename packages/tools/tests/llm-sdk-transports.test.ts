@@ -225,6 +225,88 @@ describe('createOpenAiSdkClient', () => {
     await expect(c.chatCompletion(req)).rejects.toBeInstanceOf(LlmRateLimitError)
   })
 
+  it('pool: the picked key is the key sent on the wire', async () => {
+    const pool = new OpenRouterPoolSupplier({
+      clients: [
+        { apiKey: 'k1', apiUrl: 'http://p' },
+        { apiKey: 'k2', apiUrl: 'http://p' },
+      ],
+    })
+    const c = createOpenAiSdkClient({ pool })
+    const sentKey = (call: number): string | undefined => {
+      const opts = openAiCreate.mock.calls[call]?.[1] as
+        | { headers?: Record<string, string> }
+        | undefined
+      return opts?.headers?.Authorization
+    }
+
+    openAiCreate.mockRejectedValueOnce(new FakeApiError(429, new Headers()))
+    await expect(c.chatCompletion(req)).rejects.toBeInstanceOf(LlmRateLimitError)
+    expect(sentKey(0)).toBe('Bearer k1')
+
+    // k1 is rate-limited -> the next attempt must authenticate with k2.
+    openAiCreate.mockResolvedValueOnce(okOpenAi())
+    await c.chatCompletion(req)
+    expect(sentKey(1)).toBe('Bearer k2')
+
+    // The SDK client itself is built for the picked key / url.
+    expect(openAiConstructor.mock.calls[0]?.[0]).toMatchObject({
+      apiKey: 'k1',
+      baseURL: 'http://p',
+      maxRetries: 0,
+    })
+    expect(openAiConstructor.mock.calls[1]?.[0]).toMatchObject({
+      apiKey: 'k2',
+      baseURL: 'http://p',
+      maxRetries: 0,
+    })
+  })
+
+  it('pool: 402 disables the key that was actually used', async () => {
+    const pool = new OpenRouterPoolSupplier({
+      clients: [
+        { apiKey: 'k1', apiUrl: 'http://p' },
+        { apiKey: 'k2', apiUrl: 'http://p' },
+      ],
+    })
+    const c = createOpenAiSdkClient({ pool })
+    const sentKey = (call: number): string | undefined => {
+      const opts = openAiCreate.mock.calls[call]?.[1] as
+        | { headers?: Record<string, string> }
+        | undefined
+      return opts?.headers?.Authorization
+    }
+
+    openAiCreate.mockRejectedValueOnce(new FakeApiError(429, new Headers()))
+    await expect(c.chatCompletion(req)).rejects.toBeInstanceOf(LlmRateLimitError)
+    openAiCreate.mockRejectedValueOnce(new FakeApiError(402, new Headers()))
+    await expect(c.chatCompletion(req)).rejects.toBeInstanceOf(LlmQuotaError)
+
+    // The 402 hit k2 (the key sent), so k2 is disabled and k1 stays rate-limited.
+    expect(sentKey(1)).toBe('Bearer k2')
+    expect(pool.getPool().statusCounts()).toMatchObject({
+      disabled: 1,
+      rateLimited: 1,
+      available: 0,
+    })
+    // Both keys are out -> the pool refuses the next call.
+    await expect(c.chatCompletion(req)).rejects.toBeInstanceOf(LlmRateLimitError)
+  })
+
+  it('pool: streams authenticate with the picked key', async () => {
+    const pool = new OpenRouterPoolSupplier({
+      clients: [{ apiKey: 'k1', apiUrl: 'http://p' }],
+    })
+    const c = createOpenAiSdkClient({ pool })
+    async function* chunks() {
+      yield { choices: [{ delta: { content: 'hi' } }] }
+    }
+    openAiCreate.mockResolvedValueOnce(chunks())
+    await c.chatCompletionStream?.(req)
+    const opts = openAiCreate.mock.calls[0]?.[1] as { headers?: Record<string, string> }
+    expect(opts?.headers?.Authorization).toBe('Bearer k1')
+  })
+
   it('streams: aggregates deltas, reports usage, calls onDelta', async () => {
     const c = createOpenAiSdkClient({})
     async function* chunks() {
