@@ -162,7 +162,9 @@ export function overlap(input: string[], overlapSize: number): string[] {
 }
 
 /**
- * Char-level rebalancing across chunks (matches Java Balanced.rebalance).
+ * Char-level rebalancing across chunks. Order-preserving: takes characters
+ * from the tail of an overfull chunk and prepends them (in order) to the
+ * following underfull chunk, so `result.join('') === input.join('')`.
  */
 export function rebalance(input: string[]): string[] {
   if (input.length < 2) return input
@@ -174,25 +176,59 @@ export function rebalance(input: string[]): string[] {
   let modified: boolean
   do {
     modified = false
-    for (let i = 0; i < builders.length; i++) {
+    for (let i = 0; i < builders.length - 1; i++) {
       const current = builders[i]
-      if (current === undefined) continue
-      if (current.text.length <= target) continue
-      for (let j = 0; j < builders.length; j++) {
-        if (i === j) continue
-        const other = builders[j]
-        if (other === undefined) continue
-        if (other.text.length < target) {
-          other.text += current.text[current.text.length - 1]
-          current.text = current.text.slice(0, -1)
-          modified = true
-          break
-        }
-      }
+      const next = builders[i + 1]
+      if (current === undefined || next === undefined) continue
+      if (current.text.length <= target || next.text.length >= target) continue
+      next.text = current.text[current.text.length - 1] + next.text
+      current.text = current.text.slice(0, -1)
+      modified = true
     }
   } while (modified)
 
   return builders.map((b) => b.text)
+}
+
+/**
+ * Line-level rebalancing across chunks: shifts whole lines between adjacent
+ * chunks toward the mean chunk size. Two O(n) passes (forward, then backward).
+ * Order-preserving: `result.join('\n') === input.join('\n')` minus any
+ * chunks that became empty.
+ */
+export function rebalanceLines(chunks: string[]): string[] {
+  if (chunks.length < 2) return chunks
+
+  const target = Math.round(chunks.reduce((sum, c) => sum + c.length, 0) / chunks.length)
+  const lines = chunks.map((chunk) => chunk.split('\n'))
+  const size = (index: number): number => {
+    const chunkLines = lines[index]
+    return chunkLines === undefined ? 0 : chunkLines.join('\n').length
+  }
+
+  for (let i = 0; i < lines.length - 1; i++) {
+    const current = lines[i]
+    const next = lines[i + 1]
+    if (current === undefined || next === undefined) continue
+    while (size(i) > target && current.length > 1) {
+      const lastLine = current.pop()
+      if (lastLine === undefined) break
+      next.unshift(lastLine)
+    }
+  }
+
+  for (let i = lines.length - 1; i > 0; i--) {
+    const current = lines[i]
+    const previous = lines[i - 1]
+    if (current === undefined || previous === undefined) continue
+    while (size(i) < target && previous.length > 1) {
+      const lastLine = previous.pop()
+      if (lastLine === undefined) break
+      current.unshift(lastLine)
+    }
+  }
+
+  return lines.map((chunkLines) => chunkLines.join('\n')).filter((chunk) => chunk.length > 0)
 }
 
 export interface ParagraphStrategyOptions {
@@ -375,7 +411,7 @@ export function balancedLineStrategy(options?: BalancedLineStrategyOptions): Tok
     split(text: string): string[] {
       const lines = splitLines(text).filter((line) => line.trim().length > 0)
       const raw = chunkUnits(lines, count, maxTokens, '\n')
-      let chunks = rebalance(raw)
+      let chunks = rebalanceLines(raw)
       if (overlapChars > 0) {
         chunks = overlap(chunks, overlapChars)
       }

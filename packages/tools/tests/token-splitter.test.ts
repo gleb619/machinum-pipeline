@@ -12,6 +12,7 @@ import {
   overlap,
   paragraphStrategy,
   rebalance,
+  rebalanceLines,
   sentenceStrategy,
   singleStrategy,
   tokenSplitter,
@@ -136,6 +137,30 @@ describe('strategies', () => {
     expect(chunks.every((c) => c.length > 0)).toBe(true)
   })
 
+  it('balancedLineStrategy preserves line order and boundaries', async () => {
+    const lines = [
+      'alpha line one',
+      'beta line two is somewhat longer',
+      'gamma',
+      'delta delta delta',
+      'epsilon here',
+      'zeta zeta zeta zeta',
+      'eta',
+      'theta theta theta',
+      'iota iota',
+      'kappa',
+    ]
+    const text = lines.join('\n')
+    const chunks = await balancedLineStrategy({ maxTokens: 8 }).split(text)
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.join('\n')).toBe(lines.join('\n'))
+    for (const chunk of chunks) {
+      for (const line of chunk.split('\n')) {
+        expect(lines).toContain(line)
+      }
+    }
+  })
+
   it('balancedLineStrategy applies overlap', async () => {
     const text = Array.from({ length: 30 }, (_, i) => `line ${i} ${'a'.repeat(40)}`).join('\n')
     const chunks = await balancedLineStrategy({ maxTokens: 100, overlapChars: 20 }).split(text)
@@ -172,9 +197,27 @@ describe('helpers', () => {
     expect(overlap(input, 2)).toEqual(['aaabb', 'bbbcc', 'ccc'])
   })
 
-  it('rebalance moves characters between chunks', () => {
+  it('rebalance moves characters between chunks preserving order', () => {
     const input = ['aaaa', 'b']
-    expect(rebalance(input)).toEqual(['aaa', 'ba'])
+    expect(rebalance(input)).toEqual(['aaa', 'ab'])
+  })
+
+  it('rebalance preserves the overall character order', () => {
+    const input = ['abcdefgh', '12']
+    const result = rebalance(input)
+    expect(result.join('')).toBe('abcdefgh12')
+    expect(result).toEqual(['abcde', 'fgh12'])
+  })
+
+  it('rebalanceLines shifts whole lines and preserves order', () => {
+    const chunks = ['l1\nl2\nl3\nl4\nl5', 'l6', 'l7']
+    const result = rebalanceLines(chunks)
+    expect(result.join('\n')).toBe(chunks.join('\n'))
+    for (const chunk of result) {
+      for (const line of chunk.split('\n')) {
+        expect(['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7']).toContain(line)
+      }
+    }
   })
 })
 

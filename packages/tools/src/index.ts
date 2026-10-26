@@ -381,6 +381,7 @@ export {
   balanceText,
   overlap,
   rebalance,
+  rebalanceLines,
   countTokens,
   heuristicTokenCount,
   DEFAULT_MAX_TOKENS,
