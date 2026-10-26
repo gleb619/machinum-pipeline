@@ -59,8 +59,9 @@ export async function resumeCommand(args: string[]): Promise<void> {
     pipelineName,
   })
 
-  // Create logger
+  // Create logger — the run id is known up front, so logs go straight to the run's log
   const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+  logger.setRunId(runId)
 
   logger.info(`Resuming pipeline: ${pipeline.id}, runId: ${runId}`)
 
@@ -73,8 +74,12 @@ export async function resumeCommand(args: string[]): Promise<void> {
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline resume failed: ${errorMessage}`)
     console.error(`\n❌ Pipeline resume failed: ${errorMessage}${hint}`)
+    // Make sure the per-run log file is fully written before the process exits
+    await logger.flush()
     process.exit(1)
   }
+
+  await logger.flush()
 }
 
 /**

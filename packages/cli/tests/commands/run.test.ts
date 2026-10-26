@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Runner } from '@mt/core'
@@ -45,6 +45,7 @@ describe('run command', () => {
       () =>
         ({
           start: mockStart,
+          getRunId: () => 'test-run-id',
         }) as unknown as Runner,
     )
 
@@ -80,6 +81,23 @@ describe('run command', () => {
     expect(console.log).toHaveBeenCalledWith(
       expect.stringContaining('Pipeline complete. Run ID: test-run-id'),
     )
+  })
+
+  it('writes the CLI log to .mt/runs/<runId>/run.log', async () => {
+    const pipelinePath = join(testDir, 'pipeline.ts')
+    await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    vi.doMock(pipelinePath, () => ({
+      default: { id: 'test-pipeline' },
+    }))
+
+    await runCommand(['pipeline.ts'])
+
+    const runLog = await vi.waitFor(() =>
+      readFile(join(testDir, '.mt', 'runs', 'test-run-id', 'run.log'), 'utf-8'),
+    )
+    expect(runLog).toContain('Starting pipeline: test-pipeline')
+    expect(runLog).toContain('Pipeline completed successfully (runId: test-run-id)')
+    await expect(readFile(join(testDir, '.mt', 'runs', 'run.log'), 'utf-8')).rejects.toThrow()
   })
 
   it('loads global context from mt.json if present', async () => {
@@ -175,6 +193,7 @@ describe('run command', () => {
               order.push((pipeline as { id: string }).id)
               return Promise.resolve({ runId: 'test-run-id' })
             }),
+            getRunId: () => 'test-run-id',
           }) as unknown as Runner,
       )
     }
@@ -234,6 +253,7 @@ describe('run command', () => {
                 ? Promise.reject(new Error('Runner failed'))
                 : Promise.resolve({ runId: 'test-run-id' })
             }),
+            getRunId: () => 'test-run-id',
           }) as unknown as Runner,
       )
 

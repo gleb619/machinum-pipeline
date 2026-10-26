@@ -30,11 +30,9 @@ export async function inspectCommand(args: string[]): Promise<void> {
     console.log('Checkpoint Tree:')
     printCheckpointTree(stateData.checkpoint)
 
-    // Optional: Events/Logs summary could go here if implemented
+    // The CLI writes each run's log to .mt/runs/<runId>/run.log
     const logPath = join(process.cwd(), '.mt', 'runs', runId, 'run.log')
     try {
-      // Check if run.log exists in the run directory (though currently it's global,
-      // we might want to support per-run logs as per docs)
       const logContent = await readFile(logPath, 'utf-8')
       const lines = logContent.trim().split('\n')
       const lastLines = lines.slice(-5)

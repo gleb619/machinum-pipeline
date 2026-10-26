@@ -73,4 +73,34 @@ describe('inspectCommand', () => {
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('  ⏳ tool-1'))
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('    ◻️ fork-1'))
   })
+
+  it('should show the last log entries of the run log', async () => {
+    const mockState = {
+      runId: 'test-run-123',
+      pipelineId: 'test-pipeline',
+      state: 'done',
+      startedAt: '2026-04-30T10:00:00.000Z',
+      updatedAt: '2026-04-30T10:05:00.000Z',
+      checkpoint: { stepId: 'root', state: 'done' },
+    }
+    const logLines = Array.from({ length: 8 }, (_, index) => `log line ${index + 1}`)
+
+    vi.mocked(readFile).mockImplementation(async (path) => {
+      const filePath = (path as PathLike | URL).toString()
+      if (filePath.endsWith('state.json')) {
+        return JSON.stringify(mockState)
+      }
+      if (filePath.endsWith('run.log')) {
+        return logLines.join('\n')
+      }
+      throw { code: 'ENOENT' }
+    })
+
+    await inspectCommand(['test-run-123'])
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Last Log Entries:'))
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('log line 8'))
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('log line 4'))
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('log line 3'))
+  })
 })

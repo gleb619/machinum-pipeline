@@ -69,7 +69,12 @@ export async function runCommand(args: string[]): Promise<void> {
 
   let failure: unknown
   try {
-    const runContext = await runner.start()
+    // start() mints the run id synchronously — bind the logger before awaiting the run,
+    // so every CLI log line lands in .mt/runs/<runId>/run.log
+    const startPromise = runner.start()
+    const runId = runner.getRunId()
+    if (runId) logger.setRunId(runId)
+    const runContext = await startPromise
     logger.info(`Pipeline completed successfully (runId: ${runContext.runId})`)
     console.log(`\n✅ Pipeline complete. Run ID: ${runContext.runId}`)
   } catch (error) {
@@ -88,6 +93,9 @@ export async function runCommand(args: string[]): Promise<void> {
     logger.warn(`end hook failed: ${hookMessage}`)
     console.error(`\n⚠️ end hook failed: ${hookMessage}`)
   }
+
+  // Make sure the per-run log file is fully written before the process exits
+  await logger.flush()
 
   if (failure !== undefined) process.exit(1)
 }
