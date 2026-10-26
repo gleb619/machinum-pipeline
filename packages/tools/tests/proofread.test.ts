@@ -18,6 +18,15 @@ import type { SchemaDocLlmCall } from '../src/normalization/schema/llm.js'
 
 const ctx = {} as ToolContext
 
+function makeEnv(item: string): {
+  id: string
+  item: string
+  meta: Record<string, unknown>
+  variables: []
+} {
+  return { id: 'ex-test', item, meta: {}, variables: [] }
+}
+
 function mockProofreadPropertiesCall(): SchemaDocLlmCall & { calls: ChatCompletionInput[] } {
   const calls: ChatCompletionInput[] = []
   const call: SchemaDocLlmCall = async (input) => {
@@ -81,7 +90,7 @@ describe('proofreadTool', () => {
   it('proofreads each paragraph and preserves structure', async () => {
     const input = `The quick brown fox jump over the fence.\n\nShe said "hello" to him.`
     const call = mockProofreadCall()
-    const out = await createProofreadTool({ call }).invoke({ item: input, meta: {} }, ctx)
+    const out = await createProofreadTool({ call }).invoke(makeEnv(input), ctx)
     expect(out.item).toContain('jump over the fence.[fixed]')
     expect(out.item).toContain('She said "hello" to him.[fixed]')
     expect(out.meta.proofread as ProofreadMeta | undefined).toBeDefined()
@@ -90,7 +99,7 @@ describe('proofreadTool', () => {
 
   it('uses the bundled prompts by default', async () => {
     const call = mockProofreadCall()
-    await createProofreadTool({ call }).invoke({ item: 'One paragraph.', meta: {} }, ctx)
+    await createProofreadTool({ call }).invoke(makeEnv('One paragraph.'), ctx)
     expect(call.calls[0]?.messages[0]?.content).toContain('Origin Text:')
     expect(call.calls[0]?.messages[0]?.content).toContain('<results>')
   })
@@ -98,7 +107,7 @@ describe('proofreadTool', () => {
   it('lets meta override the user prompt', async () => {
     const call = mockProofreadCall()
     await createProofreadTool({ call }).invoke(
-      { item: 'One.', meta: { proofreadPrompt: '{{text}} short' } },
+      { id: 'ex-test', item: 'One.', meta: { proofreadPrompt: '{{text}} short' }, variables: [] },
       ctx,
     )
     expect(call.calls[0]?.messages[0]?.content).toContain('short')
@@ -120,7 +129,7 @@ describe('proofreadXmlTool', () => {
   </result>
 </results>`
     const call = mockProofreadCall('')
-    const out = await createProofreadXmlTool({ call }).invoke({ item: inputXml, meta: {} }, ctx)
+    const out = await createProofreadXmlTool({ call }).invoke(makeEnv(inputXml), ctx)
     expect(out.item).toContain('<proofread>')
     expect(out.item).toContain('<id>1</id>')
     expect(out.item).toContain('She dont like apples')
@@ -143,7 +152,7 @@ describe('proofreadPropertiesTool', () => {
   it('proofreads properties lines and keeps keys', async () => {
     const input = '1=She dont like apples.\n2=The quick brown fox jump over the fence.'
     const call = mockProofreadPropertiesCall()
-    const out = await createProofreadPropertiesTool({ call }).invoke({ item: input, meta: {} }, ctx)
+    const out = await createProofreadPropertiesTool({ call }).invoke(makeEnv(input), ctx)
     expect(out.item).toContain('1=She do not like apples.')
     expect(out.item).toContain('2=The quick brown fox jumps over the fence.')
     expect(out.meta.proofreadProperties as ProofreadMeta | undefined).toBeDefined()
@@ -158,7 +167,7 @@ describe('proofreadPropertiesTool', () => {
       promptTokens: 1,
       completionTokens: 1,
     })
-    const out = await createProofreadPropertiesTool({ call }).invoke({ item: input, meta: {} }, ctx)
+    const out = await createProofreadPropertiesTool({ call }).invoke(makeEnv(input), ctx)
     expect(out.item).toBe(input)
   })
 })

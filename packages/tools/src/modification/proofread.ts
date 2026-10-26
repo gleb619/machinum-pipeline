@@ -354,11 +354,7 @@ async function runProofreadProperties(
     systemPrompt: PROOFREAD_PROPERTIES_SYSTEM_PROMPT,
     userPrompt: PROOFREAD_PROPERTIES_USER_PROMPT,
   }
-  const resolved = resolveLlmOptions(
-    { ...defaults, ...options },
-    env,
-    'proofreadProperties',
-  )
+  const resolved = resolveLlmOptions({ ...defaults, ...options }, env, 'proofreadProperties')
 
   const outcome = await runPromptWithRetry<Map<number, string>>(ctx, {
     ...resolved,
@@ -411,13 +407,7 @@ export function createProofreadPropertiesTool(
       const inputBlocks = parsePropertiesBlock(input)
       const expectedIds = inputBlocks.map((block) => block.id)
 
-      const { content, meta } = await runProofreadProperties(
-        input,
-        expectedIds,
-        options,
-        env,
-        ctx,
-      )
+      const { content, meta } = await runProofreadProperties(input, expectedIds, options, env, ctx)
       const proofreadMap = toResultMap(parsePropertiesBlock(content))
       const originalMap = toResultMap(inputBlocks)
 
