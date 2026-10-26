@@ -138,7 +138,8 @@ export function findVariable<U = unknown>(
   name: string,
   qualifier: Qualifier = 'new',
 ): Variable<U> | undefined {
-  return ex.variables.find((v) => v.name === name && v.qualifier === qualifier) as
+  // `variables` may be absent on hand-built literals handed straight to a Target/Tool in tests.
+  return (ex.variables ?? []).find((v) => v.name === name && v.qualifier === qualifier) as
     | Variable<U>
     | undefined
 }
