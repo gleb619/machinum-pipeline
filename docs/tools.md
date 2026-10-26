@@ -300,3 +300,14 @@ Details: [steering/tools.md](steering/tools.md#sample-stage-tools-moved-from-sam
 | `chapterPairsLinter`                                                                                                                                      | tool            | `lineParityLinter` over every EN/RU pair of a batch                                                                                                                                      |
 | `lintPromptTemplate`, `lintTranslatePromptSet`                                                                                                            | pure helpers    | Prompt template linter: placeholder syntax, ST-style single-brace vars, unknown vars; `lintTranslatePromptSet` guards the bundled `translate.*` prompt set (used by tests)              |
 | `createTranslateOutputs`                                                                                                                                  | tool factory    | `ru/chapter<N>.md` + merged `titles.json` write intents                                                                                                                                  |
+
+
+## Proofreading tools
+
+Three related tools reuse the same LLM retry loop and bundled prompts. English is the default source language; pass `language` for other text kinds. All prompts are overridable via options or per-envelope `meta.proofreadPrompt` / `meta.proofreadSystemPrompt`.
+
+| Tool | Input format | Output format | Purpose |
+|------|--------------|---------------|---------|
+| `proofreadTool` / `createProofreadTool(opts)` | plain text (blank-line paragraphs) | plain text | Splits text into paragraphs, sends them to the LLM in a proofreading prompt, and reconstructs corrected paragraphs. |
+| `proofreadXmlTool` / `createProofreadXmlTool(opts)` | XML `<results><result><id/><text/></result></results>` | XML `<results><result><id/><proofread/></result></results>` | Sub tool for callers that already have paragraph XML or want the raw model XML. |
+| `proofreadPropertiesTool` / `createProofreadPropertiesTool(opts)` | Java properties `key=value` | Java properties `key=value` | Sub tool using key/value pairs where the key is the id/line number and the value is the text. Newlines and `=` inside values are escaped. |

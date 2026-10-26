@@ -290,3 +290,150 @@ export function createProofreadXmlTool(options: ProofreadXmlOptions = {}): Tool<
 
 /** Default XML proofreading sub tool. */
 export const proofreadXmlTool = createProofreadXmlTool()
+// ---------------------------------------------------------------------------
+// Bundled properties prompts
+// ---------------------------------------------------------------------------
+
+export const PROOFREAD_PROPERTIES_SYSTEM_PROMPT = loadBundledPrompt('proofread.properties.system')
+export const PROOFREAD_PROPERTIES_USER_PROMPT = loadBundledPrompt('proofread.properties.user')
+
+// ---------------------------------------------------------------------------
+// Properties helpers
+// ---------------------------------------------------------------------------
+
+function escapeProperties(text: string): string {
+  return text.replace(/\\\\/g, '\\\\\\\\').replace(/\n/g, '\\n').replace(/=/g, '\\=')
+}
+
+function unescapeProperties(text: string): string {
+  return text.replace(/\\n/g, '\n').replace(/\\=/g, '=').replace(/\\\\/g, '\\')
+}
+
+function parsePropertiesBlock(content: string): ResultBlock[] {
+  const blocks: ResultBlock[] = []
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim()
+    if (line === '' || line.startsWith('#')) continue
+    const eq = line.indexOf('=')
+    if (eq === -1) continue
+    const id = Number(line.slice(0, eq).trim())
+    if (!Number.isInteger(id)) continue
+    blocks.push({ id, text: unescapeProperties(line.slice(eq + 1)) })
+  }
+  return blocks
+}
+
+function validateProofreadProperties(
+  content: string,
+  expectedIds: readonly number[],
+): PromptValidation<Map<number, string>> {
+  const blocks = parsePropertiesBlock(content)
+  const map = toResultMap(blocks)
+  const missing = expectedIds.filter((id) => !map.has(id))
+  if (missing.length > 0) {
+    return { ok: false, reason: `missing proofread for ids ${missing.join(', ')}` }
+  }
+  const empty = expectedIds.filter((id) => (map.get(id) ?? '').trim() === '')
+  if (empty.length > 0) {
+    return { ok: false, reason: `empty proofread for ids ${empty.join(', ')}` }
+  }
+  return { ok: true, value: map }
+}
+
+async function runProofreadProperties(
+  input: string,
+  expectedIds: readonly number[],
+  options: ProofreadOptions,
+  envelopeMeta: Record<string, unknown> | undefined,
+  ctx: ToolContext,
+): Promise<{ content: string; meta: ProofreadMeta }> {
+  const language = options.language ?? 'en'
+  const defaults: SchemaDocLlmOptions = {
+    systemPrompt: PROOFREAD_PROPERTIES_SYSTEM_PROMPT,
+    userPrompt: PROOFREAD_PROPERTIES_USER_PROMPT,
+  }
+  const resolved = resolveLlmOptions(
+    { ...defaults, ...options },
+    envelopeMeta,
+    'proofreadProperties',
+  )
+
+  const outcome = await runPromptWithRetry<Map<number, string>>(ctx, {
+    ...resolved,
+    systemPrompt: renderPrompt(resolved.systemPrompt ?? PROOFREAD_PROPERTIES_SYSTEM_PROMPT, {
+      language,
+    }),
+    userPrompt: renderPrompt(resolved.userPrompt ?? PROOFREAD_PROPERTIES_USER_PROMPT, {
+      text: input,
+    }),
+    validate: (content) => validateProofreadProperties(content, expectedIds),
+  })
+
+  const resultMeta: ProofreadMeta = {
+    ...attemptMeta([outcome as PromptRetryResult<unknown>]),
+    proofreadXml: outcome.content,
+  }
+
+  if (outcome.ok && outcome.value) {
+    return { content: outcome.content, meta: resultMeta }
+  }
+
+  const fallback = validateProofreadProperties(outcome.content, expectedIds)
+  if (fallback.ok) {
+    return { content: outcome.content, meta: resultMeta }
+  }
+  return { content: input, meta: resultMeta }
+}
+
+// ---------------------------------------------------------------------------
+// Tool: proofread-properties (sub tool)
+// ---------------------------------------------------------------------------
+
+/**
+ * Lower-level proofreading sub tool using Java properties format. Input must be
+ * one `key=value` per line where the key is the id/line number and the value is
+ * the original text. Output is the same set of keys with proofread values.
+ */
+export function createProofreadPropertiesTool(
+  options: ProofreadOptions = {},
+): Tool<string, string> {
+  return defineTool<string, string>({
+    name: 'proofread-properties',
+    version: '1.0.0',
+    mdDescription:
+      'Lower-level proofreading sub tool using Java properties format. ' +
+      'Accepts one key=value per line (key = id/line number, value = original text) ' +
+      'and returns the same keys with proofread values.',
+    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
+      const input = env.item
+      const inputBlocks = parsePropertiesBlock(input)
+      const expectedIds = inputBlocks.map((block) => block.id)
+
+      const { content, meta } = await runProofreadProperties(
+        input,
+        expectedIds,
+        options,
+        env.meta,
+        ctx,
+      )
+      const proofreadMap = toResultMap(parsePropertiesBlock(content))
+      const originalMap = toResultMap(inputBlocks)
+
+      const lines: string[] = []
+      for (const id of expectedIds) {
+        const value = proofreadMap.has(id)
+          ? (proofreadMap.get(id) ?? '')
+          : (originalMap.get(id) ?? '')
+        lines.push(`${id}=${escapeProperties(value)}`)
+      }
+
+      return {
+        item: lines.join('\n'),
+        meta: { ...env.meta, proofreadProperties: meta },
+      }
+    },
+  })
+}
+
+/** Default properties proofreading sub tool. */
+export const proofreadPropertiesTool = createProofreadPropertiesTool()

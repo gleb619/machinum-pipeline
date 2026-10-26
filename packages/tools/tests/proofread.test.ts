@@ -3,16 +3,47 @@ import { describe, expect, it } from 'vitest'
 import type { ChatCompletionInput } from '../src/core/openrouter-tool.js'
 import type { ProofreadMeta } from '../src/modification/proofread.js'
 import {
+  PROOFREAD_PROPERTIES_SYSTEM_PROMPT,
+  PROOFREAD_PROPERTIES_USER_PROMPT,
   PROOFREAD_SYSTEM_PROMPT,
   PROOFREAD_USER_PROMPT,
+  createProofreadPropertiesTool,
   createProofreadTool,
   createProofreadXmlTool,
+  proofreadPropertiesTool,
   proofreadTool,
   proofreadXmlTool,
 } from '../src/modification/proofread.js'
 import type { SchemaDocLlmCall } from '../src/normalization/schema/llm.js'
 
 const ctx = {} as ToolContext
+
+function mockProofreadPropertiesCall(): SchemaDocLlmCall & { calls: ChatCompletionInput[] } {
+  const calls: ChatCompletionInput[] = []
+  const call: SchemaDocLlmCall = async (input) => {
+    calls.push(input)
+    const content = input.messages[0]?.content ?? ''
+    const lines: string[] = []
+    for (const rawLine of content.split('\n')) {
+      const line = rawLine.trim()
+      if (line === '') continue
+      const eq = line.indexOf('=')
+      if (eq === -1) continue
+      const id = line.slice(0, eq)
+      let value = line.slice(eq + 1)
+      value = value.replace(/dont/g, 'do not').replace(/jump(?= over)/g, 'jumps')
+      lines.push(`${id}=${value}`)
+    }
+    return {
+      content: lines.join('\n'),
+      model: 'mock',
+      tokens: 1,
+      promptTokens: 1,
+      completionTokens: 1,
+    }
+  }
+  return Object.assign(call, { calls })
+}
 
 function mockProofreadCall(
   suffix = '[fixed]',
@@ -99,5 +130,35 @@ describe('proofreadXmlTool', () => {
   it('exposes bundled prompt constants', () => {
     expect(PROOFREAD_SYSTEM_PROMPT).toContain('proofread')
     expect(PROOFREAD_USER_PROMPT).toContain('{{text}}')
+    expect(PROOFREAD_PROPERTIES_USER_PROMPT).toContain('{{text}}')
+  })
+})
+
+describe('proofreadPropertiesTool', () => {
+  it('has the expected name and version', () => {
+    expect(proofreadPropertiesTool.name).toBe('proofread-properties')
+    expect(proofreadPropertiesTool.version).toBe('1.0.0')
+  })
+
+  it('proofreads properties lines and keeps keys', async () => {
+    const input = '1=She dont like apples.\n2=The quick brown fox jump over the fence.'
+    const call = mockProofreadPropertiesCall()
+    const out = await createProofreadPropertiesTool({ call }).invoke({ item: input, meta: {} }, ctx)
+    expect(out.item).toContain('1=She do not like apples.')
+    expect(out.item).toContain('2=The quick brown fox jumps over the fence.')
+    expect(out.meta.proofreadProperties as ProofreadMeta | undefined).toBeDefined()
+  })
+
+  it('falls back to input when output is unparseable', async () => {
+    const input = '1=Hello world.'
+    const call: SchemaDocLlmCall = async () => ({
+      content: 'not properties',
+      model: 'mock',
+      tokens: 1,
+      promptTokens: 1,
+      completionTokens: 1,
+    })
+    const out = await createProofreadPropertiesTool({ call }).invoke({ item: input, meta: {} }, ctx)
+    expect(out.item).toBe(input)
   })
 })
