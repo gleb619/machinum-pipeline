@@ -37,7 +37,10 @@ export default definePipeline({ id: 'translate-title' })
       render: (env) => {
         const out = env.item as TitleTranslatorOutput
         return {
-          output: out.text.split('\n').slice(0, 3).join('\n'),
+          output: out.text
+            .split('\n')
+            .filter((l) => /^#\s/.test(l) || /^title:/.test(l))
+            .join('\n'),
           info: { titleTranslated: out.titleTranslated },
         }
       },

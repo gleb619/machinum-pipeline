@@ -1,5 +1,6 @@
 import { defineTool, withItem } from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
+import { cleanTranslation } from '../normalization/translation-prompt.js'
 import type { LlmConfigLayer } from './llm-config.js'
 import { readCtx } from './llm-config.js'
 import { type GateInput, type GateSlot, type GateState, createLlmGate } from './llm-gate.js'
@@ -82,7 +83,8 @@ export function translateToOutput(state: GateState<TranslateInput>): TranslateOu
   const r = state.response
   if (!r) throw new Error('translate emit slot: state.response missing (did call run?)')
   return {
-    translatedText: r.content.trim(),
+    // the bundled prompt asks for a trailing <terms> report; it is metadata, not translation
+    translatedText: cleanTranslation(r.content),
     ...(r.model ? { model: r.model } : {}),
     ...(r.usage.totalTokens > 0 ? { tokens: r.usage.totalTokens } : {}),
   }

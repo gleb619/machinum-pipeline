@@ -1,10 +1,10 @@
 import { definePipeline, getVariable } from '@mt/core'
-import { createMetadataTool } from '@mt/tools'
+import { createMetadataTool, tokenCounter } from '@mt/tools'
 import '@mt/waypoint'
 import { pickFor } from '../lib/llm.js'
 import { keepInput, report } from '../lib/report.js'
 
-// === metadata: chapter number + word / token / char counts (createMetadataTool) ===
+// === metadata: chapter number + word / token / char counts (tokenCounter + createMetadataTool) ===
 // Judge: the model must copy the measured numbers it was given; `fallbackUsed: false` means
 // it did (the tool rejects wrong numbers). The mock answer is rejected, so the offline run
 // shows the deterministic fallback.
@@ -13,6 +13,7 @@ const llm = pickFor('metadata')
 export default definePipeline()
   .from('md://./input/en')
   .use(keepInput)
+  .use(tokenCounter)
   .use(createMetadataTool({ model: llm.model, call: llm.schemaCall }))
   .use(
     report({

@@ -92,6 +92,19 @@ describe('translateText (composable)', () => {
     expect(mock.calls[0]?.messages[1]).toMatchObject({ role: 'user', content: 'hello' })
   })
 
+  it('strips the <terms> report block and <think> from the model reply', async () => {
+    const tool = createTranslateText({ backend: 'llm' })
+    const reply =
+      '<think>hm</think>привет мир <terms>\\[{"term":"Aldric","ru":"Алдрик","type":"character"}]</terms>'
+    const out = await tool
+      .with({ call: mockLlmCall([reply]) })
+      .invoke(
+        { id: 'ex-test', variables: [], item: { text: 'hello', targetLang: 'ru' }, meta: {} },
+        ctx,
+      )
+    expect(out.item).toMatchObject({ translatedText: 'привет мир' })
+  })
+
   it('translateText and llmTranslate share the implementation', () => {
     // same slot layout, same normalize/toOutput (no duplicated prompt/parse logic)
     expect(Object.keys(llmTranslate.slots)).toEqual(Object.keys(translateText.slots))
