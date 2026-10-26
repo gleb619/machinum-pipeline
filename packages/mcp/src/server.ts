@@ -56,6 +56,7 @@ async function handleRequest(request: JsonRpcRequest): Promise<JsonRpcResponse> 
           id,
           result: await handleToolsCall(
             params as { name: string; arguments: Record<string, unknown> },
+            projectRoot,
           ),
         }
 

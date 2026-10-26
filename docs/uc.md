@@ -43,9 +43,9 @@
 | UC034 | Track cost/usage per Run                    | —          |
 | UC035 | Use Router offline/mock mode                | —          |
 | UC036 | Roll router logs                            | —          |
-| UC037 | List pipelines via MCP                     | —          |
-| UC038 | Run pipeline via MCP                       | —          |
-| UC039 | Inspect Run via MCP                        | —          |
+| UC037 | List pipelines via MCP                     | Done       |
+| UC038 | Run pipeline via MCP                       | Done       |
+| UC039 | Inspect Run via MCP                        | Done       |
 | UC040 | Invoke single tool via MCP                 | —          |
 | UC041 | Read book/chapter via MCP                  | —          |
 | UC042 | Scrape chapters via Chrome ext.             | —          |
