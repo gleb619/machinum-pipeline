@@ -166,7 +166,8 @@ other OpenAI-compatible server. Details: [steering/router.md](steering/router.md
     └── mt.sqlite              # indicator/metadata only (v1)
 ```
 
-`mt.json` (project root) holds project/book metadata, pipeline paths, secrets env file (`.env`), model defaults, and global retry/concurrency defaults.
+`mt.json` (project root) holds project/book metadata, pipeline paths, secrets env file (`.env`), model defaults, and global retry/concurrency defaults. `imports: ["./mt.local.json"]` deep-merges gitignored local overrides
+(remote LLM endpoint/model) over it; a missing file is skipped.
 
 The vault lives outside `mt.json`: `.mt/vault.json` (project scope) and `~/.mt/vault.json` (user scope);
 project entries override user entries by name, and `MT_VAULT` pins a single file. Both are gitignored and

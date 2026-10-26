@@ -1,8 +1,14 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_MT_CONFIG, loadGlobalContext, parseEnvFile } from '../src/config.js'
+import {
+  DEFAULT_MT_CONFIG,
+  loadGlobalContext,
+  parseEnvFile,
+  readMtConfig,
+  readMtConfigSync,
+} from '../src/config.js'
 
 describe('loadGlobalContext', () => {
   let dir: string
@@ -164,5 +170,69 @@ describe('parseEnvFile', () => {
 
   it('keeps inline # in unquoted values only when not a trailing comment', () => {
     expect(parseEnvFile('A=va#lue\nB=value # trailing').A).toBe('va#lue')
+  })
+})
+
+describe('mt.json imports', () => {
+  let dir: string
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'mt-imports-'))
+  })
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('deep-merges imported files over mt.json, later imports win', async () => {
+    await writeFile(
+      join(dir, 'mt.json'),
+      JSON.stringify({
+        imports: ['./a.json', './b.json'],
+        project: { name: 'base' },
+        settings: { 'llm.tool': 'mock', 'llm.model': 'base', keep: 1 },
+        pipelines: ['./one.ts'],
+      }),
+    )
+    await writeFile(
+      join(dir, 'a.json'),
+      JSON.stringify({ settings: { 'llm.tool': 'ollama', 'llm.model': 'a' } }),
+    )
+    await writeFile(
+      join(dir, 'b.json'),
+      JSON.stringify({ settings: { 'llm.model': 'b' }, pipelines: ['./two.ts'] }),
+    )
+
+    const config = await readMtConfig(dir)
+    expect(config.project).toEqual({ name: 'base' })
+    expect(config.settings).toEqual({ 'llm.tool': 'ollama', 'llm.model': 'b', keep: 1 })
+    expect(config.pipelines).toEqual(['./two.ts'])
+    expect('imports' in config).toBe(false)
+
+    const ctx = await loadGlobalContext(dir)
+    expect(ctx.settings['llm.model']).toBe('b')
+  })
+
+  it('skips a missing import and resolves nested imports relative to the importer', async () => {
+    await mkdir(join(dir, 'conf'))
+    await writeFile(
+      join(dir, 'mt.json'),
+      JSON.stringify({ imports: ['./nope.json', './conf/outer.json'], settings: { x: 0 } }),
+    )
+    await writeFile(
+      join(dir, 'conf', 'outer.json'),
+      JSON.stringify({ imports: ['./inner.json', '../mt.json'], settings: { y: 1 } }),
+    )
+    await writeFile(join(dir, 'conf', 'inner.json'), JSON.stringify({ settings: { z: 2 } }))
+
+    expect((await readMtConfig(dir)).settings).toEqual({ x: 0, y: 1, z: 2 })
+  })
+
+  it('throws naming a malformed imported file', async () => {
+    await writeFile(join(dir, 'mt.json'), JSON.stringify({ imports: ['./bad.json'] }))
+    await writeFile(join(dir, 'bad.json'), '{ nope')
+
+    await expect(readMtConfig(dir)).rejects.toThrow(join(dir, 'bad.json'))
+    expect(() => readMtConfigSync(dir)).toThrow(/Invalid mt\.json/)
   })
 })

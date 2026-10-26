@@ -1,0 +1,43 @@
+{
+  "name": "sample5",
+  "version": "1.0.0",
+  "description": "Machinum Pipeline sample - one tiny pipeline per LLM-backed tool, to judge each tool's quality by eye",
+  "type": "module",
+  "scripts": {
+    "check-llm": "tsx check-llm.ts",
+    "summary": "NODE_OPTIONS='--import tsx' mt run ./pipelines/summary.ts",
+    "summary-notes": "NODE_OPTIONS='--import tsx' mt run ./pipelines/summary-notes.ts",
+    "entities": "NODE_OPTIONS='--import tsx' mt run ./pipelines/entities.ts",
+    "ner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/ner.ts",
+    "vocabulary": "NODE_OPTIONS='--import tsx' mt run ./pipelines/vocabulary.ts",
+    "metadata": "NODE_OPTIONS='--import tsx' mt run ./pipelines/metadata.ts",
+    "schema": "NODE_OPTIONS='--import tsx' mt run ./pipelines/schema.ts",
+    "typo-fix": "NODE_OPTIONS='--import tsx' mt run ./pipelines/typo-fix.ts",
+    "translate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-plain.ts",
+    "translate:xml": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-xml.ts",
+    "translate:properties": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-properties.ts",
+    "translate:paragraphs": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-paragraphs.ts",
+    "translate:title": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-title.ts",
+    "proofread": "NODE_OPTIONS='--import tsx' mt run ./pipelines/proofread.ts",
+    "glossary": "NODE_OPTIONS='--import tsx' mt run ./pipelines/glossary.ts",
+    "statdata": "NODE_OPTIONS='--import tsx' mt run ./pipelines/statdata.ts",
+    "stat-dict-translate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/stat-dict-translate.ts",
+    "cleanup": "rm -rf out .mt",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@mt/core": "workspace:*",
+    "@mt/cli": "workspace:*",
+    "@mt/tools": "workspace:*",
+    "@mt/waypoint": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

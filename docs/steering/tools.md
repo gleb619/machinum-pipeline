@@ -200,7 +200,8 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
 - `core/llm-picker.ts` — `pickLlmTool({ env, mockSource, configPath })` / `readLlmConfig` / `LLM_TOOLS`: single LLM
   config point (`MT_LLM_TOOL`, `MT_LLM_MODEL`, `MT_LLM_USE`, mt.json `settings.llm.*`; default offline `mock`).
   Returns `{ tool, model, gate, schemaCall, translate }`. Pass `configPath` = the project's `mt.json`
-  (default `./mt.json` of the cwd). Shared by sample2 and sample4.
+  (default `./mt.json` of the cwd); its `imports` (e.g. a gitignored `mt.local.json`) are merged in first.
+  Shared by sample2, sample4 and sample5.
 - `normalization/chapter-record.ts` — `toChapterRecord`, `chapterRecordMapper` (raw `{key,value}` -> `"title\nbody"`,
   `meta.chapterNum`), `lineTextToMarkdown` (first line -> `# title`, other lines -> paragraphs, `{ text }`),
   `unwrapMarkdownText` (`{ text }` -> string, undoes remark `\[` escaping).

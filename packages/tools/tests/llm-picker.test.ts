@@ -1,6 +1,6 @@
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import type { ToolContext } from '@mt/core'
@@ -50,6 +50,25 @@ describe('readLlmConfig', () => {
       tool: 'ollama',
       model: 'other/model',
     })
+  })
+
+  it('reads settings from a local file pulled in by mt.json imports (local wins)', () => {
+    const path = configFile({ 'llm.tool': 'mock', 'llm.model': 'committed' })
+    const dir = dirname(path)
+    writeFileSync(
+      path,
+      JSON.stringify({
+        imports: ['./mt.local.json'],
+        settings: { 'llm.tool': 'mock', 'llm.model': 'committed' },
+      }),
+      'utf-8',
+    )
+    writeFileSync(
+      join(dir, 'mt.local.json'),
+      JSON.stringify({ settings: { 'llm.tool': 'ollama', 'llm.model': 'local:model' } }),
+      'utf-8',
+    )
+    expect(readLlmConfig({}, path)).toEqual({ tool: 'ollama', model: 'local:model' })
   })
 
   it('rejects an unknown backend', () => {

@@ -12,7 +12,7 @@ Re-exports everything needed by consumers:
 - `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint` (DSL builders)
 - `Envelope`, `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
-- `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
+- `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
 - `UriRegistry`, `registry`, `registerSource`, `registerTarget`, `resolveSource`, `resolveTarget` (URI)
 - `Runner`, `Store`, `Cache`
 
@@ -72,6 +72,15 @@ The only `GlobalContext` builder: `mt.json` merged over `DEFAULT_MT_CONFIG`, top
 `settings.uris`, and `secrets.envFile` (default `.env`) read into `env`. Missing `mt.json` yields defaults;
 a malformed one throws naming the file path. `env` never overrides a key already set in `process.env` and never
 writes back into it. `mt run`, `mt resume` and the admin start route all call it — no caller hand-rolls a context.
+
+`imports?: string[]` pulls in extra config files (e.g. a gitignored `mt.local.json` with the remote ollama
+URL / model): each file is deep-merged over `mt.json` in order (objects key by key, arrays and scalars
+replaced, later wins, so local overrides committed). Paths resolve relative to the importing file, nested
+imports work (cycles are skipped), a missing file is skipped, a malformed one throws naming it. The key is
+dropped from the result. `readMtConfig` (async) and `readMtConfigSync` (module-load-time readers such as
+`pickLlmTool`) both apply it, so `loadGlobalContext` and the picker see the same merged settings. `.env`
+(`secrets.envFile`) cannot do this job: it only reaches `ctx.env` (URL/model at call time), not the picker's
+`MT_LLM_TOOL` / `MT_LLM_MODEL`, which are read from `process.env` when the pipeline module loads.
 
 `scripts?: LifecycleScripts` (`Partial<Record<'install' | 'start' | 'end', string>>`) declares lifecycle
 hook pipelines: paths to pipeline module files (relative to the project root) run by the CLI —

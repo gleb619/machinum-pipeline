@@ -9,6 +9,7 @@ vault.json
 *.tsbuildinfo
 .env
 .env.local
+mt.local.json
 .sdd/runtime/
 
 *.ignore.*
@@ -99,6 +100,12 @@ build
 /samples/sample3/chapters/titles.json
 /samples/sample3/.mt-translate-prompts.jsonl
 /samples/sample3/chapters/translate-mock/*.md
+/samples/sample5/vendor/
+/samples/sample5/package-lock.json
+/samples/sample5/runner.log
+/samples/sample5/mt-run.log
+/samples/sample5/out/
+/samples/sample5/mt.local.json
 /docs/docs/plans/
 /docs/locks/*
 coverage/

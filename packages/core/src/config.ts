@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RetryStrategy } from './contexts.js'
 import type { Settings } from './settings.js'
 import { loadVault } from './vault.js'
@@ -18,6 +19,13 @@ export type LifecycleScripts = Partial<Record<'install' | 'start' | 'end', strin
  * mt.json project configuration shape.
  */
 export interface MtConfig {
+  /**
+   * Extra config files deep-merged over this one, in order (later wins, so a gitignored
+   * `mt.local.json` overrides the committed values). Paths are relative to the importing file;
+   * a missing file is skipped, a malformed one throws. Objects merge key by key, everything
+   * else (arrays, scalars) is replaced.
+   */
+  imports?: string[]
   project: {
     name: string
   }
@@ -191,27 +199,97 @@ function resolveRetry(retry: PartialRetry | undefined): RetryPolicy {
 /**
  * Read and parse `mt.json` at `projectRoot` (no merging over defaults).
  * Missing file yields `{}`; a malformed one throws naming the file path.
+ * `imports` (see {@link MtConfig.imports}) are deep-merged over it, the imported files winning.
  * Used by lifecycle hooks (`scripts.*`) which need the raw config, not a `GlobalContext`.
  */
 export async function readMtConfig(projectRoot: string): Promise<Partial<MtConfig>> {
-  const configPath = resolve(projectRoot, 'mt.json')
+  return (await readConfigFile(resolve(projectRoot, 'mt.json'), true, new Set())) ?? {}
+}
+
+/** Synchronous {@link readMtConfig} (for module-load-time readers such as `pickLlmTool`). */
+export function readMtConfigSync(projectRoot: string): Partial<MtConfig> {
+  return readConfigFileSync(resolve(projectRoot, 'mt.json'), true, new Set()) ?? {}
+}
+
+/** Parses one config file; throws naming the path. */
+function parseConfig(raw: string, configPath: string): Partial<MtConfig> {
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (!isPlainObject(value)) throw new Error('expected a JSON object')
+    return value as Partial<MtConfig>
+  } catch (err) {
+    throw new Error(`Invalid mt.json at ${configPath}: ${errorMessage(err)}`)
+  }
+}
+
+/** Absolute paths of the not-yet-visited `imports` of a parsed file, in order. */
+function importPaths(imports: unknown, configPath: string, seen: Set<string>): string[] {
+  if (!Array.isArray(imports)) return []
+  seen.add(configPath)
+  return imports
+    .filter((entry): entry is string => typeof entry === 'string')
+    .map((entry) => resolve(dirname(configPath), entry))
+    .filter((path) => !seen.has(path))
+}
+
+/** A missing required file (`mt.json`) is `{}`, a missing imported one `undefined` (skipped). */
+async function readConfigFile(
+  configPath: string,
+  required: boolean,
+  seen: Set<string>,
+): Promise<Partial<MtConfig> | undefined> {
   let raw: string
   try {
     raw = await readFile(configPath, 'utf-8')
   } catch (err) {
-    if (isNotFound(err)) return {}
+    if (isNotFound(err)) return required ? {} : undefined
     throw new Error(`Cannot read mt.json at ${configPath}: ${errorMessage(err)}`)
   }
-
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new Error('expected a JSON object')
-    }
-    return parsed as Partial<MtConfig>
-  } catch (err) {
-    throw new Error(`Invalid mt.json at ${configPath}: ${errorMessage(err)}`)
+  const { imports, ...own } = parseConfig(raw, configPath)
+  let merged: Record<string, unknown> = own
+  for (const path of importPaths(imports, configPath, seen)) {
+    const imported = await readConfigFile(path, false, seen)
+    if (imported) merged = deepMerge(merged, imported)
   }
+  return merged as Partial<MtConfig>
+}
+
+function readConfigFileSync(
+  configPath: string,
+  required: boolean,
+  seen: Set<string>,
+): Partial<MtConfig> | undefined {
+  let raw: string
+  try {
+    raw = readFileSync(configPath, 'utf-8')
+  } catch (err) {
+    if (isNotFound(err)) return required ? {} : undefined
+    throw new Error(`Cannot read mt.json at ${configPath}: ${errorMessage(err)}`)
+  }
+  const { imports, ...own } = parseConfig(raw, configPath)
+  let merged: Record<string, unknown> = own
+  for (const path of importPaths(imports, configPath, seen)) {
+    const imported = readConfigFileSync(path, false, seen)
+    if (imported) merged = deepMerge(merged, imported)
+  }
+  return merged as Partial<MtConfig>
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Objects merge key by key, anything else from `over` replaces `base`. Inputs stay untouched. */
+function deepMerge(
+  base: Record<string, unknown>,
+  over: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base }
+  for (const [key, value] of Object.entries(over)) {
+    const current = out[key]
+    out[key] = isPlainObject(current) && isPlainObject(value) ? deepMerge(current, value) : value
+  }
+  return out
 }
 
 async function loadEnv(projectRoot: string, envFile: string): Promise<Record<string, string>> {

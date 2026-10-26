@@ -1,0 +1,10 @@
+{
+  "settings": {
+    "llm.tool": "ollama",
+    "llm.baseUrl": "http://localhost:11434/v1",
+    "llm.model": "gemma4:latest",
+    "llm.model.summary": "gemma4:latest",
+    "llm.model.translate": "gemma4:latest",
+    "llm.timeoutMs": 300000
+  }
+}

@@ -8,15 +8,15 @@
  *   routes the chosen backend through a vault entry (endpoint, keys, model; see docs/vault.md).
  *   Without an explicit `MT_LLM_MODEL` / `settings.llm.model`, the vault model is used.
  * - `mt.json` -> `settings.llm.tool` / `settings.llm.model` are the file-based fallback;
- *   the env vars win over them.
+ *   the env vars win over them. Files listed in `mt.json` -> `imports` (a gitignored
+ *   `mt.local.json`) are merged in first, so local settings override the committed ones.
  *
  * Everything the pipeline sends to an LLM (schema-doc extractors, chapter translators,
  * typo fix, line translation) goes through the returned {@link LlmChoice}.
  * Pass `configPath` (the project's mt.json); the default is `./mt.json` of the cwd.
  */
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { createExchange, defineTool, parseVaultRef, withItem } from '@mt/core'
+import { dirname, join } from 'node:path'
+import { createExchange, defineTool, parseVaultRef, readMtConfigSync, withItem } from '@mt/core'
 import type { ComposableTool, Tool, ToolContext } from '@mt/core'
 import type { SchemaDocLlmCall } from '../normalization/schema/llm.js'
 import {
@@ -89,13 +89,13 @@ export interface PickLlmToolOptions {
 /** Default mt.json: the one in the working directory. */
 const defaultConfigPath = () => join(process.cwd(), 'mt.json')
 
-/** `settings` of mt.json (empty when the file is missing or malformed). */
+/**
+ * `settings` of mt.json, with its `imports` (e.g. a gitignored `mt.local.json`) merged in
+ * (empty when the file is missing or malformed).
+ */
 function readProjectSettings(configPath: string): Record<string, unknown> {
   try {
-    const raw = JSON.parse(readFileSync(configPath, 'utf-8')) as {
-      settings?: Record<string, unknown>
-    }
-    return raw.settings ?? {}
+    return readMtConfigSync(dirname(configPath)).settings ?? {}
   } catch {
     return {}
   }

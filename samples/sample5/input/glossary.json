@@ -1,0 +1,41 @@
+{
+  "terms": [
+    {
+      "id": "sir-aldric",
+      "term": "Sir Aldric",
+      "type": "character",
+      "count": 0,
+      "firstChapter": 1,
+      "ru": "сэр Алдрик",
+      "aliases": ["Aldric"],
+      "locked": true
+    },
+    {
+      "id": "elara",
+      "term": "Elara",
+      "type": "character",
+      "count": 0,
+      "firstChapter": 1,
+      "ru": "Элара",
+      "aliases": []
+    },
+    {
+      "id": "thornhaven",
+      "term": "Thornhaven",
+      "type": "place",
+      "count": 0,
+      "firstChapter": 1,
+      "ru": "Торнхейвен",
+      "aliases": []
+    },
+    {
+      "id": "darkwood",
+      "term": "Darkwood",
+      "type": "place",
+      "count": 0,
+      "firstChapter": 1,
+      "ru": "Тёмный Лес",
+      "aliases": []
+    }
+  ]
+}

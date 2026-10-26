@@ -1,0 +1,19 @@
+{
+  "project": {
+    "name": "sample5"
+  },
+  "imports": ["./mt.local.json"],
+  "defaults": {
+    "retry": {
+      "max": 2,
+      "backoffMs": 1000,
+      "strategy": "exp"
+    },
+    "onError": "fail-run",
+    "concurrency": 1
+  },
+  "settings": {
+    "llm.tool": "mock",
+    "llm.model": ""
+  }
+}
