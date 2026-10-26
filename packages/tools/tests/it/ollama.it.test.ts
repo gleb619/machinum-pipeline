@@ -1,4 +1,4 @@
-import type { ToolContext } from '@mt/core'
+import { type ToolContext, getVariable } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
   OLLAMA_BASE_URL,
@@ -60,7 +60,7 @@ describe('ollama GPU integration', () => {
       content = out.item.content
       model = out.item.model
       completionTokens = out.item.completionTokens
-      expect(out.meta.ollama).toBe(true)
+      expect(getVariable(out, 'ollama')).toBe(true)
     } catch (err) {
       throw new Error(
         `Chat completion failed against ${health.baseUrl} (model ${OLLAMA_MODEL}, ` +
