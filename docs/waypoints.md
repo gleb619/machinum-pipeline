@@ -19,6 +19,8 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | WP005 | schema-doc://    | ✓      | ✓      | resumable     | sample2                                   |
 | WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
 | WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample2                                   |
+| WP008 | range://         | ✓      | —      | resumable     | —                                         |
+| WP009 | void://          | —      | ✓      | —             | —                                         |
 
 ---
 
@@ -31,6 +33,8 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | 5     | WP005 | `schema-doc://`     | ✓      | ✓      | resumable  | `string`  | `string`  | Schema document source/target; custom YAML + CSV format; per-chapter `<dir>/chapter<num>.schema.md`.                                      |
 | 6     | WP006 | `git://`            | ✓      | ✓      | resumable  | varies    | varies    | Git worktree isolation wrapper; composites with inner scheme via `git+`; auto-commit on close with `commit=on-close`.                     |
 | 7     | WP007 | `ephemeral://`      | ✓      | ✓      | resumable  | `T`       | `T`       | In-memory buffer keyed by URI path; for testing and in-memory pipelines; process-local, no persistence.                                   |
+| 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
+| 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
 
 ---
 
@@ -151,6 +155,36 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 
 ---
 
+### WP008: range://
+
+**Scheme:** `range://<start>..<end>` (e.g. `range://1..10`, `range://5..3`, `range://1..10?step=3`)
+
+**Source-only:** no target registered — `.to('range://…')` throws the registry's "No target registered" error.
+
+**Source:** Emits integers from `start` to `end` inclusive, one envelope per number (`{ item: n, meta: {} }`). Direction derived from the start/end comparison (`range://5..3` → 5, 4, 3); `?step=` is a positive-integer magnitude applied in that direction (`range://1..10?step=3` → 1, 4, 7, 10). `range://0..0` emits a single envelope.
+
+**Validation:** `start`/`end` must be integers, the `..` separator is required, `step` must be a positive integer — violations throw an error naming the bad component.
+
+**Resume:** deterministic by construction; `resume(ctx, cursor)` skips exactly `cursor` envelopes via `resumeFrom()`. A non-number cursor skips nothing.
+
+**Use case:** synthetic test/demo pipelines, driving N iterations through a chain (`.from('range://1..10')`), fan-out load without an input file.
+
+---
+
+### WP009: void://
+
+**Scheme:** `void://`
+
+**Target-only:** no source registered — `.from('void://')` throws the registry's "No source registered" error.
+
+**Target:** Discards every envelope (like `/dev/null`). `open`/`write`/`close` are no-ops.
+
+**Checkpoint:** deliberately NOT implemented. Nothing is durable mid-run, so the runner keeps its cursor pre-run and a crash replays the source — harmless for a sink that keeps no state.
+
+**Use case:** benchmarking/tool-only pipelines where output is irrelevant, dry-running a chain without writing files.
+
+---
+
 ## Adding a New Waypoint
 
 1. Create `packages/waypoint/src/<scheme>.ts` implementing `Source<T>` and/or `Target<T>`
@@ -197,5 +231,9 @@ Location: `packages/waypoint/tests/builtins/`
 | `http-server.test.ts`       | HTTP source (real Fastify server)              |
 | `git-worktree.arch.test.ts` | Git worktree composite resolver (architecture) |
 | `settings.test.ts`          | Waypoint settings and path resolution          |
+| `range.test.ts`             | Range emission order, step, direction, malformed-URI rejections, resume skip |
+| `range.arch.test.ts`        | `range://` source-only registration + interface shape |
+| `void.test.ts`             | `void://` discard behavior (no state accumulates) |
+| `void.arch.test.ts`        | `void://` target-only registration + interface shape |
 
 Architecture tests (`.arch.test.ts`) verify registered schemes and interface shapes without full I/O.
