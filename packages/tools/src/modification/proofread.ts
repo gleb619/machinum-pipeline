@@ -176,7 +176,7 @@ async function runProofread(
   inputXml: string,
   expectedIds: readonly number[],
   options: ProofreadOptions,
-  envelopeMeta: Record<string, unknown> | undefined,
+  env: Envelope<string>,
   ctx: ToolContext,
 ): Promise<{ xml: string; meta: ProofreadMeta }> {
   const language = options.language ?? 'en'
@@ -184,7 +184,7 @@ async function runProofread(
     systemPrompt: PROOFREAD_SYSTEM_PROMPT,
     userPrompt: PROOFREAD_USER_PROMPT,
   }
-  const resolved = resolveLlmOptions({ ...defaults, ...options }, envelopeMeta, 'proofread')
+  const resolved = resolveLlmOptions({ ...defaults, ...options }, env, 'proofread')
 
   const outcome = await runPromptWithRetry<Map<number, string>>(ctx, {
     ...resolved,
@@ -235,11 +235,12 @@ export function createProofreadTool(options: ProofreadOptions = {}): Tool<string
       const inputXml = buildProofreadXml(paragraphs)
       const expectedIds = paragraphs.map((_, index) => index + 1)
 
-      const { xml, meta } = await runProofread(inputXml, expectedIds, options, env.meta, ctx)
+      const { xml, meta } = await runProofread(inputXml, expectedIds, options, env, ctx)
       const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
       const proofreadText = reconstructText(paragraphs, proofreadMap)
 
       return {
+        ...env,
         item: proofreadText,
         meta: { ...env.meta, proofread: meta },
       }
@@ -272,7 +273,7 @@ export function createProofreadXmlTool(options: ProofreadXmlOptions = {}): Tool<
       const inputBlocks = parseResultBlocks(inputXml, 'text')
       const expectedIds = inputBlocks.map((block) => block.id)
 
-      const { xml, meta } = await runProofread(inputXml, expectedIds, options, env.meta, ctx)
+      const { xml, meta } = await runProofread(inputXml, expectedIds, options, env, ctx)
       const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
       const originalMap = toResultMap(inputBlocks)
       const outputXml = reconstructXml(
@@ -281,6 +282,7 @@ export function createProofreadXmlTool(options: ProofreadXmlOptions = {}): Tool<
       )
 
       return {
+        ...env,
         item: outputXml,
         meta: { ...env.meta, proofreadXml: meta },
       }
@@ -344,7 +346,7 @@ async function runProofreadProperties(
   input: string,
   expectedIds: readonly number[],
   options: ProofreadOptions,
-  envelopeMeta: Record<string, unknown> | undefined,
+  env: Envelope<string>,
   ctx: ToolContext,
 ): Promise<{ content: string; meta: ProofreadMeta }> {
   const language = options.language ?? 'en'
@@ -354,7 +356,7 @@ async function runProofreadProperties(
   }
   const resolved = resolveLlmOptions(
     { ...defaults, ...options },
-    envelopeMeta,
+    env,
     'proofreadProperties',
   )
 
@@ -413,7 +415,7 @@ export function createProofreadPropertiesTool(
         input,
         expectedIds,
         options,
-        env.meta,
+        env,
         ctx,
       )
       const proofreadMap = toResultMap(parsePropertiesBlock(content))
@@ -428,6 +430,7 @@ export function createProofreadPropertiesTool(
       }
 
       return {
+        ...env,
         item: lines.join('\n'),
         meta: { ...env.meta, proofreadProperties: meta },
       }
