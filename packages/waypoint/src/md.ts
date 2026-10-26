@@ -2,16 +2,18 @@ import { mkdirSync } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
+import { MD_OUTPUTS_VARIABLE } from '@mt/core'
 import type { Exchange, ExchangeInput, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { AtomicStreamWriter, atomicWriteFile, registry } from '@mt/core'
+import { exchangeField } from './fields.js'
 import { resumeFrom } from './resume.js'
 import { resolveWaypointPath, resolveWaypointRoot } from './settings.js'
 
 const PATH_SEPARATOR_RE = /[\\/]/
 
 /**
- * Compose the final path for a `meta.mdOutputs` intent.
+ * Compose the final path for a `mdOutputs` variable intent.
  *
  * The target owns the root; tools only supply `subdir` (relative, `''` = root)
  * and `filename` (basename). Absolute paths and `..` escapes are rejected
@@ -92,7 +94,7 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
  *     it arrives so a crash keeps every chapter finished so far
  *
  * In dir mode the URI is the output *root*: the target resolves it against the
- * project root / `waypoint.md.defaultFolder`, and every `meta.mdOutputs` intent
+ * project root / `waypoint.md.defaultFolder`, and every `mdOutputs` variable intent
  * lands under it (`<root>/<subdir>/<filename>`). Tools never name the root.
  */
 export function createMdTarget<T>(uri: ParsedUri): Target<T> {
@@ -123,7 +125,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
         const text = String(env.item)
         writer.write(`${text}\n`)
       } else {
-        const mdOutputs = env.meta.mdOutputs as MdOutputEntry[] | undefined
+        const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
         if (mdOutputs && mdOutputs.length > 0) {
           const claimed = new Map<string, string>()
           for (const output of mdOutputs) {

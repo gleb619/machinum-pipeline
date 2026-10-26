@@ -1,6 +1,7 @@
 import type { ParsedUri } from '@mt/core'
 import type { Exchange, Target, TargetContext } from '@mt/core'
 import { atomicWriteFile, registry } from '@mt/core'
+import { exchangeField } from './fields.js'
 import { resolveWaypointRoot } from './settings.js'
 
 /**
@@ -31,9 +32,9 @@ function isGlossary(value: unknown): value is ReviewGlossary {
   )
 }
 
-/** Extracts a glossary from an envelope: `meta.glossary`, else a JSON-string `item`, else an object `item`. */
+/** Extracts a glossary from an envelope: the `glossary` variable (or legacy `meta.glossary`), else a JSON-string `item`, else an object `item`. */
 function glossaryOf<T>(env: Exchange<T>): ReviewGlossary | undefined {
-  const fromMeta = (env.meta as Record<string, unknown> | undefined)?.glossary
+  const fromMeta = exchangeField<unknown>(env, 'glossary')
   if (isGlossary(fromMeta)) return fromMeta
   if (typeof env.item === 'string') {
     try {
@@ -105,7 +106,7 @@ export function renderGlossaryReview(glossary: ReviewGlossary, source = 'glossar
  *
  * URI scheme: review://./chapters/glossary.review.md
  *
- * The glossary is taken from `meta.glossary`, or parsed from a JSON-string / object `item`
+ * The glossary is taken from the `glossary` variable (or legacy `meta.glossary`), or parsed from a JSON-string / object `item`
  * (so `.from('md://./chapters/glossary.json')` … `.to('review://…')` also works). The last
  * glossary envelope wins; the file is written atomically in `close()` (temp + rename).
  * There is deliberately NO `checkpoint()`: nothing is durable mid-run, so a crash resume

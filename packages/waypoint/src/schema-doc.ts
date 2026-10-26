@@ -8,6 +8,7 @@ import { atomicWriteFile, registry } from '@mt/core'
 import matter from 'gray-matter'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
+import { exchangeField } from './fields.js'
 import { resumeFrom } from './resume.js'
 import { resolveWaypointPath } from './settings.js'
 
@@ -46,11 +47,11 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
     async write(env: Exchange<string>, _ctx: TargetContext): Promise<void> {
       const meta = (env.meta || {}) as Record<string, unknown>
       const chapterNum = (meta.chapterNum as number) || 0
-      const summary = (meta.summary as string) || ''
-      const entities = (meta.entities as { index: number; name: string }[]) || []
-      const schema = meta.schema as string | undefined
-      const vocabulary = (meta.vocabulary as string[]) || []
-      const metadata = meta.metadata as SchemaDocMetadata | undefined
+      const summary = exchangeField<string>(env, 'summary') || ''
+      const entities = exchangeField<{ index: number; name: string }[]>(env, 'entities') || []
+      const schema = exchangeField<string>(env, 'schema')
+      const vocabulary = exchangeField<string[]>(env, 'vocabulary') || []
+      const metadata = exchangeField<SchemaDocMetadata>(env, 'metadata')
 
       // Extract title from the markdown item
       const firstLine = (env.item as string).trim().split('\n')[0] || ''
@@ -62,8 +63,8 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
 
       const metaTable = metadata ?? {
         chapter: chapterNum,
-        wordCount: (meta.wordCount as number) || 0,
-        tokenCount: (meta.tokenCount as number) || 0,
+        wordCount: exchangeField<number>(env, 'wordCount') || 0,
+        tokenCount: exchangeField<number>(env, 'tokenCount') || 0,
         charLength: (env.item as string).length,
       }
 

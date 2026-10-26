@@ -39,7 +39,7 @@ export function resolveWaypointPath(
  * - otherwise → `<projectRoot>/<rawPath>`
  *
  * Use this where a waypoint needs a *root* it composes paths under (e.g. the
- * `md://` directory target and its `meta.mdOutputs` intents).
+ * `md://` directory target and its `mdOutputs` variable intents).
  */
 export function resolveWaypointRoot(
   uri: ParsedUri,
