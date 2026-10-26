@@ -6,19 +6,13 @@ import type { GlossaryTermType } from './term-tagger.js'
 /**
  * Work mode of a translation unit:
  * - `plain` — raw translated text, 1 line in → 1 line out (default, backward compatible).
- * - `plan` — the model first outputs a short `<plan>…</plan>` block, then the plain translation.
  * - `xml` — input lines wrapped as `<result><id>N</id><origin>…</origin></result>`, the model replies with
  *   `<result><id>N</id><translated>…</translated></result>` blocks.
  * - `properties` — input lines wrapped as `N=text`, the model replies with `N=translation` lines.
  */
-export type TranslateWorkMode = 'plain' | 'plan' | 'xml' | 'properties'
+export type TranslateWorkMode = 'plain' | 'xml' | 'properties'
 
-export const TRANSLATE_WORK_MODES: readonly TranslateWorkMode[] = [
-  'plain',
-  'plan',
-  'xml',
-  'properties',
-]
+export const TRANSLATE_WORK_MODES: readonly TranslateWorkMode[] = ['plain', 'xml', 'properties']
 
 export interface TranslationPromptInput {
   /** EN text of the unit to translate; may carry `<term id="..">..</term>` tags. */

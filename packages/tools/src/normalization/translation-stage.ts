@@ -58,7 +58,7 @@ export async function loadChapterSummary(chaptersDir: string, n: number): Promis
 
 /**
  * One LLM call for a (system, user) prompt pair. `mode: 'plain'` (default) returns the cleaned
- * reply as before; other modes parse the structured reply (plan/xml/properties) and join the
+ * reply as before; other modes parse the structured reply (xml/properties) and join the
  * translated lines with `\n`; a reply with missing/duplicate ids/keys throws a retryable
  * {@link TranslationReplyParseError}.
  */

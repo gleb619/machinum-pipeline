@@ -69,11 +69,9 @@ describe('lintTranslatePromptSet', () => {
     )
     expect(Object.keys(translate).sort()).toEqual([
       'translate.format.plain',
-      'translate.format.plan',
       'translate.format.properties',
       'translate.format.xml',
       'translate.output.plain',
-      'translate.output.plan',
       'translate.output.properties',
       'translate.output.xml',
       'translate.system',
@@ -86,9 +84,7 @@ describe('lintTranslatePromptSet', () => {
       'translate.system': 'Translate {{text}} from {{sourceLang}} to {{targetLang}}.',
       'translate.format.plain': 'plain format {{text}}',
       'translate.output.plain': 'plain output',
-      'translate.format.plan': '   ',
-      'translate.output.plan': 'plan output',
-      'translate.format.xml': 'xml format',
+      'translate.format.xml': '   ',
       'translate.output.xml': 'xml output',
       'translate.format.properties': 'properties format',
       // translate.output.properties missing
@@ -101,7 +97,7 @@ describe('lintTranslatePromptSet', () => {
       issues.some(
         (i) =>
           i.rule === 'empty-template' &&
-          /'translate\.format\.plan' is missing or empty/.test(i.message),
+          /'translate\.format\.xml' is missing or empty/.test(i.message),
       ),
     ).toBe(true)
   })
@@ -110,8 +106,6 @@ describe('lintTranslatePromptSet', () => {
     const goodBlocks: Record<string, string> = {
       'translate.format.plain': 'f',
       'translate.output.plain': 'o',
-      'translate.format.plan': 'f',
-      'translate.output.plan': 'o',
       'translate.format.xml': 'f',
       'translate.output.xml': 'o',
       'translate.format.properties': 'f',

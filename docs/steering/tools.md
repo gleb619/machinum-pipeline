@@ -154,7 +154,7 @@ cardinality) is returned untouched.
 Building blocks of the sample4 translate stage (EN->RU, line by line).
 
 - `buildTranslationPrompt({ text, glossary, summary, extraRules, mode })` — `{ systemPrompt, userPrompt, usedTerms,
-  untranslatedTerms, lockedTerms }`. `mode` is the `TranslateWorkMode` (`'plain' | 'plan' | 'xml' | 'properties'`,
+  untranslatedTerms, lockedTerms }`. `mode` is the `TranslateWorkMode` (`'plain' | 'xml' | 'properties'`,
   default `'plain'` = previous behaviour). The system prompt is composed from the bundled `translate.system`,
   `translate.format.<mode>` and `translate.output.<mode>` templates (registered prompt-registry defaults;
   `{{sourceLang}}`, `{{targetLang}}`, `{{text}}`, `{{glossaryBlock}}`, `{{summaryBlock}}`, `{{extraRules}}`,
@@ -169,7 +169,7 @@ Building blocks of the sample4 translate stage (EN->RU, line by line).
   `<think>` blocks, `<terms>` report blocks and `<term>` tags; `parseReportedTerms(reply)` (zod-validated, never
   throws) parses the report into `ReportedTerm[]` (invalid entries dropped, deduped case-insensitively);
   `termIdsIn(text)` lists tag ids. `parseTranslationReply(reply, mode)` (in `translation-reply.ts`) parses a reply
-  per mode: `plan` extracts the `<plan>…</plan>` block separately; `xml`/`properties` extract and sort by numeric
+  per mode: `xml`/`properties` extract and sort by numeric
   id/key, requiring contiguous 1..N — missing/duplicate ids/keys throw a retryable `TranslationReplyParseError`
   (same retry contract as `LineParityError`).
 - `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,

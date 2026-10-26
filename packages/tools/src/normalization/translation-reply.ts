@@ -5,8 +5,6 @@ import type { TranslateWorkMode } from './translation-prompt.js'
 export interface ParsedTranslation {
   /** Translated lines in input order (line 1 first). */
   lines: string[]
-  /** The `<plan>…</plan>` block of a `plan`-mode reply. */
-  plan?: string
 }
 
 /** Thrown when a structured reply cannot be parsed; `retryable` so the engine retries. */
@@ -21,7 +19,6 @@ export class TranslationReplyParseError extends Error {
   }
 }
 
-const PLAN_RE = /<plan>([\s\S]*?)<\/plan>/i
 const XML_RESULT_RE =
   /<result>\s*<id>\s*(\d+)\s*<\/id>\s*<translated>([\s\S]*?)<\/translated>\s*<\/result>/gi
 const PROPERTIES_LINE_RE = /^(\d+)\s*=(.*)$/
@@ -86,7 +83,6 @@ function requireContiguous(
  * Parses a model reply for a translation unit built by `buildTranslationPrompt` (per work mode):
  *
  * - `plain` — `cleanTranslation` of the whole reply.
- * - `plan` — the `<plan>…</plan>` block is extracted separately, the remainder cleaned as `plain`.
  * - `xml` — `<result><id>N</id><translated>…</translated></result>` blocks are extracted tolerantly
  *   (prose/`<think>` noise around the XML is ignored), sorted by numeric id; missing/duplicate ids
  *   throw a retryable {@link TranslationReplyParseError}.
@@ -95,13 +91,6 @@ function requireContiguous(
  */
 export function parseTranslationReply(reply: string, mode: TranslateWorkMode): ParsedTranslation {
   if (mode === 'plain') return { lines: cleanTranslation(reply).split('\n') }
-  if (mode === 'plan') {
-    const plan = PLAN_RE.exec(reply)?.[1]?.trim()
-    const rest = plan !== undefined && plan !== '' ? reply.replace(PLAN_RE, '') : reply
-    const parsed: ParsedTranslation = { lines: cleanTranslation(rest).split('\n') }
-    if (plan !== undefined && plan !== '') parsed.plan = plan
-    return parsed
-  }
   const entries = mode === 'xml' ? parseXmlResults(reply) : parseProperties(reply)
   if (entries.length === 0) {
     throw new TranslationReplyParseError(

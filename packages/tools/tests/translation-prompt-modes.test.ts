@@ -42,14 +42,6 @@ describe('buildTranslationPrompt modes', () => {
     expect(p.userPrompt).toBe('<context>\nArin met Iron Keep.\n</context>')
   })
 
-  it('plan mode renders the plan format/output blocks', () => {
-    const p = buildTranslationPrompt({ text: TAGGED, glossary, mode: 'plan' })
-    expect(p.systemPrompt).toContain('Input format (plan mode)')
-    expect(p.systemPrompt).toContain('Output contract (plan mode)')
-    expect(p.systemPrompt).toContain('<plan>...</plan>')
-    expect(p.userPrompt).toBe('<context>\nArin met Iron Keep.\n</context>')
-  })
-
   it('xml mode wraps each line as <result><id>N</id><origin>…</origin></result>', () => {
     const p = buildTranslationPrompt({
       text: 'First line.\nSecond line.',
@@ -107,22 +99,6 @@ describe('parseTranslationReply', () => {
       'plain',
     )
     expect(parsed.lines).toEqual(['Первая строка.'])
-    expect(parsed.plan).toBeUndefined()
-  })
-
-  it('plan: extracts the <plan> block and cleans the remainder', () => {
-    const reply =
-      '<plan>\n- Арин stays Арин.\n- Iron Keep = Железная крепость.\n</plan>\n' +
-      'Арин встретил Железную крепость.\n<terms>[]</terms>'
-    const parsed = parseTranslationReply(reply, 'plan')
-    expect(parsed.plan).toContain('Iron Keep = Железная крепость')
-    expect(parsed.lines).toEqual(['Арин встретил Железную крепость.'])
-  })
-
-  it('plan: works without a plan block (plain fallback)', () => {
-    const parsed = parseTranslationReply('Просто перевод.', 'plan')
-    expect(parsed.plan).toBeUndefined()
-    expect(parsed.lines).toEqual(['Просто перевод.'])
   })
 
   it('xml: tolerates think blocks and prose around the XML, sorts by id', () => {
