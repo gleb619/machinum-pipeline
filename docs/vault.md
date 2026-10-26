@@ -28,6 +28,10 @@ See [vault.example.json](vault.example.json) (fake values). `{ "version": 1, "en
 | `mt vault keepass-add <title>` | Adds or updates a KeePass entry (`--secret`, `--username`, `--group`) |
 | `mt vault keepass-list` | Entry titles, group paths and UUIDs — never passwords |
 | `mt vault keepass-status` | Database path, existence, credential config and unlock state |
+| `mt vault embed-init` | Creates an empty embedded encrypted store (mode 0600) at `--path`/`MT_EMBED_PATH` |
+| `mt vault embed-add <name>` | Adds or updates an embedded-store secret (`--secret`, `--username`, `--notes`, `--force`) |
+| `mt vault embed-list` | Entry names and usernames — never secrets |
+| `mt vault embed-status` | Store path, existence, credential config and unlock state |
 
 `add` flags: `--provider` (`ollama|openrouter|openai|anthropic|custom|router`), `--base-url`,
 `--api-key`, `--api-keys k1,k2`, `--models a,b`, `--default-model`, `--notes`. Missing flags are
@@ -40,11 +44,17 @@ never logged), `--username <name>`, `--group <path>`. The master password is rea
 `MT_KEEPASS_PASSWORD` / `MT_KEEPASS_PASSWORD_FILE`; `keepass-init` / `keepass-add` / `keepass-list`
 prompt for it with hidden input when a TTY is attached and no credential is configured.
 
+Embedded-store flags: `--path <file>` (store), `--secret <value>` (never logged), `--username <name>`,
+`--notes <text>`, `--force` (overwrite an existing entry). The master password is read from
+`MT_EMBED_PASSWORD` / `MT_EMBED_PASSWORD_FILE`; `embed-init` / `embed-add` / `embed-list` prompt for
+it with hidden input when a TTY is attached and no credential is configured.
+
 Secrets are masked in every output (`sk-…1234`) unless `--reveal` is given. Writes go through
 `saveVault`: atomic (temp-then-rename), file mode 0600.
 
 `mt vault init` and `mt init` both keep `.gitignore` covered — `.mt/`, `vault.json`, `*.vault.json`,
-`.mt/vault*` and `*.kdbx` are appended only when missing, so running either twice changes nothing.
+`.mt/vault*`, `*.kdbx` and `*.embed.json` are appended only when missing, so running either twice
+changes nothing.
 
 ## Precedence
 
@@ -70,6 +80,7 @@ values. A value that is not a known ref prefix passes through unchanged.
 |---|---|---|
 | `vlt:<name>` | [vlt](https://github.com/ladzaretti/vlt-cli) CLI | `MT_VLT`, vlt's own session (`vlt login`) |
 | `keepass:<title\|uuid>` | KeePass `.kdbx` (kdbxweb + WASM Argon2) | `MT_KEEPASS_PATH`, `MT_KEEPASS_PASSWORD`, `MT_KEEPASS_KEY_FILE` |
+| `embed:<name>` | Embedded encrypted store (scrypt + AES-256-GCM, pure `node:crypto`) | `MT_EMBED_PATH`, `MT_EMBED_PASSWORD` |
 
 ### vlt
 
@@ -126,10 +137,43 @@ the standalone `mt` binary stays self-contained). `keepass://<title>` is accepte
   keeps serving the previous result until it completes; `startRouter()` awaits the first load.
   Database mtime is part of the hot-reload signature.
 
+### Embedded store (embed)
+
+`packages/core/src/embed.ts` reads a small JSON file encrypted with AES-256-GCM — no dependency,
+no native addon, no external binary; `node:crypto` only. `embed://<name>` is accepted as an alias of
+`embed:<name>`.
+
+- **Format**: the file holds `{ version, kdf: "scrypt", n, r, p, salt, iv, tag, ciphertext }` (all
+  base64 except the KDF params); the plaintext before encryption is
+  `{ "version": 1, "entries": { "<name>": { "secret", "username"?, "url"?, "notes"? } } }`.
+  Key: `scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64MiB })`; cipher:
+  AES-256-GCM with a random 12-byte IV and AAD `mt-embed-v1`. Writes are atomic (temp-then-rename)
+  with mode 0600 and a fresh salt/IV per write.
+- **Config**: `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`), `MT_EMBED_PASSWORD`
+  or `MT_EMBED_PASSWORD_FILE` (one trailing newline stripped). Missing credentials are a clear
+  error naming the vars; the core resolver never prompts (the CLI prompts with hidden input on a
+  TTY).
+- **Provisioning**:
+  ```bash
+  export MT_EMBED_PASSWORD='…'               # CI only; interactive commands prompt
+  mt vault embed-init                        # empty store, mode 0600
+  mt vault embed-add OpenRouter-Key --secret "$OPENROUTER_KEY"
+  mt vault add or --provider openrouter --api-key embed:OpenRouter-Key
+  ```
+- **Caching**: the decrypted store is memoized per process by path + mtime + size + a SHA-256
+  fingerprint of the password; concurrent loads share one promise and failed loads are not cached.
+  The cache is cleared after writes.
+- **Opt-out**: `MT_EMBED=false` disables resolution entirely (refs pass through as-is).
+- **Errors are sanitized**: a wrong password, tampered ciphertext or malformed JSON produces one
+  error naming the path only — never the master password or a secret value.
+- **Router**: `packages/router/server/utils/embed.ts` is a standalone **sync** duplicate
+  (readFileSync/statSync/scryptSync), so `embed:` refs resolve directly in the sync hot-reload
+  reader — no background refresh needed. Store mtime is part of the hot-reload signature.
+
 ## Security
 
-- `.mt/vault*`, `vault.json`, `*.vault.json` and `*.kdbx` are gitignored. Never commit real vaults
-  or databases.
+- `.mt/vault*`, `vault.json`, `*.vault.json`, `*.kdbx` and `*.embed.json` are gitignored. Never
+  commit real vaults, databases or encrypted stores.
 - `saveVault` writes atomically with mode 0600.
 - `GlobalContext.vault` is non-enumerable: excluded from `JSON.stringify`, spreads, checkpoints, meta, logs.
 - Use `maskVault()` before displaying/logging any entry.
@@ -141,7 +185,9 @@ is standalone, keep formats in sync). Each entry becomes an upstream named after
 `ollama` -> ollama, `openai`/`custom` -> openai-compat (needs `baseUrl`), `openrouter` -> keys join the default `openrouter`
 pool (after `OPENROUTER_API_KEYS`). `anthropic` is skipped with a warning, `router` entries are ignored by the router itself (they are client-side refs, below). Env upstreams
 (`MT_ROUTER_UPSTREAMS`, `MT_ROUTER_OLLAMA_URL`) win on name conflicts. Edits are picked up without restart (mtime check, at
-most every 2s); a broken file keeps the previous entries. Key values are never logged or returned by the router API.
+most every 2s); a broken file keeps the previous entries. `embed:` refs resolve synchronously in the
+same poll; `keepass:` refs refresh in the background. Key values are never logged or returned by the
+router API.
 Router side in detail: [steering/router.md](steering/router.md) (upstreams, routing prefixes, hot reload, keyless
 security model); end-to-end flows: [uc.md](uc.md) (UC063–UC065).
 

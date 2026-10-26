@@ -7,19 +7,24 @@ import {
   VAULT_PROVIDERS,
   addEntry,
   addKeepassSecret,
+  createEmbedStore,
   createKeepassDatabase,
+  defaultEmbedPath,
   defaultKeepassPath,
+  embedCredentialsConfigured,
   emptyVault,
   findVlt,
   installVlt,
   isVaultProvider,
   keepassCredentialsConfigured,
+  listEmbedEntries,
   listKeepassEntries,
   loadVault,
   maskSecret,
   maskVault,
   removeEntry,
   saveVault,
+  setEmbedSecret,
   vaultPaths,
 } from '@mt/core'
 import type { Vault, VaultEntry, VaultProvider } from '@mt/core'
@@ -42,6 +47,10 @@ Subcommands:
   keepass-add <title>   Add or update an entry in the KeePass database
   keepass-list          List KeePass entry titles (no secrets)
   keepass-status        KeePass database path and whether it can be unlocked
+  embed-init            Create an empty embedded encrypted secrets store
+  embed-add <name>      Add or update a secret in the embedded store
+  embed-list            List embedded store entry names (no secrets)
+  embed-status          Embedded store path and whether it can be unlocked
 
 Options:
   --provider <name>     Provider: ${VAULT_PROVIDERS.join(' | ')}
@@ -51,10 +60,10 @@ Options:
   --models <a,b>        Available models
   --default-model <m>   Default model
   --notes <text>        Free-form note
-  --secret <value>      Secret value for keepass-add (never logged)
-  --username <name>     User name for keepass-add
+  --secret <value>      Secret value for keepass-add / embed-add (never logged)
+  --username <name>     User name for keepass-add / embed-add
   --group <path>        KeePass group for keepass-add (e.g. LLM/API)
-  --path <file>         KeePass database path (default $MT_KEEPASS_PATH or ~/.mt/secrets.kdbx)
+  --path <file>         KeePass / embedded store path (--path or $MT_KEEPASS_PATH / $MT_EMBED_PATH)
   --key-file <file>     KeePass key file
   --user                Use the user vault (~/.mt/vault.json) instead of the project one
   --reveal              Print secret values unmasked
@@ -558,6 +567,96 @@ async function keepassStatusCommand(options: VaultOptions): Promise<void> {
   }
 }
 
+/**
+ * Environment for the embedded-store commands. `--path` overrides the environment;
+ * when no credentials are configured and a TTY is attached, the master password is
+ * prompted for (keystrokes hidden). Otherwise the core resolver reports the missing
+ * configuration.
+ */
+async function embedEnv(options: VaultOptions, prompt: boolean): Promise<NodeJS.ProcessEnv> {
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  if (options.path) env.MT_EMBED_PATH = options.path
+  if (prompt && !embedCredentialsConfigured(env)) {
+    const password = await askSecret('Embedded store master password')
+    if (password) env.MT_EMBED_PASSWORD = password
+  }
+  return env
+}
+
+async function embedInitCommand(options: VaultOptions): Promise<void> {
+  const path = resolve(options.path ?? defaultEmbedPath(process.env))
+  if (existsSync(path)) {
+    fail(`Embedded store already exists: ${path} (remove it first or pick --path)`)
+  }
+  const env = await embedEnv(options, false)
+  let password = env.MT_EMBED_PASSWORD
+  if (!embedCredentialsConfigured(env)) {
+    if (!process.stdin.isTTY) {
+      fail(
+        'Missing embedded store credentials: set MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE) for non-interactive use',
+      )
+    }
+    const first = await askSecret('Master password')
+    if (!first) fail('Master password must be non-empty')
+    const second = await askSecret('Repeat master password')
+    if (first !== second) fail('Passwords do not match')
+    password = first
+  }
+  const created = await createEmbedStore({ path, password }, env)
+  console.log(`Created ${created}`)
+  console.log('  mode: 0600')
+}
+
+async function embedAddCommand(options: VaultOptions): Promise<void> {
+  const name = options.positionals[1]
+  if (!name) {
+    fail('Usage: mt vault embed-add <name> [--secret <value>] [--username <name>]')
+  }
+  const env = await embedEnv(options, true)
+  const secret = options.secret ?? (await askSecret(`Secret for "${name}"`))
+  if (!secret) fail('Missing secret: pass --secret (or run on a TTY to be prompted)')
+  const result = await setEmbedSecret(
+    { name, secret, username: options.username, notes: options.notes },
+    { path: options.path, overwrite: options.force },
+    env,
+  )
+  console.log(`Saved embedded secret "${name}" in ${result.path}`)
+}
+
+async function embedListCommand(options: VaultOptions): Promise<void> {
+  const env = await embedEnv(options, true)
+  const path = defaultEmbedPath(env)
+  const entries = await listEmbedEntries(env)
+  console.log(path)
+  if (entries.length === 0) {
+    console.log('  No entries.')
+    return
+  }
+  const nameWidth = Math.max(4, ...entries.map((entry) => entry.name.length))
+  const userWidth = Math.max(8, ...entries.map((entry) => (entry.username ?? '-').length))
+  for (const entry of entries) {
+    console.log(`  ${entry.name.padEnd(nameWidth)}  ${(entry.username ?? '-').padEnd(userWidth)}`)
+  }
+}
+
+async function embedStatusCommand(options: VaultOptions): Promise<void> {
+  const env = await embedEnv(options, false)
+  const path = defaultEmbedPath(env)
+  console.log(`store: ${path}`)
+  console.log(`  state: ${existsSync(path) ? 'exists' : 'missing'}`)
+  const configured = embedCredentialsConfigured(env)
+  console.log(
+    `  credentials: ${configured ? 'configured' : 'missing — set MT_EMBED_PASSWORD or MT_EMBED_PASSWORD_FILE'}`,
+  )
+  if (!existsSync(path) || !configured) return
+  try {
+    const entries = await listEmbedEntries(env)
+    console.log(`  unlocked: ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`)
+  } catch (err) {
+    console.log(`  locked: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
+
 async function dispatch(args: string[]): Promise<void> {
   const options = parseArgs(args)
   if (options.help) {
@@ -596,6 +695,14 @@ async function dispatch(args: string[]): Promise<void> {
       return keepassListCommand(options)
     case 'keepass-status':
       return keepassStatusCommand(options)
+    case 'embed-init':
+      return embedInitCommand(options)
+    case 'embed-add':
+      return embedAddCommand(options)
+    case 'embed-list':
+      return embedListCommand(options)
+    case 'embed-status':
+      return embedStatusCommand(options)
     default:
       return fail(`Unknown vault subcommand: ${subcommand}\n\n${USAGE}`)
   }

@@ -6,7 +6,14 @@ import { atomicWriteFile } from '@mt/core'
  * Gitignore patterns `mt init` guarantees: the whole `.mt/` state dir plus every
  * vault file name, so a secret vault can never be committed by accident.
  */
-export const VAULT_IGNORE_PATTERNS = ['.mt/', 'vault.json', '*.vault.json', '.mt/vault*', '*.kdbx']
+export const VAULT_IGNORE_PATTERNS = [
+  '.mt/',
+  'vault.json',
+  '*.vault.json',
+  '.mt/vault*',
+  '*.kdbx',
+  '*.embed.json',
+]
 
 /** Accepted spellings of a pattern: the pattern itself and its slash-less form. */
 function variantsFor(pattern: string): string[] {

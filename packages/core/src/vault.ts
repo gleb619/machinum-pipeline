@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { tmpPathFor } from './atomic.js'
+import { isEmbedRef, resolveEmbedValue } from './embed.js'
 import { isKeepassRef, resolveKeepassValue } from './keepass.js'
 import { isVltRef, resolveVltValue } from './vlt.js'
 
@@ -11,8 +12,9 @@ import { isVltRef, resolveVltValue } from './vlt.js'
  * into checkpoints, meta or logs. Error messages never echo secret values.
  *
  * `apiKey` / `apiKeys[]` values may be secret references instead of plaintext:
- * `vlt:<name>` (vlt CLI) or `keepass:<title|uuid>` (KeePass database). Refs are
- * resolved in memory at load time; the file on disk keeps the refs.
+ * `vlt:<name>` (vlt CLI), `keepass:<title|uuid>` (KeePass database) or `embed:<name>`
+ * (embedded encrypted store). Refs are resolved in memory at load time; the file on
+ * disk keeps the refs.
  */
 
 export const VAULT_PROVIDERS = [
@@ -67,7 +69,7 @@ export function vaultPaths(projectRoot: string, env: Record<string, string | und
 
 export interface LoadVaultOptions {
   /**
-   * Resolve secret refs (`vlt:`, `keepass:`) in `apiKey`/`apiKeys` (default true).
+   * Resolve secret refs (`vlt:`, `keepass:`, `embed:`) in `apiKey`/`apiKeys` (default true).
    * Pass false when only the stored values matter (e.g. editing the file).
    */
   resolveRefs?: boolean
@@ -114,6 +116,7 @@ async function resolveSecretValue(
 ): Promise<string> {
   if (isVltRef(value)) return resolveVltValue(value, env)
   if (isKeepassRef(value)) return resolveKeepassValue(value, env)
+  if (isEmbedRef(value)) return resolveEmbedValue(value, env)
   return value
 }
 

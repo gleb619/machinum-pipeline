@@ -213,7 +213,8 @@ describe('init command (T001)', () => {
   })
 
   it('T116-03: leaves an existing .gitignore untouched when it already covers the patterns', async () => {
-    const existing = 'node_modules/\n.mt/\nvault.json\n*.vault.json\n.mt/vault*\n*.kdbx\n'
+    const existing =
+      'node_modules/\n.mt/\nvault.json\n*.vault.json\n.mt/vault*\n*.kdbx\n*.embed.json\n'
     await writeFile(join(testDir, '.gitignore'), existing, 'utf-8')
 
     await initCommand({})

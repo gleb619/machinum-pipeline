@@ -129,5 +129,9 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_KEEPASS_PASSWORD` | — | KeePass master password (CI; interactive commands prompt instead) |
 | `MT_KEEPASS_PASSWORD_FILE` | — | File containing the master password (one trailing newline stripped) |
 | `MT_KEEPASS_KEY_FILE` | — | Optional KeePass key file |
+| `MT_EMBED` | `true` | Vault `embed:<name>` secret refs: `false` disables resolution entirely ([vault.md](../vault.md)) |
+| `MT_EMBED_PATH` | `$MT_HOME\|~/.mt/secrets.embed.json` | Embedded encrypted store path ([vault.md](../vault.md)) |
+| `MT_EMBED_PASSWORD` | — | Embedded store master password (CI; interactive commands prompt instead) |
+| `MT_EMBED_PASSWORD_FILE` | — | File containing the master password (one trailing newline stripped) |
 
 LLM precedence tables: [tools.md](tools.md#llm-toolkit). Secrets loaded from `.env` via `mt.json → secrets.envFile`.

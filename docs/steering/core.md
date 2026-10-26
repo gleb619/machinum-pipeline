@@ -290,7 +290,18 @@ memoized per process by path + mtime + size + credential fingerprint.
 `MT_KEEPASS_PATH` (default `$MT_HOME|~/.mt/secrets.kdbx`), `MT_KEEPASS_PASSWORD` /
 `MT_KEEPASS_PASSWORD_FILE`, `MT_KEEPASS_KEY_FILE`. Errors name the path/entry only.
 
-`loadVault` resolves both ref kinds (`resolveRefs: false` keeps stored refs for
+### `embed.ts` — embedded store secret backend
+
+Vault `apiKey`/`apiKeys[]` values of the form `embed:<name>` (or `embed://…`) are refs into a
+small JSON file encrypted with AES-256-GCM (scrypt KDF, AAD `mt-embed-v1`) — pure `node:crypto`,
+no dependency/native addon/external binary. `getEmbedSecret()` reads by name,
+`listEmbedEntries()` returns metadata without secrets. The decrypted store is memoized per
+process by path + mtime + size + password fingerprint. `createEmbedStore()` / `setEmbedSecret()`
+provision stores atomically (mode 0600); `resolveEmbedValue()` honors `MT_EMBED=false`. Config:
+`MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`), `MT_EMBED_PASSWORD` /
+`MT_EMBED_PASSWORD_FILE`. Errors name the path/entry only.
+
+`loadVault` resolves all three ref kinds (`resolveRefs: false` keeps stored refs for
 editing); details: [../vault.md](../vault.md).
 
 A vault ref is also a config value: `settings.llm.use` in `mt.json` and env `MT_LLM_USE` expand into

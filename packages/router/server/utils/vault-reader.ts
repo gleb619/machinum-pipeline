@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { embedSignature, isEmbedRef, resolveEmbedValue } from './embed.js'
 import { isKeepassRef, keepassSignature, resolveKeepassValue } from './keepass.js'
 import { VLT_REF_PREFIX, resolveVltValueSync } from './vlt.js'
 
@@ -53,7 +54,7 @@ export function vaultSignature(paths: string[]): string {
         return 'missing'
       }
     })
-    .join('|')}|kp:${keepassSignature()}`
+    .join('|')}|kp:${keepassSignature()}|emb:${embedSignature()}`
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -157,9 +158,20 @@ function resolveVltEntry(entry: VaultEntry): VaultEntry {
   return entry
 }
 
+/** `embed:` refs resolve synchronously (scrypt + AES-GCM in `node:crypto`). */
+function resolveEmbedEntry(entry: VaultEntry): VaultEntry {
+  if (entry.apiKey !== undefined && isEmbedRef(entry.apiKey)) {
+    entry.apiKey = resolveEmbedValue(entry.apiKey)
+  }
+  if (entry.apiKeys !== undefined) {
+    entry.apiKeys = entry.apiKeys.map((key) => (isEmbedRef(key) ? resolveEmbedValue(key) : key))
+  }
+  return entry
+}
+
 /**
  * Reads and merges all vault files (project overrides user, whole entry). Missing files = empty.
- * `vlt:` refs are resolved synchronously; `keepass:` refs are left untouched — use
+ * `vlt:` and `embed:` refs are resolved synchronously; `keepass:` refs are left untouched — use
  * {@link readVaultEntriesAsync} when they must be resolved.
  */
 export function readVaultEntries(paths: string[]): Record<string, VaultEntry> {
@@ -167,6 +179,7 @@ export function readVaultEntries(paths: string[]): Record<string, VaultEntry> {
   for (const [name, entry] of Object.entries(merged)) {
     try {
       resolveVltEntry(entry)
+      resolveEmbedEntry(entry)
     } catch (err) {
       throw new Error(`Vault entry "${name}": ${err instanceof Error ? err.message : String(err)}`)
     }
@@ -176,13 +189,15 @@ export function readVaultEntries(paths: string[]): Record<string, VaultEntry> {
 
 /**
  * Same as {@link readVaultEntries}, but also resolves `keepass:` refs. Async because
- * kdbxweb decrypts through WebCrypto; the database is memoized per process.
+ * kdbxweb decrypts through WebCrypto; the database is memoized per process. `embed:`
+ * refs resolve synchronously here as well.
  */
 export async function readVaultEntriesAsync(paths: string[]): Promise<Record<string, VaultEntry>> {
   const merged = readRawEntries(paths)
   for (const [name, entry] of Object.entries(merged)) {
     try {
       resolveVltEntry(entry)
+      resolveEmbedEntry(entry)
       if (entry.apiKey !== undefined && isKeepassRef(entry.apiKey)) {
         entry.apiKey = await resolveKeepassValue(entry.apiKey)
       }

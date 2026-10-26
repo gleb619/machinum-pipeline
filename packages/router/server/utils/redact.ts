@@ -14,6 +14,7 @@ const SK_KEY = /\bsk-[A-Za-z0-9_-]{6,}/g
 // Vault secret refs are not secrets themselves, but they name the secret — scrub them too.
 const VLT_REF = /\bvlt:[A-Za-z0-9._-]+/g
 const KEEPASS_REF = /\bkeepass:(?:\/\/)?[^\s,;]+/g
+const EMBED_REF = /\bembed:(?:\/\/)?[^\s,;]+/g
 
 function knownSecrets(): string[] {
   const secrets = new Set<string>()
@@ -44,6 +45,7 @@ export function redact(text: string): string {
     .replace(SK_KEY, MASK)
     .replace(VLT_REF, `vlt:${MASK}`)
     .replace(KEEPASS_REF, `keepass:${MASK}`)
+    .replace(EMBED_REF, `embed:${MASK}`)
 }
 
 export function redactError(err: unknown): string {

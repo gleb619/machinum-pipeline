@@ -22,6 +22,12 @@
       "baseUrl": "https://openrouter.ai/api/v1",
       "apiKey": "keepass:EXAMPLE-OpenRouter-Key",
       "notes": "Fake example: key lives in a KeePass entry (see docs/vault.md)"
+    },
+    "embed-openrouter": {
+      "provider": "openrouter",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "embed:EXAMPLE-OpenRouter-Key",
+      "notes": "Fake example: key lives in the embedded encrypted store (see docs/vault.md)"
     }
   }
 }

@@ -38,6 +38,26 @@ export {
 } from './vault.js'
 export type { LoadVaultOptions } from './vault.js'
 export type {
+  CreateEmbedOptions,
+  EmbedEntryInfo,
+  EmbedSecret,
+  SetEmbedSecretInput,
+  SetEmbedSecretOptions,
+} from './embed.js'
+export {
+  EMBED_REF_PREFIX,
+  createEmbedStore,
+  defaultEmbedPath,
+  embedCredentialsConfigured,
+  embedDisabled,
+  getEmbedSecret,
+  isEmbedRef,
+  listEmbedEntries,
+  resetEmbedCache,
+  resolveEmbedValue,
+  setEmbedSecret,
+} from './embed.js'
+export type {
   AddKeepassSecretInput,
   AddKeepassSecretOptions,
   CreateKeepassOptions,

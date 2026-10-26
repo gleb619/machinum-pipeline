@@ -107,7 +107,8 @@ not read files: they resolve a vault ref (`vault://entry/model`, `@vault/entry/m
 in-memory vault.
 
 `apiKey`/`apiKeys[]` values may be secret refs resolved at load time instead of plaintext:
-`vlt:<name>` (vlt CLI) or `keepass:<title|uuid>` (KeePass `.kdbx`, pure JS/WASM). The vault file
+`vlt:<name>` (vlt CLI), `keepass:<title|uuid>` (KeePass `.kdbx`, pure JS/WASM) or `embed:<name>`
+(embedded AES-256-GCM store, pure `node:crypto`). The vault file
 keeps the refs; resolved values stay in memory. See [vault.md](vault.md#secret-backends).
 
 The router is the inverse arrangement — a **gateway that holds the keys** so clients never need them:

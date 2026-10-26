@@ -150,5 +150,7 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
 Vault `apiKey`/`apiKeys[]` values of the form `vlt:<name>` resolve through vlt at load time
 (`MT_VLT=false` disables this; `mt vault vlt-install` manages the binary), and
 `keepass:<title|uuid>` refs resolve through a KeePass database (`MT_KEEPASS_PATH`,
-`MT_KEEPASS_PASSWORD`/`_FILE`, `MT_KEEPASS_KEY_FILE`; `MT_KEEPASS=false` disables this).
+`MT_KEEPASS_PASSWORD`/`_FILE`, `MT_KEEPASS_KEY_FILE`; `MT_KEEPASS=false` disables this), and
+`embed:<name>` refs resolve through an embedded encrypted store (`MT_EMBED_PATH`,
+`MT_EMBED_PASSWORD`/`_FILE`; `MT_EMBED=false` disables this).
 Full table: [steering/tech.md](docs/steering/tech.md#environment-variables).
