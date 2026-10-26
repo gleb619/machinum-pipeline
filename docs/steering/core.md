@@ -21,13 +21,44 @@ Re-exports everything needed by consumers:
 ### `domain.ts`
 Plain interfaces only: `Book`, `Chapter`, `Paragraph`, `Line`. No classes, no methods. Sources provide stable IDs.
 
-### `types.ts`
-Core interface shapes:
+### `exchange.ts`
+The data unit is a Camel-style **Exchange** (replaces the bare Envelope; `Envelope<T>` stays as a
+deprecated alias of `Exchange<T>`). Modeled on the Java `FlowContext` / `FlowArgument`:
 ```typescript
-interface Envelope<T> { item: T; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown } }
-interface Source<T> { uri: string; lifestyle: Lifecycle; start(ctx): AsyncIterable<Envelope<T>>; resume?(ctx, cursor) }
-interface Target<T> { uri: string; open(ctx): Promise<void>; write(env, ctx): Promise<void>; close(ctx): Promise<void>; checkpoint?(ctx): Promise<number | undefined> }
-interface Tool<I, O> { name: string; version: string; mdDescription: string; invoke(env, ctx): Promise<Envelope<O>>; cacheable?; idempotent? }
+type Qualifier = 'new' | 'old' | 'copy' | 'alt'
+interface Variable<U> { id; name; qualifier: Qualifier; value: U; timestamp: string; ephemeral: boolean }
+interface Exchange<T> { id: string; item: T; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown }; variables: Variable[] }
+interface ExchangeInput<T> { id?; item: T; items?; meta?; variables? }   // loose shape Sources may yield
+```
+An Exchange is a **plain JSON-serializable object** (checkpoints, `events.jsonl`, dead-letter stringify
+it); all operations are pure free functions returning a NEW exchange:
+`createExchange`, `toExchange` (normalizer), `withItem` (derive output from input), `withMeta`,
+`variable`, `getVariable` / `findVariable` / `getOldVariable` / `hasVariable`, `setVariable(s)`,
+`withVariable`, `withoutVariable`, `replaceVariable`, `pushVariable` (current `new` becomes `old`,
+the value becomes `new`; Java `push`/`rearrange`), `copyVariable`, `withoutEphemeral`,
+`withoutEmpty`, `withoutOldAndEmpty`, `mergeVariables`. Empty = `null`/`undefined`, blank string or
+empty array (`isEmptyValue`).
+
+Conventions:
+- **`meta` is identity/provenance only** (`chapterId`, `paragraphId`, `lineId`, `chapterNum`,
+  `lang`, `filePath`, `parentId`, ...) - things Sources stamp. Anything a tool *computes* (llm config,
+  token counts, glossary, summary, `mdOutputs` write intents, ...) is a **variable** with a constant
+  name exported from the tool module (`VAR_*`).
+- **Tools derive output from input** (`withItem(ex, out)`, `setVariable(ex, ...)`) so `id`, `meta`
+  and `variables` propagate. Never rebuild `{ item, meta }` from scratch.
+- The Runner calls `toExchange` at every boundary (source output, after each tool), so literals
+  without `id`/`variables` still work from Sources; a missing `id` is minted as `ex-<n>`.
+- Engine: `batch`/`window` get a new `batch-<n>` id and **merge variables** (later wins on
+  name+qualifier clash), meta of the first item; `flatMap` children inherit the parent's variables,
+  get id `<parentId>.<n>` and `meta.parentId`. Cache keys hash `item/items/meta` + non-ephemeral
+  variables (`id` and ephemeral variables excluded). Dead-letter writes the full exchange.
+
+### `types.ts`
+Core interface shapes (`I`/`O` are **payload** types wrapped in an Exchange):
+```typescript
+interface Source<T> { uri: string; lifestyle: Lifecycle; start(ctx): AsyncIterable<ExchangeInput<T>>; resume?(ctx, cursor) }
+interface Target<T> { uri: string; open(ctx): Promise<void>; write(ex: Exchange<T>, ctx): Promise<void>; close(ctx): Promise<void>; checkpoint?(ctx): Promise<number | undefined> }
+interface Tool<I, O> { name: string; version: string; mdDescription: string; invoke(ex: Exchange<I>, ctx): Promise<Exchange<O>>; cacheable?; idempotent? }
 ```
 
 ### `contexts.ts`
@@ -54,7 +85,7 @@ Fluent chain. The builder itself implements `Pipeline`, so it can be a `default 
 definePipeline()
   .from('jsonl://./input.jsonl')
   .flatMap(async (item) => [...])
-  .tap(async (env) => { /* logging: receives the full envelope incl. meta */ })
+  .tap(async (env) => { /* logging: receives the full Exchange incl. meta + variables */ })
   .use(myTool)
   .subflow(otherPipeline)   // inline nested pipeline, same Runner
   .fork(subPipeline)        // child pipeline per envelope, checkpoint subtree
@@ -71,7 +102,7 @@ definePipeline()
 ```typescript
 .use(schemaDocWriter.with({ emit: myMockEmit }))   // keep build, swap emit
 ```
-Slot rule: put pure build logic in one slot and I/O/emit (e.g. `meta.mdOutputs`) in another so authors can swap either.
+Slot rule: put pure build logic in one slot and I/O/emit (e.g. the `mdOutputs` variable) in another so authors can swap either.
 
 **Waypoint composition** (`defineWaypoint(base, hooks)`) — wrap an existing Source/Target (instance or URI string) with
 lifecycle/filter hooks, no engine changes:
@@ -111,7 +142,7 @@ loaded pipeline's `id` differs from the one the run was started with.
 One recursive builder drives every level of nesting:
 
 ```
-buildStream(pipeline, input, runContext) → AsyncIterable<Envelope>
+buildStream(pipeline, input, runContext) → AsyncIterable<Exchange>
 ```
 
 `input` is the stream entering the step chain (`null` at the top level). Each step either
@@ -200,7 +231,7 @@ error is re-thrown — `mt run` / `mt resume` then exit non-zero. `failed → ru
 out of `failed`: `resume()` re-drives a failed run from its first non-done checkpoint node.
 
 ### `engine/cache.ts` — `Cache`
-Content-hash keyed memoisation. `computeKey(tool, envelope)` → `has/get/set/delete/clear`.
+Content-hash keyed memoisation. `computeKey(tool, exchange)` (id + ephemeral variables excluded) → `has/get/set/delete/clear`.
 
 ### `store.ts` — `Store`
 Atomic file I/O under `.mt/`. All writes: write to temp file → `fs.rename()`. `readJson/writeJson/append/appendLines/exists/ensureDir`.

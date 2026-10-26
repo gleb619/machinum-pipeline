@@ -16,13 +16,13 @@ Consumers write pipelines as real `.ts` files using a thin DSL, declare project 
 
 | Entity | Role |
 |---|---|
-| **Source** | Produces `Envelope<T>` items; `resumable` (file cursor) or `long-lived` (HTTP). Addressed via URI. |
-| **Tool** | Pure async function `Envelope<I> → Envelope<O>`; always in-process. |
+| **Source** | Produces `Exchange<T>` items (`ExchangeInput`, normalized by the Runner); `resumable` (file cursor) or `long-lived` (HTTP). Addressed via URI. |
+| **Tool** | Pure async function `Exchange<I> → Exchange<O>` (output derived from input); always in-process. |
 | **Target** | Sink with `open/write/close` lifecycle (e.g. git commit on close). Addressed via URI. |
 | **Pipeline** | TS module exporting a DSL chain. Real code — plain imports and logic work inside. |
 | **Run** | One execution: `pending → running → [checkpoint → paused →] done / failed`. Fully resumable. |
 | **Checkpoint tree** | Persisted execution graph. Resume = depth-first walk, skip `done` nodes, continue first non-done. |
-| **Envelope** | `{ item: T, items?: T[], meta }`. Cardinality changes only via DSL ops (`.batch`, `.flatMap`, `.window`). |
+| **Exchange** | `{ id, item: T, items?: T[], meta, variables }` (`variables` carry qualifiers `new/old/copy/alt`; `Envelope` is a deprecated alias). Cardinality changes only via DSL ops (`.batch`, `.flatMap`, `.window`). |
 | **`.mt/`** | Per-project runtime state directory (runs, cache, events, dead-letter). Filesystem is source of truth. |
 | **`mt.json`** | Project config: book metadata, pipeline paths, secrets env file, model defaults, retry/concurrency. |
 
@@ -114,12 +114,12 @@ Tool invocation (in-process)
 ## Glossary
 
 - **Source** — Producer of envelopes; `long-lived` or `resumable`.
-- **Tool** — Pure `Envelope<I> → Envelope<O>`; always in-process.
+- **Tool** — Pure `Exchange<I> → Exchange<O>`; always in-process.
 - **Target** — Sink with `open/write/close` lifecycle.
 - **Pipeline** — Real `.ts` module exporting a DSL chain.
 - **Run** — One resumable execution instance.
 - **Checkpoint tree** — Persisted replay graph.
-- **Envelope** — `{ item, items?, meta }` transport unit.
+- **Exchange** — `{ id, item, items?, meta, variables }` transport unit.
 - **`.mt/`** — Per-project filesystem source of truth.
 - **`mt.json`** — Project configuration root.
 

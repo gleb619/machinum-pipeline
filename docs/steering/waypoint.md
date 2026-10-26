@@ -34,15 +34,15 @@ Every implementation follows the `Source<T>` / `Target<T>` interfaces from `@mt/
 class JsonlSource implements Source<unknown> {
   uri: string
   lifestyle: 'resumable'
-  async *start(ctx: SourceContext): AsyncIterable<Envelope<unknown>> { … }
-  async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<unknown>> { … }
+  async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<unknown>> { … }   // stamp a stable `id`; the Runner runs toExchange
+  async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<unknown>> { … }   // stamp a stable `id`; the Runner runs toExchange
 }
 
 // Target: open/write/close lifecycle
 class JsonlTarget implements Target<unknown> {
   uri: string
   async open(ctx: TargetContext): Promise<void> { … }
-  async write(env: Envelope<unknown>, ctx: TargetContext): Promise<void> { … }
+  async write(ex: Exchange<unknown>, ctx: TargetContext): Promise<void> { … }
   async close(ctx: TargetContext): Promise<void> { … }
 }
 ```
@@ -89,8 +89,8 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 
 ### `jsonl.ts`
 - Source: streams lines from `.jsonl` file, supports glob patterns and a position cursor for resume
-- Each line must be a JSON object with an `item` property (`{ item, meta? }`); a missing `meta`
-  defaults to `{}`. Malformed JSON or a missing/invalid `item`/`meta` throws with a `file:line`
+- Each line must be a JSON object with an `item` property (`{ id?, item, meta?, variables? }`); a missing `meta`
+  defaults to `{}`, `variables` to `[]`, and a missing `id` to the stable `<file>#<line-index>`. Malformed JSON or a missing/invalid `item`/`meta` throws with a `file:line`
   location (1-based physical line number)
 - Cursor: single file → envelope index among non-blank lines (blank lines are skipped and never
   counted); glob → `{ fileIndex, line }` where `line` is the envelope index in the file at
@@ -122,7 +122,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - Target-only glossary review queue (T140): `review://./glossary.review.md` renders the pending
   proposals (`term.pending`) of the glossary envelope as a markdown worksheet, plus a locked-terms
   section; the last glossary envelope wins and the file is written atomically in `close()`
-- The glossary is read from `meta.glossary`, or parsed from a JSON-string / object `item`
+- The glossary is read from the `glossary` variable (legacy `meta.glossary` accepted), or parsed from a JSON-string / object `item`
   (structural `ReviewGlossary` mirror of `@mt/tools` `Glossary` — waypoint must not import
   `@mt/tools`, keep the mirror in sync); envelopes without a glossary throw a clear error
 - Deliberately **no `checkpoint()`** — nothing is durable mid-run, so a crash resume replays safely
@@ -190,7 +190,7 @@ per-envelope fan-out, and unsubscribes in the generator's `finally`.
 
 ## `md://` dir mode — write intents
 
-A tool never names an output root. It appends a `meta.mdOutputs` intent:
+A tool never names an output root. It appends an entry to the `mdOutputs` variable (the target also still reads legacy `meta.mdOutputs`):
 
 ```typescript
 {

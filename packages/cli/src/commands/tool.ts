@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { loadGlobalContext } from '@mt/core'
-import type { Envelope, Logger, RunContext, ToolContext } from '@mt/core'
+import type { Exchange, ExchangeInput, Logger, RunContext, ToolContext } from '@mt/core'
+import { toExchange } from '@mt/core'
 import { findTool, listToolNames } from '../utils/find-tool.js'
 import type { ToolMatch } from '../utils/find-tool.js'
 
@@ -57,20 +58,20 @@ export async function toolCommand(args: string[]): Promise<void> {
   if (process.stdin.isTTY) {
     console.error('Usage: mt tool <name> [--pipeline <file>]')
     console.error(
-      `Pipe a JSON envelope on stdin, e.g.: echo '{"item":"x","meta":{}}' | mt tool ${toolName}`,
+      `Pipe a JSON exchange (id/variables optional) on stdin, e.g.: echo '{"item":"x","meta":{}}' | mt tool ${toolName}`,
     )
     process.exit(1)
   }
 
   const input = readFileSync(0, 'utf8').trim()
   if (input === '') {
-    console.error('Error: empty stdin — expected a JSON envelope like {"item":"x","meta":{}}')
+    console.error('Error: empty stdin — expected a JSON exchange like {"item":"x","meta":{}}')
     process.exit(1)
   }
 
-  let envelope: Envelope<unknown>
+  let envelope: Exchange<unknown>
   try {
-    envelope = JSON.parse(input) as Envelope<unknown>
+    envelope = toExchange(JSON.parse(input) as ExchangeInput<unknown>)
   } catch (error) {
     console.error(
       `Error: invalid JSON on stdin: ${error instanceof Error ? error.message : String(error)}`,
@@ -118,6 +119,6 @@ export async function toolCommand(args: string[]): Promise<void> {
 
 function usage(): never {
   console.error('Usage: mt tool <name> [--pipeline <file>]')
-  console.error('  Invoke a tool standalone (JSON envelope on stdin, JSON result on stdout)')
+  console.error('  Invoke a tool standalone (JSON exchange on stdin, JSON result on stdout)')
   process.exit(1)
 }

@@ -31,15 +31,24 @@ For full product overview (what it is / is not, core concepts, services), see [`
 Source (URI) → [Tool → Tool → …] → Target (URI)
 ```
 
-All data travels in **Envelopes**:
+All data travels in **Exchanges** (Camel-style: payload + identity + qualified variables; `Envelope`
+is a deprecated alias). Tool/Source/Target `I`/`O` are the *payload* types inside the Exchange:
 
 ```typescript
-interface Envelope<T = unknown> {
+type Qualifier = 'new' | 'old' | 'copy' | 'alt';
+interface Variable<U = unknown> { id: string; name: string; qualifier: Qualifier; value: U; timestamp: string; ephemeral: boolean }
+interface Exchange<T = unknown> {
+  id: string;
   item: T;
   items?: T[];   // batch/window channel — never implicit
-  meta: { chapterId?: string; paragraphId?: string; lineId?: string; [k: string]: unknown };
+  meta: { chapterId?: string; paragraphId?: string; lineId?: string; [k: string]: unknown };  // identity only
+  variables: Variable[];                                                                     // tool-computed data
 }
 ```
+
+A Tool receives `Exchange<I>` and returns `Exchange<O>` derived from it (`withItem`, `pushVariable`, ...)
+so `id`, `meta` and `variables` propagate. Variables are the side-channel between tools (llm config,
+token counts, glossary, `mdOutputs` write intents); non-`ephemeral` variables take part in cache keys.
 
 Cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
 
@@ -53,9 +62,9 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 |---|---|---|
 | **Domain** | `Book` → `Chapter` → `Paragraph` → `Line` (plain interfaces) | [`core.md`](steering/core.md) |
 | **Source** | `start()` / `resume()`; lifestyle `long-lived` or `resumable` | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
-| **Tool** | `invoke(env, ctx) → Promise<Envelope<O>>` (always in-process) | [`core.md`](steering/core.md), [`tools.md`](steering/tools.md) |
+| **Tool** | `invoke(ex, ctx) → Promise<Exchange<O>>` (always in-process) | [`core.md`](steering/core.md), [`tools.md`](steering/tools.md) |
 | **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
-| **Envelope** | `{ item, items?, meta }` — single or batch | [`core.md`](steering/core.md) |
+| **Exchange** | `{ id, item, items?, meta, variables }` — single or batch; `Envelope` = deprecated alias | [`core.md`](steering/core.md) |
 | **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](steering/core.md) |
 | **Pipeline DSL** | `.from()` `.use()` `.fork()` `.subflow()` `.batch()` `.to()` | [`core.md`](steering/core.md) |
 | **Run state** | `pending → running → [checkpoint → paused → resumed →] done/failed` | [`core.md`](steering/core.md) |
@@ -145,7 +154,7 @@ other OpenAI-compatible server. Details: [steering/router.md](steering/router.md
 │   ├── state.json             # state machine snapshot + checkpoint tree (resume source of truth)
 │   ├── context.json           # frozen run context
 │   ├── events.jsonl           # append-only event log (SSE source); also published to in-process ctx.events subscribers (file first, then listeners)
-│   ├── dead-letter.jsonl      # failed envelopes (when onError: 'dead-letter')
+│   ├── dead-letter.jsonl      # failed exchanges (when onError: 'dead-letter')
 │   ├── logs/<stepId>.log
 │   └── artifacts/             # intermediate outputs
 ├── cache/                     # tool memoisation
@@ -174,7 +183,7 @@ Every topic below links to the steering file that holds the full specification, 
 | Product overview, concepts, services, execution flows | [`product.md`](steering/product.md) |
 | Tech stack, Biome, TypeScript rules, naming, import layers | [`tech.md`](steering/tech.md) |
 | Workspace layout, package map, source trees, key rules | [`structure.md`](steering/structure.md) |
-| Core: types (`Envelope`, `Source`, `Tool`, `Target`), DSL, URI registry, Runner, checkpoint tree, state machine, retry, cache, store | [`core.md`](steering/core.md) |
+| Core: types (`Exchange`, `Source`, `Tool`, `Target`), DSL, URI registry, Runner, checkpoint tree, state machine, retry, cache, store | [`core.md`](steering/core.md) |
 | CLI commands (`init`, `run`, `resume`, `ls`, `inspect`, `serve`, `router`, `mcp`) | [`cli.md`](steering/cli.md) |
 | Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](steering/tools.md) |
 | URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`, `range`, `void`) | [`waypoint.md`](steering/waypoint.md) |

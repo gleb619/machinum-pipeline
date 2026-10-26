@@ -29,7 +29,7 @@ List open items with `at feedback list --status open` to avoid duplicates.
 **machinum-pipeline** (package name: `mt`) is a TypeScript ETL engine for processing long-form text (primarily books)
 through composable, checkpointable, partially-out-of-process tool chains.
 
-Core data flow: `Source (URI) → [Tool → Tool → …] → Target (URI)`. All data travels in **Envelopes**
+Core data flow: `Source (URI) → [Tool → Tool → …] → Target (URI)`. All data travels in **Exchanges** (Camel-style `{ id, item, items?, meta, variables }`)
 (`{ item, items?, meta }`); cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
 
 Full context lives in docs - read on demand:
@@ -85,7 +85,7 @@ registration via `import '@mt/waypoint'`); `@mt/router` (standalone OpenRouter p
 `chrome/` + `vscode/` extensions.
 
 Key types in `packages/core/src/`: `domain.ts` (`Book`, `Chapter`, … - Sources provide stable IDs, the engine never
-mints them), `types.ts` (`Source`/`Tool`/`Target`/`Envelope`), `contexts.ts` (layered `GlobalContext → RunContext →
+mints them), `exchange.ts` (`Exchange`, qualified `Variable`s, helpers), `types.ts` (`Source`/`Tool`/`Target`), `contexts.ts` (layered `GlobalContext → RunContext →
 ToolContext`, backrefs never copies), `dsl.ts` (`definePipeline()` etc.), `uri.ts` (URI registry),
 `engine/runner.ts` + `state-machine.ts` + `checkpoint.ts` (execution, `pending → running → [checkpoint → paused →
 resumed →] done/failed`, crash recovery).
@@ -96,7 +96,7 @@ Pipeline DSL shape (full reference in [steering/core.md](docs/steering/core.md))
 export default definePipeline()
   .from('jsonl://./input.jsonl')   // string URI (preferred)
   .flatMap(async (item) => [...])  // fan-out: one → many
-  .tap(async (env) => { /* logging: receives the full envelope incl. meta */ })
+  .tap(async (env) => { /* logging: receives the full Exchange incl. meta + variables */ })
   .use(myTool)                     // Tool<I, O>
   .subflow(otherPipeline)          // inline nested pipeline (same Runner)
   .fork(subPipeline)               // child Runner + nested checkpoint subtree
