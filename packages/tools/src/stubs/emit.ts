@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { MdOutputEntry } from '@mt/core'
+import { defineTool, withItem } from '@mt/core'
+import { appendMdOutput } from '../core/md-outputs.js'
 
 /**
  * Stub schema emit tool for dry runs.
@@ -13,16 +13,11 @@ export const stubSchemaEmit = defineTool<string, string>({
   invoke: async (env, _ctx) => {
     const n = (env.meta.chapterNum as number | undefined) ?? 1
     const content = `<!-- mock-emit -->\n${env.item}`
-    const existing = (env.meta.mdOutputs as MdOutputEntry[] | undefined) ?? []
-    const mdOutputs = [
-      ...existing,
-      {
-        name: 'schema-doc-mock',
-        subdir: 'schema-mock',
-        filename: `chapter${n}.mock.md`,
-        content,
-      },
-    ]
-    return { item: content, meta: { ...env.meta, mdOutputs } }
+    return appendMdOutput(withItem(env, content), {
+      name: 'schema-doc-mock',
+      subdir: 'schema-mock',
+      filename: `chapter${n}.mock.md`,
+      content,
+    })
   },
 })

@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
-import { defineTool } from '@mt/core'
-import type { Envelope, Tool } from '@mt/core'
+import { defineTool, setVariable, withItem } from '@mt/core'
+import type { Exchange, Tool } from '@mt/core'
 
 import { atomicWriteFile } from './fs-write.js'
 
@@ -73,6 +73,9 @@ function renderCompose(services: DockerComposeService[], include: string[]): str
  * Build the compose file from `env.item` options and write it atomically.
  * `env.item` may be omitted; the factory `options` alone are enough.
  */
+/** Variable carrying `{ path, services }` of the generated compose file. */
+export const VAR_DOCKER_COMPOSE = 'dockerCompose'
+
 export function dockerComposeEmitter(
   options: DockerComposeEmitterOptions,
 ): Tool<unknown, DockerComposeOutput> {
@@ -83,14 +86,17 @@ export function dockerComposeEmitter(
     mdDescription:
       'Generates a docker-compose.yml with ollama/qdrant/lightrag service presets ' +
       'and optional top-level include: entries; written atomically relative to the project root.',
-    async invoke(env: Envelope<unknown>, ctx) {
+    async invoke(env: Exchange<unknown>, ctx) {
       const projectRoot = ctx.run.global.project.root
       const targetPath = resolve(projectRoot, outPath)
       const include = options.include ?? []
       const content = renderCompose(options.services, include)
       await atomicWriteFile(targetPath, content)
-      const meta = { ...env.meta, dockerCompose: { path: targetPath, services: options.services } }
-      return { item: { path: targetPath, services: options.services, include }, meta }
+      return setVariable(
+        withItem(env, { path: targetPath, services: options.services, include }),
+        VAR_DOCKER_COMPOSE,
+        { path: targetPath, services: options.services },
+      )
     },
   })
 }

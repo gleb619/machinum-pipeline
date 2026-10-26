@@ -1,4 +1,5 @@
-import type { ToolContext } from '@mt/core'
+import { createExchange, getVariable, setVariable } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LlmQuotaError, LlmRateLimitError, LlmRequestError } from '../src/core/llm-errors.js'
 import { mockLlmCall, mockLlmClient } from '../src/core/llm-gate.js'
@@ -9,7 +10,7 @@ import {
 } from '../src/core/openrouter-pool-tool.js'
 
 const ctx = {} as ToolContext
-const envOf = (item: Record<string, unknown>) => ({ item, meta: {} })
+const envOf = (item: Record<string, unknown>) => createExchange(item)
 const notFound = () =>
   new LlmRequestError('Chat completion failed: 404 no endpoints', { status: 404 })
 
@@ -18,7 +19,8 @@ interface PoolMeta {
   pinnedAt: number
   repins: number
 }
-const poolMeta = (m: Record<string, unknown>) => m.openrouterPool as PoolMeta
+const poolMeta = (e: { variables: Parameters<typeof getVariable>[0]['variables'] }) =>
+  getVariable(e, 'openrouterPool') as PoolMeta
 
 beforeEach(() => {
   vi.stubEnv('OPENROUTER_API_KEYS', '')
@@ -33,8 +35,8 @@ describe('openrouterPool sticky pin', () => {
     let last = await gate.invoke(envOf({ prompt: 'x' }), ctx)
     for (let i = 0; i < 4; i++) last = await gate.invoke(envOf({ prompt: 'x' }), ctx)
     expect(mock.calls.map((c) => c.model)).toEqual(Array(5).fill('openrouter/free'))
-    expect(poolMeta(last.meta)).toMatchObject({ model: 'openrouter/free', repins: 0 })
-    expect(typeof poolMeta(last.meta).pinnedAt).toBe('number')
+    expect(poolMeta(last)).toMatchObject({ model: 'openrouter/free', repins: 0 })
+    expect(typeof poolMeta(last).pinnedAt).toBe('number')
   })
 
   it('first strategy pins first candidate; shared across gate instances', async () => {
@@ -62,7 +64,7 @@ describe('openrouterPool sticky pin', () => {
     await gate.invoke(envOf({ prompt: 'x', model: 'other/model' }), ctx)
     const out = await gate.invoke(envOf({ prompt: 'x' }), ctx)
     expect(mock.calls.map((c) => c.model)).toEqual(['other/model', 'openrouter/free'])
-    expect(poolMeta(out.meta).repins).toBe(0)
+    expect(poolMeta(out).repins).toBe(0)
   })
 
   it('a model from any layer above the preset defaults beats the pin and never creates one', async () => {
@@ -70,7 +72,7 @@ describe('openrouterPool sticky pin', () => {
       ({ run: { global: { settings, env: {} } } }) as unknown as ToolContext
     const cases: Array<{
       name: string
-      env: { item: Record<string, unknown>; meta: Record<string, unknown> }
+      env: Exchange<Record<string, unknown>>
       ctx: ToolContext
       model: string
     }> = [
@@ -81,8 +83,14 @@ describe('openrouterPool sticky pin', () => {
         model: 'settings/model',
       },
       {
-        name: 'meta.llm.model',
-        env: { item: { prompt: 'x' }, meta: { llm: { model: 'meta/model' } } },
+        name: 'llm variable model',
+        env: setVariable(envOf({ prompt: 'x' }), 'llm', { model: 'meta/model' }),
+        ctx,
+        model: 'meta/model',
+      },
+      {
+        name: 'legacy meta.llm.model',
+        env: createExchange({ prompt: 'x' }, { meta: { llm: { model: 'meta/model' } } }),
         ctx,
         model: 'meta/model',
       },
@@ -100,13 +108,13 @@ describe('openrouterPool sticky pin', () => {
       const gate = openrouterPool.with({ call: mock })
       const out = await gate.invoke(c.env, c.ctx)
       expect(mock.calls.map((r) => r.model)).toEqual([c.model])
-      // No pin was created for this key-set: `emit` records `meta.openrouterPool` only when a pin exists.
-      expect(out.meta.openrouterPool).toBeUndefined()
+      // No pin was created for this key-set: `emit` records the `openrouterPool` variable only when a pin exists.
+      expect(getVariable(out, 'openrouterPool')).toBeUndefined()
 
       // A later call with no model layer still pins the first candidate, from scratch (repins 0).
       const next = await gate.invoke(envOf({ prompt: 'y' }), ctx)
       expect(mock.calls.at(-1)?.model).toBe('openrouter/free')
-      expect(poolMeta(next.meta)).toMatchObject({ model: 'openrouter/free', repins: 0 })
+      expect(poolMeta(next)).toMatchObject({ model: 'openrouter/free', repins: 0 })
     }
   })
 })
@@ -126,7 +134,7 @@ describe('openrouterPool re-pin', () => {
     const { client, gate, out } = await run([notFound()])
     expect(client.calls.map((c) => c.model)).toEqual(['m/one', 'm/two'])
     expect((out.item as { content: string }).content).toBe('ok from m/two')
-    expect(poolMeta(out.meta)).toMatchObject({ model: 'm/two', repins: 1 })
+    expect(poolMeta(out)).toMatchObject({ model: 'm/two', repins: 1 })
     // later calls stay on the new pin
     await gate.invoke(envOf({ prompt: 'y' }), ctx)
     expect(client.calls.at(-1)?.model).toBe('m/two')
@@ -135,15 +143,15 @@ describe('openrouterPool re-pin', () => {
   it('does not re-pin on success', async () => {
     const { out, client } = await run([])
     expect(client.calls).toHaveLength(1)
-    expect(poolMeta(out.meta).repins).toBe(0)
+    expect(poolMeta(out).repins).toBe(0)
   })
 
   it('re-pins on exhausted rate limit (no live keys) and on quota error', async () => {
     const rl = await run([new LlmRateLimitError('429')])
-    expect(poolMeta(rl.out.meta)).toMatchObject({ model: 'm/two', repins: 1 })
+    expect(poolMeta(rl.out)).toMatchObject({ model: 'm/two', repins: 1 })
     resetOpenrouterPoolPins()
     const q = await run([new LlmQuotaError('402')])
-    expect(poolMeta(q.out.meta)).toMatchObject({ model: 'm/two', repins: 1 })
+    expect(poolMeta(q.out)).toMatchObject({ model: 'm/two', repins: 1 })
   })
 
   it('throws once every candidate failed', async () => {
@@ -159,7 +167,7 @@ describe('openrouterPool re-pin', () => {
     const gate = createOpenrouterPool({ models: ['m/one', 'm/two'], client: () => client })
     await expect(gate.invoke(envOf({ prompt: 'x', model: 'bad/model' }), ctx)).rejects.toThrow()
     const out = await gate.invoke(envOf({ prompt: 'x' }), ctx)
-    expect(poolMeta(out.meta)).toMatchObject({ model: 'm/one', repins: 0 })
+    expect(poolMeta(out)).toMatchObject({ model: 'm/one', repins: 0 })
   })
 })
 
@@ -188,6 +196,6 @@ describe('openrouterPool llm.use (vault)', () => {
     expect(mock.calls[0]?.model).toBe('vendor/model-x')
     // The vault ref sits above the preset defaults: no sticky pin is created.
     const out = await openrouterPool.with({ call: mock }).invoke(envOf({ prompt: 'y' }), vctx)
-    expect(out.meta.openrouterPool).toBeUndefined()
+    expect(getVariable(out, 'openrouterPool')).toBeUndefined()
   })
 })

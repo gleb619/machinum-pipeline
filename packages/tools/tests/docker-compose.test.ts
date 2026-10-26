@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { dockerComposeEmitter } from '../src/core/docker-compose.js'
@@ -25,7 +26,10 @@ describe('dockerComposeEmitter', () => {
   it('writes a compose file with the requested service presets', async () => {
     const tool = dockerComposeEmitter({ services: ['ollama', 'qdrant'] })
 
-    const out = await tool.invoke({ item: undefined, meta: {} }, ctxFor(testDir))
+    const out = await tool.invoke(
+      { id: 'ex-test', variables: [], item: undefined, meta: {} },
+      ctxFor(testDir),
+    )
 
     const content = await readFile(join(testDir, 'docker-compose.yml'), 'utf-8')
     expect(content).toContain('services:')
@@ -44,7 +48,7 @@ describe('dockerComposeEmitter', () => {
       services: ['ollama', 'qdrant'],
       include: [],
     })
-    expect(out.meta.dockerCompose).toEqual({
+    expect(getVariable(out, 'dockerCompose')).toEqual({
       path: join(testDir, 'docker-compose.yml'),
       services: ['ollama', 'qdrant'],
     })
@@ -53,7 +57,7 @@ describe('dockerComposeEmitter', () => {
   it('renders the lightrag placeholder preset', async () => {
     const tool = dockerComposeEmitter({ services: ['lightrag'] })
 
-    await tool.invoke({ item: undefined, meta: {} }, ctxFor(testDir))
+    await tool.invoke({ id: 'ex-test', variables: [], item: undefined, meta: {} }, ctxFor(testDir))
 
     const content = await readFile(join(testDir, 'docker-compose.yml'), 'utf-8')
     expect(content).toContain('image: lightrag/lightrag')
@@ -69,7 +73,10 @@ describe('dockerComposeEmitter', () => {
     })
     await mkdir(join(testDir, 'deploy'), { recursive: true })
 
-    const out = await tool.invoke({ item: undefined, meta: {} }, ctxFor(testDir))
+    const out = await tool.invoke(
+      { id: 'ex-test', variables: [], item: undefined, meta: {} },
+      ctxFor(testDir),
+    )
 
     const content = await readFile(join(testDir, 'deploy', 'compose.yml'), 'utf-8')
     expect(content).toContain('include:')
@@ -81,7 +88,7 @@ describe('dockerComposeEmitter', () => {
   it('writes atomically (no temp sibling left behind)', async () => {
     const tool = dockerComposeEmitter({ services: ['ollama'] })
 
-    await tool.invoke({ item: undefined, meta: {} }, ctxFor(testDir))
+    await tool.invoke({ id: 'ex-test', variables: [], item: undefined, meta: {} }, ctxFor(testDir))
 
     expect(await readdir(testDir)).toEqual(['docker-compose.yml'])
   })

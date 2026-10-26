@@ -1,5 +1,5 @@
-import { type Vault, resolveVaultRef } from '@mt/core'
-import type { Logger, RetryPolicy, ToolContext } from '@mt/core'
+import { type Vault, getVariable, resolveVaultRef } from '@mt/core'
+import type { Exchange, Logger, RetryPolicy, ToolContext } from '@mt/core'
 import { defaultTransportKind } from './llm-sdk-transports.js'
 
 export type LlmProvider = 'router' | 'openrouter' | 'openai' | 'ollama' | 'anthropic' | 'custom'
@@ -467,4 +467,25 @@ export function resolveLlmConfigFromCtx(
     env: v.env,
     vault: v.vault,
   })
+}
+
+/** Variable names read as config layers from an exchange (legacy `meta.<name>` still honoured). */
+export const VAR_LLM = 'llm'
+export const VAR_PROMPTS = 'prompts'
+export const VAR_CONTEXT = 'context'
+/** Published by `llmEmit` and the `contextWindow` tool. */
+export const VAR_CONTEXT_WINDOW = 'contextWindow'
+
+/**
+ * Config "bag" for an exchange: `meta` plus the `llm` / `prompts` / `context` variables (variable
+ * wins over legacy `meta.<name>`). Feed it to `resolveLlmConfigFromCtx` / `promptSourcesFromCtx` /
+ * the context fitter as their `meta` part.
+ */
+export function exchangeConfigBag(ex: Exchange<unknown>): Record<string, unknown> {
+  const bag: Record<string, unknown> = { ...(ex.meta ?? {}) }
+  for (const name of [VAR_LLM, VAR_PROMPTS, VAR_CONTEXT]) {
+    const v = getVariable(ex, name)
+    if (v !== undefined) bag[name] = v
+  }
+  return bag
 }

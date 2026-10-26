@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import type { LlmMessage } from '../src/core/llm-client.js'
@@ -74,7 +75,9 @@ describe('budget edge cases', () => {
       strategies: ['dropOldest'],
       onOverflow: 'throw',
     })
-    await expect(tool.invoke({ item: convo(), meta: {} }, ctx)).rejects.toThrow(/still exceed/)
+    await expect(
+      tool.invoke({ id: 'ex-test', variables: [], item: convo(), meta: {} }, ctx),
+    ).rejects.toThrow(/still exceed/)
   })
 })
 
@@ -253,12 +256,15 @@ describe('resolveContextConfig precedence', () => {
 describe('contextWindow tool', () => {
   it('shrinks messages item, keeps shape, records meta.contextWindow', async () => {
     const tool = createContextWindow({ maxTokens: 56, countTokens, strategies: ['dropOldest'] })
-    const out = await tool.invoke({ item: { messages: convo(), model: 'x' }, meta: { k: 1 } }, ctx)
+    const out = await tool.invoke(
+      { id: 'ex-test', variables: [], item: { messages: convo(), model: 'x' }, meta: { k: 1 } },
+      ctx,
+    )
     const item = out.item as { messages: LlmMessage[]; model: string }
     expect(item.model).toBe('x')
     expect(item.messages).toHaveLength(4)
     expect(out.meta.k).toBe(1)
-    const rec = out.meta.contextWindow as {
+    const rec = getVariable(out, 'contextWindow') as {
       before: number
       after: number
       budget: number
@@ -269,28 +275,45 @@ describe('contextWindow tool', () => {
   })
   it('text item stays text and is truncated', async () => {
     const tool = createContextWindow({ maxTokens: 30, countTokens, strategies: ['truncateTail'] })
-    const out = await tool.invoke({ item: 'y'.repeat(2000), meta: {} }, ctx)
+    const out = await tool.invoke(
+      { id: 'ex-test', variables: [], item: 'y'.repeat(2000), meta: {} },
+      ctx,
+    )
     expect(typeof out.item).toBe('string')
     expect((out.item as string).length).toBeLessThan(2000)
   })
   it('budget from meta.context and per-item context', async () => {
     const tool = createContextWindow({ countTokens, strategies: ['dropOldest'] })
-    const a = await tool.invoke({ item: convo(), meta: { context: { maxTokens: 56 } } }, ctx)
+    const a = await tool.invoke(
+      { id: 'ex-test', variables: [], item: convo(), meta: { context: { maxTokens: 56 } } },
+      ctx,
+    )
     expect((a.item as LlmMessage[]).length).toBe(4)
     const b = await tool.invoke(
-      { item: { messages: convo(), context: { maxTokens: 28 } }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: convo(), context: { maxTokens: 28 } },
+        meta: {},
+      },
       ctx,
     )
     expect((b.item as { messages: LlmMessage[] }).messages).toHaveLength(2)
   })
   it('default instance without budget is a no-op', async () => {
-    const out = await contextWindow.invoke({ item: convo(), meta: {} }, ctx)
+    const out = await contextWindow.invoke(
+      { id: 'ex-test', variables: [], item: convo(), meta: {} },
+      ctx,
+    )
     expect(out.item).toHaveLength(6)
   })
   it('batch items', async () => {
     const tool = createContextWindow({ maxTokens: 56, countTokens, strategies: ['dropOldest'] })
-    const out = await tool.invoke({ item: convo(), items: [convo(), convo()], meta: {} }, ctx)
+    const out = await tool.invoke(
+      { id: 'ex-test', variables: [], item: convo(), items: [convo(), convo()], meta: {} },
+      ctx,
+    )
     expect(out.items).toHaveLength(2)
-    expect(Array.isArray(out.meta.contextWindow)).toBe(true)
+    expect(Array.isArray(getVariable(out, 'contextWindow'))).toBe(true)
   })
 })

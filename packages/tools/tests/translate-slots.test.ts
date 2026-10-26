@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, getVariable, withItem } from '@mt/core'
 import type { Tool, ToolContext } from '@mt/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockLlmCall } from '../src/core/llm-gate.js'
@@ -17,6 +17,7 @@ import {
   paragraphTranslator,
   titleTranslator,
 } from '../src/modification/chapter-translator.js'
+import { varsOf } from './helpers/llm-vars.js'
 
 const ctx = {} as ToolContext
 
@@ -27,14 +28,14 @@ const mockTranslator = defineTool<TranslateInput, TranslateOutput>({
   name: 'mock-translator',
   version: '1.0.0',
   mdDescription: 'Offline mock translator.',
-  invoke: async (env) => ({
-    item: { translatedText: `«t»${env.item.text}«/t»` },
-    meta: env.meta,
-  }),
+  invoke: async (env) => withItem(env, { translatedText: `«t»${env.item.text}«/t»` }),
 })
 
 function wrap(tool: Tool<TranslateInput, TranslateOutput>) {
-  return tool.invoke({ item: { text: 'hello', targetLang: 'ru' }, meta: {} }, ctx)
+  return tool.invoke(
+    { id: 'ex-test', variables: [], item: { text: 'hello', targetLang: 'ru' }, meta: {} },
+    ctx,
+  )
 }
 
 describe('translateText (composable)', () => {
@@ -60,7 +61,7 @@ describe('translateText (composable)', () => {
     expect(out.item).toEqual({ translatedText: 'привет', model: 'm', tokens: 3 })
     expect(calls[0]?.url).toBe('http://localhost:7777/api/translate')
     expect(calls[0]?.body).toEqual({ text: 'hello', targetLang: 'ru', sourceLang: undefined })
-    expect(out.meta).toMatchObject({ translated: true, count: 1 })
+    expect(varsOf(out)).toMatchObject({ translated: true, count: 1 })
   })
 
   it('router failure keeps the legacy error message', async () => {
@@ -74,11 +75,17 @@ describe('translateText (composable)', () => {
   it('llm backend with a mocked call: shared prompts with llmTranslate', async () => {
     const tool = createTranslateText({ backend: 'llm' })
     const mock = mockLlmCall(['привет'])
-    const out = await tool
-      .with({ call: mock })
-      .invoke({ item: { text: 'hello', targetLang: 'ru', sourceLang: 'en' }, meta: {} }, ctx)
+    const out = await tool.with({ call: mock }).invoke(
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { text: 'hello', targetLang: 'ru', sourceLang: 'en' },
+        meta: {},
+      },
+      ctx,
+    )
     expect(out.item).toMatchObject({ translatedText: 'привет' })
-    expect(out.meta).toMatchObject({ translated: true })
+    expect(varsOf(out)).toMatchObject({ translated: true })
     expect(mock.calls[0]?.messages[0]).toMatchObject({ role: 'system' })
     expect(mock.calls[0]?.messages[0]?.content).toContain('en')
     expect(mock.calls[0]?.messages[0]?.content).toContain('ru')
@@ -93,11 +100,17 @@ describe('translateText (composable)', () => {
       call: mockLlmCall(['x']),
     })
     return Promise.all([
-      viaLlmTranslate.invoke({ item: { text: 'a', targetLang: 'ru' }, meta: {} }, ctx),
-      viaTranslateText.invoke({ item: { text: 'a', targetLang: 'ru' }, meta: {} }, ctx),
+      viaLlmTranslate.invoke(
+        { id: 'ex-test', variables: [], item: { text: 'a', targetLang: 'ru' }, meta: {} },
+        ctx,
+      ),
+      viaTranslateText.invoke(
+        { id: 'ex-test', variables: [], item: { text: 'a', targetLang: 'ru' }, meta: {} },
+        ctx,
+      ),
     ]).then(([a, b]) => {
       expect(a.item).toEqual(b.item)
-      expect(a.meta).toMatchObject({ translated: true })
+      expect(varsOf(a)).toMatchObject({ translated: true })
     })
   })
 })
@@ -114,15 +127,23 @@ Body text here.
 
   it('titleTranslator translates the doc title via the translate slot', async () => {
     const tool = createTitleTranslator({ translate: mockTranslator })
-    const out = await tool.invoke({ item: { text: docChapter, targetLang: 'ru' }, meta: {} }, ctx)
+    const out = await tool.invoke(
+      { id: 'ex-test', variables: [], item: { text: docChapter, targetLang: 'ru' }, meta: {} },
+      ctx,
+    )
     expect(out.item.titleTranslated).toBe(true)
     expect(out.item.text).toContain('«t»The Road«/t»')
-    expect(out.meta).toMatchObject({ titleTranslated: true, count: 1 })
+    expect(varsOf(out)).toMatchObject({ titleTranslated: true, count: 1 })
   })
 
   it('titleTranslator translates an H1-only chapter', async () => {
     const out = await createTitleTranslator({ translate: mockTranslator }).invoke(
-      { item: { text: '# Hello\n\npara', targetLang: 'ru' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { text: '# Hello\n\npara', targetLang: 'ru' },
+        meta: {},
+      },
       ctx,
     )
     expect(out.item.text).toContain('«t»Hello«/t»')
@@ -140,13 +161,18 @@ Body text here.
     })
     const out = await titleTranslator
       .with({ translate: slotMock })
-      .invoke({ item: { text: docChapter, targetLang: 'ru' }, meta: {} }, ctx)
+      .invoke(
+        { id: 'ex-test', variables: [], item: { text: docChapter, targetLang: 'ru' }, meta: {} },
+        ctx,
+      )
     expect(out.item.text).toContain('«m»The Road«/m»')
   })
 
   it('batched envelopes keep per-item results', async () => {
     const out = await createTitleTranslator({ translate: mockTranslator }).invoke(
       {
+        id: 'ex-test',
+        variables: [],
         item: { text: docChapter, targetLang: 'ru' },
         items: [
           { text: docChapter, targetLang: 'ru' },
@@ -157,22 +183,27 @@ Body text here.
       ctx,
     )
     expect(Array.isArray(out.item)).toBe(true)
-    expect(out.meta.count).toBe(2)
+    expect(getVariable(out, 'count')).toBe(2)
   })
 
   it('paragraphTranslator translates each paragraph and rebuilds the doc', async () => {
     const out = await createParagraphTranslator({ translate: mockTranslator }).invoke(
-      { item: { text: docChapter, targetLang: 'ru' }, meta: {} },
+      { id: 'ex-test', variables: [], item: { text: docChapter, targetLang: 'ru' }, meta: {} },
       ctx,
     )
     expect(out.item.paragraphsTranslated).toBe(1)
     expect(out.item.text).toContain('«t»Body text here.«/t»')
-    expect(out.meta.paragraphsTranslated).toBe(1)
+    expect(getVariable(out, 'paragraphsTranslated')).toBe(1)
   })
 
   it('paragraphTranslator falls back to raw paragraph splitting', async () => {
     const out = await createParagraphTranslator({ translate: mockTranslator }).invoke(
-      { item: { text: 'First para here.\n\nSecond para here.', targetLang: 'ru' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { text: 'First para here.\n\nSecond para here.', targetLang: 'ru' },
+        meta: {},
+      },
       ctx,
     )
     expect(out.item.paragraphsTranslated).toBe(2)
@@ -193,13 +224,18 @@ Body text here.
         maxInFlight = Math.max(maxInFlight, inFlight)
         await new Promise<void>((resolve) => started.push(resolve))
         inFlight--
-        return { item: { translatedText: `«t»${env.item.text}«/t»` }, meta: env.meta }
+        return withItem(env, { translatedText: `«t»${env.item.text}«/t»` })
       },
     })
     const tool = createParagraphTranslator({ translate: tracker, concurrency: 3 })
     const paras = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5']
     const pending = tool.invoke(
-      { item: { text: paras.join('\n\n'), targetLang: 'ru' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { text: paras.join('\n\n'), targetLang: 'ru' },
+        meta: {},
+      },
       ctx,
     )
     await vi.waitFor(() => expect(started).toHaveLength(3))
@@ -226,14 +262,16 @@ Body text here.
           failed = true
           throw new Error('boom p3')
         }
-        return { item: { translatedText: `«t»${env.item.text}«/t»` }, meta: env.meta }
+        return withItem(env, { translatedText: `«t»${env.item.text}«/t»` })
       },
     })
     const tool = createParagraphTranslator({ translate: flaky, concurrency: 2 })
     const paras = ['p0', 'p1', 'p2', 'p3', 'p4', 'p5']
     const input = { text: paras.join('\n\n'), targetLang: 'ru' }
-    await expect(tool.invoke({ item: input, meta: {} }, ctx)).rejects.toThrow('boom p3')
-    const out = await tool.invoke({ item: input, meta: {} }, ctx)
+    await expect(
+      tool.invoke({ id: 'ex-test', variables: [], item: input, meta: {} }, ctx),
+    ).rejects.toThrow('boom p3')
+    const out = await tool.invoke({ id: 'ex-test', variables: [], item: input, meta: {} }, ctx)
     expect(out.item.text).toBe(paras.map((p) => `«t»${p}«/t»`).join('\n\n'))
     expect(calls.filter((c) => c === 'p3')).toHaveLength(2)
     expect(calls.filter((c) => c !== 'p3')).toEqual(['p0', 'p1', 'p2', 'p4', 'p5'])
@@ -253,13 +291,15 @@ Body text here.
           failed = true
           throw new Error('boom once')
         }
-        return { item: { translatedText: `«t»${env.item.text}«/t»` }, meta: env.meta }
+        return withItem(env, { translatedText: `«t»${env.item.text}«/t»` })
       },
     })
     const tool = createParagraphTranslator({ translate: nonIdempotent })
     const input = { text: 'para one\n\npara two', targetLang: 'ru' }
-    await expect(tool.invoke({ item: input, meta: {} }, ctx)).rejects.toThrow('boom once')
-    await tool.invoke({ item: input, meta: {} }, ctx)
+    await expect(
+      tool.invoke({ id: 'ex-test', variables: [], item: input, meta: {} }, ctx),
+    ).rejects.toThrow('boom once')
+    await tool.invoke({ id: 'ex-test', variables: [], item: input, meta: {} }, ctx)
     // no memo: the retry re-translates every paragraph
     expect(calls).toEqual(['para one', 'para two', 'para one', 'para two'])
   })
@@ -276,7 +316,10 @@ Body text here.
     })
     const out = await paragraphTranslator
       .with({ translate: slotMock })
-      .invoke({ item: { text: docChapter, targetLang: 'ru' }, meta: {} }, ctx)
+      .invoke(
+        { id: 'ex-test', variables: [], item: { text: docChapter, targetLang: 'ru' }, meta: {} },
+        ctx,
+      )
     expect(out.item.text).toContain('«p»Body text here.«/p»')
   })
 })

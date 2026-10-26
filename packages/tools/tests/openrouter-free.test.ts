@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import { resolveLlmConfig } from '../src/core/llm-config.js'
@@ -70,7 +71,10 @@ describe('openrouterFree model precedence (default, not pin)', () => {
     const mock = mockLlmCall(['ok'])
     await openrouterFree
       .with({ call: mock })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, settingsCtx({ 'llm.model': 'settings/model' }))
+      .invoke(
+        { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+        settingsCtx({ 'llm.model': 'settings/model' }),
+      )
     expect(mock.calls[0]?.model).toBe('settings/model')
   })
 
@@ -84,9 +88,15 @@ describe('openrouterFree model precedence (default, not pin)', () => {
     expect(cfg.sources.model).toBe('meta')
 
     const mock = mockLlmCall(['ok'])
-    await openrouterFree
-      .with({ call: mock })
-      .invoke({ item: { prompt: 'hi' }, meta: { llm: { model: 'meta/model' } } }, ctx)
+    await openrouterFree.with({ call: mock }).invoke(
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { prompt: 'hi' },
+        meta: { llm: { model: 'meta/model' } },
+      },
+      ctx,
+    )
     expect(mock.calls[0]?.model).toBe('meta/model')
   })
 
@@ -122,27 +132,36 @@ describe('openrouterFree gate', () => {
     const mock = mockLlmCall(['free answer'])
     const out = await openrouterFree
       .with({ call: mock })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, ctx)
+      .invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, ctx)
     expect(mock.calls[0]?.model).toBe('openrouter/free')
     expect(mock.calls[0]?.messages).toEqual([{ role: 'user', content: 'hi' }])
     expect(out.item).toMatchObject({ content: 'free answer', model: 'openrouter/free' })
-    expect(out.meta.openrouterFree).toBe(true)
-    expect((out.meta.llmUsage as { calls: number }).calls).toBe(1)
+    expect(getVariable(out, 'openrouterFree')).toBe(true)
+    expect((getVariable(out, 'llmUsage') as { calls: number }).calls).toBe(1)
   })
 
   it('per-call model / llm override still wins over the preset', async () => {
     const mock = mockLlmCall(['ok'])
-    await openrouterFree
-      .with({ call: mock })
-      .invoke({ item: { prompt: 'hi', model: 'meta-llama/llama-3.3-70b' }, meta: {} }, ctx)
+    await openrouterFree.with({ call: mock }).invoke(
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { prompt: 'hi', model: 'meta-llama/llama-3.3-70b' },
+        meta: {},
+      },
+      ctx,
+    )
     expect(mock.calls[0]?.model).toBe('meta-llama/llama-3.3-70b')
 
-    await openrouterFree
-      .with({ call: mock })
-      .invoke(
-        { item: { prompt: 'hi', llm: { provider: 'openai', model: 'gpt-4o-mini' } }, meta: {} },
-        ctx,
-      )
+    await openrouterFree.with({ call: mock }).invoke(
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { prompt: 'hi', llm: { provider: 'openai', model: 'gpt-4o-mini' } },
+        meta: {},
+      },
+      ctx,
+    )
     expect(mock.calls[1]?.model).toBe('gpt-4o-mini')
   })
 })
@@ -168,14 +187,17 @@ describe('openrouterFree llm.use (vault)', () => {
     const mock = mockLlmCall(['ok'])
     await openrouterFree
       .with({ call: mock })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('@vault/or'))
+      .invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, vctx('@vault/or'))
     expect(mock.calls[0]?.model).toBe('vendor/model-x')
   })
 
   it('vault entry of another provider => error naming the ref, no secrets', async () => {
     const run = openrouterFree
       .with({ call: mockLlmCall(['ok']) })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('vault://gpu'))
+      .invoke(
+        { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+        vctx('vault://gpu'),
+      )
     await expect(run).rejects.toThrow(/vault:\/\/gpu/)
     await expect(run).rejects.not.toThrow(/fake-key/)
   })

@@ -78,7 +78,12 @@ describe('pickLlmTool', () => {
   it('answers through the mock backend without touching the network', async () => {
     const choice = pickLlmTool({ env: {}, mockSource: ['mock-answer'] })
     const res = await choice.gate.invoke(
-      { item: { messages: [{ role: 'user', content: 'hi' }] }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: [{ role: 'user', content: 'hi' }] },
+        meta: {},
+      },
       ctx,
     )
     expect(res.item.content).toBe('mock-answer')
@@ -88,7 +93,7 @@ describe('pickLlmTool', () => {
   it('translates through the picked backend', async () => {
     const choice = pickLlmTool({ env: {}, mockSource: ['mock-translation'] })
     const res = await choice.translate.invoke(
-      { item: { text: 'hello', targetLang: 'ru' }, meta: {} },
+      { id: 'ex-test', variables: [], item: { text: 'hello', targetLang: 'ru' }, meta: {} },
       ctx,
     )
     expect(res.item.translatedText).toBe('mock-translation')
@@ -136,7 +141,9 @@ describe('llm.use vault refs', () => {
   it('passes the ref to the chosen tool; the vault model is not defeated by the picker pin', async () => {
     const llm = pickLlmTool({ env: { MT_LLM_TOOL: 'ollama', MT_LLM_USE: 'vault://gpu' } })
     const mock = mockLlmCall(['ok'])
-    await llm.gate.with({ call: mock }).invoke({ item: { prompt: 'hi' }, meta: {} }, vctx)
+    await llm.gate
+      .with({ call: mock })
+      .invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, vctx)
     expect(mock.calls[0]?.model).toBe('llama3')
   })
 
@@ -145,7 +152,9 @@ describe('llm.use vault refs', () => {
       env: { MT_LLM_TOOL: 'ollama', MT_LLM_USE: 'vault://gpu', MT_LLM_MODEL: 'pinned' },
     })
     const mock = mockLlmCall(['ok'])
-    await llm.gate.with({ call: mock }).invoke({ item: { prompt: 'hi' }, meta: {} }, vctx)
+    await llm.gate
+      .with({ call: mock })
+      .invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, vctx)
     expect(mock.calls[0]?.model).toBe('pinned')
   })
 })

@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, setVariable, withItem, withMeta } from '@mt/core'
 
 /**
  * Stub translation tool for dry runs.
@@ -15,6 +15,6 @@ export const stubTranslator = defineTool<string, string>({
       .split('\n\n')
       .map((p) => `[ru]${p}[/ru]`)
       .join('\n\n')
-    return { ...env, item: translated, meta: { ...env.meta, translated: true, lang: 'ru' } }
+    return setVariable(withMeta(withItem(env, translated), { lang: 'ru' }), 'translated', true)
   },
 })

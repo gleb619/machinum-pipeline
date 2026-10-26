@@ -50,6 +50,8 @@ describe('ollama GPU integration', () => {
     try {
       const out = await ollamaTool.invoke(
         {
+          id: 'ex-test',
+          variables: [],
           item: { prompt: 'Reply with exactly: GPU OK', temperature: 0, maxTokens: 16 },
           meta: {},
         },

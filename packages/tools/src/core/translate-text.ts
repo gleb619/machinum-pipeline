@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
+import { defineTool, withItem } from '@mt/core'
+import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import type { LlmConfigLayer } from './llm-config.js'
 import { readCtx } from './llm-config.js'
 import { type GateInput, type GateSlot, type GateState, createLlmGate } from './llm-gate.js'
@@ -151,7 +151,7 @@ export function routerTranslateCall(
     name: 'translate-text:call',
     version: '1.0.0',
     mdDescription: 'Calls the router proxy POST /api/translate endpoint.',
-    async invoke(env: Envelope<GateState>, ctx: ToolContext): Promise<Envelope<GateState>> {
+    async invoke(env: Exchange<GateState>, ctx: ToolContext): Promise<Exchange<GateState>> {
       const routerUrl = options.routerUrl ?? readCtx(ctx).routerUrl ?? 'http://localhost:7777'
       const states = env.items ?? [env.item]
       const out: GateState[] = []
@@ -176,9 +176,8 @@ export function routerTranslateCall(
           },
         })
       }
-      return env.items
-        ? { item: out[0] as GateState, items: out, meta: env.meta }
-        : { item: out[0] as GateState, meta: env.meta }
+      const next = withItem(env, out[0] as GateState)
+      return env.items ? { ...next, items: out } : next
     },
   })
 }

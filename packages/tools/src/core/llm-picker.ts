@@ -16,7 +16,7 @@
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { defineTool, parseVaultRef } from '@mt/core'
+import { createExchange, defineTool, parseVaultRef, withItem } from '@mt/core'
 import type { ComposableTool, Tool, ToolContext } from '@mt/core'
 import type { SchemaDocLlmCall } from '../normalization/schema/llm.js'
 import {
@@ -187,7 +187,7 @@ async function callGate(
   input: ChatCompletionInput,
   ctx: ToolContext,
 ): Promise<ChatCompletionOutput> {
-  const res = await gate.invoke({ item: { ...input }, meta: {} }, ctx)
+  const res = await gate.invoke(createExchange<GateInput>({ ...input }), ctx)
   const out = res.item
   return {
     content: out.content,
@@ -217,14 +217,11 @@ function translateTool(
     mdDescription: 'Translates text through the selected LLM backend (MT_LLM_TOOL).',
     async invoke(env, ctx) {
       const gateInput: GateInput = { ...normalize(env.item) }
-      let state = (await prepare.invoke({ item: gateInput, meta: env.meta }, ctx)).item
-      state = (await fit.invoke({ item: state, meta: env.meta }, ctx)).item
-      state = (await call.invoke({ item: state, meta: env.meta }, ctx)).item
-      state = (await parse.invoke({ item: state, meta: env.meta }, ctx)).item
-      return {
-        item: translateToOutput(state as unknown as GateState<TranslateInput>),
-        meta: env.meta,
-      }
+      let cur = await prepare.invoke(withItem(env, gateInput), ctx)
+      cur = await fit.invoke(cur, ctx)
+      cur = await call.invoke(cur, ctx)
+      cur = await parse.invoke(cur, ctx)
+      return withItem(env, translateToOutput(cur.item as unknown as GateState<TranslateInput>))
     },
   })
 }

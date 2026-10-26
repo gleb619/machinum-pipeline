@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, withItem } from '@mt/core'
 import type { ParagraphTranslatorState } from '../modification/chapter-translator.js'
 
 /**
@@ -13,11 +13,9 @@ export const stubParagraphTranslateSlot = defineTool<
   name: 'stub-paragraph-translate-slot',
   version: '1.0.0',
   mdDescription: 'Dry-run paragraph translation slot that wraps output in mock markers',
-  invoke: async (env, _ctx) => ({
-    item: {
+  invoke: async (env, _ctx) =>
+    withItem(env, {
       ...env.item,
       translated: env.item.paragraphs.map((p: string) => `[mock]${p}[/mock]`),
-    },
-    meta: env.meta,
-  }),
+    }),
 })

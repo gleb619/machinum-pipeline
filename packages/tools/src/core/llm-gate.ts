@@ -1,5 +1,5 @@
-import { defineComposableTool, defineTool } from '@mt/core'
-import type { ComposableTool, Envelope, Tool, ToolContext } from '@mt/core'
+import { defineComposableTool, defineTool, setVariables, withItem } from '@mt/core'
+import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import {
   type CacheLike,
   type LlmClient,
@@ -14,6 +14,8 @@ import {
 import {
   type LlmConfigLayer,
   type ResolvedLlmConfig,
+  VAR_CONTEXT_WINDOW,
+  exchangeConfigBag,
   resolveLlmConfigFromCtx,
 } from './llm-config.js'
 import {
@@ -127,7 +129,7 @@ export interface LlmGateOptions<I, O> {
   normalize?: (input: I) => GateInput
   /** Map the final state to the tool output. Default: chat-completion shaped output. */
   toOutput?: (state: GateState<I>, input: I) => O
-  /** Extra meta flags added by `emit` (e.g. `{ chatCompletion: true }`). */
+  /** Extra flags published as variables by `emit` (e.g. `{ chatCompletion: true }`). */
   metaFlags?: Record<string, unknown>
 }
 
@@ -136,15 +138,14 @@ export interface LlmGateOptions<I, O> {
 // ---------------------------------------------------------------------------
 
 async function mapEnv<A, B>(
-  env: Envelope<A>,
+  env: Exchange<A>,
   fn: (a: A, index: number) => Promise<B>,
-): Promise<Envelope<B>> {
+): Promise<Exchange<B>> {
   const inputs = env.items ?? [env.item]
   const out: B[] = []
   for (let i = 0; i < inputs.length; i++) out.push(await fn(inputs[i] as A, i))
-  return env.items
-    ? { item: out[0] as B, items: out, meta: env.meta }
-    : { item: out[0] as B, meta: env.meta }
+  const next = withItem(env, out[0] as B)
+  return env.items ? { ...next, items: out } : next
 }
 
 const zeroUsage = (): GateState['usage'] => ({
@@ -194,6 +195,9 @@ export function extractJson(content: string): unknown {
 // Slots
 // ---------------------------------------------------------------------------
 
+/** Variable names published by `emit`. */
+export const VAR_LLM_USAGE = 'llmUsage'
+
 /** `prepare`: tool input -> GateState with a fully resolved LlmRequest (prompts + model). */
 export function llmPrepare<I, O>(opts: LlmGateOptions<I, O>): Tool<I, GateState<I>> {
   return defineTool<I, GateState<I>>({
@@ -201,7 +205,7 @@ export function llmPrepare<I, O>(opts: LlmGateOptions<I, O>): Tool<I, GateState<
     version: opts.version ?? '1.0.0',
     mdDescription: 'Resolves prompts (overridable templates) and request parameters.',
     async invoke(env, ctx) {
-      const ps = promptSourcesFromCtx(ctx, { tool: opts.prompts, meta: env.meta })
+      const ps = promptSourcesFromCtx(ctx, { tool: opts.prompts, meta: exchangeConfigBag(env) })
       return mapEnv(env, async (input) => {
         const g = (opts.normalize ? opts.normalize(input) : input) as GateInput
         const vars = g.vars ?? {}
@@ -223,7 +227,7 @@ export function llmPrepare<I, O>(opts: LlmGateOptions<I, O>): Tool<I, GateState<
           input: llmLayer,
           tool: opts.llm,
           defaults: opts.llmDefaults,
-          meta: env.meta,
+          meta: exchangeConfigBag(env),
         })
         const request: LlmRequest = {
           messages,
@@ -260,7 +264,7 @@ export function llmFit<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, Gat
           fitter({
             messages,
             ctx,
-            meta: env.meta,
+            meta: exchangeConfigBag(env),
             input: g.context,
             model: request.model,
             outputReserve: request.maxTokens,
@@ -341,7 +345,7 @@ export function llmCall<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, Ga
           input: state.llmLayer,
           tool: opts.llm,
           defaults: opts.llmDefaults,
-          meta: env.meta,
+          meta: exchangeConfigBag(env),
         })
         const client =
           typeof opts.client === 'function'
@@ -376,7 +380,7 @@ export function llmParse<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, G
     mdDescription:
       'Parses/validates output; on failure re-asks with a corrective message carrying the rejection reason.',
     async invoke(env, ctx) {
-      const ps = promptSourcesFromCtx(ctx, { tool: opts.prompts, meta: env.meta })
+      const ps = promptSourcesFromCtx(ctx, { tool: opts.prompts, meta: exchangeConfigBag(env) })
       return mapEnv(env, async (state) => {
         const wantsJson =
           state.request?.responseFormat === 'json' || !!(opts.parse || opts.validate)
@@ -470,7 +474,7 @@ function defaultOutput<I>(state: GateState<I>): GateOutput {
   }
 }
 
-/** `emit`: GateState -> tool output; records `meta.llmUsage` and `meta.contextWindow`. */
+/** `emit`: GateState -> tool output; records the `llmUsage` and `contextWindow` variables. */
 export function llmEmit<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, O> {
   return defineTool<GateState<I>, O>({
     name: `${opts.name}:emit`,
@@ -491,17 +495,17 @@ export function llmEmit<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, O>
         if (s.usage.costUsd !== undefined) usage.costUsd = (usage.costUsd ?? 0) + s.usage.costUsd
       }
       const fits = states.map((s) => s.fit)
-      const meta: Envelope<O>['meta'] = {
-        ...env.meta,
+      const published: Record<string, unknown> = {
         ...opts.metaFlags,
         count: results.length,
-        llmUsage: usage,
+        [VAR_LLM_USAGE]: usage,
       }
       if (fits.some((f) => f && f.length > 0)) {
         const last = fits.map((f) => f?.[f.length - 1])
-        meta.contextWindow = env.items ? last : last[0]
+        published[VAR_CONTEXT_WINDOW] = env.items ? last : last[0]
       }
-      return { item: (env.items ? results : results[0]) as O, meta }
+      const out = withItem(env, (env.items ? results : results[0]) as O)
+      return setVariables(out, published)
     },
   })
 }

@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveLlmConfig } from '../src/core/llm-config.js'
@@ -78,19 +79,22 @@ describe('ollamaTool gate', () => {
     const mock = mockLlmCall(['gpu answer'])
     const out = await ollamaTool
       .with({ call: mock })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, ctx)
+      .invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, ctx)
     expect(mock.calls[0]?.model).toBe(OLLAMA_MODEL)
     expect(mock.calls[0]?.messages).toEqual([{ role: 'user', content: 'hi' }])
     expect(out.item).toMatchObject({ content: 'gpu answer', model: OLLAMA_MODEL })
-    expect(out.meta.ollama).toBe(true)
-    expect((out.meta.llmUsage as { calls: number }).calls).toBe(1)
+    expect(getVariable(out, 'ollama')).toBe(true)
+    expect((getVariable(out, 'llmUsage') as { calls: number }).calls).toBe(1)
   })
 
   it('per-call model override still wins over the preset', async () => {
     const mock = mockLlmCall(['ok'])
     await ollamaTool
       .with({ call: mock })
-      .invoke({ item: { prompt: 'hi', model: 'qwen3:8b' }, meta: {} }, ctx)
+      .invoke(
+        { id: 'ex-test', variables: [], item: { prompt: 'hi', model: 'qwen3:8b' }, meta: {} },
+        ctx,
+      )
     expect(mock.calls[0]?.model).toBe('qwen3:8b')
   })
 })
@@ -191,22 +195,34 @@ describe('ollamaTool llm.use (vault)', () => {
     const mock = mockLlmCall(['ok'])
     await ollamaTool
       .with({ call: mock })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('@vault/gpu'))
+      .invoke(
+        { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+        vctx('@vault/gpu'),
+      )
     expect(mock.calls[0]?.model).toBe('llama3')
   })
 
   it('ref model wins; per-call model still beats the ref', async () => {
     const mock = mockLlmCall(['ok'])
     const gate = ollamaTool.with({ call: mock })
-    await gate.invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('vault://gpu/qwen3:8b'))
-    await gate.invoke({ item: { prompt: 'hi', model: 'call' }, meta: {} }, vctx('vault://gpu'))
+    await gate.invoke(
+      { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+      vctx('vault://gpu/qwen3:8b'),
+    )
+    await gate.invoke(
+      { id: 'ex-test', variables: [], item: { prompt: 'hi', model: 'call' }, meta: {} },
+      vctx('vault://gpu'),
+    )
     expect(mock.calls.map((c) => c.model)).toEqual(['qwen3:8b', 'call'])
   })
 
   it('entry with another provider => error naming the ref', async () => {
     const run = ollamaTool
       .with({ call: mockLlmCall(['ok']) })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, vctx('vault://or'))
+      .invoke(
+        { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+        vctx('vault://or'),
+      )
     await expect(run).rejects.toThrow(/vault:\/\/or/)
   })
 })

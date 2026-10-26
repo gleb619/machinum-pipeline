@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
-import { defineTool } from '@mt/core'
-import type { Envelope, Tool } from '@mt/core'
+import { defineTool, setVariable, withItem } from '@mt/core'
+import type { Exchange, Tool } from '@mt/core'
 import { type LlmClient, createLlmClient } from './llm-client.js'
 import {
   type LlmConfigLayer,
   type ResolvedLlmConfig,
+  exchangeConfigBag,
   resolveLlmConfigFromCtx,
 } from './llm-config.js'
 import { LlmError, LlmQuotaError, LlmRateLimitError } from './llm-errors.js'
@@ -31,7 +32,10 @@ export interface OpenrouterPoolOptions {
   client?: LlmClient | ((cfg: ResolvedLlmConfig, ctx: unknown) => LlmClient)
 }
 
-/** Recorded in `meta.openrouterPool`. */
+/** Variable holding the pool snapshot. */
+export const VAR_OPENROUTER_POOL = 'openrouterPool'
+
+/** Recorded in the `openrouterPool` variable. */
 export interface OpenrouterPoolMeta {
   model: string
   pinnedAt: number
@@ -150,7 +154,7 @@ const PINNABLE_MODEL_SOURCES = new Set(['preset-defaults', 'default'])
  *
  * The candidates are a **default, not a pin** (same layering as `openrouterFree`: the first one is
  * passed as `llmDefaults`, only the provider sits on the tool layer). The pin applies only when no
- * higher layer picked a model, so a per-call `model` / `llm.model`, `meta.llm.model`, mt.json
+ * higher layer picked a model, so a per-call `model` / `llm.model`, `llm.model` variable, mt.json
  * `llm.model`, `MT_OLLAMA_MODEL` or a vault ref (`llm.use`) wins and leaves the pin map untouched.
  */
 export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
@@ -185,7 +189,7 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
     version: '1.0.0',
     mdDescription: 'Base prepare + sticky pinned model unless the call overrides it.',
     async invoke(env, ctx) {
-      const out = (await basePrepare.invoke(env, ctx)) as Envelope<PooledState>
+      const out = (await basePrepare.invoke(env, ctx)) as Exchange<PooledState>
       const states = out.items ?? [out.item]
       const next = states.map((s): PooledState => {
         if (!s.request) return s
@@ -194,19 +198,18 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
           input: s.llmLayer,
           tool: llm,
           defaults: llmDefaults,
-          meta: env.meta,
+          meta: exchangeConfigBag(env),
         })
         // The model is a default, not a pin: any layer above the preset defaults (per-call input,
-        // `meta.llm`, mt.json `llm.model`, vault ref, provider env) already chose it, so the
+        // `llm` variable, mt.json `llm.model`, vault ref, provider env) already chose it, so the
         // sticky free-model pin must not override it and must not touch the pin map.
         if (!PINNABLE_MODEL_SOURCES.has(cfg.sources.model ?? 'default')) return s
         const id = pinId(cfg)
         const pin = pinFor(id, candidates, strategy)
         return { ...s, pinId: id, request: { ...s.request, model: model(pin) } }
       })
-      return out.items
-        ? { item: next[0] as PooledState, items: next, meta: out.meta }
-        : { item: next[0] as PooledState, meta: out.meta }
+      const derived = withItem(out, next[0] as PooledState)
+      return out.items ? { ...derived, items: next } : derived
     },
   }) as Tool<unknown, unknown>
 
@@ -214,13 +217,13 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
   const emit = defineTool<GateState<GateInput>, GateOutput>({
     name: 'openrouter-pool:emit',
     version: '1.0.0',
-    mdDescription: 'Base emit + meta.openrouterPool = { model, pinnedAt, repins }.',
+    mdDescription: 'Base emit + openrouterPool variable = { model, pinnedAt, repins }.',
     async invoke(env, ctx) {
       const out = await baseEmit.invoke(env, ctx)
       const states = (env.items ?? [env.item]) as PooledState[]
       const id = states.find((s) => s.pinId)?.pinId
       const pin = id ? pins.get(id) : undefined
-      return pin ? { ...out, meta: { ...out.meta, openrouterPool: snapshot(pin) } } : out
+      return pin ? setVariable(out, VAR_OPENROUTER_POOL, snapshot(pin)) : out
     },
   }) as Tool<unknown, unknown>
 

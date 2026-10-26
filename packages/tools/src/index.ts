@@ -413,6 +413,7 @@ export {
 export { atomicWriteFile, ensureParentDir } from './core/fs-write.js'
 
 export {
+  VAR_DOCKER_COMPOSE,
   dockerComposeEmitter,
   type DockerComposeEmitterOptions,
   type DockerComposeOutput,
@@ -453,6 +454,7 @@ export {
 } from './modification/chapter-doc.js'
 
 export {
+  VAR_MD_OUTPUTS,
   appendMdOutput,
   mdOutputEmitter,
   type MdOutputEmitterConfig,
@@ -523,6 +525,11 @@ export {
   DEFAULT_TIMEOUT_MS,
   resolveLlmConfig,
   resolveLlmConfigFromCtx,
+  exchangeConfigBag,
+  VAR_CONTEXT,
+  VAR_CONTEXT_WINDOW,
+  VAR_LLM,
+  VAR_PROMPTS,
   redactLlmConfig,
   readCtx,
   type LlmProvider,
@@ -608,6 +615,7 @@ export {
   type MockAnswer,
   type MockLlmClient,
   type MockLlmCall,
+  VAR_LLM_USAGE,
 } from './core/llm-gate.js'
 
 export {
@@ -620,6 +628,7 @@ export { openrouterFree, OPENROUTER_FREE_LLM } from './core/openrouter-free.js'
 
 export {
   openrouterPool,
+  VAR_OPENROUTER_POOL,
   createOpenrouterPool,
   resetOpenrouterPoolPins,
   getOpenrouterPoolPin,

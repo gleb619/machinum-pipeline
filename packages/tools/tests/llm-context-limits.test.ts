@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import type { LlmMessage } from '../src/core/llm-client.js'
@@ -63,51 +64,81 @@ describe('autoLimit', () => {
   it('known model implies a budget by default', async () => {
     const tool = createContextWindow({ countTokens })
     const out = await tool.invoke(
-      { item: { messages: [msg('user', 40)], model: 'openai/gpt-4o-mini' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: [msg('user', 40)], model: 'openai/gpt-4o-mini' },
+        meta: {},
+      },
       ctx,
     )
-    expect(out.meta.contextWindow).toMatchObject({ budget: 128_000, fits: true })
+    expect(getVariable(out, 'contextWindow')).toMatchObject({ budget: 128_000, fits: true })
   })
 
   it('user limits via env MT_CONTEXT_LIMITS win over the table', async () => {
     const tool = createContextWindow({ countTokens })
     const c = ctxWith({ env: { MT_CONTEXT_LIMITS: '{"gpt-4o*": 5000}' } })
     const out = await tool.invoke(
-      { item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' },
+        meta: {},
+      },
       c,
     )
-    expect(out.meta.contextWindow).toMatchObject({ budget: 5000 })
+    expect(getVariable(out, 'contextWindow')).toMatchObject({ budget: 5000 })
   })
 
   it('autoLimit: false (option / env / settings) turns it off', async () => {
     const tool = createContextWindow({ countTokens, autoLimit: false })
     const out = await tool.invoke(
-      { item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' },
+        meta: {},
+      },
       ctx,
     )
-    expect(out.meta.contextWindow).toMatchObject({ budget: null })
+    expect(getVariable(out, 'contextWindow')).toMatchObject({ budget: null })
 
     const envTool = createContextWindow({ countTokens })
     const envOut = await envTool.invoke(
-      { item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' },
+        meta: {},
+      },
       ctxWith({ env: { MT_CONTEXT_AUTO_LIMIT: '0' } }),
     )
-    expect(envOut.meta.contextWindow).toMatchObject({ budget: null })
+    expect(getVariable(envOut, 'contextWindow')).toMatchObject({ budget: null })
 
     const stOut = await envTool.invoke(
-      { item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' },
+        meta: {},
+      },
       ctxWith({ settings: { 'context.autoLimit': false } }),
     )
-    expect(stOut.meta.contextWindow).toMatchObject({ budget: null })
+    expect(getVariable(stOut, 'contextWindow')).toMatchObject({ budget: null })
   })
 
   it('explicit contextLimit still wins over the model table', async () => {
     const tool = createContextWindow({ countTokens, contextLimit: 100 })
     const out = await tool.invoke(
-      { item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: [msg('user', 40)], model: 'gpt-4o-mini' },
+        meta: {},
+      },
       ctx,
     )
-    expect(out.meta.contextWindow).toMatchObject({ budget: 100 })
+    expect(getVariable(out, 'contextWindow')).toMatchObject({ budget: 100 })
   })
 })
 
@@ -197,15 +228,25 @@ describe('lastMessage strategies', () => {
   it('config plumbing: env MT_CONTEXT_LAST_MESSAGE and settings context.lastMessage', async () => {
     const tool = createContextWindow({ countTokens, strategies: ['dropOldest'] })
     const withEnv = await tool.invoke(
-      { item: { messages: oversize(), context: { maxTokens: 100 } }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { messages: oversize(), context: { maxTokens: 100 } },
+        meta: {},
+      },
       ctxWith({ env: { MT_CONTEXT_LAST_MESSAGE: 'truncate' } }),
     )
-    expect((withEnv.meta.contextWindow as { fits: boolean }).fits).toBe(true)
+    expect((getVariable(withEnv, 'contextWindow') as { fits: boolean }).fits).toBe(true)
 
     // settings layer supplies lastMessage here, so the tool throws.
     await expect(
       tool.invoke(
-        { item: { messages: oversize(), context: { maxTokens: 100 } }, meta: {} },
+        {
+          id: 'ex-test',
+          variables: [],
+          item: { messages: oversize(), context: { maxTokens: 100 } },
+          meta: {},
+        },
         ctxWith({ settings: { 'context.lastMessage': 'error' } }),
       ),
     ).rejects.toBeInstanceOf(LlmContextLengthError)

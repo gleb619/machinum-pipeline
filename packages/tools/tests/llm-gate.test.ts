@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { ToolContext } from '@mt/core'
+import { createExchange, defineTool, getVariable, setVariable } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LlmHttpRequest } from '../src/core/llm-client.js'
 import { LlmContextLengthError, LlmParseError } from '../src/core/llm-errors.js'
@@ -14,6 +14,7 @@ import {
 import { llmTranslate } from '../src/core/llm-translate.js'
 import { chatCompletion, runPrompt } from '../src/core/openrouter-tool.js'
 import { lintLineParity, parityFeedback } from '../src/verification/line-parity-linter.js'
+import { varsOf } from './helpers/llm-vars.js'
 
 const ctx = {} as ToolContext
 const ctxWith = (global: Record<string, unknown>): ToolContext =>
@@ -45,6 +46,8 @@ describe('existing tools keep their contract', () => {
     const calls = stubFetch()
     const out = await chatCompletion.invoke(
       {
+        id: 'ex-test',
+        variables: [],
         item: {
           messages: [{ role: 'user', content: 'ping' }],
           systemPrompt: 'be brief',
@@ -72,25 +75,31 @@ describe('existing tools keep their contract', () => {
       promptTokens: 4,
       completionTokens: 3,
     })
-    expect(out.meta).toMatchObject({ keep: 1, chatCompletion: true, count: 1 })
-    expect(out.meta.llmUsage).toMatchObject({ totalTokens: 7, calls: 1 })
+    expect(out.meta).toMatchObject({ keep: 1 })
+    expect(varsOf(out)).toMatchObject({ chatCompletion: true, count: 1 })
+    expect(getVariable(out, 'llmUsage')).toMatchObject({ totalTokens: 7, calls: 1 })
   })
 
   it('chatCompletion batch: item is the array of outputs (legacy)', async () => {
     stubFetch()
     const mk = (t: string) => ({ messages: [{ role: 'user' as const, content: t }] })
     const out = await chatCompletion.invoke(
-      { item: mk('a'), items: [mk('a'), mk('b')], meta: {} },
+      { id: 'ex-test', variables: [], item: mk('a'), items: [mk('a'), mk('b')], meta: {} },
       ctxWith({ routerUrl: 'http://r' }),
     )
     expect(Array.isArray(out.item)).toBe(true)
-    expect(out.meta.count).toBe(2)
+    expect(getVariable(out, 'count')).toBe(2)
   })
 
   it('runPrompt wraps prompt into a user message', async () => {
     const calls = stubFetch()
     const out = await runPrompt.invoke(
-      { item: { prompt: 'hello', model: 'x/y', systemPrompt: 'sys' }, meta: {} },
+      {
+        id: 'ex-test',
+        variables: [],
+        item: { prompt: 'hello', model: 'x/y', systemPrompt: 'sys' },
+        meta: {},
+      },
       ctxWith({ routerUrl: 'http://r' }),
     )
     expect(calls[0]?.body.model).toBe('x/y')
@@ -98,7 +107,7 @@ describe('existing tools keep their contract', () => {
       { role: 'system', content: 'sys' },
       { role: 'user', content: 'hello' },
     ])
-    expect(out.meta).toMatchObject({ runPrompt: true, count: 1 })
+    expect(varsOf(out)).toMatchObject({ runPrompt: true, count: 1 })
   })
 
   it('failures keep the legacy message', async () => {
@@ -108,7 +117,12 @@ describe('existing tools keep their contract', () => {
     )
     await expect(
       chatCompletion.invoke(
-        { item: { messages: [{ role: 'user', content: 'x' }] }, meta: {} },
+        {
+          id: 'ex-test',
+          variables: [],
+          item: { messages: [{ role: 'user', content: 'x' }] },
+          meta: {},
+        },
         ctxWith({ routerUrl: 'http://r' }),
       ),
     ).rejects.toThrow('Chat completion failed: 400 nope')
@@ -127,8 +141,8 @@ describe('slot override', () => {
     vi.stubGlobal('fetch', fetchSpy)
     const mock = mockLlmCall(['first', 'second'])
     const gate = chatCompletion.with({ call: mock })
-    const a = await gate.invoke({ item: input, meta: {} }, ctx)
-    const b = await gate.invoke({ item: input, meta: {} }, ctx)
+    const a = await gate.invoke({ id: 'ex-test', variables: [], item: input, meta: {} }, ctx)
+    const b = await gate.invoke({ id: 'ex-test', variables: [], item: input, meta: {} }, ctx)
     expect((a.item as { content: string }).content).toBe('first')
     expect((b.item as { content: string }).content).toBe('second')
     expect(mock.calls).toHaveLength(2)
@@ -140,7 +154,10 @@ describe('slot override', () => {
     const gate = chatCompletion.with({
       call: mockLlmCall((req) => `echo:${req.messages.at(-1)?.content}:${req.model}`),
     })
-    const out = await gate.invoke({ item: { ...input, model: 'm1' }, meta: {} }, ctx)
+    const out = await gate.invoke(
+      { id: 'ex-test', variables: [], item: { ...input, model: 'm1' }, meta: {} },
+      ctx,
+    )
     expect((out.item as { content: string }).content).toBe('echo:q:m1')
   })
 
@@ -148,7 +165,7 @@ describe('slot override', () => {
     const mock = mockLlmCall(['ok'])
     const gate = chatCompletion.with({
       call: mock,
-      fit: async (env: { item: unknown; meta: Record<string, unknown> }) => {
+      fit: async (env: Exchange<unknown>) => {
         const s = env.item as GateState
         const request = s.request as NonNullable<GateState['request']>
         return {
@@ -159,6 +176,8 @@ describe('slot override', () => {
     })
     await gate.invoke(
       {
+        id: 'ex-test',
+        variables: [],
         item: {
           messages: [
             { role: 'user', content: 'old' },
@@ -191,10 +210,16 @@ describe('slot override', () => {
       return { gate, mock }
     }
     const a = mk(['dropOldest'])
-    const outA = await a.gate.invoke({ item: { messages: msgs }, meta: {} }, ctx)
+    const outA = await a.gate.invoke(
+      { id: 'ex-test', variables: [], item: { messages: msgs }, meta: {} },
+      ctx,
+    )
     expect(a.mock.calls[0]?.messages.length).toBeLessThan(6)
     expect(a.mock.calls[0]?.messages.at(-1)?.content).toBe(msgs[5]?.content)
-    expect(outA.meta.contextWindow).toMatchObject({ budget: 30, applied: [{ name: 'dropOldest' }] })
+    expect(getVariable(outA, 'contextWindow')).toMatchObject({
+      budget: 30,
+      applied: [{ name: 'dropOldest' }],
+    })
   })
 })
 
@@ -203,18 +228,26 @@ describe('prompt customization through the gate', () => {
 
   it('default templates', async () => {
     const mock = mockLlmCall(['  Привет  '])
-    const out = await llmTranslate.with({ call: mock }).invoke({ item: tin, meta: {} }, ctx)
+    const out = await llmTranslate
+      .with({ call: mock })
+      .invoke({ id: 'ex-test', variables: [], item: tin, meta: {} }, ctx)
     expect(mock.calls[0]?.messages[0]?.content).toContain('from en to ru')
     expect(mock.calls[0]?.messages[1]).toEqual({ role: 'user', content: 'Hello' })
     expect(out.item).toMatchObject({ translatedText: 'Привет' })
-    expect(out.meta.translated).toBe(true)
+    expect(getVariable(out, 'translated')).toBe(true)
   })
 
   it('meta.prompts override', async () => {
     const mock = mockLlmCall(['x'])
-    await llmTranslate
-      .with({ call: mock })
-      .invoke({ item: tin, meta: { prompts: { 'translate.system': 'META {{targetLang}}' } } }, ctx)
+    await llmTranslate.with({ call: mock }).invoke(
+      {
+        id: 'ex-test',
+        variables: [],
+        item: tin,
+        meta: { prompts: { 'translate.system': 'META {{targetLang}}' } },
+      },
+      ctx,
+    )
     expect(mock.calls[0]?.messages[0]?.content).toBe('META ru')
   })
 
@@ -223,12 +256,12 @@ describe('prompt customization through the gate', () => {
     await llmTranslate
       .with({ call: mock })
       .invoke(
-        { item: tin, meta: {} },
+        { id: 'ex-test', variables: [], item: tin, meta: {} },
         ctxWith({ env: { MT_PROMPT_TRANSLATE_SYSTEM: 'ENV {{targetLang}}' } }),
       )
     expect(mock.calls[0]?.messages[0]?.content).toBe('ENV ru')
     await llmTranslate.with({ call: mock }).invoke(
-      { item: tin, meta: {} },
+      { id: 'ex-test', variables: [], item: tin, meta: {} },
       ctxWith({
         settings: { 'prompts.translate.system': 'SET {{targetLang}}' },
         env: { MT_PROMPT_TRANSLATE_SYSTEM: 'ENV' },
@@ -247,7 +280,9 @@ describe('prompt customization through the gate', () => {
         vars: {},
       }),
     }).with({ call: mockLlmCall() })
-    await expect(g.invoke({ item: {}, meta: {} }, ctx)).rejects.toThrow(/missing variable.*nope/)
+    await expect(
+      g.invoke({ id: 'ex-test', variables: [], item: {}, meta: {} }, ctx),
+    ).rejects.toThrow(/missing variable.*nope/)
   })
 })
 
@@ -263,25 +298,29 @@ describe('json mode / parse slot', () => {
   it('parses valid json into output.json', async () => {
     const out = await llmGate
       .with({ call: mockLlmCall(['{"ok":true}']) })
-      .invoke({ item: jin, meta: {} }, ctx)
+      .invoke({ id: 'ex-test', variables: [], item: jin, meta: {} }, ctx)
     expect((out.item as { json: unknown }).json).toEqual({ ok: true })
   })
 
   it('corrective retry: asks again with a correction message, bounded', async () => {
     const mock = mockLlmCall(['not json', '{"fixed":1}'])
-    const out = await llmGate.with({ call: mock }).invoke({ item: jin, meta: {} }, ctx)
+    const out = await llmGate
+      .with({ call: mock })
+      .invoke({ id: 'ex-test', variables: [], item: jin, meta: {} }, ctx)
     expect((out.item as { json: unknown }).json).toEqual({ fixed: 1 })
     expect(mock.calls).toHaveLength(2)
     const second = mock.calls[1]?.messages ?? []
     expect(second.at(-2)).toEqual({ role: 'assistant', content: 'not json' })
     expect(second.at(-1)?.content).toMatch(/not valid JSON/)
-    expect((out.meta.llmUsage as { calls: number }).calls).toBe(2)
+    expect((getVariable(out, 'llmUsage') as { calls: number }).calls).toBe(2)
   })
 
   it('gives up after jsonRetries with LlmParseError', async () => {
     const mock = mockLlmCall(['bad'])
     const gate = createLlmGate({ name: 'g', jsonRetries: 1 }).with({ call: mock })
-    await expect(gate.invoke({ item: jin, meta: {} }, ctx)).rejects.toBeInstanceOf(LlmParseError)
+    await expect(
+      gate.invoke({ id: 'ex-test', variables: [], item: jin, meta: {} }, ctx),
+    ).rejects.toBeInstanceOf(LlmParseError)
     expect(mock.calls).toHaveLength(2)
   })
 
@@ -294,7 +333,7 @@ describe('json mode / parse slot', () => {
         return j
       },
     }).with({ call: mock })
-    const out = await gate.invoke({ item: jin, meta: {} }, ctx)
+    const out = await gate.invoke({ id: 'ex-test', variables: [], item: jin, meta: {} }, ctx)
     expect((out.item as { json: unknown }).json).toEqual({ n: 2 })
   })
 })
@@ -308,13 +347,16 @@ describe('content validation retry: feedback into the next attempt (T138)', () =
         if (!/[Ѐ-ӿ]/.test(content)) throw new Error('no Cyrillic in reply')
       },
     }).with({ call: mock })
-    const out = await gate.invoke({ item: { prompt: 'translate' }, meta: {} }, ctx)
+    const out = await gate.invoke(
+      { id: 'ex-test', variables: [], item: { prompt: 'translate' }, meta: {} },
+      ctx,
+    )
     expect((out.item as GateOutput).content).toBe('Он вошёл.')
     expect(mock.calls).toHaveLength(2)
     const second = mock.calls[1]?.messages ?? []
     expect(second.at(-2)).toEqual({ role: 'assistant', content: 'He walked in.' })
     expect(second.at(-1)?.content).toMatch(/no Cyrillic/)
-    expect((out.meta.llmUsage as { calls: number }).calls).toBe(2)
+    expect((getVariable(out, 'llmUsage') as { calls: number }).calls).toBe(2)
   })
 
   it('records the last rejection reason on GateState.feedback', async () => {
@@ -335,7 +377,7 @@ describe('content validation retry: feedback into the next attempt (T138)', () =
         }
       },
     }).with({ call: mockLlmCall(['bad', 'good']) })
-    await gate.invoke({ item: { prompt: 'q' }, meta: {} }, ctx)
+    await gate.invoke({ id: 'ex-test', variables: [], item: { prompt: 'q' }, meta: {} }, ctx)
     expect(seen).toEqual(['measured: ratio 0.10 below 0.30'])
   })
 
@@ -348,9 +390,9 @@ describe('content validation retry: feedback into the next attempt (T138)', () =
         throw new Error('still latin')
       },
     }).with({ call: mock })
-    await expect(gate.invoke({ item: { prompt: 'q' }, meta: {} }, ctx)).rejects.toThrow(
-      /still latin/,
-    )
+    await expect(
+      gate.invoke({ id: 'ex-test', variables: [], item: { prompt: 'q' }, meta: {} }, ctx),
+    ).rejects.toThrow(/still latin/)
     expect(mock.calls).toHaveLength(2)
   })
 
@@ -364,7 +406,7 @@ describe('content validation retry: feedback into the next attempt (T138)', () =
         if (content === 'nope') throw new Error('ratio too low')
       },
     }).with({ call: mock })
-    await gate.invoke({ item: { prompt: 'q' }, meta: {} }, ctx)
+    await gate.invoke({ id: 'ex-test', variables: [], item: { prompt: 'q' }, meta: {} }, ctx)
     expect(mock.calls[1]?.messages.at(-1)?.content).toBe('FIX THIS: ratio too low')
   })
 
@@ -379,7 +421,7 @@ describe('content validation retry: feedback into the next attempt (T138)', () =
         if (!report.ok) throw new Error(parityFeedback(report))
       },
     }).with({ call: mock })
-    const out = await gate.invoke({ item: { en }, meta: {} }, ctx)
+    const out = await gate.invoke({ id: 'ex-test', variables: [], item: { en }, meta: {} }, ctx)
     expect(mock.calls).toHaveLength(2)
     expect(mock.calls[1]?.messages.at(-1)?.content).toContain('Cyrillic ratio')
     expect((out.item as GateOutput).content).toContain('вошёл')
@@ -409,18 +451,22 @@ describe('context-length shrink-and-retry', () => {
       { shrinkOnContextError: true },
     )
     const gate = createLlmGate({ name: 'g', shrinkOnContextError: true }).with({ call: mock })
-    const out = await gate.invoke({ item: big, meta: {} }, ctx)
+    const out = await gate.invoke({ id: 'ex-test', variables: [], item: big, meta: {} }, ctx)
     expect(mock.calls).toHaveLength(2)
     expect(mock.calls[1]?.messages.length).toBeLessThan(mock.calls[0]?.messages.length ?? 0)
     expect(mock.calls[1]?.messages.at(-1)?.content).toBe('final question')
     expect(mock.calls[1]?.messages[0]?.role).toBe('system')
-    expect((out.meta.contextWindow as { applied: unknown[] }).applied.length).toBeGreaterThan(0)
+    expect(
+      (getVariable(out, 'contextWindow') as { applied: unknown[] }).applied.length,
+    ).toBeGreaterThan(0)
   })
 
   it('disabled by default: error surfaces', async () => {
     const mock = mockLlmCall(() => new LlmContextLengthError('too long'))
     await expect(
-      chatCompletion.with({ call: mock }).invoke({ item: big, meta: {} }, ctx),
+      chatCompletion
+        .with({ call: mock })
+        .invoke({ id: 'ex-test', variables: [], item: big, meta: {} }, ctx),
     ).rejects.toBeInstanceOf(LlmContextLengthError)
     expect(mock.calls).toHaveLength(1)
   })
@@ -441,7 +487,7 @@ describe('context-length shrink-and-retry', () => {
             }
       },
     })
-    const out = await gate.invoke({ item: big, meta: {} }, ctx)
+    const out = await gate.invoke({ id: 'ex-test', variables: [], item: big, meta: {} }, ctx)
     expect((out.item as { content: string }).content).toBe('fine')
     expect(seen).toHaveLength(2)
     expect(JSON.parse(seen[1]?.body ?? '{}').messages.length).toBeLessThan(
@@ -469,6 +515,8 @@ describe('config reaches the call slot', () => {
     })
     const out = await gate.invoke(
       {
+        id: 'ex-test',
+        variables: [],
         item: { prompt: 'p', llm: { baseUrl: 'http://local:1/v1' } },
         meta: { llm: { model: 'meta-model' } },
       },
@@ -477,7 +525,7 @@ describe('config reaches the call slot', () => {
     expect(seen[0]?.url).toBe('http://local:1/v1/chat/completions')
     expect(seen[0]?.headers.Authorization).toBe('Bearer sk-tool')
     expect(JSON.parse(seen[0]?.body ?? '{}').model).toBe('tool-model')
-    expect(out.meta.llmUsage).toMatchObject({ totalTokens: 3, costUsd: 0.5, calls: 1 })
+    expect(getVariable(out, 'llmUsage')).toMatchObject({ totalTokens: 3, costUsd: 0.5, calls: 1 })
   })
 
   it('custom slot tool can be a defineTool', async () => {
@@ -499,7 +547,27 @@ describe('config reaches the call slot', () => {
     })
     const out = await llmGate
       .with({ call: custom })
-      .invoke({ item: { prompt: 'x' }, meta: {} }, ctx)
+      .invoke({ id: 'ex-test', variables: [], item: { prompt: 'x' }, meta: {} }, ctx)
     expect((out.item as { content: string }).content).toBe('custom')
+  })
+})
+
+describe('exchange propagation through gate tools', () => {
+  it('keeps id, meta and pre-existing variables, and reads llm/prompts from variables', async () => {
+    const seed = setVariable(
+      createExchange(
+        { messages: [{ role: 'user' as const, content: 'x' }] },
+        { id: 'ex-keep', meta: { chapterId: 'c1' } },
+      ),
+      'carried',
+      42,
+    )
+    const withLlm = setVariable(seed, 'llm', { model: 'var-model' })
+    const mock = mockLlmCall(['ok'])
+    const out = await chatCompletion.with({ call: mock }).invoke(withLlm, ctx)
+    expect(out.id).toBe('ex-keep')
+    expect(out.meta).toEqual({ chapterId: 'c1' })
+    expect(getVariable(out, 'carried')).toBe(42)
+    expect(mock.calls[0]?.model).toBe('var-model')
   })
 })

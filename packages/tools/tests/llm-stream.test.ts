@@ -2,6 +2,7 @@ import type { ToolContext } from '@mt/core'
 import { describe, expect, it, vi } from 'vitest'
 import type { LlmClient, LlmRequest, LlmResponse } from '../src/core/llm-client.js'
 import { createLlmGate, mockLlmCall } from '../src/core/llm-gate.js'
+import { varsOf } from './helpers/llm-vars.js'
 
 const ctx = {} as ToolContext
 
@@ -42,12 +43,15 @@ describe('gate stream option', () => {
         expect(input).toMatchObject({ prompt: 'hi' })
       },
     })
-    const out = await gate.invoke({ item: { prompt: 'hi' }, meta: {} }, ctx)
+    const out = await gate.invoke(
+      { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+      ctx,
+    )
     expect(chatCompletionStream).toHaveBeenCalledTimes(1)
     expect(chatCompletion).not.toHaveBeenCalled()
     expect(deltas).toEqual(['a', 'b', 'c'])
     expect(out.item).toMatchObject({ content: 'abc', tokens: 5 })
-    expect(out.meta).toMatchObject({ count: 1, llmUsage: { totalTokens: 5, calls: 1 } })
+    expect(varsOf(out)).toMatchObject({ count: 1, llmUsage: { totalTokens: 5, calls: 1 } })
   })
 
   it('falls back to chatCompletion when the client cannot stream', async () => {
@@ -64,7 +68,10 @@ describe('gate stream option', () => {
       stream: true,
       onDelta: () => expect.unreachable('onDelta without streaming'),
     })
-    const out = await gate.invoke({ item: { prompt: 'hi' }, meta: {} }, ctx)
+    const out = await gate.invoke(
+      { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+      ctx,
+    )
     expect(chatCompletion).toHaveBeenCalledTimes(1)
     expect(out.item).toMatchObject({ content: 'plain' })
   })
@@ -72,7 +79,7 @@ describe('gate stream option', () => {
   it('stream: false / unset never calls chatCompletionStream', async () => {
     const { client, chatCompletion, chatCompletionStream } = streamingClient(() => {})
     const gate = createLlmGate<{ prompt: string }, unknown>({ name: 'off-gate', client })
-    await gate.invoke({ item: { prompt: 'hi' }, meta: {} }, ctx)
+    await gate.invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, ctx)
     expect(chatCompletion).toHaveBeenCalledTimes(1)
     expect(chatCompletionStream).not.toHaveBeenCalled()
   })
@@ -84,7 +91,7 @@ describe('gate stream option', () => {
     })
     const out = await gate
       .with({ call: mockLlmCall(['answer']) })
-      .invoke({ item: { prompt: 'hi' }, meta: {} }, ctx)
+      .invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, ctx)
     expect(out.item).toMatchObject({ content: 'answer' })
   })
 })

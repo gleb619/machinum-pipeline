@@ -1,8 +1,15 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, Tool, ToolContext } from '@mt/core'
+import { setVariable, withItem } from '@mt/core'
+import type { Exchange, Tool, ToolContext } from '@mt/core'
 import { countTextTokens } from '../normalization/token-counter.js'
 import { type LlmClient, type LlmMessage, createLlmClient } from './llm-client.js'
-import { type LlmConfigLayer, readCtx, resolveLlmConfigFromCtx } from './llm-config.js'
+import {
+  type LlmConfigLayer,
+  VAR_CONTEXT_WINDOW,
+  exchangeConfigBag,
+  readCtx,
+  resolveLlmConfigFromCtx,
+} from './llm-config.js'
 import { LlmContextLengthError } from './llm-errors.js'
 import { type PromptSources, promptSourcesFromCtx, resolvePrompt } from './llm-prompts.js'
 
@@ -26,7 +33,7 @@ export interface ShrinkHelpers {
   model?: string
   /** Render a named prompt through the prompt override chain. */
   prompt(name: string, vars: Record<string, unknown>): string
-  /** Record a note (e.g. fallback) in `meta.contextWindow.applied`. */
+  /** Record a note (e.g. fallback) in `contextWindow.applied`. */
   report(note: string): void
   signal?: AbortSignal
 }
@@ -922,7 +929,7 @@ export type ContextWindowItem = string | LlmMessage[] | ContextWindowItemObject
 
 /**
  * Tool placed before an LLM call: shrinks messages to a token budget with ordered strategies.
- * Records `meta.contextWindow` ({before, after, budget, fits, applied[]}; array for batches).
+ * Records the `contextWindow` variable ({before, after, budget, fits, applied[]}; array for batches).
  */
 export function createContextWindow(
   options: ContextWindowOptions & { name?: string } = {},
@@ -934,11 +941,11 @@ export function createContextWindow(
     mdDescription:
       'Shrinks chat messages to a token budget using ordered strategies ' +
       '(truncateLines, summarize, dropOldest, ...). Preserves system + last user message. ' +
-      'Records meta.contextWindow.',
+      'Records the contextWindow variable.',
     async invoke(
-      env: Envelope<ContextWindowItem>,
+      env: Exchange<ContextWindowItem>,
       ctx: ToolContext,
-    ): Promise<Envelope<ContextWindowItem>> {
+    ): Promise<Exchange<ContextWindowItem>> {
       const inputs = env.items ?? [env.item]
       const outputs: ContextWindowItem[] = []
       const records: ContextWindowRecord[] = []
@@ -953,7 +960,7 @@ export function createContextWindow(
         const { messages: fitted, record } = await fit({
           messages,
           ctx,
-          meta: env.meta,
+          meta: exchangeConfigBag(env),
           input: obj?.context,
           model: obj?.model,
           outputReserve: obj?.maxTokens,
@@ -968,18 +975,17 @@ export function createContextWindow(
               : { ...item, messages: fitted },
         )
       }
-      const meta = {
-        ...env.meta,
-        contextWindow: env.items ? records : records[0],
-      }
-      return env.items
-        ? { item: outputs[0] as ContextWindowItem, items: outputs, meta }
-        : { item: outputs[0] as ContextWindowItem, meta }
+      const next = setVariable(
+        withItem(env, outputs[0] as ContextWindowItem),
+        VAR_CONTEXT_WINDOW,
+        env.items ? records : records[0],
+      )
+      return env.items ? { ...next, items: outputs } : next
     },
   })
 }
 
-/** Default instance (budget from meta.context / mt.json / env). */
+/** Default instance (budget from `context` variable / mt.json / env). */
 export const contextWindow = createContextWindow()
 /** Alias of `contextWindow`. */
 export const contextShrink = contextWindow
