@@ -101,3 +101,12 @@ build
 /samples/sample3/chapters/translate-mock/*.md
 /docs/docs/plans/
 /docs/locks/*
+coverage/
+/samples/sample4/chapters/en/*.md
+/samples/sample4/chapters/ru/*.md
+/samples/sample4/chapters/schema/
+/samples/sample4/chapters/en-tagged/
+/samples/sample4/chapters/glossary.json
+/samples/sample4/chapters/glossary.graph.json
+/samples/sample4/jsonl/*.jsonl
+/samples/sample4/.mt-translate-prompts.jsonl

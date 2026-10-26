@@ -6,4 +6,14 @@ export default defineConfig({
     // GPU integration tests need the real ollama server: own config (`vitest.gpu.config.ts`).
     exclude: ['tests/it/**'],
   },
+  coverage: {
+    include: ['src/**/*.ts'],
+    reporter: ['text', 'lcov'],
+    thresholds: {
+      statements: 91,
+      branches: 82,
+      functions: 95,
+      lines: 91,
+    },
+  },
 })

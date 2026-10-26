@@ -18,6 +18,7 @@
     "dev": "tsc --watch",
     "typecheck": "node scripts/gen-prompts.mjs && tsc --noEmit",
     "test": "node scripts/gen-prompts.mjs && vitest run",
+    "test:coverage": "node scripts/gen-prompts.mjs && vitest run --coverage",
     "test:gpu": "vitest run --config vitest.gpu.config.ts",
     "clean": "rm -rf dist .turbo"
   },
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@types/mdast": "^4.0.4",
     "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^2.1.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

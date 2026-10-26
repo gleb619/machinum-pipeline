@@ -18,6 +18,10 @@
       "dependsOn": ["build"],
       "inputs": ["src/**/*.ts", "test/**/*.ts", "tsconfig.json"]
     },
+    "test:coverage": {
+      "dependsOn": ["build"],
+      "inputs": ["src/**/*.ts", "tests/**/*.test.ts", "tsconfig.json"]
+    },
     "clean": {
       "cache": false
     }

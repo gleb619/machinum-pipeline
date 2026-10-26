@@ -39,7 +39,8 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
 
 2. **Code** — do the change, scoped to the task.
 3. **Pre-commit gate** — run `pnpm test` + `pnpm lint` (scoped to the change) **before** committing.
-   Red → fix, do not commit.
+   Red → fix, do not commit. The merge gate is `pnpm test:coverage` (coverage report for
+   `@mt/core` + `@mt/tools` with thresholds; paste the report in the merge note).
 4. **Commit** — only when the pre-commit gate is green.
 5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
    (`samples/sample*/tests/`) **and** the GPU gate `pnpm test:gpu` has been **run**. Red → stay on
