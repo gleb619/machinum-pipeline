@@ -3,3 +3,4 @@ vault.json
 *.vault.json
 .mt/vault*
 *.kdbx
+*.embed.json
