@@ -1,5 +1,7 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { setVariables } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
+import { exField } from '../fields.js'
 import { chapterVars, parseWordList, readChapter, renderPrompt, roundTripIssue } from './doc.js'
 import type { ChapterSource } from './doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
@@ -60,9 +62,9 @@ function validateVocabulary(
   return { ok: true, value: grounded }
 }
 
-/** Narrow `meta.knownWords` to strings, matching the pre-LLM behaviour. */
-function readKnownWords(meta: Record<string, unknown> | undefined): string[] {
-  const raw = meta?.knownWords
+/** Narrow variable `knownWords` to strings, matching the pre-LLM behaviour. */
+function readKnownWords(ex: Pick<Exchange<unknown>, 'meta' | 'variables'>): string[] {
+  const raw = exField<unknown>(ex, 'knownWords')
   return Array.isArray(raw) && raw.every((word): word is string => typeof word === 'string')
     ? raw
     : []
@@ -82,10 +84,10 @@ const DEFAULTS: SchemaDocLlmOptions = {
 /**
  * Builds the vocabulary tool.
  *
- * Deduplication against `meta.knownWords` is preserved: only unseen terms are
- * reported as `meta.vocabulary`, and `meta.knownWords` accumulates across items.
- * Per-envelope overrides: `meta.schemaDocLlm`, `meta.vocabularyLimit`,
- * `meta.vocabularyPrompt` / `meta.vocabularySystemPrompt`.
+ * Deduplication against variable `knownWords` is preserved: only unseen terms are
+ * reported as variable `vocabulary`, and variable `knownWords` accumulates across items.
+ * Per-envelope overrides: variable `schemaDocLlm`, variable `vocabularyLimit`,
+ * variable `vocabularyPrompt` / variable `vocabularySystemPrompt`.
  */
 export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: number }) {
   return defineTool<string, string>({
@@ -93,21 +95,21 @@ export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: n
     version: '1.1.0',
     mdDescription:
       'Extracts key terms from the chapter with an LLM through the OpenRouter proxy, deduplicates ' +
-      'them against `meta.knownWords`, and falls back to summary word extraction when the loop guard ' +
-      'is exhausted. Stores `meta.vocabulary` and `meta.knownWords`.',
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
+      'them against variable `knownWords`, and falls back to summary word extraction when the loop guard ' +
+      'is exhausted. Stores variable `vocabulary` and variable `knownWords`.',
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const { limit: optionLimit, ...llmOptions } = options ?? {}
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env.meta, 'vocabulary')
+      const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'vocabulary')
       const limit = Math.min(
         MAX_LIMIT,
         Math.max(
           1,
-          Math.floor(readNumber(env.meta?.vocabularyLimit) ?? optionLimit ?? DEFAULT_LIMIT),
+          Math.floor(readNumber(exField(env, 'vocabularyLimit')) ?? optionLimit ?? DEFAULT_LIMIT),
         ),
       )
       const inputs = env.items ?? [env.item]
 
-      const knownWords = [...readKnownWords(env.meta)]
+      const knownWords = [...readKnownWords(env)]
       const knownSet = new Set(knownWords)
       const perItem: string[][] = []
       const results: PromptRetryResult<string[]>[] = []
@@ -139,16 +141,15 @@ export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: n
         results.push(outcome)
       }
 
-      const meta: Envelope<string>['meta'] = {
-        ...env.meta,
+      const values: Record<string, unknown> = {
         vocabulary: perItem[0] ?? [],
         knownWords,
         vocabularyLlm: attemptMeta(results),
       }
       if (env.items) {
-        meta.vocabularyByItem = perItem
+        values.vocabularyByItem = perItem
       }
-      return { ...env, meta }
+      return setVariables(env, values)
     },
   })
 }

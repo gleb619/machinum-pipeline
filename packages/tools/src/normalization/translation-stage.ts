@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { defineTool, mapConcurrent } from '@mt/core'
+import { defineTool, mapConcurrent, setVariable, setVariables, withItem } from '@mt/core'
 import type { Tool, ToolContext } from '@mt/core'
 import type { TranslateInput, TranslateOutput } from '../core/translate-text.js'
 import { LineParityError, lintLineParity } from '../verification/line-parity-linter.js'
 import type { LineParityInput } from '../verification/line-parity-linter.js'
+import { exField } from './fields.js'
 import { chapterNumberOf, parseGlossary } from './glossary-extractor.js'
 import type { SchemaDocLlmCall } from './schema/llm.js'
 import { stripTerms, tagTerms } from './term-tagger.js'
@@ -120,19 +121,20 @@ export function createGlossaryTitleTranslator(
       const ru = await ask(options.call, prompt.systemPrompt, prompt.userPrompt, ctx, options.mode)
       const verdict = lintLineParity(title, ru, { cyrillicSeverity: 'error' })
       if (!verdict.ok) throw new LineParityError(verdict)
-      return { item: { translatedText: ru }, meta: env.meta }
+      return withItem(env, { translatedText: ru })
     },
   })
 }
 
-/** Batch of tagged chapters -> title inputs for `titleTranslator`; chapters stay in `meta.chapters`. */
+/** Batch of tagged chapters -> title inputs for `titleTranslator`; chapters stay in variable `chapters`. */
 export const chaptersToTitleInputs = defineTool<
   string[],
   { text: string; targetLang: string; sourceLang?: string }
 >({
   name: 'chapters-to-title-inputs',
   version: '1.0.0',
-  mdDescription: 'Stashes the tagged chapters in meta and emits one "# title" text per chapter.',
+  mdDescription:
+    'Stashes the tagged chapters in a variable and emits one "# title" text per chapter.',
   async invoke(env) {
     const chapters = env.items ?? [env.item as unknown as string]
     const flat = chapters.flat() as string[]
@@ -140,7 +142,7 @@ export const chaptersToTitleInputs = defineTool<
       const heading = /^#\s+.+$/m.exec(md)?.[0] ?? '# Untitled'
       return { text: heading, targetLang: 'ru', sourceLang: 'en' }
     })
-    return { item: items[0] as never, items, meta: { ...env.meta, chapters: flat } }
+    return setVariable({ ...withItem(env, items[0] as never), items }, 'chapters', flat)
   },
 })
 
@@ -235,7 +237,7 @@ export interface ChapterBodyTranslatorOptions {
 /**
  * Body step after `titleTranslator`: translates every tagged chapter of `meta.chapters` line by
  * line (glossary + summary injection) and emits `{ en, ru }` pairs (`items`) plus
- * `meta.chapterNums` / `meta.titlesRu`. Replies that passed the line check are memoised, so
+ * variables `chapterNums` / `titlesRu`. Replies that passed the line check are memoised, so
  * engine retries only re-send the failed lines.
  */
 export function createChapterBodyTranslator(options: ChapterBodyTranslatorOptions) {
@@ -246,7 +248,7 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
     mdDescription:
       'Translates each tagged chapter line by line (glossary + summary injection, optional work mode).',
     async invoke(env, ctx) {
-      const chapters = (env.meta.chapters as string[]) ?? []
+      const chapters = exField<string[]>(env, 'chapters') ?? []
       // titleTranslator's assemble slot returns a batch as `item: [...]` (no `items`)
       const outs = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])
       const titles = outs.map((t) => titleOf(t.text))
@@ -270,11 +272,10 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
         pairs.push({ en: stripTerms(tagged), ru })
         nums.push(n)
       }
-      return {
-        item: pairs[0] as LineParityInput,
-        items: pairs,
-        meta: { ...env.meta, chapterNums: nums, titlesRu: titles },
-      }
+      return setVariables(
+        { ...withItem(env, pairs[0] as LineParityInput), items: pairs },
+        { chapterNums: nums, titlesRu: titles },
+      )
     },
   })
 }

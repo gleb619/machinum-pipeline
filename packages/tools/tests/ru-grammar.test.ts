@@ -1,8 +1,10 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
+import { exchangeOf } from './exchange-helper.js'
 
 import { parseGlossary, serializeGlossary } from '../src/normalization/glossary-extractor.js'
 import {
@@ -233,8 +235,12 @@ describe('ruGrammarTool', () => {
       ],
     }
     const tool = createRuGrammarTool()
-    const out = await tool.invoke({ item: 'На книге лежат книги.', meta: { glossary } }, CTX)
-    const report = out.meta.ruGrammar as { ok: boolean; checked: number; issues: unknown[] }
+    const out = await tool.invoke(exchangeOf('На книге лежат книги.', { glossary }), CTX)
+    const report = getVariable(out, 'ruGrammar') as {
+      ok: boolean
+      checked: number
+      issues: unknown[]
+    }
     expect(report.ok).toBe(true)
     expect(report.checked).toBe(1)
     expect(report.issues).toHaveLength(0)
@@ -260,8 +266,11 @@ describe('ruGrammarTool', () => {
       await writeFile(file, serializeGlossary(glossary))
 
       const tool = createRuGrammarTool({ glossaryFile: file, inferMissing: true })
-      const out = await tool.invoke({ item: 'Книги лежат на столе.', meta: {} }, CTX)
-      expect(out.meta.ruGrammar).toBeDefined()
+      const out = await tool.invoke(
+        { id: 'ex-test', variables: [], item: 'Книги лежат на столе.', meta: {} },
+        CTX,
+      )
+      expect(getVariable(out, 'ruGrammar')).toBeDefined()
 
       const written = parseGlossary(await readFile(file, 'utf-8'))
       expect(written).toBeDefined()

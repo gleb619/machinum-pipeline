@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises'
-import { defineTool } from '@mt/core'
-import type { Envelope } from '@mt/core'
+import { defineTool, setVariables } from '@mt/core'
+import type { Exchange } from '@mt/core'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
+import { exField } from './fields.js'
 import {
   guessType,
   parseGlossary,
@@ -16,7 +17,7 @@ import type { Glossary, GlossaryTerm, GlossaryTermType } from './term-tagger.js'
 /**
  * Ranked translation dictionary builder (T148).
  *
- * Turns a T147 {@link StatFreqReport} (`meta.statFreq`, a report file, or the envelope text itself)
+ * Turns a T147 {@link StatFreqReport} (`variable statFreq`, a report file, or the envelope text itself)
  * into a glossary-shaped dictionary: candidates above a frequency threshold, type guessed from the
  * term, merged into an existing glossary.
  *
@@ -42,7 +43,7 @@ export interface StatDictOptions {
   topK?: number
   /** Existing glossary file to merge into (a missing file means an empty glossary). */
   glossaryFile?: string
-  /** Frequency report file to read (`StatFreqReport` JSON); overrides `meta.statFreq`. */
+  /** Frequency report file to read (`StatFreqReport` JSON); overrides `variable statFreq`. */
   reportFile?: string
   /** When set, the merged glossary is also written there as JSON (atomic write). */
   outFile?: string
@@ -182,9 +183,9 @@ async function loadExistingGlossary(path: string | undefined): Promise<Glossary>
   return parsed
 }
 
-/** Reads the frequency report: report file, then `meta.statFreq`, then the envelope text. */
+/** Reads the frequency report: report file, then `variable statFreq`, then the envelope text. */
 async function loadStatFreqReport(
-  env: Envelope<string | string[]>,
+  env: Exchange<string | string[]>,
   options: StatDictOptions,
 ): Promise<StatFreqReport> {
   if (options.reportFile) {
@@ -194,10 +195,12 @@ async function loadStatFreqReport(
     }
     return raw
   }
-  const meta = env.meta.statFreq
-  if (meta !== undefined) {
-    if (!isStatFreqReport(meta)) throw new Error('stat-dict: meta.statFreq is not a StatFreqReport')
-    return meta
+  const fromVar = exField<unknown>(env, 'statFreq')
+  if (fromVar !== undefined) {
+    if (!isStatFreqReport(fromVar)) {
+      throw new Error('stat-dict: statFreq is not a StatFreqReport')
+    }
+    return fromVar
   }
   const items = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])
   const texts = items.filter((text): text is string => typeof text === 'string')
@@ -208,17 +211,17 @@ async function loadStatFreqReport(
  * Tool: builds a ranked translation dictionary from a frequency report.
  *
  * The envelope (and its cardinality) is returned untouched; the merged glossary lands in
- * `meta.statDict` and its JSON form in `meta.statDictJson`.
+ * `variable statDict` and its JSON form in `variable statDictJson`.
  */
 export function defineStatDict(options: StatDictOptions = {}) {
   return defineTool<string | string[], string | string[]>({
     name: 'stat-dict',
     version: '1.0.0',
     mdDescription:
-      'Ranked translation dictionary from a stat-freq report (meta.statFreq, a report file or the ' +
+      'Ranked translation dictionary from a stat-freq report (variable statFreq, a report file or the ' +
       'envelope text): candidates above a frequency threshold, type guess, merged into an existing ' +
-      'glossary without touching existing entries. Result in meta.statDict.',
-    async invoke(env: Envelope<string | string[]>): Promise<Envelope<string | string[]>> {
+      'glossary without touching existing entries. Result in variable statDict.',
+    async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const report = await loadStatFreqReport(env, options)
       const existing = await loadExistingGlossary(options.glossaryFile)
       const glossary = buildStatDict(report, existing, options)
@@ -227,10 +230,7 @@ export function defineStatDict(options: StatDictOptions = {}) {
         await ensureParentDir(options.outFile)
         await atomicWriteFile(options.outFile, json)
       }
-      return {
-        ...env,
-        meta: { ...env.meta, statDict: glossary, statDictJson: json },
-      }
+      return setVariables(env, { statDict: glossary, statDictJson: json })
     },
   })
 }

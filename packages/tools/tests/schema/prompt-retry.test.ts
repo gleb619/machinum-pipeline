@@ -8,6 +8,7 @@ import {
   resolveLlmOptions,
   runPromptWithRetry,
 } from '../../src/normalization/schema/llm.js'
+import { exchangeOf } from '../exchange-helper.js'
 import { installRouter, toolContext } from './mock-router.js'
 
 let router: ReturnType<typeof installRouter> | undefined
@@ -267,11 +268,11 @@ describe('resolveLlmOptions', () => {
   it('lets meta override the tool options and the prompt templates', () => {
     const resolved = resolveLlmOptions(
       { model: 'tool/model', userPrompt: 'tool prompt', systemPrompt: 'tool system' },
-      {
+      exchangeOf('', {
         schemaDocLlm: { model: 'meta/model', maxAttempts: 5, temperature: 0.1 },
         summaryPrompt: 'meta prompt',
         summarySystemPrompt: 'meta system',
-      },
+      }),
       'summary',
     )
 
@@ -287,7 +288,7 @@ describe('resolveLlmOptions', () => {
   it('ignores malformed meta overrides', () => {
     const resolved = resolveLlmOptions(
       { model: 'tool/model' },
-      { schemaDocLlm: 'nope', summaryPrompt: 42 },
+      exchangeOf('', { schemaDocLlm: 'nope', summaryPrompt: 42 }),
       'summary',
     )
 

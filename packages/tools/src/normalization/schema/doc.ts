@@ -1,5 +1,7 @@
+import type { Exchange } from '@mt/core'
 import { parseCsvRows, readDoc, writeDoc } from '../../modification/schema-doc.js'
 import type { SchemaDocEnvelope, SchemaDocMetadata } from '../../modification/schema-doc.js'
+import { exField } from '../fields.js'
 
 /** The chapter as an extraction tool sees it: title, full body text, parsed document. */
 export interface ChapterSource {
@@ -180,9 +182,9 @@ export function roundTripIssue(
   return undefined
 }
 
-/** Builds the deterministic metadata row from run meta and the document itself. */
+/** Builds the deterministic metadata row from run meta/variables and the document itself. */
 export function metadataGroundTruth(
-  meta: Record<string, unknown> | undefined,
+  ex: Pick<Exchange<unknown>, 'meta' | 'variables'>,
   source: ChapterSource,
   item: string,
 ): SchemaDocMetadata {
@@ -190,15 +192,15 @@ export function metadataGroundTruth(
   const fromMeta = (value: unknown) =>
     typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
 
-  const chapterValue = fromMeta(meta?.chapterNum) ?? fromMeta(meta?.chapter)
-  const wordCountValue = fromMeta(meta?.wordCount)
-  const tokenCountValue = fromMeta(meta?.tokenCount)
+  const chapterValue = fromMeta(ex.meta?.chapterNum) ?? fromMeta(ex.meta?.chapter)
+  const wordCountValue = fromMeta(exField(ex, 'wordCount'))
+  const tokenCountValue = fromMeta(exField(ex, 'tokenCount'))
 
   return {
     chapter: chapterValue ?? (doc.chapter > 0 ? doc.chapter : 1),
     wordCount: wordCountValue ?? (doc.wordCount > 0 ? doc.wordCount : countWords(source.body)),
     tokenCount: tokenCountValue ?? doc.tokenCount,
-    charLength: fromMeta(meta?.charLength) ?? (doc.charLength || item.length),
+    charLength: fromMeta(exField(ex, 'charLength')) ?? (doc.charLength || item.length),
   }
 }
 

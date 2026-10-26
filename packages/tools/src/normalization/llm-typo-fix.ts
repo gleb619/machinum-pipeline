@@ -1,5 +1,8 @@
-import { defineTool } from '@mt/core'
+import { defineTool, setVariable, withItem } from '@mt/core'
 import type { SchemaDocLlmCall } from './schema/llm.js'
+
+/** Variable telling whether the LLM reply was applied. */
+export const VAR_LLM_FIXED = 'llmFixed'
 
 export const LLM_TYPO_FIX_PROMPT =
   'Fix only obvious typos and punctuation mistakes. Keep the meaning, wording, [bracketed] ' +
@@ -16,7 +19,7 @@ export interface LlmTypoFixOptions {
 
 /**
  * Optional LLM typo fix of `env.item` (plain text). A reply with a different line count is
- * rejected (original kept). `meta.llmFixed` tells whether the reply was applied.
+ * rejected (original kept). variable `llmFixed` tells whether the reply was applied.
  */
 export function createLlmTypoFix(options: LlmTypoFixOptions) {
   const enabled = options.enabled ?? true
@@ -37,7 +40,7 @@ export function createLlmTypoFix(options: LlmTypoFixOptions) {
       )
       const fixed = res.content.trim()
       const same = fixed.split('\n').length === env.item.split('\n').length
-      return { item: same ? fixed : env.item, meta: { ...env.meta, llmFixed: same } }
+      return setVariable(withItem(env, same ? fixed : env.item), VAR_LLM_FIXED, same)
     },
   })
 }

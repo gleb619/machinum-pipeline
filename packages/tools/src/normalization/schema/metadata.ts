@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { setVariables } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import type { SchemaDocMetadata } from '../../modification/schema-doc.js'
 import {
   chapterVars,
@@ -83,8 +84,8 @@ const DEFAULTS: SchemaDocLlmOptions = {
  * The four counters are known facts (run meta, the document itself, or the item
  * length), so they are handed to the model as ground truth and the loop guard
  * rejects any answer that rewrites them; the deterministic row is used when the
- * guard is exhausted. Per-envelope overrides: `meta.schemaDocLlm`,
- * `meta.metadataPrompt` / `meta.metadataSystemPrompt`.
+ * guard is exhausted. Per-envelope overrides: variable `schemaDocLlm`,
+ * variable `metadataPrompt` / variable `metadataSystemPrompt`.
  */
 export function createMetadataTool(options?: SchemaDocLlmOptions) {
   return defineTool<string, string>({
@@ -93,9 +94,9 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
     mdDescription:
       'Extracts the schema-doc Metadata row (chapter, wordCount, tokenCount, charLength) with an ' +
       'LLM through the OpenRouter proxy, validated against the measured values and falling back to ' +
-      'the deterministic row. Stores `meta.metadata`.',
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'metadata')
+      'the deterministic row. Stores variable `metadata`.',
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
+      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'metadata')
       const inputs = env.items ?? [env.item]
 
       const rows: SchemaDocMetadata[] = []
@@ -103,7 +104,7 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
 
       for (const input of inputs) {
         const source = readChapter(input)
-        const truth = metadataGroundTruth(env.meta, source, input)
+        const truth = metadataGroundTruth(env, source, input)
         const outcome = await runPromptWithRetry(ctx, {
           ...resolved,
           systemPrompt: renderPrompt(resolved.systemPrompt ?? METADATA_SYSTEM_PROMPT, {
@@ -126,15 +127,14 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
         results.push(outcome)
       }
 
-      const meta: Envelope<string>['meta'] = {
-        ...env.meta,
+      const values: Record<string, unknown> = {
         metadata: rows[0] ?? { chapter: 1, wordCount: 0, tokenCount: 0, charLength: 0 },
         metadataLlm: attemptMeta(results),
       }
       if (env.items) {
-        meta.metadataByItem = rows
+        values.metadataByItem = rows
       }
-      return { ...env, meta }
+      return setVariables(env, values)
     },
   })
 }

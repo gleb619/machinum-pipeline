@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -121,22 +122,24 @@ describe('old-term reuse', () => {
         seen,
       ),
     })
-    return tool.invoke({ item: [CH1], items: [CH1], meta: {} }, ctx).then((res) => {
-      const glossary = res.meta.glossary as Glossary
-      expect(byTerm(glossary, 'Marta')).toMatchObject({
-        ru: 'Марта',
-        type: 'character',
-        aliases: ['Marty'],
+    return tool
+      .invoke({ id: 'ex-test', variables: [], item: [CH1], items: [CH1], meta: {} }, ctx)
+      .then((res) => {
+        const glossary = getVariable(res, 'glossary') as Glossary
+        expect(byTerm(glossary, 'Marta')).toMatchObject({
+          ru: 'Марта',
+          type: 'character',
+          aliases: ['Marty'],
+        })
+        // the reused term is offered to the model as known, never as a candidate
+        const user = seen[0]?.messages[0]?.content ?? ''
+        expect(user).toContain('Terms already in the glossary')
+        expect(user).toContain('Marta')
+        const candidates = (user.split('Candidate terms detected')[1] ?? '').split(
+          'Text to Analyze',
+        )[0]
+        expect(candidates).not.toContain('Marta')
       })
-      // the reused term is offered to the model as known, never as a candidate
-      const user = seen[0]?.messages[0]?.content ?? ''
-      expect(user).toContain('Terms already in the glossary')
-      expect(user).toContain('Marta')
-      const candidates = (user.split('Candidate terms detected')[1] ?? '').split(
-        'Text to Analyze',
-      )[0]
-      expect(candidates).not.toContain('Marta')
-    })
   })
 
   it('adds the terms the model reports and maps their category to a type', () => {
@@ -187,8 +190,11 @@ describe('old-term reuse', () => {
         ]),
       ),
     })
-    const res = await tool.invoke({ item: [CH1], items: [CH1], meta: {} }, ctx)
-    const glossary = res.meta.glossary as Glossary
+    const res = await tool.invoke(
+      { id: 'ex-test', variables: [], item: [CH1], items: [CH1], meta: {} },
+      ctx,
+    )
+    const glossary = getVariable(res, 'glossary') as Glossary
     expect(byTerm(glossary, 'Iron Keep')).toBeUndefined()
   })
 
@@ -272,11 +278,14 @@ describe('relation graph', () => {
 
   it('stores the graph in the tool meta', async () => {
     const tool = createGlossaryExtractor()
-    const res = await tool.invoke({ item: [CH1, CH2], items: [CH1, CH2], meta: {} }, ctx)
-    const glossary = res.meta.glossary as Glossary
-    const graphMeta = res.meta.glossaryGraph as { nodes: unknown[]; edges: unknown[] }
+    const res = await tool.invoke(
+      { id: 'ex-test', variables: [], item: [CH1, CH2], items: [CH1, CH2], meta: {} },
+      ctx,
+    )
+    const glossary = getVariable(res, 'glossary') as Glossary
+    const graphMeta = getVariable(res, 'glossaryGraph') as { nodes: unknown[]; edges: unknown[] }
     expect(graphMeta.nodes).toHaveLength(glossary.terms.length)
-    expect(String(res.meta.glossaryGraphJson)).toContain('"nodes"')
+    expect(String(getVariable(res, 'glossaryGraphJson'))).toContain('"nodes"')
   })
 })
 
@@ -296,8 +305,11 @@ describe('LLM stages', () => {
         seen,
       ),
     })
-    const res = await tool.invoke({ item: [CH1], items: [CH1], meta: {} }, ctx)
-    const glossary = res.meta.glossary as Glossary
+    const res = await tool.invoke(
+      { id: 'ex-test', variables: [], item: [CH1], items: [CH1], meta: {} },
+      ctx,
+    )
+    const glossary = getVariable(res, 'glossary') as Glossary
     expect(seen[0]?.systemPrompt).toBe(loadBundledPrompt('glossary.system'))
     expect(seen[0]?.messages[0]?.content).toContain('Arin Vale walked into the Iron Keep')
     expect(byTerm(glossary, 'Iron Keep')?.type).toBe('place')
@@ -307,10 +319,13 @@ describe('LLM stages', () => {
 
   it('falls back to the heuristic glossary when the model reply is unusable', async () => {
     const tool = createGlossaryExtractor({ call: mockCall('not json at all') })
-    const res = await tool.invoke({ item: [CH1], items: [CH1], meta: {} }, ctx)
-    const glossary = res.meta.glossary as Glossary
+    const res = await tool.invoke(
+      { id: 'ex-test', variables: [], item: [CH1], items: [CH1], meta: {} },
+      ctx,
+    )
+    const glossary = getVariable(res, 'glossary') as Glossary
     expect(byTerm(glossary, 'Arin Vale')).toBeDefined()
-    expect((res.meta.glossaryLlm as { fallbackUsed: boolean }).fallbackUsed).toBe(true)
+    expect((getVariable(res, 'glossaryLlm') as { fallbackUsed: boolean }).fallbackUsed).toBe(true)
   })
 
   it('asks for the relations of the terms without references', async () => {
@@ -325,7 +340,7 @@ describe('LLM stages', () => {
       relations: { enabled: true, maxTerms: 1 },
       maxAttempts: 1,
     })
-    await tool.invoke({ item: [CH1], items: [CH1], meta: {} }, ctx)
+    await tool.invoke({ id: 'ex-test', variables: [], item: [CH1], items: [CH1], meta: {} }, ctx)
     expect(seen.length).toBeGreaterThan(1)
     expect(seen[1]?.systemPrompt).toBe(loadBundledPrompt('glossary-relations.system'))
     expect(seen[1]?.messages[0]?.content).toContain('Current Name:')

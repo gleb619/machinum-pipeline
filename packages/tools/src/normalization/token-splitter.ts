@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { Envelope, Tool, ToolContext } from '@mt/core'
+import { defineTool, setVariables, withItem } from '@mt/core'
+import type { Exchange, Tool, ToolContext } from '@mt/core'
 
 export const DEFAULT_MAX_TOKENS = 12000
 export const DEFAULT_CHUNK_TARGET = 6000
@@ -393,7 +393,7 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
     version: '1.0.0',
     mdDescription:
       'Splits text into chunks using a pluggable TokenSplitStrategy. Default strategy splits at paragraph boundaries respecting a token limit.',
-    async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string[]>> {
+    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string[]>> {
       const inputs = env.items ?? [env.item]
       const allChunks: string[] = []
 
@@ -409,15 +409,11 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
         }
       }
 
-      return {
-        item: allChunks,
-        meta: {
-          ...env.meta,
-          split: allChunks.length > inputs.length,
-          chunkCount: allChunks.length,
-          strategy: strategy.name,
-        },
-      }
+      return setVariables(withItem(env, allChunks), {
+        split: allChunks.length > inputs.length,
+        chunkCount: allChunks.length,
+        strategy: strategy.name,
+      })
     },
   })
 

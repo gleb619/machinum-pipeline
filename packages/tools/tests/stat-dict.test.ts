@@ -1,8 +1,10 @@
 import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
+import { exchangeOf } from './exchange-helper.js'
 
 import { parseGlossary, serializeGlossary } from '../src/normalization/glossary-extractor.js'
 import {
@@ -133,20 +135,23 @@ describe('buildStatDict', () => {
 
 describe('statDict tool', () => {
   it('stores the dictionary in meta and keeps the item untouched', async () => {
-    const out = await statDict.invoke({ item: TEXT, meta: { chapterId: 'c1' } }, CTX)
+    const out = await statDict.invoke(
+      { id: 'ex-test', variables: [], item: TEXT, meta: { chapterId: 'c1' } },
+      CTX,
+    )
     expect(out.item).toBe(TEXT)
     expect(out.meta.chapterId).toBe('c1')
-    const glossary = out.meta.statDict as Glossary
+    const glossary = getVariable(out, 'statDict') as Glossary
     expect(glossary.terms.map((t) => t.term)).toContain('cat')
-    expect(out.meta.statDictJson).toBe(serializeGlossary(glossary))
+    expect(getVariable(out, 'statDictJson')).toBe(serializeGlossary(glossary))
   })
 
   it('uses meta.statFreq when it is present', async () => {
     const report = buildStatFreqReport([
       'Dragon breathes fire. Dragon breathes fire. Dragon breathes fire.',
     ])
-    const out = await statDict.invoke({ item: TEXT, meta: { statFreq: report } }, CTX)
-    const glossary = out.meta.statDict as Glossary
+    const out = await statDict.invoke(exchangeOf(TEXT, { statFreq: report }), CTX)
+    const glossary = getVariable(out, 'statDict') as Glossary
     expect(glossary.terms.map((t) => t.term)).toEqual([
       'breathes',
       'breathes fire',
@@ -158,8 +163,8 @@ describe('statDict tool', () => {
   })
 
   it('counts the envelope text when there is no report', async () => {
-    const out = await statDict.invoke({ item: TEXT, meta: {} }, CTX)
-    const glossary = out.meta.statDict as Glossary
+    const out = await statDict.invoke({ id: 'ex-test', variables: [], item: TEXT, meta: {} }, CTX)
+    const glossary = getVariable(out, 'statDict') as Glossary
     expect(glossary.terms.find((t) => t.term === 'cat')?.count).toBe(3)
   })
 
@@ -170,8 +175,8 @@ describe('statDict tool', () => {
       const outFile = join(dir, 'nested', 'dict.json')
       await writeFile(glossaryFile, serializeGlossary(EXISTING), 'utf-8')
       const tool = defineStatDict({ glossaryFile, outFile, minCount: 3 })
-      const out = await tool.invoke({ item: TEXT, meta: {} }, CTX)
-      const glossary = out.meta.statDict as Glossary
+      const out = await tool.invoke({ id: 'ex-test', variables: [], item: TEXT, meta: {} }, CTX)
+      const glossary = getVariable(out, 'statDict') as Glossary
       expect(glossary.terms[0]).toEqual(EXISTING.terms[0])
       expect(glossary.terms.filter((t) => t.term.toLowerCase() === 'cat')).toHaveLength(1)
       const written = await readFile(outFile, 'utf-8')
@@ -187,8 +192,8 @@ describe('statDict tool', () => {
     const dir = await mkdtemp(join(tmpdir(), 'mt-stat-dict-'))
     try {
       const tool = defineStatDict({ glossaryFile: join(dir, 'nope.json') })
-      const out = await tool.invoke({ item: TEXT, meta: {} }, CTX)
-      const glossary = out.meta.statDict as Glossary
+      const out = await tool.invoke({ id: 'ex-test', variables: [], item: TEXT, meta: {} }, CTX)
+      const glossary = getVariable(out, 'statDict') as Glossary
       expect(glossary.terms.length).toBeGreaterThan(0)
       expect(glossary.terms.every((t) => t.ru === null)).toBe(true)
     } finally {
@@ -202,9 +207,9 @@ describe('statDict tool', () => {
       const glossaryFile = join(dir, 'glossary.json')
       await writeFile(glossaryFile, '{ not json', 'utf-8')
       const tool = defineStatDict({ glossaryFile })
-      await expect(tool.invoke({ item: TEXT, meta: {} }, CTX)).rejects.toThrow(
-        /cannot parse glossary file/,
-      )
+      await expect(
+        tool.invoke({ id: 'ex-test', variables: [], item: TEXT, meta: {} }, CTX),
+      ).rejects.toThrow(/cannot parse glossary file/)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

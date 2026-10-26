@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { setVariables } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { chapterVars, parseEntityRows, readChapter, renderPrompt, roundTripIssue } from './doc.js'
 import type { ChapterSource } from './doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
@@ -72,8 +73,8 @@ const DEFAULTS: SchemaDocLlmOptions = {
 /**
  * Builds the LLM-backed entity extractor.
  *
- * Per-envelope overrides come from `meta.schemaDocLlm` or `meta.entitiesPrompt` /
- * `meta.entitiesSystemPrompt`. Fallback order when the loop guard is exhausted:
+ * Per-envelope overrides come from variable `schemaDocLlm` or variable `entitiesPrompt` /
+ * variable `entitiesSystemPrompt`. Fallback order when the loop guard is exhausted:
  * the schema-doc `## Entities` CSV, then a single `chapter` placeholder entity.
  */
 export function createEntitiesTool(options?: SchemaDocLlmOptions) {
@@ -83,9 +84,9 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions) {
     mdDescription:
       'Extracts named entities from the chapter with an LLM through the OpenRouter proxy, as CSV ' +
       'rows (`index,name`). Loop-guarded retries fall back to the schema-doc Entities block, then a ' +
-      'default entity. Stores `meta.entities`.',
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'entities')
+      'default entity. Stores variable `entities`.',
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
+      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'entities')
       const inputs = env.items ?? [env.item]
 
       const collected: SchemaEntity[][] = []
@@ -111,15 +112,14 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions) {
         results.push(outcome)
       }
 
-      const meta: Envelope<string>['meta'] = {
-        ...env.meta,
+      const values: Record<string, unknown> = {
         entities: collected[0] ?? [],
         entitiesLlm: attemptMeta(results),
       }
       if (env.items) {
-        meta.entitiesByItem = collected
+        values.entitiesByItem = collected
       }
-      return { ...env, meta }
+      return setVariables(env, values)
     },
   })
 }

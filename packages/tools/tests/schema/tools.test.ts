@@ -1,4 +1,5 @@
-import type { Envelope } from '@mt/core'
+import { getVariable } from '@mt/core'
+import type { Exchange } from '@mt/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import { readDoc, schemaDocWriter, writeDoc } from '../../src/modification/schema-doc.js'
 import type { SchemaDocEnvelope } from '../../src/modification/schema-doc.js'
@@ -9,6 +10,7 @@ import { schemaTool } from '../../src/normalization/schema/schema.js'
 import { summaryTool } from '../../src/normalization/schema/summary.js'
 import { createSummaryTool } from '../../src/normalization/schema/summary.js'
 import { createVocabularyTool, vocabularyTool } from '../../src/normalization/schema/vocabulary.js'
+import { exchangeOf } from '../exchange-helper.js'
 import {
   CHAPTER,
   CHAPTER_TWO,
@@ -30,8 +32,8 @@ afterEach(() => {
 
 const UNAVAILABLE = () => installRouter([{ status: 503, body: 'no keys left' }])
 
-function envelopeOf(item: string, meta: Record<string, unknown> = {}) {
-  return { item, meta }
+function envelopeOf(item: string, fields: Record<string, unknown> = {}) {
+  return exchangeOf(item, fields)
 }
 
 function docWith(overrides: Partial<SchemaDocEnvelope>): SchemaDocEnvelope {
@@ -52,8 +54,8 @@ describe('summaryTool (LLM)', () => {
     const result = await summaryTool.invoke(envelopeOf(CHAPTER), toolContext())
 
     expect(result.item).toBe(CHAPTER)
-    expect(result.meta.summary).toBe(SUMMARY_REPLY)
-    expect(result.meta.summaryLlm).toMatchObject({ attempts: 1, fallbackUsed: false })
+    expect(getVariable(result, 'summary')).toBe(SUMMARY_REPLY)
+    expect(getVariable(result, 'summaryLlm')).toMatchObject({ attempts: 1, fallbackUsed: false })
   })
 
   it('renders the chapter into the prompt', async () => {
@@ -70,8 +72,8 @@ describe('summaryTool (LLM)', () => {
 
     const result = await summaryTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.summary).toBe(SUMMARY_REPLY)
-    expect(result.meta.summaryLlm).toMatchObject({ attempts: 2, fallbackUsed: false })
+    expect(getVariable(result, 'summary')).toBe(SUMMARY_REPLY)
+    expect(getVariable(result, 'summaryLlm')).toMatchObject({ attempts: 2, fallbackUsed: false })
     expect(router.calls).toHaveLength(2)
     expect(router.lastPrompt()).toContain('rejected (attempt 1 of 3)')
   })
@@ -81,8 +83,8 @@ describe('summaryTool (LLM)', () => {
 
     const result = await summaryTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.summary).toBe(SUMMARY_REPLY)
-    expect(result.meta.summaryLlm).toMatchObject({ attempts: 2 })
+    expect(getVariable(result, 'summary')).toBe(SUMMARY_REPLY)
+    expect(getVariable(result, 'summaryLlm')).toMatchObject({ attempts: 2 })
   })
 
   it('falls back to the schema-doc summary when the router is unavailable', async () => {
@@ -90,10 +92,10 @@ describe('summaryTool (LLM)', () => {
 
     const result = await summaryTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.summary).toContain('Sir Aldric rode out of Thornhaven at dawn')
-    expect(result.meta.summary).toContain('harvest festival')
-    expect(result.meta.summaryLlm).toMatchObject({ attempts: 3, fallbackUsed: true })
-    expect(JSON.stringify(result.meta.summaryLlm)).toContain('503')
+    expect(getVariable(result, 'summary')).toContain('Sir Aldric rode out of Thornhaven at dawn')
+    expect(getVariable(result, 'summary')).toContain('harvest festival')
+    expect(getVariable(result, 'summaryLlm')).toMatchObject({ attempts: 3, fallbackUsed: true })
+    expect(JSON.stringify(getVariable(result, 'summaryLlm'))).toContain('503')
   })
 
   it('keeps the whole body when a plain chapter has an inner H1', async () => {
@@ -104,8 +106,8 @@ describe('summaryTool (LLM)', () => {
       toolContext(),
     )
 
-    expect(result.meta.summary).toContain('First paragraph.')
-    expect(result.meta.summary).toContain('The Backstory')
+    expect(getVariable(result, 'summary')).toContain('First paragraph.')
+    expect(getVariable(result, 'summary')).toContain('The Backstory')
   })
 
   it('reads the existing Summary section of a schema-doc when the router is unavailable', async () => {
@@ -114,7 +116,7 @@ describe('summaryTool (LLM)', () => {
 
     const result = await summaryTool.invoke(envelopeOf(md), toolContext())
 
-    expect(result.meta.summary).toBe('This is a summary of the test chapter.')
+    expect(getVariable(result, 'summary')).toBe('This is a summary of the test chapter.')
   })
 
   it('accepts a custom prompt and model from the tool options', async () => {
@@ -127,7 +129,7 @@ describe('summaryTool (LLM)', () => {
 
     const result = await tool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.summary).toBe(SUMMARY_REPLY)
+    expect(getVariable(result, 'summary')).toBe(SUMMARY_REPLY)
     expect(router.calls[0]?.model).toBe('anthropic/claude-sonnet-4')
     expect(router.calls[0]?.messages[0]?.content).toBe(
       'You are a pirate. Summarise for Chapter 1: The Road from Thornhaven.',
@@ -139,10 +141,10 @@ describe('summaryTool (LLM)', () => {
     router = installRouter([SUMMARY_REPLY])
 
     await summaryTool.invoke(
-      {
-        item: CHAPTER,
-        meta: { schemaDocLlm: { model: 'meta/model' }, summaryPrompt: 'custom: {{title}}' },
-      },
+      exchangeOf(CHAPTER, {
+        schemaDocLlm: { model: 'meta/model' },
+        summaryPrompt: 'custom: {{title}}',
+      }),
       toolContext(),
     )
 
@@ -164,8 +166,8 @@ describe('summaryTool (LLM)', () => {
 
     const result = await tool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.summary).toBe(SUMMARY_REPLY)
-    expect(result.meta.summaryLlm).toMatchObject({
+    expect(getVariable(result, 'summary')).toBe(SUMMARY_REPLY)
+    expect(getVariable(result, 'summaryLlm')).toMatchObject({
       attempts: 1,
       fallbackUsed: false,
       model: 'my/model',
@@ -177,16 +179,16 @@ describe('summaryTool (LLM)', () => {
     router = installRouter((_call, index) =>
       index === 0 ? SUMMARY_REPLY : 'Aldric is ambushed in the Darkwood by the Duke’s men.',
     )
-    const env = { item: CHAPTER, items: [CHAPTER, CHAPTER_TWO], meta: {} }
+    const env = exchangeOf(CHAPTER, {}, [CHAPTER, CHAPTER_TWO])
 
     const result = await summaryTool.invoke(env, toolContext())
 
-    expect(result.meta.summary).toBe(SUMMARY_REPLY)
-    expect(result.meta.summaryByItem).toEqual([
+    expect(getVariable(result, 'summary')).toBe(SUMMARY_REPLY)
+    expect(getVariable(result, 'summaryByItem')).toEqual([
       SUMMARY_REPLY,
       'Aldric is ambushed in the Darkwood by the Duke’s men.',
     ])
-    expect(result.meta.summaryLlm).toMatchObject({ attempts: 2, fallbackUsed: false })
+    expect(getVariable(result, 'summaryLlm')).toMatchObject({ attempts: 2, fallbackUsed: false })
   })
 })
 
@@ -196,13 +198,13 @@ describe('entitiesTool (LLM)', () => {
 
     const result = await entitiesTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.entities).toEqual([
+    expect(getVariable(result, 'entities')).toEqual([
       { index: 1, name: 'Sir Aldric' },
       { index: 2, name: 'Thornhaven' },
       { index: 3, name: 'Darkwood' },
       { index: 4, name: 'The Duke' },
     ])
-    expect(result.meta.entitiesLlm).toMatchObject({ attempts: 1, fallbackUsed: false })
+    expect(getVariable(result, 'entitiesLlm')).toMatchObject({ attempts: 1, fallbackUsed: false })
   })
 
   it('accepts a bare name list without an index column', async () => {
@@ -210,7 +212,7 @@ describe('entitiesTool (LLM)', () => {
 
     const result = await entitiesTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.entities).toEqual([
+    expect(getVariable(result, 'entities')).toEqual([
       { index: 1, name: 'Aldric' },
       { index: 2, name: 'Thornhaven' },
     ])
@@ -221,8 +223,8 @@ describe('entitiesTool (LLM)', () => {
 
     const result = await entitiesTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.entities).toHaveLength(4)
-    expect(result.meta.entitiesLlm).toMatchObject({ attempts: 2 })
+    expect(getVariable(result, 'entities')).toHaveLength(4)
+    expect(getVariable(result, 'entitiesLlm')).toMatchObject({ attempts: 2 })
     expect(router.lastPrompt()).toContain('none of the entities appear in the chapter')
   })
 
@@ -231,7 +233,7 @@ describe('entitiesTool (LLM)', () => {
 
     const result = await entitiesTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.entities).toEqual([{ index: 1, name: 'Sir Aldric' }])
+    expect(getVariable(result, 'entities')).toEqual([{ index: 1, name: 'Sir Aldric' }])
   })
 
   it('falls back to the schema-doc Entities block without a router', async () => {
@@ -240,8 +242,8 @@ describe('entitiesTool (LLM)', () => {
 
     const result = await entitiesTool.invoke(envelopeOf(md), toolContext())
 
-    expect(result.meta.entities).toEqual([{ index: 7, name: 'Dana' }])
-    expect(result.meta.entitiesLlm).toMatchObject({ attempts: 3, fallbackUsed: true })
+    expect(getVariable(result, 'entities')).toEqual([{ index: 7, name: 'Dana' }])
+    expect(getVariable(result, 'entitiesLlm')).toMatchObject({ attempts: 3, fallbackUsed: true })
   })
 
   it('falls back to the default entity when nothing is available', async () => {
@@ -249,17 +251,23 @@ describe('entitiesTool (LLM)', () => {
 
     const result = await entitiesTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.entities).toEqual([{ index: 1, name: 'chapter' }])
+    expect(getVariable(result, 'entities')).toEqual([{ index: 1, name: 'chapter' }])
   })
 
   it('processes batched envelopes', async () => {
     router = installRouter([ENTITIES_REPLY, 'index,name\n1,Darkwood\n2,Aldric'])
-    const env = { item: CHAPTER, items: [CHAPTER, CHAPTER_TWO], meta: {} }
+    const env = {
+      id: 'ex-test',
+      variables: [],
+      item: CHAPTER,
+      items: [CHAPTER, CHAPTER_TWO],
+      meta: {},
+    }
 
     const result = await entitiesTool.invoke(env, toolContext())
 
-    expect(result.meta.entities).toHaveLength(4)
-    expect(result.meta.entitiesByItem).toEqual([
+    expect(getVariable(result, 'entities')).toHaveLength(4)
+    expect(getVariable(result, 'entitiesByItem')).toEqual([
       [
         { index: 1, name: 'Sir Aldric' },
         { index: 2, name: 'Thornhaven' },
@@ -271,7 +279,7 @@ describe('entitiesTool (LLM)', () => {
         { index: 2, name: 'Aldric' },
       ],
     ])
-    expect(result.meta.entitiesLlm).toMatchObject({ attempts: 2 })
+    expect(getVariable(result, 'entitiesLlm')).toMatchObject({ attempts: 2 })
   })
 })
 
@@ -281,10 +289,10 @@ describe('schemaTool (LLM)', () => {
 
     const result = await schemaTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.schema).toBe(
+    expect(getVariable(result, 'schema')).toBe(
       'graph TD\n    Thornhaven --> Road\n    Road --> Darkwood\n    Aldric --> Tribunal',
     )
-    expect(result.meta.schemaLlm).toMatchObject({ attempts: 1, fallbackUsed: false })
+    expect(getVariable(result, 'schemaLlm')).toMatchObject({ attempts: 1, fallbackUsed: false })
   })
 
   it('retries when the answer is not a diagram', async () => {
@@ -292,8 +300,8 @@ describe('schemaTool (LLM)', () => {
 
     const result = await schemaTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(String(result.meta.schema).startsWith('graph TD')).toBe(true)
-    expect(result.meta.schemaLlm).toMatchObject({ attempts: 2 })
+    expect(String(getVariable(result, 'schema')).startsWith('graph TD')).toBe(true)
+    expect(getVariable(result, 'schemaLlm')).toMatchObject({ attempts: 2 })
     expect(router.lastPrompt()).toContain('mermaid type declaration')
   })
 
@@ -302,7 +310,7 @@ describe('schemaTool (LLM)', () => {
 
     const result = await schemaTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.schemaLlm).toMatchObject({ attempts: 2 })
+    expect(getVariable(result, 'schemaLlm')).toMatchObject({ attempts: 2 })
     expect(router.lastPrompt()).toContain('no edges')
   })
 
@@ -312,7 +320,7 @@ describe('schemaTool (LLM)', () => {
 
     const result = await schemaTool.invoke(envelopeOf(md), toolContext())
 
-    expect(result.meta.schema).toBe('graph LR\n    A --> B')
+    expect(getVariable(result, 'schema')).toBe('graph LR\n    A --> B')
   })
 
   it('generates a default graph from the title when nothing is available', async () => {
@@ -323,17 +331,23 @@ describe('schemaTool (LLM)', () => {
 
     const result = await schemaTool.invoke(envelopeOf(md), toolContext())
 
-    expect(result.meta.schema).toBe('graph TD\n    The Finale --> Next')
+    expect(getVariable(result, 'schema')).toBe('graph TD\n    The Finale --> Next')
   })
 
   it('processes batched envelopes', async () => {
     router = installRouter([SCHEMA_REPLY, 'graph TD\n    Archer --> Aldric'])
-    const env = { item: CHAPTER, items: [CHAPTER, CHAPTER_TWO], meta: {} }
+    const env = {
+      id: 'ex-test',
+      variables: [],
+      item: CHAPTER,
+      items: [CHAPTER, CHAPTER_TWO],
+      meta: {},
+    }
 
     const result = await schemaTool.invoke(env, toolContext())
 
-    expect(result.meta.schema).toContain('Thornhaven --> Road')
-    expect(result.meta.schemaByItem).toEqual([
+    expect(getVariable(result, 'schema')).toContain('Thornhaven --> Road')
+    expect(getVariable(result, 'schemaByItem')).toEqual([
       'graph TD\n    Thornhaven --> Road\n    Road --> Darkwood\n    Aldric --> Tribunal',
       'graph TD\n    Archer --> Aldric',
     ])
@@ -341,7 +355,7 @@ describe('schemaTool (LLM)', () => {
 })
 
 describe('metadataTool (LLM)', () => {
-  const truth = metadataGroundTruth({}, readChapter(CHAPTER), CHAPTER)
+  const truth = metadataGroundTruth(exchangeOf(''), readChapter(CHAPTER), CHAPTER)
 
   function tableRow(values: {
     chapter: number
@@ -361,8 +375,8 @@ describe('metadataTool (LLM)', () => {
 
     const result = await metadataTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.metadata).toEqual(truth)
-    expect(result.meta.metadataLlm).toMatchObject({ attempts: 1, fallbackUsed: false })
+    expect(getVariable(result, 'metadata')).toEqual(truth)
+    expect(getVariable(result, 'metadataLlm')).toMatchObject({ attempts: 1, fallbackUsed: false })
   })
 
   it('feeds the measured values into the prompt', async () => {
@@ -379,8 +393,8 @@ describe('metadataTool (LLM)', () => {
 
     const result = await metadataTool.invoke(envelopeOf(CHAPTER), toolContext())
 
-    expect(result.meta.metadata).toEqual(truth)
-    expect(result.meta.metadataLlm).toMatchObject({ attempts: 2 })
+    expect(getVariable(result, 'metadata')).toEqual(truth)
+    expect(getVariable(result, 'metadataLlm')).toMatchObject({ attempts: 2 })
     expect(router.lastPrompt()).toContain(`wordCount must be ${truth.wordCount}, you wrote 999`)
   })
 
@@ -390,11 +404,11 @@ describe('metadataTool (LLM)', () => {
     ])
 
     const result = await metadataTool.invoke(
-      { item: CHAPTER, meta: { chapterNum: 3, wordCount: 12, tokenCount: 99, charLength: 260 } },
+      exchangeOf(CHAPTER, { chapterNum: 3, wordCount: 12, tokenCount: 99, charLength: 260 }),
       toolContext(),
     )
 
-    expect(result.meta.metadata).toEqual({
+    expect(getVariable(result, 'metadata')).toEqual({
       chapter: 3,
       wordCount: 12,
       tokenCount: 99,
@@ -408,24 +422,24 @@ describe('metadataTool (LLM)', () => {
 
     const result = await metadataTool.invoke(envelopeOf(md), toolContext())
 
-    expect(result.meta.metadata).toEqual({
+    expect(getVariable(result, 'metadata')).toEqual({
       chapter: 1,
       wordCount: 40,
       tokenCount: 55,
       charLength: 260,
     })
-    expect(result.meta.metadataLlm).toMatchObject({ attempts: 3, fallbackUsed: true })
+    expect(getVariable(result, 'metadataLlm')).toMatchObject({ attempts: 3, fallbackUsed: true })
   })
 
   it('processes batched envelopes', async () => {
-    const second = metadataGroundTruth({}, readChapter(CHAPTER_TWO), CHAPTER_TWO)
+    const second = metadataGroundTruth(exchangeOf(''), readChapter(CHAPTER_TWO), CHAPTER_TWO)
     router = installRouter([tableRow(truth), tableRow(second)])
-    const env = { item: CHAPTER, items: [CHAPTER, CHAPTER_TWO], meta: {} }
+    const env = exchangeOf(CHAPTER, {}, [CHAPTER, CHAPTER_TWO])
 
     const result = await metadataTool.invoke(env, toolContext())
 
-    expect(result.meta.metadata).toEqual(truth)
-    expect(result.meta.metadataByItem).toEqual([truth, second])
+    expect(getVariable(result, 'metadata')).toEqual(truth)
+    expect(getVariable(result, 'metadataByItem')).toEqual([truth, second])
   })
 })
 
@@ -434,22 +448,30 @@ describe('vocabularyTool (LLM)', () => {
     router = installRouter([VOCABULARY_REPLY])
 
     const result = await vocabularyTool.invoke(
-      { item: CHAPTER, meta: { knownWords: ['aldric'] } },
+      exchangeOf(CHAPTER, { knownWords: ['aldric'] }),
       toolContext(),
     )
 
-    expect(result.meta.vocabulary).toEqual(['thornhaven', 'darkwood', 'tribunal'])
-    expect(result.meta.knownWords).toEqual(['aldric', 'thornhaven', 'darkwood', 'tribunal'])
-    expect(result.meta.vocabularyLlm).toMatchObject({ attempts: 1, fallbackUsed: false })
+    expect(getVariable(result, 'vocabulary')).toEqual(['thornhaven', 'darkwood', 'tribunal'])
+    expect(getVariable(result, 'knownWords')).toEqual([
+      'aldric',
+      'thornhaven',
+      'darkwood',
+      'tribunal',
+    ])
+    expect(getVariable(result, 'vocabularyLlm')).toMatchObject({ attempts: 1, fallbackUsed: false })
   })
 
   it('retries when the model invents terms', async () => {
     router = installRouter(['word\ndragon\ncastle\nwizard\nsword', VOCABULARY_REPLY])
 
-    const result = await vocabularyTool.invoke({ item: CHAPTER, meta: {} }, toolContext())
+    const result = await vocabularyTool.invoke(
+      { id: 'ex-test', variables: [], item: CHAPTER, meta: {} },
+      toolContext(),
+    )
 
-    expect(result.meta.vocabulary).toContain('thornhaven')
-    expect(result.meta.vocabularyLlm).toMatchObject({ attempts: 2 })
+    expect(getVariable(result, 'vocabulary')).toContain('thornhaven')
+    expect(getVariable(result, 'vocabularyLlm')).toMatchObject({ attempts: 2 })
     expect(router.lastPrompt()).toContain('you invented terms')
   })
 
@@ -457,22 +479,22 @@ describe('vocabularyTool (LLM)', () => {
     router = installRouter([VOCABULARY_REPLY])
 
     const result = await createVocabularyTool({ limit: 2 }).invoke(
-      { item: CHAPTER, meta: {} },
+      { id: 'ex-test', variables: [], item: CHAPTER, meta: {} },
       toolContext(),
     )
 
-    expect(result.meta.vocabulary).toEqual(['aldric', 'thornhaven'])
+    expect(getVariable(result, 'vocabulary')).toEqual(['aldric', 'thornhaven'])
   })
 
   it('reads the limit from meta', async () => {
     router = installRouter([VOCABULARY_REPLY])
 
     const result = await vocabularyTool.invoke(
-      { item: CHAPTER, meta: { vocabularyLimit: 1 } },
+      exchangeOf(CHAPTER, { vocabularyLimit: 1 }),
       toolContext(),
     )
 
-    expect(result.meta.vocabulary).toEqual(['aldric'])
+    expect(getVariable(result, 'vocabulary')).toEqual(['aldric'])
   })
 
   it('falls back to summary words without a router, deduplicating known words', async () => {
@@ -480,27 +502,32 @@ describe('vocabularyTool (LLM)', () => {
     const md = writeDoc(docWith({ summary: 'Apple apple BANANA a b cat!' }))
 
     const result = await vocabularyTool.invoke(
-      { item: md, meta: { knownWords: ['apple'] } },
+      exchangeOf(md, { knownWords: ['apple'] }),
       toolContext(),
     )
 
-    expect(result.meta.vocabulary).toEqual(['banana', 'cat'])
-    expect(result.meta.knownWords).toEqual(['apple', 'banana', 'cat'])
-    expect(result.meta.vocabularyLlm).toMatchObject({ attempts: 3, fallbackUsed: true })
+    expect(getVariable(result, 'vocabulary')).toEqual(['banana', 'cat'])
+    expect(getVariable(result, 'knownWords')).toEqual(['apple', 'banana', 'cat'])
+    expect(getVariable(result, 'vocabularyLlm')).toMatchObject({ attempts: 3, fallbackUsed: true })
   })
 
   it('processes batched envelopes and carries known words across items', async () => {
     router = installRouter([VOCABULARY_REPLY, 'word\naldric\narcher\nmare'])
-    const env = { item: CHAPTER, items: [CHAPTER, CHAPTER_TWO], meta: { knownWords: [] } }
+    const env = exchangeOf(CHAPTER, { knownWords: [] }, [CHAPTER, CHAPTER_TWO])
 
     const result = await vocabularyTool.invoke(env, toolContext())
 
-    expect(result.meta.vocabulary).toEqual(['aldric', 'thornhaven', 'darkwood', 'tribunal'])
-    expect(result.meta.vocabularyByItem).toEqual([
+    expect(getVariable(result, 'vocabulary')).toEqual([
+      'aldric',
+      'thornhaven',
+      'darkwood',
+      'tribunal',
+    ])
+    expect(getVariable(result, 'vocabularyByItem')).toEqual([
       ['aldric', 'thornhaven', 'darkwood', 'tribunal'],
       ['archer', 'mare'],
     ])
-    expect(result.meta.knownWords).toContain('archer')
+    expect(getVariable(result, 'knownWords')).toContain('archer')
   })
 })
 
@@ -508,7 +535,7 @@ describe('schema-doc pipeline shape', () => {
   it('writes a schema-doc from LLM-produced meta sections', async () => {
     router = installRouter([SUMMARY_REPLY, ENTITIES_REPLY, SCHEMA_REPLY])
 
-    let env: Envelope<string> = { item: CHAPTER, meta: { chapterNum: 1 } }
+    let env: Exchange<string> = exchangeOf(CHAPTER, { chapterNum: 1 })
     env = await summaryTool.invoke(env, toolContext())
     env = await entitiesTool.invoke(env, toolContext())
     env = await schemaTool.invoke(env, toolContext())
@@ -521,7 +548,7 @@ describe('schema-doc pipeline shape', () => {
     expect(md).toContain('Sir Aldric')
     expect(md).toContain('```mermaid')
     expect(readDoc(md).entities).toHaveLength(4)
-    expect(written.meta.mdOutputs).toMatchObject([
+    expect(getVariable(written, 'mdOutputs')).toMatchObject([
       { subdir: 'schema', filename: 'chapter1.schema.md' },
     ])
   })

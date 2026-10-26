@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { defineTool, setVariable, withItem } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 
 export interface TextNormalizerOptions {
   /** Drop lines made only of decorative symbols (`***`, `~~~`, `---`, ...). Default: true. */
@@ -76,16 +76,19 @@ export function normalizeText(text: string, options: TextNormalizerOptions = {})
   return out.join('\n')
 }
 
+/** Variable telling whether normalization changed the text. */
+export const VAR_NORMALIZED = 'normalized'
+
 /** Create a normalizer tool with fixed options. */
 export function createTextNormalizer(options: TextNormalizerOptions = {}) {
   return defineTool<string, string>({
     name: 'text-normalizer',
     version: '1.0.0',
     mdDescription:
-      'Offline text normalization: unifies quotes/dashes/ellipsis, strips invisible and stray symbols, collapses spaces and blank lines, fixes punctuation spacing. One paragraph per line preserved. Sets `meta.normalized`.',
-    async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<string>> {
+      'Offline text normalization: unifies quotes/dashes/ellipsis, strips invisible and stray symbols, collapses spaces and blank lines, fixes punctuation spacing. One paragraph per line preserved. Sets variable `normalized`.',
+    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const item = normalizeText(env.item, options)
-      return { item, meta: { ...env.meta, normalized: item !== env.item } }
+      return setVariable(withItem(env, item), VAR_NORMALIZED, item !== env.item)
     },
   })
 }

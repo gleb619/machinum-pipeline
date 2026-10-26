@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -161,9 +162,12 @@ describe('createNamedEntityRecognizer (merge/dedupe)', () => {
 
 describe('namedEntityTool', () => {
   it('stores unique entities in meta.entities, item untouched', async () => {
-    const env = await namedEntityTool.invoke({ item: TEXT, meta: {} }, ctx)
+    const env = await namedEntityTool.invoke(
+      { id: 'ex-test', variables: [], item: TEXT, meta: {} },
+      ctx,
+    )
     expect(env.item).toBe(TEXT)
-    const entities = env.meta.entities as NerEntity[]
+    const entities = getVariable(env, 'entities') as NerEntity[]
     expect(entities.map((e) => e.text)).toEqual(['Aris Thorne', 'Iron Keep', 'Marta', 'Take this'])
   })
 
@@ -171,13 +175,15 @@ describe('namedEntityTool', () => {
     const tool = createNamedEntityTool({ backends: [heuristicEntityBackend] })
     const env = await tool.invoke(
       {
+        id: 'ex-test',
+        variables: [],
         item: 'Arin Vale smiled.',
         items: ['Arin Vale smiled.', 'Marta nodded at the Silver River.'],
         meta: {},
       },
       ctx,
     )
-    const entities = env.meta.entities as NerEntity[]
+    const entities = getVariable(env, 'entities') as NerEntity[]
     expect(entities.map((e) => e.text)).toEqual(['Arin Vale', 'Marta', 'Silver River'])
   })
 })

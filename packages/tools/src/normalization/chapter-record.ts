@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, withItem, withMeta } from '@mt/core'
 import type { FinderOutput, MarkdownFormatterOutput } from '../verification/chapter-validator.js'
 
 /** Raw JSONL line: `key` is the source URL, `value` is `Chapter N: Title\n<body lines>`. */
@@ -33,10 +33,7 @@ export const chapterRecordMapper = defineTool<RawChapter, string>({
   mdDescription: 'Maps a raw {key,value} line to a chapter record; item becomes "title\\nbody".',
   async invoke(env) {
     const rec = toChapterRecord(env.item)
-    return {
-      item: `${rec.title}\n${rec.body}`,
-      meta: { ...env.meta, chapterNum: rec.chapterNum },
-    }
+    return withMeta(withItem(env, `${rec.title}\n${rec.body}`), { chapterNum: rec.chapterNum })
   },
 })
 
@@ -48,7 +45,7 @@ export const lineTextToMarkdown = defineTool<string, { text: string }>({
   async invoke(env) {
     const [title = '', ...rest] = env.item.split('\n')
     const paragraphs = rest.filter((l) => l !== '')
-    return { item: { text: `# ${title}\n\n${paragraphs.join('\n\n')}\n` }, meta: env.meta }
+    return withItem(env, { text: `# ${title}\n\n${paragraphs.join('\n\n')}\n` })
   },
 })
 
@@ -59,6 +56,6 @@ export const unwrapMarkdownText = defineTool<MarkdownFormatterOutput | FinderOut
   mdDescription:
     "Unwraps { text } to a markdown string; undoes remark's \\[ escaping so [system messages] stay literal.",
   async invoke(env) {
-    return { item: env.item.text.replace(/\\([[\]])/g, '$1'), meta: env.meta }
+    return withItem(env, env.item.text.replace(/\\([[\]])/g, '$1'))
   },
 })

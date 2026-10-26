@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
@@ -31,18 +32,24 @@ function longText(wordCount: number): string {
 describe('tokenSplitter', () => {
   it('does not split short chapters', async () => {
     const text = 'Short chapter with a few words.'
-    const result = await tokenSplitter.invoke({ item: text, meta: {} }, ctx)
+    const result = await tokenSplitter.invoke(
+      { id: 'ex-test', variables: [], item: text, meta: {} },
+      ctx,
+    )
     expect(result.item).toHaveLength(1)
     expect(result.item[0]).toBe(text)
-    expect(result.meta.strategy).toBe('paragraph')
+    expect(getVariable(result, 'strategy')).toBe('paragraph')
   })
 
   it('splits very long chapters', async () => {
     const text = longText(500)
-    const result = await tokenSplitter.invoke({ item: text, meta: {} }, ctx)
+    const result = await tokenSplitter.invoke(
+      { id: 'ex-test', variables: [], item: text, meta: {} },
+      ctx,
+    )
     expect(result.item.length).toBeGreaterThan(1)
-    expect(result.meta.split).toBe(true)
-    expect(result.meta.chunkCount).toBe(result.item.length)
+    expect(getVariable(result, 'split')).toBe(true)
+    expect(getVariable(result, 'chunkCount')).toBe(result.item.length)
   })
 
   it('uses .with() to swap strategy', async () => {
@@ -50,19 +57,28 @@ describe('tokenSplitter', () => {
     const sentenceSplitter = tokenSplitter.with({ strategy: sentenceStrategy({ maxChars: 600 }) })
     expect(sentenceSplitter).not.toBe(tokenSplitter)
 
-    const result = await sentenceSplitter.invoke({ item: text, meta: {} }, ctx)
-    expect(result.meta.strategy).toBe('sentence')
+    const result = await sentenceSplitter.invoke(
+      { id: 'ex-test', variables: [], item: text, meta: {} },
+      ctx,
+    )
+    expect(getVariable(result, 'strategy')).toBe('sentence')
     expect(result.item.length).toBeGreaterThan(1)
 
-    const original = await tokenSplitter.invoke({ item: text, meta: {} }, ctx)
-    expect(original.meta.strategy).toBe('paragraph')
+    const original = await tokenSplitter.invoke(
+      { id: 'ex-test', variables: [], item: text, meta: {} },
+      ctx,
+    )
+    expect(getVariable(original, 'strategy')).toBe('paragraph')
   })
 
   it('supports withStrategy decorator', async () => {
     const text = longText(1000)
     const lineSplitter = withStrategy(tokenSplitter, lineStrategy({ maxTokens: 100 }))
-    const result = await lineSplitter.invoke({ item: text, meta: {} }, ctx)
-    expect(result.meta.strategy).toBe('line')
+    const result = await lineSplitter.invoke(
+      { id: 'ex-test', variables: [], item: text, meta: {} },
+      ctx,
+    )
+    expect(getVariable(result, 'strategy')).toBe('line')
     expect(result.item.length).toBeGreaterThan(1)
   })
 })
@@ -169,8 +185,11 @@ describe('createTokenSplitter', () => {
       maxTokens: 10,
     })
     const text = 'hello world this is longer than ten tokens maybe'
-    const result = await splitter.invoke({ item: text, meta: {} }, ctx)
-    expect(result.meta.strategy).toBe('single')
+    const result = await splitter.invoke(
+      { id: 'ex-test', variables: [], item: text, meta: {} },
+      ctx,
+    )
+    expect(getVariable(result, 'strategy')).toBe('single')
     expect(result.item).toEqual([text])
   })
 })

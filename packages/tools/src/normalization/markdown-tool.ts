@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { defineTool, setVariable, withItem } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import type { Heading, Nodes, Root, RootContent } from 'mdast'
 import { toString as mdastToString } from 'mdast-util-to-string'
 
@@ -223,11 +223,12 @@ export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
   mdDescription:
     'Collects structural statistics from markdown: headings, paragraphs, code blocks, links, word count.',
 
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownStatsOutput>> {
-    return {
-      item: { text: env.item, stats: markdownStats(env.item) },
-      meta: { ...env.meta, markdownStats: true },
-    }
+  async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownStatsOutput>> {
+    return setVariable(
+      withItem(env, { text: env.item, stats: markdownStats(env.item) }),
+      'markdownStats',
+      true,
+    )
   },
 })
 
@@ -237,11 +238,12 @@ export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
   mdDescription:
     'Extracts a flat heading outline from markdown, in document order with depth and line numbers.',
 
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownOutlineOutput>> {
-    return {
-      item: { text: env.item, outline: markdownOutline(env.item) },
-      meta: { ...env.meta, markdownOutline: true },
-    }
+  async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownOutlineOutput>> {
+    return setVariable(
+      withItem(env, { text: env.item, outline: markdownOutline(env.item) }),
+      'markdownOutline',
+      true,
+    )
   },
 })
 
@@ -250,11 +252,8 @@ export const markdownStripFrontmatter = defineTool<string, MarkdownStripOutput>(
   version: '1.0.0',
   mdDescription: 'Removes leading YAML frontmatter from markdown documents.',
 
-  async invoke(env: Envelope<string>, _ctx: ToolContext): Promise<Envelope<MarkdownStripOutput>> {
+  async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownStripOutput>> {
     const { text, stripped } = stripFrontmatter(env.item)
-    return {
-      item: { text, stripped },
-      meta: { ...env.meta, markdownFrontmatterStripped: stripped },
-    }
+    return setVariable(withItem(env, { text, stripped }), 'markdownFrontmatterStripped', stripped)
   },
 })

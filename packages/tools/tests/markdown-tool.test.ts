@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { getVariable } from '@mt/core'
 
 import { describe, expect, it } from 'vitest'
 
@@ -135,23 +136,32 @@ describe('markdown tools', () => {
   })
 
   it('markdownStatsTool should return stats alongside text', async () => {
-    const env = await markdownStatsTool.invoke({ item: '# Hi\n\nbody', meta: {} }, {} as never)
+    const env = await markdownStatsTool.invoke(
+      { id: 'ex-test', variables: [], item: '# Hi\n\nbody', meta: {} },
+      {} as never,
+    )
     expect(env.item.text).toBe('# Hi\n\nbody')
     expect(env.item.stats.title).toBe('Hi')
-    expect(env.meta.markdownStats).toBe(true)
+    expect(getVariable(env, 'markdownStats')).toBe(true)
   })
 
   it('markdownOutlineTool should return outline alongside text', async () => {
-    const env = await markdownOutlineTool.invoke({ item: '# Hi', meta: {} }, {} as never)
+    const env = await markdownOutlineTool.invoke(
+      { id: 'ex-test', variables: [], item: '# Hi', meta: {} },
+      {} as never,
+    )
     expect(env.item.outline).toHaveLength(1)
-    expect(env.meta.markdownOutline).toBe(true)
+    expect(getVariable(env, 'markdownOutline')).toBe(true)
   })
 
   it('markdownStripFrontmatter should rewrite item text', async () => {
-    const env = await markdownStripFrontmatter.invoke({ item: SAMPLE, meta: {} }, {} as never)
+    const env = await markdownStripFrontmatter.invoke(
+      { id: 'ex-test', variables: [], item: SAMPLE, meta: {} },
+      {} as never,
+    )
     expect(env.item.stripped).toBe(true)
     expect(env.item.text.startsWith('---')).toBe(false)
-    expect(env.meta.markdownFrontmatterStripped).toBe(true)
+    expect(getVariable(env, 'markdownFrontmatterStripped')).toBe(true)
   })
 })
 

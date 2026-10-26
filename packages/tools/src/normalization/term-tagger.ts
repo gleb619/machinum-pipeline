@@ -1,5 +1,6 @@
-import { defineTool } from '@mt/core'
-import type { Envelope } from '@mt/core'
+import { defineTool, setVariables } from '@mt/core'
+import type { Exchange } from '@mt/core'
+import { exField } from './fields.js'
 import type { RuGrammar } from './ru-grammar.js'
 
 /** Kind of glossary entry (best-effort guess; humans may edit it). */
@@ -164,12 +165,12 @@ export const termTagger = defineTool<string | string[], string | string[]>({
   version: '1.0.0',
   mdDescription:
     'Wraps glossary terms as `<term id="ID">text</term>` (longest first, no nesting, skips code, ' +
-    'idempotent, line count preserved). Result in `meta.taggedItems`; `stripTerms` reverses it.',
-  async invoke(env: Envelope<string | string[]>): Promise<Envelope<string | string[]>> {
-    const glossary = (env.meta.glossary as Glossary | undefined) ?? { terms: [] }
+    'idempotent, line count preserved). Result in variable `taggedItems`; `stripTerms` reverses it.',
+  async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
+    const glossary = exField<Glossary>(env, 'glossary') ?? { terms: [] }
     const matcher = compileTermMatcher(glossary)
     const inputs = (env.items ?? [env.item]).flat()
     const taggedItems = inputs.map((t) => tagTerms(t, glossary, matcher))
-    return { ...env, meta: { ...env.meta, taggedItems, tagged: taggedItems[0] ?? '' } }
+    return setVariables(env, { taggedItems, tagged: taggedItems[0] ?? '' })
   },
 })

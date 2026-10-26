@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { Envelope } from '@mt/core'
+import { defineTool, setVariable } from '@mt/core'
+import type { Exchange } from '@mt/core'
 import { ORG_WORDS, PLACE_WORDS, isCommonWord } from './glossary-lexicon.js'
 import type { NerBackend as CandidateNerBackend, NerCandidate, NerKind } from './ner-candidates.js'
 
@@ -337,7 +337,7 @@ export interface NamedEntityToolOptions extends NamedEntityRecognizerOptions {}
 
 /**
  * Tool: named-entity recognition on `env.item` / `env.items`. The item is left untouched;
- * the unique entities (merged across inputs, sorted by text) land in `meta.entities`.
+ * the unique entities (merged across inputs, sorted by text) land in variable `entities`.
  */
 export function createNamedEntityTool(options: NamedEntityToolOptions = {}) {
   const recognizer = createNamedEntityRecognizer(options)
@@ -347,8 +347,8 @@ export function createNamedEntityTool(options: NamedEntityToolOptions = {}) {
     mdDescription:
       'Named-entity recognition (pluggable backends: built-in heuristic, `compromise` NLP, ' +
       'optional OpenNLP models via MT_NER_MODELS + MT_NER_ENDPOINT). The item is untouched; ' +
-      'the unique entities (by text, sorted) land in `meta.entities`.',
-    async invoke(env: Envelope<string | string[]>): Promise<Envelope<string | string[]>> {
+      'the unique entities (by text, sorted) land in variable `entities`.',
+    async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const byText = new Map<string, NerEntity>()
       for (const input of inputs) {
@@ -357,7 +357,7 @@ export function createNamedEntityTool(options: NamedEntityToolOptions = {}) {
         }
       }
       const entities = [...byText.values()].sort((a, b) => a.text.localeCompare(b.text))
-      return { ...env, meta: { ...env.meta, entities } }
+      return setVariable(env, 'entities', entities)
     },
   })
 }

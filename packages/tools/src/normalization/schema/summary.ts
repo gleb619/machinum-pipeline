@@ -1,5 +1,5 @@
-import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { defineTool, setVariables } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { loadBundledPrompt } from '../../core/bundled-prompts.js'
 import { splitSentences } from '../heuristic-summary.js'
 import {
@@ -69,7 +69,7 @@ const DEFAULTS: SchemaDocLlmOptions = {
  *
  * Options (`model`, `temperature`, `maxTokens`, `systemPrompt`, `userPrompt`,
  * `maxAttempts`, `routerUrl`) can also be overridden per envelope through
- * `meta.schemaDocLlm` or `meta.summaryPrompt` / `meta.summarySystemPrompt`.
+ * variable `schemaDocLlm` or variables `summaryPrompt` / `summarySystemPrompt`.
  * When the loop guard is exhausted the schema-doc `## Summary` text is used, so a
  * missing or failing router never fails the run.
  */
@@ -79,9 +79,9 @@ export function createSummaryTool(options?: SchemaDocLlmOptions) {
     version: '1.1.0',
     mdDescription:
       'Summarises the chapter with an LLM through the OpenRouter proxy (configurable prompts, ' +
-      'loop-guarded retries, deterministic schema-doc parse as fallback). Stores `meta.summary`.',
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'summary')
+      'loop-guarded retries, deterministic schema-doc parse as fallback). Stores variable `summary`.',
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
+      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'summary')
       const inputs = env.items ?? [env.item]
 
       const summaries: string[] = []
@@ -102,15 +102,14 @@ export function createSummaryTool(options?: SchemaDocLlmOptions) {
         results.push(outcome)
       }
 
-      const meta: Envelope<string>['meta'] = {
-        ...env.meta,
+      const values: Record<string, unknown> = {
         summary: summaries[0] ?? '',
         summaryLlm: attemptMeta(results),
       }
       if (env.items) {
-        meta.summaryByItem = summaries
+        values.summaryByItem = summaries
       }
-      return { ...env, meta }
+      return setVariables(env, values)
     },
   })
 }
@@ -178,9 +177,9 @@ export function renderSummaryNotes(notes: string[]): string {
  * (`packages/tools/prompts/*.md`, compiled into the package).
  *
  * Same option surface as `createSummaryTool` plus `count`; prompts stay overridable through
- * `meta.schemaDocLlm` or `meta.summaryNotesPrompt` / `meta.summaryNotesSystemPrompt`. When the
+ * variable `schemaDocLlm` or variables `summaryNotesPrompt` / `summaryNotesSystemPrompt`. When the
  * loop guard is exhausted the chapter's lead sentences are used, so a failing router never
- * fails the run. Writes `meta.summaryNotes` (dash stripped) and `meta.summary` (bullet block).
+ * fails the run. Writes variables `summaryNotes` (dash stripped) and `summary` (bullet block).
  */
 export function createNotesSummaryTool(options?: NotesSummaryOptions) {
   const { count = DEFAULT_NOTE_COUNT, ...llmOptions } = options ?? {}
@@ -192,13 +191,9 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions) {
     mdDescription:
       'Extracts `count` plain-text summary notes (`- ` bullets) from the chapter with an LLM ' +
       'through the OpenRouter proxy, using the bundled summary prompts. Loop-guarded retries ' +
-      'fall back to the chapter lead sentences. Stores `meta.summaryNotes` and `meta.summary`.',
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const resolved = resolveLlmOptions(
-        { ...NOTES_DEFAULTS, ...llmOptions },
-        env.meta,
-        'summaryNotes',
-      )
+      'fall back to the chapter lead sentences. Stores variables `summaryNotes` and `summary`.',
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
+      const resolved = resolveLlmOptions({ ...NOTES_DEFAULTS, ...llmOptions }, env, 'summaryNotes')
       const inputs = env.items ?? [env.item]
 
       const notesByItem: string[][] = []
@@ -239,18 +234,17 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions) {
       }
 
       const notes = notesByItem[0] ?? []
-      const meta: Envelope<string>['meta'] = {
-        ...env.meta,
+      const values: Record<string, unknown> = {
         summaryNotes: notes,
         summaryNotesLlm: attemptMeta(results),
       }
       if (notes.length > 0) {
-        meta.summary = renderSummaryNotes(notes)
+        values.summary = renderSummaryNotes(notes)
       }
       if (env.items) {
-        meta.summaryNotesByItem = notesByItem
+        values.summaryNotesByItem = notesByItem
       }
-      return { ...env, meta }
+      return setVariables(env, values)
     },
   })
 }

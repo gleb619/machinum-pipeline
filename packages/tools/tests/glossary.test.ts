@@ -1,5 +1,7 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
+import { exchangeOf } from './exchange-helper.js'
 
 import {
   buildGlossary,
@@ -118,17 +120,20 @@ describe('tool wrappers', () => {
         ],
       }),
     })
-    const res = await tool.invoke({ item: [CH1, CH2], items: [CH1, CH2], meta: {} }, ctx)
-    const glossary = res.meta.glossary as Glossary
+    const res = await tool.invoke(
+      { id: 'ex-test', variables: [], item: [CH1, CH2], items: [CH1, CH2], meta: {} },
+      ctx,
+    )
+    const glossary = getVariable(res, 'glossary') as Glossary
     expect(byTerm(glossary, 'Marta')?.ru).toBe('М')
-    expect(res.meta.chapterNums).toEqual([1, 2])
+    expect(getVariable(res, 'chapterNums')).toEqual([1, 2])
   })
 
   it('termTagger stores tagged copies in meta, item untouched', async () => {
     const g = buildGlossary(chapters)
-    const res = await termTagger.invoke({ item: CH1, meta: { glossary: g } }, ctx)
+    const res = await termTagger.invoke(exchangeOf(CH1, { glossary: g }), ctx)
     expect(res.item).toBe(CH1)
-    expect(res.meta.tagged).toContain('<term id="arin-vale">Arin Vale</term>')
+    expect(getVariable(res, 'tagged')).toContain('<term id="arin-vale">Arin Vale</term>')
   })
 })
 

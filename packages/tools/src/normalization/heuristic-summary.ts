@@ -1,5 +1,8 @@
-import { defineTool } from '@mt/core'
-import type { Envelope } from '@mt/core'
+import { defineTool, setVariables } from '@mt/core'
+import type { Exchange } from '@mt/core'
+
+/** Variable holding the heuristic summaries (fallback for the LLM summary). */
+export const VAR_HEURISTIC_SUMMARY_BY_ITEM = 'heuristicSummaryByItem'
 
 export interface HeuristicSummaryOptions {
   /** Max sentences in the summary. Default: 4. */
@@ -69,7 +72,7 @@ export function chapterTitle(md: string): string {
 
 /**
  * Tool: heuristic (no LLM) summary of `env.item` / `env.items`. Same meta contract as
- * `summaryTool`: `meta.summary`, `meta.summaryByItem`; also `meta.heuristicSummaryByItem`
+ * `summaryTool`: variables `summary`, `summaryByItem`; also `heuristicSummaryByItem`
  * so an LLM step can fall back to it.
  */
 export function createHeuristicSummaryTool(options: HeuristicSummaryOptions = {}) {
@@ -78,19 +81,15 @@ export function createHeuristicSummaryTool(options: HeuristicSummaryOptions = {}
     version: '1.0.0',
     mdDescription:
       'Offline extractive summary: lead sentence + highest term-frequency sentences, original ' +
-      'order. Stores `meta.summary` / `meta.summaryByItem` / `meta.heuristicSummaryByItem`.',
-    async invoke(env: Envelope<string | string[]>): Promise<Envelope<string | string[]>> {
+      'order. Stores variables `summary` / `summaryByItem` / `heuristicSummaryByItem`.',
+    async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const summaries = inputs.map((t) => summarizeHeuristic(t, options))
-      return {
-        ...env,
-        meta: {
-          ...env.meta,
-          summary: summaries[0] ?? '',
-          summaryByItem: summaries,
-          heuristicSummaryByItem: summaries,
-        },
-      }
+      return setVariables(env, {
+        summary: summaries[0] ?? '',
+        summaryByItem: summaries,
+        [VAR_HEURISTIC_SUMMARY_BY_ITEM]: summaries,
+      })
     },
   })
 }

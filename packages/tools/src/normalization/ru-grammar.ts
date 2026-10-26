@@ -1,5 +1,6 @@
-import { defineTool } from '@mt/core'
-import type { Envelope } from '@mt/core'
+import { defineTool, setVariable } from '@mt/core'
+import type { Exchange } from '@mt/core'
+import { exField } from './fields.js'
 
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
 import { readGlossaryFile, serializeGlossary } from './glossary-extractor.js'
@@ -360,11 +361,11 @@ export function createRuGrammarTool(options: RuGrammarToolOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Validates Russian inflected forms against glossary `ruGrammar`; reports ' +
-      'deviations in `meta.ruGrammar` and can infer missing grammar for a glossary file.',
-    async invoke(env: Envelope<string | string[]>): Promise<Envelope<string | string[]>> {
+      'deviations in variable `ruGrammar` and can infer missing grammar for a glossary file.',
+    async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const text = inputs.join('\n')
-      const metaGlossary = env.meta.glossary as Glossary | undefined
+      const metaGlossary = exField<Glossary>(env, 'glossary')
       let glossary = metaGlossary
       if (!glossary && options.glossaryFile) {
         glossary = (await readGlossaryFile(options.glossaryFile)) ?? { terms: [] }
@@ -382,7 +383,7 @@ export function createRuGrammarTool(options: RuGrammarToolOptions = {}) {
         }
       }
 
-      return { ...env, meta: { ...env.meta, ruGrammar: report } }
+      return setVariable(env, 'ruGrammar', report)
     },
   })
 }

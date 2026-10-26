@@ -1,6 +1,7 @@
-import type { ToolContext } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { chatCompletionSingle } from '../../core/openrouter-tool.js'
 import type { ChatCompletionInput, ChatCompletionOutput } from '../../core/openrouter-tool.js'
+import { exField } from '../fields.js'
 
 export const DEFAULT_LLM_MODEL = 'openai/gpt-4o-mini'
 export const DEFAULT_MAX_ATTEMPTS = 3
@@ -136,7 +137,7 @@ function withFeedback(userPrompt: string, attempt: number, maxAttempts: number, 
   ].join('\n')
 }
 
-/** Per-tool LLM diagnostics written into `meta.<key>Llm`. */
+/** Per-tool LLM diagnostics written into variable `<key>Llm`. */
 export interface LlmAttemptMeta {
   attempts: number
   tokens: number
@@ -157,17 +158,17 @@ export function attemptMeta(results: PromptRetryResult<unknown>[]): LlmAttemptMe
 }
 
 /**
- * Resolves effective options: tool defaults < tool options < `meta.schemaDocLlm`
- * < `meta.<key>Prompt` / `meta.<key>SystemPrompt` per-envelope overrides.
+ * Resolves effective options: tool defaults < tool options < variable `schemaDocLlm`
+ * < variables `<key>Prompt` / `<key>SystemPrompt` per-envelope overrides.
  */
 export function resolveLlmOptions(
   toolOptions: SchemaDocLlmOptions,
-  meta: Record<string, unknown> | undefined,
+  ex: Pick<Exchange<unknown>, 'meta' | 'variables'>,
   key: string,
 ): SchemaDocLlmOptions {
-  const fromMeta = pickOptions(meta?.schemaDocLlm)
-  const prompt = meta?.[`${key}Prompt`]
-  const systemPrompt = meta?.[`${key}SystemPrompt`]
+  const fromMeta = pickOptions(exField(ex, 'schemaDocLlm'))
+  const prompt = exField(ex, `${key}Prompt`)
+  const systemPrompt = exField(ex, `${key}SystemPrompt`)
 
   const resolved: SchemaDocLlmOptions = { ...toolOptions, ...fromMeta }
   if (typeof prompt === 'string') {

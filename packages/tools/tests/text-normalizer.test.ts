@@ -1,3 +1,4 @@
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -53,10 +54,17 @@ describe('normalizeText', () => {
 describe('textNormalizer tool', () => {
   it('normalizes and flags meta.normalized', async () => {
     const ctx = {} as ToolContext
-    const changed = await textNormalizer.invoke({ item: '“x”', meta: { a: 1 } }, ctx)
+    const changed = await textNormalizer.invoke(
+      { id: 'ex-test', variables: [], item: '“x”', meta: { a: 1 } },
+      ctx,
+    )
     expect(changed.item).toBe('"x"')
-    expect(changed.meta).toEqual({ a: 1, normalized: true })
-    const same = await textNormalizer.invoke({ item: 'x', meta: {} }, ctx)
-    expect(same.meta.normalized).toBe(false)
+    expect(changed.meta).toEqual({ a: 1 })
+    expect(getVariable(changed, 'normalized')).toBe(true)
+    const same = await textNormalizer.invoke(
+      { id: 'ex-test', variables: [], item: 'x', meta: {} },
+      ctx,
+    )
+    expect(getVariable(same, 'normalized')).toBe(false)
   })
 })

@@ -2,6 +2,7 @@ import { readFile, readdir, rm } from 'node:fs/promises'
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -147,18 +148,24 @@ describe('buildStatFreqReport', () => {
 
 describe('statFreq tool', () => {
   it('stores the report in meta and keeps the item untouched', async () => {
-    const out = await statFreq.invoke({ item: EN, meta: { chapterId: 'c1' } }, CTX)
+    const out = await statFreq.invoke(
+      { id: 'ex-test', variables: [], item: EN, meta: { chapterId: 'c1' } },
+      CTX,
+    )
     expect(out.item).toBe(EN)
     expect(out.meta.chapterId).toBe('c1')
-    const report = out.meta.statFreq as StatFreqReport
+    const report = getVariable(out, 'statFreq') as StatFreqReport
     expect(report.totalWords).toBe(15)
   })
 
   it('aggregates a batched corpus and keeps the cardinality', async () => {
     const items = [EN, RU]
-    const out = await statFreq.invoke({ item: items, items, meta: {} }, CTX)
+    const out = await statFreq.invoke(
+      { id: 'ex-test', variables: [], item: items, items, meta: {} },
+      CTX,
+    )
     expect(out.items).toEqual(items)
-    const report = out.meta.statFreq as StatFreqReport
+    const report = getVariable(out, 'statFreq') as StatFreqReport
     expect(report.totalWords).toBe(26)
     expect(report.uniqueWords).toBe(15)
   })
@@ -168,9 +175,9 @@ describe('statFreq tool', () => {
     try {
       const outFile = join(dir, 'nested', 'stat.json')
       const tool = defineStatFreq({ outFile })
-      const out = await tool.invoke({ item: EN, meta: {} }, CTX)
+      const out = await tool.invoke({ id: 'ex-test', variables: [], item: EN, meta: {} }, CTX)
       const written = JSON.parse(await readFile(outFile, 'utf-8'))
-      expect(written).toEqual(out.meta.statFreq)
+      expect(written).toEqual(getVariable(out, 'statFreq'))
       const entries = await readdir(join(dir, 'nested'))
       expect(entries.filter((e) => e.includes('.tmp.'))).toEqual([])
     } finally {

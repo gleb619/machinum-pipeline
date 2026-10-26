@@ -1,6 +1,6 @@
 import { dirname } from 'node:path'
-import { defineTool } from '@mt/core'
-import type { Envelope } from '@mt/core'
+import { defineTool, setVariable } from '@mt/core'
+import type { Exchange } from '@mt/core'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
 
 /**
@@ -294,8 +294,8 @@ export function defineStatFreq(options: StatFreqOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Offline statistical frequency analyzer: counts word, sentence and n-gram frequencies ' +
-      '(stopwords filtered) of the envelope text; ranked report in meta.statFreq.',
-    async invoke(env: Envelope<string | string[]>): Promise<Envelope<string | string[]>> {
+      '(stopwords filtered) of the envelope text; ranked report in variable statFreq.',
+    async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const items = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])
       const texts = items.filter((text): text is string => typeof text === 'string')
       const report = buildStatFreqReport(texts, options)
@@ -303,10 +303,7 @@ export function defineStatFreq(options: StatFreqOptions = {}) {
         await ensureParentDir(options.outFile)
         await atomicWriteFile(options.outFile, `${JSON.stringify(report, null, 2)}\n`)
       }
-      return {
-        ...env,
-        meta: { ...env.meta, statFreq: report },
-      }
+      return setVariable(env, 'statFreq', report)
     },
   })
 }

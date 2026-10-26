@@ -1,5 +1,6 @@
 import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { setVariables } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { chapterVars, readChapter, renderPrompt, roundTripIssue, stripCodeFence } from './doc.js'
 import type { ChapterSource } from './doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
@@ -67,8 +68,8 @@ const DEFAULTS: SchemaDocLlmOptions = {
 /**
  * Builds the LLM-backed mermaid schema generator.
  *
- * Per-envelope overrides come from `meta.schemaDocLlm` or `meta.schemaPrompt` /
- * `meta.schemaSystemPrompt`. Fallback order when the loop guard is exhausted: the
+ * Per-envelope overrides come from variable `schemaDocLlm` or variable `schemaPrompt` /
+ * variable `schemaSystemPrompt`. Fallback order when the loop guard is exhausted: the
  * schema-doc `## Schema` block, then a generated single-edge `graph TD`.
  */
 export function createSchemaTool(options?: SchemaDocLlmOptions) {
@@ -78,9 +79,9 @@ export function createSchemaTool(options?: SchemaDocLlmOptions) {
     mdDescription:
       'Generates a mermaid structure diagram for the chapter with an LLM through the OpenRouter ' +
       'proxy. Loop-guarded retries fall back to the schema-doc Schema block, then a generated ' +
-      '`graph TD`. Stores `meta.schema`.',
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env.meta, 'schema')
+      '`graph TD`. Stores variable `schema`.',
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
+      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'schema')
       const inputs = env.items ?? [env.item]
 
       const diagrams: string[] = []
@@ -103,15 +104,14 @@ export function createSchemaTool(options?: SchemaDocLlmOptions) {
         results.push(outcome)
       }
 
-      const meta: Envelope<string>['meta'] = {
-        ...env.meta,
+      const values: Record<string, unknown> = {
         schema: diagrams[0] ?? '',
         schemaLlm: attemptMeta(results),
       }
       if (env.items) {
-        meta.schemaByItem = diagrams
+        values.schemaByItem = diagrams
       }
-      return { ...env, meta }
+      return setVariables(env, values)
     },
   })
 }

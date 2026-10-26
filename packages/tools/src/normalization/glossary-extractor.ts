@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
-import { defineTool } from '@mt/core'
-import type { Envelope, ToolContext } from '@mt/core'
+import { defineTool, setVariables } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { buildGlossaryGraph, serializeGlossaryGraph } from './glossary-graph.js'
 import type { GlossaryGraph } from './glossary-graph.js'
 import {
@@ -575,11 +575,11 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
     mdDescription:
       'Glossary extraction (heuristic candidates + NER seeding, LLM extraction with the ' +
       'bundled glossary prompts, reuse of the terms of the previous glossary, relation ' +
-      'graph). Stores `meta.glossary`, `meta.glossaryJson` and `meta.glossaryGraph`.',
+      'graph). Stores variables `glossary`, `glossaryJson` and `glossaryGraph`.',
     async invoke(
-      env: Envelope<string | string[]>,
+      env: Exchange<string | string[]>,
       ctx: ToolContext,
-    ): Promise<Envelope<string | string[]>> {
+    ): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const chapterNums = inputs.map((t, i) => chapterNumberOf(t, i + 1))
       const chapters: GlossaryChapter[] = inputs.map((text, i) => ({
@@ -707,18 +707,14 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
       glossary = recountGlossary(glossary, chapters)
       glossary = sortGlossary(glossary)
       const graph: GlossaryGraph = buildGlossaryGraph(glossary, coOccurrences)
-      return {
-        ...env,
-        meta: {
-          ...env.meta,
-          glossary,
-          glossaryJson: serializeGlossary(glossary),
-          glossaryGraph: graph,
-          glossaryGraphJson: serializeGlossaryGraph(graph),
-          chapterNums,
-          ...(llmMeta ? { glossaryLlm: llmMeta } : {}),
-        },
-      }
+      return setVariables(env, {
+        glossary,
+        glossaryJson: serializeGlossary(glossary),
+        glossaryGraph: graph,
+        glossaryGraphJson: serializeGlossaryGraph(graph),
+        chapterNums,
+        ...(llmMeta ? { glossaryLlm: llmMeta } : {}),
+      })
     },
   })
 }
