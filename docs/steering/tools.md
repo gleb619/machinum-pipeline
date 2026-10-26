@@ -64,17 +64,33 @@ Envelope type: `SchemaDocEnvelope`.
   `llmTranslate` (`llm-translate.ts`) shares this one implementation with the `llm` backend.
 
 ### `heuristic-summary.ts` / `glossary-extractor.ts` / `term-tagger.ts`
-Offline (no LLM) analysis tools, all accept a single `env.item` or a batched `env.items` corpus.
+Analysis tools, all accept a single `env.item` or a batched `env.items` corpus. The glossary extractor is
+offline by default and uses an LLM backend when one is given.
 
 - `heuristicSummaryTool` / `createHeuristicSummaryTool({ sentences })` — extractive summary (lead sentence +
   highest term-frequency sentences, original order). Same meta contract as `summaryTool`: `meta.summary`,
   `meta.summaryByItem`, plus `meta.heuristicSummaryByItem` (fallback for an LLM step).
-- `glossaryExtractor` / `createGlossaryExtractor({ load, minCount, ignored })` — candidates = capitalised
-  multiword names, `[Bracketed]` short terms, repeated capitalised singles; type guess
-  (`character|place|item|skill|term`), `count`, `firstChapter`. `buildGlossary(chapters, existing)` merges into an
-  existing glossary: existing entries keep `id/type/ru/aliases` and manual edits (human-added terms too), only
-  `count/firstChapter` are recounted; `ignored` terms are never re-added. Result in `meta.glossary` / `meta.glossaryJson`.
-  Shape: `{ terms: [{ id, term, type, count, firstChapter, ru, aliases, pending? }], ignored?, rejected? }`.
+- `glossaryExtractor` / `createGlossaryExtractor({ load, minCount, ignored, call, model, temperature, maxTokens,
+  maxAttempts, nerBackend, relations, enrich, coOccurrence })` (T136) — candidates = capitalised multiword names,
+  `[Bracketed]` short terms, repeated capitalised singles, **plus the NER candidates** (proper names and locative
+  phrases, seeded by `createHeuristicNerBackend()` or a pluggable backend); type guess
+  (`character|place|item|skill|term`, refined by the NER kind), `count`, `firstChapter`.
+  `buildGlossary(chapters, existing)` merges into an existing glossary: existing entries keep `id/type/ru/aliases`
+  and manual edits (human-added terms too), only `count/firstChapter` are recounted; the `ignored` / `rejected`
+  lists are kept and `ignored` terms are never re-added. With an LLM backend (`call`, e.g.
+  `pickLlmTool().schemaCall`) the corpus is analysed with the bundled
+  `glossary.system` / `glossary.user` prompts: the terms of the previous glossary are **reused** (their `ru` and
+  `type` win), only the new candidates are extracted, and a failed reply falls back to the heuristic glossary.
+  Result in `meta.glossary` / `meta.glossaryJson` / `meta.glossaryGraph` / `meta.glossaryGraphJson` / `meta.chapterNums`.
+  Shape: `{ terms: [{ id, term, type, count, firstChapter, ru, aliases, pending?, references?, description? }],
+  ignored?, rejected? }`.
+- `mergeExtractedEntries(glossary, entries, protectedIds)` — merges the entries reported by the model: a known term
+  keeps its `ru` (and its `type` when it is protected, i.e. reused from the previous glossary), an unknown term is
+  appended with the reported type/description. Pure.
+- `applyRelations(glossary, relations)` / `coOccurrenceRelations(chapters, glossary)` — relation graph of the terms:
+  `term.references` holds the names of the related terms (the ones that share a sentence of the corpus, plus the
+  ones the model reported). `buildGlossaryGraph(glossary)` turns them into nodes/edges, `findReferences(graph, term,
+  hops)` looks the related terms up within 1..3 hops. Pure.
 - `mergeReportedTerms(existing, reported)` (T139) — conservative auto-merge of model-reported terms
   (`parseReportedTerms` output): new terms are auto-added (reported `type`/`ru`, unique slug id, `count: 0`),
   never renames an existing entry — a differing `ru` is queued in `term.pending`; values in `rejected` are
@@ -82,6 +98,11 @@ Offline (no LLM) analysis tools, all accept a single `env.item` or a batched `en
 - `termTagger` / `tagTerms(text, glossary)` — wraps occurrences as `<term id="ID">text</term>` (longest match
   first, no nesting, fenced/inline code and `#` headings skipped, idempotent, line count preserved). Result in
   `meta.taggedItems` (item untouched). `stripTerms(tagged)` restores the original text exactly.
+- `glossary-llm.ts` — the LLM stages of the extractor: `extractGlossaryWithLlm` (the `glossary.system` /
+  `glossary.user` prompts), `relateTermWithLlm` (the `glossary-relations.*` prompts), `enrichTermWithLlm` (the
+  `glossary-enrich.*` prompts); `mapCategory` maps a model category to a glossary type, `parseGlossaryEntries` /
+  `parseNameRelations` parse the answers. The prompt texts are bundled md files (`packages/tools/prompts/glossary*.md`,
+  ported from the machinum-llm `.ST` templates), loaded through `loadBundledPrompt`.
 
 ### `stat-freq.ts`
 Offline (no LLM) statistical frequency analyzer (T147). Accepts `env.item` (string) or a batched

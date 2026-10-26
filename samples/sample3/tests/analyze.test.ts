@@ -45,6 +45,7 @@ async function clean(): Promise<void> {
   await rm(join(CHAPTERS, 'schema'), { recursive: true, force: true })
   await rm(join(CHAPTERS, 'en-tagged'), { recursive: true, force: true })
   await rm(join(CHAPTERS, 'glossary.json'), { force: true })
+  await rm(join(CHAPTERS, 'glossary.graph.json'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
 
@@ -66,11 +67,21 @@ interface GlossaryFile {
     firstChapter: number | null
     ru: string | null
     aliases: string[]
+    references?: string[]
   }>
+}
+
+interface GraphFile {
+  nodes: Array<{ id: string; term: string; type: string }>
+  edges: Array<{ from: string; to: string; kind: string }>
 }
 
 async function readGlossary(): Promise<GlossaryFile> {
   return JSON.parse(await readFile(join(CHAPTERS, 'glossary.json'), 'utf-8')) as GlossaryFile
+}
+
+async function readGraph(): Promise<GraphFile> {
+  return JSON.parse(await readFile(join(CHAPTERS, 'glossary.graph.json'), 'utf-8')) as GraphFile
 }
 
 beforeAll(async () => {
@@ -105,9 +116,21 @@ describe('analyze pipeline (offline, heuristics only)', () => {
     const g = await readGlossary()
     const by = (term: string) => g.terms.find((t) => t.term === term)
     expect(by('Arin Vale')).toMatchObject({ id: 'arin-vale', type: 'character', ru: null })
+    expect(by('Iron Keep')).toMatchObject({ type: 'place' })
     expect(by('Silver River')).toMatchObject({ type: 'place', firstChapter: 2, count: 2 })
     expect(by('[Flame Strike]')).toMatchObject({ type: 'skill', firstChapter: 1, count: 2 })
     expect(g.terms.some((t) => t.term.includes('System'))).toBe(false)
+  })
+
+  it('writes the relation graph of the terms', async () => {
+    const g = await readGlossary()
+    const graph = await readGraph()
+    expect(graph.nodes).toHaveLength(g.terms.length)
+    expect(graph.edges.length).toBeGreaterThan(0)
+    const arin = g.terms.find((t) => t.term === 'Arin Vale')
+    expect(arin?.references).toContain('Iron Keep')
+    const edge = graph.edges.find((e) => e.from === arin?.id)
+    expect(edge?.to).toBe(g.terms.find((t) => t.term === 'Iron Keep')?.id)
   })
 
   it('tags terms without changing the text or the line count', async () => {

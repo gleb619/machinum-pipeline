@@ -290,7 +290,11 @@ Details: [steering/tools.md](steering/tools.md#sample-stage-tools-moved-from-sam
 | `chapterRecordMapper`, `toChapterRecord`, `lineTextToMarkdown`, `unwrapMarkdownText` | tools | Raw `{key,value}` line -> chapter text -> markdown `{ text }` -> string |
 | `createLlmTypoFix`, `createLlmSummaryWithFallback` | tool factories | Optional LLM steps (`enabled` flag), safe fallbacks |
 | `readGlossaryFile` | helper | Load `glossary.json` for `createGlossaryExtractor({ load })` |
-| `analyzeOutputs` / `createAnalyzeOutputs` | tool | Summaries, tagged copies and glossary as `md://` write intents |
+| `analyzeOutputs` / `createAnalyzeOutputs` | tool | Summaries, tagged copies, glossary and relation graph as `md://` write intents |
+| `glossaryExtractor` / `createGlossaryExtractor` | tool | Glossary v2 (T136): heuristic candidates + NER seeding, LLM extraction with the bundled `glossary.*` prompts, reuse of the terms of the previous glossary, relation graph (`references`) |
+| `buildGlossaryGraph`, `findReferences`, `serializeGlossaryGraph`, `parseGlossaryGraph` | helpers | Relation graph of the glossary terms: nodes/edges + 1..3 hop lookup |
+| `createHeuristicNerBackend`, `heuristicNerBackend` | helper | NER candidate seeding for the glossary (proper names, locative phrases, entity kind); pluggable via `createGlossaryExtractor({ nerBackend })` |
+| `GLOSSARY_PROMPTS`, `extractGlossaryWithLlm`, `relateTermWithLlm`, `enrichTermWithLlm`, `mapCategory`, `parseGlossaryEntries`, `parseNameRelations` | helpers | The LLM stages of the glossary extractor (bundled `glossary*.md` prompts) |
 | `chaptersToTitleInputs`, `createGlossaryTitleTranslator`, `createChapterBodyTranslator`, `translateTaggedChapter`, `onlyChapters`, `translateConcurrency` | tools / helpers | EN->RU translate stage building blocks |
 | `chapterPairsLinter` | tool | `lineParityLinter` over every EN/RU pair of a batch |
 | `createTranslateOutputs` | tool factory | `ru/chapter<N>.md` + merged `titles.json` write intents |

@@ -10,6 +10,8 @@ export interface AnalyzeOutputsOptions {
   taggedDir?: string
   /** Glossary file name (target root). Default: `glossary.json`. */
   glossaryFile?: string
+  /** Relation graph file name (target root). Default: `glossary.graph.json`. */
+  graphFile?: string
   /** Log a one-line stats message. Default: true. */
   log?: boolean
 }
@@ -20,6 +22,7 @@ export interface AnalyzeOutputsOptions {
  * - `<summaryDir>/chapter<N>.summary.md`  (`# title` + `## Summary` from `meta.summaryByItem`)
  * - `<taggedDir>/chapter<N>.md`            (`meta.taggedItems`, else the input)
  * - `<glossaryFile>`                       (`meta.glossaryJson`)
+ * - `<graphFile>`                          (`meta.glossaryGraphJson`, when the extractor built one)
  *
  * Run after `heuristicSummaryTool` / `glossaryExtractor` / `termTagger`. Item becomes `''`.
  */
@@ -27,10 +30,11 @@ export function createAnalyzeOutputs(options: AnalyzeOutputsOptions = {}) {
   const summaryDir = options.summaryDir ?? 'schema'
   const taggedDir = options.taggedDir ?? 'en-tagged'
   const glossaryFile = options.glossaryFile ?? 'glossary.json'
+  const graphFile = options.graphFile ?? 'glossary.graph.json'
   return defineTool<string | string[], string>({
     name: 'analyze-outputs',
     version: '1.0.0',
-    mdDescription: `Emits ${summaryDir}/chapter<N>.summary.md, ${taggedDir}/chapter<N>.md and ${glossaryFile}.`,
+    mdDescription: `Emits ${summaryDir}/chapter<N>.summary.md, ${taggedDir}/chapter<N>.md, ${glossaryFile} and ${graphFile}.`,
     async invoke(env) {
       const inputs = (env.items ?? [env.item]).flat()
       const summaries = (env.meta.summaryByItem as string[] | undefined) ?? []
@@ -58,6 +62,15 @@ export function createAnalyzeOutputs(options: AnalyzeOutputsOptions = {}) {
         filename: glossaryFile,
         content: String(env.meta.glossaryJson ?? ''),
       })
+      const graphJson = env.meta.glossaryGraphJson
+      if (typeof graphJson === 'string' && graphJson !== '') {
+        meta = appendMdOutput(meta, {
+          name: 'glossary-graph',
+          subdir: '',
+          filename: graphFile,
+          content: graphJson,
+        })
+      }
       if (options.log !== false) {
         const glossary = env.meta.glossary as { terms: unknown[] } | undefined
         console.log(

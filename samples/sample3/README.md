@@ -8,7 +8,7 @@ Three stages run one after another, each reading the files the previous one wrot
 | # | Stage | Reads | Writes |
 |---|---|---|---|
 | 1 | `pipelines/normalize.ts` | `jsonl/input.jsonl` | `chapters/en/chapter<N>.md` |
-| 2 | `pipelines/analyze.ts` | `chapters/en/` | `chapters/schema/`, `chapters/glossary.json`, `chapters/en-tagged/` |
+| 2 | `pipelines/analyze.ts` | `chapters/en/` | `chapters/schema/`, `chapters/glossary.json`, `chapters/glossary.graph.json`, `chapters/en-tagged/` |
 | 3 | `pipelines/translate.ts` | `chapters/en-tagged/` + glossary + summaries | `chapters/ru/chapter<N>.md`, `chapters/titles.json` |
 
 Every stage is offline by default (mock LLM backend, optional LLM steps switched off).
@@ -23,6 +23,9 @@ Every stage is offline by default (mock LLM backend, optional LLM steps switched
 - How to build a cross-chapter glossary with `.batch()` + `createGlossaryExtractor` and keep the
   hand edits (`ru`, `type`, `aliases`) on re-run, then tag the text with `termTagger` so the next
   stage knows which term is which.
+- How the glossary v2 extractor works: NER candidates seed the pool, the terms of the previous
+  `glossary.json` are reused (an LLM only extracts the new ones), and every term gets its related
+  terms (`references`) in `chapters/glossary.graph.json`.
 - How to translate a chapter one line per LLM call, injecting only that line's glossary entries plus
   the chapter summary as context, and gate every reply with the line-parity linter.
 - How to chain separate pipelines through the shared `chapters/` dir (`@en` -> `@chapters` -> `@chapters`).
@@ -41,6 +44,7 @@ sample3/
 ├── chapters/schema/          # analyze: chapter<N>.summary.md
 ├── chapters/en-tagged/       # analyze: EN with <term id="..."> tags
 ├── chapters/glossary.json    # analyze: editable glossary
+├── chapters/glossary.graph.json  # analyze: relation graph of the terms
 ├── chapters/titles.json      # translate: { "<n>": { en, ru } }
 └── tests/
     ├── full-flow.test.ts     # all three stages chained end to end
@@ -78,20 +82,30 @@ Decorative-only lines (`***`, `~~~`) are dropped; all other lines are preserved 
 ```bash
 pnpm run analyze                  # reads chapters/en/*.md (run normalize first), offline
 MT_LLM_SUMMARY=1 MT_LLM_TOOL=ollama pnpm run analyze   # optional LLM summary
+MT_LLM_GLOSSARY=1 MT_LLM_TOOL=ollama pnpm run analyze  # optional LLM glossary
 ```
 
 Writes, with no LLM needed:
 
 - `chapters/schema/chapter<N>.summary.md` — heuristic summary (lead + most informative sentences).
   `MT_LLM_SUMMARY=1` asks the picked backend instead and falls back to the heuristic one.
-- `chapters/glossary.json` — `{ terms: [{ id, term, type, count, firstChapter, ru, aliases }] }`
-  (capitalised names, `[Bracketed]` terms, repeated capitalised nouns). Edit it by hand: fill `ru`,
+- `chapters/glossary.json` — `{ terms: [{ id, term, type, count, firstChapter, ru, aliases, references? }] }`
+  (capitalised names, `[Bracketed]` terms, repeated capitalised nouns, plus the NER candidates: proper names
+  and locative phrases, whose kind fixes a guessed type — a place read as a character becomes a place).
+  `references` holds the related terms. Edit it by hand: fill `ru`,
   fix `type`, add `aliases`, drop noise by moving a term string into `ignored`. Re-running keeps `ru`,
   `aliases`, `type`, manual terms; only `count` / `firstChapter` are recomputed. Delete the file to
   start over.
+- `chapters/glossary.graph.json` — `{ nodes: [...], edges: [...] }`, the relation graph of the terms
+  (`references` edges plus the co-occurrence ones: two terms that share a sentence of the corpus).
 - `chapters/en-tagged/chapter<N>.md` — EN text with `<term id="ID">text</term>` around every glossary
   term (longest match first, no nesting, code skipped, idempotent, same line count). `stripTerms()`
   from `@mt/tools` restores the original text exactly.
+
+With `MT_LLM_GLOSSARY=1` the glossary is analysed by the picked LLM backend with the bundled
+`glossary.*` prompts: the terms of the previous `glossary.json` are reused (their `ru` and `type` win),
+only the new candidates are extracted, the related terms of the answer become the `references`, and a
+rejected or unparsable reply falls back to the heuristic glossary (`meta.glossaryLlm.fallbackUsed`).
 
 Tools: `heuristicSummaryTool`, `glossaryExtractor`, `termTagger` (see `docs/steering/tools.md`).
 
@@ -125,8 +139,8 @@ pnpm run cleanup
 ```
 
 Wipes every generated file (`chapters/{en,ru}/*.md`, `chapters/schema/`, `chapters/en-tagged/`,
-`chapters/glossary.json`, `chapters/titles.json`, `jsonl/input.jsonl`) and the `.mt` checkpoint tree.
-Keep `chapters/glossary.json` if you have hand edits worth keeping.
+`chapters/glossary.json`, `chapters/glossary.graph.json`, `chapters/titles.json`, `jsonl/input.jsonl`)
+and the `.mt` checkpoint tree. Keep `chapters/glossary.json` if you have hand edits worth keeping.
 
 ## How to run manually
 
@@ -153,8 +167,9 @@ the stage-2 summary both reach the captured stage-3 prompts, that the RU heading
 `chapters/titles.json`, and finally that `lint-parity.ts` exits 0 on the generated EN/RU pair.
 No network, no LLM, no credentials.
 
-`tests/analyze.test.ts` writes tiny synthetic chapters and checks summaries, glossary types/counts, tag
-round trip (`stripTerms(tagged) === original`, same line count) and that manual `ru` edits survive a re-run.
+`tests/analyze.test.ts` writes tiny synthetic chapters and checks summaries, glossary types/counts, the
+relation graph (`glossary.graph.json`), tag round trip (`stripTerms(tagged) === original`, same line count) and
+that manual `ru` edits survive a re-run.
 
 `tests/translate.test.ts` writes synthetic tagged chapters + glossary + summaries, runs the pipeline with the mock
 LLM and asserts RU/EN line parity, stripped tags, glossary `ru` / summary in the captured prompts (only for the terms

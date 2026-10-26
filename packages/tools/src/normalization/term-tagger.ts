@@ -5,6 +5,12 @@ import type { RuGrammar } from './ru-grammar.js'
 /** Kind of glossary entry (best-effort guess; humans may edit it). */
 export type GlossaryTermType = 'character' | 'place' | 'item' | 'skill' | 'term'
 
+/** One chapter of the analysed corpus. */
+export interface GlossaryChapter {
+  chapter: number
+  text: string
+}
+
 /** One glossary entry. `ru` and `aliases` are meant to be filled/edited by a human. */
 export interface GlossaryTerm {
   /** Stable slug used in `<term id="...">`. */
@@ -20,6 +26,10 @@ export interface GlossaryTerm {
   ru: string | null
   /** Other EN surface forms tagged with the same id. */
   aliases: string[]
+  /** Related glossary terms (relation graph edges); term names, not ids. */
+  references?: string[]
+  /** What the term means in the story (model-reported). */
+  description?: string
   /** Model-reported RU translations awaiting human approval (never auto-applied). */
   pending?: string[]
   /** Optional Russian morphology metadata (gender, declension, inflection endings). */

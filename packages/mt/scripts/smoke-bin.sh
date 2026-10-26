@@ -307,7 +307,7 @@ curl -sf "$RBASE/api/pool" | grep -q '"mockMode":true'
 curl -sf "$RBASE/api/logs" | grep -q '"entries"'
 curl -sf "$RBASE/api/translate/health" | grep -q '"availableClients"'
 curl -sf "$RBASE/api/translate/config" | grep -q '"supportedLanguages"'
-curl -sf "$RBASE/" | grep -q '<div id="app">'
+curl -sf "$RBASE/" | grep -q '<div id="app'   # the dashboard div carries a class
 curl -sf "$RBASE/app.js" | grep -q 'useDashboard'
 test "$(curl -s -o /dev/null -w '%{http_code}' "$RBASE/api/nope")" = 404
 kill "$ROUTER_PID"

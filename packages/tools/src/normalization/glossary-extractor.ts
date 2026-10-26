@@ -1,14 +1,36 @@
 import { readFile } from 'node:fs/promises'
 import { defineTool } from '@mt/core'
-import type { Envelope } from '@mt/core'
+import type { Envelope, ToolContext } from '@mt/core'
+import { buildGlossaryGraph, serializeGlossaryGraph } from './glossary-graph.js'
+import type { GlossaryGraph } from './glossary-graph.js'
+import {
+  CONCEPT_WORDS,
+  ITEM_WORDS,
+  PLACE_WORDS,
+  SKILL_WORDS,
+  isCommonWord,
+} from './glossary-lexicon.js'
+import {
+  type LlmGlossaryEntry,
+  enrichTermWithLlm,
+  extractGlossaryWithLlm,
+  mapCategory,
+  relateTermWithLlm,
+} from './glossary-llm.js'
+import { type NerBackend, type NerCandidate, heuristicNerBackend } from './ner-candidates.js'
+import type { LlmAttemptMeta, SchemaDocLlmCall } from './schema/llm.js'
 import { compileTermMatcher, countTerms, mapProse } from './term-tagger.js'
-import type { Glossary, GlossaryTerm, GlossaryTermType } from './term-tagger.js'
+import type { Glossary, GlossaryChapter, GlossaryTerm, GlossaryTermType } from './term-tagger.js'
 import type { ReportedTerm } from './translation-prompt.js'
 
-/** One chapter of the analysed corpus. */
-export interface GlossaryChapter {
-  chapter: number
-  text: string
+export type { GlossaryChapter } from './term-tagger.js'
+
+/** One candidate term found in the corpus. */
+export interface GlossaryCandidate {
+  term: string
+  count: number
+  firstChapter: number
+  type: GlossaryTermType
 }
 
 export interface GlossaryExtractOptions {
@@ -16,33 +38,11 @@ export interface GlossaryExtractOptions {
   minCount?: number
   /** Terms to never propose (merged with `existing.ignored`). */
   ignored?: string[]
+  /** Pre-computed candidates (skips the heuristic scan). */
+  candidates?: GlossaryCandidate[]
+  /** NER candidates seeding the pool (their kind refines a guessed type). */
+  ner?: NerCandidate[]
 }
-
-const COMMON = new Set(
-  (
-    'The A An He She It They We I You His Her Its Their Our Your My This That These Those What ' +
-    'When Where Why How Who Whom Which But And Or So Then Now If As At In On Of To For With ' +
-    'Without By From After Before Chapter Yes No Not Just Even Still There Here Suddenly Perhaps ' +
-    'Maybe Please Thank Thanks Well Oh Ah Hmm Okay Ok Once Every Some Many Most Each Both All ' +
-    'Another Other Only Also Though Although While Because Since Until Unless Whether Either ' +
-    'Neither Nothing Something Anything Everything Someone Anyone Everyone Mr Mrs Ms Dr Sir ' +
-    'Do Does Did Is Are Was Were Be Can Could Would Should Will Shall May Might Must Let Look ' +
-    'See Come Go Get Got Take Make Know Think Tell Say Said Ask Asked Wait Stop Listen Sorry ' +
-    'Good Great Little Big Old New First Last Next One Two Three Four Five Six Seven Eight Nine Ten ' +
-    'Today Tomorrow Yesterday Tonight Monday Tuesday Wednesday Thursday Friday Saturday Sunday ' +
-    'Never Always Maybe Really Actually Finally Instead Meanwhile However Therefore Besides ' +
-    'Later Soon Earlier Afterward Eventually Slowly Quickly Finally Then Again Perhaps Inside Outside Behind Above Below Beyond Between Through During Within Against Among'
-  ).split(' '),
-)
-
-const PLACE =
-  /^(City|Kingdom|Mountains?|Forest|River|Lake|Valley|Castle|Village|Town|Temple|Realm|Island|Sea|Desert|Cave|Tower|Gate|Hall|Capital|Plains|Hills|Swamp|Fortress|Palace|Port|Harbor|Peak|Canyon|Ruins|Land|Lands|Mount|Mt)$/
-const ITEM =
-  /^(Sword|Blade|Ring|Staff|Amulet|Potion|Stone|Armor|Armour|Shield|Crown|Orb|Elixir|Scroll|Bow|Axe|Key|Cloak|Dagger|Spear|Pendant|Necklace|Helm|Helmet|Gauntlets?|Boots|Wand|Tome|Book|Crystal|Gem|Pill|Egg)$/
-const SKILL =
-  /^(Strike|Slash|Blast|Bolt|Art|Arts|Technique|Skill|Spell|Breath|Aura|Style|Burst|Form|Dash|Shot|Fire|Fireball|Heal|Healing|Step|Shield|Barrier|Roar|Charge|Smash|Cleave|Mastery|Sense|Vision|Resistance)$/
-const TERM =
-  /^(Order|Guild|Sect|Clan|Academy|Empire|Church|System|Class|Rank|Council|Army|Legion|Alliance|Dynasty|House|Tribe|Race|Level|Quest|Status|Title|Realm|Dragons?|Elf|Elves|Dwarf|Dwarves|Orc|Orcs)$/
 
 /** Best-effort type guess from the term's last word (and the first word for `Mount X`). */
 export function guessType(term: string): GlossaryTermType {
@@ -50,10 +50,10 @@ export function guessType(term: string): GlossaryTermType {
   const words = term.replace(/^\[|\]$/g, '').split(/\s+/)
   const last = words[words.length - 1] ?? ''
   const first = words[0] ?? ''
-  if (PLACE.test(last) || first === 'Mount') return 'place'
-  if (ITEM.test(last)) return 'item'
-  if (SKILL.test(last)) return 'skill'
-  if (TERM.test(last)) return 'term'
+  if (PLACE_WORDS.test(last) || first === 'Mount') return 'place'
+  if (ITEM_WORDS.test(last)) return 'item'
+  if (SKILL_WORDS.test(last)) return 'skill'
+  if (CONCEPT_WORDS.test(last)) return 'term'
   return bracketed ? 'term' : 'character'
 }
 
@@ -67,13 +67,6 @@ export function slugify(term: string): string {
   return s === '' ? 'term' : s
 }
 
-interface Candidate {
-  term: string
-  count: number
-  firstChapter: number
-  type: GlossaryTermType
-}
-
 const BRACKET = /\[([^[\]\n]{2,60})\]/g
 const MULTI =
   /\b[A-Z][a-z]+(?:[-'][A-Z][a-z]+)*(?:\s+(?:(?:of(?:\s+the)?|de|von|van|la|le)\s+)?[A-Z][a-z]+(?:[-'][A-Z][a-z]+)*){1,3}/g
@@ -84,7 +77,12 @@ function isSentenceStart(line: string, index: number): boolean {
   return before === '' || /[.!?:]$/.test(before)
 }
 
-function bump(map: Map<string, Candidate>, term: string, chapter: number, type?: GlossaryTermType) {
+function bump(
+  map: Map<string, GlossaryCandidate>,
+  term: string,
+  chapter: number,
+  type?: GlossaryTermType,
+) {
   const c = map.get(term)
   if (c) {
     c.count++
@@ -105,13 +103,13 @@ function bracketTerm(inner: string): string | null {
 export function extractCandidates(
   chapters: GlossaryChapter[],
   options: GlossaryExtractOptions = {},
-): Candidate[] {
+): GlossaryCandidate[] {
   const minCount = options.minCount ?? 2
   const ignored = new Set(options.ignored ?? [])
-  const multi = new Map<string, Candidate>()
-  const bracketed = new Map<string, Candidate>()
-  const mid = new Map<string, Candidate>()
-  const capAll = new Map<string, Candidate>()
+  const multi = new Map<string, GlossaryCandidate>()
+  const bracketed = new Map<string, GlossaryCandidate>()
+  const mid = new Map<string, GlossaryCandidate>()
+  const capAll = new Map<string, GlossaryCandidate>()
   const lower = new Map<string, number>()
 
   for (const { chapter, text } of chapters) {
@@ -134,10 +132,10 @@ export function extractCandidates(
         let hi = words.length - 1
         while (
           lo <= hi &&
-          (COMMON.has(words[lo] ?? '') || /^[A-Z][a-z]+ing$/.test(words[lo] ?? ''))
+          (isCommonWord(words[lo] ?? '') || /^[A-Z][a-z]+ing$/.test(words[lo] ?? ''))
         )
           lo += 2
-        while (hi >= lo && COMMON.has(words[hi] ?? '')) hi -= 2
+        while (hi >= lo && isCommonWord(words[hi] ?? '')) hi -= 2
         if (hi - lo < 2) continue
         const term = words.slice(lo, hi + 1).join('')
         const start = at + words.slice(0, lo).join('').length
@@ -147,7 +145,7 @@ export function extractCandidates(
       for (const m of seg.matchAll(SINGLE)) {
         const at = m.index ?? 0
         const w = m[0]
-        if (COMMON.has(w)) continue
+        if (isCommonWord(w)) continue
         if (masked.some(([a, b]) => at >= a && at < b)) continue
         bump(capAll, w, chapter)
         if (!isSentenceStart(seg, at)) bump(mid, w, chapter)
@@ -156,7 +154,7 @@ export function extractCandidates(
     })
   }
 
-  const out: Candidate[] = []
+  const out: GlossaryCandidate[] = []
   for (const c of bracketed.values()) out.push(c)
   for (const c of multi.values()) if (c.count >= minCount) out.push(c)
   for (const c of capAll.values()) {
@@ -169,12 +167,80 @@ export function extractCandidates(
   return out.filter((c) => !ignored.has(c.term))
 }
 
+/** Glossary type of a NER entity kind. */
+function typeOfKind(kind: NerCandidate['kind']): GlossaryTermType {
+  switch (kind) {
+    case 'person':
+      return 'character'
+    case 'place':
+      return 'place'
+    case 'organization':
+      return 'term'
+    default:
+      return 'term'
+  }
+}
+
+/**
+ * Merges the NER candidates into the heuristic pool: a NER entity that the extractor
+ * missed becomes a new candidate, and its kind refines a guessed `character` type
+ * (a place read as a character becomes a place).
+ */
+export function seedCandidates(
+  candidates: GlossaryCandidate[],
+  ner: NerCandidate[] = [],
+): GlossaryCandidate[] {
+  const byKey = new Map<string, GlossaryCandidate>()
+  for (const c of candidates) byKey.set(c.term.toLowerCase(), { ...c })
+  for (const n of ner) {
+    const key = n.text.toLowerCase()
+    const current = byKey.get(key)
+    if (!current) {
+      byKey.set(key, {
+        term: n.text,
+        count: n.count ?? 1,
+        firstChapter: n.firstChapter ?? 0,
+        type: typeOfKind(n.kind),
+      })
+      continue
+    }
+    current.count = Math.max(current.count, n.count ?? 1)
+    current.firstChapter = Math.min(current.firstChapter, n.firstChapter ?? current.firstChapter)
+    if (current.type === 'character') {
+      const refined = typeOfKind(n.kind)
+      if (refined !== 'term' || n.kind === 'organization') current.type = refined
+    }
+  }
+  return [...byKey.values()]
+}
+
 /** Unique id from a slug base: `base`, `base-2`, `base-3`, … (`taken` is updated). */
 export function uniqueId(base: string, taken: Set<string>): string {
   let id = base
   for (let n = 2; taken.has(id); n++) id = `${base}-${n}`
   taken.add(id)
   return id
+}
+
+/** Recomputes `count` / `firstChapter` of every term from the corpus (pure). */
+export function recountGlossary(glossary: Glossary, chapters: GlossaryChapter[]): Glossary {
+  const matcher = compileTermMatcher(glossary)
+  const totals = new Map<string, number>()
+  const first = new Map<string, number>()
+  for (const { chapter, text } of [...chapters].sort((a, b) => a.chapter - b.chapter)) {
+    for (const [id, n] of countTerms(text, glossary, matcher)) {
+      totals.set(id, (totals.get(id) ?? 0) + n)
+      if (!first.has(id)) first.set(id, chapter)
+    }
+  }
+  return {
+    ...glossary,
+    terms: glossary.terms.map((t) => ({
+      ...t,
+      count: totals.get(t.id) ?? 0,
+      firstChapter: first.get(t.id) ?? t.firstChapter ?? null,
+    })),
+  }
 }
 
 /**
@@ -197,11 +263,14 @@ export function buildGlossary(
   for (const t of existing?.terms ?? []) {
     terms.push({ ...t, aliases: [...(t.aliases ?? [])], ru: t.ru ?? null })
     taken.add(t.id)
-    known.add(t.term)
-    for (const a of t.aliases ?? []) known.add(a)
+    known.add(t.term.trim().toLowerCase())
+    for (const a of t.aliases ?? []) known.add(a.trim().toLowerCase())
   }
-  const fresh = extractCandidates(chapters, { ...options, ignored })
-    .filter((c) => !known.has(c.term))
+  const scanned =
+    options.candidates ?? extractCandidates(chapters, { minCount: options.minCount, ignored })
+  const fresh = seedCandidates(scanned, options.ner)
+    .filter((c) => !known.has(c.term.trim().toLowerCase()))
+    .filter((c) => !ignored.includes(c.term))
     .sort((a, b) => b.count - a.count || a.term.localeCompare(b.term))
   for (const c of fresh) {
     terms.push({
@@ -216,21 +285,149 @@ export function buildGlossary(
   }
 
   // Recount every entry with the tagger's own matching rules (existing + new, consistent).
-  const glossary: Glossary = { terms, ignored }
+  return recountGlossary(
+    {
+      terms,
+      ignored,
+      ...(existing?.rejected && existing.rejected.length > 0
+        ? { rejected: existing.rejected }
+        : {}),
+    },
+    chapters,
+  )
+}
+
+/**
+ * Merges the entries reported by the model into a glossary (pure).
+ *
+ * - A term that is already in the glossary keeps its `ru`; its `type` is only refined when
+ *   the term is new in this run (`protectedIds` holds the ids of the reused terms).
+ * - An unknown term is appended (reported type/description applied, id via `slugify`).
+ * - `references` of an entry point to the terms that exist in the glossary.
+ */
+export function mergeExtractedEntries(
+  glossary: Glossary,
+  entries: LlmGlossaryEntry[],
+  protectedIds: Set<string> = new Set(),
+): Glossary {
+  const taken = new Set<string>()
+  const bySurface = new Map<string, GlossaryTerm>()
+  const terms: GlossaryTerm[] = []
+  for (const t of glossary.terms) {
+    const copy: GlossaryTerm = { ...t, aliases: [...(t.aliases ?? [])] }
+    terms.push(copy)
+    taken.add(copy.id)
+    bySurface.set(copy.term.trim().toLowerCase(), copy)
+    for (const a of copy.aliases) bySurface.set(a.trim().toLowerCase(), copy)
+  }
+  const ignored = new Set((glossary.ignored ?? []).map((s) => s.toLowerCase()))
+  for (const entry of entries) {
+    const key = entry.name.trim().toLowerCase()
+    if (key === '' || ignored.has(key)) continue
+    const match = bySurface.get(key)
+    if (match) {
+      if (entry.description !== '' && !match.description) match.description = entry.description
+      if (!protectedIds.has(match.id) && entry.category !== '') {
+        match.type = mapCategory(entry.category)
+      }
+      const merged = [...new Set([...(match.references ?? []), ...entry.references])]
+      if (merged.length > 0) match.references = merged
+      continue
+    }
+    const term: GlossaryTerm = {
+      id: uniqueId(slugify(entry.name), taken),
+      term: entry.name,
+      type: mapCategory(entry.category),
+      count: 0,
+      firstChapter: null,
+      ru: null,
+      aliases: [],
+      ...(entry.description !== '' ? { description: entry.description } : {}),
+      ...(entry.references.length > 0 ? { references: [...entry.references] } : {}),
+    }
+    terms.push(term)
+    bySurface.set(key, term)
+  }
+  return { ...glossary, terms }
+}
+
+/** Relations between the glossary terms: term name -> related term names. */
+export type GlossaryRelations = Map<string, string[]>
+
+/**
+ * Heuristic relations: two terms that appear in the same sentence of the corpus are
+ * related. The most frequent neighbours win when a term has too many of them.
+ */
+export function coOccurrenceRelations(
+  chapters: GlossaryChapter[],
+  glossary: Glossary,
+  maxPerTerm = 12,
+): GlossaryRelations {
   const matcher = compileTermMatcher(glossary)
-  const totals = new Map<string, number>()
-  const first = new Map<string, number>()
-  for (const { chapter, text } of [...chapters].sort((a, b) => a.chapter - b.chapter)) {
-    for (const [id, n] of countTerms(text, glossary, matcher)) {
-      totals.set(id, (totals.get(id) ?? 0) + n)
-      if (!first.has(id)) first.set(id, chapter)
+  const byId = new Map(glossary.terms.map((t) => [t.id, t.term]))
+  const counts = new Map<string, Map<string, number>>()
+  for (const { text } of chapters) {
+    for (const segment of text.split('\n').flatMap((line) => line.split(/[.!?]+\s+/))) {
+      const found = new Set<string>()
+      for (const [id] of countTerms(segment, glossary, matcher)) found.add(id)
+      if (found.size < 2) continue
+      const names = [...found].map((id) => byId.get(id)).filter((n): n is string => !!n)
+      for (const a of names) {
+        const neighbours = counts.get(a) ?? new Map<string, number>()
+        for (const b of names) {
+          if (a === b) continue
+          neighbours.set(b, (neighbours.get(b) ?? 0) + 1)
+        }
+        counts.set(a, neighbours)
+      }
     }
   }
-  for (const t of terms) {
-    t.count = totals.get(t.id) ?? 0
-    t.firstChapter = first.get(t.id) ?? t.firstChapter ?? null
+  const relations: GlossaryRelations = new Map()
+  for (const [name, neighbours] of counts) {
+    const top = [...neighbours.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, maxPerTerm)
+      .map(([other]) => other)
+    relations.set(name, top)
   }
-  return glossary
+  return relations
+}
+
+/**
+ * Adds the relations to the glossary terms (pure): `references` holds the names of the
+ * related terms that exist in the glossary (sorted, unique).
+ */
+export function applyRelations(glossary: Glossary, relations: GlossaryRelations): Glossary {
+  const byName = new Map<string, string>()
+  for (const t of glossary.terms) byName.set(t.term.trim().toLowerCase(), t.id)
+  const terms = glossary.terms.map((term) => {
+    const extra = relations.get(term.term) ?? []
+    const merged = new Set([...(term.references ?? []), ...extra])
+    const kept = [...merged]
+      .map((name) => name.trim())
+      .filter((name) => name !== '' && byName.has(name.toLowerCase()))
+      .filter((name) => name.toLowerCase() !== term.term.trim().toLowerCase())
+      .sort((a, b) => a.localeCompare(b))
+    const { references: _previous, ...rest } = term
+    return kept.length > 0 ? { ...rest, references: kept } : rest
+  })
+  return { ...glossary, terms }
+}
+
+const TYPE_ORDER: GlossaryTermType[] = ['character', 'place', 'item', 'skill', 'term']
+
+/** Sorts the terms by category then name (like the machinum-llm `joinNames`). */
+export function sortGlossary(glossary: Glossary): Glossary {
+  const rank = (type: GlossaryTermType): number => {
+    const index = TYPE_ORDER.indexOf(type)
+    return index === -1 ? TYPE_ORDER.length : index
+  }
+  return {
+    ...glossary,
+    terms: [...glossary.terms].sort(
+      (a, b) => rank(a.type) - rank(b.type) || a.term.localeCompare(b.term),
+    ),
+  }
 }
 
 /**
@@ -323,35 +520,202 @@ export function chapterNumberOf(md: string, fallback: number): number {
   return n ? Number(n) : fallback
 }
 
+/** Relation enrichment through the NameRelations prompt (needs an LLM backend). */
+export interface GlossaryRelationsOptions {
+  /** Analyse the relations of the terms without references. Default: `false`. */
+  enabled?: boolean
+  /** Max terms analysed. Default: 8. */
+  maxTerms?: number
+}
+
+/** Term enrichment through the GlossaryEnrich prompt (needs an LLM backend). */
+export interface GlossaryEnrichOptions {
+  /** Describe the new terms. Default: `false`. */
+  enabled?: boolean
+  /** Max terms described. Default: 5. */
+  maxTerms?: number
+}
+
 export interface GlossaryExtractorToolOptions extends GlossaryExtractOptions {
   /** Loads the existing glossary (e.g. from `chapters/glossary.json`). */
   load?: () => Promise<Glossary | undefined> | Glossary | undefined
+  /** LLM backend (e.g. `pickLlmTool().schemaCall`); without it the extractor stays offline. */
+  call?: SchemaDocLlmCall
+  model?: string
+  temperature?: number
+  maxTokens?: number
+  /** Loop-guard budget: LLM calls per stage before the deterministic fallback. */
+  maxAttempts?: number
+  /** NER backend seeding the candidates. Default: the built-in heuristic one. */
+  nerBackend?: NerBackend
+  /** Relation enrichment through the NameRelations prompt. */
+  relations?: GlossaryRelationsOptions
+  /** Term enrichment through the GlossaryEnrich prompt. */
+  enrich?: GlossaryEnrichOptions
+  /** Add the co-occurrence relations of the corpus. Default: `true`. */
+  coOccurrence?: boolean
 }
 
 /**
  * Tool: builds/updates the glossary from `env.items` (batched corpus) or `env.item`.
- * Item untouched; result in `meta.glossary` (+ `meta.glossaryJson`, `meta.chapterNums`).
+ * Item untouched; result in `meta.glossary` (+ `meta.glossaryJson`, `meta.glossaryGraph`,
+ * `meta.glossaryGraphJson`, `meta.chapterNums`).
+ *
+ * With an LLM backend the corpus is analysed with the bundled `glossary.*` prompts: the
+ * terms of the previous glossary are reused (their `ru` / `type` win), only the new
+ * candidates are extracted, and the relations of the terms are built from the model
+ * answer. Any LLM failure falls back to the heuristic glossary.
  */
 export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = {}) {
   return defineTool<string | string[], string | string[]>({
     name: 'glossary-extractor',
-    version: '1.0.0',
+    version: '2.0.0',
     mdDescription:
-      'Heuristic glossary extraction (capitalised names, [Bracketed] terms, repeated capitalised ' +
-      'nouns) with type guess, count and firstChapter; merges into an existing glossary keeping ' +
-      '`ru`, `aliases` and manual edits. Stores `meta.glossary`.',
-    async invoke(env: Envelope<string | string[]>): Promise<Envelope<string | string[]>> {
+      'Glossary extraction (heuristic candidates + NER seeding, LLM extraction with the ' +
+      'bundled glossary prompts, reuse of the terms of the previous glossary, relation ' +
+      'graph). Stores `meta.glossary`, `meta.glossaryJson` and `meta.glossaryGraph`.',
+    async invoke(
+      env: Envelope<string | string[]>,
+      ctx: ToolContext,
+    ): Promise<Envelope<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const chapterNums = inputs.map((t, i) => chapterNumberOf(t, i + 1))
+      const chapters: GlossaryChapter[] = inputs.map((text, i) => ({
+        chapter: chapterNums[i] ?? i + 1,
+        text,
+      }))
       const existing = await options.load?.()
-      const glossary = buildGlossary(
-        inputs.map((text, i) => ({ chapter: chapterNums[i] ?? i + 1, text })),
-        existing,
-        options,
+
+      // --- candidates: heuristic scan + NER seeding -------------------------------------
+      const ignored = [...new Set([...(existing?.ignored ?? []), ...(options.ignored ?? [])])]
+      const scanned =
+        options.candidates ??
+        extractCandidates(chapters, {
+          minCount: options.minCount,
+          ignored,
+        })
+      const backend = options.nerBackend ?? heuristicNerBackend
+      const ner = options.ner ?? (await backend.extract(chapters))
+      const pool = seedCandidates(scanned, ner)
+
+      // --- reuse: the terms of the previous glossary are never re-extracted -------------
+      const knownNames = new Set(
+        (existing?.terms ?? [])
+          .flatMap((t) => [t.term, ...(t.aliases ?? [])])
+          .map((s) => s.trim().toLowerCase()),
       )
+      const protectedIds = new Set((existing?.terms ?? []).map((t) => t.id))
+      const freshNames = pool
+        .filter((c) => !knownNames.has(c.term.trim().toLowerCase()))
+        .filter((c) => !ignored.includes(c.term))
+        .map((c) => c.term)
+
+      // --- LLM extraction (optional) ----------------------------------------------------
+      let entries: LlmGlossaryEntry[] = []
+      let llmMeta: LlmAttemptMeta | undefined
+      if (options.call) {
+        const result = await extractGlossaryWithLlm(ctx, {
+          call: options.call,
+          model: options.model,
+          temperature: options.temperature,
+          maxTokens: options.maxTokens,
+          maxAttempts: options.maxAttempts,
+          chapters,
+          known: (existing?.terms ?? []).map((t) => t.term),
+          candidates: freshNames,
+        })
+        entries = result.entries
+        llmMeta = result.meta
+      }
+
+      // --- merge --------------------------------------------------------------------------
+      let glossary = buildGlossary(chapters, existing, {
+        minCount: options.minCount,
+        ignored,
+        candidates: pool,
+      })
+      glossary = mergeExtractedEntries(glossary, entries, protectedIds)
+
+      // --- relations ----------------------------------------------------------------------
+      // The relations the model reported with the entries (semantic ones).
+      const relations: GlossaryRelations = new Map()
+      for (const term of glossary.terms) {
+        if (term.references && term.references.length > 0) {
+          relations.set(term.term, [...term.references])
+        }
+      }
+
+      // The relations of the terms the model did not relate yet (NameRelations prompt).
+      if (options.call && options.relations?.enabled) {
+        const maxTerms = options.relations.maxTerms ?? 8
+        const pending = glossary.terms.filter((t) => !relations.has(t.term)).slice(0, maxTerms)
+        for (const term of pending) {
+          const result = await relateTermWithLlm(ctx, {
+            call: options.call,
+            model: options.model,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            maxAttempts: options.maxAttempts,
+            term: term.term,
+            description: term.description,
+            similarNames: glossary.terms
+              .filter((t) => t.id !== term.id)
+              .slice(0, 20)
+              .map((t) => t.term),
+          })
+          const current = relations.get(term.term) ?? []
+          relations.set(term.term, [
+            ...current,
+            ...result.relations.flatMap((relation) => relation.relatedNames),
+          ])
+        }
+      }
+
+      // The terms that share a sentence of the corpus (heuristic relations).
+      const coOccurrences: GlossaryRelations = new Map()
+      if (options.coOccurrence !== false) {
+        for (const [name, neighbours] of coOccurrenceRelations(chapters, glossary)) {
+          coOccurrences.set(name, neighbours)
+          relations.set(name, [...(relations.get(name) ?? []), ...neighbours])
+        }
+      }
+      glossary = applyRelations(glossary, relations)
+
+      // --- enrichment ---------------------------------------------------------------------
+      if (options.call && options.enrich?.enabled) {
+        const maxTerms = options.enrich.maxTerms ?? 5
+        const pending = glossary.terms
+          .filter((t) => !protectedIds.has(t.id) && !t.description)
+          .slice(0, maxTerms)
+        for (const term of pending) {
+          const result = await enrichTermWithLlm(ctx, {
+            call: options.call,
+            model: options.model,
+            temperature: options.temperature,
+            maxTokens: options.maxTokens,
+            maxAttempts: options.maxAttempts,
+            term: term.term,
+            chapters,
+          })
+          if (result.description !== '') term.description = result.description
+        }
+      }
+
+      // --- finalise ------------------------------------------------------------------------
+      glossary = recountGlossary(glossary, chapters)
+      glossary = sortGlossary(glossary)
+      const graph: GlossaryGraph = buildGlossaryGraph(glossary, coOccurrences)
       return {
         ...env,
-        meta: { ...env.meta, glossary, glossaryJson: serializeGlossary(glossary), chapterNums },
+        meta: {
+          ...env.meta,
+          glossary,
+          glossaryJson: serializeGlossary(glossary),
+          glossaryGraph: graph,
+          glossaryGraphJson: serializeGlossaryGraph(graph),
+          chapterNums,
+          ...(llmMeta ? { glossaryLlm: llmMeta } : {}),
+        },
       }
     },
   })

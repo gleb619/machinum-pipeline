@@ -22,15 +22,21 @@ if (files.length === 0) {
   throw new Error(`gen-prompts: no prompt files in ${promptsDir}`)
 }
 
-/** Single-quoted JS string literal, Biome formatting style (quotes, escapes, `\n` kept). */
+/**
+ * JS string literal in Biome formatting style: single quotes, `\n` kept as escape.
+ * A text with more apostrophes than double quotes is written with double quotes
+ * (Biome keeps the preferred quote style otherwise).
+ */
 function literal(text) {
   const escaped = text
     .replace(/\\/g, '\\\\')
     .replace(/\t/g, '\\t')
     .replace(/\r/g, '\\r')
     .replace(/\n/g, '\\n')
-    .replace(/'/g, "\\'")
-  return `'${escaped}'`
+  const singles = (escaped.match(/'/g) ?? []).length
+  const doubles = (escaped.match(/"/g) ?? []).length
+  if (singles > doubles) return `"${escaped.replace(/"/g, '\\"')}"`
+  return `'${escaped.replace(/'/g, "\\'")}'`
 }
 
 const entries = files.map((name) => {
