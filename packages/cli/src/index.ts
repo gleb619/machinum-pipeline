@@ -79,7 +79,7 @@ Commands:
   resume <runId>         Resume a paused/failed run
   ls runs                List all runs
   inspect <runId>        Show run details
-  tool <name>            Invoke a tool standalone
+  tool <name>            Invoke a tool standalone [--pipeline <file>] (JSON envelope on stdin/stdout)
   serve [-d|--detach]    Start admin backend
   router [opts]          Start LLM router proxy (--help)
   vault <sub>            Manage the vault: list|show|add|rm|path|init|vlt-install|vlt-status (--help)
