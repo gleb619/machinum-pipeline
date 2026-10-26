@@ -734,6 +734,18 @@ export {
 } from './normalization/ru-grammar.js'
 
 export {
+  proofreadTool,
+  createProofreadTool,
+  proofreadXmlTool,
+  createProofreadXmlTool,
+  PROOFREAD_SYSTEM_PROMPT,
+  PROOFREAD_USER_PROMPT,
+  type ProofreadOptions,
+  type ProofreadXmlOptions,
+  type ProofreadMeta,
+} from './modification/proofread.js'
+
+export {
   installStubs,
   stubTranslator,
   stubSchemaEmit,
