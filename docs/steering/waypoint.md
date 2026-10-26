@@ -125,6 +125,12 @@ per-envelope fan-out, and unsubscribes in the generator's `finally`.
 ### `git-worktree.ts`
 - `GitWorktreeSource` / `GitWorktreeTarget` — use `createWorktree()` / `removeWorktree()` from `@mt/core/engine/git-worktree`
 - Target calls `autoCommit()` in `close()` when `commit` query param is set
+- On close with `commit=on-close`, `mergeWorktreeToMain()` rebases the worktree branch onto the
+  base branch **inside the worktree** (base history never rewritten), then fast-forwards the base
+  branch in `repoRoot` only if it is the checked-out branch with a clean tracked tree — the
+  operator's checkout is never switched. Base branch auto-detection: `origin/HEAD` →
+  `init.defaultBranch` → repoRoot's current branch; overridable via `?base=<name>`. A skipped
+  merge leaves the mt branch unmerged and surfaces a run warning (`logger.warn`) naming it (T170)
 
 ### Runner auto-commit (`commit=on-close`)
 - On Target close the Runner calls `autoCommit(projectRoot, undefined, [outputPath])` — it

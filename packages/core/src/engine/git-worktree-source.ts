@@ -54,8 +54,14 @@ export class GitWorktreeSource<T> implements Source<T> {
  * GitWorktreeTarget wraps an inner Target, creating a Git worktree on open(),
  * delegating writes to the inner Target inside the worktree, and on close():
  *   - closes the inner Target
- *   - if commitOnClose: auto-commits + rebase-merges to main
+ *   - if commitOnClose: auto-commits + rebases the worktree branch onto the base
+ *     branch and fast-forwards it (only if the base branch is checked out and clean)
  *   - always removes the worktree (best-effort)
+ *
+ * The base branch is auto-detected (origin HEAD → init.defaultBranch → repoRoot's
+ * current branch), overridable via the URI `base` query param. The operator's
+ * checkout is never switched; a skipped merge is reported as a run warning event
+ * including the unmerged branch name.
  *
  * The inner Target receives a URI whose relative path has been resolved onto
  * the worktree directory. The global process working directory is never
@@ -70,6 +76,7 @@ export class GitWorktreeTarget<T> implements Target<T> {
     private repoRoot: string,
     worktreePath: string,
     private commitOnClose: boolean,
+    private baseBranch?: string,
   ) {
     this.branchName = basename(worktreePath)
   }
@@ -101,9 +108,14 @@ export class GitWorktreeTarget<T> implements Target<T> {
     if (this.commitOnClose) {
       try {
         await autoCommit(worktreePath)
-        await mergeWorktreeToMain(this.repoRoot, worktreePath)
+        const result = await mergeWorktreeToMain(this.repoRoot, worktreePath, {
+          base: this.baseBranch,
+        })
+        if (!result.merged) {
+          ctx.run.logger.warn(`[git-worktree] ${result.reason}`)
+        }
       } catch (err) {
-        console.warn(`[git-worktree] Commit/merge failed: ${err}`)
+        ctx.run.logger.warn(`[git-worktree] Commit/merge failed: ${err}`)
       }
     }
 
@@ -162,6 +174,7 @@ export function createGitWorktreeTarget<T>(uri: ParsedUri): Target<T> {
 
   const resolvedUri = resolveUriPathToWorktree(uri, worktreePath)
   const innerTarget = innerFactory(resolvedUri) as Target<T>
+  const base = uri.query.base
 
-  return new GitWorktreeTarget(innerTarget, repoRoot, worktreePath, commitOnClose)
+  return new GitWorktreeTarget(innerTarget, repoRoot, worktreePath, commitOnClose, base)
 }

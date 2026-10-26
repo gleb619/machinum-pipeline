@@ -74,7 +74,10 @@ git+jsonl://data/output.jsonl?branch=my-feature&commit=on-close
   → Target.close():
       1. inner Target closed
       2. git auto-commit in worktree
-      3. git rebase + ff-merge to main
+      3. git rebase (worktree branch onto the base branch, inside the worktree) +
+         ff-merge into the base branch — only if the base branch is checked out and clean;
+         otherwise the mt branch is left unmerged and a run warning names it.
+         Base branch: origin/HEAD → init.defaultBranch → current branch; `?base=` overrides.
       4. git worktree remove --force (always, even on failure)
 ```
 
@@ -84,7 +87,7 @@ git+jsonl://data/output.jsonl?branch=my-feature&commit=on-close
 |----------|---------|
 | `createWorktree(repoRoot, branchName)` | `git worktree add --detach` |
 | `removeWorktree(worktreePath)` | `git worktree remove --force` |
-| `mergeWorktreeToMain(repoRoot, worktreePath, msg?)` | Rebase branch → ff-merge → delete branch |
+| `mergeWorktreeToMain(repoRoot, worktreePath, options?)` | Rebase branch onto base → ff-merge base → delete branch |
 | `getRepoRoot(cwd)` | `git rev-parse --show-toplevel` |
 
 All functions reuse `execGit` from `packages/core/src/engine/git.ts`.

@@ -29,8 +29,14 @@ describe('UC-24 — Git Worktree Engine API (architectural)', () => {
   it('mergeWorktreeToMain is exported as a function', () => {
     expect(typeof mergeWorktreeToMain).toBe('function')
   })
-  it('mergeWorktreeToMain has 3 parameters (repoRoot, worktreePath, _commitMessage)', () => {
-    expect(mergeWorktreeToMain.length).toBe(3)
+  it('mergeWorktreeToMain has 2 parameters (repoRoot, worktreePath, options?)', () => {
+    // options has a default value, so function.length counts only the params before it
+    expect(mergeWorktreeToMain.length).toBe(2)
+  })
+  it('mergeWorktreeToMain returns a Promise', () => {
+    const p = mergeWorktreeToMain('/nonexistent', '/nonexistent')
+    expect(p).toHaveProperty('then')
+    p.catch(() => {})
   })
   it('all exports return Promises', async () => {
     // createWorktree and getRepoRoot return Promise<string> when called with valid args
@@ -44,4 +50,3 @@ describe('UC-24 — Git Worktree Engine API (architectural)', () => {
     p2.catch(() => {})
   })
 })
-//# sourceMappingURL=git-worktree.arch.test.js.map

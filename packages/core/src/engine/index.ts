@@ -10,6 +10,7 @@ export {
   mergeWorktreeToMain,
   getRepoRoot,
 } from './git-worktree.js'
+export type { MergeWorktreeOptions, MergeWorktreeResult } from './git-worktree.js'
 export {
   createRootCheckpoint,
   findNode,

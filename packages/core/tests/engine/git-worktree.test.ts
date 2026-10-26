@@ -259,7 +259,7 @@ describe('git-worktree engine', () => {
       expect(readFileSync(join(repoRoot, 'feature.txt'), 'utf-8')).toBe('feature work')
     })
 
-    it('throws on merge conflict (main diverged from worktree)', async () => {
+    it('throws on merge conflict (base branch diverged from worktree)', async () => {
       // Create worktree with a branch
       const wtPath = await createWorktree(repoRoot, 'conflict-br')
       await execGit(wtPath, ['checkout', '-b', 'conflict-br'])
@@ -273,6 +273,125 @@ describe('git-worktree engine', () => {
       execSync('git commit -m "main change"', { cwd: repoRoot })
 
       await expect(mergeWorktreeToMain(repoRoot, wtPath)).rejects.toThrow(/Failed to rebase/)
+    })
+
+    it('does not rewrite base history when the base moved after worktree creation', async () => {
+      const initialSha = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+
+      // Worktree branch with a commit
+      const wtPath = await createWorktree(repoRoot, 'mv-feature')
+      await execGit(wtPath, ['checkout', '-b', 'mv-feature'])
+      writeFileSync(join(wtPath, 'mv.txt'), 'worktree work')
+      await autoCommit(wtPath, 'feat: mv')
+
+      // Main moves forward after the worktree was created
+      writeFileSync(join(repoRoot, 'main-advance.txt'), 'main advance')
+      execSync('git add main-advance.txt', { cwd: repoRoot })
+      execSync('git commit -m "main advance"', { cwd: repoRoot })
+      const mainHeadBefore = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(true)
+      expect(result.base).toBe('main')
+
+      // Pre-existing main commits keep their SHAs; the mt commit sits on top
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD~2'])).stdout.trim()).toBe(initialSha)
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD~1'])).stdout.trim()).toBe(mainHeadBefore)
+      expect(existsSync(join(repoRoot, 'mv.txt'))).toBe(true)
+    })
+
+    it('works when the repo default branch is master', async () => {
+      // setupGitRepo leaves a stale 'master' branch next to 'main' (git init default);
+      // repoint master at main, switch to it, and drop main entirely.
+      execSync('git branch -f master main', { cwd: repoRoot })
+      execSync('git checkout master', { cwd: repoRoot })
+      execSync('git branch -D main', { cwd: repoRoot })
+
+      const wtPath = await createWorktree(repoRoot, 'ms-feature')
+      await execGit(wtPath, ['checkout', '-b', 'ms-feature'])
+      writeFileSync(join(wtPath, 'ms.txt'), 'ms work')
+      await autoCommit(wtPath, 'feat: ms')
+      const wtHead = (await execGit(wtPath, ['rev-parse', 'HEAD'])).stdout.trim()
+
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(true)
+      expect(result.base).toBe('master')
+
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()).toBe(wtHead)
+      expect(existsSync(join(repoRoot, 'ms.txt'))).toBe(true)
+
+      // Branch was merged and deleted
+      const branches = (await execGit(repoRoot, ['branch'])).stdout
+      expect(branches).not.toContain('ms-feature')
+    })
+
+    it('keeps the mt branch and reports unmerged when the operator is on another branch with a dirty tree', async () => {
+      const wtPath = await createWorktree(repoRoot, 'keep-feature')
+      await execGit(wtPath, ['checkout', '-b', 'keep-feature'])
+      writeFileSync(join(wtPath, 'keep.txt'), 'keep work')
+      await autoCommit(wtPath, 'feat: keep')
+
+      // Operator switches to another branch and dirties a tracked file
+      execSync('git checkout -b side-branch', { cwd: repoRoot })
+      writeFileSync(join(repoRoot, 'initial.txt'), 'wip')
+
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(false)
+      expect(result.branch).toBe('keep-feature')
+      expect(result.reason).toContain('keep-feature')
+
+      // Operator's checkout is untouched
+      const current = (await execGit(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()
+      expect(current).toBe('side-branch')
+      expect(readFileSync(join(repoRoot, 'initial.txt'), 'utf-8')).toBe('wip')
+
+      // The mt branch is kept, main is untouched
+      const branches = (await execGit(repoRoot, ['branch'])).stdout
+      expect(branches).toContain('keep-feature')
+      expect(existsSync(join(repoRoot, 'keep.txt'))).toBe(false)
+    })
+
+    it('leaves the mt branch unmerged when the base branch is checked out but the tree is dirty', async () => {
+      const mainHead = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+
+      const wtPath = await createWorktree(repoRoot, 'dirty-feature')
+      await execGit(wtPath, ['checkout', '-b', 'dirty-feature'])
+      writeFileSync(join(wtPath, 'dirty.txt'), 'dirty work')
+      await autoCommit(wtPath, 'feat: dirty')
+
+      // Operator stays on main but dirties a tracked file
+      writeFileSync(join(repoRoot, 'initial.txt'), 'wip')
+
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(false)
+      expect(result.branch).toBe('dirty-feature')
+      expect(result.reason).toContain('dirty')
+
+      // Main untouched, mt branch kept, dirty file intact
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()).toBe(mainHead)
+      expect(readFileSync(join(repoRoot, 'initial.txt'), 'utf-8')).toBe('wip')
+      const branches = (await execGit(repoRoot, ['branch'])).stdout
+      expect(branches).toContain('dirty-feature')
+      expect(existsSync(join(repoRoot, 'dirty.txt'))).toBe(false)
+    })
+
+    it('honours the base override option', async () => {
+      execSync('git checkout -b release', { cwd: repoRoot })
+      const releaseHead = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+
+      const wtPath = await createWorktree(repoRoot, 'rel-feature')
+      await execGit(wtPath, ['checkout', '-b', 'rel-feature'])
+      writeFileSync(join(wtPath, 'rel.txt'), 'rel work')
+      await autoCommit(wtPath, 'feat: rel')
+      const wtHead = (await execGit(wtPath, ['rev-parse', 'HEAD'])).stdout.trim()
+
+      const result = await mergeWorktreeToMain(repoRoot, wtPath, { base: 'release' })
+      expect(result.merged).toBe(true)
+      expect(result.base).toBe('release')
+
+      // release fast-forwarded to the worktree commit; main untouched
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()).toBe(wtHead)
+      expect((await execGit(repoRoot, ['rev-parse', 'main'])).stdout.trim()).toBe(releaseHead)
     })
   })
 })
@@ -514,7 +633,6 @@ describe('GitWorktreeTarget', () => {
       true,
     )
     const ctx = makeTargetContext()
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     await target.open(ctx)
     const wtPath = join(repoRoot, 'worktrees', 'fail-merge-br')
@@ -525,8 +643,7 @@ describe('GitWorktreeTarget', () => {
 
     expect(inner.closed).toBe(true)
     expect(existsSync(wtPath)).toBe(false)
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Commit/merge failed'))
-    warnSpy.mockRestore()
+    expect(ctx.run.logger.warn).toHaveBeenCalledWith(expect.stringContaining('Commit/merge failed'))
   })
 
   it('resolves relative inner paths to the worktree for concurrent writes', async () => {
@@ -603,6 +720,35 @@ describe('GitWorktreeTarget', () => {
     await target.close(makeTargetContext())
     expect(inner.opened).toBe(false)
     expect(inner.closed).toBe(false)
+  })
+
+  it('close() reports an unmerged branch as a run warning when the base cannot be updated', async () => {
+    // Operator is on another branch with a dirty tree, so the merge must be skipped
+    execSync('git checkout -b side', { cwd: repoRoot })
+    writeFileSync(join(repoRoot, 'wip.txt'), 'wip')
+
+    const inner = mockTarget<string>()
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'base-ov'),
+      true,
+      'main',
+    )
+    const ctx = makeTargetContext()
+
+    await target.open(ctx)
+    const wtPath = join(repoRoot, 'worktrees', 'base-ov')
+    writeFileSync(join(wtPath, 'out.txt'), 'generated')
+    await target.close(ctx)
+
+    expect(inner.closed).toBe(true)
+    expect(existsSync(wtPath)).toBe(false)
+    expect(ctx.run.logger.warn).toHaveBeenCalledWith(expect.stringContaining("unmerged: 'base-ov'"))
+
+    // The mt branch is kept in the repo
+    const branches = (await execGit(repoRoot, ['branch'])).stdout
+    expect(branches).toContain('base-ov')
   })
 
   it('exposes uri with branch name', () => {

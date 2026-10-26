@@ -8,7 +8,7 @@ import {
   GitWorktreeTarget,
   createGitWorktreeSource,
   createGitWorktreeTarget,
-} from '../../src/builtins/git-worktree.js'
+} from '../../src/engine/git-worktree-source.js'
 import {
   createWorktree,
   getRepoRoot,
@@ -52,6 +52,7 @@ function makeSourceContext() {
           onError: 'fail-run',
           concurrency: 1,
         },
+        settings: {},
         env: {},
       },
       checkpoint: { stepId: 's1', depth: 0, path: [] },
@@ -73,6 +74,7 @@ function makeTargetContext() {
           onError: 'fail-run',
           concurrency: 1,
         },
+        settings: {},
         env: {},
       },
       checkpoint: { stepId: 's1', depth: 0, path: [] },
@@ -222,7 +224,7 @@ describe('git-worktree engine', () => {
       expect(existsSync(join(repoRoot, 'feature.txt'))).toBe(true)
       expect(readFileSync(join(repoRoot, 'feature.txt'), 'utf-8')).toBe('feature work')
     })
-    it('throws on merge conflict (main diverged from worktree)', async () => {
+    it('throws on merge conflict (base branch diverged from worktree)', async () => {
       // Create worktree with a branch
       const wtPath = await createWorktree(repoRoot, 'conflict-br')
       await execGit(wtPath, ['checkout', '-b', 'conflict-br'])
@@ -234,6 +236,101 @@ describe('git-worktree engine', () => {
       execSync('git add conflict.txt', { cwd: repoRoot })
       execSync('git commit -m "main change"', { cwd: repoRoot })
       await expect(mergeWorktreeToMain(repoRoot, wtPath)).rejects.toThrow(/Failed to rebase/)
+    })
+    it('does not rewrite base history when the base moved after worktree creation', async () => {
+      const initialSha = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+      // Worktree branch with a commit
+      const wtPath = await createWorktree(repoRoot, 'mv-feature')
+      await execGit(wtPath, ['checkout', '-b', 'mv-feature'])
+      writeFileSync(join(wtPath, 'mv.txt'), 'worktree work')
+      await autoCommit(wtPath, 'feat: mv')
+      // Main moves forward after the worktree was created
+      writeFileSync(join(repoRoot, 'main-advance.txt'), 'main advance')
+      execSync('git add main-advance.txt', { cwd: repoRoot })
+      execSync('git commit -m "main advance"', { cwd: repoRoot })
+      const mainHeadBefore = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(true)
+      expect(result.base).toBe('main')
+      // Pre-existing main commits keep their SHAs; the mt commit sits on top
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD~2'])).stdout.trim()).toBe(initialSha)
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD~1'])).stdout.trim()).toBe(mainHeadBefore)
+      expect(existsSync(join(repoRoot, 'mv.txt'))).toBe(true)
+    })
+    it('works when the repo default branch is master', async () => {
+      // setupGitRepo leaves a stale 'master' branch next to 'main' (git init default);
+      // repoint master at main, switch to it, and drop main entirely.
+      execSync('git branch -f master main', { cwd: repoRoot })
+      execSync('git checkout master', { cwd: repoRoot })
+      execSync('git branch -D main', { cwd: repoRoot })
+      const wtPath = await createWorktree(repoRoot, 'ms-feature')
+      await execGit(wtPath, ['checkout', '-b', 'ms-feature'])
+      writeFileSync(join(wtPath, 'ms.txt'), 'ms work')
+      await autoCommit(wtPath, 'feat: ms')
+      const wtHead = (await execGit(wtPath, ['rev-parse', 'HEAD'])).stdout.trim()
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(true)
+      expect(result.base).toBe('master')
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()).toBe(wtHead)
+      expect(existsSync(join(repoRoot, 'ms.txt'))).toBe(true)
+      // Branch was merged and deleted
+      const branches = (await execGit(repoRoot, ['branch'])).stdout
+      expect(branches).not.toContain('ms-feature')
+    })
+    it('keeps the mt branch and reports unmerged when the operator is on another branch with a dirty tree', async () => {
+      const wtPath = await createWorktree(repoRoot, 'keep-feature')
+      await execGit(wtPath, ['checkout', '-b', 'keep-feature'])
+      writeFileSync(join(wtPath, 'keep.txt'), 'keep work')
+      await autoCommit(wtPath, 'feat: keep')
+      // Operator switches to another branch and dirties a tracked file
+      execSync('git checkout -b side-branch', { cwd: repoRoot })
+      writeFileSync(join(repoRoot, 'initial.txt'), 'wip')
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(false)
+      expect(result.branch).toBe('keep-feature')
+      expect(result.reason).toContain('keep-feature')
+      // Operator's checkout is untouched
+      const current = (await execGit(repoRoot, ['rev-parse', '--abbrev-ref', 'HEAD'])).stdout.trim()
+      expect(current).toBe('side-branch')
+      expect(readFileSync(join(repoRoot, 'initial.txt'), 'utf-8')).toBe('wip')
+      // The mt branch is kept, main is untouched
+      const branches = (await execGit(repoRoot, ['branch'])).stdout
+      expect(branches).toContain('keep-feature')
+      expect(existsSync(join(repoRoot, 'keep.txt'))).toBe(false)
+    })
+    it('leaves the mt branch unmerged when the base branch is checked out but the tree is dirty', async () => {
+      const mainHead = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+      const wtPath = await createWorktree(repoRoot, 'dirty-feature')
+      await execGit(wtPath, ['checkout', '-b', 'dirty-feature'])
+      writeFileSync(join(wtPath, 'dirty.txt'), 'dirty work')
+      await autoCommit(wtPath, 'feat: dirty')
+      // Operator stays on main but dirties a tracked file
+      writeFileSync(join(repoRoot, 'initial.txt'), 'wip')
+      const result = await mergeWorktreeToMain(repoRoot, wtPath)
+      expect(result.merged).toBe(false)
+      expect(result.branch).toBe('dirty-feature')
+      expect(result.reason).toContain('dirty')
+      // Main untouched, mt branch kept, dirty file intact
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()).toBe(mainHead)
+      expect(readFileSync(join(repoRoot, 'initial.txt'), 'utf-8')).toBe('wip')
+      const branches = (await execGit(repoRoot, ['branch'])).stdout
+      expect(branches).toContain('dirty-feature')
+      expect(existsSync(join(repoRoot, 'dirty.txt'))).toBe(false)
+    })
+    it('honours the base override option', async () => {
+      execSync('git checkout -b release', { cwd: repoRoot })
+      const releaseHead = (await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()
+      const wtPath = await createWorktree(repoRoot, 'rel-feature')
+      await execGit(wtPath, ['checkout', '-b', 'rel-feature'])
+      writeFileSync(join(wtPath, 'rel.txt'), 'rel work')
+      await autoCommit(wtPath, 'feat: rel')
+      const wtHead = (await execGit(wtPath, ['rev-parse', 'HEAD'])).stdout.trim()
+      const result = await mergeWorktreeToMain(repoRoot, wtPath, { base: 'release' })
+      expect(result.merged).toBe(true)
+      expect(result.base).toBe('release')
+      // release fast-forwarded to the worktree commit; main untouched
+      expect((await execGit(repoRoot, ['rev-parse', 'HEAD'])).stdout.trim()).toBe(wtHead)
+      expect((await execGit(repoRoot, ['rev-parse', 'main'])).stdout.trim()).toBe(releaseHead)
     })
   })
 })
@@ -255,33 +352,39 @@ describe('GitWorktreeSource', () => {
       /* ignore */
     }
   })
-  it('delegates start() to the inner source inside the worktree directory', async () => {
+  it('delegates start() to the inner source without changing cwd', async () => {
     const inner = mockSource([{ item: 'hello', meta: {} }])
     const wrapper = new GitWorktreeSource(inner, worktreePath)
     const chdirSpy = vi.spyOn(process, 'chdir')
     const ctx = makeSourceContext()
+    const originalCwd = process.cwd()
     const results = []
     for await (const env of wrapper.start(ctx)) {
       results.push(env)
+      expect(process.cwd()).toBe(originalCwd)
     }
     expect(results).toHaveLength(1)
-    expect(results[0].item).toBe('hello')
-    // Should have chdir'd into the worktree and back
-    expect(chdirSpy).toHaveBeenCalledWith(worktreePath)
+    expect(results[0]?.item).toBe('hello')
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
     chdirSpy.mockRestore()
   })
-  it('delegates resume() to the inner source inside the worktree directory', async () => {
+  it('delegates resume() to the inner source without changing cwd', async () => {
     const inner = mockSource([{ item: 'resumed', meta: {} }])
     const wrapper = new GitWorktreeSource(inner, worktreePath)
     const chdirSpy = vi.spyOn(process, 'chdir')
     const ctx = makeSourceContext()
+    const originalCwd = process.cwd()
     const results = []
+    if (!wrapper.resume) throw new Error('resume not supported')
     for await (const env of wrapper.resume(ctx, { offset: 0 })) {
       results.push(env)
+      expect(process.cwd()).toBe(originalCwd)
     }
     expect(results).toHaveLength(1)
-    expect(results[0].item).toBe('resumed')
-    expect(chdirSpy).toHaveBeenCalledWith(worktreePath)
+    expect(results[0]?.item).toBe('resumed')
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
     chdirSpy.mockRestore()
   })
   it('throws from resume() when inner source does not support resume', async () => {
@@ -296,13 +399,14 @@ describe('GitWorktreeSource', () => {
     const wrapper = new GitWorktreeSource(inner, worktreePath)
     await expect(
       (async () => {
+        if (!wrapper.resume) throw new Error('resume not supported')
         for await (const _ of wrapper.resume(makeSourceContext(), {})) {
           /* noop */
         }
       })(),
     ).rejects.toThrow(/does not support resume/)
   })
-  it('restores the original CWD even if inner source throws', async () => {
+  it('does not change cwd even if inner source throws', async () => {
     const inner = {
       uri: 'mock://fail',
       lifestyle: 'long-lived',
@@ -322,6 +426,31 @@ describe('GitWorktreeSource', () => {
       })(),
     ).rejects.toThrow('inner source boom')
     expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
+    chdirSpy.mockRestore()
+  })
+  it('keeps process.cwd() unchanged between yields', async () => {
+    const inner = {
+      uri: 'mock://yielder',
+      lifestyle: 'long-lived',
+      async *start(_ctx) {
+        yield { item: 'a', meta: {} }
+        yield { item: 'b', meta: {} }
+        yield { item: 'c', meta: {} }
+      },
+    }
+    const wrapper = new GitWorktreeSource(inner, worktreePath)
+    const originalCwd = process.cwd()
+    const chdirSpy = vi.spyOn(process, 'chdir')
+    const ctx = makeSourceContext()
+    let count = 0
+    for await (const _ of wrapper.start(ctx)) {
+      count++
+      expect(process.cwd()).toBe(originalCwd)
+    }
+    expect(count).toBe(3)
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
     chdirSpy.mockRestore()
   })
   it('exposes uri combining inner uri with git worktree query params', () => {
@@ -411,7 +540,6 @@ describe('GitWorktreeTarget', () => {
       true,
     )
     const ctx = makeTargetContext()
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await target.open(ctx)
     const wtPath = join(repoRoot, 'worktrees', 'fail-merge-br')
     // Manually detach HEAD so mergeWorktreeToMain fails (as it requires a branch)
@@ -420,8 +548,48 @@ describe('GitWorktreeTarget', () => {
     await target.close(ctx)
     expect(inner.closed).toBe(true)
     expect(existsSync(wtPath)).toBe(false)
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Commit/merge failed'))
-    warnSpy.mockRestore()
+    expect(ctx.run.logger.warn).toHaveBeenCalledWith(expect.stringContaining('Commit/merge failed'))
+  })
+  it('resolves relative inner paths to the worktree for concurrent writes', async () => {
+    registry.registerTarget('relative-file', (uri) => {
+      return {
+        uri: uri.raw,
+        async open() {},
+        async write(env) {
+          writeFileSync(uri.path, `${String(env.item)}\n`, { flag: 'a' })
+        },
+        async close() {},
+      }
+    })
+    const branchName = 'concurrent-test'
+    const uri = {
+      scheme: 'git+relative-file',
+      host: '',
+      path: './out.txt',
+      query: { _inner_scheme: 'relative-file', branch: branchName, root: repoRoot },
+      fragment: '',
+      raw: 'git+relative-file://./out.txt?branch=concurrent-test',
+    }
+    const target = createGitWorktreeTarget(uri)
+    const originalCwd = process.cwd()
+    const chdirSpy = vi.spyOn(process, 'chdir')
+    const ctx = makeTargetContext()
+    await target.open(ctx)
+    const wtPath = join(repoRoot, 'worktrees', branchName)
+    expect(existsSync(wtPath)).toBe(true)
+    await Promise.all([
+      target.write({ item: 'a', meta: {} }, ctx),
+      target.write({ item: 'b', meta: {} }, ctx),
+    ])
+    const outPath = join(wtPath, 'out.txt')
+    expect(existsSync(outPath)).toBe(true)
+    const content = readFileSync(outPath, 'utf-8')
+    expect(content).toContain('a')
+    expect(content).toContain('b')
+    await target.close(ctx)
+    expect(process.cwd()).toBe(originalCwd)
+    expect(chdirSpy).not.toHaveBeenCalled()
+    chdirSpy.mockRestore()
   })
   it('throws when write() called before open()', async () => {
     const inner = mockTarget()
@@ -446,6 +614,30 @@ describe('GitWorktreeTarget', () => {
     await target.close(makeTargetContext())
     expect(inner.opened).toBe(false)
     expect(inner.closed).toBe(false)
+  })
+  it('close() reports an unmerged branch as a run warning when the base cannot be updated', async () => {
+    // Operator is on another branch with a dirty tree, so the merge must be skipped
+    execSync('git checkout -b side', { cwd: repoRoot })
+    writeFileSync(join(repoRoot, 'wip.txt'), 'wip')
+    const inner = mockTarget()
+    const target = new GitWorktreeTarget(
+      inner,
+      repoRoot,
+      join(repoRoot, 'worktrees', 'base-ov'),
+      true,
+      'main',
+    )
+    const ctx = makeTargetContext()
+    await target.open(ctx)
+    const wtPath = join(repoRoot, 'worktrees', 'base-ov')
+    writeFileSync(join(wtPath, 'out.txt'), 'generated')
+    await target.close(ctx)
+    expect(inner.closed).toBe(true)
+    expect(existsSync(wtPath)).toBe(false)
+    expect(ctx.run.logger.warn).toHaveBeenCalledWith(expect.stringContaining("unmerged: 'base-ov'"))
+    // The mt branch is kept in the repo
+    const branches = (await execGit(repoRoot, ['branch'])).stdout
+    expect(branches).toContain('base-ov')
   })
   it('exposes uri with branch name', () => {
     const inner = mockTarget()
@@ -615,4 +807,3 @@ describe('createGitWorktreeTarget (composite URI)', () => {
     expect(() => createGitWorktreeTarget(uri)).toThrow(/No target registered for inner scheme/)
   })
 })
-//# sourceMappingURL=git-worktree.test.js.map
