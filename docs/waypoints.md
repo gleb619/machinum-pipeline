@@ -28,7 +28,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | Index | ID    | Name                | Source | Target | Lifestyle  | Input     | Output    | Description                                                                                                                               |
 |:------|-------|---------------------|--------|--------|------------|-----------|-----------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | 1     | WP001 | `jsonl://`          | ✓      | ✓      | resumable  | `unknown` | `unknown` | JSONL file source/target; supports glob patterns for source; position cursor for resume; atomic write with temp file.                     |
-| 2     | WP002 | `md://`             | ✓      | ✓      | resumable  | `string`  | `string`  | Markdown directory source/target; dir mode supports `meta.mdOutputs` write intents (subdir + filename); single-file mode ignores intents. |
+| 2     | WP002 | `md://`             | ✓      | ✓      | resumable  | `string`  | `string`  | Markdown directory source/target; dir mode supports `mdOutputs` variable write intents (subdir + filename); single-file mode ignores intents. |
 | 3     | WP003 | `hs://` / `http://` | ✓      | —      | long-lived | `unknown` | —         | Long-lived HTTP server source; POST ingest, GET /health, GET /events (SSE fan-out); no resume support.                                    |
 | 4     | WP004 | `chapter-output://` | ✓      | ✓      | resumable  | `string`  | `string`  | Chapter-specific layout: `<base-dir>/<lang>/chapter<num>.md`; validates `meta.lang` and `meta.chapterNum`; atomic per-file writes.        |
 | 5     | WP005 | `schema-doc://`     | ✓      | ✓      | resumable  | `string`  | `string`  | Schema document source/target; custom YAML + CSV format; per-chapter `<dir>/chapter<num>.schema.md`.                                      |
@@ -63,12 +63,12 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 **Source:** Recursively discovers `.md` files in directory; yields file contents as strings with deterministic sorted order. Supports resume via cursor (skip first N envelopes).
 
 **Target:** Two modes:
-- **Dir mode** (path ends with `/`): Resolves root from URI path → `waypoint.md.defaultFolder` → `project.root`. Reads `meta.mdOutputs` intents from envelopes (`{ name, subdir, filename, content }`) and writes `join(root, subdir, filename)` atomically. Subdir must be relative and free of `..`; filename must be basename. Violations throw (tool bugs, not paths to normalize).
+- **Dir mode** (path ends with `/`): Resolves root from URI path → `waypoint.md.defaultFolder` → `project.root`. Reads `mdOutputs` variable intents from exchanges (`{ name, subdir, filename, content }`) and writes `join(root, subdir, filename)` atomically. Subdir must be relative and free of `..`; filename must be basename. Violations throw (tool bugs, not paths to normalize).
 - **Single-file mode** (path is a file): Ignores `mdOutputs` entirely; accumulates all content into `<path>.tmp.<runId>` and renames on close.
 
 **Atomicity:** Per-file atomic writes via `atomicWriteFile()` in dir mode; single-file uses `AtomicStreamWriter`.
 
-**Write intents:** Tools never name output roots. They append `meta.mdOutputs`:
+**Write intents:** Tools never name output roots. They append the `mdOutputs` variable:
 ```typescript
 {
   name: 'schema-doc',
@@ -87,7 +87,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 **Source:** Long-lived HTTP server started on `start()`. No `resume()` support.
 
 **Endpoints:**
-- `POST <uri.path>` — ingest envelopes (JSON envelope in body)
+- `POST <uri.path>` — ingest envelopes (JSON exchange in body)
 - `GET /health` — health check
 - `GET /events` — SSE fan-out of envelopes (read-only, never consumes buffer)
 
@@ -107,7 +107,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 
 **Source:** Reads chapter files from `<base-dir>/<lang>/chapter<num>.md` (lang optional → `<base-dir>/chapter<num>.md`). Validates path components; throws on unsafe lang/chapterNum.
 
-**Target:** Writes chapters to `<base-dir>/<lang>/chapter<num>.md`. Envelope meta:
+**Target:** Writes chapters to `<base-dir>/<lang>/chapter<num>.md`. Exchange meta:
 - `meta.lang` — language code (subdirectory; optional)
 - `meta.chapterNum` (or legacy `meta.chapter`) — chapter number
 
@@ -123,7 +123,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 
 **Source:** Reads per-chapter schema docs from `<dir>/chapter<num>.schema.md`. Parses custom format (YAML frontmatter + CSV sections). Helper: `parseSchemaDoc()`, `extractTextContent()`.
 
-**Target:** Writes per-chapter schema docs to `<dir>/chapter<num>.schema.md`. Assembles content from envelope meta (title from item, summary/entities/schema from meta). Uses `gray-matter` for YAML frontmatter parsing and `remark-parse` for markdown.
+**Target:** Writes per-chapter schema docs to `<dir>/chapter<num>.schema.md`. Assembles content from the exchange (title from item, `chapterNum` from meta, summary/entities/schema/vocabulary/metadata from variables). Uses `gray-matter` for YAML frontmatter parsing and `remark-parse` for markdown.
 
 **Atomicity:** Per-file atomic writes via `atomicWriteFile()`.
 
@@ -151,7 +151,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 
 **Target:** Writes envelopes to in-memory buffer keyed by URI path. Append-only; process-local, no persistence.
 
-**Use case:** Testing and in-memory pipelines where file I/O is undesirable. Buffers are module-level `Map<string, Envelope[]>`, shared between sources and targets within the same process.
+**Use case:** Testing and in-memory pipelines where file I/O is undesirable. Buffers are module-level `Map<string, Exchange[]>`, shared between sources and targets within the same process.
 
 **Lifestyle:** `resumable` (cursor-based skip on resume).
 
@@ -223,8 +223,8 @@ listed for reference only (proposals for them are never generated).
 class MySource implements Source<T> {
   uri: string
   lifestyle: 'resumable' | 'long-lived'
-  async *start(ctx: SourceContext): AsyncIterable<Envelope<T>> { … }
-  async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Envelope<T>> { … }
+  async *start(ctx: SourceContext): AsyncIterable<Exchange<T>> { … }
+  async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<Exchange<T>> { … }
 }
 ```
 
@@ -233,7 +233,7 @@ class MySource implements Source<T> {
 class MyTarget implements Target<T> {
   uri: string
   async open(ctx: TargetContext): Promise<void> { … }
-  async write(env: Envelope<T>, ctx: TargetContext): Promise<void> { … }
+  async write(env: Exchange<T>, ctx: TargetContext): Promise<void> { … }
   async close(ctx: TargetContext): Promise<void> { … }
 }
 ```

@@ -24,7 +24,7 @@ Pluggable, resumable document-processing orchestration engine for long-form text
 
 ## Core abstractions
 
-- **`Envelope<T> { item, items?, meta }`** — the only data carrier; cardinality changes only via DSL ops `.batch(n)` / `.window(n)` / `.flatMap()`.
+- **`Exchange<T> { id, item, items?, meta, variables }`** (`Envelope` = deprecated alias) — the only data carrier; cardinality changes only via DSL ops `.batch(n)` / `.window(n)` / `.flatMap()`.
 - Domain: `Book → Chapter → Paragraph → Line` (plain interfaces, stable IDs).
 - `Source { uri, start(ctx), resume?(ctx,cursor) }`, `Target { uri, open/write/close }`, `Tool { name, version, invoke(env,ctx), cacheable? }`.
 - Contexts: `GlobalContext → RunContext → ToolContext` (backrefs, never copies). Built from `mt.json` + `.env`.

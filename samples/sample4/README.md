@@ -43,7 +43,7 @@ sample4/
 ├── pipelines/translate.ts    # stage 3: titles + line-by-line EN->RU with parity linter
 ├── pipelines/waypoint-log.ts # normalize chain via defineWaypoint-wrapped endpoints + audit log
 ├── lint-parity.ts            # standalone EN/RU parity check (no mt needed)
-├── prepare-input.ts          # wraps raw {key,value} lines into {item} envelopes
+├── prepare-input.ts          # wraps raw {key,value} lines into {item} exchanges
 ├── jsonl/                    # raw input; generated input.jsonl is gitignored
 ├── chapters/{en,ru}/         # outputs (gitignored *.md)
 ├── chapters/schema/          # analyze: chapter<N>.summary.md

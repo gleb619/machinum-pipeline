@@ -36,7 +36,7 @@ Books are structured as `Book → Chapter → Paragraph → Line`. All domain en
 Source (URI) → [Tool → Tool → …] → Target (URI)
 ```
 
-All data travels in Envelopes. The pipeline DSL describes the shape; the Runner executes it.
+All data travels in Exchanges. The pipeline DSL describes the shape; the Runner executes it.
 
 ## Services
 
@@ -57,7 +57,7 @@ mt run ./pipelines/fix-typos.ts
 → CLI loads mt.json → builds GlobalContext
 → tsx/jiti loads pipeline module (no build step)
 → Engine mints runId, writes state.json (pending → running)
-→ Source begins emitting Envelopes
+→ Source begins emitting Exchanges
 → Runner walks DSL ops, executing Tools in order
 → At each step boundary: append to events.jsonl, update checkpoint.json atomically
 → On .fork(subPipeline): child Runner registered as checkpoint subtree
@@ -77,7 +77,7 @@ mt resume <runId>
 ```
 Tool invocation (in-process)
 → Runner calls tool.invoke(env, { run, step })
-→ Tool returns an Envelope
+→ Tool returns an Exchange
 → Runner validates output shape, emits downstream
 ```
 
@@ -113,7 +113,7 @@ Tool invocation (in-process)
 
 ## Glossary
 
-- **Source** — Producer of envelopes; `long-lived` or `resumable`.
+- **Source** — Producer of exchanges; `long-lived` or `resumable`.
 - **Tool** — Pure `Exchange<I> → Exchange<O>`; always in-process.
 - **Target** — Sink with `open/write/close` lifecycle.
 - **Pipeline** — Real `.ts` module exporting a DSL chain.

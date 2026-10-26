@@ -92,8 +92,8 @@ Analysis tools, all accept a single `env.item` or a batched `env.items` corpus. 
 offline by default and uses an LLM backend when one is given.
 
 - `heuristicSummaryTool` / `createHeuristicSummaryTool({ sentences })` — extractive summary (lead sentence +
-  highest term-frequency sentences, original order). Same meta contract as `summaryTool`: `summary` variable,
-  `summaryByItem` variable, plus `heuristicSummaryByItem` variable (fallback for an LLM step).
+  highest term-frequency sentences, original order). Same variable contract as `summaryTool`: `summary`,
+  `summaryByItem`, plus `heuristicSummaryByItem` (fallback for an LLM step).
 - `glossaryExtractor` / `createGlossaryExtractor({ load, minCount, ignored, call, model, temperature, maxTokens,
   maxAttempts, nerBackend, relations, enrich, coOccurrence })` (T136) — candidates = capitalised multiword names,
   `[Bracketed]` short terms, repeated capitalised singles, **plus the NER candidates** (proper names and locative

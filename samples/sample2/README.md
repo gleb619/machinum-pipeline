@@ -13,8 +13,8 @@ no source or target of its own and runs ten named subflows on the same Runner. E
 - How to define a custom in-memory tool with `defineTool()` and chain it with `.use()` (`stubTranslator`).
 - How to use `.flatMap()` to fan one envelope out into many (paragraph-level translation).
 - How to use `.batch(n)` to group items before a tool, then `.flatMap()` to unwrap them again.
-- How to use `.tap()` for side-effect logging, reading the meta keys the tools actually write
-  (`chapterValidator` sets `errors` variable, not `warnings` variable).
+- How to use `.tap()` for side-effect logging, reading the variables the tools actually write
+  (`chapterValidator` sets the `errors` variable, not `warnings`).
 - How to write source/target URIs as `'@name'` shortcuts, resolved from `mt.json` → `"uris"`
   (`en` → `md://./chapters/en`, `ru` → `chapter-output://./chapters`), so the pipeline writes
   `.to('@en')` / `.to('@ru')` instead of the full URIs.
@@ -181,13 +181,13 @@ slot, use `createTitleTranslator({ translate })` / `createParagraphTranslator({ 
 ### countTokensFlow — token counting demo (batched)
 
 Unlike the ephemeral flows below, this one reads the JSONL source directly and writes to an
-`ephemeral://` target (batch-level meta has no per-item file keying):
+`ephemeral://` target (batch-level variables have no per-item file keying):
 
 ```
 jsonl://./jsonl/input.jsonl
   → flatMap (fan out to title + body)
   → batch(5)
-  → use(tokenCounterBatch)        ← tokenCount variable (batch-level meta)
+  → use(tokenCounterBatch)        ← tokenCount variable (batch-level)
   → use(tokenCounterBatchCached)  ← cached variant
   → ephemeral://tokens-output
 ```
@@ -291,33 +291,33 @@ Turns a `{ title, body }` record into a chapter markdown document (frontmatter +
 parsed document in `chapterDoc` variable.
 
 ### wordCounter
-Counts the words in a chapter (whitespace split) and attaches `wordCount` to meta.
+Counts the words in a chapter (whitespace split) and sets the `wordCount` variable.
 
 ### chapterIndexer
-Extracts the chapter number from markdown headings (e.g., `# Chapter 1: ...`) and attaches `chapterNum` to meta.
+Extracts the chapter number from markdown headings (e.g., `# Chapter 1: ...`) and stores `chapterNum` in `meta`.
 
 ### chapterValidator
 Validates chapter markdown (H1 present, no heading-level skips, code blocks tagged, no broken links) and
-attaches `valid` plus the `errors` list to meta.
+sets the `valid` and `errors` variables.
 
 ### forbiddenCharDetector
-Scans for zero-width and forbidden control characters and attaches the `forbidden` entries to meta.
+Scans for zero-width and forbidden control characters and sets the `forbidden` variable.
 
 ### toMarkdown
 Native `@mt/tools` builder (`packages/tools/src/to-markdown.ts`): renders a `{ title, body }` record into
-markdown through a remark mdast, and sets `toMarkdown: true` in meta.
+markdown through a remark mdast, and sets the `toMarkdown` variable to `true`.
 
 ### summaryTool / entitiesTool / schemaTool
-LLM-backed extractors (`packages/tools/src/schema/`). Each sends the chapter to the LLM and attaches
-`summary` variable, `entities` variable, and `schema` variable (mermaid) respectively. Every answer goes through a retry
+LLM-backed extractors (`packages/tools/src/schema/`). Each sends the chapter to the LLM and sets the
+`summary`, `entities` and `schema` (mermaid) variables respectively. Every answer goes through a retry
 loop guard: the response must be non-empty, mdshape-parseable, and keep the section content intact
 (summary covers the chapter's key terms, entities/vocabulary actually occur in the text, the diagram has a
 type declaration and edges). A rejected answer is re-prompted with the rejection reason, up to 3 attempts.
 When the guard is exhausted — or no backend answers — the tool falls back to the deterministic value already
 present in the chapter document, so the sample still produces `chapters/schema/chapter<N>.schema.md` without
-credentials. Attempt count and last failure land in `summaryLlm` variable / `entitiesLlm` / `schemaLlm`.
+credentials. Attempt count and last failure land in the `summaryLlm` / `entitiesLlm` / `schemaLlm` variables.
 Prompts, model, temperature and `maxTokens` are set per tool via `create*Tool({ ... })` or per envelope via
-`schemaDocLlm` variable and `meta.<tool>Prompt`.
+the `schemaDocLlm` and `<tool>Prompt` variables.
 
 In this sample the three extractors are built with the picked backend instead of the router proxy:
 `createSummaryTool({ model: llm.model, call: llm.schemaCall })` — `call` replaces the router request with
@@ -326,17 +326,17 @@ the OpenRouter proxy (`ctx.run.global.routerUrl`, default `http://localhost:7777
 `MT_ROUTER_URL`) and the default model `openai/gpt-4o-mini`.
 
 ### mdFormatter
-Reformats the markdown through the shared formatter, setting `mdFormatted` variable and `mdAlreadyFormatted` variable
-(`mdFormatError` variable on failure). Options come from `mdFormatOptions` variable.
+Reformats the markdown through the shared formatter, setting the `mdFormatted` and `mdAlreadyFormatted` variables
+(`mdFormatError` on failure). Options come from the `mdFormatOptions` variable.
 
 ### schemaDocWriter
 Assembles the schema document (frontmatter + Metadata table + Summary + Entities CSV) and appends it to
-`mdOutputs` variable as a write intent (`subdir: 'schema'`); the `md://` directory target resolves it under
+the `mdOutputs` variable as a write intent (`subdir: 'schema'`); the `md://` directory target resolves it under
 its own root, i.e. `chapters/schema/` for the sample's `md://./chapters` target. `wordCount`, `tokenCount`,
-and `charLength` are read from meta, falling back to 0 and the item length.
+and `charLength` are read from variables, falling back to 0 and the item length.
 
 ### stubTranslator
-Sample-local `defineTool()` stub: wraps each paragraph in `[ru]…[/ru]` and sets `translated` variable plus
+Sample-local `defineTool()` stub: wraps each paragraph in `[ru]…[/ru]` and sets the `translated` variable plus
 `meta.lang='ru'`, so the translation flow runs without any API call and lands in `chapters/ru/`.
 
 ### tokenSplitter / typoFinder / markdownFormatter / titleTranslator / paragraphTranslator
