@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { AtomicStreamWriter, mergeVariables, registry } from '@mt/core'
+import { AtomicStreamWriter, mergeVariables, registry, toPersisted } from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
 
 /**
@@ -245,7 +245,7 @@ export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
       if (!writer) {
         throw new Error('Target not opened. Call open() before write().')
       }
-      writer.write(`${JSON.stringify(env)}\n`)
+      writer.write(`${JSON.stringify(toPersisted(env))}\n`)
     },
     async close(_ctx: TargetContext): Promise<void> {
       if (writer) {

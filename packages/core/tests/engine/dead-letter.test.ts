@@ -34,7 +34,7 @@ describe('writeDeadLetter', () => {
 
     const entry = JSON.parse(lines[0] as string)
     expect(entry.timestamp).toBeDefined()
-    expect(entry.envelope).toEqual(envelope)
+    expect(entry.envelope).toEqual({ id: 'ex-test', variables: [], item: { foo: 'bar' } })
     expect(entry.error).toEqual({
       message: 'Tool failed',
       name: 'Error',

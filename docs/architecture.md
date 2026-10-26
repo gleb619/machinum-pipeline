@@ -50,6 +50,11 @@ A Tool receives `Exchange<I>` and returns `Exchange<O>` derived from it (`withIt
 so `id`, `meta` and `variables` propagate. Variables are the side-channel between tools (llm config,
 token counts, glossary, `mdOutputs` write intents); non-`ephemeral` variables take part in cache keys.
 
+**Persistence contract:** `meta` is in-flight only and is never written to persisted exchange state
+(dead-letter, `jsonl://` target; checkpoints/events carry no exchange payload); `variables` are persisted
+(non-ephemeral only; ephemeral are in-flight too). Resume replays from the Source cursor, so `meta` is
+re-derived by the Source. See `toPersisted` in [`steering/core.md`](steering/core.md).
+
 Cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
 
 A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) is only the orchestration grammar.

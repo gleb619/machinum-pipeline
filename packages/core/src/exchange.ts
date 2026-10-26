@@ -37,8 +37,44 @@ export interface Exchange<T = unknown> {
   id: string
   item: T
   items?: T[]
+  /**
+   * In-flight identity data ONLY. Never persisted: dead-letter entries and jsonl targets drop it
+   * (see {@link toPersisted}), and a resumed run re-derives it from the Source. Anything that must
+   * survive pause/resume/dead-letter belongs in {@link Exchange.variables}.
+   */
   meta: ExchangeMeta
+  /**
+   * Durable named values with qualifiers. Persisted (id, name, qualifier, value, timestamp) in
+   * dead-letter entries and jsonl targets, except `ephemeral` ones, which are in-flight only and
+   * dropped on persist.
+   */
   variables: Variable[]
+}
+
+/** Persisted form of an Exchange: no `meta`, no ephemeral variables. */
+export interface PersistedExchange<T = unknown> {
+  id: string
+  item: T
+  items?: T[]
+  variables: Variable[]
+}
+
+/** Project an exchange to its persisted form: drops `meta` and ephemeral variables. */
+export function toPersisted<T>(ex: Exchange<T>): PersistedExchange<T> {
+  const out: PersistedExchange<T> = {
+    id: ex.id,
+    item: ex.item,
+    variables: (ex.variables ?? []).filter((v) => !v.ephemeral),
+  }
+  if (ex.items !== undefined) out.items = ex.items
+  return out
+}
+
+/** Rehydrate a persisted exchange: `meta` comes back empty (re-derive it from the Source/ids). */
+export function fromPersisted<T>(p: PersistedExchange<T>): Exchange<T> {
+  const ex: Exchange<T> = { id: p.id, item: p.item, meta: {}, variables: [...(p.variables ?? [])] }
+  if (p.items !== undefined) ex.items = p.items
+  return ex
 }
 
 /**

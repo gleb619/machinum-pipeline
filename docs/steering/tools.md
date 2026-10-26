@@ -13,6 +13,9 @@ tool computes (`summary`, `tokenCount`, `glossary`, `llm` config, `mdOutputs` wr
 "`X` variable" are read/written with `getVariable(ex, 'X')` / `setVariable(ex, 'X', v)`; per-envelope config
 variables (`llm`, `prompts`, `context`, `schemaDocLlm`) also accept the legacy `meta.<name>` as a read fallback.
 
+**Persistence.** Put anything that must survive pause/resume/dead-letter in a variable; `meta` is in-flight
+only and is not written to dead-letter entries or `jsonl://` targets. Ephemeral variables are in-flight too.
+
 ## Tool Catalogue
 
 ### `chapter-validator.ts`

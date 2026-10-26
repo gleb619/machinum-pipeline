@@ -15,7 +15,7 @@ describe('UC-18 — Dead-letter queue (architectural)', () => {
   it('DeadLetterEntry shape — timestamp, envelope, error, stepId', () => {
     const entry: DeadLetterEntry = {
       timestamp: new Date().toISOString(),
-      envelope: { id: 'ex-test', variables: [], item: { test: true }, meta: {} },
+      envelope: { id: 'ex-test', variables: [], item: { test: true } },
       error: { message: 'test error', name: 'Error' },
       stepId: 'tool-test-123',
     }

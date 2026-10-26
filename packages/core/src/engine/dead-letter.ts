@@ -1,3 +1,4 @@
+import { type PersistedExchange, toPersisted } from '../exchange.js'
 import type { Store } from '../store.js'
 import type { Envelope } from '../types.js'
 
@@ -6,7 +7,8 @@ import type { Envelope } from '../types.js'
  */
 export interface DeadLetterEntry {
   timestamp: string
-  envelope: Envelope<unknown>
+  /** Persisted form: variables yes (non-ephemeral), `meta` no. */
+  envelope: PersistedExchange<unknown>
   error: {
     message: string
     name: string
@@ -33,7 +35,7 @@ export async function writeDeadLetter(
 ): Promise<void> {
   const entry: DeadLetterEntry = {
     timestamp: new Date().toISOString(),
-    envelope,
+    envelope: toPersisted(envelope),
     error: {
       message: error.message,
       name: error.name,

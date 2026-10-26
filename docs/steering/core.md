@@ -30,8 +30,7 @@ interface Variable<U> { id; name; qualifier: Qualifier; value: U; timestamp: str
 interface Exchange<T> { id: string; item: T; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown }; variables: Variable[] }
 interface ExchangeInput<T> { id?; item: T; items?; meta?; variables? }   // loose shape Sources may yield
 ```
-An Exchange is a **plain JSON-serializable object** (checkpoints, `events.jsonl`, dead-letter stringify
-it); all operations are pure free functions returning a NEW exchange:
+An Exchange is a **plain JSON-serializable object**; all operations are pure free functions returning a NEW exchange:
 `createExchange`, `toExchange` (normalizer), `withItem` (derive output from input), `withMeta`,
 `variable`, `getVariable` / `findVariable` / `getOldVariable` / `hasVariable`, `setVariable(s)`,
 `withVariable`, `withoutVariable`, `replaceVariable`, `pushVariable` (current `new` becomes `old`,
@@ -46,6 +45,16 @@ Conventions:
   name exported from the tool module (`VAR_*`).
 - **Tools derive output from input** (`withItem(ex, out)`, `setVariable(ex, ...)`) so `id`, `meta`
   and `variables` propagate. Never rebuild `{ item, meta }` from scratch.
+- **Persistence contract: `meta` is in-flight only; `variables` are persisted.** `toPersisted(ex)` /
+  `fromPersisted(p)` define the persisted form `{ id, item, items?, variables }`: `meta` is dropped
+  (rehydrates as `{}`), ephemeral variables are dropped, all other variables keep id/qualifier/timestamp.
+  Where it applies: dead-letter entries (`dead-letter.jsonl`) and the `jsonl://` target write the persisted
+  form. Checkpoints (`state.json`) and `events.jsonl` hold no exchange payload at all; resume replays from the
+  Source cursor, so `meta` is re-derived by the Source and variables are recomputed by the tools. Exceptions:
+  the tool cache (`.mt/cache/`) is keyed by `meta` + non-ephemeral variables and stores the tool output as-is
+  (a hit only occurs for identical meta, so it stays consistent); `mt tool` stdin/stdout is process-to-process
+  interchange (in-flight), so it carries `meta`. Rule for authors: anything that must survive
+  pause/resume/dead-letter goes in a variable.
 - The Runner calls `toExchange` at every boundary (source output, after each tool), so literals
   without `id`/`variables` still work from Sources; a missing `id` is minted as `ex-<n>`.
 - Engine: `batch`/`window` get a new `batch-<n>` id and **merge variables** (later wins on
