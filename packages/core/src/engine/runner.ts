@@ -23,6 +23,7 @@ import type {
   RunEvents,
   RunStateData,
   RunnerOptions,
+  Source,
   Target,
   Tool,
 } from '../types.js'
@@ -369,7 +370,8 @@ export class Runner {
           const rawUri = step.config.uri as string
           const uri = registry.expandAliases(rawUri, this.globalContext.settings)
           if (uri !== rawUri) this.logger(stepId).debug(`Resolved URI alias '${rawUri}' → '${uri}'`)
-          const source = registry.resolveSource(uri)
+          const source =
+            (step.config.source as Source<unknown> | undefined) ?? registry.resolveSource(uri)
           const cursor = typeof cursorNode.cursor === 'number' ? cursorNode.cursor : undefined
           envelopesWritten = 0
           if (cursor !== undefined && source.resume) {
@@ -742,7 +744,9 @@ export class Runner {
     const rawUri = step.config.uri as string
     const uri = registry.expandAliases(rawUri, this.globalContext.settings)
     if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
-    const target = registry.resolveTarget(uri) as Target<unknown>
+    const target =
+      (step.config.target as Target<unknown> | undefined) ??
+      (registry.resolveTarget(uri) as Target<unknown>)
     if (!stream) throw new Error('Target step requires a preceding stream or source step')
 
     const entry = {

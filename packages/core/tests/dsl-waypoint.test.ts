@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { SourceContext, TargetContext } from '../src/contexts.js'
+import type { GlobalContext, SourceContext, TargetContext } from '../src/contexts.js'
 import { definePipeline, defineWaypoint } from '../src/dsl.js'
+import { Runner } from '../src/engine/runner.js'
 import {
   type ExchangeInput,
   type Lifecycle,
@@ -9,6 +10,16 @@ import {
   createExchange,
 } from '../src/index.js'
 import { registry } from '../src/uri.js'
+
+// Runner-level tests persist nothing: stub the Store like tests/engine/runner.test.ts does.
+vi.mock('../src/store.js', () => ({
+  Store: class {
+    ensureDir = vi.fn().mockResolvedValue(undefined)
+    writeJson = vi.fn().mockResolvedValue(undefined)
+    readJson = vi.fn().mockResolvedValue({ state: 'done', checkpoint: { stepId: 'root' } })
+    append = vi.fn().mockResolvedValue(undefined)
+  },
+}))
 
 // Minimal stand-in contexts — the fake sources/targets below never read them.
 const srcCtx = {} as SourceContext
@@ -95,6 +106,72 @@ registry.registerTarget<string>('jsonlout', () => ({
   },
   async close() {},
 }))
+
+function makeGlobalContext(): GlobalContext {
+  return {
+    project: { name: 'test', root: '/tmp' },
+    defaults: {
+      retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+      onError: 'fail-run',
+      concurrency: 1,
+    },
+    settings: {},
+    env: {},
+  }
+}
+
+describe('defineWaypoint through the Runner', () => {
+  it('T002-22: wrapper instances reach the run — hooks fire and the filter applies', async () => {
+    const innerSrc = mockSource<number>([1, 2, 3].map((item) => ({ item, meta: {} })))
+    const innerTgt = mockTarget<number>()
+    const events: string[] = []
+
+    // Wrapped endpoints passed as INSTANCES must be used by the Runner, not re-resolved from
+    // the URI (regression: .from()/.to() used to flatten instances to their uri string).
+    const src = defineWaypoint<number>(innerSrc, {
+      onStart: () => {
+        events.push('source:start')
+      },
+      filter: (env) => env.item !== 2,
+      onItem: (env) => {
+        events.push(`source:item:${env.item}`)
+      },
+    })
+    const tgt = defineWaypoint<number>(innerTgt, {
+      onOpen: () => {
+        events.push('target:open')
+      },
+      onWrite: (env) => {
+        events.push(`target:write:${env.item}`)
+      },
+      onClose: () => {
+        events.push('target:close')
+      },
+    })
+
+    const pipeline = definePipeline({ id: 'wp-run' }).from(src).to(tgt)
+    await new Runner(pipeline, makeGlobalContext()).start()
+
+    expect(innerTgt.written.map((e) => e.item)).toEqual([1, 3])
+    expect(innerTgt.calls).toEqual(['open', 'write', 'write', 'close'])
+    // The runner opens the target before it starts streaming the source — assert the multiset,
+    // the source events preceding their writes, and close being last.
+    expect([...events].sort()).toEqual(
+      [
+        'source:start',
+        'source:item:1',
+        'source:item:3',
+        'target:open',
+        'target:write:1',
+        'target:write:3',
+        'target:close',
+      ].sort(),
+    )
+    expect(events.indexOf('source:item:1')).toBeLessThan(events.indexOf('target:write:1'))
+    expect(events.indexOf('source:item:3')).toBeLessThan(events.indexOf('target:write:3'))
+    expect(events.at(-1)).toBe('target:close')
+  })
+})
 
 describe('defineWaypoint', () => {
   it('T002-13: source wrapper filters envelopes and calls onItem only for kept ones', async () => {

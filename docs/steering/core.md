@@ -111,6 +111,8 @@ lifecycle/filter hooks, no engine changes:
 - Target hooks: `onOpen(ctx)`, `filter(env)` (false skips the inner write), `onWrite(env)` (written ones only), `onClose(ctx)`.
 - `checkpoint(ctx)` is forwarded ONLY when the inner target implements it — the wrapper never invents one.
 - `uri`/`lifestyle` pass through unchanged. Hook errors propagate.
+- Pass INSTANCES (e.g. `defineTarget('md://…')`) as the base for a real run: `.from()`/`.to()` carry
+  Source/Target instances through to the Runner instead of re-resolving the URI from the registry.
 ```typescript
 // Source: keep only items matching a predicate
 const filtered = defineWaypoint<Chapter>('jsonl://./chapters.jsonl', {
