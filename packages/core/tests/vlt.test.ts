@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { chmod, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -54,6 +55,14 @@ function makeTarGz(files: Record<string, Buffer>): Buffer {
   return gzipSync(Buffer.concat(chunks))
 }
 
+const CHECKSUM_URL = 'https://example.test/vlt-cli_0.5.0_checksums.txt'
+
+function checksumsTxt(entries: Record<string, Buffer>): string {
+  return Object.entries(entries)
+    .map(([name, buf]) => `${createHash('sha256').update(buf).digest('hex')}  ${name}`)
+    .join('\n')
+}
+
 function stubFetch(assetUrl: string, archive: Buffer): string[] {
   const calls: string[] = []
   vi.stubGlobal(
@@ -68,10 +77,16 @@ function stubFetch(assetUrl: string, archive: Buffer): string[] {
             assets: [
               { name: 'vlt_0.5.0_linux_amd64.tar.gz', browser_download_url: assetUrl },
               { name: 'vlt_0.5.0_linux_amd64.zip', browser_download_url: `${assetUrl}.zip` },
+              { name: 'vlt-cli_0.5.0_checksums.txt', browser_download_url: CHECKSUM_URL },
             ],
           }),
           { status: 200 },
         )
+      }
+      if (u === CHECKSUM_URL) {
+        return new Response(checksumsTxt({ 'vlt_0.5.0_linux_amd64.tar.gz': archive }), {
+          status: 200,
+        })
       }
       return new Response(new Uint8Array(archive), { status: 200 })
     }),
@@ -245,6 +260,78 @@ describe('vlt', () => {
     const st = await stat(installed)
     expect(st.mode & 0o777).toBe(0o755)
     expect((await stat(installed)).size).toBeGreaterThan(0)
+  })
+
+  it('installVlt rejects a checksum mismatch and installs nothing', async () => {
+    const archive = makeTarGz({ vlt: Buffer.from('#!/bin/sh\n') })
+    stubFetch('https://example.test/vlt.tar.gz', archive)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown): Promise<Response> => {
+        const u = String(url)
+        if (u.includes('api.github.com')) {
+          return new Response(
+            JSON.stringify({
+              tag_name: 'v0.5.0',
+              assets: [
+                {
+                  name: 'vlt_0.5.0_linux_amd64.tar.gz',
+                  browser_download_url: 'https://example.test/vlt.tar.gz',
+                },
+                { name: 'vlt-cli_0.5.0_checksums.txt', browser_download_url: CHECKSUM_URL },
+              ],
+            }),
+            { status: 200 },
+          )
+        }
+        if (u === CHECKSUM_URL) {
+          return new Response(`${'0'.repeat(64)}  vlt_0.5.0_linux_amd64.tar.gz`, { status: 200 })
+        }
+        return new Response(new Uint8Array(archive), { status: 200 })
+      }),
+    )
+    const err = (await installVlt(process.env).catch((e: Error) => e)) as Error
+    expect(err.message).toMatch(/sha256 mismatch/)
+    await expect(stat(join(home, '.mt', 'bin', 'vlt'))).rejects.toThrow()
+    await expect(stat(join(home, '.mt', 'bin', 'vltd'))).rejects.toThrow()
+  })
+
+  it('installVlt rejects a release without a checksum asset and installs nothing', async () => {
+    const archive = makeTarGz({ vlt: Buffer.from('#!/bin/sh\n') })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: unknown): Promise<Response> => {
+        const u = String(url)
+        if (u.includes('api.github.com')) {
+          return new Response(
+            JSON.stringify({
+              tag_name: 'v0.5.0',
+              assets: [
+                {
+                  name: 'vlt_0.5.0_linux_amd64.tar.gz',
+                  browser_download_url: 'https://example.test/vlt.tar.gz',
+                },
+              ],
+            }),
+            { status: 200 },
+          )
+        }
+        return new Response(new Uint8Array(archive), { status: 200 })
+      }),
+    )
+    const err = (await installVlt(process.env).catch((e: Error) => e)) as Error
+    expect(err.message).toMatch(/no checksum asset/)
+    await expect(stat(join(home, '.mt', 'bin', 'vlt'))).rejects.toThrow()
+  })
+
+  it('installVlt installs unverified when MT_VLT_SKIP_VERIFY=true', async () => {
+    const archive = makeTarGz({ vlt: Buffer.from('#!/bin/sh\n') })
+    stubFetch('https://example.test/vlt.tar.gz', archive)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const env = { ...process.env, MT_VLT_SKIP_VERIFY: 'true' }
+    await expect(installVlt(env)).resolves.toBe(join(home, '.mt', 'bin', 'vlt'))
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/skipping sha256/))
+    warn.mockRestore()
   })
 
   it('installVlt removes the binary and points at a static build when it does not run', async () => {

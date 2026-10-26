@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
@@ -17,6 +18,8 @@ import { tmpPathFor } from './atomic.js'
  *
  * Binary acquisition: `vlt` on PATH, then an mt-managed copy in `$MT_HOME|~/.mt/bin`.
  * `installVlt()` downloads the latest Linux release from GitHub into that directory.
+ * Before any file is written, the archive's sha256 is verified against the release's
+ * checksum asset; set `MT_VLT_SKIP_VERIFY=true` to override (not recommended).
  */
 
 export const VLT_REF_PREFIX = 'vlt:'
@@ -195,6 +198,11 @@ export async function installVlt(env: Env = process.env): Promise<string> {
     throw new Error(`vlt install: no linux/${arch} asset in the latest vlt-cli release`)
   }
   const archive = await downloadAsset(asset.browser_download_url)
+  if (env.MT_VLT_SKIP_VERIFY === 'true') {
+    console.warn('vlt install: MT_VLT_SKIP_VERIFY=true — skipping sha256 checksum verification')
+  } else {
+    await verifyChecksum(asset.name, archive, release.assets ?? [])
+  }
   const files = extractBinaries(asset.name, archive)
   const dir = vltBinDir(env)
   await mkdir(dir, { recursive: true })
@@ -215,6 +223,54 @@ export async function installVlt(env: Env = process.env): Promise<string> {
     )
   }
   return main
+}
+
+/**
+ * Verify the downloaded archive against the release's checksum asset (goreleaser
+ * convention: `<sha256hex>  <file-name>` lines, e.g. `vlt-cli_0.5.0_checksums.txt`).
+ * Aborts the install — nothing has been written yet — on a missing checksum asset,
+ * a missing entry for the archive, or a hash mismatch.
+ */
+async function verifyChecksum(
+  assetName: string,
+  archive: Buffer,
+  assets: GithubAsset[],
+): Promise<void> {
+  const checksumAsset = assets.find(
+    (a) =>
+      a.browser_download_url !== undefined &&
+      (a.name.includes('checksums') || a.name.endsWith('.sha256')),
+  )
+  if (checksumAsset?.browser_download_url === undefined) {
+    throw new Error(
+      'vlt install: no checksum asset in the latest vlt-cli release; refusing unverified install. ' +
+        'Set MT_VLT_SKIP_VERIFY=true to override (not recommended).',
+    )
+  }
+  const content = (await downloadAsset(checksumAsset.browser_download_url)).toString('utf-8')
+  const expected = parseChecksum(content, assetName)
+  if (expected === undefined) {
+    throw new Error(
+      `vlt install: checksum file does not list ${assetName}; refusing unverified install. Set MT_VLT_SKIP_VERIFY=true to override (not recommended).`,
+    )
+  }
+  const actual = createHash('sha256').update(archive).digest('hex')
+  if (actual !== expected) {
+    throw new Error(
+      `vlt install: sha256 mismatch for ${assetName} (expected ${expected}, got ${actual}); the download may be corrupted or tampered with. Nothing was installed.`,
+    )
+  }
+}
+
+/** Find `<hex>  <file-name>` entry for fileName (tolerant of extra whitespace, `*name` marker). */
+function parseChecksum(content: string, fileName: string): string | undefined {
+  for (const line of content.split('\n')) {
+    const [hash, entryName] = line.trim().split(/\s+/)
+    if (hash === undefined || !/^[0-9a-f]{64}$/i.test(hash)) continue
+    const base = (entryName ?? '').replace(/^\*/, '').split('/').pop()
+    if (base === fileName) return hash.toLowerCase()
+  }
+  return undefined
 }
 
 function pickAsset(assets: GithubAsset[], arch: string): GithubAsset | undefined {
