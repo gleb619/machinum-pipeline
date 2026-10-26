@@ -6,245 +6,245 @@ Sorted by complexity (Low → High).
 
 ## Tool Index
 
-| ID    | Tool                          | Used in UCs |
-|-------|-------------------------------|-------------|
-| TL001  | normalizeUnicode              | [UC058](uc.md)       |
-| TL002  | trimWhitespace                | [UC058](uc.md)       |
-| TL003  | detectEmptyParagraph          | —           |
-| TL004  | spellcheckLine                | [UC057](uc.md)       |
-| TL005  | grammarCheckLine              | [UC057](uc.md)       |
-| TL006  | detectRepeatedWords           | [UC057](uc.md)       |
-| TL007  | titleCaseChapter              | —           |
-| TL008  | extractFrontmatter            | [UC055](uc.md)       |
-| TL009  | validateISBN                  | —           |
-| TL010  | detectDeadLinks               | [UC055](uc.md)       |
-| TL011  | checkMarkdownLinks            | [UC055](uc.md)       |
-| TL012  | countWords                    | —           |
-| TL013  | readabilityScore             | —           |
-| TL014  | detectPassiveVoice           | [UC057](uc.md)       |
-| TL015  | findWeaselWords               | [UC057](uc.md)       |
-| TL016  | normalizeLineEndings          | [UC058](uc.md)       |
-| TL017  | removeBOM                     | —           |
-| TL018  | detectProfanity               | —           |
-| TL019  | extractEmails                 | —           |
-| TL020  | detectUrls                    | —           |
-| TL021  | splitLongParagraph            | —           |
-| TL022  | joinShortLines                | —           |
-| TL023  | addLineNumbers                | —           |
-| TL024  | detectNumericLists            | —           |
-| TL025  | capitalizeSentences           | —           |
-| TL026  | translateLine                 | [UC059](uc.md), [UC060](uc.md), [UC061](uc.md) |
-| TL027  | rewriteTone                   | —           |
-| TL028  | callOpenRouterAgent           | —           |
-| TL029  | routeToRouter                 | —           |
-| TL030  | extractKeyPhrases             | —           |
-| TL031  | embedForRAG                   | —           |
-| TL032  | semanticSimilarity            | —           |
-| TL033  | detectPlagiarism              | —           |
-| TL034  | summarizeChapter              | —           |
-| TL035  | detectHallucination          | —           |
-| TL036  | expandContractions            | [UC058](uc.md)       |
-| TL037  | detectGenderBias              | —           |
-| TL038  | checkConsistencyGlossary      | —           |
-| TL039  | extractQuotes                 | —           |
-| TL040  | detectEllipsisStyle           | —           |
-| TL041  | fixOrdinalNumbers             | [UC058](uc.md)       |
-| TL042  | redactPII                     | —           |
-| TL043  | detectAdverbs                 | [UC057](uc.md)       |
-| TL044  | checkSerialComma              | —           |
-| TL045  | extractAcronyms               | —           |
-| TL046  | convertNumberWords            | [UC058](uc.md)       |
-| TL047  | detectDuplicateParagraphs     | —           |
-| TL048  | splitByHeading                | —           |
-| TL049  | validateWordCountTarget       | —           |
-| TL050  | generateAltText               | —           |
-| TL051  | translateWithContext          | [UC059](uc.md), [UC060](uc.md), [UC061](uc.md) |
-| TL052  | expandAbbreviations           | —           |
-| TL053  | detectLongSentences           | —           |
-| TL054  | sentenceSplitter              | [UC060](uc.md)       |
-| TL055  | detectWeaselTags              | —           |
-| TL056  | convertSmartPunctuation       | —           |
-| TL057  | extractFootnotes              | —           |
-| TL058  | validateReferenceFormat       | —           |
-| TL059  | detectClichés                 | [UC057](uc.md)       |
-| TL060  | convertRomanNumerals          | —           |
-| TL061  | detectMissingSpaces           | —           |
-| TL062  | fixStraightQuotes             | [UC058](uc.md)       |
-| TL063  | detectHeadingLevelSkip        | [UC055](uc.md)       |
-| TL064  | addYAMLFrontmatter            | —           |
-| TL065  | checkReadingTime              | —           |
-| TL066  | detectRedundantPhrases        | —           |
-| TL067  | extractCharacterNames         | —           |
-| TL068  | convertDateFormats            | —           |
-| TL069  | detectAmbiguousPronouns       | —           |
-| TL070  | keywordDensity                | —           |
-| TL071  | checkCodeBlockLanguage        | [UC055](uc.md)       |
-| TL072  | detectTrailingSpaces          | —           |
-| TL073  | detectUnescapedChars          | —           |
-| TL074  | checkInternalConsistencyNames | —           |
-| TL075  | extractTOC                    | —           |
-| TL076  | detectOverusedWords           | —           |
-| TL077  | addLanguageTag                | —           |
-| TL078  | convertDialoguePunctuation    | —           |
-| TL079  | splitRunonSentences           | —           |
-| TL080  | detectMissingSubject          | —           |
-| TL081  | extractStatistics             | —           |
-| TL082  | detectFillerWords             | —           |
-| TL083  | convertElision                | —           |
-| TL084  | checkHtmlEntities             | —           |
-| TL085  | detectRelativeTime            | —           |
-| TL086  | extractGlossaryTerms          | —           |
-| TL087  | capitalizeHeadings           | —           |
-| TL088  | detectLeadingWhitespace       | —           |
-| TL089  | removeDuplicateSpaces         | —           |
-| TL090  | extractUUIDs                  | —           |
-| TL091  | detectSentenceSpacing         | —           |
-| TL092  | convertFractionToUnicode      | —           |
-| TL093  | detectMissingAltText          | —           |
-| TL094  | addSoftHyphens                | —           |
-| TL095  | detectURLShorteners           | —           |
-| TL096  | extractPullQuotes             | —           |
-| TL097  | checkEmojiUsage               | —           |
-| TL098  | normalizeWhitespaceAroundPunctuation | —           |
-| TL099  | detectMicrosoftSmartTags      | —           |
-| TL100  | extractResearchQuestions      | —           |
-| TL101  | detectTautology               | —           |
-| TL102  | checkDialogueTagVariety       | —           |
-| TL103  | convertNonBreakingSpaces      | —           |
-| TL104  | detectLazyWord                | —           |
-| TL105  | extractTemporalExpressions    | —           |
-| TL106  | chunkChapter                  | [UC056](uc.md)       |
-| TL107  | extractEntities               | —           |
-| TL108  | consolidateSummaries          | —           |
-| TL109  | generatePlotDiagram           | —           |
-| TL110  | detectScenes                  | —           |
-| TL111  | generateImage                 | —           |
-| TL112  | generateAudio                  | —           |
-| TL113  | exportToVideo                 | —           |
-| TL114  | indexWithLightRAG             | —           |
-| TL115  | synthesizeSpeech             | —           |
-| TL116  | runAutomataWorkflow           | —           |
+| ID    | Tool                                 | Used in UCs                                    |
+|-------|--------------------------------------|------------------------------------------------|
+| TL001 | normalizeUnicode                     | [UC058](uc.md)                                 |
+| TL002 | trimWhitespace                       | [UC058](uc.md)                                 |
+| TL003 | detectEmptyParagraph                 | —                                              |
+| TL004 | spellcheckLine                       | [UC057](uc.md)                                 |
+| TL005 | grammarCheckLine                     | [UC057](uc.md)                                 |
+| TL006 | detectRepeatedWords                  | [UC057](uc.md)                                 |
+| TL007 | titleCaseChapter                     | —                                              |
+| TL008 | extractFrontmatter                   | [UC055](uc.md)                                 |
+| TL009 | validateISBN                         | —                                              |
+| TL010 | detectDeadLinks                      | [UC055](uc.md)                                 |
+| TL011 | checkMarkdownLinks                   | [UC055](uc.md)                                 |
+| TL012 | countWords                           | —                                              |
+| TL013 | readabilityScore                     | —                                              |
+| TL014 | detectPassiveVoice                   | [UC057](uc.md)                                 |
+| TL015 | findWeaselWords                      | [UC057](uc.md)                                 |
+| TL016 | normalizeLineEndings                 | [UC058](uc.md)                                 |
+| TL017 | removeBOM                            | —                                              |
+| TL018 | detectProfanity                      | —                                              |
+| TL019 | extractEmails                        | —                                              |
+| TL020 | detectUrls                           | —                                              |
+| TL021 | splitLongParagraph                   | —                                              |
+| TL022 | joinShortLines                       | —                                              |
+| TL023 | addLineNumbers                       | —                                              |
+| TL024 | detectNumericLists                   | —                                              |
+| TL025 | capitalizeSentences                  | —                                              |
+| TL026 | translateLine                        | [UC059](uc.md), [UC060](uc.md), [UC061](uc.md) |
+| TL027 | rewriteTone                          | —                                              |
+| TL028 | callOpenRouterAgent                  | —                                              |
+| TL029 | routeToRouter                        | —                                              |
+| TL030 | extractKeyPhrases                    | —                                              |
+| TL031 | embedForRAG                          | —                                              |
+| TL032 | semanticSimilarity                   | —                                              |
+| TL033 | detectPlagiarism                     | —                                              |
+| TL034 | summarizeChapter                     | —                                              |
+| TL035 | detectHallucination                  | —                                              |
+| TL036 | expandContractions                   | [UC058](uc.md)                                 |
+| TL037 | detectGenderBias                     | —                                              |
+| TL038 | checkConsistencyGlossary             | —                                              |
+| TL039 | extractQuotes                        | —                                              |
+| TL040 | detectEllipsisStyle                  | —                                              |
+| TL041 | fixOrdinalNumbers                    | [UC058](uc.md)                                 |
+| TL042 | redactPII                            | —                                              |
+| TL043 | detectAdverbs                        | [UC057](uc.md)                                 |
+| TL044 | checkSerialComma                     | —                                              |
+| TL045 | extractAcronyms                      | —                                              |
+| TL046 | convertNumberWords                   | [UC058](uc.md)                                 |
+| TL047 | detectDuplicateParagraphs            | —                                              |
+| TL048 | splitByHeading                       | —                                              |
+| TL049 | validateWordCountTarget              | —                                              |
+| TL050 | generateAltText                      | —                                              |
+| TL051 | translateWithContext                 | [UC059](uc.md), [UC060](uc.md), [UC061](uc.md) |
+| TL052 | expandAbbreviations                  | —                                              |
+| TL053 | detectLongSentences                  | —                                              |
+| TL054 | sentenceSplitter                     | [UC060](uc.md)                                 |
+| TL055 | detectWeaselTags                     | —                                              |
+| TL056 | convertSmartPunctuation              | —                                              |
+| TL057 | extractFootnotes                     | —                                              |
+| TL058 | validateReferenceFormat              | —                                              |
+| TL059 | detectClichés                        | [UC057](uc.md)                                 |
+| TL060 | convertRomanNumerals                 | —                                              |
+| TL061 | detectMissingSpaces                  | —                                              |
+| TL062 | fixStraightQuotes                    | [UC058](uc.md)                                 |
+| TL063 | detectHeadingLevelSkip               | [UC055](uc.md)                                 |
+| TL064 | addYAMLFrontmatter                   | —                                              |
+| TL065 | checkReadingTime                     | —                                              |
+| TL066 | detectRedundantPhrases               | —                                              |
+| TL067 | extractCharacterNames                | —                                              |
+| TL068 | convertDateFormats                   | —                                              |
+| TL069 | detectAmbiguousPronouns              | —                                              |
+| TL070 | keywordDensity                       | —                                              |
+| TL071 | checkCodeBlockLanguage               | [UC055](uc.md)                                 |
+| TL072 | detectTrailingSpaces                 | —                                              |
+| TL073 | detectUnescapedChars                 | —                                              |
+| TL074 | checkInternalConsistencyNames        | —                                              |
+| TL075 | extractTOC                           | —                                              |
+| TL076 | detectOverusedWords                  | —                                              |
+| TL077 | addLanguageTag                       | —                                              |
+| TL078 | convertDialoguePunctuation           | —                                              |
+| TL079 | splitRunonSentences                  | —                                              |
+| TL080 | detectMissingSubject                 | —                                              |
+| TL081 | extractStatistics                    | —                                              |
+| TL082 | detectFillerWords                    | —                                              |
+| TL083 | convertElision                       | —                                              |
+| TL084 | checkHtmlEntities                    | —                                              |
+| TL085 | detectRelativeTime                   | —                                              |
+| TL086 | extractGlossaryTerms                 | —                                              |
+| TL087 | capitalizeHeadings                   | —                                              |
+| TL088 | detectLeadingWhitespace              | —                                              |
+| TL089 | removeDuplicateSpaces                | —                                              |
+| TL090 | extractUUIDs                         | —                                              |
+| TL091 | detectSentenceSpacing                | —                                              |
+| TL092 | convertFractionToUnicode             | —                                              |
+| TL093 | detectMissingAltText                 | —                                              |
+| TL094 | addSoftHyphens                       | —                                              |
+| TL095 | detectURLShorteners                  | —                                              |
+| TL096 | extractPullQuotes                    | —                                              |
+| TL097 | checkEmojiUsage                      | —                                              |
+| TL098 | normalizeWhitespaceAroundPunctuation | —                                              |
+| TL099 | detectMicrosoftSmartTags             | —                                              |
+| TL100 | extractResearchQuestions             | —                                              |
+| TL101 | detectTautology                      | —                                              |
+| TL102 | checkDialogueTagVariety              | —                                              |
+| TL103 | convertNonBreakingSpaces             | —                                              |
+| TL104 | detectLazyWord                       | —                                              |
+| TL105 | extractTemporalExpressions           | —                                              |
+| TL106 | chunkChapter                         | [UC056](uc.md)                                 |
+| TL107 | extractEntities                      | —                                              |
+| TL108 | consolidateSummaries                 | —                                              |
+| TL109 | generatePlotDiagram                  | —                                              |
+| TL110 | detectScenes                         | —                                              |
+| TL111 | generateImage                        | —                                              |
+| TL112 | generateAudio                        | —                                              |
+| TL113 | exportToVideo                        | —                                              |
+| TL114 | indexWithLightRAG                    | —                                              |
+| TL115 | synthesizeSpeech                     | —                                              |
+| TL116 | runAutomataWorkflow                  | —                                              |
 
 ---
 
 | Index | ID    | Name                                   | Input           | Output                                               | Category        | Complexity | Description                                                                                                          |
 |:------|-------|----------------------------------------|-----------------|------------------------------------------------------|-----------------|------------|----------------------------------------------------------------------------------------------------------------------|
-| 1     | TL001  | `normalizeUnicode`                     | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replace smart quotes, ligatures, diacritics with NFKC form; no API calls.                                            |
-| 2     | TL002  | `trimWhitespace`                       | `Line`          | `Line`                                               | Pre‑processing  | Low        | Remove leading/trailing spaces, collapse multiple spaces, trim empty lines.                                          |
-| 3     | TL003  | `detectEmptyParagraph`                 | `Paragraph`     | `Paragraph & { isEmpty: boolean }`                   | Validation      | Low        | Flags paragraphs that contain only whitespace or zero characters.                                                    |
-| 4     | TL004  | `spellcheckLine`                       | `Line`          | `Line & { typos: Typo[] }`                           | Typo Detection  | Low        | Uses Hunspell WASM dictionary; returns misspelled words + suggestions.                                               |
-| 5     | TL005  | `grammarCheckLine`                     | `Line`          | `Line & { grammarIssues: Issue[] }`                  | Error Detection | Low        | Calls local LanguageTool server (HTTP) to get grammar/style errors.                                                  |
-| 6     | TL006  | `detectRepeatedWords`                  | `Paragraph`     | `Paragraph & { repeated: Repeated[] }`               | Error Detection | Low        | Finds adjacent repeated words ("the the"), common typos via regex.                                                   |
-| 7     | TL007  | `titleCaseChapter`                     | `Chapter`       | `Chapter`                                            | Formatting      | Low        | Converts chapter headings to proper title case (AP style rules).                                                     |
-| 8     | TL008  | `extractFrontmatter`                   | `Chapter`       | `Chapter & { frontmatter: Record<string, unknown> }` | Metadata        | Low        | Parses YAML/TOML frontmatter block from chapter markdown.                                                            |
-| 9     | TL009  | `validateISBN`                         | `Line`          | `Line & { isbnValid: boolean }`                      | Validation      | Low        | Scans line for ISBN‑10/‑13 patterns and validates check digits.                                                      |
-| 10    | TL010  | `detectDeadLinks`                      | `Chapter`       | `Chapter & { deadLinks: Link[] }`                    | Error Detection | Low        | HEAD requests each URL in chapter; reports broken links.                                                             |
-| 11    | TL011  | `checkMarkdownLinks`                   | `Paragraph`     | `Paragraph & { brokenInternalLinks: string[] }`      | Validation      | Low        | Validates internal anchor links (`#section`) against chapter headings.                                               |
-| 12    | TL012  | `countWords`                           | `Line`          | `Line & { wordCount: number }`                       | Metrics         | Low        | Returns word count (split on whitespace) per line.                                                                   |
-| 13    | TL013  | `readabilityScore`                     | `Chapter`       | `Chapter & { fleschKincaid: number }`                | Metrics         | Low        | Computes Flesch‑Kincaid grade level using syllable detection.                                                        |
-| 14    | TL014  | `detectPassiveVoice`                   | `Line`          | `Line & { passiveCount: number }`                    | Style           | Low        | Simple regex for "is/was/were + past participle" patterns.                                                           |
-| 15    | TL015  | `findWeaselWords`                      | `Line`          | `Line & { weaselWords: string[] }`                   | Style           | Low        | Lists occurrences of "might", "some", "perhaps", "maybe", etc.                                                       |
-| 16    | TL016  | `normalizeLineEndings`                 | `Line`          | `Line`                                               | Pre‑processing  | Low        | Converts CR/LF/CRLF to LF consistently.                                                                              |
-| 17    | TL017  | `removeBOM`                            | `Line`          | `Line`                                               | Pre‑processing  | Low        | Strips UTF‑8 BOM from first line if present.                                                                         |
-| 18    | TL018  | `detectProfanity`                      | `Line`          | `Line & { profanityMatches: string[] }`              | Content Filter  | Low        | Checks line against wordlist; flags offensive terms.                                                                 |
-| 19    | TL019  | `extractEmails`                        | `Paragraph`     | `Paragraph & { emails: string[] }`                   | Extraction      | Low        | Regex extraction of email addresses from text.                                                                       |
-| 20    | TL020  | `detectUrls`                           | `Line`          | `Line & { urls: string[] }`                          | Extraction      | Low        | Finds HTTP/HTTPS URLs in line.                                                                                       |
-| 21    | TL021  | `splitLongParagraph`                   | `Paragraph`     | `Paragraph[]`                                        | Pre‑processing  | Low        | Splits paragraph into multiple paragraphs at sentence boundaries when length > 500 chars.                            |
-| 22    | TL022  | `joinShortLines`                       | `Chapter`       | `Chapter`                                            | Formatting      | Low        | Merges consecutive lines that are under 40 chars (likely line breaks in markdown).                                   |
-| 23    | TL023  | `addLineNumbers`                       | `Line`          | `Line & { lineNumber: number }`                      | Metadata        | Low        | Annotates each line with its index inside the paragraph.                                                             |
-| 24    | TL024  | `detectNumericLists`                   | `Paragraph`     | `Paragraph & { isNumberedList: boolean }`            | Structure       | Low        | Checks if paragraph starts with "1. ", "2. " etc.                                                                    |
-| 25    | TL025  | `capitalizeSentences`                  | `Paragraph`     | `Paragraph`                                          | Formatting      | Low        | Ensures first letter of each sentence is capitalised (basic regex).                                                  |
-| 26    | TL026  | `translateLine`                        | `Line`          | `Line`                                               | Translation     | Medium     | Uses `ToolContext.translator` (LibreTranslate or OpenRouter) to translate line to target language from `RunContext`. |
-| 27    | TL027  | `rewriteTone`                          | `Paragraph`     | `Paragraph`                                          | Rewriting       | Medium     | Calls `ToolContext.llm` with system prompt to change tone: academic → conversational, formal → friendly.             |
-| 28    | TL028  | `callOpenRouterAgent`                  | `Paragraph`     | `Paragraph & { agentResult: unknown }`               | Agent           | Medium     | Sends paragraph to an OpenRouter‑hosted agent (e.g., fact‑checker, summarizer). Stores output in metadata.           |
-| 29    | TL029  | `routeToRouter`                        | `Line`          | `Line & { nextTool: string }`                        | Router          | Medium     | Rule‑based: if line contains "TODO" → route to `rewriteTodo`; if citation → `expandCitation`.                        |
-| 30    | TL030  | `extractKeyPhrases`                    | `Chapter`       | `Chapter & { keywords: string[] }`                   | NLP             | Medium     | Pure TS TF‑IDF or YAKE implementation; returns top 10 phrases.                                                       |
-| 31    | TL031  | `embedForRAG`                          | `Chapter`       | `Chapter & { embedding: number[] }`                  | Indexing        | Medium     | Uses `ToolContext.embedder` (Transformers.js) to create vector; stores in `RunContext.vectorStore`.                  |
-| 32    | TL032  | `semanticSimilarity`                   | `Chapter`       | `Chapter & { similarityToPrevious: number }`         | Analysis        | Medium     | Compares embedding of current chapter with previous one; outputs cosine similarity.                                  |
-| 33    | TL033  | `detectPlagiarism`                     | `Paragraph`     | `Paragraph & { duplicateSources: string[] }`         | Validation      | Medium     | Hashes paragraph and checks against `RunContext.fingerprintCache` (local dedup).                                     |
-| 34    | TL034  | `summarizeChapter`                     | `Chapter`       | `Chapter & { summary: string }`                      | Summarization   | Medium     | Uses LLM (lightweight, e.g., Mistral via Ollama) to generate 2‑sentence summary.                                     |
-| 35    | TL035  | `detectHallucination`                  | `Chapter`       | `Chapter & { hallucinationScore: number }`           | Validation      | Medium     | Checks claims against a knowledge base or uses self‑consistency with multiple LLM queries.                           |
-| 36    | TL036  | `expandContractions`                   | `Line`          | `Line`                                               | Pre‑processing  | Low        | Expands "don't" → "do not", "it's" → "it is" (custom mapping).                                                       |
-| 37    | TL037  | `detectGenderBias`                     | `Paragraph`     | `Paragraph & { biasTerms: string[] }`                | Style           | Low        | Finds "policeman", "fireman", "chairman" and suggests alternatives.                                                  |
-| 38    | TL038  | `checkConsistencyGlossary`             | `Chapter`       | `Chapter & { glossaryViolations: string[] }`         | Validation      | Low        | Ensures preferred term from glossary is used (e.g., "e‑mail" not "email").                                           |
-| 39    | TL039  | `extractQuotes`                        | `Paragraph`     | `Paragraph & { quotes: string[] }`                   | Extraction      | Low        | Finds text between single/double quotes or guillemets.                                                               |
-| 40    | TL040  | `detectEllipsisStyle`                  | `Line`          | `Line & { ellipsisOk: boolean }`                     | Style           | Low        | Warns if "..." not used as a single character `…` or spaced incorrectly.                                             |
-| 41    | TL041  | `fixOrdinalNumbers`                    | `Line`          | `Line`                                               | Formatting      | Low        | Replaces "1st", "2nd", "3rd" with "first", "second", "third" (configurable).                                         |
-| 42    | TL042  | `redactPII`                            | `Paragraph`     | `Paragraph`                                          | Privacy         | Low        | Masks phone numbers, email addresses, SSN patterns with `[REDACTED]`.                                                |
-| 43    | TL043  | `detectAdverbs`                        | `Line`          | `Line & { adverbCount: number }`                     | Style           | Low        | Lists "‑ly" adverbs (quickly, happily) for style suggestions.                                                        |
-| 44    | TL044  | `checkSerialComma`                     | `Paragraph`     | `Paragraph & { missingSerialComma: boolean }`        | Style           | Low        | Detects missing Oxford comma in lists of three or more items.                                                        |
-| 45    | TL045  | `extractAcronyms`                      | `Chapter`       | `Chapter & { acronyms: Record<string, string> }`     | Extraction      | Low        | Finds definitions like "(API)" and builds acronym table.                                                             |
-| 46    | TL046  | `convertNumberWords`                   | `Line`          | `Line`                                               | Formatting      | Low        | Turns "twenty‑five" → "25" (or reverse) based on `RunContext.style`.                                                 |
-| 47    | TL047  | `detectDuplicateParagraphs`            | `Chapter`       | `Chapter & { duplicates: number[][] }`               | Error Detection | Low        | Hashes paragraph content; reports indices of identical paragraphs.                                                   |
-| 48    | TL048  | `splitByHeading`                       | `Chapter`       | `Chapter[]`                                          | Pre‑processing  | Low        | Splits a chapter into sub‑chapters at Markdown heading levels (`##`).                                                |
-| 49    | TL049  | `validateWordCountTarget`              | `Chapter`       | `Chapter & { withinTarget: boolean }`                | Validation      | Low        | Compares word count against `RunContext.wordTarget` (min/max).                                                       |
-| 50    | TL050  | `generateAltText`                      | `Paragraph`     | `Paragraph` (image descriptions)                     | Accessibility   | Medium     | Uses local vision model (Moondream) or LLM to describe images embedded in paragraph.                                 |
-| 51    | TL051  | `translateWithContext`                 | `Paragraph`     | `Paragraph`                                          | Translation     | Medium     | Uses running context (previous 2 paragraphs) to improve translation accuracy via LLM.                                |
-| 52    | TL052  | `expandAbbreviations`                  | `Paragraph`     | `Paragraph`                                          | Pre‑processing  | Low        | Replaces common abbrevs: "e.g." → "for example", "i.e." → "that is".                                                 |
-| 53    | TL053  | `detectLongSentences`                  | `Line`          | `Line & { longSentences: number[] }`                 | Style           | Low        | Flags sentences > 30 words, suggests breaking.                                                                       |
-| 54    | TL054  | `sentenceSplitter`                     | `Paragraph`     | `Line[]` (sentence‑based)                            | Pre‑processing  | Low        | Converts paragraph into array of `Line` objects, one per sentence.                                                   |
-| 55    | TL055  | `detectWeaselTags`                     | `Line`          | `Line & { weaselTags: string[] }`                    | Style           | Low        | Finds "some experts say", "it is believed that", "many people think".                                                |
-| 56    | TL056  | `convertSmartPunctuation`              | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replaces curly quotes, apostrophes, em‑dashes with straight equivalents (or vice versa).                             |
-| 57    | TL057  | `extractFootnotes`                     | `Chapter`       | `Chapter & { footnotes: Footnote[] }`                | Extraction      | Low        | Parses markdown `[^1]` style footnotes and their definitions.                                                        |
-| 58    | TL058  | `validateReferenceFormat`              | `Paragraph`     | `Paragraph & { refErrors: string[] }`                | Validation      | Low        | Checks that citations (`[Author, year]`) match a bibliography.                                                       |
-| 59    | TL059  | `detectClichés`                        | `Line`          | `Line & { clichés: string[] }`                       | Style           | Low        | Checks line against a list of 200 common clichés.                                                                    |
-| 60    | TL060  | `convertRomanNumerals`                 | `Line`          | `Line`                                               | Formatting      | Low        | Converts Roman numerals (IV, XIX) to integers, configurable on/off.                                                  |
-| 61    | TL061  | `detectMissingSpaces`                  | `Line`          | `Line & { missingSpaces: number[][] }`               | Error Detection | Low        | Finds "end.Start" or "word.Word" patterns missing space.                                                             |
-| 62    | TL062  | `fixStraightQuotes`                    | `Line`          | `Line`                                               | Formatting      | Low        | Replaces straight quotes with curly quotes for proper typography.                                                    |
-| 63    | TL063  | `detectHeadingLevelSkip`               | `Chapter`       | `Chapter & { levelSkips: number[] }`                 | Structure       | Low        | Warns if markdown heading jumps from H2 to H4 (skipping H3).                                                         |
-| 64    | TL064  | `addYAMLFrontmatter`                   | `Chapter`       | `Chapter` (if missing)                               | Metadata        | Low        | Inserts default frontmatter block with creation date and status from `RunContext`.                                   |
-| 65    | TL065  | `checkReadingTime`                     | `Chapter`       | `Chapter & { readingTimeMinutes: number }`           | Metrics         | Low        | Calculates based on 200‑250 wpm.                                                                                     |
-| 66    | TL066  | `detectRedundantPhrases`               | `Paragraph`     | `Paragraph & { redundancies: string[] }`             | Style           | Low        | Finds "advance planning", "end result", "free gift".                                                                 |
-| 67    | TL067  | `extractCharacterNames`                | `Chapter`       | `Chapter & { characters: string[] }`                 | NLP             | Low        | Uses proper noun detection (capitalized words not at start of sentence).                                             |
-| 68    | TL068  | `convertDateFormats`                   | `Paragraph`     | `Paragraph`                                          | Formatting      | Low        | Normalizes "01/02/2024" to "2 January 2024" based on locale config.                                                  |
-| 69    | TL069  | `detectAmbiguousPronouns`              | `Paragraph`     | `Paragraph & { ambiguousRefs: string[] }`            | Style           | Medium     | Uses simple co‑reference heuristics to find "it", "they" without clear antecedent.                                   |
-| 70    | TL070  | `keywordDensity`                       | `Chapter`       | `Chapter & { density: Record<string, number> }`      | Metrics         | Low        | Reports frequency of top 20 keywords (excluding stopwords).                                                          |
-| 71    | TL071  | `checkCodeBlockLanguage`               | `Chapter`       | `Chapter & { unmarkedCodeBlocks: number[] }`         | Validation      | Low        | Finds markdown code fences without language specifier.                                                               |
-| 72    | TL072  | `detectTrailingSpaces`                 | `Line`          | `Line & { hasTrailingSpace: boolean }`               | Formatting      | Low        | Flags lines ending with spaces (annoying in markdown).                                                               |
-| 73    | TL073  | `detectUnescapedChars`                 | `Line`          | `Line & { unescaped: string[] }`                     | Error Detection | Low        | Finds asterisks, underscores inside words without escaping (`*word*`).                                               |
-| 74    | TL074  | `checkInternalConsistencyNames`        | `Chapter`       | `Chapter & { nameVariants: string[][] }`             | Error Detection | Medium     | Groups possible same entities: "Jon", "John", "Jonathan" – suggests unification.                                     |
-| 75    | TL075  | `extractTOC`                           | `Chapter`       | `Chapter & { toc: TocEntry[] }`                      | Extraction      | Low        | Builds table of contents from markdown headings.                                                                     |
-| 76    | TL076  | `detectOverusedWords`                  | `Chapter`       | `Chapter & { overused: Record<string, number> }`     | Style           | Low        | Flags words used more than `n` times per chapter (configurable, e.g., "very", "really").                             |
-| 77    | TL077  | `addLanguageTag`                       | `Line`          | `Line & { detectedLang: string }`                    | Metadata        | Medium     | Uses `cld3` or `franc` in TS to detect language per line.                                                            |
-| 78    | TL078  | `convertDialoguePunctuation`           | `Paragraph`     | `Paragraph`                                          | Formatting      | Low        | Replaces double quotes with single for British English (or configurable).                                            |
-| 79    | TL079  | `splitRunonSentences`                  | `Paragraph`     | `Paragraph`                                          | Pre‑processing  | Low        | Splits sentences joined by ", and" or ", but" into separate sentences.                                               |
-| 80    | TL080  | `detectMissingSubject`                 | `Line`          | `Line & { missingSubject: boolean }`                 | Grammar         | Medium     | Simple heuristic: sentence starting with verb (imperative detection with exceptions).                                |
-| 81    | TL081  | `extractStatistics`                    | `Chapter`       | `Chapter & { stats: ChapterStats }`                  | Metrics         | Low        | Returns char count, sentence count, avg word length, etc.                                                            |
-| 82    | TL082  | `detectFillerWords`                    | `Line`          | `Line & { fillers: string[] }`                       | Style           | Low        | Finds "um", "uh", "like", "actually", "basically".                                                                   |
-| 83    | TL083  | `convertElision`                       | `Line`          | `Line`                                               | Formatting      | Low        | Expands "gonna" → "going to", "wanna" → "want to".                                                                   |
-| 84    | TL084  | `checkHtmlEntities`                    | `Line`          | `Line & { unescapedEntities: string[] }`             | Validation      | Low        | Finds `&` not followed by `&amp;` in non‑code contexts.                                                              |
-| 85    | TL085  | `detectRelativeTime`                   | `Paragraph`     | `Paragraph & { relativeTimes: string[] }`            | Error Detection | Low        | Flags "tomorrow", "yesterday", "next week" (may date the book).                                                      |
-| 86    | TL086  | `extractGlossaryTerms`                 | `Chapter`       | `Chapter & { terms: string[] }`                      | Extraction      | Low        | Builds list of bold/italic terms that might need glossary entries.                                                   |
-| 87    | TL087  | `capitalizeHeadings`                   | `Chapter`       | `Chapter`                                            | Formatting      | Low        | Converts heading text to proper case (configurable: title case or sentence case).                                    |
-| 88    | TL088  | `detectLeadingWhitespace`              | `Line`          | `Line & { indentLevel: number }`                     | Structure       | Low        | Counts leading spaces or tabs for code block detection.                                                              |
-| 89    | TL089  | `removeDuplicateSpaces`                | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replaces multiple spaces with single space (except within code blocks).                                              |
-| 90    | TL090  | `extractUUIDs`                         | `Line`          | `Line & { uuids: string[] }`                         | Extraction      | Low        | Finds UUID‑v4 patterns in text.                                                                                      |
-| 91    | TL091  | `detectSentenceSpacing`                | `Line`          | `Line & { doubleSpaceAfterPeriod: boolean }`         | Style           | Low        | Flags double spaces after period (old‑style typography).                                                             |
-| 92    | TL092  | `convertFractionToUnicode`             | `Line`          | `Line`                                               | Formatting      | Low        | Changes "1/2" → "½", "3/4" → "¾" (configurable).                                                                     |
-| 93    | TL093  | `detectMissingAltText`                 | `Chapter`       | `Chapter & { imagesWithoutAlt: string[] }`           | Accessibility   | Low        | Finds markdown images `![]()` missing alt text inside brackets.                                                      |
-| 94    | TL094  | `addSoftHyphens`                       | `Line`          | `Line`                                               | Typesetting     | Low        | Adds `&shy;` after certain syllables for better line breaking (naive).                                               |
-| 95    | TL095  | `detectURLShorteners`                  | `Line`          | `Line & { shortenedURLs: string[] }`                 | Security        | Low        | Flags `bit.ly`, `tinyurl`, `goo.gl` links for expansion.                                                             |
-| 96    | TL096  | `extractPullQuotes`                    | `Chapter`       | `Chapter & { pullQuotes: string[] }`                 | Extraction      | Low        | Finds sentences enclosed in `> ` blockquotes.                                                                        |
-| 97    | TL097  | `checkEmojiUsage`                      | `Line`          | `Line & { emojis: string[] }`                        | Content         | Low        | Lists emoji characters; optionally warns if outside designated sections.                                             |
-| 98    | TL098  | `normalizeWhitespaceAroundPunctuation` | `Line`          | `Line`                                               | Pre‑processing  | Low        | Removes space before comma/period, adds space after comma.                                                           |
-| 99    | TL099  | `detectMicrosoftSmartTags`             | `Paragraph`     | `Paragraph & { smartTags: string[] }`                | Validation      | Low        | Finds leftover `<st1:...>` tags from Word export.                                                                    |
-| 100   | TL100  | `extractResearchQuestions`             | `Chapter`       | `Chapter & { questions: string[] }`                  | Extraction      | Low        | Finds sentences ending with `?` (potential reader questions).                                                        |
-| 101   | TL101  | `detectTautology`                      | `Line`          | `Line & { tautologies: string[] }`                   | Style           | Low        | Finds "added bonus", "future plans", "past history".                                                                 |
-| 102   | TL102  | `checkDialogueTagVariety`              | `Chapter`       | `Chapter & { tagOveruse: Record<string, number> }`   | Style           | Low        | Counts "said", "asked", "replied", warns if one dominates.                                                           |
-| 103   | TL103  | `convertNonBreakingSpaces`             | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replaces `&nbsp;` with normal space, except in code blocks.                                                          |
-| 104   | TL104  | `detectLazyWord`                       | `Line`          | `Line & { lazyWordCount: number }`                   | Style           | Low        | Flags "thing", "something", "stuff", "nice", "good" without specifics.                                               |
-| 105   | TL105  | `extractTemporalExpressions`           | `Paragraph`     | `Paragraph & { timex: string[] }`                    | Analysis        | Medium     | Uses simple patterns ("in 2024", "during the 19th century") for timeline extraction.                                 |
-| 106   | TL106  | `chunkChapter`                         | `Chapter`       | `Chapter[]`                                          | Pre‑processing  | Medium     | Splits chapter > 12000 tokens into smaller parts for LLM processing.                                                 |
-| 107   | TL107  | `extractEntities`                      | `Chapter`       | `Chapter & { entities: Entity[] }`                   | NLP             | Medium     | Finds and marks named entities (persons, places, organizations) in text.                                             |
-| 108   | TL108  | `consolidateSummaries`                 | `Summary[]`     | `Summary`                                            | Summarization   | Medium     | Merges multiple chapter summaries into a consolidated summary.                                                       |
-| 109   | TL109  | `generatePlotDiagram`                  | `Chapter`       | `Chapter & { plotDiagram: PlotNode[] }`              | Visualization   | High       | Creates visual plot diagram showing narrative structure, conflicts, and character arcs.                              |
-| 110   | TL110  | `detectScenes`                         | `Chapter`       | `Chapter & { scenes: Scene[] }`                      | Analysis        | Medium     | Parses chapter into scenes based on time/location changes or action beats.                                           |
-| 111   | TL111  | `generateImage`                        | `Chapter`       | `Scene` (or `Summary`)                                | `Image`         | Media       | Uses AI image generation (e.g., Flux) to create visual for chapter/scene/summary.                                  |
-| 112   | TL112  | `generateAudio`                        | `Chapter`       | `Scene` (or `Summary`)                                | `Audio`         | Media       | Uses TTS (machinum-tts) to add audio narration for content.                                                        |
-| 113   | TL113  | `exportToVideo`                        | `Image & Audio` | `Video`                                              | Media           | High       | Combines generated image with audio track to produce MP4 video.                                                      |
-| 114   | TL114  | `indexWithLightRAG`                    | `Chapter`       | `Chapter & { ragDocId: string }`                     | Indexing        | High       | Indexes chapter content in LightRAG vector store for retrieval.                                                      |
-| 115   | TL115  | `synthesizeSpeech`                     | `Text`          | `Audio`                                              | Media           | Medium     | Uses machinum-tts for high-quality speech synthesis.                                                                 |
-| 116   | TL116  | `runAutomataWorkflow`                  | `Chapter`       | `Chapter & { automataResult: unknown }`              | Agent           | High       | Executes automation workflow via machinum-automata.                                                                  |
+| 1     | TL001 | `normalizeUnicode`                     | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replace smart quotes, ligatures, diacritics with NFKC form; no API calls.                                            |
+| 2     | TL002 | `trimWhitespace`                       | `Line`          | `Line`                                               | Pre‑processing  | Low        | Remove leading/trailing spaces, collapse multiple spaces, trim empty lines.                                          |
+| 3     | TL003 | `detectEmptyParagraph`                 | `Paragraph`     | `Paragraph & { isEmpty: boolean }`                   | Validation      | Low        | Flags paragraphs that contain only whitespace or zero characters.                                                    |
+| 4     | TL004 | `spellcheckLine`                       | `Line`          | `Line & { typos: Typo[] }`                           | Typo Detection  | Low        | Uses Hunspell WASM dictionary; returns misspelled words + suggestions.                                               |
+| 5     | TL005 | `grammarCheckLine`                     | `Line`          | `Line & { grammarIssues: Issue[] }`                  | Error Detection | Low        | Calls local LanguageTool server (HTTP) to get grammar/style errors.                                                  |
+| 6     | TL006 | `detectRepeatedWords`                  | `Paragraph`     | `Paragraph & { repeated: Repeated[] }`               | Error Detection | Low        | Finds adjacent repeated words ("the the"), common typos via regex.                                                   |
+| 7     | TL007 | `titleCaseChapter`                     | `Chapter`       | `Chapter`                                            | Formatting      | Low        | Converts chapter headings to proper title case (AP style rules).                                                     |
+| 8     | TL008 | `extractFrontmatter`                   | `Chapter`       | `Chapter & { frontmatter: Record<string, unknown> }` | Metadata        | Low        | Parses YAML/TOML frontmatter block from chapter markdown.                                                            |
+| 9     | TL009 | `validateISBN`                         | `Line`          | `Line & { isbnValid: boolean }`                      | Validation      | Low        | Scans line for ISBN‑10/‑13 patterns and validates check digits.                                                      |
+| 10    | TL010 | `detectDeadLinks`                      | `Chapter`       | `Chapter & { deadLinks: Link[] }`                    | Error Detection | Low        | HEAD requests each URL in chapter; reports broken links.                                                             |
+| 11    | TL011 | `checkMarkdownLinks`                   | `Paragraph`     | `Paragraph & { brokenInternalLinks: string[] }`      | Validation      | Low        | Validates internal anchor links (`#section`) against chapter headings.                                               |
+| 12    | TL012 | `countWords`                           | `Line`          | `Line & { wordCount: number }`                       | Metrics         | Low        | Returns word count (split on whitespace) per line.                                                                   |
+| 13    | TL013 | `readabilityScore`                     | `Chapter`       | `Chapter & { fleschKincaid: number }`                | Metrics         | Low        | Computes Flesch‑Kincaid grade level using syllable detection.                                                        |
+| 14    | TL014 | `detectPassiveVoice`                   | `Line`          | `Line & { passiveCount: number }`                    | Style           | Low        | Simple regex for "is/was/were + past participle" patterns.                                                           |
+| 15    | TL015 | `findWeaselWords`                      | `Line`          | `Line & { weaselWords: string[] }`                   | Style           | Low        | Lists occurrences of "might", "some", "perhaps", "maybe", etc.                                                       |
+| 16    | TL016 | `normalizeLineEndings`                 | `Line`          | `Line`                                               | Pre‑processing  | Low        | Converts CR/LF/CRLF to LF consistently.                                                                              |
+| 17    | TL017 | `removeBOM`                            | `Line`          | `Line`                                               | Pre‑processing  | Low        | Strips UTF‑8 BOM from first line if present.                                                                         |
+| 18    | TL018 | `detectProfanity`                      | `Line`          | `Line & { profanityMatches: string[] }`              | Content Filter  | Low        | Checks line against wordlist; flags offensive terms.                                                                 |
+| 19    | TL019 | `extractEmails`                        | `Paragraph`     | `Paragraph & { emails: string[] }`                   | Extraction      | Low        | Regex extraction of email addresses from text.                                                                       |
+| 20    | TL020 | `detectUrls`                           | `Line`          | `Line & { urls: string[] }`                          | Extraction      | Low        | Finds HTTP/HTTPS URLs in line.                                                                                       |
+| 21    | TL021 | `splitLongParagraph`                   | `Paragraph`     | `Paragraph[]`                                        | Pre‑processing  | Low        | Splits paragraph into multiple paragraphs at sentence boundaries when length > 500 chars.                            |
+| 22    | TL022 | `joinShortLines`                       | `Chapter`       | `Chapter`                                            | Formatting      | Low        | Merges consecutive lines that are under 40 chars (likely line breaks in markdown).                                   |
+| 23    | TL023 | `addLineNumbers`                       | `Line`          | `Line & { lineNumber: number }`                      | Metadata        | Low        | Annotates each line with its index inside the paragraph.                                                             |
+| 24    | TL024 | `detectNumericLists`                   | `Paragraph`     | `Paragraph & { isNumberedList: boolean }`            | Structure       | Low        | Checks if paragraph starts with "1. ", "2. " etc.                                                                    |
+| 25    | TL025 | `capitalizeSentences`                  | `Paragraph`     | `Paragraph`                                          | Formatting      | Low        | Ensures first letter of each sentence is capitalised (basic regex).                                                  |
+| 26    | TL026 | `translateLine`                        | `Line`          | `Line`                                               | Translation     | Medium     | Uses `ToolContext.translator` (LibreTranslate or OpenRouter) to translate line to target language from `RunContext`. |
+| 27    | TL027 | `rewriteTone`                          | `Paragraph`     | `Paragraph`                                          | Rewriting       | Medium     | Calls `ToolContext.llm` with system prompt to change tone: academic → conversational, formal → friendly.             |
+| 28    | TL028 | `callOpenRouterAgent`                  | `Paragraph`     | `Paragraph & { agentResult: unknown }`               | Agent           | Medium     | Sends paragraph to an OpenRouter‑hosted agent (e.g., fact‑checker, summarizer). Stores output in metadata.           |
+| 29    | TL029 | `routeToRouter`                        | `Line`          | `Line & { nextTool: string }`                        | Router          | Medium     | Rule‑based: if line contains "TODO" → route to `rewriteTodo`; if citation → `expandCitation`.                        |
+| 30    | TL030 | `extractKeyPhrases`                    | `Chapter`       | `Chapter & { keywords: string[] }`                   | NLP             | Medium     | Pure TS TF‑IDF or YAKE implementation; returns top 10 phrases.                                                       |
+| 31    | TL031 | `embedForRAG`                          | `Chapter`       | `Chapter & { embedding: number[] }`                  | Indexing        | Medium     | Uses `ToolContext.embedder` (Transformers.js) to create vector; stores in `RunContext.vectorStore`.                  |
+| 32    | TL032 | `semanticSimilarity`                   | `Chapter`       | `Chapter & { similarityToPrevious: number }`         | Analysis        | Medium     | Compares embedding of current chapter with previous one; outputs cosine similarity.                                  |
+| 33    | TL033 | `detectPlagiarism`                     | `Paragraph`     | `Paragraph & { duplicateSources: string[] }`         | Validation      | Medium     | Hashes paragraph and checks against `RunContext.fingerprintCache` (local dedup).                                     |
+| 34    | TL034 | `summarizeChapter`                     | `Chapter`       | `Chapter & { summary: string }`                      | Summarization   | Medium     | Uses LLM (lightweight, e.g., Mistral via Ollama) to generate 2‑sentence summary.                                     |
+| 35    | TL035 | `detectHallucination`                  | `Chapter`       | `Chapter & { hallucinationScore: number }`           | Validation      | Medium     | Checks claims against a knowledge base or uses self‑consistency with multiple LLM queries.                           |
+| 36    | TL036 | `expandContractions`                   | `Line`          | `Line`                                               | Pre‑processing  | Low        | Expands "don't" → "do not", "it's" → "it is" (custom mapping).                                                       |
+| 37    | TL037 | `detectGenderBias`                     | `Paragraph`     | `Paragraph & { biasTerms: string[] }`                | Style           | Low        | Finds "policeman", "fireman", "chairman" and suggests alternatives.                                                  |
+| 38    | TL038 | `checkConsistencyGlossary`             | `Chapter`       | `Chapter & { glossaryViolations: string[] }`         | Validation      | Low        | Ensures preferred term from glossary is used (e.g., "e‑mail" not "email").                                           |
+| 39    | TL039 | `extractQuotes`                        | `Paragraph`     | `Paragraph & { quotes: string[] }`                   | Extraction      | Low        | Finds text between single/double quotes or guillemets.                                                               |
+| 40    | TL040 | `detectEllipsisStyle`                  | `Line`          | `Line & { ellipsisOk: boolean }`                     | Style           | Low        | Warns if "..." not used as a single character `…` or spaced incorrectly.                                             |
+| 41    | TL041 | `fixOrdinalNumbers`                    | `Line`          | `Line`                                               | Formatting      | Low        | Replaces "1st", "2nd", "3rd" with "first", "second", "third" (configurable).                                         |
+| 42    | TL042 | `redactPII`                            | `Paragraph`     | `Paragraph`                                          | Privacy         | Low        | Masks phone numbers, email addresses, SSN patterns with `[REDACTED]`.                                                |
+| 43    | TL043 | `detectAdverbs`                        | `Line`          | `Line & { adverbCount: number }`                     | Style           | Low        | Lists "‑ly" adverbs (quickly, happily) for style suggestions.                                                        |
+| 44    | TL044 | `checkSerialComma`                     | `Paragraph`     | `Paragraph & { missingSerialComma: boolean }`        | Style           | Low        | Detects missing Oxford comma in lists of three or more items.                                                        |
+| 45    | TL045 | `extractAcronyms`                      | `Chapter`       | `Chapter & { acronyms: Record<string, string> }`     | Extraction      | Low        | Finds definitions like "(API)" and builds acronym table.                                                             |
+| 46    | TL046 | `convertNumberWords`                   | `Line`          | `Line`                                               | Formatting      | Low        | Turns "twenty‑five" → "25" (or reverse) based on `RunContext.style`.                                                 |
+| 47    | TL047 | `detectDuplicateParagraphs`            | `Chapter`       | `Chapter & { duplicates: number[][] }`               | Error Detection | Low        | Hashes paragraph content; reports indices of identical paragraphs.                                                   |
+| 48    | TL048 | `splitByHeading`                       | `Chapter`       | `Chapter[]`                                          | Pre‑processing  | Low        | Splits a chapter into sub‑chapters at Markdown heading levels (`##`).                                                |
+| 49    | TL049 | `validateWordCountTarget`              | `Chapter`       | `Chapter & { withinTarget: boolean }`                | Validation      | Low        | Compares word count against `RunContext.wordTarget` (min/max).                                                       |
+| 50    | TL050 | `generateAltText`                      | `Paragraph`     | `Paragraph` (image descriptions)                     | Accessibility   | Medium     | Uses local vision model (Moondream) or LLM to describe images embedded in paragraph.                                 |
+| 51    | TL051 | `translateWithContext`                 | `Paragraph`     | `Paragraph`                                          | Translation     | Medium     | Uses running context (previous 2 paragraphs) to improve translation accuracy via LLM.                                |
+| 52    | TL052 | `expandAbbreviations`                  | `Paragraph`     | `Paragraph`                                          | Pre‑processing  | Low        | Replaces common abbrevs: "e.g." → "for example", "i.e." → "that is".                                                 |
+| 53    | TL053 | `detectLongSentences`                  | `Line`          | `Line & { longSentences: number[] }`                 | Style           | Low        | Flags sentences > 30 words, suggests breaking.                                                                       |
+| 54    | TL054 | `sentenceSplitter`                     | `Paragraph`     | `Line[]` (sentence‑based)                            | Pre‑processing  | Low        | Converts paragraph into array of `Line` objects, one per sentence.                                                   |
+| 55    | TL055 | `detectWeaselTags`                     | `Line`          | `Line & { weaselTags: string[] }`                    | Style           | Low        | Finds "some experts say", "it is believed that", "many people think".                                                |
+| 56    | TL056 | `convertSmartPunctuation`              | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replaces curly quotes, apostrophes, em‑dashes with straight equivalents (or vice versa).                             |
+| 57    | TL057 | `extractFootnotes`                     | `Chapter`       | `Chapter & { footnotes: Footnote[] }`                | Extraction      | Low        | Parses markdown `[^1]` style footnotes and their definitions.                                                        |
+| 58    | TL058 | `validateReferenceFormat`              | `Paragraph`     | `Paragraph & { refErrors: string[] }`                | Validation      | Low        | Checks that citations (`[Author, year]`) match a bibliography.                                                       |
+| 59    | TL059 | `detectClichés`                        | `Line`          | `Line & { clichés: string[] }`                       | Style           | Low        | Checks line against a list of 200 common clichés.                                                                    |
+| 60    | TL060 | `convertRomanNumerals`                 | `Line`          | `Line`                                               | Formatting      | Low        | Converts Roman numerals (IV, XIX) to integers, configurable on/off.                                                  |
+| 61    | TL061 | `detectMissingSpaces`                  | `Line`          | `Line & { missingSpaces: number[][] }`               | Error Detection | Low        | Finds "end.Start" or "word.Word" patterns missing space.                                                             |
+| 62    | TL062 | `fixStraightQuotes`                    | `Line`          | `Line`                                               | Formatting      | Low        | Replaces straight quotes with curly quotes for proper typography.                                                    |
+| 63    | TL063 | `detectHeadingLevelSkip`               | `Chapter`       | `Chapter & { levelSkips: number[] }`                 | Structure       | Low        | Warns if markdown heading jumps from H2 to H4 (skipping H3).                                                         |
+| 64    | TL064 | `addYAMLFrontmatter`                   | `Chapter`       | `Chapter` (if missing)                               | Metadata        | Low        | Inserts default frontmatter block with creation date and status from `RunContext`.                                   |
+| 65    | TL065 | `checkReadingTime`                     | `Chapter`       | `Chapter & { readingTimeMinutes: number }`           | Metrics         | Low        | Calculates based on 200‑250 wpm.                                                                                     |
+| 66    | TL066 | `detectRedundantPhrases`               | `Paragraph`     | `Paragraph & { redundancies: string[] }`             | Style           | Low        | Finds "advance planning", "end result", "free gift".                                                                 |
+| 67    | TL067 | `extractCharacterNames`                | `Chapter`       | `Chapter & { characters: string[] }`                 | NLP             | Low        | Uses proper noun detection (capitalized words not at start of sentence).                                             |
+| 68    | TL068 | `convertDateFormats`                   | `Paragraph`     | `Paragraph`                                          | Formatting      | Low        | Normalizes "01/02/2024" to "2 January 2024" based on locale config.                                                  |
+| 69    | TL069 | `detectAmbiguousPronouns`              | `Paragraph`     | `Paragraph & { ambiguousRefs: string[] }`            | Style           | Medium     | Uses simple co‑reference heuristics to find "it", "they" without clear antecedent.                                   |
+| 70    | TL070 | `keywordDensity`                       | `Chapter`       | `Chapter & { density: Record<string, number> }`      | Metrics         | Low        | Reports frequency of top 20 keywords (excluding stopwords).                                                          |
+| 71    | TL071 | `checkCodeBlockLanguage`               | `Chapter`       | `Chapter & { unmarkedCodeBlocks: number[] }`         | Validation      | Low        | Finds markdown code fences without language specifier.                                                               |
+| 72    | TL072 | `detectTrailingSpaces`                 | `Line`          | `Line & { hasTrailingSpace: boolean }`               | Formatting      | Low        | Flags lines ending with spaces (annoying in markdown).                                                               |
+| 73    | TL073 | `detectUnescapedChars`                 | `Line`          | `Line & { unescaped: string[] }`                     | Error Detection | Low        | Finds asterisks, underscores inside words without escaping (`*word*`).                                               |
+| 74    | TL074 | `checkInternalConsistencyNames`        | `Chapter`       | `Chapter & { nameVariants: string[][] }`             | Error Detection | Medium     | Groups possible same entities: "Jon", "John", "Jonathan" – suggests unification.                                     |
+| 75    | TL075 | `extractTOC`                           | `Chapter`       | `Chapter & { toc: TocEntry[] }`                      | Extraction      | Low        | Builds table of contents from markdown headings.                                                                     |
+| 76    | TL076 | `detectOverusedWords`                  | `Chapter`       | `Chapter & { overused: Record<string, number> }`     | Style           | Low        | Flags words used more than `n` times per chapter (configurable, e.g., "very", "really").                             |
+| 77    | TL077 | `addLanguageTag`                       | `Line`          | `Line & { detectedLang: string }`                    | Metadata        | Medium     | Uses `cld3` or `franc` in TS to detect language per line.                                                            |
+| 78    | TL078 | `convertDialoguePunctuation`           | `Paragraph`     | `Paragraph`                                          | Formatting      | Low        | Replaces double quotes with single for British English (or configurable).                                            |
+| 79    | TL079 | `splitRunonSentences`                  | `Paragraph`     | `Paragraph`                                          | Pre‑processing  | Low        | Splits sentences joined by ", and" or ", but" into separate sentences.                                               |
+| 80    | TL080 | `detectMissingSubject`                 | `Line`          | `Line & { missingSubject: boolean }`                 | Grammar         | Medium     | Simple heuristic: sentence starting with verb (imperative detection with exceptions).                                |
+| 81    | TL081 | `extractStatistics`                    | `Chapter`       | `Chapter & { stats: ChapterStats }`                  | Metrics         | Low        | Returns char count, sentence count, avg word length, etc.                                                            |
+| 82    | TL082 | `detectFillerWords`                    | `Line`          | `Line & { fillers: string[] }`                       | Style           | Low        | Finds "um", "uh", "like", "actually", "basically".                                                                   |
+| 83    | TL083 | `convertElision`                       | `Line`          | `Line`                                               | Formatting      | Low        | Expands "gonna" → "going to", "wanna" → "want to".                                                                   |
+| 84    | TL084 | `checkHtmlEntities`                    | `Line`          | `Line & { unescapedEntities: string[] }`             | Validation      | Low        | Finds `&` not followed by `&amp;` in non‑code contexts.                                                              |
+| 85    | TL085 | `detectRelativeTime`                   | `Paragraph`     | `Paragraph & { relativeTimes: string[] }`            | Error Detection | Low        | Flags "tomorrow", "yesterday", "next week" (may date the book).                                                      |
+| 86    | TL086 | `extractGlossaryTerms`                 | `Chapter`       | `Chapter & { terms: string[] }`                      | Extraction      | Low        | Builds list of bold/italic terms that might need glossary entries.                                                   |
+| 87    | TL087 | `capitalizeHeadings`                   | `Chapter`       | `Chapter`                                            | Formatting      | Low        | Converts heading text to proper case (configurable: title case or sentence case).                                    |
+| 88    | TL088 | `detectLeadingWhitespace`              | `Line`          | `Line & { indentLevel: number }`                     | Structure       | Low        | Counts leading spaces or tabs for code block detection.                                                              |
+| 89    | TL089 | `removeDuplicateSpaces`                | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replaces multiple spaces with single space (except within code blocks).                                              |
+| 90    | TL090 | `extractUUIDs`                         | `Line`          | `Line & { uuids: string[] }`                         | Extraction      | Low        | Finds UUID‑v4 patterns in text.                                                                                      |
+| 91    | TL091 | `detectSentenceSpacing`                | `Line`          | `Line & { doubleSpaceAfterPeriod: boolean }`         | Style           | Low        | Flags double spaces after period (old‑style typography).                                                             |
+| 92    | TL092 | `convertFractionToUnicode`             | `Line`          | `Line`                                               | Formatting      | Low        | Changes "1/2" → "½", "3/4" → "¾" (configurable).                                                                     |
+| 93    | TL093 | `detectMissingAltText`                 | `Chapter`       | `Chapter & { imagesWithoutAlt: string[] }`           | Accessibility   | Low        | Finds markdown images `![]()` missing alt text inside brackets.                                                      |
+| 94    | TL094 | `addSoftHyphens`                       | `Line`          | `Line`                                               | Typesetting     | Low        | Adds `&shy;` after certain syllables for better line breaking (naive).                                               |
+| 95    | TL095 | `detectURLShorteners`                  | `Line`          | `Line & { shortenedURLs: string[] }`                 | Security        | Low        | Flags `bit.ly`, `tinyurl`, `goo.gl` links for expansion.                                                             |
+| 96    | TL096 | `extractPullQuotes`                    | `Chapter`       | `Chapter & { pullQuotes: string[] }`                 | Extraction      | Low        | Finds sentences enclosed in `> ` blockquotes.                                                                        |
+| 97    | TL097 | `checkEmojiUsage`                      | `Line`          | `Line & { emojis: string[] }`                        | Content         | Low        | Lists emoji characters; optionally warns if outside designated sections.                                             |
+| 98    | TL098 | `normalizeWhitespaceAroundPunctuation` | `Line`          | `Line`                                               | Pre‑processing  | Low        | Removes space before comma/period, adds space after comma.                                                           |
+| 99    | TL099 | `detectMicrosoftSmartTags`             | `Paragraph`     | `Paragraph & { smartTags: string[] }`                | Validation      | Low        | Finds leftover `<st1:...>` tags from Word export.                                                                    |
+| 100   | TL100 | `extractResearchQuestions`             | `Chapter`       | `Chapter & { questions: string[] }`                  | Extraction      | Low        | Finds sentences ending with `?` (potential reader questions).                                                        |
+| 101   | TL101 | `detectTautology`                      | `Line`          | `Line & { tautologies: string[] }`                   | Style           | Low        | Finds "added bonus", "future plans", "past history".                                                                 |
+| 102   | TL102 | `checkDialogueTagVariety`              | `Chapter`       | `Chapter & { tagOveruse: Record<string, number> }`   | Style           | Low        | Counts "said", "asked", "replied", warns if one dominates.                                                           |
+| 103   | TL103 | `convertNonBreakingSpaces`             | `Line`          | `Line`                                               | Pre‑processing  | Low        | Replaces `&nbsp;` with normal space, except in code blocks.                                                          |
+| 104   | TL104 | `detectLazyWord`                       | `Line`          | `Line & { lazyWordCount: number }`                   | Style           | Low        | Flags "thing", "something", "stuff", "nice", "good" without specifics.                                               |
+| 105   | TL105 | `extractTemporalExpressions`           | `Paragraph`     | `Paragraph & { timex: string[] }`                    | Analysis        | Medium     | Uses simple patterns ("in 2024", "during the 19th century") for timeline extraction.                                 |
+| 106   | TL106 | `chunkChapter`                         | `Chapter`       | `Chapter[]`                                          | Pre‑processing  | Medium     | Splits chapter > 12000 tokens into smaller parts for LLM processing.                                                 |
+| 107   | TL107 | `extractEntities`                      | `Chapter`       | `Chapter & { entities: Entity[] }`                   | NLP             | Medium     | Finds and marks named entities (persons, places, organizations) in text.                                             |
+| 108   | TL108 | `consolidateSummaries`                 | `Summary[]`     | `Summary`                                            | Summarization   | Medium     | Merges multiple chapter summaries into a consolidated summary.                                                       |
+| 109   | TL109 | `generatePlotDiagram`                  | `Chapter`       | `Chapter & { plotDiagram: PlotNode[] }`              | Visualization   | High       | Creates visual plot diagram showing narrative structure, conflicts, and character arcs.                              |
+| 110   | TL110 | `detectScenes`                         | `Chapter`       | `Chapter & { scenes: Scene[] }`                      | Analysis        | Medium     | Parses chapter into scenes based on time/location changes or action beats.                                           |
+| 111   | TL111 | `generateImage`                        | `Chapter`       | `Scene` (or `Summary`)                               | `Image`         | Media      | Uses AI image generation (e.g., Flux) to create visual for chapter/scene/summary.                                    |
+| 112   | TL112 | `generateAudio`                        | `Chapter`       | `Scene` (or `Summary`)                               | `Audio`         | Media      | Uses TTS (machinum-tts) to add audio narration for content.                                                          |
+| 113   | TL113 | `exportToVideo`                        | `Image & Audio` | `Video`                                              | Media           | High       | Combines generated image with audio track to produce MP4 video.                                                      |
+| 114   | TL114 | `indexWithLightRAG`                    | `Chapter`       | `Chapter & { ragDocId: string }`                     | Indexing        | High       | Indexes chapter content in LightRAG vector store for retrieval.                                                      |
+| 115   | TL115 | `synthesizeSpeech`                     | `Text`          | `Audio`                                              | Media           | Medium     | Uses machinum-tts for high-quality speech synthesis.                                                                 |
+| 116   | TL116 | `runAutomataWorkflow`                  | `Chapter`       | `Chapter & { automataResult: unknown }`              | Agent           | High       | Executes automation workflow via machinum-automata.                                                                  |
 
 ---
 
@@ -252,49 +252,49 @@ Sorted by complexity (Low → High).
 
 Implemented (not part of the TL index above). Full reference: [steering/tools.md](steering/tools.md#llm-toolkit).
 
-| Export | Kind | Purpose |
-|---|---|---|
-| `chatCompletion`, `runPrompt` | composable tool (slots `prepare, fit, call, parse, emit`) | Existing LLM tools, now gate-based; same I/O |
-| `llmGate` / `createLlmGate(opts)` | composable tool factory | Generic LLM gate; swap any slot with `.with()` |
-| `openrouterFree` / `OPENROUTER_FREE_LLM` / `OPENROUTER_FREE_DEFAULTS` | gate preset | Free-tier OpenRouter: pins the **provider** `openrouter` only (keys from `OPENROUTER_API_KEYS` / `OPENROUTER_API_KEY`); model `openrouter/free` is a **default, not a pin** — a per-call `model` / `llm.model`, `meta.llm.model`, mt.json `llm.model` or a vault ref (`llm.use`) overrides it (generic `MT_LLM_MODEL` env stays below the preset default) |
-| `openrouterPool` / `createOpenrouterPool(opts)` | gate preset | Same as `openrouterFree` plus **sticky free-model pinning** of the candidate list (default `['openrouter/free']`, one model per key-set, re-pinned on 404/429-exhausted/402, recorded in `meta.openrouterPool`). The candidates are a default too: any layer above the preset defaults (call input, `meta.llm`, mt.json `llm.model`, vault ref) wins and never creates a pin |
-| `ollamaTool` / `OLLAMA_LLM` / `OLLAMA_DEFAULTS` | gate preset | Ollama (local by default; remote GPU server via `MT_OLLAMA_URL`): provider `ollama`, endpoint from `MT_OLLAMA_URL` (default `http://localhost:11434/v1`), model from `MT_OLLAMA_MODEL` (default `gemma4:latest`) |
-| `listRouterModels` | helper | Router `GET /api/models` (routable ids, e.g. `openrouter/free`, `ollama/gemma4:latest`); provider `router` needs no API key — see [steering/router.md](steering/router.md) |
-| `listOllamaModels`, `ollamaHealth` | helpers | Ollama native API: `GET /api/tags` (model list), `GET /api/version` (health, `ok: false` when unreachable) |
-| `llm.use` (`MT_LLM_USE`) | config | Vault ref `vault://<entry>[/<model>]` / `@vault/<entry>[/<model>]` honoured by every LLM gate (`ollamaTool`, `openrouterFree`, `openrouterPool`, `llmGate`): endpoint/keys/model from the vault; see [vault.md](vault.md) |
-| provider `router` | config | Keyless gateway: the router holds the upstream keys, the client sends only the router token (`MT_ROUTER_TOKEN`); optional `MT_CLIENT_ID` is sent as `X-MT-Client` for the router per-client budget (`MT_CLIENT_BUDGET`); a `router` vault entry points `llm.use` at it — see [steering/router.md](steering/router.md) and [vault.md](vault.md) |
-| `llmTranslate` | gate | Direct-to-LLM translation, prompts `translate.system` / `translate.user`; shares one implementation with `translateText` |
-| `translateText` / `createTranslateText(opts)` | composable tool (slots `prepare, fit, call, parse, emit`) | Chapter translation; default backend router `/api/translate`, `backend: 'llm'` routes via the LLM client |
-| `titleTranslator` / `paragraphTranslator` / `createTitleTranslator(opts)` / `createParagraphTranslator(opts)` | composable tool | Chapter title / paragraph translation; `translate` slot (default `translateText`) swappable via options or `.with({ translate })` |
-| `notesSummaryTool` / `createNotesSummaryTool({ count, ... })` | tool | LLM **summary notes**: `count` plain-text `- ` bullets (default 10) prompted with the bundled `summary.system` / `summary.user` prompts ported from machinum-llm; strict bullet validator with retries, lead-sentence heuristic fallback. Writes `meta.summaryNotes` (dash stripped), `meta.summary` (bullet block), `meta.summaryNotesLlm`; batched: `meta.summaryNotesByItem`. Same option surface as `createSummaryTool` plus `count` |
-| `loadBundledPrompt(name)` / `listBundledPrompts()` | helper | Bundled prompt templates: `packages/tools/prompts/*.md` compiled into `src/generated/prompts.ts` at build time (`scripts/gen-prompts.mjs`, wired into build/typecheck/test) so prompts ship inside `dist` and the single-file `mt` bundle — no runtime fs reads. Auto-registered as prompt-registry defaults (`summary.system`, `summary.user`), overridable via `meta.prompts` / mt.json / `MT_PROMPT_<NAME>` |
-| `contextWindow` (= `contextShrink`) / `createContextWindow(opts)` | tool | Shrink messages/text to a token budget (strategies: `truncateLines`, `truncateTail`, `truncateHead`, `summarize`, `dropOldest`, `dropMiddle`, `slidingWindow`, custom) |
-| `mockLlmCall`, `mockLlmClient` | test helpers | Scripted `call` slot / client, no network |
-| `createLlmClient(cfg, ctx)`, `withTimeout`, `withLlmRetry`, `withCache` | client layer | Provider adapters (OpenAI-compatible, Anthropic) + decorators; optional `chatCompletionStream` aggregates deltas |
-| `createOpenAiSdkClient`, `createAnthropicSdkClient`, `createSdkAdapter` | SDK transports | Official `openai` / `@anthropic-ai/sdk` adapters (lazy-loaded); same typed errors + pool 429/402 behaviour as the fetch adapters |
-| `resolveLlmConfig`, `resolvePrompt`, `resolveContextConfig` | pure resolvers | Config / prompt / context precedence (config key `llm.transport`: `sdk` \| `fetch`) |
+| Export                                                                                                        | Kind                                                      | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chatCompletion`, `runPrompt`                                                                                 | composable tool (slots `prepare, fit, call, parse, emit`) | Existing LLM tools, now gate-based; same I/O                                                                                                                                                                                                                                                                                                                                                                                             |
+| `llmGate` / `createLlmGate(opts)`                                                                             | composable tool factory                                   | Generic LLM gate; swap any slot with `.with()`                                                                                                                                                                                                                                                                                                                                                                                           |
+| `openrouterFree` / `OPENROUTER_FREE_LLM` / `OPENROUTER_FREE_DEFAULTS`                                         | gate preset                                               | Free-tier OpenRouter: pins the **provider** `openrouter` only (keys from `OPENROUTER_API_KEYS` / `OPENROUTER_API_KEY`); model `openrouter/free` is a **default, not a pin** — a per-call `model` / `llm.model`, `meta.llm.model`, mt.json `llm.model` or a vault ref (`llm.use`) overrides it (generic `MT_LLM_MODEL` env stays below the preset default)                                                                                |
+| `openrouterPool` / `createOpenrouterPool(opts)`                                                               | gate preset                                               | Same as `openrouterFree` plus **sticky free-model pinning** of the candidate list (default `['openrouter/free']`, one model per key-set, re-pinned on 404/429-exhausted/402, recorded in `meta.openrouterPool`). The candidates are a default too: any layer above the preset defaults (call input, `meta.llm`, mt.json `llm.model`, vault ref) wins and never creates a pin                                                             |
+| `ollamaTool` / `OLLAMA_LLM` / `OLLAMA_DEFAULTS`                                                               | gate preset                                               | Ollama (local by default; remote GPU server via `MT_OLLAMA_URL`): provider `ollama`, endpoint from `MT_OLLAMA_URL` (default `http://localhost:11434/v1`), model from `MT_OLLAMA_MODEL` (default `gemma4:latest`)                                                                                                                                                                                                                         |
+| `listRouterModels`                                                                                            | helper                                                    | Router `GET /api/models` (routable ids, e.g. `openrouter/free`, `ollama/gemma4:latest`); provider `router` needs no API key — see [steering/router.md](steering/router.md)                                                                                                                                                                                                                                                               |
+| `listOllamaModels`, `ollamaHealth`                                                                            | helpers                                                   | Ollama native API: `GET /api/tags` (model list), `GET /api/version` (health, `ok: false` when unreachable)                                                                                                                                                                                                                                                                                                                               |
+| `llm.use` (`MT_LLM_USE`)                                                                                      | config                                                    | Vault ref `vault://<entry>[/<model>]` / `@vault/<entry>[/<model>]` honoured by every LLM gate (`ollamaTool`, `openrouterFree`, `openrouterPool`, `llmGate`): endpoint/keys/model from the vault; see [vault.md](vault.md)                                                                                                                                                                                                                |
+| provider `router`                                                                                             | config                                                    | Keyless gateway: the router holds the upstream keys, the client sends only the router token (`MT_ROUTER_TOKEN`); optional `MT_CLIENT_ID` is sent as `X-MT-Client` for the router per-client budget (`MT_CLIENT_BUDGET`); a `router` vault entry points `llm.use` at it — see [steering/router.md](steering/router.md) and [vault.md](vault.md)                                                                                           |
+| `llmTranslate`                                                                                                | gate                                                      | Direct-to-LLM translation, prompts `translate.system` / `translate.user`; shares one implementation with `translateText`                                                                                                                                                                                                                                                                                                                 |
+| `translateText` / `createTranslateText(opts)`                                                                 | composable tool (slots `prepare, fit, call, parse, emit`) | Chapter translation; default backend router `/api/translate`, `backend: 'llm'` routes via the LLM client                                                                                                                                                                                                                                                                                                                                 |
+| `titleTranslator` / `paragraphTranslator` / `createTitleTranslator(opts)` / `createParagraphTranslator(opts)` | composable tool                                           | Chapter title / paragraph translation; `translate` slot (default `translateText`) swappable via options or `.with({ translate })`                                                                                                                                                                                                                                                                                                        |
+| `notesSummaryTool` / `createNotesSummaryTool({ count, ... })`                                                 | tool                                                      | LLM **summary notes**: `count` plain-text `- ` bullets (default 10) prompted with the bundled `summary.system` / `summary.user` prompts ported from machinum-llm; strict bullet validator with retries, lead-sentence heuristic fallback. Writes `meta.summaryNotes` (dash stripped), `meta.summary` (bullet block), `meta.summaryNotesLlm`; batched: `meta.summaryNotesByItem`. Same option surface as `createSummaryTool` plus `count` |
+| `loadBundledPrompt(name)` / `listBundledPrompts()`                                                            | helper                                                    | Bundled prompt templates: `packages/tools/prompts/*.md` compiled into `src/generated/prompts.ts` at build time (`scripts/gen-prompts.mjs`, wired into build/typecheck/test) so prompts ship inside `dist` and the single-file `mt` bundle — no runtime fs reads. Auto-registered as prompt-registry defaults (`summary.system`, `summary.user`), overridable via `meta.prompts` / mt.json / `MT_PROMPT_<NAME>`                           |
+| `contextWindow` (= `contextShrink`) / `createContextWindow(opts)`                                             | tool                                                      | Shrink messages/text to a token budget (strategies: `truncateLines`, `truncateTail`, `truncateHead`, `summarize`, `dropOldest`, `dropMiddle`, `slidingWindow`, custom)                                                                                                                                                                                                                                                                   |
+| `mockLlmCall`, `mockLlmClient`                                                                                | test helpers                                              | Scripted `call` slot / client, no network                                                                                                                                                                                                                                                                                                                                                                                                |
+| `createLlmClient(cfg, ctx)`, `withTimeout`, `withLlmRetry`, `withCache`                                       | client layer                                              | Provider adapters (OpenAI-compatible, Anthropic) + decorators; optional `chatCompletionStream` aggregates deltas                                                                                                                                                                                                                                                                                                                         |
+| `createOpenAiSdkClient`, `createAnthropicSdkClient`, `createSdkAdapter`                                       | SDK transports                                            | Official `openai` / `@anthropic-ai/sdk` adapters (lazy-loaded); same typed errors + pool 429/402 behaviour as the fetch adapters                                                                                                                                                                                                                                                                                                         |
+| `resolveLlmConfig`, `resolvePrompt`, `resolveContextConfig`                                                   | pure resolvers                                            | Config / prompt / context precedence (config key `llm.transport`: `sdk` \| `fetch`)                                                                                                                                                                                                                                                                                                                                                      |
 
 ### Dev-environment tools
 
-| Export | Kind | Purpose |
-|---|---|---|
+| Export                          | Kind         | Purpose                                                                                                                                                                                               |
+|---------------------------------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `dockerComposeEmitter(options)` | tool factory | Generates `docker-compose.yml` (atomic write, hand-rolled YAML) with `ollama`/`qdrant`/`lightrag` service presets and optional top-level `include:` entries; `outPath` default `./docker-compose.yml` |
 
 ### Sample-stage tools (T129)
 
 Details: [steering/tools.md](steering/tools.md#sample-stage-tools-moved-from-samplessample3-t129).
 
-| Export | Kind | Purpose |
-|---|---|---|
-| `pickLlmTool`, `readLlmConfig`, `LLM_TOOLS` | helper | `MT_LLM_TOOL` / `MT_LLM_MODEL` / `MT_LLM_USE` backend pick shared by sample2/sample3 (pass `configPath`) |
-| `chapterRecordMapper`, `toChapterRecord`, `lineTextToMarkdown`, `unwrapMarkdownText` | tools | Raw `{key,value}` line -> chapter text -> markdown `{ text }` -> string |
-| `createLlmTypoFix`, `createLlmSummaryWithFallback` | tool factories | Optional LLM steps (`enabled` flag), safe fallbacks |
-| `readGlossaryFile` | helper | Load `glossary.json` for `createGlossaryExtractor({ load })` |
-| `analyzeOutputs` / `createAnalyzeOutputs` | tool | Summaries, tagged copies, glossary and relation graph as `md://` write intents |
-| `glossaryExtractor` / `createGlossaryExtractor` | tool | Glossary v2 (T136): heuristic candidates + NER seeding, LLM extraction with the bundled `glossary.*` prompts, reuse of the terms of the previous glossary, relation graph (`references`) |
-| `buildGlossaryGraph`, `findReferences`, `serializeGlossaryGraph`, `parseGlossaryGraph` | helpers | Relation graph of the glossary terms: nodes/edges + 1..3 hop lookup |
-| `createHeuristicNerBackend`, `heuristicNerBackend` | helper | NER candidate seeding for the glossary (proper names, locative phrases, entity kind); pluggable via `createGlossaryExtractor({ nerBackend })` |
-| `GLOSSARY_PROMPTS`, `extractGlossaryWithLlm`, `relateTermWithLlm`, `enrichTermWithLlm`, `mapCategory`, `parseGlossaryEntries`, `parseNameRelations` | helpers | The LLM stages of the glossary extractor (bundled `glossary*.md` prompts) |
-| `chaptersToTitleInputs`, `createGlossaryTitleTranslator`, `createChapterBodyTranslator`, `translateTaggedChapter`, `onlyChapters`, `translateConcurrency` | tools / helpers | EN->RU translate stage building blocks |
-| `chapterPairsLinter` | tool | `lineParityLinter` over every EN/RU pair of a batch |
-| `createTranslateOutputs` | tool factory | `ru/chapter<N>.md` + merged `titles.json` write intents |
+| Export                                                                                                                                                    | Kind            | Purpose                                                                                                                                                                                  |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pickLlmTool`, `readLlmConfig`, `LLM_TOOLS`                                                                                                               | helper          | `MT_LLM_TOOL` / `MT_LLM_MODEL` / `MT_LLM_USE` backend pick shared by sample2/sample3 (pass `configPath`)                                                                                 |
+| `chapterRecordMapper`, `toChapterRecord`, `lineTextToMarkdown`, `unwrapMarkdownText`                                                                      | tools           | Raw `{key,value}` line -> chapter text -> markdown `{ text }` -> string                                                                                                                  |
+| `createLlmTypoFix`, `createLlmSummaryWithFallback`                                                                                                        | tool factories  | Optional LLM steps (`enabled` flag), safe fallbacks                                                                                                                                      |
+| `readGlossaryFile`                                                                                                                                        | helper          | Load `glossary.json` for `createGlossaryExtractor({ load })`                                                                                                                             |
+| `analyzeOutputs` / `createAnalyzeOutputs`                                                                                                                 | tool            | Summaries, tagged copies, glossary and relation graph as `md://` write intents                                                                                                           |
+| `glossaryExtractor` / `createGlossaryExtractor`                                                                                                           | tool            | Glossary v2 (T136): heuristic candidates + NER seeding, LLM extraction with the bundled `glossary.*` prompts, reuse of the terms of the previous glossary, relation graph (`references`) |
+| `buildGlossaryGraph`, `findReferences`, `serializeGlossaryGraph`, `parseGlossaryGraph`                                                                    | helpers         | Relation graph of the glossary terms: nodes/edges + 1..3 hop lookup                                                                                                                      |
+| `createHeuristicNerBackend`, `heuristicNerBackend`                                                                                                        | helper          | NER candidate seeding for the glossary (proper names, locative phrases, entity kind); pluggable via `createGlossaryExtractor({ nerBackend })`                                            |
+| `GLOSSARY_PROMPTS`, `extractGlossaryWithLlm`, `relateTermWithLlm`, `enrichTermWithLlm`, `mapCategory`, `parseGlossaryEntries`, `parseNameRelations`       | helpers         | The LLM stages of the glossary extractor (bundled `glossary*.md` prompts)                                                                                                                |
+| `chaptersToTitleInputs`, `createGlossaryTitleTranslator`, `createChapterBodyTranslator`, `translateTaggedChapter`, `onlyChapters`, `translateConcurrency` | tools / helpers | EN->RU translate stage building blocks                                                                                                                                                   |
+| `chapterPairsLinter`                                                                                                                                      | tool            | `lineParityLinter` over every EN/RU pair of a batch                                                                                                                                      |
+| `createTranslateOutputs`                                                                                                                                  | tool factory    | `ru/chapter<N>.md` + merged `titles.json` write intents                                                                                                                                  |
