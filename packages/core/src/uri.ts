@@ -51,6 +51,8 @@ export interface UriAliases {
 export const MAX_URI_ALIAS_DEPTH = 10
 
 const ALIAS_PREFIX = '@'
+const EVENT_SHORTCUT_PREFIX = '#'
+const EVENT_DEFAULT_NAME = 'default'
 
 /**
  * URI registry singleton.
@@ -131,7 +133,7 @@ class UriRegistry {
    * Everything else — real URIs with a scheme — is never an alias.
    */
   isAliasCandidate(uri: string): boolean {
-    return uri.startsWith(ALIAS_PREFIX)
+    return uri.startsWith(ALIAS_PREFIX) || uri.startsWith(EVENT_SHORTCUT_PREFIX)
   }
 
   /**
@@ -152,6 +154,17 @@ class UriRegistry {
         throw new Error(
           `URI alias chain exceeds ${MAX_URI_ALIAS_DEPTH} hops: ${[...chain, current].join(' → ')}`,
         )
+      }
+      if (current.startsWith(EVENT_SHORTCUT_PREFIX)) {
+        const rest = current.slice(1)
+        let qualifier = rest ? rest : ''
+        if (qualifier && !qualifier.includes('=')) {
+          qualifier = `only=${qualifier}`
+        }
+        const expanded = `events://${EVENT_DEFAULT_NAME}${qualifier ? `?${qualifier}` : ''}`
+        chain.push(current)
+        current = expanded
+        continue
       }
       const next = aliases[current.slice(ALIAS_PREFIX.length)]
       if (typeof next !== 'string') {

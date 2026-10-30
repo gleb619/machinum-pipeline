@@ -9,7 +9,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `review://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `review://`, `events://`.
 
 ## URI Scheme Reference
 
@@ -23,6 +23,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
 | `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
+| `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 
 ## Source/Target Shape
@@ -148,7 +149,11 @@ logged, never thrown). Pattern: subscribe in `start()`/`open()`, **unsubscribe i
 generator's `finally`** — a source must not hold a listener after the run released it.
 `http-server.ts` is the reference example: it mirrors `paused`/`resumed`/`done`/`failed` into its
 `/events` SSE stream as `{"type":"lifecycle","event":<RunEventType>}` frames, next to the
-per-envelope fan-out, and unsubscribes in the generator's `finally`.
+per-envelope fan-out, and unsubscribes in the generator's `finally`. The `events://` scheme
+(`packages/waypoint/src/events.ts`) uses the same facade as a subscription handle: as a target
+it logs `[lifecycle] <type>` lines; as a source it yields `RunEvent` envelopes (`item = RunEvent`).
+The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer to
+`events://default?<qualifier>`.
 
 ### `git-worktree.ts`
 - `GitWorktreeSource` / `GitWorktreeTarget` — use `createWorktree()` / `removeWorktree()` from `@mt/core/engine/git-worktree`
