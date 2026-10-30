@@ -477,6 +477,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@mt/tools':
+        specifier: workspace:*
+        version: link:../../packages/tools
       '@mt/waypoint':
         specifier: workspace:*
         version: link:../../packages/waypoint
