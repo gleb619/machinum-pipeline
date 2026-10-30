@@ -82,9 +82,9 @@ describe('runner instance endpoints', () => {
     const targetConfig = pipeline.steps[1]?.config ?? {}
     expect(sourceConfig.uri).toBe('custom-source://input')
     expect(targetConfig.uri).toBe('custom-target://output')
-    // The instance itself travels with the step — key-agnostic on purpose.
-    expect(Object.values(sourceConfig)).toContain(source)
-    expect(Object.values(targetConfig)).toContain(target)
+    // The instance itself travels with the step under the `instance` key.
+    expect(sourceConfig.instance).toBe(source)
+    expect(targetConfig.instance).toBe(target)
   })
 
   it('still resolves URI strings through the registry', async () => {

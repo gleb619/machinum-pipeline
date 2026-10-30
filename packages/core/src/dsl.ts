@@ -174,7 +174,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     if (typeof source !== 'string') {
       // Keep the instance: the Runner uses it instead of re-resolving the URI from the registry
       // (this is what lets `defineWaypoint` wrappers and custom Sources reach the actual run).
-      this._steps.push({ type: 'source', config: { uri: source.uri, source } })
+      this._steps.push({ type: 'source', config: { uri: source.uri, instance: source } })
       return this as unknown as PipelineBuilder<T, O>
     }
     const resolvedSource = registry.resolveSource<T>(source)
@@ -231,7 +231,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     if (typeof target !== 'string') {
       // Keep the instance: the Runner uses it instead of re-resolving the URI from the registry
       // (this is what lets `defineWaypoint` wrappers and custom Targets reach the actual run).
-      this._steps.push({ type: 'target', config: { uri: target.uri, target } })
+      this._steps.push({ type: 'target', config: { uri: target.uri, instance: target } })
       return this
     }
     const resolvedTarget = registry.resolveTarget<T>(target)

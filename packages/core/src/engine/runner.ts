@@ -301,6 +301,7 @@ export class Runner {
     }
     this.stateMachine.transition('done')
     await this.persistState()
+    await this.flushPersists()
     await this.emitEvent('done')
   }
 
@@ -371,7 +372,7 @@ export class Runner {
           const uri = registry.expandAliases(rawUri, this.globalContext.settings)
           if (uri !== rawUri) this.logger(stepId).debug(`Resolved URI alias '${rawUri}' → '${uri}'`)
           const source =
-            (step.config.source as Source<unknown> | undefined) ?? registry.resolveSource(uri)
+            (step.config.instance as Source<unknown> | undefined) ?? registry.resolveSource(uri)
           const cursor = typeof cursorNode.cursor === 'number' ? cursorNode.cursor : undefined
           envelopesWritten = 0
           if (cursor !== undefined && source.resume) {
@@ -744,7 +745,7 @@ export class Runner {
     const uri = registry.expandAliases(rawUri, this.globalContext.settings)
     if (uri !== rawUri) this.logger(stepId).info(`Resolved URI alias '${rawUri}' → '${uri}'`)
     const target =
-      (step.config.target as Target<unknown> | undefined) ??
+      (step.config.instance as Target<unknown> | undefined) ??
       (registry.resolveTarget(uri) as Target<unknown>)
     if (!stream) throw new Error('Target step requires a preceding stream or source step')
 
@@ -1039,6 +1040,26 @@ export class Runner {
       this.logger().warn(`Mid-run persist failed: ${error}`)
     } finally {
       this.persistInFlight = null
+    }
+  }
+
+  /**
+   * Wait for any in-flight scheduled persist to finish, then drain one final
+   * time if another schedule arrived during it. This prevents a fire-and-forget
+   * mid-run snapshot from overwriting the terminal `done`/`failed` state.
+   */
+  private async flushPersists(): Promise<void> {
+    if (this.persistInFlight) {
+      await this.persistInFlight
+    }
+    if (this.persistDirty) {
+      this.persistDirty = false
+      try {
+        await this.persistState()
+      } catch (error) {
+        // Terminal flush is best-effort: a storage failure must not mask run completion.
+        this.logger().warn(`Final persist flush failed: ${error}`)
+      }
     }
   }
 
