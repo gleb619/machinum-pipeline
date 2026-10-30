@@ -181,7 +181,7 @@ describe('runner crash resume (UC015/UC016)', () => {
         },
         async write(env: Envelope<unknown>) {
           if (!writer) throw new Error('not open')
-          writer.write(`${JSON.stringify(env)}\n`)
+          await writer.write(`${JSON.stringify(env)}\n`)
         },
         async close() {
           await writer?.commit()

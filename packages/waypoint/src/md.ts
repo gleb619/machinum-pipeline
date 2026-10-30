@@ -133,7 +133,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
           throw new Error('Target not opened. Call open() before write().')
         }
         const text = String(env.item)
-        writer.write(`${text}\n`)
+        await writer.write(`${text}\n`)
       } else {
         const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
         if (mdOutputs && mdOutputs.length > 0) {

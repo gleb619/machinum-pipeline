@@ -120,11 +120,52 @@ export class AtomicStreamWriter {
     })
   }
 
-  /** Append a chunk to the temp file. Throws if an earlier write failed. */
-  write(chunk: string): void {
+  /**
+   * Wait for the stream to drain after a write signalled backpressure.
+   * Rejects when the stream errors or closes first, so a pending write never
+   * hangs. All listeners are removed again once one of them settles.
+   */
+  private waitForDrain(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = (): void => {
+        this.stream.off('drain', onDrain)
+        this.stream.off('error', onError)
+        this.stream.off('close', onClose)
+      }
+      const onDrain = (): void => {
+        cleanup()
+        resolve()
+      }
+      const onError = (error: Error): void => {
+        cleanup()
+        reject(error)
+      }
+      const onClose = (): void => {
+        cleanup()
+        reject(new Error('Atomic writer stream closed before it drained.'))
+      }
+      this.stream.once('drain', onDrain)
+      this.stream.once('error', onError)
+      this.stream.once('close', onClose)
+    })
+  }
+
+  /**
+   * Append a chunk to the temp file. Resolves once the chunk was handed to the
+   * stream; when the stream signals backpressure the call waits for `drain`,
+   * so a fast producer cannot outrun the disk and buffer the output in RAM.
+   * Throws if an earlier write failed.
+   */
+  async write(chunk: string): Promise<void> {
     if (this.failure) throw this.failure
     if (this.settled) throw new Error('Atomic writer is already closed.')
-    this.stream.write(chunk)
+    // Only an explicit `false` means the internal buffer is full — anything else
+    // is not a Node WriteStream contract and must not stall the writer.
+    const accepted = this.stream.write(chunk)
+    if (accepted === false) {
+      await this.waitForDrain()
+      if (this.failure) throw this.failure
+    }
   }
 
   /** Flush, then rename the temp file onto the final path. Idempotent. */

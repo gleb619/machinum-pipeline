@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
+import {
+  type WriteStream,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs'
 import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -9,6 +16,25 @@ import {
   removeStaleTmpFiles,
   tmpPathFor,
 } from '../src/atomic.js'
+
+/**
+ * Put the writer's stream into backpressure: `write()` reports a full buffer
+ * until the test emits `drain` itself.
+ */
+function forceBackpressure(writer: AtomicStreamWriter): {
+  stream: WriteStream
+  restore: () => void
+} {
+  const stream = (writer as unknown as { stream: WriteStream }).stream
+  const original = stream.write.bind(stream)
+  stream.write = (() => false) as unknown as typeof stream.write
+  return {
+    stream,
+    restore: () => {
+      stream.write = original as unknown as typeof stream.write
+    },
+  }
+}
 
 describe('tmpPathFor', () => {
   it('places the temp file next to the target', () => {
@@ -83,8 +109,8 @@ describe('AtomicStreamWriter', () => {
   it('commits buffered content on commit()', async () => {
     const file = join(dir, 'out.jsonl')
     const writer = await AtomicStreamWriter.open(file, 'run-1')
-    writer.write('{"item":1}\n')
-    writer.write('{"item":2}\n')
+    await writer.write('{"item":1}\n')
+    await writer.write('{"item":2}\n')
     await writer.commit()
 
     expect(await readFile(file, 'utf-8')).toBe('{"item":1}\n{"item":2}\n')
@@ -94,7 +120,7 @@ describe('AtomicStreamWriter', () => {
   it('leaves no final file when the run is abandoned (crash mid-run)', async () => {
     const file = join(dir, 'out.jsonl')
     const writer = await AtomicStreamWriter.open(file, 'run-1')
-    writer.write('{"item":1}\n')
+    await writer.write('{"item":1}\n')
     expect(existsSync(file)).toBe(false)
     expect(readdirSync(dir)).toEqual(['out.jsonl.tmp.run-1'])
   })
@@ -102,11 +128,11 @@ describe('AtomicStreamWriter', () => {
   it('rerun does not duplicate lines', async () => {
     const file = join(dir, 'out.jsonl')
     const first = await AtomicStreamWriter.open(file, 'run-1')
-    first.write('{"item":1}\n')
+    await first.write('{"item":1}\n')
     await first.commit()
 
     const second = await AtomicStreamWriter.open(file, 'run-2')
-    second.write('{"item":1}\n')
+    await second.write('{"item":1}\n')
     await second.commit()
 
     expect(await readFile(file, 'utf-8')).toBe('{"item":1}\n')
@@ -116,10 +142,10 @@ describe('AtomicStreamWriter', () => {
   it('cleaning stale temp files on open discards a crashed run', async () => {
     const file = join(dir, 'out.jsonl')
     const crashed = await AtomicStreamWriter.open(file, 'run-1')
-    crashed.write('{"item":"stale"}\n')
+    await crashed.write('{"item":"stale"}\n')
 
     const rerun = await AtomicStreamWriter.open(file, 'run-2')
-    rerun.write('{"item":"fresh"}\n')
+    await rerun.write('{"item":"fresh"}\n')
     await rerun.commit()
 
     expect(await readFile(file, 'utf-8')).toBe('{"item":"fresh"}\n')
@@ -130,10 +156,46 @@ describe('AtomicStreamWriter', () => {
     const file = join(dir, 'out.jsonl')
     writeFileSync(file, 'previous', 'utf-8')
     const writer = await AtomicStreamWriter.open(file, 'run-1')
-    writer.write('{"item":1}\n')
+    await writer.write('{"item":1}\n')
     await writer.abort()
 
     expect(await readFile(file, 'utf-8')).toBe('previous')
     expect(readdirSync(dir)).toEqual(['out.jsonl'])
+  })
+
+  it('waits for drain when the stream signals backpressure', async () => {
+    const file = join(dir, 'backpressure.jsonl')
+    const writer = await AtomicStreamWriter.open(file, 'bp')
+    const { stream, restore } = forceBackpressure(writer)
+
+    let settled = false
+    const pending = writer.write('chunk').finally(() => {
+      settled = true
+    })
+
+    // The write is parked until the stream drains.
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(settled).toBe(false)
+
+    stream.emit('drain')
+    await pending
+    expect(settled).toBe(true)
+
+    restore()
+    await writer.abort()
+  })
+
+  it('rejects a pending write when the stream errors', async () => {
+    const file = join(dir, 'error.jsonl')
+    const writer = await AtomicStreamWriter.open(file, 'err')
+    const { stream, restore } = forceBackpressure(writer)
+
+    const pending = writer.write('chunk')
+    stream.emit('error', new Error('disk full'))
+
+    await expect(pending).rejects.toThrow('disk full')
+
+    restore()
+    await writer.abort()
   })
 })

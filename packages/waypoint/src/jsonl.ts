@@ -275,7 +275,7 @@ export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
       if (!writer) {
         throw new Error('Target not opened. Call open() before write().')
       }
-      writer.write(`${JSON.stringify(toPersisted(env))}\n`)
+      await writer.write(`${JSON.stringify(toPersisted(env))}\n`)
     },
     async close(_ctx: TargetContext): Promise<void> {
       if (writer) {
