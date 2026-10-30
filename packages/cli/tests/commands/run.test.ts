@@ -60,6 +60,7 @@ describe('run command', () => {
     process.chdir(originalCwd)
     await rm(testDir, { recursive: true, force: true })
     vi.restoreAllMocks()
+    process.removeAllListeners('SIGINT')
   })
 
   it('fails if no pipeline file is provided', async () => {
@@ -259,6 +260,77 @@ describe('run command', () => {
 
       await expect(runCommand(['pipeline.ts'])).rejects.toThrow('EXIT 1')
       expect(order).toEqual(['test-pipeline', 'end-hook'])
+    })
+
+    it('runs the error hook when the main pipeline fails', async () => {
+      await writeHook('error-hook')
+      await writeMainPipeline()
+      await writeFile(
+        join(testDir, 'mt.json'),
+        JSON.stringify({ project: { name: 'p' }, scripts: { error: './error-hook.ts' } }),
+      )
+      const order: string[] = []
+      vi.mocked(Runner).mockImplementation(
+        (pipeline) =>
+          ({
+            start: vi.fn().mockImplementation(() => {
+              order.push((pipeline as { id: string }).id)
+              return (pipeline as { id: string }).id === 'test-pipeline'
+                ? Promise.reject(new Error('Runner failed'))
+                : Promise.resolve({ runId: 'test-run-id' })
+            }),
+            getRunId: () => 'test-run-id',
+          }) as unknown as Runner,
+      )
+
+      await expect(runCommand(['pipeline.ts'])).rejects.toThrow('EXIT 1')
+      expect(order).toEqual(['test-pipeline', 'error-hook'])
+    })
+
+    it('runs the exit hook after the main pipeline completes', async () => {
+      await writeHook('exit-hook')
+      await writeMainPipeline()
+      await writeFile(
+        join(testDir, 'mt.json'),
+        JSON.stringify({ project: { name: 'p' }, scripts: { exit: './exit-hook.ts' } }),
+      )
+      const order: string[] = []
+      recordRunOrder(order)
+
+      await runCommand(['pipeline.ts'])
+
+      expect(order).toEqual(['test-pipeline', 'exit-hook'])
+    })
+
+    it('runs the stop hook when SIGINT pauses the pipeline', async () => {
+      await writeHook('stop-hook')
+      await writeMainPipeline()
+      await writeFile(
+        join(testDir, 'mt.json'),
+        JSON.stringify({ project: { name: 'p' }, scripts: { stop: './stop-hook.ts' } }),
+      )
+      const order: string[] = []
+      vi.mocked(Runner).mockImplementation(
+        (pipeline) =>
+          ({
+            start: vi.fn().mockImplementation(() => {
+              order.push((pipeline as { id: string }).id)
+              return Promise.resolve({ runId: 'test-run-id' })
+            }),
+            pause: vi.fn().mockResolvedValue(undefined),
+            getRunId: () => 'test-run-id',
+          }) as unknown as Runner,
+      )
+
+      await runCommand(['pipeline.ts'])
+      const sigintListeners = process.listeners('SIGINT')
+      expect(sigintListeners.length).toBeGreaterThan(0)
+      const sigintListener = sigintListeners[0]
+      if (!sigintListener) throw new Error('SIGINT listener missing')
+      await expect(sigintListener('SIGINT')).rejects.toThrow('EXIT 0')
+      expect(order).toEqual(['test-pipeline', 'stop-hook'])
+
+      process.removeAllListeners('SIGINT')
     })
   })
 })

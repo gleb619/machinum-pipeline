@@ -103,9 +103,9 @@ dropped from the result. `readMtConfig` (async) and `readMtConfigSync` (module-l
 (`secrets.envFile`) cannot do this job: it only reaches `ctx.env` (URL/model at call time), not the picker's
 `MT_LLM_TOOL` / `MT_LLM_MODEL`, which are read from `process.env` when the pipeline module loads.
 
-`scripts?: LifecycleScripts` (`Partial<Record<'install' | 'start' | 'end', string>>`) declares lifecycle
+`scripts?: LifecycleScripts` (`Partial<Record<'install' | 'start' | 'end' | 'stop' | 'exit' | 'resume' | 'error', string>>`) declares lifecycle
 hook pipelines: paths to pipeline module files (relative to the project root) run by the CLI —
-`mt install` runs `scripts.install`; `mt run` runs `scripts.start` before and `scripts.end` after the
+`mt install` runs `scripts.install`; `mt run` runs `scripts.start` before and `scripts.end` after the run, plus `scripts.error` on failure, `scripts.stop` on SIGINT pause, and `scripts.exit` before process exit; `mt resume` runs `scripts.resume` before resuming;
 main pipeline. The raw config (incl. `scripts`) is read with `readMtConfig(projectRoot)` — no merging
 over defaults, missing file yields `{}`.
 

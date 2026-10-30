@@ -6,7 +6,7 @@ import {
   nativeAddonHint,
   packageResolutionHint,
 } from '@mt/core'
-import type { Pipeline } from '@mt/core'
+import type { GlobalContext, Pipeline } from '@mt/core'
 
 // Ensure built-in sources/targets are registered before resolving URIs
 import '@mt/waypoint'
@@ -50,7 +50,7 @@ export async function runCommand(args: string[]): Promise<void> {
   logger.info(`Starting pipeline: ${pipeline.id}`)
   logger.info(`Pipeline file: ${pipelineFile}`)
 
-  // Lifecycle hooks: scripts.start before, scripts.end after (success or failure)
+  // Lifecycle hook: scripts.start before the main pipeline. A start-hook failure fails the run.
   await runLifecycleScript(globalContext, 'start', { pipelineName, logger })
 
   // Create and start runner (record provenance so `mt resume <runId>` finds the file)
@@ -62,6 +62,9 @@ export async function runCommand(args: string[]): Promise<void> {
   process.on('SIGINT', async () => {
     logger.warn('SIGINT received: pausing pipeline...')
     await runner.pause()
+    await runSwallowingHookErrors(globalContext, 'stop', { pipelineName, logger })
+    await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
+    await logger.flush()
     console.log(`\n⏸ Pipeline paused. Run ID: ${runner.getRunId()}`)
     console.log(`  Resume with: mt resume ${runner.getRunId()}`)
     process.exit(0)
@@ -83,21 +86,37 @@ export async function runCommand(args: string[]): Promise<void> {
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline failed: ${errorMessage}`)
     console.error(`\n❌ Pipeline failed: ${errorMessage}${hint}`)
+    await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
   }
 
   // scripts.end runs on success AND failure; an end-hook error must not mask the outcome.
-  try {
-    await runLifecycleScript(globalContext, 'end', { pipelineName, logger })
-  } catch (hookError) {
-    const hookMessage = hookError instanceof Error ? hookError.message : String(hookError)
-    logger.warn(`end hook failed: ${hookMessage}`)
-    console.error(`\n⚠️ end hook failed: ${hookMessage}`)
-  }
+  await runSwallowingHookErrors(globalContext, 'end', { pipelineName, logger })
+
+  // scripts.exit runs once as the process is about to leave, after end.
+  await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
 
   // Make sure the per-run log file is fully written before the process exits
   await logger.flush()
 
   if (failure !== undefined) process.exit(1)
+}
+
+/**
+ * Run a lifecycle hook and log hook errors without letting them change the
+ * command's outcome. Used for `end`, `exit`, `error`, and `stop` hooks.
+ */
+async function runSwallowingHookErrors(
+  ctx: GlobalContext,
+  name: import('./utils/lifecycle.js').LifecycleHookName,
+  options: { pipelineName?: string; logger: Pick<import('@mt/core').Logger, 'info' | 'warn'> },
+): Promise<void> {
+  try {
+    await runLifecycleScript(ctx, name, options)
+  } catch (hookError) {
+    const hookMessage = hookError instanceof Error ? hookError.message : String(hookError)
+    options.logger.warn(`${name} hook failed: ${hookMessage}`)
+    console.error(`\n⚠️ ${name} hook failed: ${hookMessage}`)
+  }
 }
 
 /**

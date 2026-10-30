@@ -172,4 +172,38 @@ describe('resume command', () => {
     const printed = vi.mocked(console.error).mock.calls.flat().join(' ')
     expect(printed).not.toContain('Invalid state transition')
   })
+
+  it('runs the resume hook before resuming', async () => {
+    const pipelinePath = join(testDir, 'pipeline.ts')
+    const hookPath = join(testDir, 'resume-hook.ts')
+    await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    await writeFile(hookPath, 'export default { id: "resume-hook" }')
+    vi.doMock(pipelinePath, () => ({ default: { id: 'test-pipeline' } }))
+    vi.doMock(hookPath, () => ({ default: { id: 'resume-hook' } }))
+
+    vi.mocked(Runner).mockImplementation(
+      () =>
+        ({
+          start: vi.fn().mockResolvedValue({ runId: 'test-run-id' }),
+          resume: mockResume,
+        }) as unknown as Runner,
+    )
+
+    await writeFile(
+      join(testDir, 'mt.json'),
+      JSON.stringify({
+        project: { name: 'p' },
+        scripts: { resume: './resume-hook.ts' },
+      }),
+    )
+
+    await resumeCommand(['test-run-id', 'pipeline.ts'])
+
+    expect(mockResume).toHaveBeenCalledWith('test-run-id')
+    expect(Runner).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'resume-hook' }),
+      expect.anything(),
+      expect.anything(),
+    )
+  })
 })

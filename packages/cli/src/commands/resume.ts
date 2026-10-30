@@ -9,6 +9,7 @@ import {
 } from '@mt/core'
 import type { Pipeline, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
+import { runLifecycleScript } from './utils/lifecycle.js'
 
 /**
  * `mt resume <runId> [pipeline.ts]` — resume a previous run.
@@ -65,6 +66,9 @@ export async function resumeCommand(args: string[]): Promise<void> {
 
   logger.info(`Resuming pipeline: ${pipeline.id}, runId: ${runId}`)
 
+  // Lifecycle hook: scripts.resume before resuming. A resume-hook error is logged but does not stop the resume.
+  await runSwallowingHookErrors(globalContext, 'resume', { pipelineName, logger })
+
   try {
     const runContext = await runner.resume(runId)
     logger.info(`Pipeline resumed and completed successfully (runId: ${runContext.runId})`)
@@ -74,12 +78,31 @@ export async function resumeCommand(args: string[]): Promise<void> {
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline resume failed: ${errorMessage}`)
     console.error(`\n❌ Pipeline resume failed: ${errorMessage}${hint}`)
+    await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
     // Make sure the per-run log file is fully written before the process exits
     await logger.flush()
     process.exit(1)
   }
 
   await logger.flush()
+}
+
+/**
+ * Run a lifecycle hook and log hook errors without letting them change the
+ * command's outcome.
+ */
+async function runSwallowingHookErrors(
+  ctx: Awaited<ReturnType<typeof loadGlobalContext>>,
+  name: import('./utils/lifecycle.js').LifecycleHookName,
+  options: { pipelineName?: string; logger: Pick<import('@mt/core').Logger, 'info' | 'warn'> },
+): Promise<void> {
+  try {
+    await runLifecycleScript(ctx, name, options)
+  } catch (hookError) {
+    const hookMessage = hookError instanceof Error ? hookError.message : String(hookError)
+    options.logger.warn(`${name} hook failed: ${hookMessage}`)
+    console.error(`\n⚠️ ${name} hook failed: ${hookMessage}`)
+  }
 }
 
 /**

@@ -4,12 +4,18 @@ import type { GlobalContext, Logger, Pipeline } from '@mt/core'
 
 /**
  * Shared runner for `mt.json` lifecycle hook scripts (`scripts.install` /
- * `scripts.start` / `scripts.end`). Each script is a pipeline module file
+ * `scripts.start` / `scripts.end` / `scripts.stop` / `scripts.exit` /
+ * `scripts.resume` / `scripts.error`). Each script is a pipeline module file
  * relative to the project root, executed with its own Runner against the
  * project's GlobalContext. Absent scripts are a no-op.
+ *
+ * Hook errors propagate to the caller by default so that `mt install` and
+ * `scripts.start` can fail the command. Callers that must not let a hook
+ * mask the main outcome (e.g. `scripts.end` / `scripts.exit`) should wrap
+ * the call in their own try/catch.
  */
 
-export type LifecycleHookName = 'install' | 'start' | 'end'
+export type LifecycleHookName = 'install' | 'start' | 'end' | 'stop' | 'exit' | 'resume' | 'error'
 
 export interface LifecycleRunOptions {
   /** Named export to pick from the script module (default: `default` ?? `pipeline`). */
@@ -53,7 +59,8 @@ async function resolveLifecycleScript(
 
 /**
  * Run the `scripts.<name>` hook when defined; no-op when absent.
- * Throws with a clear message when the script file is missing or invalid.
+ * Throws with a clear message when the script file is missing or invalid, or
+ * when the hook pipeline itself rejects.
  */
 export async function runLifecycleScript(
   ctx: GlobalContext,

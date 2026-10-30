@@ -12,8 +12,14 @@ import { loadVault } from './vault.js'
  * - `install` — run by `mt install` (one-time project setup, e.g. generating config files)
  * - `start` — run by `mt run` before the main pipeline starts
  * - `end` — run by `mt run` after the main pipeline finishes (success or failure)
+ * - `stop` — run by `mt run` when the pipeline is paused (e.g. SIGINT)
+ * - `exit` — run by `mt run` when the process exits after `end`
+ * - `resume` — run by `mt resume` before resuming a paused run
+ * - `error` — run by `mt run` when the main pipeline fails
  */
-export type LifecycleScripts = Partial<Record<'install' | 'start' | 'end', string>>
+export type LifecycleScripts = Partial<
+  Record<'install' | 'start' | 'end' | 'stop' | 'exit' | 'resume' | 'error', string>
+>
 
 /**
  * mt.json project configuration shape.

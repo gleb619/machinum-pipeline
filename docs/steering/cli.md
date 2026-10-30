@@ -69,9 +69,9 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | Command | File | Description |
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
-| `mt run <pipeline.ts>` | `run.ts` | Execute a pipeline; build GlobalContext, load module, start Runner. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure) |
+| `mt run <pipeline.ts>` | `run.ts` | Execute a pipeline; build GlobalContext, load module, start Runner. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit |
 | `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup); `--pipeline <name>` for named exports |
-| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file comes from state.json unless given |
+| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file comes from state.json unless given; runs `scripts.resume` before resuming |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON exchange on stdin/stdout (`id`/`variables` optional, normalized by `toExchange`)); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
@@ -110,19 +110,23 @@ Entry point: `main()` function, arg parsing, dispatch to command modules. Handle
 2. `loadPipeline(file, name?)` → `Pipeline`
 3. `runLifecycleScript(ctx, 'start')` → no-op unless `scripts.start` is defined in mt.json
 4. `new Runner(pipeline, ctx)` → `runner.start()`
-5. Listen for SIGINT → `runner.pause()`
-6. `runLifecycleScript(ctx, 'end')` in a finally-style path (runs on success AND failure; an
+5. Listen for SIGINT → `runner.pause()` → `runLifecycleScript(ctx, 'stop')` → `runLifecycleScript(ctx, 'exit')`
+6. On main pipeline failure → `runLifecycleScript(ctx, 'error')`
+7. `runLifecycleScript(ctx, 'end')` in a finally-style path (runs on success AND failure; an
    end-hook error is logged as a warning and never masks the main outcome)
+8. `runLifecycleScript(ctx, 'exit')` before the process exits
 
 ### `src/commands/install.ts`
 `mt install` — runs the `scripts.install` pipeline from mt.json via the shared
 `commands/utils/lifecycle.ts` helper (`runLifecycleScript(ctx, name)`): resolves the script path
 inside the project root, `importPipelineModule`, default/named (`--pipeline <name>`) export,
 `new Runner(...)` → `runner.start()`. Exits 1 with a clear message when `scripts.install` is
-undefined or the script file is invalid. `mt resume` does NOT run lifecycle hooks.
+undefined or the script file is invalid.
 
 ### `src/commands/resume.ts`
-Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`. The pipeline file
+Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`, and runs
+`runLifecycleScript(ctx, 'resume')` before resuming. On resume failure it also runs
+`runLifecycleScript(ctx, 'error')`. The pipeline file
 is resolved in this order: the explicit `[pipeline.ts]` argument, then `pipelineFile`/`pipelineName`
 recorded in `.mt/runs/<runId>/state.json` (written by `mt run` since T096). Runs started by older
 versions without a recorded file get an error naming the exact `mt resume <runId> <pipeline.ts>`
