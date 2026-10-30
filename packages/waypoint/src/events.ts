@@ -19,6 +19,10 @@ function matches(event: RunEvent, filter: Set<string> | null): boolean {
   return filter.has(event.type)
 }
 
+function isTerminal(event: RunEvent): boolean {
+  return event.type === 'done' || event.type === 'failed'
+}
+
 export function createEventsSource<T>(uri: ParsedUri): Source<T> {
   const filter = parseQualifier(uri.query)
   const name = uri.path || uri.host || 'events'
@@ -35,7 +39,7 @@ export function createEventsSource<T>(uri: ParsedUri): Source<T> {
           if (matches(event, filter)) {
             events.push(event)
           }
-          if (event.type === 'done' || event.type === 'failed') {
+          if (isTerminal(event)) {
             resolve(event)
           }
         })
@@ -58,17 +62,29 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
   const filter = parseQualifier(uri.query)
   const name = uri.path || uri.host || 'events'
   let unsubscribe: (() => void) | undefined
+  let closing = false
+  let finished = false
+
+  const logEvent = (event: RunEvent) => {
+    const step = event.stepId ? ` step=${event.stepId}` : ''
+    const error = event.error ? ` error=${event.error}` : ''
+    const line = `[lifecycle] ${event.type}${step}${error}`
+    console.log(`[events:${name}] ${line}`)
+  }
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       unsubscribe = ctx.events?.subscribe((event: RunEvent) => {
+        if (finished) return
+        if (closing && !isTerminal(event)) return
         if (!matches(event, filter)) return
-        const step = event.stepId ? ` step=${event.stepId}` : ''
-        const error = event.error ? ` error=${event.error}` : ''
-        const line = `[lifecycle] ${event.type}${step}${error}`
-        ctx.run.logger.info(`[events:${name}] ${line}`)
-        console.log(`[events:${name}] ${line}`)
+        logEvent(event)
+        if (closing && isTerminal(event)) {
+          finished = true
+          unsubscribe?.()
+          unsubscribe = undefined
+        }
       })
     },
     async write(_env: Exchange<T>, _ctx: TargetContext): Promise<void> {
@@ -76,8 +92,9 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
       // It should never receive pipeline items.
     },
     async close(_ctx: TargetContext): Promise<void> {
-      unsubscribe?.()
-      unsubscribe = undefined
+      // The runner emits terminal events after closing the final target, so
+      // keep the subscription alive long enough to log the run outcome.
+      closing = true
     },
   }
 }

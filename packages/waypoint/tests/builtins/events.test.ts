@@ -1,5 +1,5 @@
-import type { ParsedUri } from '@mt/core'
-import { describe, expect, it } from 'vitest'
+import type { ParsedUri, RunEvent } from '@mt/core'
+import { describe, expect, it, vi } from 'vitest'
 import { createEventsSource, createEventsTarget } from '../../src/events.js'
 
 describe('events scheme', () => {
@@ -32,6 +32,31 @@ describe('events scheme', () => {
     await target.open(ctx)
     await target.close(ctx)
     expect(target.uri).toBe('events://test?only=done')
+  })
+
+  it('target logs terminal event after close and ignores non-terminal events after close', async () => {
+    let emit: ((e: RunEvent) => void) | undefined
+    const ctx = {
+      events: {
+        subscribe: (listener: (e: RunEvent) => void) => {
+          emit = listener
+          return () => {}
+        },
+      },
+      run: { logger: { info: () => {} } },
+    }
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const target = createEventsTarget(makeUri('events://lifecycle?only=done,failed'))
+    await target.open(ctx)
+    emit?.({ type: 'step-done', ts: '1', runId: 'r1' })
+    await target.close(ctx)
+    emit?.({ type: 'done', ts: '2', runId: 'r1' })
+    emit?.({ type: 'failed', ts: '3', runId: 'r1' })
+
+    expect(logSpy).toHaveBeenCalledTimes(1)
+    expect(logSpy).toHaveBeenLastCalledWith('[events:lifecycle] [lifecycle] done')
+    logSpy.mockRestore()
   })
 
   it('source yields matched events', async () => {
