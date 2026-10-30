@@ -207,7 +207,7 @@ class UriRegistry {
         scheme: simpleMatch[1] ?? '',
         host: '',
         path: simpleMatch[2] ?? '',
-        query: parseQueryString(simpleMatch[3]),
+        query: parseQueryString(simpleMatch[3], uri),
         fragment: simpleMatch[4] ?? '',
         raw: uri,
       }
@@ -226,7 +226,7 @@ class UriRegistry {
       scheme: match[1] ?? '',
       host,
       path,
-      query: parseQueryString(match[4]),
+      query: parseQueryString(match[4], uri),
       fragment: match[5] ?? '',
       raw: uri,
     }
@@ -276,15 +276,41 @@ class UriRegistry {
 }
 
 /**
- * Parse a query string into key-value pairs.
+ * Decode a URI component, returning the raw text if decoding fails.
  */
-function parseQueryString(query?: string): Record<string, string> {
+function safeDecode(text: string, rawUri: string): string {
+  try {
+    return decodeURIComponent(text)
+  } catch (err) {
+    if (err instanceof URIError) return text
+    throw new Error(
+      `Malformed query in URI ${rawUri}: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+}
+
+/**
+ * Parse a query string into key-value pairs.
+ * Splits each part on the first '=' only and includes the URI in any error.
+ */
+function parseQueryString(query: string | undefined, rawUri: string): Record<string, string> {
   const result: Record<string, string> = {}
   if (!query) return result
   for (const part of query.split('&')) {
-    const [key, value] = part.split('=')
+    if (!part) continue
+    const eqIndex = part.indexOf('=')
+    let rawKey: string
+    let rawValue: string
+    if (eqIndex === -1) {
+      rawKey = part
+      rawValue = ''
+    } else {
+      rawKey = part.slice(0, eqIndex)
+      rawValue = part.slice(eqIndex + 1)
+    }
+    const key = safeDecode(rawKey, rawUri)
     if (key) {
-      result[decodeURIComponent(key)] = value ? decodeURIComponent(value) : ''
+      result[key] = safeDecode(rawValue, rawUri)
     }
   }
   return result
