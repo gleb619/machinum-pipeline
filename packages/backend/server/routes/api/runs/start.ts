@@ -1,14 +1,7 @@
 import { access } from 'node:fs/promises'
-import {
-  Runner,
-  importPipelineModule,
-  isNativeAddonError,
-  isPackageResolutionError,
-  loadGlobalContext,
-  nativeAddonHint,
-  packageResolutionHint,
-} from '@mt/core'
+import { relative } from 'node:path'
 import type { Pipeline } from '@mt/core'
+import { Runner, importPipelineModule, isNativeAddonError, isPackageResolutionError, loadGlobalContext, nativeAddonHint, packageResolutionHint } from '@mt/core'
 import { createError, defineEventHandler, readBody } from 'h3'
 import { PathOutsideRootError, resolveInsideRoot } from '../../../utils/resolve-inside-root.js'
 import { registerRunner, removeRunner } from '../../../utils/runner-registry.js'
@@ -70,7 +63,7 @@ export default defineEventHandler(async (event) => {
 
   const globalContext = await loadGlobalContext(projectRoot)
 
-  const runner = new Runner(pipeline, globalContext)
+  const runner = new Runner(pipeline, globalContext, { pipelineFile: relative(projectRoot, resolvedPath) })
 
   // Fire-and-forget: start the run in background
   const running = runner.start()
