@@ -70,8 +70,4 @@ export class Store {
     await appendFile(filePath, content, 'utf-8')
     return filePath
   }
-
-  async appendLines(lines: string[], ...parts: string[]): Promise<string> {
-    return this.append(`${lines.map((l) => JSON.stringify(l)).join('\n')}\n`, ...parts)
-  }
 }

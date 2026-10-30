@@ -27,10 +27,6 @@ describe('UC-52 - Store persistence (architectural)', () => {
     const store = new Store('/tmp/test-store')
     expect(typeof store.append).toBe('function')
   })
-  it('appendLines method exists', () => {
-    const store = new Store('/tmp/test-store')
-    expect(typeof store.appendLines).toBe('function')
-  })
   it('read method exists', () => {
     const store = new Store('/tmp/test-store')
     expect(typeof store.read).toBe('function')

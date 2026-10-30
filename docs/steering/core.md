@@ -271,7 +271,7 @@ out of `failed`: `resume()` re-drives a failed run from its first non-done check
 Content-hash keyed memoisation. `computeKey(tool, exchange)` (id + ephemeral variables excluded) → `has/get/set/delete/clear`.
 
 ### `store.ts` — `Store`
-Atomic file I/O under `.mt/`. All writes: write to temp file → `fs.rename()`. `readJson/writeJson/append/appendLines/exists/ensureDir`.
+Atomic file I/O under `.mt/`. All writes: write to temp file → `fs.rename()`. `readJson/writeJson/append/exists/ensureDir`.
 
 ## Adding a New Built-in Source
 

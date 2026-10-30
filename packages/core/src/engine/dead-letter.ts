@@ -18,7 +18,7 @@ export interface DeadLetterEntry {
 
 /**
  * Write a dead-letter entry to the dead-letter queue.
- * Uses atomic file writes via Store.appendLines().
+ * Appends to the append-only dead-letter queue via Store.append() (non-atomic by design, see store.ts).
  *
  * @param store - The store instance for .mt operations
  * @param runId - The current run ID
