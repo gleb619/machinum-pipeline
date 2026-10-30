@@ -57,7 +57,7 @@ the runner double-count and the next resume silently skips unprocessed work. A n
 means "skip nothing" (`sourceStart = 0`). All waypoint resumable orderings are deterministic
 (sorted file walks, buffer insertion order), so a plain skip is exact. Shared helper:
 `src/resume.ts` (`resumeFrom(startFn, cursor)` / `skipEnvelopes(stream, n)`), used by `md://`,
-`chapter-output://`, `ephemeral://`, `schema-doc://` and `range://`.
+`chapter-output://`, `ephemeral://`, `chapters://`/`paragraphs://`/`lines://`/`words://`, `schema-doc://` and `range://`.
 
 ## Atomicity Contract (hard rule)
 

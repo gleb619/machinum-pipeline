@@ -9,7 +9,8 @@ A minimal `mt` pipeline that shows the core mechanics without chapter-processing
 - How to use `.subflow()` to inline a reusable processing block and merge its output back into the parent stream.
 - How to use `.fork()` to run child pipelines per envelope and merge their results back.
 - How to write to a file target (`md://`, `jsonl://`) and how to discard output with `void://`.
-- How to write to the built-in in-memory `ephemeral://` target.
+- How to write to the built-in in-memory `ephemeral://` target and its entity-level shortcuts
+  (`chapters://`, `paragraphs://`, `lines://`, `words://`).
 - How to run a non-blocking side pipeline that reads the same source and counts/aggregates independently of the main flow.
 
 ## Pipeline file
@@ -33,9 +34,9 @@ jsonl/entities.jsonl
   → chapterDocBuild + chapterIndexer + chapterDocEmit   (JSONL → chapters-out/chapterN.md)
   → readChapterDoc                                     (md → ChapterDoc)
   → flatMap                                            (ChapterDoc → Paragraph entities)
-  → ephemeral://sample3-paragraphs                     (in-process handoff)
+  → paragraphs://                                      (in-process handoff)
   → flatMap                                            (Paragraph → Line entities)
-  → ephemeral://sample3-lines                          (in-process handoff)
+  → lines://                                           (in-process handoff)
   → tokenizeWords                                      (Line → Word entities)
   → entities/words.jsonl
 ```
@@ -44,9 +45,10 @@ Key points:
 
 - `@mt/tools` supplies the real builders/parsers: `chapterDocBuild`, `chapterDocEmit`,
   `chapterIndexer`, `readChapterDoc`, `tokenizeWords`. The sample only adds tiny `flatMap` glue.
-- `ephemeral://` buffers are process-local, so the four stages run as `.subflow()`s inside one
-  `mt run` (default pipeline is an orchestration-only pipeline).
-- `defineWaypoint` wraps the ephemeral targets to log entity counts without changing payloads.
+- `paragraphs://` and `lines://` are built-in entity-buffer shortcuts over the same process-local
+  buffer as `ephemeral://`, with one key space per entity level (and optional namespaces such as
+  `paragraphs://branches`). The four stages therefore run as `.subflow()`s inside one `mt run`.
+- `defineWaypoint` wraps the entity-buffer targets to log counts without changing payloads.
 - `Word` is not a core domain type; the sample declares a local `WordEntity`.
 
 | Pipeline | Command | Purpose |

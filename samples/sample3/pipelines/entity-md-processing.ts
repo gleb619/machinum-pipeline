@@ -151,23 +151,23 @@ const chapterMdPipeline = definePipeline({ id: 'sample3-entity-chapter-md' })
   .to(CHAPTERS_DIR)
 
 // ---------------------------------------------------------------------------
-// Stage 2: markdown -> Paragraph entities, buffered in ephemeral://
+// Stage 2: markdown -> Paragraph entities, buffered in paragraphs://
 // ---------------------------------------------------------------------------
 
 const paragraphPipeline = definePipeline({ id: 'sample3-entity-paragraphs' })
   .from(CHAPTERS_DIR)
   .use(parseChapterDoc)
   .flatMap(async (doc: unknown) => toParagraphs(doc as ChapterDoc))
-  .to(entitySink<ParagraphEntity>('ephemeral://sample3-paragraphs', 'paragraphs'))
+  .to(entitySink<ParagraphEntity>('paragraphs://', 'paragraphs'))
 
 // ---------------------------------------------------------------------------
-// Stage 3: Paragraph -> Line entities (ephemeral handoff, same process)
+// Stage 3: Paragraph -> Line entities (entity-buffer handoff, same process)
 // ---------------------------------------------------------------------------
 
 const linePipeline = definePipeline({ id: 'sample3-entity-lines' })
-  .from('ephemeral://sample3-paragraphs')
+  .from('paragraphs://')
   .flatMap(async (paragraph: unknown) => toLines(paragraph as ParagraphEntity))
-  .to(entitySink<LineEntity>('ephemeral://sample3-lines', 'lines'))
+  .to(entitySink<LineEntity>('lines://', 'lines'))
 
 // ---------------------------------------------------------------------------
 // Stage 4: Line -> Word entities, then one JSONL line per word
@@ -177,7 +177,7 @@ const linePipeline = definePipeline({ id: 'sample3-entity-lines' })
 // ---------------------------------------------------------------------------
 
 const wordPipeline = definePipeline({ id: 'sample3-entity-words' })
-  .from('ephemeral://sample3-lines')
+  .from('lines://')
   .flatMap(async (line: unknown) => toWords(line as LineEntity))
   .batch(10_000)
   .tap(async (env) => {
@@ -190,8 +190,8 @@ const wordPipeline = definePipeline({ id: 'sample3-entity-words' })
 // Default: orchestrate the four self-contained stages.
 //
 // Each `.subflow()` has its own `.from()`, so it drains the parent (empty) and
-// runs independently. ephemeral:// is a module-level buffer: stage boundaries
-// 2 -> 3 -> 4 stay in memory because they run inside this one process.
+// runs independently. `paragraphs://` and `lines://` are process-local entity
+// buffers: stage boundaries 2 -> 3 -> 4 stay in memory inside this one process.
 // ---------------------------------------------------------------------------
 
 export default definePipeline({ id: 'sample3-entity-md-processing' })
@@ -256,4 +256,4 @@ export const parallelBranchesPipeline = definePipeline({ id: 'sample3-entity-bra
   .fork(syncBranch)
   .fork(asyncBranch)
   .use(concurrencyProbe)
-  .to(entitySink<ParagraphEntity>('ephemeral://sample3-branch-output', 'branch-output'))
+  .to(entitySink<ParagraphEntity>('paragraphs://branches', 'branch-output'))

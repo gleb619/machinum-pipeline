@@ -22,6 +22,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | WP008 | range://         | ✓      | —      | resumable     | —                                         |
 | WP009 | void://          | —      | ✓      | —             | —                                         |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
+| WP011 | chapters:// / paragraphs:// / lines:// / words:// | ✓ | ✓ | resumable | sample3                        |
 
 ---
 
@@ -37,6 +38,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
 | 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
 | 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
+| 11    | WP011 | `chapters://` / `paragraphs://` / `lines://` / `words://` | ✓ | ✓ | resumable | `T` | `T` | Entity-level shortcuts over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
 
 ---
 
@@ -208,6 +210,26 @@ listed for reference only (proposals for them are never generated).
 
 **Note:** the glossary shape is mirrored structurally (`ReviewGlossary` in `review.ts`) — `waypoint/` depends on
 `@mt/core` only and must not import `@mt/tools`; keep the mirror in sync with `GlossaryTerm`.
+
+---
+
+### WP011: chapters:// / paragraphs:// / lines:// / words://
+
+**Scheme:** `<entity>://<namespace>` (e.g. `paragraphs://`, `lines://chapter-1`)
+
+**Source/Target:** Process-local in-memory buffers, same implementation as `ephemeral://` but with one key
+space per entity scheme. Omitting the namespace uses `default` (`lines://` == `lines://default`).
+
+**Why:** the buffer name now says which entity level is being handed off, and the schemes cannot collide:
+`lines://` never reads what `ephemeral://lines` or `paragraphs://` wrote. Namespaces let one process keep
+several buffers of the same level (e.g. `paragraphs://normalized` vs `paragraphs://branches`).
+
+**Semantics:** target `open()` clears the namespace; `write()` appends in insertion order; `close()` is a no-op.
+Sources are `resumable` and expose `resume(ctx, cursor)`. Nothing survives the process — use a file waypoint
+(`jsonl://`, `md://`) for durable handoff.
+
+**Use case:** entity pipelines that pass `Chapter` → `Paragraph` → `Line` → `Word` envelopes between stages
+without inventing ad-hoc ephemeral names.
 
 ---
 

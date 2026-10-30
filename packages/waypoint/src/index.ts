@@ -9,6 +9,13 @@ export { createMdSource, createMdTarget } from './md.js'
 export { createSchemaDocSource, createSchemaDocTarget } from './schema-doc.js'
 export { createChapterOutputSource, createChapterOutputTarget } from './chapter-output.js'
 export { createEphemeralSource, createEphemeralTarget } from './ephemeral.js'
+export {
+  ENTITY_BUFFER_SCHEMES,
+  entityBufferKey,
+  createEntityBufferSource,
+  createEntityBufferTarget,
+  type EntityBufferScheme,
+} from './entity-buffers.js'
 export { createEventsSource, createEventsTarget } from './events.js'
 export { createRangeSource } from './range.js'
 export { createVoidTarget } from './void.js'
@@ -28,6 +35,7 @@ import './http-server.js'
 import './git-worktree.js'
 import './chapter-output.js'
 import './ephemeral.js'
+import './entity-buffers.js'
 import './events.js'
 import './range.js'
 import './void.js'

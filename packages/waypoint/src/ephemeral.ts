@@ -10,6 +10,11 @@ import { resumeFrom } from './resume.js'
  */
 const buffers = new Map<string, Exchange[]>()
 
+/** Default buffer name for `ephemeral://`: the URI path, else host. */
+function defaultBufferName(uri: ParsedUri): string {
+  return uri.path || uri.host
+}
+
 /**
  * Read all envelopes from a named ephemeral buffer.
  *
@@ -20,8 +25,11 @@ const buffers = new Map<string, Exchange[]>()
  * If no buffer exists under that name, yields nothing.
  */
 export function createEphemeralSource<T>(uri: ParsedUri): Source<T> {
-  const bufferName = uri.path || uri.host
+  return createNamedEphemeralSource<T>(uri, defaultBufferName(uri))
+}
 
+/** Named form used by scheme aliases (`lines://`, `paragraphs://`, …). */
+export function createNamedEphemeralSource<T>(uri: ParsedUri, bufferName: string): Source<T> {
   const readEnvelopes = async function* (): AsyncIterable<Exchange<T>> {
     const batch = buffers.get(bufferName)
     if (batch && batch.length > 0) {
@@ -54,8 +62,11 @@ export function createEphemeralSource<T>(uri: ParsedUri): Source<T> {
  * On close(), nothing is done (buffer stays in memory for sources to read).
  */
 export function createEphemeralTarget<T>(uri: ParsedUri): Target<T> {
-  const bufferName = uri.path || uri.host
+  return createNamedEphemeralTarget<T>(uri, defaultBufferName(uri))
+}
 
+/** Named form used by scheme aliases (`lines://`, `paragraphs://`, …). */
+export function createNamedEphemeralTarget<T>(uri: ParsedUri, bufferName: string): Target<T> {
   return {
     uri: uri.raw,
     async open(_ctx: TargetContext): Promise<void> {
