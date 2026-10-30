@@ -212,6 +212,11 @@ listener latency cannot stall the state machine). Listener errors (throws and re
 logged via the run logger at warn level (`run event listener failed`, meta `eventType`/`stepId`)
 and never thrown — a bad listener can never fail a run.
 
+**Per-step log files** — the runner mirrors its step-scoped log lines to
+`.mt/runs/<runId>/logs/<stepId>.log`. Those writes are best-effort: a failed write (ENOSPC,
+EACCES, a run dir removed mid-run) is swallowed, never surfaces as an unhandled rejection and
+never affects the run. The console copy of the message is unaffected.
+
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
 

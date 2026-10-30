@@ -1081,6 +1081,24 @@ export class Runner {
   }
 
   /**
+   * Write a log line to the per-step log file, fire-and-forget.
+   *
+   * The log file is best-effort: a failed write (ENOSPC, EACCES, a run dir removed
+   * mid-run) is swallowed here, so it can never surface as an unhandled rejection
+   * and kill the process. The console copy of the message is unaffected.
+   */
+  private writeLog(
+    stepId: string,
+    level: string,
+    message: string,
+    meta?: Record<string, unknown>,
+  ): void {
+    void this.logStep(stepId, level, message, meta).catch((error: unknown) => {
+      if (process.env.MT_DEBUG) console.debug(`Failed to write run log: ${error}`)
+    })
+  }
+
+  /**
    * Get or create the logger.
    */
   private logger(stepId?: string): Logger {
@@ -1088,21 +1106,21 @@ export class Runner {
     return {
       info: (message: string, meta?: Record<string, unknown>) => {
         console.log(`[${new Date().toISOString()}] [INFO] ${message}`, meta ?? '')
-        if (stepId) void this.logStep(stepId, 'info', message, meta)
+        if (stepId) this.writeLog(stepId, 'info', message, meta)
       },
       warn: (message: string, meta?: Record<string, unknown>) => {
         console.warn(`[${new Date().toISOString()}] [WARN] ${message}`, meta ?? '')
-        if (stepId) void this.logStep(stepId, 'warn', message, meta)
+        if (stepId) this.writeLog(stepId, 'warn', message, meta)
       },
       error: (message: string, meta?: Record<string, unknown>) => {
         console.error(`[${new Date().toISOString()}] [ERROR] ${message}`, meta ?? '')
-        if (stepId) void this.logStep(stepId, 'error', message, meta)
+        if (stepId) this.writeLog(stepId, 'error', message, meta)
       },
       debug: (message: string, meta?: Record<string, unknown>) => {
         if (process.env.MT_DEBUG) {
           console.debug(`[${new Date().toISOString()}] [DEBUG] ${message}`, meta ?? '')
         }
-        if (stepId) void this.logStep(stepId, 'debug', message, meta)
+        if (stepId) this.writeLog(stepId, 'debug', message, meta)
       },
     }
   }
