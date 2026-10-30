@@ -19,6 +19,14 @@ describe('mt umbrella exports', () => {
   it('mt/waypoint exposes sources/targets', () => {
     expect(typeof waypoint.createJsonlSource).toBe('function')
     expect(typeof waypoint.createMdTarget).toBe('function')
+    expect(typeof waypoint.createEntityBufferSource).toBe('function')
+  })
+
+  it('entity buffer schemes are registered globally by the umbrella', () => {
+    for (const scheme of ['chapters', 'paragraphs', 'lines', 'words']) {
+      expect(root.registry.resolveSource(`${scheme}://`)).toHaveProperty('start')
+      expect(root.registry.resolveTarget(`${scheme}://`)).toHaveProperty('write')
+    }
   })
 
   it('embedded-module registration is a no-op outside Bun', () => {

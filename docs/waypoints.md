@@ -231,6 +231,10 @@ Sources are `resumable` and expose `resume(ctx, cursor)`. Nothing survives the p
 **Use case:** entity pipelines that pass `Chapter` → `Paragraph` → `Line` → `Word` envelopes between stages
 without inventing ad-hoc ephemeral names.
 
+**Global registration:** the schemes are registered on import of `@mt/waypoint` and are embedded in the `mt`
+umbrella/binary; `mt run` registers them before loading the pipeline. A pipeline only uses the URI — it never
+defines the scheme.
+
 ---
 
 ## Adding a New Waypoint

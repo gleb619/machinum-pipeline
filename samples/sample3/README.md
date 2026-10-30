@@ -47,7 +47,9 @@ Key points:
   `chapterIndexer`, `readChapterDoc`, `tokenizeWords`. The sample only adds tiny `flatMap` glue.
 - `paragraphs://` and `lines://` are built-in entity-buffer shortcuts over the same process-local
   buffer as `ephemeral://`, with one key space per entity level (and optional namespaces such as
-  `paragraphs://branches`). The four stages therefore run as `.subflow()`s inside one `mt run`.
+  `paragraphs://branches`). They are registered globally by `@mt/waypoint` and embedded in the `mt`
+  binary/CLI — this pipeline only uses them, it does not define them. The four stages therefore run
+  as `.subflow()`s inside one `mt run`.
 - `defineWaypoint` wraps the entity-buffer targets to log counts without changing payloads.
 - `Word` is not a core domain type; the sample declares a local `WordEntity`.
 

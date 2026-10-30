@@ -17,7 +17,10 @@ import {
   readChapterDoc,
   tokenizeWords,
 } from '@mt/tools'
-import '@mt/waypoint'
+
+// No `import '@mt/waypoint'` here on purpose: `mt` embeds the package and the CLI
+// registers every built-in scheme (jsonl/md/… and chapters/paragraphs/lines/words)
+// before loading a pipeline, so the shortcuts are global to every project.
 
 // ---------------------------------------------------------------------------
 // Entities
