@@ -1,6 +1,6 @@
-import { readFile, stat } from 'node:fs/promises'
+import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { MtConfig } from './config.js'
+import { readMtConfig } from './config.js'
 
 export interface DiscoveredPipeline {
   path: string
@@ -8,18 +8,17 @@ export interface DiscoveredPipeline {
 }
 
 export async function discoverPipelines(projectRoot: string): Promise<DiscoveredPipeline[]> {
-  const configPath = join(projectRoot, 'mt.json')
-  let config: MtConfig
-  try {
-    const raw = await readFile(configPath, 'utf-8')
-    config = JSON.parse(raw) as MtConfig
-  } catch {
-    return []
+  const config = await readMtConfig(projectRoot)
+  const pipelines = config.pipelines
+  if (pipelines === undefined) return []
+  if (!isStringArray(pipelines)) {
+    const configPath = join(projectRoot, 'mt.json')
+    throw new Error(
+      `Invalid mt.json at ${configPath}: pipelines must be an array of strings, got ${JSON.stringify(pipelines)}`,
+    )
   }
 
-  const pipelines = config.pipelines ?? []
   const result: DiscoveredPipeline[] = []
-
   for (const declared of pipelines) {
     const absPath = join(projectRoot, declared)
     try {
@@ -29,6 +28,9 @@ export async function discoverPipelines(projectRoot: string): Promise<Discovered
       console.error(`[discovery] Pipeline not found, skipping: ${declared}`)
     }
   }
-
   return result
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
 }
