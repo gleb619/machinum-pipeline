@@ -1,9 +1,12 @@
 import { getVariable } from '@mt/core'
-import type { ToolContext } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
 import {
   LineParityError,
+  type LineParityInput,
+  type LineParityReport,
+  applyLineParityEscapeHatch,
   createLineParityLinter,
   lintLineParity,
   parityFeedback,
@@ -39,7 +42,7 @@ describe('lintLineParity', () => {
   })
 
   it('flags leftover term tags and think blocks', () => {
-    const ru = RU.replace('Он вошёл.', '<think>x</think><term id="a">Он</term> вошёл.')
+    const ru = RU.replace('Он вошёл.', '<think>x<term id="a">Он</term> вошёл.')
     const c = codes(EN, ru)
     expect(c).toContain('term-tag-left')
     expect(c).toContain('think-block')
@@ -116,5 +119,73 @@ describe('lineParityLinter tool', () => {
       ctx,
     )
     expect(getVariable<{ ok: boolean }>(out, 'parity')?.ok).toBe(false)
+  })
+})
+
+describe('line parity escape hatch (T142)', () => {
+  const ctx = {} as ToolContext
+
+  const makeEnv = (en: string, ru: string): Exchange<LineParityInput> => ({
+    id: 'ex-test',
+    variables: [],
+    item: { en, ru },
+    meta: {},
+  })
+
+  it('accepts a stable low-cyrillic failure on the second attempt', async () => {
+    const en = '# Chapter 1\nAlpha Beta Gamma Delta Epsilon Zeta Eta Theta.'
+    const ru = '# Глава 1\nAlpha Beta Gamma Delta Epsilon Zeta Eta Theta.'
+    const env = makeEnv(en, ru)
+    const linter = createLineParityLinter({ escapeHatch: true })
+
+    const first = linter.invoke(env, ctx)
+    await expect(first).rejects.toBeInstanceOf(LineParityError)
+
+    const second = await linter.invoke(env, ctx)
+    const report = getVariable<LineParityReport>(second, 'parity')
+    expect(report?.ok).toBe(true)
+    expect(report?.escapeHatch).toBe(true)
+    expect(report?.issues.some((i) => i.code === 'low-cyrillic-accepted')).toBe(true)
+  })
+
+  it('rejects when the cyrillic ratio changes beyond tolerance', async () => {
+    const en =
+      '# Chapter 1\nAlpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu Nu Xi Omicron Pi Rho Sigma Tau Upsilon Phi Chi Psi Omega.'
+    const env = makeEnv(
+      en,
+      '# Глава 1\nAlpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa Lambda Mu Nu Xi Omicron Pi Rho Sigma Tau Upsilon Phi Chi Psi Omega.',
+    )
+    const linter = createLineParityLinter({ escapeHatch: true })
+    await expect(linter.invoke(env, ctx)).rejects.toBeInstanceOf(LineParityError)
+    env.item.ru = '# Глава 1\nAlpha Beta Gamma Delta.'
+    await expect(linter.invoke(env, ctx)).rejects.toBeInstanceOf(LineParityError)
+  })
+
+  it('does not accept when other hard errors are present', async () => {
+    const en = '# Chapter 1\nLine one.'
+    const ru = '# Глава 1\nLine one.\nExtra line.'
+    const env = makeEnv(en, ru)
+    const linter = createLineParityLinter({ escapeHatch: true })
+    await expect(linter.invoke(env, ctx)).rejects.toBeInstanceOf(LineParityError)
+    await expect(linter.invoke(env, ctx)).rejects.toBeInstanceOf(LineParityError)
+  })
+
+  it('accepts a stable low-cyrillic failure with custom tolerances', () => {
+    const current: LineParityReport = {
+      ...lintLineParity('# x', '# x'),
+      issues: [{ code: 'low-cyrillic', severity: 'error', message: 'ratio low' }],
+      errors: 1,
+      ok: false,
+    }
+    const previous: LineParityReport = {
+      ...lintLineParity('# x', '# x'),
+      cyrillicRatio: current.cyrillicRatio + 0.001,
+      issues: [{ code: 'low-cyrillic', severity: 'error', message: 'ratio low' }],
+      errors: 1,
+      ok: false,
+    }
+    const accepted = applyLineParityEscapeHatch(current, previous, { absoluteTolerance: 0.002 })
+    expect(accepted.ok).toBe(true)
+    expect(accepted.escapeHatch).toBe(true)
   })
 })

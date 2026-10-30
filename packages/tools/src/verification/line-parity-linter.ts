@@ -1,4 +1,5 @@
 import { defineTool, setVariable } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 
 /** Severity of a parity issue: `error` fails the check, `warn` is informational. */
 export type ParitySeverity = 'error' | 'warn'
@@ -11,6 +12,7 @@ export type ParityIssueCode =
   | 'untranslated-line'
   | 'term-tag-left'
   | 'think-block'
+  | 'low-cyrillic-accepted'
 
 /** One finding. `line` is 1-based and refers to the RU text (or EN when RU has no such line). */
 export interface ParityIssue {
@@ -37,6 +39,8 @@ export interface LineParityReport {
   errors: number
   warnings: number
   cyrillicRatio: number
+  /** True when the share check was accepted via the stability escape hatch. */
+  escapeHatch?: boolean
   issues: ParityIssue[]
 }
 
@@ -75,7 +79,7 @@ function firstDiff(a: number[], b: number[]): number | undefined {
  * Compare an EN text with its RU translation line by line (pure function).
  *
  * Hard errors: line count, empty-line positions, `[bracketed]` line positions, leftover
- * `<term>` tags, `<think>` blocks, chapter-level Cyrillic ratio. Warning: single long line
+ * `<term>` tags, `think` blocks, chapter-level Cyrillic ratio. Warning: single long line
  * without any Cyrillic.
  */
 export function lintLineParity(
@@ -134,7 +138,7 @@ export function lintLineParity(
       issues.push({
         code: 'think-block',
         severity: 'error',
-        message: `<think> block at line ${i + 1}`,
+        message: `think block at line ${i + 1}`,
         line: i + 1,
       })
     }
@@ -206,31 +210,120 @@ export function parityFeedback(report: LineParityReport): string {
     parts.push(`line-count delta ${report.ruLines - report.enLines}`)
   }
   parts.push(`Cyrillic ratio ${report.cyrillicRatio}`)
+  if (report.escapeHatch) parts.push('accepted by stability escape hatch')
   const errors = report.issues.filter((i) => i.severity === 'error').map((i) => i.message)
   if (errors.length > 0) parts.push(errors.slice(0, 5).join('; '))
   return parts.join('; ')
 }
 
+export interface LineParityEscapeHatchOptions {
+  /** Absolute tolerance in percentage points (0.005 = 0.5 pp). Default 0.005. */
+  absoluteTolerance?: number
+  /** Relative tolerance (0.15 = 15%). Default 0.15. */
+  relativeTolerance?: number
+}
+
 export interface LineParityLinterOptions extends LineParityOptions {
   /** Throw a retryable {@link LineParityError} on hard errors. Default true. */
   throwOnError?: boolean
+  /** Enable stability escape hatch for the Cyrillic-ratio check. Default false. */
+  escapeHatch?: boolean | LineParityEscapeHatchOptions
+}
+
+function normalizeTolerance(v: boolean | LineParityEscapeHatchOptions | undefined): {
+  absolute: number
+  relative: number
+} {
+  if (typeof v === 'boolean' || v === undefined) {
+    return { absolute: 0.005, relative: 0.15 }
+  }
+  return {
+    absolute: v.absoluteTolerance ?? 0.005,
+    relative: v.relativeTolerance ?? 0.15,
+  }
+}
+
+function isStableShare(
+  current: number,
+  previous: number,
+  tolerance: { absolute: number; relative: number },
+): boolean {
+  const delta = Math.abs(current - previous)
+  if (delta <= tolerance.absolute) return true
+  const base = Math.max(current, previous)
+  return base > 0 && delta / base <= tolerance.relative
+}
+
+function onlyErrorCodes(issues: ParityIssue[], codes: ParityIssueCode[]): boolean {
+  return issues.filter((i) => i.severity === 'error').every((i) => codes.includes(i.code))
+}
+
+/**
+ * Accept a report via the stability escape hatch when the only failing hard check is the
+ * chapter-level Cyrillic ratio and the ratio is stable across two attempts.
+ */
+export function applyLineParityEscapeHatch(
+  report: LineParityReport,
+  previous: LineParityReport,
+  options: boolean | LineParityEscapeHatchOptions = {},
+): LineParityReport {
+  const tol = normalizeTolerance(options)
+  if (report.ok) return report
+  if (!onlyErrorCodes(report.issues, ['low-cyrillic'])) return report
+  if (previous.ok || !onlyErrorCodes(previous.issues, ['low-cyrillic'])) return report
+  if (!isStableShare(report.cyrillicRatio, previous.cyrillicRatio, tol)) return report
+
+  const acceptedIssues = report.issues.map((i) =>
+    i.code === 'low-cyrillic'
+      ? {
+          ...i,
+          severity: 'warn' as ParitySeverity,
+          message: `${i.message} (accepted by stability escape hatch)`,
+        }
+      : i,
+  )
+  acceptedIssues.push({
+    code: 'low-cyrillic-accepted',
+    severity: 'warn',
+    message: `Cyrillic ratio stable at ${report.cyrillicRatio.toFixed(3)}; accepted by escape hatch`,
+  })
+  const errors = acceptedIssues.filter((i) => i.severity === 'error').length
+  return {
+    ...report,
+    ok: errors === 0,
+    errors,
+    warnings: acceptedIssues.length - errors,
+    escapeHatch: true,
+    issues: acceptedIssues,
+  }
 }
 
 /**
  * Tool factory: `{ en, ru }` in, same item out, `meta.parity` = {@link LineParityReport}.
  * On a hard error it throws a retryable {@link LineParityError} (engine retry), unless
  * `throwOnError: false`.
+ *
+ * With `escapeHatch` enabled, the linter remembers the previous report for this envelope. If the
+ * only hard error is the Cyrillic-ratio check and the ratio is stable across attempts, the chunk
+ * is accepted.
  */
 export function createLineParityLinter(options: LineParityLinterOptions = {}) {
+  const history = new WeakMap<Exchange<LineParityInput>, LineParityReport>()
   return defineTool<LineParityInput, LineParityInput>({
     name: 'line-parity-linter',
     version: '1.0.0',
     mdDescription:
-      'Compares EN vs RU: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and <think> blocks. Report in the parity variable; throws a retryable error on hard errors.',
-    async invoke(env) {
+      'Compares EN vs RU: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and think blocks. Report in the parity variable; throws a retryable error on hard errors. Optional stability escape hatch accepts a chunk when only the Cyrillic-ratio check fails and stays stable.',
+    async invoke(env, _ctx: ToolContext) {
+      const previous = history.get(env)
       const report = lintLineParity(env.item.en, env.item.ru, options)
-      if (!report.ok && options.throwOnError !== false) throw new LineParityError(report)
-      return setVariable(env, 'parity', report)
+      history.set(env, report)
+      const final =
+        previous && options.escapeHatch
+          ? applyLineParityEscapeHatch(report, previous, options.escapeHatch)
+          : report
+      if (!final.ok && options.throwOnError !== false) throw new LineParityError(final)
+      return setVariable(env, 'parity', final)
     },
   })
 }

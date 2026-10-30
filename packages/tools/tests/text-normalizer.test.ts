@@ -2,7 +2,12 @@ import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
-import { normalizeText, textNormalizer } from '../src/normalization/text-normalizer.js'
+import {
+  cleanSource,
+  createTextNormalizer,
+  normalizeText,
+  textNormalizer,
+} from '../src/normalization/text-normalizer.js'
 
 describe('normalizeText', () => {
   it('unifies curly quotes', () => {
@@ -14,7 +19,7 @@ describe('normalizeText', () => {
   })
 
   it('strips zero-width and control characters', () => {
-    expect(normalizeText('a​b﻿c\u0007d e')).toBe('abcd e')
+    expect(normalizeText('a​b﻿c\u0007d e')).toBe('abcd e')
   })
 
   it('collapses spaces and repeated blank lines', () => {
@@ -49,6 +54,57 @@ describe('normalizeText', () => {
     const once = normalizeText('“A” ,b…c\n\n\n*d*')
     expect(normalizeText(once)).toBe(once)
   })
+
+  it('strips credit lines via string matching', () => {
+    const input = 'Chapter 1\nTranslated by AI\nThe story begins.'
+    const out = normalizeText(input, {
+      stringsToRemove: ['translated by'],
+    })
+    expect(out).toBe('Chapter 1\nThe story begins.')
+  })
+
+  it('strips lines matching configured patterns', () => {
+    const input = 'Start\nEditor: John\nMiddle\nCredit: Jane\nEnd'
+    const out = normalizeText(input, {
+      patternsToRemove: ['^\\s*(Editor|Credit):\\s*\\w+'],
+    })
+    expect(out).toBe('Start\nMiddle\nEnd')
+  })
+
+  it('strips Cloudflare email placeholder lines', () => {
+    const input = 'Header\n[email protected]\nBody'
+    const out = cleanSource(input, { stripCloudflareEmail: true })
+    expect(out).toBe('Header\nBody')
+  })
+
+  it('dedupes repeated chapter-title lines', () => {
+    const input = 'The Title\n\nThe Title\nFirst paragraph.'
+    expect(cleanSource(input, { dedupeTitleLines: true })).toBe('The Title\n\nFirst paragraph.')
+  })
+
+  it('does not dedupe repeated body lines', () => {
+    const input = 'Yes.\n\nYes.'
+    expect(cleanSource(input, { dedupeTitleLines: true })).toBe('Yes.\n\nYes.')
+  })
+})
+
+describe('cleanSource', () => {
+  it('removes configured strings and patterns in one pass', () => {
+    const input = 'A\nBETA\nC\nD'
+    const out = cleanSource(input, {
+      stringsToRemove: ['BETA'],
+      patternsToRemove: ['^\\s*C\\s*$'],
+    })
+    expect(out).toBe('A\nD')
+  })
+
+  it('collapses blank lines by default', () => {
+    expect(cleanSource('a\n\n\n\nb')).toBe('a\n\nb')
+  })
+
+  it('keeps blank runs when collapseBlankLines is false', () => {
+    expect(cleanSource('a\n\n\nb', { collapseBlankLines: false })).toBe('a\n\n\nb')
+  })
 })
 
 describe('textNormalizer tool', () => {
@@ -66,5 +122,15 @@ describe('textNormalizer tool', () => {
       ctx,
     )
     expect(getVariable(same, 'normalized')).toBe(false)
+  })
+
+  it('reports cleaning changes via the normalized variable', async () => {
+    const normalizer = createTextNormalizer({ stringsToRemove: ['credit'] })
+    const out = await normalizer.invoke(
+      { id: 'ex-test', variables: [], item: 'line\nCredit line\nother', meta: {} },
+      {} as ToolContext,
+    )
+    expect(out.item).toBe('line\nother')
+    expect(getVariable(out, 'normalized')).toBe(true)
   })
 })
