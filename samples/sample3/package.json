@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
+    "runner:simple": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-simple.ts",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf chapters/en/*.md chapters/schema/*.md chapters/schema-mock/*.md jsonl/input.jsonl .mt",
+    "example:simple": "pnpm run prepare-input && pnpm run runner:simple",
+    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/schema-mock/*.md jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest"

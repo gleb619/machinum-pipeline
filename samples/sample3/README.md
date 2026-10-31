@@ -68,6 +68,7 @@ Nothing else changes: same pipeline, same tools — only the backend behind them
 ```
 samples/sample3/
 ├── pipelines/jsonl-to-md-multi.ts   # Pipeline definition (subflow orchestration)
+├── pipelines/jsonl-to-md-simple.ts  # Plain pipeline: verifyFlow + stubTranslator translateFlow
 ├── prepare-input.ts                 # Script to read books/book1 chapters and create JSONL input
 ├── mt.json                          # Project configuration
 ├── vitest.config.ts                 # Vitest configuration
@@ -75,6 +76,7 @@ samples/sample3/
 │   └── .gitkeep
 ├── chapters/                        # Created at runtime — pipeline output
 │   ├── en/                          #   verifyFlow: chapter1.md … chapterN.md
+│   ├── ru/                          #   stubTranslator translateFlow (simple pipeline only)
 │   ├── schema/                      #   schemaDocPipeline: chapterN.schema.md
 │   └── schema-mock/                 #   schemaDocMockPipeline: chapterN.mock.md (slot-override demo)
 └── tests/
@@ -91,6 +93,22 @@ default
   → subflow(verifyFlow) → subflow(schemaDocPipeline)
   → subflow(translateTitlesPipeline) → subflow(translateChapterPipeline)
 ```
+
+### jsonl-to-md-simple.ts — same verify flow, no orchestration
+
+A second, plain pipeline file: two independent flows joined by a default `.subflow()` orchestration (same
+grammar as above, but simpler — no LLM tools, no schema docs):
+
+```
+verifyFlow:     jsonl://./jsonl/input.jsonl
+                  → chapterDoc → wordCounter → chapterIndexer → chapterValidator
+                  → forbiddenCharDetector → tokenCounter → @en
+translateFlow:  @en
+                  → wordCounter → chapterIndexer → stubTranslator (placeholder, no LLM)
+                  → @ru (chapter-output://./chapters → chapters/ru)
+```
+
+`@en` and `@ru` are the `mt.json` URI shortcuts. Run it with `pnpm run runner:simple`.
 
 ### verifyFlow — JSONL → verified MD
 
@@ -174,6 +192,13 @@ npm run example
 
 This prepares the JSONL input from `books/book1` and runs the default orchestration pipeline (all subflows).
 
+For the simple pipeline (verify + placeholder translation, no schema docs):
+
+```bash
+cd samples/sample3
+npm run example:simple
+```
+
 ## How to clean up
 
 ```bash
@@ -181,7 +206,7 @@ cd samples/sample3
 npm run cleanup
 ```
 
-This removes `chapters/en/*.md`, `chapters/schema/*.md`, `chapters/schema-mock/*.md`,
+This removes `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`, `chapters/schema-mock/*.md`,
 `jsonl/input.jsonl`, and `.mt/`.
 
 ## How to run manually
@@ -197,6 +222,9 @@ pnpm run runner
 
 # 2b. Or run one exported subflow
 NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocPipeline
+
+# 2c. Or run the simple pipeline (verify + stub translation)
+pnpm run runner:simple
 
 # 3. Check the output
 ls chapters/en chapters/schema
