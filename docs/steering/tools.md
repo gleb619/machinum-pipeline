@@ -31,7 +31,7 @@ LLM-powered schema document generation. The mdshape document format (`SchemaDocE
 `writeDoc`, `schemaDocWriter`) lives in `schema-doc.ts` and stays pure; the five extraction tools live in
 `packages/tools/src/schema/`, one file each:
 
-- `summary.ts` — `summaryTool` / `createSummaryTool` → `summary` variable; `notesSummaryTool` / `createNotesSummaryTool({ count })` → `summaryNotes` variable + `summary` variable (rendered `- ` bullet block). Both compose the default system prompt from the bundled `summary.system`, the global `llm.format.plain` and the `summary.output.bullets` blocks (see the prompt-block system below); the notes tool renders the bundled `summary.user` user template (see below)
+- `summary.ts` — `summaryTool` / `createSummaryTool` → `summary` variable; `notesSummaryTool` / `createNotesSummaryTool({ count })` → `summaryNotes` variable + `summary` variable (rendered `- ` bullet block). Both compose the default system prompt from the bundled `summary.system`, the global `llm.format.plain` and the `summary.output.bullets` blocks (see the prompt-block system below); the notes tool renders the bundled `summary.user` user template (see below). Both accept `SummaryChunkOptions`: `chunkMode?: 'shrink' | 'chunk' | 'auto'` (default `'shrink'`), `outputReserve`, `reserve`, `splitUnit`, and `chunkConcurrency`. When `chunkMode` is `'chunk'` or `'auto'` and the chapter body exceeds the model's per-call budget, the body is split semantically, each chunk is processed independently, and the results are merged. Chunking metadata is stored in `summaryChunks` / `summaryNotesChunks` variables.
 - `entities.ts` — `entitiesTool` / `createEntitiesTool` → `entities` variable
 - `schema.ts` — `schemaTool` / `createSchemaTool` → `schema` variable (mermaid)
 - `metadata.ts` — `metadataTool` / `createMetadataTool` → `metadata` variable
@@ -89,6 +89,57 @@ Envelope type: `SchemaDocEnvelope`.
   prompts `translate.system` / `translate.user`). Options: `TranslateTextOptions` (`targetLang`, `backend`,
   `llm`, `routerUrl`, `prompts`); legacy `TranslateToolConfig` type kept for compatibility.
   `llmTranslate` (`llm-translate.ts`) shares this one implementation with the `llm` backend.
+  `chunkMode?: 'shrink' | 'chunk' | 'auto'` (default `'shrink'`) plus `outputReserve`, `reserve`, `splitUnit`,
+  and `chunkConcurrency` enable budget-aware chunk translation: oversized text is split, translated chunk by
+  chunk, and merged with paragraph separators. Chunk metadata is stored in the `translateChunks` variable.
+
+### `core/chunk-processor.ts`
+Shared budget-aware chunk processing used by `summary`, `translate-text`, and `proofread`.
+
+- `resolveChunkBudget({ ctx?, input?, llmConfig? })` → `ChunkBudget | null`. Computes a per-call input budget
+  from the model context limit (via `modelContextLimit` / `resolveContextConfig`), requested `outputReserve`,
+  reasoning reserve (`estimateReasoningReserve`), prompt `overhead`, and a safety `reserve`. Returns `null` when
+  no context limit can be determined.
+- `shouldChunkText(text, budget, count?)` — true when the text alone exceeds the per-chunk input budget.
+- `adaptiveSemanticChunks(text, budget, { unit?, count?, overlapChars? })` — splits text into coherent chunks
+  that fit the budget, falling back from paragraphs → sentences → lines → words → characters as needed.
+- `processChunks({ chunks, process, merge, concurrency? })` — processes every chunk and merges the outputs.
+- `processTextInChunks({ text, budget, process, merge, split?, count?, concurrency? })` — high-level helper
+  that splits, processes, and merges in one call.
+- `groupItemsToBudget({ items, budget, weigh, render })` — groups arbitrary items under a budget (used by the
+  XML proofreader to batch `<result>` blocks).
+- `withTextChunks(tool, { budget, mode?, split?, count?, concurrency?, record? })` — decorator that adds
+  chunk/auto mode to any `{ text }`-in/`{ text }`-out tool. Records chunk metadata under `VAR_CHUNK_PROCESSOR`
+  (`chunkProcessor` variable) when chunking runs.
+
+Budget math: `inputBudget = contextLimit - outputReserve - thinkReserve - overhead - reserve`. Reasoning-family
+models (`o1`/`o3`/`o4`, `deepseek-r1`, `qwq`, `claude-4`) reserve headroom for thinking tokens. The default mode
+for every affected tool remains `'shrink'` (single call); opt into chunking with `'chunk'` or `'auto'`.
+
+**Which mode?** `shrink` (default) - one call, the gate `fit` slot trims the prompt; cheapest, may lose text on
+oversized input. `chunk` - always split to budget-sized chunks, process each, merge; most thorough, most calls.
+`auto` - compute the budget first, chunk only when the text exceeds it, else one call (best general choice for
+long chapters). Chunk metadata (`chunks`, `limit`, `inputBudget`, `model`) lives in a variable per tool
+(`summaryChunks`, `summaryNotesChunks`, `proofreadChunks`, `proofreadXmlChunks`, `translateChunks`). Merge:
+summary joins parts, notes dedupe + cap, proofread reconstructs by id, translate joins in order (no dedupe).
+`estimateOverhead(...promptParts)` and `DEFAULT_OUTPUT_RESERVE` are the single source of overhead/reserve defaults.
+Token counts use tiktoken (`countTextTokens`); providers differ, so budgets are approximate (`reserve` absorbs drift).
+`normalization/token-splitter.ts` is a pipeline Tool that emits chunks; `chunk-processor` is a library used inside
+LLM tools - kept separate on purpose.
+
+**Out of scope for chunk mode (still shrink-only):** `normalization/schema/{entities,metadata,schema,vocabulary}.ts`
+(structured JSON extraction needs a per-tool merge strategy), `normalization/{glossary-llm,llm-summary,llm-typo-fix}.ts`,
+`core/llm-translate.ts`, `modification/chapter-translator.ts`. Follow-up work; use `withTextChunks` or
+`processTextInChunks` + a merge fn to add them.
+
+### `modification/proofread.ts`
+- `proofreadTool` / `createProofreadTool(options)` — LLM proofreading of plain text; splits text into paragraphs,
+  sends XML to the model, and reconstructs the corrected text. `proofreadXmlTool` / `createProofreadXmlTool(options)`
+  is the lower-level sub-tool that accepts/returns the raw XML. `proofreadPropertiesTool` uses Java properties
+  format. All support `ProofreadChunkOptions` (`chunkMode`, `outputReserve`, `reserve`, `splitUnit`,
+  `chunkConcurrency`) with default `'shrink'`. In `'chunk'`/`'auto'` mode, paragraphs or XML `<result>` blocks are
+  batched to fit the per-call budget and proofread concurrently; the result is reconstructed by id. Chunk metadata
+  is stored in `proofreadChunks` / `proofreadXmlChunks` variables.
 
 ### `heuristic-summary.ts` / `glossary-extractor.ts` / `term-tagger.ts`
 Analysis tools, all accept a single `env.item` or a batched `env.items` corpus. The glossary extractor is

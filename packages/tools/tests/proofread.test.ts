@@ -84,7 +84,7 @@ function mockProofreadCall(
 describe('proofreadTool', () => {
   it('has the expected name and version', () => {
     expect(proofreadTool.name).toBe('proofread')
-    expect(proofreadTool.version).toBe('1.0.0')
+    expect(proofreadTool.version).toBe('1.1.0')
   })
 
   it('proofreads each paragraph and preserves structure', async () => {
@@ -134,7 +134,7 @@ describe('proofreadTool', () => {
 describe('proofreadXmlTool', () => {
   it('has the expected name and version', () => {
     expect(proofreadXmlTool.name).toBe('proofread-xml')
-    expect(proofreadXmlTool.version).toBe('1.0.0')
+    expect(proofreadXmlTool.version).toBe('1.1.0')
   })
 
   it('returns proofread XML from input XML', async () => {

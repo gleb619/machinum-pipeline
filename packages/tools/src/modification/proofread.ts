@@ -1,7 +1,15 @@
-import { defineTool } from '@mt/core'
+import { defineTool, setVariable } from '@mt/core'
 import type { Envelope, Tool, ToolContext } from '@mt/core'
 
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
+import {
+  type ChunkBudget,
+  DEFAULT_OUTPUT_RESERVE,
+  estimateOverhead,
+  groupItemsToBudget,
+  resolveChunkBudget,
+} from '../core/chunk-processor.js'
+import type { SemanticUnit } from '../core/chunk-processor.js'
 import { extractPropertiesEntries, extractXmlResultEntries } from '../core/prompt-blocks.js'
 import { renderPrompt } from '../normalization/schema/doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from '../normalization/schema/llm.js'
@@ -12,6 +20,7 @@ import type {
   SchemaDocLlmCall,
   SchemaDocLlmOptions,
 } from '../normalization/schema/llm.js'
+import { countTextTokens } from '../normalization/token-counter.js'
 
 // ---------------------------------------------------------------------------
 // Bundled prompts
@@ -38,6 +47,16 @@ export interface ProofreadXmlOptions extends SchemaDocLlmOptions {
 export interface ProofreadMeta extends LlmAttemptMeta {
   /** The raw XML response from the LLM. */
   proofreadXml?: string
+}
+
+export type ProofreadChunkMode = 'shrink' | 'chunk' | 'auto'
+
+export interface ProofreadChunkOptions {
+  chunkMode?: ProofreadChunkMode
+  outputReserve?: number
+  reserve?: number
+  splitUnit?: SemanticUnit
+  chunkConcurrency?: number
 }
 
 interface ResultBlock {
@@ -74,12 +93,12 @@ function splitParagraphs(text: string): string[] {
     .filter((p) => p !== '')
 }
 
-function buildProofreadXml(paragraphs: readonly string[]): string {
+function buildProofreadXml(paragraphs: readonly string[], firstId = 1): string {
   const lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<results>',
     ...paragraphs.map((text, index) => {
-      const id = index + 1
+      const id = firstId + index
       return `  <result>\n    <id>${id}</id>\n    <text>${escapeXml(text)}</text>\n  </result>`
     }),
     '</results>',
@@ -192,6 +211,111 @@ async function runProofread(
 }
 
 // ---------------------------------------------------------------------------
+// Chunk budget for proofreading
+// ---------------------------------------------------------------------------
+
+function proofreadBudget(
+  options: ProofreadOptions & ProofreadChunkOptions,
+  env: Envelope<string>,
+  ctx: ToolContext,
+): ChunkBudget | null {
+  const resolved = resolveLlmOptions({ ...options }, env, 'proofread')
+  const system = resolved.systemPrompt ?? PROOFREAD_SYSTEM_PROMPT
+  const userPrefix = renderPrompt(resolved.userPrompt ?? PROOFREAD_USER_PROMPT, { text: '' })
+  const overhead = estimateOverhead(system, userPrefix)
+  return resolveChunkBudget({
+    ctx,
+    input: {
+      model: resolved.model,
+      outputReserve: options.outputReserve ?? options.maxTokens ?? DEFAULT_OUTPUT_RESERVE,
+      overhead,
+      reserve: options.reserve,
+    },
+    llmConfig: resolved,
+  })
+}
+
+function groupParagraphsGreedy(paragraphs: readonly string[], budget: ChunkBudget): string[][] {
+  const groups: string[][] = []
+  let current: string[] = []
+
+  for (const paragraph of paragraphs) {
+    const probe = [...current, paragraph]
+    if (current.length > 0 && countTextTokens(buildProofreadXml(probe)) > budget.inputBudget) {
+      groups.push(current)
+      current = [paragraph]
+    } else {
+      current = probe
+    }
+  }
+  if (current.length > 0) groups.push(current)
+
+  return groups
+}
+
+async function proofreadParagraphGroups(
+  groups: string[][],
+  paragraphs: readonly string[],
+  options: ProofreadOptions,
+  env: Envelope<string>,
+  ctx: ToolContext,
+  chunkConcurrency = 2,
+): Promise<{ text: string; xml: string; meta: ProofreadMeta; chunks: number }> {
+  if (groups.length === 0) {
+    return {
+      text: reconstructText(paragraphs, new Map()),
+      xml: buildProofreadOutputXml([]),
+      meta: { attempts: 0, tokens: 0, fallbackUsed: false, proofreadXml: '' },
+      chunks: 0,
+    }
+  }
+
+  let offset = 0
+  let rawXml = ''
+  let attempts = 0
+  let tokens = 0
+  let lastFailure: string | undefined
+  const merged = new Map<number, string>()
+
+  for (let i = 0; i < groups.length; i += chunkConcurrency) {
+    const batch = groups.slice(i, i + chunkConcurrency)
+    const batchResults = await Promise.all(
+      batch.map(async (group) => {
+        const xml = buildProofreadXml(group, offset + 1)
+        const expectedIds = group.map((_, idx) => offset + idx + 1)
+        offset += group.length
+        return runProofread(xml, expectedIds, options, env, ctx)
+      }),
+    )
+    for (const r of batchResults) {
+      const map = toResultMap(parseResultBlocks(r.xml, 'proofread'))
+      for (const [id, text] of map) {
+        merged.set(id, text)
+      }
+      rawXml += r.xml
+      attempts += r.meta.attempts ?? 0
+      tokens += r.meta.tokens ?? 0
+      if (r.meta.lastFailure) lastFailure = r.meta.lastFailure
+    }
+  }
+
+  const resultMeta: ProofreadMeta = {
+    attempts,
+    tokens,
+    fallbackUsed: false,
+    lastFailure,
+    proofreadXml: rawXml,
+  }
+
+  return {
+    text: reconstructText(paragraphs, merged),
+    xml: reconstructXml(paragraphs, merged),
+    meta: resultMeta,
+    chunks: groups.length,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tool: proofread (plain text)
 // ---------------------------------------------------------------------------
 
@@ -202,29 +326,75 @@ async function runProofread(
  * reconstructed from the returned `<proofread>` blocks. English is the default
  * language; pass a custom `systemPrompt`/`userPrompt` for other text kinds.
  */
-export function createProofreadTool(options: ProofreadOptions = {}): Tool<string, string> {
+export function createProofreadTool(
+  options: ProofreadOptions & ProofreadChunkOptions = {},
+): Tool<string, string> {
+  const { chunkMode = 'shrink', ...proofOptions } = options
+
   return defineTool<string, string>({
     name: 'proofread',
-    version: '1.0.0',
+    version: '1.1.0',
     mdDescription:
       'Proofreads plain text with an LLM through the OpenRouter proxy. Splits the text into ' +
       'paragraphs, sends XML to the model, and returns the corrected text. English by default; ' +
-      'prompts are fully overridable.',
+      'prompts are fully overridable. Supports shrink/chunk/auto modes.',
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const text = env.item
       const paragraphs = splitParagraphs(text)
       const inputXml = buildProofreadXml(paragraphs)
       const expectedIds = paragraphs.map((_, index) => index + 1)
 
-      const { xml, meta } = await runProofread(inputXml, expectedIds, options, env, ctx)
-      const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
-      const proofreadText = reconstructText(paragraphs, proofreadMap)
+      let xml: string
+      let proofreadText: string
+      let meta: ProofreadMeta
+      let chunks = 0
+      let budget: ChunkBudget | null = null
 
-      return {
+      if (chunkMode === 'shrink') {
+        const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
+        xml = r.xml
+        meta = r.meta
+        const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
+        proofreadText = reconstructText(paragraphs, proofreadMap)
+      } else {
+        budget = proofreadBudget(proofOptions, env, ctx)
+        if (!budget || (chunkMode === 'auto' && countTextTokens(inputXml) <= budget.inputBudget)) {
+          const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
+          xml = r.xml
+          meta = r.meta
+          const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
+          proofreadText = reconstructText(paragraphs, proofreadMap)
+        } else {
+          const groups = groupParagraphsGreedy(paragraphs, budget)
+          const r = await proofreadParagraphGroups(
+            groups,
+            paragraphs,
+            proofOptions,
+            env,
+            ctx,
+            options.chunkConcurrency,
+          )
+          xml = r.xml
+          meta = r.meta
+          proofreadText = r.text
+          chunks = r.chunks
+        }
+      }
+
+      const next: Envelope<string> = {
         ...env,
         item: proofreadText,
         meta: { ...env.meta, proofread: meta },
       }
+      if (chunks > 0 && budget) {
+        return setVariable(next, 'proofreadChunks', {
+          chunks,
+          limit: budget.limit,
+          inputBudget: budget.inputBudget,
+          model: budget.model,
+        })
+      }
+      return next
     },
   })
 }
@@ -242,31 +412,107 @@ export const proofreadTool = createProofreadTool()
  * (`<id>` + `<proofread>`). Handy when callers already have paragraph XML or want
  * to chain the raw XML through another tool.
  */
-export function createProofreadXmlTool(options: ProofreadXmlOptions = {}): Tool<string, string> {
+export function createProofreadXmlTool(
+  options: ProofreadXmlOptions & ProofreadChunkOptions = {},
+): Tool<string, string> {
+  const { chunkMode = 'shrink', ...proofOptions } = options
+
   return defineTool<string, string>({
     name: 'proofread-xml',
-    version: '1.0.0',
+    version: '1.1.0',
     mdDescription:
       'Lower-level proofreading sub tool. Accepts the paragraph XML expected by the proofreader ' +
-      'and returns the raw `<proofread>` XML from the LLM.',
+      'and returns the raw `<proofread>` XML from the LLM. Supports chunk modes.',
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const inputXml = env.item
       const inputBlocks = parseResultBlocks(inputXml, 'text')
       const expectedIds = inputBlocks.map((block) => block.id)
 
-      const { xml, meta } = await runProofread(inputXml, expectedIds, options, env, ctx)
-      const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
-      const originalMap = toResultMap(inputBlocks)
-      const outputXml = reconstructXml(
-        expectedIds.map((id) => originalMap.get(id) ?? ''),
-        proofreadMap,
-      )
+      let xml: string
+      let meta: ProofreadMeta
+      let chunks = 0
+      let budget: ChunkBudget | null = null
 
-      return {
+      if (chunkMode === 'shrink') {
+        const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
+        xml = r.xml
+        meta = r.meta
+      } else {
+        budget = proofreadBudget(proofOptions, env, ctx)
+        if (!budget || (chunkMode === 'auto' && countTextTokens(inputXml) <= budget.inputBudget)) {
+          const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
+          xml = r.xml
+          meta = r.meta
+        } else {
+          const blockXmls = inputBlocks.map(
+            (block) =>
+              `  <result>\n    <id>${block.id}</id>\n    <text>${escapeXml(block.text)}</text>\n  </result>`,
+          )
+          const groups = groupItemsToBudget({
+            items: blockXmls,
+            budget,
+            weigh: (group) =>
+              countTextTokens(
+                `<?xml version="1.0" encoding="UTF-8"?>\n<results>\n${group.join('\n')}\n</results>`,
+              ),
+            render: (group) =>
+              `<?xml version="1.0" encoding="UTF-8"?>\n<results>\n${group.join('\n')}\n</results>`,
+          })
+
+          let rawXml = ''
+          let attempts = 0
+          let tokens = 0
+          let lastFailure: string | undefined
+          const merged = new Map<number, string>()
+
+          for (let i = 0; i < groups.length; i += options.chunkConcurrency ?? 2) {
+            const batch = groups.slice(i, i + (options.chunkConcurrency ?? 2))
+            const results = await Promise.all(
+              batch.map((groupXml) => {
+                const groupIds = parseResultBlocks(groupXml, 'text').map((b) => b.id)
+                return runProofread(groupXml, groupIds, proofOptions, env, ctx)
+              }),
+            )
+            for (const r of results) {
+              const map = toResultMap(parseResultBlocks(r.xml, 'proofread'))
+              for (const [id, text] of map) {
+                merged.set(id, text)
+              }
+              rawXml += r.xml
+              attempts += r.meta.attempts ?? 0
+              tokens += r.meta.tokens ?? 0
+              if (r.meta.lastFailure) lastFailure = r.meta.lastFailure
+            }
+          }
+
+          const originalMap = toResultMap(inputBlocks)
+          const orderedTexts = expectedIds.map((id) => merged.get(id) ?? originalMap.get(id) ?? '')
+          xml = reconstructXml(orderedTexts, merged)
+          meta = {
+            attempts,
+            tokens,
+            fallbackUsed: false,
+            lastFailure,
+            proofreadXml: rawXml,
+          }
+          chunks = groups.length
+        }
+      }
+
+      const next: Envelope<string> = {
         ...env,
-        item: outputXml,
+        item: xml,
         meta: { ...env.meta, proofreadXml: meta },
       }
+      if (chunks > 0 && budget) {
+        return setVariable(next, 'proofreadXmlChunks', {
+          chunks,
+          limit: budget.limit,
+          inputBudget: budget.inputBudget,
+          model: budget.model,
+        })
+      }
+      return next
     },
   })
 }

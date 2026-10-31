@@ -1,8 +1,18 @@
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { loadBundledPrompt } from '../../core/bundled-prompts.js'
+import {
+  type ChunkBudget,
+  type SemanticUnit,
+  adaptiveSemanticChunks,
+  estimateOverhead,
+  processChunks,
+  resolveChunkBudget,
+  shouldChunkText,
+} from '../../core/chunk-processor.js'
 import { composePromptBlocks } from '../../core/prompt-blocks.js'
 import { splitSentences } from '../heuristic-summary.js'
+import { countTextTokens } from '../token-counter.js'
 import {
   chapterVars,
   countWords,
@@ -75,6 +85,93 @@ const DEFAULTS: SchemaDocLlmOptions = {
   userPrompt: SUMMARY_USER_PROMPT,
 }
 
+// ---------------------------------------------------------------------------
+// Chunk budget for summaries
+// ---------------------------------------------------------------------------
+
+export type SummaryChunkMode = 'shrink' | 'chunk' | 'auto'
+
+export interface SummaryChunkOptions {
+  /** How to handle text larger than the model budget. Default 'shrink' (existing behaviour). */
+  chunkMode?: SummaryChunkMode
+  /** Per-call output token reserve. */
+  outputReserve?: number
+  /** Safety reserve tokens. */
+  reserve?: number
+  /** Preferred semantic split unit. */
+  splitUnit?: SemanticUnit
+  /** Chunk processing concurrency. */
+  chunkConcurrency?: number
+}
+
+function summaryBudget(
+  resolved: SchemaDocLlmOptions,
+  source: ChapterSource,
+  options: Pick<SummaryChunkOptions, 'outputReserve' | 'reserve'>,
+  ctx: ToolContext,
+): ChunkBudget | null {
+  const system = resolved.systemPrompt ?? defaultSummarySystemPrompt()
+  const titleOnlyUser = renderPrompt(resolved.userPrompt ?? SUMMARY_USER_PROMPT, {
+    ...chapterVars(source),
+    body: '',
+  })
+  const overhead = estimateOverhead(system, titleOnlyUser)
+  return resolveChunkBudget({
+    ctx,
+    input: {
+      model: resolved.model,
+      outputReserve: options.outputReserve ?? resolved.maxTokens ?? 1024,
+      overhead,
+      reserve: options.reserve,
+    },
+    llmConfig: resolved,
+  })
+}
+
+async function runSingleSummary(
+  ctx: ToolContext,
+  source: ChapterSource,
+  resolved: SchemaDocLlmOptions,
+): Promise<PromptRetryResult<string>> {
+  const vars = chapterVars(source)
+  return runPromptWithRetry(ctx, {
+    ...resolved,
+    systemPrompt: renderPrompt(resolved.systemPrompt ?? defaultSummarySystemPrompt(), vars),
+    userPrompt: renderPrompt(resolved.userPrompt ?? SUMMARY_USER_PROMPT, vars),
+    validate: (content) => validateSummary(content, source),
+  })
+}
+
+function mergeSummaries(summaries: readonly string[]): string {
+  return summaries.join('\n\n')
+}
+
+async function runChunkedSummary(
+  ctx: ToolContext,
+  source: ChapterSource,
+  resolved: SchemaDocLlmOptions,
+  budget: ChunkBudget,
+  options: Pick<SummaryChunkOptions, 'splitUnit' | 'chunkConcurrency'>,
+): Promise<{ summary: string; chunks: number; outcomes: PromptRetryResult<string>[] }> {
+  const chunks = adaptiveSemanticChunks(source.body, budget, {
+    unit: options.splitUnit ?? 'paragraph',
+    count: countTextTokens,
+  })
+  const outcomes: PromptRetryResult<string>[] = new Array(chunks.length)
+  const summary = await processChunks({
+    chunks,
+    process: async (chunk, index) => {
+      const chunkSource: ChapterSource = { ...source, body: chunk }
+      const outcome = await runSingleSummary(ctx, chunkSource, resolved)
+      outcomes[index] = outcome
+      return outcome.ok && outcome.value !== undefined ? outcome.value : chunk
+    },
+    merge: mergeSummaries,
+    concurrency: options.chunkConcurrency ?? 2,
+  })
+  return { summary, chunks: chunks.length, outcomes: outcomes.filter(Boolean) }
+}
+
 /**
  * Builds the LLM-backed summary tool.
  *
@@ -84,7 +181,16 @@ const DEFAULTS: SchemaDocLlmOptions = {
  * When the loop guard is exhausted the schema-doc `## Summary` text is used, so a
  * missing or failing router never fails the run.
  */
-export function createSummaryTool(options?: SchemaDocLlmOptions) {
+export function createSummaryTool(options?: SchemaDocLlmOptions & SummaryChunkOptions) {
+  const {
+    chunkMode = 'shrink',
+    outputReserve,
+    reserve,
+    splitUnit,
+    chunkConcurrency,
+    ...llmOptions
+  } = options ?? {}
+
   return defineTool<string, string>({
     name: 'summary',
     version: '1.2.0',
@@ -92,27 +198,40 @@ export function createSummaryTool(options?: SchemaDocLlmOptions) {
       'Summarises the chapter with an LLM through the OpenRouter proxy (configurable prompts, ' +
       'loop-guarded retries, deterministic schema-doc parse as fallback). The default system ' +
       'prompt is composed from the bundled summary.* blocks (plain input + bullet-list output). ' +
-      'Stores variable `summary`.',
+      'Supports shrink/chunk/auto modes. Stores variable `summary`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'summary')
+      const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'summary')
       const inputs = env.items ?? [env.item]
 
       const summaries: string[] = []
       const results: PromptRetryResult<string>[] = []
+      const chunkRecords: Array<{ chunks: number; budget: ChunkBudget }> = []
 
       for (const input of inputs) {
         const source = readChapter(input)
-        const outcome = await runPromptWithRetry(ctx, {
-          ...resolved,
-          systemPrompt: renderPrompt(
-            resolved.systemPrompt ?? defaultSummarySystemPrompt(),
-            chapterVars(source),
-          ),
-          userPrompt: renderPrompt(resolved.userPrompt ?? SUMMARY_USER_PROMPT, chapterVars(source)),
-          validate: (content) => validateSummary(content, source),
-        })
-        summaries.push(outcome.ok && outcome.value !== undefined ? outcome.value : source.body)
-        results.push(outcome)
+        let summary: string
+        let outcome: PromptRetryResult<string> | undefined
+
+        if (chunkMode === 'shrink') {
+          outcome = await runSingleSummary(ctx, source, resolved)
+          summary = outcome.ok && outcome.value !== undefined ? outcome.value : source.body
+        } else {
+          const budget = summaryBudget(resolved, source, { outputReserve, reserve }, ctx)
+          if (!budget || (chunkMode === 'auto' && !shouldChunkText(source.body, budget))) {
+            outcome = await runSingleSummary(ctx, source, resolved)
+            summary = outcome.ok && outcome.value !== undefined ? outcome.value : source.body
+          } else {
+            const chunked = await runChunkedSummary(ctx, source, resolved, budget, {
+              splitUnit,
+              chunkConcurrency,
+            })
+            summary = chunked.summary
+            results.push(...chunked.outcomes)
+            chunkRecords.push({ chunks: chunked.chunks, budget })
+          }
+        }
+        if (outcome) results.push(outcome)
+        summaries.push(summary)
       }
 
       const values: Record<string, unknown> = {
@@ -121,6 +240,14 @@ export function createSummaryTool(options?: SchemaDocLlmOptions) {
       }
       if (env.items) {
         values.summaryByItem = summaries
+      }
+      if (chunkRecords.length > 0) {
+        values.summaryChunks = chunkRecords.map((r) => ({
+          chunks: r.chunks,
+          limit: r.budget.limit,
+          inputBudget: r.budget.inputBudget,
+          model: r.budget.model,
+        }))
       }
       return setVariables(env, values)
     },
@@ -194,8 +321,16 @@ export function renderSummaryNotes(notes: string[]): string {
  * loop guard is exhausted the chapter's lead sentences are used, so a failing router never
  * fails the run. Writes variables `summaryNotes` (dash stripped) and `summary` (bullet block).
  */
-export function createNotesSummaryTool(options?: NotesSummaryOptions) {
-  const { count = DEFAULT_NOTE_COUNT, ...llmOptions } = options ?? {}
+export function createNotesSummaryTool(options?: NotesSummaryOptions & SummaryChunkOptions) {
+  const {
+    count = DEFAULT_NOTE_COUNT,
+    chunkMode = 'shrink',
+    outputReserve,
+    reserve,
+    splitUnit,
+    chunkConcurrency,
+    ...llmOptions
+  } = options ?? {}
   const noteCount = Math.max(1, Math.floor(count))
 
   return defineTool<string, string>({
@@ -205,14 +340,15 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions) {
       'Extracts `count` plain-text summary notes (`- ` bullets) from the chapter with an LLM ' +
       'through the OpenRouter proxy. The system prompt is composed from the bundled summary.* ' +
       'blocks (plain input + bullet-list output); the user prompt is the bundled `summary.user`. ' +
-      'Loop-guarded retries fall back to the chapter lead sentences. Stores variables ' +
-      '`summaryNotes` and `summary`.',
+      'Loop-guarded retries fall back to the chapter lead sentences. Supports chunk modes. Stores ' +
+      'variables `summaryNotes` and `summary`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...NOTES_DEFAULTS, ...llmOptions }, env, 'summaryNotes')
       const inputs = env.items ?? [env.item]
 
       const notesByItem: string[][] = []
       const results: PromptRetryResult<string[]>[] = []
+      const chunkRecords: Array<{ chunks: number; budget: ChunkBudget }> = []
 
       for (const input of inputs) {
         let source: ChapterSource
@@ -232,17 +368,42 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions) {
           })
           continue
         }
-        const vars = chapterVars(source, { count: noteCount, text: source.body })
-        const outcome = await runPromptWithRetry(ctx, {
-          ...resolved,
-          systemPrompt: renderPrompt(resolved.systemPrompt ?? defaultSummarySystemPrompt(), vars),
-          userPrompt: renderPrompt(resolved.userPrompt ?? NOTES_DEFAULTS.userPrompt ?? '', vars),
-          validate: validateNotes,
-        })
-        const notes =
-          outcome.ok && outcome.value ? outcome.value : heuristicNotes(source.body, noteCount)
+        let notes: string[]
+        let outcome: PromptRetryResult<string[]> | undefined
+        const chunkOutcomes: PromptRetryResult<string[]>[] = []
+        if (chunkMode === 'shrink') {
+          const once = await runNotesOnce(ctx, source, resolved, noteCount)
+          notes = once.notes
+          outcome = once.outcome
+        } else {
+          const budget = summaryBudget(resolved, source, { outputReserve, reserve }, ctx)
+          if (!budget || (chunkMode === 'auto' && !shouldChunkText(source.body, budget))) {
+            const once = await runNotesOnce(ctx, source, resolved, noteCount)
+            notes = once.notes
+            outcome = once.outcome
+          } else {
+            const chunks = adaptiveSemanticChunks(source.body, budget, {
+              unit: splitUnit ?? 'paragraph',
+              count: countTextTokens,
+            })
+            notes = await processChunks({
+              chunks,
+              process: async (chunk) => {
+                const chunkSource: ChapterSource = { ...source, body: chunk }
+                const once = await runNotesOnce(ctx, chunkSource, resolved, noteCount)
+                chunkOutcomes.push(once.outcome)
+                return once.notes
+              },
+              merge: (outs) => mergeNotes(outs, noteCount),
+              concurrency: chunkConcurrency ?? 2,
+            })
+            chunkRecords.push({ chunks: chunks.length, budget })
+          }
+        }
+
+        if (outcome) results.push(outcome)
+        results.push(...chunkOutcomes)
         notesByItem.push(notes.slice(0, noteCount))
-        results.push(outcome)
       }
 
       const notes = notesByItem[0] ?? []
@@ -256,9 +417,49 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions) {
       if (env.items) {
         values.summaryNotesByItem = notesByItem
       }
+      if (chunkRecords.length > 0) {
+        values.summaryNotesChunks = chunkRecords.map((r) => ({
+          chunks: r.chunks,
+          limit: r.budget.limit,
+          inputBudget: r.budget.inputBudget,
+          model: r.budget.model,
+        }))
+      }
       return setVariables(env, values)
     },
   })
+}
+
+async function runNotesOnce(
+  ctx: ToolContext,
+  source: ChapterSource,
+  resolved: SchemaDocLlmOptions,
+  targetCount: number,
+): Promise<{ notes: string[]; outcome: PromptRetryResult<string[]> }> {
+  const vars = chapterVars(source, { count: targetCount, text: source.body })
+  const outcome = await runPromptWithRetry(ctx, {
+    ...resolved,
+    systemPrompt: renderPrompt(resolved.systemPrompt ?? defaultSummarySystemPrompt(), vars),
+    userPrompt: renderPrompt(resolved.userPrompt ?? NOTES_DEFAULTS.userPrompt ?? '', vars),
+    validate: validateNotes,
+  })
+  const notes =
+    outcome.ok && outcome.value ? outcome.value : heuristicNotes(source.body, targetCount)
+  return { notes, outcome }
+}
+
+function mergeNotes(noteLists: readonly string[][], targetCount: number): string[] {
+  const seen = new Set<string>()
+  const merged: string[] = []
+  for (const list of noteLists) {
+    for (const note of list) {
+      const key = note.toLowerCase().replace(/\s+/g, ' ').trim()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      merged.push(note)
+    }
+  }
+  return merged.slice(0, targetCount)
 }
 
 /** Summary notes tool with the bundled prompts and default note count. */

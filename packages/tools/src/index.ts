@@ -62,6 +62,8 @@ export {
   renderSummaryNotes,
   DEFAULT_NOTE_COUNT,
   type NotesSummaryOptions,
+  type SummaryChunkOptions,
+  type SummaryChunkMode,
 } from './normalization/schema/summary.js'
 
 export {
@@ -127,6 +129,7 @@ export {
   type TranslateOutput,
   type TranslateToolConfig,
   type TranslateTextOptions,
+  type TranslateChunkMode,
 } from './core/translate-text.js'
 
 export {
@@ -629,6 +632,29 @@ export {
 } from './core/llm-context.js'
 
 export {
+  adaptiveSemanticChunks,
+  DEFAULT_OUTPUT_RESERVE,
+  estimateOverhead,
+  groupItemsToBudget,
+  processChunks,
+  processTextInChunks,
+  resolveChunkBudget,
+  shouldChunkText,
+  withTextChunks,
+  estimateReasoningReserve,
+  VAR_CHUNK_PROCESSOR,
+  type ChunkBudget,
+  type ChunkBudgetInput,
+  type SemanticUnit,
+  type SemanticChunkOptions,
+  type ChunkProcessOptions,
+  type TextChunkOptions,
+  type ChunkGroupOptions,
+  type ChunkProcessorRecord,
+  type ChunkedToolOptions,
+} from './core/chunk-processor.js'
+
+export {
   createLlmGate,
   llmGate,
   llmPrepare,
@@ -781,6 +807,8 @@ export {
   type ProofreadOptions,
   type ProofreadXmlOptions,
   type ProofreadMeta,
+  type ProofreadChunkOptions,
+  type ProofreadChunkMode,
 } from './modification/proofread.js'
 
 export {

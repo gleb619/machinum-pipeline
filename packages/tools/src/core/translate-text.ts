@@ -1,9 +1,21 @@
-import { defineTool, withItem } from '@mt/core'
+import { defineTool, getVariable, setVariable, withItem } from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
+import { countTextTokens } from '../normalization/token-counter.js'
 import { cleanTranslation } from '../normalization/translation-prompt.js'
+import {
+  type ChunkBudget,
+  DEFAULT_OUTPUT_RESERVE,
+  type SemanticUnit,
+  adaptiveSemanticChunks,
+  estimateOverhead,
+  processChunks,
+  resolveChunkBudget,
+  shouldChunkText,
+} from './chunk-processor.js'
 import type { LlmConfigLayer } from './llm-config.js'
 import { readCtx } from './llm-config.js'
 import { type GateInput, type GateSlot, type GateState, createLlmGate } from './llm-gate.js'
+import { promptSourcesFromCtx, resolvePrompt } from './llm-prompts.js'
 
 export interface TranslateInput {
   text: string
@@ -44,7 +56,19 @@ export interface TranslateTextOptions {
   routerUrl?: string
   /** Prompt template overrides (`translate.system` / `translate.user`). */
   prompts?: Record<string, string>
+  /** How oversized text is handled. Default 'shrink' (the gate's fit slot). */
+  chunkMode?: TranslateChunkMode
+  /** Per-chunk output reserve. Default 2048. */
+  outputReserve?: number
+  /** Safety reserve tokens. Default 64. */
+  reserve?: number
+  /** Semantic split unit. Default 'paragraph'. */
+  splitUnit?: SemanticUnit
+  /** Chunk processing concurrency. Default 2. */
+  chunkConcurrency?: number
 }
+
+export type TranslateChunkMode = 'shrink' | 'chunk' | 'auto'
 
 // ---------------------------------------------------------------------------
 // Shared implementation (also used by llm-translate.ts)
@@ -185,6 +209,174 @@ export function routerTranslateCall(
 }
 
 // ---------------------------------------------------------------------------
+// Chunk budget for translate
+// ---------------------------------------------------------------------------
+
+function translateBudget(
+  input: TranslateInput,
+  options: TranslateTextOptions,
+  ctx: ToolContext,
+): ChunkBudget | null {
+  const ps = promptSourcesFromCtx(ctx, { tool: options.prompts })
+  let systemTokens = 0
+  let userPrefixTokens = 0
+  try {
+    const systemText = resolvePrompt('translate.system', {}, ps.sources, ps.env)
+    systemTokens = countTextTokens(systemText)
+  } catch {
+    systemTokens = 200
+  }
+  try {
+    const userPrefix = resolvePrompt(
+      'translate.user',
+      {
+        text: '',
+        sourceLang: input.sourceLang ?? 'the source language',
+        targetLang: input.targetLang,
+      },
+      ps.sources,
+      ps.env,
+    )
+    userPrefixTokens = countTextTokens(userPrefix)
+  } catch {
+    userPrefixTokens = 100
+  }
+  const overhead = systemTokens + userPrefixTokens + 8
+  return resolveChunkBudget({
+    ctx,
+    input: {
+      model: input.model,
+      outputReserve: options.outputReserve ?? DEFAULT_OUTPUT_RESERVE,
+      overhead,
+      reserve: options.reserve,
+    },
+    llmConfig: options.llm,
+  })
+}
+
+interface GateUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  calls: number
+  cached: number
+  costUsd?: number
+}
+
+function zeroUsage(): GateUsage {
+  return { promptTokens: 0, completionTokens: 0, totalTokens: 0, calls: 0, cached: 0 }
+}
+
+function addToUsage(target: GateUsage, source: Partial<GateUsage>): void {
+  target.promptTokens += source.promptTokens ?? 0
+  target.completionTokens += source.completionTokens ?? 0
+  target.totalTokens += source.totalTokens ?? 0
+  target.calls += source.calls ?? 0
+  target.cached += source.cached ?? 0
+  if (source.costUsd !== undefined) {
+    target.costUsd = (target.costUsd ?? 0) + source.costUsd
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Chunked translate wrapper
+// ---------------------------------------------------------------------------
+
+type TranslateToolLike = Tool<TranslateInput, TranslateOutput> & {
+  slots: ComposableTool<TranslateInput, TranslateOutput, GateSlot>['slots']
+  with: ComposableTool<TranslateInput, TranslateOutput, GateSlot>['with']
+}
+
+function createChunkedTranslateText(
+  gate: ComposableTool<TranslateInput, TranslateOutput, GateSlot>,
+  options: TranslateTextOptions,
+): TranslateToolLike {
+  // Only constructed for 'chunk' | 'auto'; 'shrink' (the default) returns the bare gate.
+  const mode: 'chunk' | 'auto' = options.chunkMode === 'auto' ? 'auto' : 'chunk'
+
+  const wrapper: TranslateToolLike = defineTool<TranslateInput, TranslateOutput>({
+    name: gate.name,
+    version: gate.version,
+    mdDescription: `${gate.mdDescription ?? ''} Chunk mode: oversized text is split into budget-sized chunks, translated, and merged.`,
+    async invoke(env, ctx) {
+      const inputs = env.items ?? [env.item]
+      const outputs: TranslateOutput[] = []
+      const records: Array<{ chunks: number; limit: number; inputBudget: number; model: string }> =
+        []
+      const allUsage = zeroUsage()
+
+      for (const input of inputs) {
+        const budget = translateBudget(input, options, ctx)
+        if (!budget || (mode === 'auto' && !shouldChunkText(input.text, budget))) {
+          const single = await gate.invoke(withItem(env, input), ctx)
+          outputs.push(single.item)
+          const usage = getVariable(single, 'llmUsage')
+          if (isUsage(usage)) addToUsage(allUsage, usage)
+          continue
+        }
+
+        const chunks = adaptiveSemanticChunks(input.text, budget, {
+          unit: options.splitUnit ?? 'paragraph',
+          count: countTextTokens,
+        })
+
+        let chunkTokens = 0
+        let chunkModel = ''
+        const mergedText = await processChunks({
+          chunks,
+          process: async (chunk) => {
+            const chunkInput: TranslateInput = { ...input, text: chunk }
+            const out = await gate.invoke(withItem(env, chunkInput), ctx)
+            const usage = getVariable(out, 'llmUsage')
+            if (isUsage(usage)) addToUsage(allUsage, usage)
+            chunkTokens += out.item.tokens ?? 0
+            if (!chunkModel && out.item.model) chunkModel = out.item.model
+            return out.item.translatedText
+          },
+          merge: (parts) => parts.join('\n\n'),
+          concurrency: options.chunkConcurrency ?? 2,
+        })
+
+        outputs.push({
+          translatedText: mergedText,
+          model: chunkModel || budget.model,
+          ...(chunkTokens > 0 ? { tokens: chunkTokens } : {}),
+        })
+        records.push({
+          chunks: chunks.length,
+          limit: budget.limit,
+          inputBudget: budget.inputBudget,
+          model: budget.model,
+        })
+      }
+
+      let next = withItem(env, (env.items ? outputs : outputs[0]) as TranslateOutput)
+      if (records.length > 0) {
+        next = setVariable(next, 'translateChunks', env.items ? records : records[0])
+      }
+      if (allUsage.calls > 0) {
+        next = setVariable(next, 'llmUsage', allUsage)
+      }
+      return env.items ? { ...next, items: outputs } : next
+    },
+  }) as TranslateToolLike
+
+  wrapper.slots = gate.slots
+  wrapper.with = (overrides) => createChunkedTranslateText(gate.with(overrides), options)
+
+  return wrapper
+}
+
+function isUsage(value: unknown): value is Partial<GateUsage> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'totalTokens' in value &&
+    typeof (value as Partial<GateUsage>).totalTokens === 'number'
+  )
+}
+
+// ---------------------------------------------------------------------------
 // translateText
 // ---------------------------------------------------------------------------
 
@@ -194,16 +386,21 @@ export function routerTranslateCall(
  * `{ backend: 'llm' }` (or swap the `call` slot) to go direct-to-provider
  * through the LLM toolkit. Swap parts with `.with({ call: ... })` etc.
  */
-export function createTranslateText(
-  options: TranslateTextOptions = {},
-): ComposableTool<TranslateInput, TranslateOutput, GateSlot> {
-  const gate = createTranslateGate(
+export function createTranslateText(options: TranslateTextOptions = {}): TranslateToolLike {
+  let gate = createTranslateGate(
     'translate-text',
     options,
     'Translates text via OpenRouter proxy. Supports source/target language specification. ' +
       'Composable: swap the call slot (router `/api/translate` default) or pick backend `llm`.',
   )
-  return options.backend === 'llm' ? gate : gate.with({ call: routerTranslateCall(options) })
+  if (options.backend !== 'llm') {
+    gate = gate.with({ call: routerTranslateCall(options) })
+  }
+
+  if (options.chunkMode && options.chunkMode !== 'shrink') {
+    return createChunkedTranslateText(gate, options)
+  }
+  return gate as TranslateToolLike
 }
 
 export const translateText = createTranslateText()

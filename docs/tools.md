@@ -309,6 +309,6 @@ Three related tools reuse the same LLM retry loop and bundled prompts. Their XML
 
 | Tool | Input format | Output format | Purpose |
 |------|--------------|---------------|---------|
-| `proofreadTool` / `createProofreadTool(opts)` | plain text (blank-line paragraphs) | plain text | Splits text into paragraphs, sends them to the LLM in a proofreading prompt, and reconstructs corrected paragraphs. |
+| `proofreadTool` / `createProofreadTool(opts)` | plain text (blank-line paragraphs) | plain text | Splits text into paragraphs, sends them to the LLM in a proofreading prompt, and reconstructs corrected paragraphs. Option `chunkMode: 'shrink' \| 'chunk' \| 'auto'` (default `shrink`) enables budget-aware chunking; same option on `proofreadXmlTool`, `summaryTool`, `notesSummaryTool`, `translateText` (see steering/tools.md). |
 | `proofreadXmlTool` / `createProofreadXmlTool(opts)` | XML `<results><result><id/><text/></result></results>` | XML `<results><result><id/><proofread/></result></results>` | Sub tool for callers that already have paragraph XML or want the raw model XML. |
 | `proofreadPropertiesTool` / `createProofreadPropertiesTool(opts)` | Java properties `key=value` | Java properties `key=value` | Sub tool using key/value pairs where the key is the id/line number and the value is the text. Newlines and `=` inside values are escaped. |
