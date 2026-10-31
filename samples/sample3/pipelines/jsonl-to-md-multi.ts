@@ -11,9 +11,9 @@ import {
   paragraphTranslator,
   schemaDocWriter,
   schemaTool,
+  titleTranslator,
   stubSchemaEmit,
   summaryTool,
-  titleTranslator,
   toMarkdown,
   tokenCounter,
   wordCounter,
@@ -28,11 +28,6 @@ import '@mt/waypoint'
 // `MT_LLM_TOOL` / mt.json `settings.llm.tool`), a real backend (`ollama`,
 // `openrouter-free`, ...) when `MT_LLM_TOOL` names one - env wins over the mock.
 // `pickLlmTool` stays exported for pipelines that prefer explicit wiring.
-const summary = summaryTool
-const entities = entitiesTool
-const schema = schemaTool
-const titles = titleTranslator
-const paragraphs = paragraphTranslator
 
 // === URI shortcuts (aliases) ===
 // Source/target URIs can be written as '@name' shortcuts instead of full URIs.
@@ -63,9 +58,9 @@ export const schemaDocPipeline = definePipeline()
   .use(wordCounter)
   .use(tokenCounter)
   .use(chapterIndexer)
-  .use(summary)
-  .use(entities)
-  .use(schema)
+  .use(summaryTool)
+  .use(entitiesTool)
+  .use(schemaTool)
   .use(mdFormatter)
   .use(schemaDocWriter)
   .to('md://./chapters')
@@ -81,9 +76,9 @@ export const schemaDocMockPipeline = definePipeline()
   .use(wordCounter)
   .use(tokenCounter)
   .use(chapterIndexer)
-  .use(summary)
-  .use(entities)
-  .use(schema)
+  .use(summaryTool)
+  .use(entitiesTool)
+  .use(schemaTool)
   .use(mdFormatter)
   .use(schemaDocWriter.with({ emit: stubSchemaEmit }))
   .to('md://./chapters')
@@ -93,7 +88,7 @@ export const schemaDocMockPipeline = definePipeline()
 export const translateTitlesPipeline = definePipeline()
   .from('ephemeral://titles-input')
   .batch(5)
-  .use(titles)
+  .use(titleTranslator)
   .flatMap(async (items: unknown) => (items as unknown[]) ?? [])
   .to('ephemeral://titles-output')
 
@@ -104,7 +99,7 @@ export const translateChapterPipeline = definePipeline()
     const record = item as { body: string; [k: string]: unknown }
     return record.body.split('\n\n').map((p) => ({ ...record, body: p }))
   })
-  .use(paragraphs)
+  .use(paragraphTranslator)
   .to('ephemeral://translate-output')
 
 // === Default: orchestration pipeline (subflow-only, no source/target of its own) ===
