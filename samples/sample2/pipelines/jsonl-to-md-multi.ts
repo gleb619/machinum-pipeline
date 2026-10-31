@@ -306,7 +306,6 @@ export const lifecycleLogPipeline = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
   .use(chapterDoc)
   .use(chapterIndexer)
-  // `#done` is shorthand for `events://default?only=done`
   .to('events://chapter-log?only=done')
 
 // === Default: orchestration pipeline (subflow-only) ===
