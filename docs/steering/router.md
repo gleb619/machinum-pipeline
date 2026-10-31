@@ -177,7 +177,8 @@ valid configuration — no build-time injected config.
 ### `server/utils/cost-tracker.ts`
 - `logCall(model, usage, cost)` — appends to rolling log files under `<logDir>/<YYYY-MM-DD>/log.jsonl`
   (`logDir` = `$MT_HOME/router`, default `~/.mt/router`; `mt router --log-dir` overrides)
-- `getMonthlyCost()` / `getDailyCost()` — aggregate cost summaries
+- `getMonthlyCost()` / `getDailyCost()` — aggregate cost summaries. The monthly total spans the **UTC**
+  month (log day dirs are UTC dates), so it does not shift with the host timezone.
 - Rolling logs: 5 MB max, retained N days
 
 ### `server/utils/log-rotator.ts`

@@ -81,12 +81,16 @@ export async function getDailyClientCost(
   return usage.clients[client] ?? { calls: 0, cost: 0 }
 }
 
-export async function getMonthlyCost(): Promise<{ calls: number; totalCost: number }> {
+/**
+ * Spend of the current UTC month. Log day dirs are UTC dates (`logCall` names them from
+ * `toISOString()`), so the month prefix must be UTC too — a local-time prefix drops or
+ * misattributes the hours around a month edge.
+ */
+export async function getMonthlyCost(
+  now: Date = new Date(),
+): Promise<{ calls: number; totalCost: number }> {
   const logDir = getLogDir()
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  const prefix = now.toISOString().slice(0, 7)
 
   let totalCalls = 0
   let totalCost = 0
