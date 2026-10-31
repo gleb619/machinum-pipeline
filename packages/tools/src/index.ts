@@ -175,6 +175,38 @@ export {
 } from './normalization/token-counter.js'
 
 export {
+  chunkClean,
+  createChunkClean,
+  chunkSplit,
+  createChunkSplit,
+  stripSeparators,
+  splitIntoChunks,
+  joinChunks,
+  parseChunks,
+  resolveChunkSize,
+  DEFAULT_CHUNK_SEPARATOR,
+  VAR_CHUNK_COUNT,
+  VAR_CHUNK_SEPARATOR,
+  type ChunkCleanOptions,
+  type ChunkSplitOptions,
+  type ChunkSizeOptions,
+  type SplitIntoChunksOptions,
+} from './normalization/chunk-separator.js'
+
+export {
+  chunkTokenize,
+  createChunkTokenize,
+  tokenizeChunk,
+  tokenizeChunkDetailed,
+  VAR_TOKEN_COUNT,
+  VAR_TOKEN_HEURISTIC,
+  type ChunkToken,
+  type TokenEncoding,
+  type TokenizeChunkOptions,
+  type TokenizeChunkResult,
+} from './normalization/chunk-tokens.js'
+
+export {
   glossaryExtractor,
   createGlossaryExtractor,
   buildGlossary,

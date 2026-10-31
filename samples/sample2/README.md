@@ -17,6 +17,10 @@ Two `mt` pipelines over the same JSONL input, without LLM calls:
 - How to branch the flow with `.fork()` and merge the branch results back.
 - How to discard output with `void://` and how to keep it in memory with `ephemeral://`.
 - How to run a non-blocking side pipeline that counts the corpus independently of the main flow.
+- How to clean a chapter of its decorative `---` lines, split it into token-bounded chunks and
+  put the chunks back together — without re-splitting them on the next run.
+- How to walk the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` → `paragraphs://` →
+  `lines://` → `words://`) and count every rung.
 
 ## Basics pipeline (`pipelines/basic-md-processing.ts`)
 
@@ -134,6 +138,88 @@ pnpm run runner:entities    # chapters-out/*.md + entities/words.jsonl
 pnpm run runner:branches    # branch/parallel logs only
 ```
 
+## Chunk normalization (`pipelines/chunk-normalization.ts`)
+
+Two pipelines, both built from shipped pieces only — the package tools `chunkClean` /
+`chunkSplit` / `splitIntoChunks` / `parseChunks` / `readChapterDoc` / `tokenizeWords` and the
+built-in waypoints. The only local code is data glue inside `.flatMap()` and logging inside
+`.tap()`.
+
+| Pipeline | Command | Purpose |
+|----------|---------|---------|
+| `cleanSplitPipeline` (default) | `pnpm run runner:chunks` | Chapter → clean → token-bounded chunks → `out/chunked.md`, then the same file again → `out/chunked-reused.md` |
+| `ladderPipeline` | `pnpm run runner:ladder` | The Structure Ladder → `out/ladder-chapters/*.md` + `out/ladder-summary.md` |
+
+### Clean + split, and why the second run changes nothing
+
+```
+chapters/chapter1.md
+  → md://./chapters/chapter1.md     (one envelope: the whole chapter)
+  → chunkClean                       (drops the decorative `---` lines)
+  → chunkSplit                       (cuts the text into token-bounded chunks,
+                                      writes them back with `---` between them)
+  → md://./out                       (out/chunked.md)
+```
+
+- **Chunk size.** `chunkSplit` resolves the target as `meta.chunkSize` → tool option →
+  mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000. The sample pins the tool option
+  (`createChunkSplit({ chunkSize: CHUNK_SIZE })`, `CHUNK_SIZE = MT_CHUNK_SIZE ?? 40`) so one
+  chapter always splits into several chunks; `MT_CHUNK_SIZE` still wins when it is set:
+  `MT_CHUNK_SIZE=100 pnpm run runner:chunks`.
+- **The chunk count** lands in `meta.chunkCount` and in the `chunkCount` variable, and in the
+  output file. The `md://` target writes the payload verbatim — it has no frontmatter of its
+  own — so the sample writes the count as a comment header (`<!-- chunkCount: 4 -->`) instead
+  of a sidecar file. The header is stripped again before the next split, so it never counts as
+  content.
+- **Separator reuse.** Stage two reads `out/chunked.md` and runs the same splitter. The text
+  already carries `---` separators, so the splitter keeps the chunks as they are instead of
+  cutting them again — `out/chunked-reused.md` is byte-identical to `out/chunked.md`.
+
+### The Structure Ladder
+
+```
+jsonl://./jsonl/ladder.jsonl      (a chapter record)
+  → chapterDocBuild + chapterIndexer + chapterDocEmit   → md://./out/ladder-chapters
+  → readChapterDoc + splitIntoChunks (md → chunks)      → chunks://ladder
+  → split(/\n\n+/)                 (chunk → paragraphs) → paragraphs://ladder  (chunkId)
+  → split('\n')                    (paragraph → lines)  → lines://ladder
+  → tokenizeWords                  (line → words)       → words://ladder
+  → batch + summary                                     → md://./out (out/ladder-summary.md)
+```
+
+Every step down the ladder is one `.flatMap()` (one envelope in, many out) plus one entity
+buffer; the buffers are built in, the pipeline only uses them. The entities are the real core
+types (`Chapter`, `Paragraph`, `Chunk`, `Line`); `Word` is not a core type, so the sample
+declares one. The summary has one row per rung:
+
+```
+| Rung | Scheme | Units |
+| --- | --- | --- |
+| 0 | jsonl:// | 2 |
+| 1 | md:// | 2 |
+| 2 | chunks:// | 4 |
+| 3 | paragraphs:// | 4 |
+| 4 | lines:// | 5 |
+| 5 | words:// | 73 |
+```
+
+#### Alternate route: chunks → tokens
+
+`chunks://` also branches into `tokens://` (tiktoken-style BPE tokens, what the LLM sees).
+`tokenLadderPipeline` runs jsonl → md → `chunks://` → `tokens://` → summary and writes
+`out/token-ladder-summary.md` with the chunk count, the token count and a `Heuristic` flag
+(true only when `gpt-tokenizer` is unavailable and ~4-char pieces are used). With the demo
+fixture: 4 chunks, 86 tokens.
+
+```bash
+pnpm run runner:tokens    # out/token-ladder-summary.md
+```
+
+```bash
+pnpm run prepare-input    # writes jsonl/ladder.jsonl too
+pnpm run runner:chunks    # out/chunked.md + out/chunked-reused.md
+pnpm run runner:ladder    # out/ladder-chapters/*.md + out/ladder-summary.md
+```
 
 ## Run manually
 
@@ -189,3 +275,14 @@ pipelines, and asserts:
 - the entity counts logged by the waypoint sinks (`paragraphs=4`, `lines=5`, `words=22`),
 - one persisted `Word` envelope per JSONL line in `entities/words.jsonl`,
 - `parallelBranchesPipeline` runs both forks per paragraph and the concurrency-probe windows overlap.
+
+`tests/chunk-normalization.test.ts` runs the chunk pipelines and asserts:
+
+- `out/chunked.md` holds the chapter as chunks separated by `---`,
+- the chunk count in the exchange meta, in the file header and in the number of separators
+  agree (`chunkCount - 1` separators, so no decorative line survived the clean step),
+- the second run reuses the separators: `out/chunked-reused.md` is identical to
+  `out/chunked.md` and both runs report the same chunk count,
+- the ladder summary has one row per rung and the counts agree with the run log and with the
+  fixture (2 records, 2 documents, more chunks than documents, at least one paragraph per chunk, 5 lines,
+  73 words).

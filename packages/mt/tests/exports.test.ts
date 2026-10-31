@@ -23,7 +23,7 @@ describe('mt umbrella exports', () => {
   })
 
   it('entity buffer schemes are registered globally by the umbrella', () => {
-    for (const scheme of ['chapters', 'paragraphs', 'lines', 'words']) {
+    for (const scheme of ['chapters', 'paragraphs', 'chunks', 'tokens', 'lines', 'words']) {
       expect(root.registry.resolveSource(`${scheme}://`)).toHaveProperty('start')
       expect(root.registry.resolveTarget(`${scheme}://`)).toHaveProperty('write')
     }

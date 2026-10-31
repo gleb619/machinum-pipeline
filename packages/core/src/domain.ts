@@ -23,12 +23,49 @@ export interface Chapter {
 }
 
 /**
- * Paragraph — a paragraph within a chapter.
+ * Paragraph — a paragraph within a chapter, or within one of its chunks.
  */
 export interface Paragraph {
   id: string
   chapterId: string
+  /** Paragraph of a chunk: the id of the `Chunk` it was derived from. */
+  chunkId?: string
   body: string
+  index?: number
+}
+
+/**
+ * Chunk — a token-bounded, separator-fixated slice of a chapter's text,
+ * used for translation (and other LLM work) within a token budget.
+ *
+ * A chunk is the coarsest rung under the document: a document is split into
+ * chunks first, and each chunk is then descended into paragraphs, lines and
+ * words. Chunks of one chapter are joined by a separator line (see the
+ * `chunkSplit` tool).
+ */
+export interface Chunk {
+  id: string
+  chapterId: string
+  body: string
+  index?: number
+  tokens?: number
+}
+
+/**
+ * Token — one tiktoken-style BPE token of a chunk.
+ *
+ * The alternate descent from a `Chunk` (a sibling of `Paragraph`): chunks
+ * -> tokens instead of chunks -> paragraphs. A token is what the LLM
+ * actually sees, so tokens are the unit for budget and cost reasoning.
+ */
+export interface Token {
+  id: string
+  /** The `Chunk` this token was derived from. */
+  chunkId: string
+  /** BPE token id. */
+  tokenId: number
+  /** Decoded text piece of the token. */
+  text: string
   index?: number
 }
 

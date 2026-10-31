@@ -88,6 +88,7 @@ build
 /samples/sample2/chapters-out/
 /samples/sample2/entities/
 /samples/sample2/chapters/glossary.graph.json
+/samples/sample2/out/
 /samples/sample3/vendor/
 /samples/sample3/package-lock.json
 /samples/sample3/runner.log

@@ -331,6 +331,16 @@ Further exports used by the samples that are not listed above (all exist in `pac
 | `heuristicSummaryTool`                                              | tool            | [sample4](../samples/sample4) `pipelines/analyze.ts`                                                                                 | Offline fallback summary (no LLM)                                                                    |
 
 
+## Chunk normalization (`@mt/tools`)
+
+| Export | Kind | Purpose |
+|--------|------|---------|
+| `chunkClean` / `createChunkClean({ separator })` | tool | Strips `---` separator and decorative-only lines, collapses blank runs; sets `chunkCount` (meta + variable) + `chunkSeparator` |
+| `chunkSplit` / `createChunkSplit({ separator, chunkSize, reuse, count })` | tool | Cleans text, splits to token-bounded chunks, fixates with `---` lines; `reuse` (default true) keeps existing separators instead of re-splitting; size: `meta.chunkSize` → option → mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000 |
+| `chunkTokenize` / `createChunkTokenize({ encoding })` | tool | Chunk string → BPE tokens `{ tokenId, text }[]` (gpt-tokenizer; ~4 chars/token fallback); sets `tokenCount` (meta + variable) + `tokenHeuristic`; alternate route `chunks → tokens` |
+| `tokenizeChunk`, `tokenizeChunkDetailed` | pure helpers | `tokenizeChunk(text, { encoding? })` → `{ tokenId, text }[]`; detailed variant also returns `heuristic` |
+| `stripSeparators`, `splitIntoChunks`, `joinChunks`, `parseChunks`, `resolveChunkSize` | pure helpers | Separator strip / boundary split (never mid-word) / join / parse-inverse / size resolution — see [steering/tools.md](steering/tools.md) |
+
 ## Proofreading tools
 
 Three related tools reuse the same LLM retry loop and bundled prompts. Their XML/properties reply parsers reuse the shared structured-reply extraction from `core/prompt-blocks.ts` (`extractXmlResultEntries` with the `<text>` / `<proofread>` tags, `extractPropertiesEntries` with Java-properties unescaping). English is the default source language; pass `language` for other text kinds. All prompts are overridable via options or per-envelope `meta.proofreadPrompt` / `meta.proofreadSystemPrompt`. (The proofread prompts predate the global `llm.format.*` blocks and describe their own `<results>`/`<text>`/`<proofread>` document shape inline, so they stay family-specific rather than reusing the translate-flavoured global format blocks.)

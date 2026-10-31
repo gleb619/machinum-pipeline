@@ -57,6 +57,8 @@ re-derived by the Source. See `toPersisted` in [`steering/core.md`](steering/cor
 
 Cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
 
+Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [waypoints.md](waypoints.md#structure-ladder).
+
 A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) is only the orchestration grammar.
 
 ---
@@ -65,7 +67,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 
 | Concept | Shape / Role | Deep spec |
 |---|---|---|
-| **Domain** | `Book` → `Chapter` → `Paragraph` → `Line` (plain interfaces) | [`core.md`](steering/core.md) |
+| **Domain** | `Book` → `Chapter` → `Chunk` → `Paragraph` → `Line` (plain interfaces) | [`core.md`](steering/core.md) |
 | **Source** | `start()` / `resume()`; lifestyle `long-lived` or `resumable` | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
 | **Tool** | `invoke(ex, ctx) → Promise<Exchange<O>>` (always in-process) | [`core.md`](steering/core.md), [`tools.md`](steering/tools.md) |
 | **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |

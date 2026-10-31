@@ -1,5 +1,5 @@
 import type { Envelope, ParsedUri, SourceContext } from '@mt/core'
-import { registry } from '@mt/core'
+import { createExchange, registry } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
   ENTITY_BUFFER_SCHEMES,
@@ -67,11 +67,59 @@ describe('entity buffer schemes', () => {
     expect(await collect(ephemeral.start(ctx))).toEqual([])
   })
 
+  it('round-trips chunks:// through the default namespace', async () => {
+    await write('chunks', '', ['chunk-1', 'chunk-2'])
+
+    const source = createEntityBufferSource<string>('chunks', uriFor('chunks'))
+    const envelopes = await collect(source.start(ctx))
+
+    expect(envelopes.map((env) => env.item)).toEqual(['chunk-1', 'chunk-2'])
+  })
+
+  it('keeps chunks:// isolated from lines://, paragraphs:// and ephemeral://chunks', async () => {
+    await write('lines', '', ['line'])
+    await write('paragraphs', '', ['paragraph'])
+    await write('chunks', '', ['chunk'])
+
+    const ephemeral = registry.resolveTarget<string>('ephemeral://chunks')
+    await ephemeral.open({} as never)
+    await ephemeral.write(createExchange('ephemeral-chunk'), {} as never)
+    await ephemeral.close({} as never)
+
+    const chunks = createEntityBufferSource<string>('chunks', uriFor('chunks'))
+    expect((await collect(chunks.start(ctx))).map((env) => env.item)).toEqual(['chunk'])
+
+    const lines = createEntityBufferSource<string>('lines', uriFor('lines'))
+    expect((await collect(lines.start(ctx))).map((env) => env.item)).toEqual(['line'])
+
+    const paragraphs = createEntityBufferSource<string>('paragraphs', uriFor('paragraphs'))
+    expect((await collect(paragraphs.start(ctx))).map((env) => env.item)).toEqual(['paragraph'])
+
+    const ephemeralChunks = registry.resolveSource<string>('ephemeral://chunks')
+    expect((await collect(ephemeralChunks.start(ctx))).map((env) => env.item)).toEqual([
+      'ephemeral-chunk',
+    ])
+  })
+
   it('clears the buffer when the target opens', async () => {
     await write('chapters', '', ['old'])
     await write('chapters', '', ['new'])
 
     const source = createEntityBufferSource<string>('chapters', uriFor('chapters'))
     expect((await collect(source.start(ctx))).map((env) => env.item)).toEqual(['new'])
+  })
+
+  it('round-trips tokens:// and keeps it isolated from chunks:// and ephemeral://tokens', async () => {
+    await write('chunks', '', ['chunk'])
+    await write('tokens', '', [{ tokenId: 1 }, { tokenId: 2 }])
+
+    const tokens = createEntityBufferSource<{ tokenId: number }>('tokens', uriFor('tokens'))
+    expect((await collect(tokens.start(ctx))).map((env) => env.item.tokenId)).toEqual([1, 2])
+
+    const chunks = createEntityBufferSource<string>('chunks', uriFor('chunks'))
+    expect((await collect(chunks.start(ctx))).map((env) => env.item)).toEqual(['chunk'])
+
+    const ephemeral = registry.resolveSource<string>('ephemeral://tokens')
+    expect(await collect(ephemeral.start(ctx))).toEqual([])
   })
 })

@@ -26,6 +26,8 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 
+Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [waypoints.md](../waypoints.md#structure-ladder).
+
 ## Source/Target Shape
 
 Every implementation follows the `Source<T>` / `Target<T>` interfaces from `@mt/core`.
@@ -57,7 +59,7 @@ the runner double-count and the next resume silently skips unprocessed work. A n
 means "skip nothing" (`sourceStart = 0`). All waypoint resumable orderings are deterministic
 (sorted file walks, buffer insertion order), so a plain skip is exact. Shared helper:
 `src/resume.ts` (`resumeFrom(startFn, cursor)` / `skipEnvelopes(stream, n)`), used by `md://`,
-`chapter-output://`, `ephemeral://`, `chapters://`/`paragraphs://`/`lines://`/`words://`, `schema-doc://` and `range://`.
+`chapter-output://`, `ephemeral://`, `chapters://`/`paragraphs://`/`chunks://`/`tokens://`/`lines://`/`words://`, `schema-doc://` and `range://`.
 
 ## Atomicity Contract (hard rule)
 

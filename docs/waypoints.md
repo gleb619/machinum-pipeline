@@ -22,7 +22,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | WP008 | range://         | ✓      | —      | resumable     | sample2                                   |
 | WP009 | void://          | —      | ✓      | —             | sample2                                   |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
-| WP011 | chapters:// / paragraphs:// / lines:// / words:// | ✓ | ✓ | resumable | sample2 (`paragraphs://`, `lines://`, `words://`; `chapters://` unused) |
+| WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | ✓ | resumable | sample2 (`paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
 
 ---
 
@@ -38,7 +38,7 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
 | 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
 | 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
-| 11    | WP011 | `chapters://` / `paragraphs://` / `lines://` / `words://` | ✓ | ✓ | resumable | `T` | `T` | Entity-level shortcuts over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
+| 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | ✓ | resumable | `T` | `T` | Entity-level shortcuts over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
 
 ---
 
@@ -213,9 +213,9 @@ listed for reference only (proposals for them are never generated).
 
 ---
 
-### WP011: chapters:// / paragraphs:// / lines:// / words://
+### WP011: chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words://
 
-**Scheme:** `<entity>://<namespace>` (e.g. `paragraphs://`, `lines://chapter-1`)
+**Scheme:** `<entity>://<namespace>` (e.g. `paragraphs://`, `chunks://chapter-1`, `lines://chapter-1`)
 
 **Source/Target:** Process-local in-memory buffers, same implementation as `ephemeral://` but with one key
 space per entity scheme. Omitting the namespace uses `default` (`lines://` == `lines://default`).
@@ -228,12 +228,71 @@ several buffers of the same level (e.g. `paragraphs://normalized` vs `paragraphs
 Sources are `resumable` and expose `resume(ctx, cursor)`. Nothing survives the process — use a file waypoint
 (`jsonl://`, `md://`) for durable handoff.
 
-**Use case:** entity pipelines that pass `Chapter` → `Paragraph` → `Line` → `Word` envelopes between stages
-without inventing ad-hoc ephemeral names.
+**Use case:** entity pipelines that pass `Chapter` → `Paragraph` → `Chunk` → `Line` → `Word` envelopes between
+stages without inventing ad-hoc ephemeral names.
 
 **Global registration:** the schemes are registered on import of `@mt/waypoint` and are embedded in the `mt`
 umbrella/binary; `mt run` registers them before loading the pipeline. A pipeline only uses the URI — it never
 defines the scheme.
+
+---
+
+## Structure Ladder
+
+The **Structure Ladder** is the descent from a whole document to its smallest units. It is a tree: below
+`chunks://` it branches into the text descent and the token descent.
+
+```
+jsonl:// → md:// → chunks:// ─┬→ paragraphs:// → lines:// → words://
+                              └→ tokens://
+```
+
+Each rung is a
+URI scheme plus an entity type; descending one rung is a cardinality change, so it happens through a DSL op
+(`.flatMap()` fans one envelope out into many, `.batch()` groups many into one).
+
+| Level | Scheme          | Entity type | Typical op             |
+|-------|-----------------|-------------|------------------------|
+| 0     | `jsonl://`      | record      | `.from()`              |
+| 1     | `md://`         | document / chapter | `.flatMap()` (split into chapters) |
+| 2     | `chunks://`     | chunk       | `.flatMap()` (split into token-bounded chunks) |
+| 3     | `paragraphs://` | paragraph   | `.flatMap()` (split a chunk into paragraphs; carry `chunkId`) |
+| 4     | `lines://`      | line        | `.flatMap()` (split into lines) |
+| 5     | `words://`      | word        | `.batch()` (group words) |
+| alt   | `tokens://`     | token       | `.flatMap()` (chunk → BPE tokens; sibling of `paragraphs://`, parent `chunks://`) |
+
+**Chunks are the coarsest rung under the document.** A document is first split into token-bounded,
+`---`-separated chunks (the fixated text units sent to the LLM for translation); each chunk is then
+descended into paragraphs, lines and words. A chunk is the largest unit that still fits one request; it
+does not group paragraphs, paragraphs are derived from it (and carry its `chunkId`). The `chunkSplit` tool
+(`@mt/tools`) fixates a chapter into `---`-separated chunks; `chunkClean` strips the separators again.
+
+Descent with `flatMap` — one chapter in, its chunks out:
+
+```typescript
+import { definePipeline } from '@mt/core'
+import { splitIntoChunks } from '@mt/tools'
+
+export default definePipeline()
+  .from('md://./chapters/')                  // level 1 — one envelope per chapter (string body)
+  .flatMap(async (body: string) =>           // level 2 — chapter → its chunks
+    splitIntoChunks(body).map((chunk, index) => ({
+      id: `chunk-${index}`,
+      chapterId: 'chapter-1',
+      body: chunk,
+      index,
+    })),
+  )
+  .to('chunks://chapters')                   // level 2 — hand the chunks to the next stage
+```
+
+**Alternate route: `chunks → tokens`.** Instead of descending into paragraphs, a chunk can be tokenized into
+tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — what the LLM actually sees. The
+`chunkTokenize` tool / `tokenizeChunk()` helper (`@mt/tools`, `gpt-tokenizer`; ~4 chars/token fallback flagged
+`heuristic`) does the split. Demonstrated by `tokenLadderPipeline` in sample2.
+
+Rung 0 (`jsonl://`) is the entry point for machine-readable input; rungs 2–5 and `tokens://` are process-local buffers, so
+a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`).
 
 ---
 
@@ -302,5 +361,6 @@ Location: `packages/waypoint/tests/builtins/`
 | `range.arch.test.ts`        | `range://` source-only registration + interface shape |
 | `void.test.ts`             | `void://` discard behavior (no state accumulates) |
 | `void.arch.test.ts`        | `void://` target-only registration + interface shape |
+| `entity-buffers.test.ts`   | Entity buffer schemes: registration, round-trip, namespace + scheme isolation |
 
 Architecture tests (`.arch.test.ts`) verify registered schemes and interface shapes without full I/O.

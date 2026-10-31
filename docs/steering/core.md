@@ -19,7 +19,7 @@ Re-exports everything needed by consumers:
 ## Key Modules
 
 ### `domain.ts`
-Plain interfaces only: `Book`, `Chapter`, `Paragraph`, `Line`. No classes, no methods. Sources provide stable IDs.
+Plain interfaces only: `Book`, `Chapter`, `Chunk`, `Paragraph` (optional `chunkId` — paragraph of a chunk), `Token` (BPE token of a chunk — alternate descent from `Chunk`, sibling of `Paragraph`), `Line`. No classes, no methods. Sources provide stable IDs.
 
 ### `exchange.ts`
 The data unit is a Camel-style **Exchange** (replaces the bare Envelope; `Envelope<T>` stays as a

@@ -429,6 +429,29 @@ The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readT
 ### `token-splitter.ts`
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
 
+### `normalization/chunk-separator.ts`
+Fixates source text into stable, token-bounded chunks joined by a `---` separator line; later runs reuse the
+separator instead of re-splitting.
+
+- `chunkClean` / `createChunkClean({ separator })` — strips separator + decorative-only lines, collapses blank
+  runs; sets `chunkCount` (meta + variable) and `chunkSeparator` variable.
+- `chunkSplit` / `createChunkSplit({ separator, chunkSize, reuse, count })` — clean + `splitIntoChunks` +
+  `joinChunks`; with `reuse` (default true) text that already contains separator lines is kept as-is. Sets
+  `chunkCount` (meta + variable) and `chunkSeparator` variable. Chunk size: `resolveChunkSize` →
+  `meta.chunkSize` → tool option `chunkSize` → mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` →
+  `DEFAULT_CHUNK_TARGET` (6000).
+- Pure helpers: `stripSeparators`, `splitIntoChunks` (paragraph → line → word boundaries, never mid-word,
+  never loses/reorders text), `joinChunks`, `parseChunks` (inverse; no re-split).
+
+### `normalization/chunk-tokens.ts`
+Alternate descent `chunks -> tokens` (sibling of `chunks -> paragraphs`): tiktoken-style BPE tokens of a chunk.
+
+- `chunkTokenize` / `createChunkTokenize({ encoding })` — `string` chunk in, `{ tokenId, text }[]` out; sets
+  `tokenCount` (meta + variable) and the `tokenHeuristic` variable.
+- `tokenizeChunk(text, { encoding? })` → `{ tokenId, text }[]`; `tokenizeChunkDetailed` also returns
+  `heuristic: boolean`. Uses `gpt-tokenizer` (`encode` + `decode([id])` per token); falls back to ~4-char pieces
+  (`heuristic: true`) when the package is unavailable.
+
 ### `word-counter.ts`
 - `wordCounter` — counts words in an exchange, sets the `wordCount` variable.
 

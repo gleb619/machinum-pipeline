@@ -11,14 +11,17 @@
     "runner:void": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts --pipeline voidDemoPipeline",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl chapters-out entities .mt",
+    "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl jsonl/ladder.jsonl chapters-out entities out .mt",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest",
     "runner:count": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts --pipeline countSidePipeline",
     "runner:ephemeral": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts --pipeline ephemeralDemoPipeline",
     "runner:entities": "NODE_OPTIONS='--import tsx' mt run ./pipelines/entity-md-processing.ts",
-    "runner:branches": "NODE_OPTIONS='--import tsx' mt run ./pipelines/entity-md-processing.ts --pipeline parallelBranchesPipeline"
+    "runner:branches": "NODE_OPTIONS='--import tsx' mt run ./pipelines/entity-md-processing.ts --pipeline parallelBranchesPipeline",
+    "runner:chunks": "NODE_OPTIONS='--import tsx' mt run ./pipelines/chunk-normalization.ts",
+    "runner:ladder": "NODE_OPTIONS='--import tsx' mt run ./pipelines/chunk-normalization.ts --pipeline ladderPipeline",
+    "runner:tokens": "NODE_OPTIONS='--import tsx' mt run ./pipelines/chunk-normalization.ts --pipeline tokenLadderPipeline"
   },
   "dependencies": {
     "@mt/core": "workspace:*",

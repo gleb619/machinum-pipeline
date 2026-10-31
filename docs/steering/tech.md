@@ -118,6 +118,7 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_CONTEXT_LAST_MESSAGE` | `off` | Oversize final user message: `off` \| `truncate` (head+tail with elision) \| `summarize` (LLM) \| `error` |
 | `MT_CONTEXT_AUTO_LIMIT` | `true` | Derive the budget from the known model context window |
 | `MT_CONTEXT_LIMITS` | — | JSON map `{"glob-or-prefix": tokens}` extending the built-in model context-limit table |
+| `MT_CHUNK_SIZE` | `6000` | Default chunk size in tokens for the `chunkSplit` tool (below mt.json `settings.chunkSize` and per-envelope `meta.chunkSize` / tool option) |
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |
 | `MT_VAULT` | — | Path to a single vault file; when set, user/project vaults are ignored ([vault.md](../vault.md)) |

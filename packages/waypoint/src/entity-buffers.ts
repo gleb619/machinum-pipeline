@@ -10,6 +10,8 @@ import { createNamedEphemeralSource, createNamedEphemeralTarget } from './epheme
  *
  *   chapters://<namespace>    Chapter envelopes
  *   paragraphs://<namespace>  Paragraph envelopes
+ *   chunks://<namespace>      Chunk envelopes
+ *   tokens://<namespace>      Token envelopes (alternate descent from chunks)
  *   lines://<namespace>       Line envelopes
  *   words://<namespace>       Word envelopes
  *
@@ -18,7 +20,14 @@ import { createNamedEphemeralSource, createNamedEphemeralTarget } from './epheme
  * `ephemeral://lines` or `paragraphs://` wrote.
  */
 
-export const ENTITY_BUFFER_SCHEMES = ['chapters', 'paragraphs', 'lines', 'words'] as const
+export const ENTITY_BUFFER_SCHEMES = [
+  'chapters',
+  'paragraphs',
+  'chunks',
+  'tokens',
+  'lines',
+  'words',
+] as const
 
 export type EntityBufferScheme = (typeof ENTITY_BUFFER_SCHEMES)[number]
 

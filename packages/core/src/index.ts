@@ -146,7 +146,7 @@ export {
   withoutOldAndEmpty,
   withoutVariable,
 } from './exchange.js'
-export type { Book, Chapter, Paragraph, Line } from './domain.js'
+export type { Book, Chapter, Paragraph, Chunk, Token, Line } from './domain.js'
 export {
   definePipeline,
   defineTool,

@@ -9,7 +9,7 @@ Samples = runnable mini-projects showing how to work with `mt`. Each doubles as 
 |---|---|---|
 | `sample0` | `mt init` scaffolding, asserts generated files | `tests/init.test.ts` |
 | `sample1` | `hs://` HTTP source → `jsonl://` target; 2nd pipeline `jsonl://` → `chapterDoc` → `md://`; external client script | `pipelines/`, `simulation1.ts`, `run-example.ts`, `tests/full-flow.test.ts` |
-| `sample2` | Markdown processing in two flavours: basics (shipped tools only) and custom (one bespoke `defineTool`); waypoints (`jsonl://`, `range://`, `md://`, `void://`, `ephemeral://`), entity buffers (`lines://`, `words://`), `.tap` sync/async, tool-step parallelism, `.fork()` branches | `pipelines/basic-md-processing.ts`, `pipelines/custom-md-processing.ts`, `pipelines/entity-md-processing.ts` |
+| `sample2` | Markdown processing in two flavours: basics (shipped tools only) and custom (one bespoke `defineTool`); waypoints (`jsonl://`, `range://`, `md://`, `void://`, `ephemeral://`), entity buffers (`lines://`, `words://`), `.tap` sync/async, tool-step parallelism, `.fork()` branches ; chunk normalization (`chunkClean`/`chunkSplit`, separator reuse) and the Structure Ladder | `pipelines/basic-md-processing.ts`, `pipelines/custom-md-processing.ts`, `pipelines/entity-md-processing.ts`, `pipelines/chunk-normalization.ts` |
 | `sample3` | Multi-tool pipeline: custom `defineTool`, `.flatMap/.tap/.batch`, `.subflow()`, named pipeline exports (`--pipeline <name>`), `ephemeral://` | `pipelines/jsonl-to-md-multi.ts`, `prepare-input.ts` |
 
 Shared sample data: `books/book1/chapter-N.en.md` (repo root).
