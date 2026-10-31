@@ -12,6 +12,9 @@ const RECORDS = [
   { id: 3, text: 'Third line of the document.' },
 ]
 
+/** Words counted across the three lines ("1", "first", "line", "of", "the", "document" x3). */
+const TOTAL_WORDS = RECORDS.length * 6
+
 let hasFailure = false
 
 async function cleanup(): Promise<void> {
@@ -50,23 +53,42 @@ function run(pipelineName?: string): string {
   }).toString('utf-8')
 }
 
+function countMatches(text: string, pattern: RegExp): number {
+  return text.match(pattern)?.length ?? 0
+}
+
 describe('default pipeline', () => {
   it('runs the default pipeline to completion', () => {
     run()
   })
 
-  it('writes output.md with each input line', async () => {
+  it('writes output.md with every input line', async () => {
     const content = await readFile(join(SAMPLE_DIR, 'output.md'), 'utf-8')
     for (const record of RECORDS) {
-      expect(content).toContain(`- ${record.id}: ${record.text}`)
+      expect(content).toContain(`${record.id}: ${record.text}`)
     }
   })
 
-  it('applies both sync and async fork markers', async () => {
-    const content = await readFile(join(SAMPLE_DIR, 'output.md'), 'utf-8')
-    for (const record of RECORDS) {
-      expect(content).toContain(`- ${record.id}: ${record.text} [sync processed] [async processed]`)
+  it('runs the sync and async steps once per line', () => {
+    const stdout = run()
+    expect(countMatches(stdout, /"stage":"sync"/g)).toBe(RECORDS.length)
+    expect(countMatches(stdout, /"stage":"async"/g)).toBe(RECORDS.length)
+  })
+
+  it('merges both fork branches back into the parent stream', () => {
+    const stdout = run()
+    const branches = stdout.match(/"stage":"branch"[^}]*}/g) ?? []
+    expect(branches).toHaveLength(RECORDS.length)
+    for (const branch of branches) {
+      // tokenCount comes from the parallel tool step, statWords from the stats branch.
+      expect(branch).toMatch(/"tokenCount":\d+/)
+      expect(branch).toMatch(/"statWords":\d+/)
     }
+  })
+
+  it('counts the words of the whole corpus in the side stage', () => {
+    const stdout = run()
+    expect(stdout).toMatch(/"stage":"word-stats","totalWords":18,"uniqueWords":10/)
   })
 })
 
@@ -75,11 +97,9 @@ describe('rangeDemoPipeline', () => {
     run('rangeDemoPipeline')
   })
 
-  it('emits a console event for each generated number', () => {
+  it('processes every generated number', () => {
     const stdout = run('rangeDemoPipeline')
-    expect(stdout).toMatch(/"type":"line-seen"/g)
-    // range://1..3 produces three lines.
-    expect(stdout.match(/"type":"line-seen"/g)?.length).toBe(3)
+    expect(countMatches(stdout, /"stage":"range"/g)).toBe(3)
   })
 })
 
@@ -97,17 +117,16 @@ describe('ephemeralDemoPipeline', () => {
     run('ephemeralDemoPipeline')
   })
 
-  it('emits a console event for each input line', () => {
+  it('writes one envelope per input line into the in-memory buffer', () => {
     const stdout = run('ephemeralDemoPipeline')
-    expect(stdout).toMatch(/"type":"line-seen"/g)
-    expect(stdout.match(/"type":"line-seen"/g)?.length).toBe(RECORDS.length)
+    expect(countMatches(stdout, /"stage":"ephemeral"/g)).toBe(RECORDS.length)
   })
 })
 
 describe('countSidePipeline', () => {
-  it('counts all input lines in a non-blocking side branch', () => {
+  it('counts the corpus in a non-blocking side branch', () => {
     const stdout = run('countSidePipeline')
-    expect(stdout).toContain('[counter] side branch counted 3 lines')
+    expect(stdout).toContain(`"stage":"counter","totalWords":${TOTAL_WORDS}`)
   })
 
   it('writes the counted batch to ./counts.jsonl', async () => {

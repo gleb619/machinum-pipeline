@@ -1,29 +1,61 @@
 # Sample 3 — Basic Markdown Processing
 
-A minimal `mt` pipeline that shows the core mechanics without chapter-processing tools or LLM calls.
+A minimal `mt` pipeline that shows the core mechanics without LLM calls — and without
+hand-written tools: every step is a shipped waypoint or a package tool.
 
 ## What you will learn
 
-- How to read a source (`jsonl://`, `range://`).
-- How to emit a small event with a custom `defineTool` and `.tap`-style logging.
-- How to use `.subflow()` to inline a reusable processing block and merge its output back into the parent stream.
-- How to use `.fork()` to run child pipelines per envelope and merge their results back.
-- How to write to a file target (`md://`, `jsonl://`) and how to discard output with `void://`.
-- How to write to the built-in in-memory `ephemeral://` target and its entity-level shortcuts
-  (`chapters://`, `paragraphs://`, `lines://`, `words://`).
-- How to run a non-blocking side pipeline that reads the same source and counts/aggregates independently of the main flow.
+- How to read a source (`jsonl://`, `range://`) and write a target (`md://`, `jsonl://`).
+- How to fan data out with `.flatMap()` and group it with `.batch()`.
+- How to hand data between stages through the entity buffers `lines://` and `words://`
+  (in-process, no file in between).
+- How to process the same stream in **sync**, **async** and **parallel** ways.
+- How to branch the flow with `.fork()` and merge the branch results back.
+- How to discard output with `void://` and how to keep it in memory with `ephemeral://`.
+- How to run a non-blocking side pipeline that counts the corpus independently of the main flow.
 
 ## Pipeline file
 
-`pipelines/basic-md-processing.ts` exports several pipelines:
+`pipelines/basic-md-processing.ts` — **no `defineTool` in this file**. The only local code is
+data glue inside `.flatMap()` and logging inside `.tap()`.
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` | `pnpm run runner` | JSONL → line → event → sync fork → async fork → `output.md` |
-| `rangeDemoPipeline` | `pnpm run runner:range` | `range://1..3` → line → event → `void://` |
-| `voidDemoPipeline` | `pnpm run runner:void` | Same JSONL source → line → event → `void://` |
-| `ephemeralDemoPipeline` | `pnpm run runner:ephemeral` | JSONL → line → event → `ephemeral://basic-md-buffer` (in-memory) |
-| `countSidePipeline` | `pnpm run runner:count` | JSONL → batch → count → write total to `counts.jsonl` (independent side branch) |
+| `default` | `pnpm run runner` | JSONL → `lines://` → `words://` → sync/async/parallel steps → two `.fork()` branches → `output.md` |
+| `rangeDemoPipeline` | `pnpm run runner:range` | `range://1..3` → lines → word count → `void://` |
+| `voidDemoPipeline` | `pnpm run runner:void` | Same JSONL source → lines → `void://` |
+| `ephemeralDemoPipeline` | `pnpm run runner:ephemeral` | JSONL → lines → `ephemeral://basic-md-buffer` (in-memory) |
+| `countSidePipeline` | `pnpm run runner:count` | JSONL → lines → batch → word statistics → `counts.jsonl` (independent side branch) |
+
+### The default flow
+
+```
+jsonl://./jsonl/input.jsonl
+  → flatMap              (record → one envelope per line)
+  → lines://basic-md     (entity buffer — in-process handoff)
+  → wordCounter          (package tool → `wordCount` variable)
+  → flatMap              (line → words, via the package splitter `tokenizeWords`)
+  → words://basic-md     (entity buffer)
+  → tap (sync) / tap (async) / tokenCounter (parallel) / fork / fork
+  → md://./output.md
+```
+
+The four stages are `.subflow()`s of an orchestration-only parent. A subflow that declares its
+own `.from()` is **self-contained**: it runs after the upstream stream is consumed, in declaration
+order. `lines://` and `words://` are process-local buffers, so the stage boundaries stay in memory.
+
+### Sync, async, parallel, branching — what is really going on
+
+| Step | Construct | Semantics |
+|------|-----------|-----------|
+| SYNC | `.tap(env => …)` | Observes each envelope, does not await. The stream moves on immediately. |
+| ASYNC | `.tap(async env => { await … })` | The pipeline waits for the promise; the process does not block. |
+| PARALLEL | `.use(tokenCounter)` | A tool step — the engine runs up to `defaults.concurrency` envelopes of that step at the same time (4 in `mt.json`), order preserved. |
+| BRANCH | `.fork(child)` | A child pipeline per envelope, run one after another for that envelope. The child's output is merged back into the parent stream. |
+
+`.fork()` is **per-envelope nesting, not parallelism** — the two branches of this sample run
+sequentially for every line. Real parallelism is the per-tool-step limiter
+(`defaults.concurrency`), and `.tap()` / `.flatMap()` are always sequential.
 
 ## Entity pipeline (`pipelines/entity-md-processing.ts`)
 
@@ -98,11 +130,15 @@ pnpm run cleanup
 
 The integration test writes fixed three-line JSONL input, runs each pipeline, and asserts:
 
-- `output.md` contains every input line with both `[sync processed]` and `[async processed]` markers.
-- `rangeDemoPipeline` emits one `line-seen` event per generated integer.
+- `output.md` contains every input line.
+- the default pipeline logs one `sync` and one `async` event per line,
+- both `.fork()` branches are merged back (`tokenCount` from the parallel tool step,
+  `statWords` from the stats branch appear on the same envelope),
+- the side stage counts the corpus (`totalWords=18`, `uniqueWords=10`).
+- `rangeDemoPipeline` processes every generated number.
 - `voidDemoPipeline` produces no `output.md` because `void://` discards everything.
 - `ephemeralDemoPipeline` runs to completion using the built-in `ephemeral://` target.
-- `countSidePipeline` logs the batch count and writes `counts.jsonl`.
+- `countSidePipeline` logs the corpus totals and writes `counts.jsonl`.
 
 `tests/entity-md-processing.test.ts` writes a two-chapter JSONL fixture and asserts:
 
