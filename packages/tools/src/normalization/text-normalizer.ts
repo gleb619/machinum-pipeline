@@ -22,7 +22,7 @@ const INVISIBLE = /[­᠎​-‏‪-‮⁠-⁤﻿]/g
 // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the point
 const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g
 /** Exotic unicode spaces (NBSP, en/em/thin space, ideographic space ...). */
-const ODD_SPACES = /[   -   　\t]/g
+const ODD_SPACES = /[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\t]/g
 /** Stray symbols with no place in prose. */
 const USELESS = /[*~^■-◿★☆※♦❖✽✦✧]+/g
 /** A line made only of decorative characters. */

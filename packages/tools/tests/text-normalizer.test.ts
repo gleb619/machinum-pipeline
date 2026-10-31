@@ -22,6 +22,10 @@ describe('normalizeText', () => {
     expect(normalizeText('a​b﻿c\u0007d e')).toBe('abcd e')
   })
 
+  it('normalizes no-break spaces to plain spaces', () => {
+    expect(normalizeText('now\u00A0go')).toBe('now go')
+  })
+
   it('collapses spaces and repeated blank lines', () => {
     expect(normalizeText('\n\na   b\n\n\n\nc  \n\n')).toBe('a b\n\nc')
   })
