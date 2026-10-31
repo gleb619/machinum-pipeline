@@ -216,7 +216,7 @@ Errors: unknown entry / model (not in `models`) / no vault loaded name the ref a
 `resolved.sources` reports `vault:<entry>`; `meta.llm` still ignores `apiKey(s)`; nothing from the vault
 reaches meta, checkpoints or logs.
 
-Sample pickers (`samples/sample2|3/pipelines/llm-picker.ts`) pass `MT_LLM_USE` / `settings.llm.use`
+Sample pickers (`packages/tools/src/core/llm-picker.ts`, used by sample3 and sample4) pass `MT_LLM_USE` / `settings.llm.use`
 to the chosen tool; without an explicit `MT_LLM_MODEL` / `llm.model` the vault model is used.
 
 ## Router entry (client side)

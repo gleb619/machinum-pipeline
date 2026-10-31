@@ -9,7 +9,8 @@ Samples = runnable mini-projects showing how to work with `mt`. Each doubles as 
 |---|---|---|
 | `sample0` | `mt init` scaffolding, asserts generated files | `tests/init.test.ts` |
 | `sample1` | `hs://` HTTP source → `jsonl://` target; 2nd pipeline `jsonl://` → `chapterDoc` → `md://`; external client script | `pipelines/`, `simulation1.ts`, `run-example.ts`, `tests/full-flow.test.ts` |
-| `sample2` | Multi-tool pipeline: custom `defineTool`, `.flatMap/.tap/.batch`, `.subflow()`, named pipeline exports (`--pipeline <name>`), `ephemeral://` | `pipelines/jsonl-to-md-multi.ts`, `prepare-input.ts` |
+| `sample2` | Basic Markdown processing with no bespoke tools: waypoints (`jsonl://`, `range://`, `md://`, `void://`, `ephemeral://`), entity buffers (`lines://`, `words://`), `.tap` sync/async, tool-step parallelism, `.fork()` branches | `pipelines/basic-md-processing.ts`, `pipelines/entity-md-processing.ts` |
+| `sample3` | Multi-tool pipeline: custom `defineTool`, `.flatMap/.tap/.batch`, `.subflow()`, named pipeline exports (`--pipeline <name>`), `ephemeral://` | `pipelines/jsonl-to-md-multi.ts`, `prepare-input.ts` |
 
 Shared sample data: `books/book1/chapter-N.en.md` (repo root).
 
@@ -50,7 +51,7 @@ samples/sampleN/
      .to('md://./chapters/en')
    ```
    Extra pipelines → named exports; run with `mt run <file> --pipeline <name>`.
-7. **Input data** — reuse `books/book1` via a `prepare-input.ts` (sample2) or HTTP client script (sample1).
+7. **Input data** — reuse `books/book1` via a `prepare-input.ts` (sample3) or HTTP client script (sample1).
    Never commit generated output; commit `.gitkeep` for runtime dirs.
 8. **Integration test** (pattern identical across samples):
    - `SAMPLE_DIR = resolve(import.meta.dirname, '..')`, `MT_BIN = <SAMPLE_DIR>/node_modules/.bin/mt`

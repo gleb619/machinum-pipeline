@@ -66,7 +66,7 @@ const CHAPTERS_DIR = 'md://./chapters-out'
 // ---------------------------------------------------------------------------
 
 const parseChapterDoc = defineTool<string, ChapterDoc>({
-  name: 'sample3-parse-chapter-doc',
+  name: 'sample2-parse-chapter-doc',
   version: '1.0.0',
   mdDescription:
     'Parse markdown into ChapterDoc (paragraphs + lines) via @mt/tools readChapterDoc.',
@@ -142,7 +142,7 @@ function entitySink<T>(uri: string, label: string) {
 // appends the `mdOutputs` intent that the md:// directory target writes.
 // ---------------------------------------------------------------------------
 
-const chapterMdPipeline = definePipeline({ id: 'sample3-entity-chapter-md' })
+const chapterMdPipeline = definePipeline({ id: 'sample2-entity-chapter-md' })
   .from('jsonl://./jsonl/entities.jsonl')
   .flatMap(async (record: unknown) => [toChapterInput(record as ChapterRecord)])
   .use(chapterDocBuild)
@@ -157,7 +157,7 @@ const chapterMdPipeline = definePipeline({ id: 'sample3-entity-chapter-md' })
 // Stage 2: markdown -> Paragraph entities, buffered in paragraphs://
 // ---------------------------------------------------------------------------
 
-const paragraphPipeline = definePipeline({ id: 'sample3-entity-paragraphs' })
+const paragraphPipeline = definePipeline({ id: 'sample2-entity-paragraphs' })
   .from(CHAPTERS_DIR)
   .use(parseChapterDoc)
   .flatMap(async (doc: unknown) => toParagraphs(doc as ChapterDoc))
@@ -167,7 +167,7 @@ const paragraphPipeline = definePipeline({ id: 'sample3-entity-paragraphs' })
 // Stage 3: Paragraph -> Line entities (entity-buffer handoff, same process)
 // ---------------------------------------------------------------------------
 
-const linePipeline = definePipeline({ id: 'sample3-entity-lines' })
+const linePipeline = definePipeline({ id: 'sample2-entity-lines' })
   .from('paragraphs://')
   .flatMap(async (paragraph: unknown) => toLines(paragraph as ParagraphEntity))
   .to(entitySink<LineEntity>('lines://', 'lines'))
@@ -179,7 +179,7 @@ const linePipeline = definePipeline({ id: 'sample3-entity-lines' })
 // `.flatMap` fans the batch back out so jsonl:// gets one word per envelope.
 // ---------------------------------------------------------------------------
 
-const wordPipeline = definePipeline({ id: 'sample3-entity-words' })
+const wordPipeline = definePipeline({ id: 'sample2-entity-words' })
   .from('lines://')
   .flatMap(async (line: unknown) => toWords(line as LineEntity))
   .batch(10_000)
@@ -197,7 +197,7 @@ const wordPipeline = definePipeline({ id: 'sample3-entity-words' })
 // buffers: stage boundaries 2 -> 3 -> 4 stay in memory inside this one process.
 // ---------------------------------------------------------------------------
 
-export default definePipeline({ id: 'sample3-entity-md-processing' })
+export default definePipeline({ id: 'sample2-entity-md-processing' })
   .subflow(chapterMdPipeline)
   .subflow(paragraphPipeline)
   .subflow(linePipeline)
@@ -215,7 +215,7 @@ export default definePipeline({ id: 'sample3-entity-md-processing' })
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const tagSync = defineTool<ParagraphEntity, ParagraphEntity>({
-  name: 'sample3-tag-sync',
+  name: 'sample2-tag-sync',
   version: '1.0.0',
   mdDescription: 'Synchronous fork: append a marker to the paragraph body.',
   invoke: async (env, _ctx) => {
@@ -225,7 +225,7 @@ const tagSync = defineTool<ParagraphEntity, ParagraphEntity>({
 })
 
 const tagAsync = defineTool<ParagraphEntity, ParagraphEntity>({
-  name: 'sample3-tag-async',
+  name: 'sample2-tag-async',
   version: '1.0.0',
   mdDescription: 'Asynchronous fork: await a tick, then append a marker.',
   invoke: async (env, _ctx) => {
@@ -236,7 +236,7 @@ const tagAsync = defineTool<ParagraphEntity, ParagraphEntity>({
 })
 
 const concurrencyProbe = defineTool<ParagraphEntity, ParagraphEntity>({
-  name: 'sample3-concurrency-probe',
+  name: 'sample2-concurrency-probe',
   version: '1.0.0',
   mdDescription: 'Record start/end timestamps so overlapping executions are visible.',
   invoke: async (env, _ctx) => {
@@ -247,10 +247,10 @@ const concurrencyProbe = defineTool<ParagraphEntity, ParagraphEntity>({
   },
 })
 
-const syncBranch = definePipeline({ id: 'sample3-branch-sync' }).use(tagSync)
-const asyncBranch = definePipeline({ id: 'sample3-branch-async' }).use(tagAsync)
+const syncBranch = definePipeline({ id: 'sample2-branch-sync' }).use(tagSync)
+const asyncBranch = definePipeline({ id: 'sample2-branch-async' }).use(tagAsync)
 
-export const parallelBranchesPipeline = definePipeline({ id: 'sample3-entity-branches' })
+export const parallelBranchesPipeline = definePipeline({ id: 'sample2-entity-branches' })
   .from('jsonl://./jsonl/entities.jsonl')
   .flatMap(async (record: unknown) => [toChapterInput(record as ChapterRecord)])
   .use(chapterDocBuild)

@@ -1,22 +1,38 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const BOOK_DIR = join(import.meta.dirname, '..', '..', 'books', 'book1')
-const OUTPUT_DIR = join(import.meta.dirname, 'jsonl')
-const OUTPUT_FILE = join(OUTPUT_DIR, 'input.jsonl')
+const SAMPLE_DIR = import.meta.dirname
+const RECORDS = [
+  { id: 1, text: 'First line of the document.' },
+  { id: 2, text: 'Second line of the document.' },
+  { id: 3, text: 'Third line of the document.' },
+]
 
-const files = ['chapter-1.en.md', 'chapter-2.en.md', 'chapter-3.en.md']
+// Chapter/Paragraph/Line fixture for the entity pipeline.
+const ENTITY_RECORDS = [
+  {
+    number: 1,
+    title: 'Chapter One',
+    paragraphs: [
+      ['The first line has words.', 'Second line follows here.'],
+      ['A short paragraph ends.'],
+    ],
+  },
+  {
+    number: 2,
+    title: 'Chapter Two',
+    paragraphs: [['Third chapter starts now.'], ['Final line closes the book.']],
+  },
+]
 
-mkdirSync(OUTPUT_DIR, { recursive: true })
-
-const lines: string[] = []
-for (const file of files) {
-  const content = readFileSync(join(BOOK_DIR, file), 'utf8')
-  const titleMatch = content.match(/^#\s+(.+)$/m)
-  const title = titleMatch ? titleMatch[1].trim() : file
-  const envelope = JSON.stringify({ item: { title, body: content, sourceFile: file }, meta: {} })
-  lines.push(envelope)
+async function main(): Promise<void> {
+  await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
+  await mkdir(join(SAMPLE_DIR, 'entities'), { recursive: true })
+  const jsonlContent = `${RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
+  await writeFile(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
+  const entityContent = `${ENTITY_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
+  await writeFile(join(SAMPLE_DIR, 'jsonl', 'entities.jsonl'), entityContent, 'utf-8')
+  console.log('Wrote jsonl/input.jsonl and jsonl/entities.jsonl')
 }
 
-writeFileSync(OUTPUT_FILE, `${lines.join('\n')}\n`)
-console.log(`Wrote ${lines.length} chapters to ${OUTPUT_FILE}`)
+main()

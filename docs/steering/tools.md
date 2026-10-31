@@ -74,7 +74,7 @@ records `attempts`, `tokens`, `model`, `fallbackUsed`, `lastFailure`.
 routerUrl, call })`, default model `openai/gpt-4o-mini`; per-envelope overrides via `schemaDocLlm` variable and
 `<key>Prompt` / `<key>SystemPrompt` variables. `call` (`SchemaDocLlmCall`: `(input, ctx) =>
 Promise<ChatCompletionOutput>`) replaces the router-proxy request with a custom backend — used by
-`samples/sample2` to run the extractors through a picked LLM gate. Templates render `{{title}}`,
+`samples/sample3` to run the extractors through a picked LLM gate. Templates render `{{title}}`,
 `{{body}}`, `{{chapter}}`, …
 Batched envelopes store per-item results in the `<key>ByItem` variable.
 
@@ -275,7 +275,7 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
   config point (`MT_LLM_TOOL`, `MT_LLM_MODEL`, `MT_LLM_USE`, mt.json `settings.llm.*`; default offline `mock`).
   Returns `{ tool, model, gate, schemaCall, translate }`. Pass `configPath` = the project's `mt.json`
   (default `./mt.json` of the cwd); its `imports` (e.g. a gitignored `mt.local.json`) are merged in first.
-  Shared by sample2, sample4 and sample5.
+  Shared by sample3, sample4 and sample5.
 - `normalization/chapter-record.ts` — `toChapterRecord`, `chapterRecordMapper` (raw `{key,value}` -> `"title\nbody"`,
   `meta.chapterNum`), `lineTextToMarkdown` (first line -> `# title`, other lines -> paragraphs, `{ text }`),
   `unwrapMarkdownText` (`{ text }` -> string, undoes remark `\[` escaping).
@@ -509,8 +509,9 @@ const gate = createLlmGate({
 .use(gate.with({ fit: myFitTool }))   // any Tool or fn(env, ctx)
 ```
 
-Tests: `tests/llm-*.test.ts`. Samples: `samples/sample2` `llmGatePipeline` (mock `call` slot) and
-`translateSlotsMockPipeline` (`.with({ translate })` on `titleTranslator`/`paragraphTranslator`, offline mock).
+Tests: `tests/llm-*.test.ts`. Samples: `samples/sample3` `schemaDocMockPipeline` (`.with({ emit })` slot
+override, offline mock) and `translateTitlesPipeline` / `translateChapterPipeline` (`createTitleTranslator` /
+`createParagraphTranslator` with the picked `translate` slot).
 
 ## Key Patterns
 

@@ -20,7 +20,8 @@ machinum-pipeline/
 ├── samples/
 │   ├── sample0/    — `mt init` integration test
 │   ├── sample1/    — HTTP → JSONL pipeline (`hs://` source)
-│   └── sample2/    — Multi-tool: JSONL → tools → fork → batch → MD
+│   ├── sample2/    — Basic Markdown processing: waypoints + package tools, entity buffers, fork/parallel
+│   └── sample3/    — Multi-tool: JSONL → tools → fork → batch → MD
 ├── docs/
 │   ├── tdd.md       — Architecture spec
 │   ├── uc.md        — 54 use cases

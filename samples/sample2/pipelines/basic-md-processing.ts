@@ -79,7 +79,7 @@ const wordStage = definePipeline({ id: 'basic-md-words' })
 // - ASYNC   — a `.tap(async …)` that awaits: the pipeline waits for it, the
 //             process does not block.
 // - PARALLEL— a tool step. The engine runs up to `defaults.concurrency`
-//             envelopes of this step at the same time (4 in samples/sample3/mt.json).
+//             envelopes of this step at the same time (4 in samples/sample2/mt.json).
 //
 // Then two BRANCHES via `.fork()`: a child pipeline per envelope, run one after
 // another for that envelope, and the child's result is merged back into the

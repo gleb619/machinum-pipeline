@@ -10,7 +10,7 @@ import { pickLlmTool, readLlmConfig } from '../src/core/llm-picker.js'
 const ctx = { run: { global: {} } } as unknown as ToolContext
 
 function configFile(settings: Record<string, unknown>): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sample2-mt-'))
+  const dir = mkdtempSync(join(tmpdir(), 'sample3-mt-'))
   const path = join(dir, 'mt.json')
   writeFileSync(path, JSON.stringify({ settings }), 'utf-8')
   return path

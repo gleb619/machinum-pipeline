@@ -14,7 +14,7 @@ import {
 } from '@mt/tools'
 import '@mt/waypoint'
 
-// === LLM backend (single config point, same pattern as sample2) ===
+// === LLM backend (single config point, same pattern as sample3) ===
 // `MT_LLM_TOOL` / `MT_LLM_MODEL` (or mt.json `settings.llm.*`) pick the backend; default is
 // the offline `mock`, whose scripted answer echoes the text back unchanged.
 // The LLM typo-fix step is OFF unless `MT_LLM_TYPO_FIX=1`: heuristics alone run offline.

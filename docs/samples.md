@@ -4,8 +4,8 @@
 |---------|-------------------|---------------------------------------------------------------|
 | sample0 | `samples/sample0` | `mt init` integration test — validates scaffolded artifacts   |
 | sample1 | `samples/sample1` | HTTP → JSONL pipeline (`hs://` source, `jsonl://` target)     |
-| sample2 | `samples/sample2` | Multi-tool pipeline: JSONL → tools → fork → batch → MD output |
-| sample3 | `samples/sample3` | Basic Markdown processing with no bespoke tools: sources/targets (`jsonl://`, `range://`, `md://`, `void://`, `ephemeral://`), entity buffers (`lines://`, `words://`), sync/async/parallel steps, `.fork()` branches and a non-blocking counter branch; entity pipeline (JSONL → md → Chapter → Paragraph → Line → Word) with `paragraphs://`/`lines://` buffers and fork vs parallel demos |
+| sample2 | `samples/sample2` | Basic Markdown processing with no bespoke tools: sources/targets (`jsonl://`, `range://`, `md://`, `void://`, `ephemeral://`), entity buffers (`lines://`, `words://`), sync/async/parallel steps, `.fork()` branches and a non-blocking counter branch; entity pipeline (JSONL → md → Chapter → Paragraph → Line → Word) with `paragraphs://`/`lines://` buffers and fork vs parallel demos |
+| sample3 | `samples/sample3` | Multi-tool pipeline: JSONL → tools → fork → batch → MD output |
 | sample4 | `samples/sample4` | Book flow in three chained stages: raw JSONL -> normalize -> summary/glossary/`<term>` tagging -> line-by-line EN->RU with a parity linter |
 | sample5 | `samples/sample5` | One tiny pipeline per LLM-backed tool (summary, translate modes, typo-fix, glossary, statdata, ...) with a side-by-side report in `out/<tool>/`; remote ollama via gitignored `mt.local.json` |
 
@@ -16,7 +16,7 @@ pre-merge gate (see [change-workflow.md](change-workflow.md)).
 
 ## LLM backend of a sample
 
-`sample2` and `sample4` route every LLM-backed tool through one pick (`samples/sampleN/pipelines/llm-picker.ts`):
+`sample3` and `sample4` route every LLM-backed tool through one pick (`pickLlmTool` from `@mt/tools`):
 `MT_LLM_TOOL` (`router` | `openrouter-free` | `openrouter-pool` | `ollama` | `mock`) selects the
 backend and `MT_LLM_MODEL` the model; `mt.json` → `settings.llm.tool` / `settings.llm.model` are the
 file-based fallback (the env wins). The default is the offline `mock` backend, so the sample tests
@@ -34,7 +34,7 @@ and `MT_LLM_SUMMARY=1` (analyze) add the LLM step; the `mock` backend answers wi
 Requires packing local deps first:
 
 ```bash
-cd samples/sample2
+cd samples/sample3
 pnpm -C ../../packages/core pack --pack-destination ./vendor
 pnpm -C ../../packages/cli pack --pack-destination ./vendor
 npm install --no-audit --no-fund

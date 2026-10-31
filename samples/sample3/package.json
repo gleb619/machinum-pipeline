@@ -1,22 +1,16 @@
 {
   "name": "sample3",
   "version": "1.0.0",
-  "description": "Machinum Pipeline sample \u2014 basic markdown processing with fork, subflow, range:// and void://",
+  "description": "Machinum Pipeline sample — JSONL to MD with multi-tool pipeline",
   "type": "module",
   "scripts": {
-    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
-    "runner:range": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline rangeDemoPipeline",
-    "runner:void": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline voidDemoPipeline",
+    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl chapters-out entities .mt",
+    "cleanup": "rm -rf chapters/en/*.md chapters/schema/*.md chapters/schema-mock/*.md jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "runner:count": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline countSidePipeline",
-    "runner:ephemeral": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline ephemeralDemoPipeline",
-    "runner:entities": "NODE_OPTIONS='--import tsx' mt run ./pipelines/entity-md-processing.ts",
-    "runner:branches": "NODE_OPTIONS='--import tsx' mt run ./pipelines/entity-md-processing.ts --pipeline parallelBranchesPipeline"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@mt/core": "workspace:*",

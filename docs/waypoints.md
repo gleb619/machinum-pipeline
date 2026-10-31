@@ -15,14 +15,14 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
 | WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
 | WP003 | hs:// / http://  | ✓      | —      | long-lived    | sample1                                   |
-| WP004 | chapter-output://| ✓      | ✓      | resumable     | sample2                                   |
-| WP005 | schema-doc://    | ✓      | ✓      | resumable     | sample2                                   |
+| WP004 | chapter-output://| ✓      | ✓      | resumable     | sample3                                   |
+| WP005 | schema-doc://    | ✓      | ✓      | resumable     | sample3                                   |
 | WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
-| WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample2                                   |
+| WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample3                                   |
 | WP008 | range://         | ✓      | —      | resumable     | —                                         |
 | WP009 | void://          | —      | ✓      | —             | —                                         |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
-| WP011 | chapters:// / paragraphs:// / lines:// / words:// | ✓ | ✓ | resumable | sample3                        |
+| WP011 | chapters:// / paragraphs:// / lines:// / words:// | ✓ | ✓ | resumable | sample2                        |
 
 ---
 
