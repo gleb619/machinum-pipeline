@@ -10,6 +10,7 @@ import { parseArgs } from 'node:util'
 import type { ToolContext } from '@mt/core'
 import {
   OLLAMA_BASE_URL,
+  listOllamaModels,
   mockLlmCall,
   ollamaHealth,
   ollamaTool,
@@ -243,6 +244,14 @@ async function main(): Promise<void> {
       process.exit(2)
     }
     console.log(`ollama ${h.version ?? '?'} at ${h.baseUrl}`)
+    const available = (await listOllamaModels(url)).map((m) => m.name)
+    const missing = models.filter((m) => !available.includes(m))
+    if (missing.length > 0) {
+      console.error(
+        `model(s) not on server: ${missing.join(', ')}\navailable: ${available.join(', ')}\n(wrong server? set MT_OLLAMA_URL to your GPU ollama, e.g. http://<host>:7869/v1)`,
+      )
+      process.exit(2)
+    }
   }
 
   const gate = pickGate(tool, FIXTURE)
