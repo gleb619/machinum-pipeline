@@ -4,16 +4,16 @@ import {
   chapterDoc,
   chapterIndexer,
   chapterValidator,
-  createEntitiesTool,
-  createParagraphTranslator,
-  createSchemaTool,
-  createSummaryTool,
-  createTitleTranslator,
+  entitiesTool,
   forbiddenCharDetector,
   mdFormatter,
   mockLlm,
+  paragraphTranslator,
   schemaDocWriter,
+  schemaTool,
   stubSchemaEmit,
+  summaryTool,
+  titleTranslator,
   toMarkdown,
   tokenCounter,
   wordCounter,
@@ -28,11 +28,11 @@ import '@mt/waypoint'
 // `MT_LLM_TOOL` / mt.json `settings.llm.tool`), a real backend (`ollama`,
 // `openrouter-free`, ...) when `MT_LLM_TOOL` names one - env wins over the mock.
 // `pickLlmTool` stays exported for pipelines that prefer explicit wiring.
-const summary = createSummaryTool()
-const entities = createEntitiesTool()
-const schema = createSchemaTool()
-const titles = createTitleTranslator()
-const paragraphs = createParagraphTranslator()
+const summary = summaryTool
+const entities = entitiesTool
+const schema = schemaTool
+const titles = titleTranslator
+const paragraphs = paragraphTranslator
 
 // === URI shortcuts (aliases) ===
 // Source/target URIs can be written as '@name' shortcuts instead of full URIs.
