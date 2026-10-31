@@ -1,5 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { RunStateData } from '@mt/core'
 import { defineEventHandler } from 'h3'
 
 interface RunInfo {
@@ -18,11 +19,11 @@ export default defineEventHandler(async () => {
         const statePath = join(runsDir, entry.name, 'state.json')
         try {
           const stateRaw = await readFile(statePath, 'utf-8')
-          const state = JSON.parse(stateRaw)
+          const state = JSON.parse(stateRaw) as RunStateData
           runs.push({
             id: entry.name,
             state: state.state || 'unknown',
-            started: state.started,
+            started: state.startedAt,
           })
         } catch {
           runs.push({ id: entry.name, state: 'unknown' })
