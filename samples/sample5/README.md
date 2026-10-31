@@ -63,7 +63,9 @@ call-time context (URL), not the backend choice made when the pipeline loads.
 
 ## Pipelines: what to look at
 
-Run all with `pnpm --filter=sample5 run <script>`. "fallback" = the tool rejected the model answer
+Run all with `pnpm --filter=sample5 run <script>`. The canonical sample flow is
+`pnpm run cleanup && pnpm run runner` — `runner` is an alias of `summary`, the default pipeline
+(input is committed, so no prepare step is needed). "fallback" = the tool rejected the model answer
 after its retries and used a deterministic substitute; the report shows it in **Run info**.
 
 | Script | Tool | Look at |

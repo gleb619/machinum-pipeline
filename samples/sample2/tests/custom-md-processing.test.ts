@@ -45,7 +45,7 @@ afterAll(async () => {
 
 function run(pipelineName?: string): string {
   const pipelineArg = pipelineName ? ` --pipeline ${pipelineName}` : ''
-  return execSync(`"${MT_BIN}" run ./pipelines/basic-md-processing.ts${pipelineArg}`, {
+  return execSync(`"${MT_BIN}" run ./pipelines/custom-md-processing.ts${pipelineArg}`, {
     cwd: SAMPLE_DIR,
     stdio: 'pipe',
     env: { ...process.env, NODE_OPTIONS: '--import tsx' },

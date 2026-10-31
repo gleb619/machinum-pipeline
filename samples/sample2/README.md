@@ -16,7 +16,7 @@ hand-written tools: every step is a shipped waypoint or a package tool.
 
 ## Pipeline file
 
-`pipelines/basic-md-processing.ts` — **no `defineTool` in this file**. The only local code is
+`pipelines/custom-md-processing.ts` — **no `defineTool` in this file**. The only local code is
 data glue inside `.flatMap()` and logging inside `.tap()`.
 
 | Pipeline | Command | Purpose |

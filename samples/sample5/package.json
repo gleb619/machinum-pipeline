@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "check-llm": "tsx check-llm.ts",
+    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/summary.ts",
     "summary": "NODE_OPTIONS='--import tsx' mt run ./pipelines/summary.ts",
     "summary-notes": "NODE_OPTIONS='--import tsx' mt run ./pipelines/summary-notes.ts",
     "entities": "NODE_OPTIONS='--import tsx' mt run ./pipelines/entities.ts",

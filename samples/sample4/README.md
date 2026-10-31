@@ -77,7 +77,9 @@ MT_LLM_TYPO_FIX=1 MT_LLM_TOOL=ollama pnpm run runner   # + LLM typo fix
 ```
 
 `prepare-input.ts [raw.jsonl] [out.jsonl]` defaults to `jsonl/kidnapped_dragons_en_0-10.jsonl`
-(your own data; not committed). The LLM step is off unless `MT_LLM_TYPO_FIX=1`; with the default
+(your own data; not committed). When that file is absent (fresh clone) it falls back to a small
+built-in two-chapter fixture and prints a notice, so the sample runs out of the box; pass an
+explicit path to use your own raw JSONL. The LLM step is off unless `MT_LLM_TYPO_FIX=1`; with the default
 `mock` backend it echoes the text back. A reply whose line count differs is discarded.
 
 Decorative-only lines (`***`, `~~~`) are dropped; all other lines are preserved one to one.

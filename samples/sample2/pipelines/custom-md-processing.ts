@@ -204,7 +204,7 @@ export const ephemeralDemoPipeline = definePipeline({ id: 'basic-md-ephemeral' }
 
 // ---------------------------------------------------------------------------
 // Non-blocking side pipeline: counts words independently of the main flow.
-// Run this with `mt run ./pipelines/basic-md-processing.ts --pipeline countSidePipeline`.
+// Run this with `mt run ./pipelines/custom-md-processing.ts --pipeline countSidePipeline`.
 // It reads the same JSONL source, counts the corpus in one batch, and writes the
 // result to a sidecar JSONL file without blocking or changing the main stream.
 // ---------------------------------------------------------------------------
