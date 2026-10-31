@@ -13,16 +13,16 @@ All waypoints follow `Source<T>` / `Target<T>` interfaces from `@mt/core` with a
 | ID   | Waypoint         | Source | Target | Lifestyle     | Used in Samples                           |
 |------|------------------|--------|--------|---------------|-------------------------------------------|
 | WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
-| WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
-| WP003 | hs:// / http://  | ✓      | —      | long-lived    | sample1                                   |
+| WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4, sample5        |
+| WP003 | hs:// / http://  | ✓      | —      | long-lived    | sample1, sample2                          |
 | WP004 | chapter-output://| ✓      | ✓      | resumable     | sample3                                   |
-| WP005 | schema-doc://    | ✓      | ✓      | resumable     | sample3                                   |
+| WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (sample3 writes schema docs via `md://` write intents, not this scheme) |
 | WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
-| WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample3                                   |
-| WP008 | range://         | ✓      | —      | resumable     | —                                         |
-| WP009 | void://          | —      | ✓      | —             | —                                         |
+| WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample2, sample3                          |
+| WP008 | range://         | ✓      | —      | resumable     | sample2                                   |
+| WP009 | void://          | —      | ✓      | —             | sample2                                   |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
-| WP011 | chapters:// / paragraphs:// / lines:// / words:// | ✓ | ✓ | resumable | sample2                        |
+| WP011 | chapters:// / paragraphs:// / lines:// / words:// | ✓ | ✓ | resumable | sample2 (`paragraphs://`, `lines://`, `words://`; `chapters://` unused) |
 
 ---
 
@@ -234,6 +234,21 @@ without inventing ad-hoc ephemeral names.
 **Global registration:** the schemes are registered on import of `@mt/waypoint` and are embedded in the `mt`
 umbrella/binary; `mt run` registers them before loading the pipeline. A pipeline only uses the URI — it never
 defines the scheme.
+
+---
+
+## Composing Waypoints: `defineWaypoint`
+
+`defineWaypoint(source|target, hooks)` wraps an existing Source/Target **instance** with lifecycle hooks
+— no new scheme registration needed:
+
+- Source hooks: `onStart`, `filter` (drop envelopes), `onItem`
+- Target hooks: `onOpen`, `onWrite`, `onClose`
+
+Demonstrated in `samples/sample4/pipelines/waypoint-log.ts`, which re-runs the sample4 normalize chain
+with an audit-logging `jsonl://` source and `md://` target. The base accepts a URI string or an instance
+(`defineSource(...)` / `defineTarget(...)`); the sample passes instances so the wrapped endpoints are built
+explicitly next to their hooks.
 
 ---
 

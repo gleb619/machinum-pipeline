@@ -5,74 +5,74 @@
 
 ## Use Case Index
 
-| ID    | Use Case                                     | Uses tools |
-|-------|----------------------------------------------|------------|
-| UC001 | Initialize project                           | —          |
-| UC002 | Author a pipeline in TS                      | —          |
-| UC003 | Define a custom Tool                        | —          |
-| UC004 | Define custom Source/Target                 | —          |
-| UC005 | Run a pipeline (foreground)                 | —          |
-| UC006 | Resume a paused/failed Run                  | —          |
-| UC007 | Pause a running Run                         | —          |
-| UC008 | List runs                                   | —          |
-| UC009 | Inspect a Run                              | —          |
-| UC010 | Invoke a single Tool standalone             | —          |
-| UC011 | Invoke a Tool via `npx`                     | —          |
-| UC012 | Process items in parallel                   | —          |
-| UC013 | Batch items (`Item[]`)                      | —          |
-| UC014 | Fork into nested pipeline                   | —          |
-| UC015 | Auto-checkpoint at step boundary            | —          |
-| UC016 | Recover from crash                          | —          |
-| UC017 | Retry failing step                          | —          |
-| UC018 | Skip item on error (`skip-item`)            | —          |
-| UC019 | Route failures to dead-letter               | —          |
-| UC020 | Cache tool outputs                          | —          |
-| UC021 | Consume from JSONL Source                   | —          |
-| UC022 | Write to JSONL Target                      | —          |
-| UC023 | Long-lived HTTP Source                      | —          |
-| UC024 | Use Git worktree isolation                  | —          |
-| UC025 | Commit results on Target close              | —          |
-| UC026 | Start backend in-process                    | —          |
-| UC027 | Start backend detached                      | —          |
-| UC028 | Start a Run from Admin UI                   | —          |
-| UC029 | View live Run progress (SSE)                | —          |
-| UC030 | Browse runs list in UI                      | —          |
-| UC031 | Pause/Resume Run from UI                   | —          |
-| UC032 | Open Router dashboard                      | —          |
-| UC033 | Proxy LLM call via Router                  | —          |
-| UC034 | Track cost/usage per Run                    | —          |
-| UC035 | Use Router offline/mock mode                | —          |
-| UC036 | Roll router logs                            | —          |
-| UC037 | List pipelines via MCP                     | Done       |
-| UC038 | Run pipeline via MCP                       | Done       |
-| UC039 | Inspect Run via MCP                        | Done       |
-| UC040 | Invoke single tool via MCP                 | —          |
-| UC041 | Read book/chapter via MCP                  | —          |
-| UC042 | Scrape chapters via Chrome ext.             | —          |
-| UC043 | Auto-upload chapters via Chrome ext.        | —          |
-| UC044 | Validate `mt.json` in VSCode               | —          |
-| UC045 | Hover DSL info in VSCode                   | —          |
-| UC046 | "Run pipeline" code lens                   | —          |
-| UC047 | Configure retry/onError policies           | —          |
-| UC048 | Discover pipelines from `mt.json`          | —          |
-| UC049 | Load pipelines without build step          | —          |
-| UC051 | Compose Source/Target via URI joins        | —          |
-| UC052 | Persist artifacts under Run dir            | —          |
-| UC053 | Forward console logs to `.mt`               | —          |
-| UC054 | Mirror runs to SQLite (indicator)          | —          |
-| UC055 | Validate chapter structure (was UC-55)       | [TL008](tools.md), [TL010](tools.md), [TL011](tools.md), [TL063](tools.md), [TL071](tools.md) |
-| UC056 | Split large chapters by token count (was UC-56) | [TL106](tools.md)     |
-| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](tools.md), [TL005](tools.md), [TL006](tools.md), [TL014](tools.md), [TL015](tools.md), [TL043](tools.md), [TL059](tools.md) |
-| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](tools.md), [TL002](tools.md), [TL016](tools.md), [TL036](tools.md), [TL041](tools.md), [TL046](tools.md), [TL062](tools.md) |
-| UC059 | Batch translate chapter titles (was UC-59) | [TL026](tools.md), [TL051](tools.md) |
-| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](tools.md), [TL051](tools.md), [TL054](tools.md) |
-| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](tools.md), [TL051](tools.md) |
-| UC062 | Manage OpenRouter API key pool (was UC-62) | —          |
-| UC063 | Use remote GPU Ollama via a vault ref      | —          |
-| UC064 | Call LLM through a keyless router          | —          |
-| UC065 | Share a team router behind a token         | —          |
-| UC066 | Provision LLM keys with KeePass            | —          |
-| UC067 | Provision LLM keys with embedded store     | —          |
+| ID    | Use Case                                     | Uses tools | Samples |
+|-------|----------------------------------------------|------------|---------|
+| UC001 | Initialize project                           | —          | [sample0](../samples/sample0) |
+| UC002 | Author a pipeline in TS                      | —          | all samples ([samples.md](samples.md)) |
+| UC003 | Define a custom Tool                        | —          | [sample2](../samples/sample2) (entity pipeline defines local tools) |
+| UC004 | Define custom Source/Target                 | —          | [sample4](../samples/sample4) (`defineWaypoint` in `pipelines/waypoint-log.ts`) |
+| UC005 | Run a pipeline (foreground)                 | —          | all samples ([samples.md](samples.md)) |
+| UC006 | Resume a paused/failed Run                  | —          | — |
+| UC007 | Pause a running Run                         | —          | — |
+| UC008 | List runs                                   | —          | — |
+| UC009 | Inspect a Run                              | —          | — |
+| UC010 | Invoke a single Tool standalone             | —          | — |
+| UC011 | Invoke a Tool via `npx`                     | —          | — |
+| UC012 | Process items in parallel                   | —          | [sample2](../samples/sample2) |
+| UC013 | Batch items (`Item[]`)                      | —          | [sample2](../samples/sample2), [sample3](../samples/sample3) |
+| UC014 | Fork into nested pipeline                   | —          | [sample2](../samples/sample2) |
+| UC015 | Auto-checkpoint at step boundary            | —          | — |
+| UC016 | Recover from crash                          | —          | — |
+| UC017 | Retry failing step                          | —          | — |
+| UC018 | Skip item on error (`skip-item`)            | —          | — |
+| UC019 | Route failures to dead-letter               | —          | — |
+| UC020 | Cache tool outputs                          | —          | — |
+| UC021 | Consume from JSONL Source                   | —          | [sample1](../samples/sample1), [sample2](../samples/sample2), [sample3](../samples/sample3), [sample4](../samples/sample4) |
+| UC022 | Write to JSONL Target                      | —          | [sample1](../samples/sample1), [sample2](../samples/sample2) |
+| UC023 | Long-lived HTTP Source                      | —          | [sample1](../samples/sample1) |
+| UC024 | Use Git worktree isolation                  | —          | — |
+| UC025 | Commit results on Target close              | —          | — |
+| UC026 | Start backend in-process                    | —          | — |
+| UC027 | Start backend detached                      | —          | — |
+| UC028 | Start a Run from Admin UI                   | —          | — |
+| UC029 | View live Run progress (SSE)                | —          | — |
+| UC030 | Browse runs list in UI                      | —          | — |
+| UC031 | Pause/Resume Run from UI                   | —          | — |
+| UC032 | Open Router dashboard                      | —          | — |
+| UC033 | Proxy LLM call via Router                  | —          | — |
+| UC034 | Track cost/usage per Run                    | —          | — |
+| UC035 | Use Router offline/mock mode                | —          | [sample3](../samples/sample3), [sample4](../samples/sample4), [sample5](../samples/sample5) (offline `mock` LLM backend) |
+| UC036 | Roll router logs                            | —          | — |
+| UC037 | List pipelines via MCP                     | Done       | — |
+| UC038 | Run pipeline via MCP                       | Done       | — |
+| UC039 | Inspect Run via MCP                        | Done       | — |
+| UC040 | Invoke single tool via MCP                 | —          | — |
+| UC041 | Read book/chapter via MCP                  | —          | — |
+| UC042 | Scrape chapters via Chrome ext.             | —          | — |
+| UC043 | Auto-upload chapters via Chrome ext.        | —          | — |
+| UC044 | Validate `mt.json` in VSCode               | —          | — |
+| UC045 | Hover DSL info in VSCode                   | —          | — |
+| UC046 | "Run pipeline" code lens                   | —          | — |
+| UC047 | Configure retry/onError policies           | —          | — |
+| UC048 | Discover pipelines from `mt.json`          | —          | — |
+| UC049 | Load pipelines without build step          | —          | all samples ([samples.md](samples.md)) |
+| UC051 | Compose Source/Target via URI joins        | —          | — |
+| UC052 | Persist artifacts under Run dir            | —          | — |
+| UC053 | Forward console logs to `.mt`               | —          | — |
+| UC054 | Mirror runs to SQLite (indicator)          | —          | — |
+| UC055 | Validate chapter structure (was UC-55)       | [TL008](tools.md), [TL010](tools.md), [TL011](tools.md), [TL063](tools.md), [TL071](tools.md) | — |
+| UC056 | Split large chapters by token count (was UC-56) | [TL106](tools.md)     | — |
+| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](tools.md), [TL005](tools.md), [TL006](tools.md), [TL014](tools.md), [TL015](tools.md), [TL043](tools.md), [TL059](tools.md) | [sample3](../samples/sample3) (`chapterValidator`, `forbiddenCharDetector`), [sample4](../samples/sample4) (`typoFinder` warnings) |
+| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](tools.md), [TL002](tools.md), [TL016](tools.md), [TL036](tools.md), [TL041](tools.md), [TL046](tools.md), [TL062](tools.md) | [sample4](../samples/sample4) (`textNormalizer`, `markdownFormatter`, optional LLM typo fix) |
+| UC059 | Batch translate chapter titles (was UC-59) | [TL026](tools.md), [TL051](tools.md) | [sample4](../samples/sample4) (`pipelines/translate.ts`), [sample5](../samples/sample5) (`pipelines/translate-title.ts`) |
+| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](tools.md), [TL051](tools.md), [TL054](tools.md) | [sample4](../samples/sample4), [sample5](../samples/sample5) (`pipelines/translate-paragraphs.ts`) |
+| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](tools.md), [TL051](tools.md) | [sample3](../samples/sample3), [sample4](../samples/sample4), [sample5](../samples/sample5) (`openrouter-pool` backend of `pickLlmTool`) |
+| UC062 | Manage OpenRouter API key pool (was UC-62) | —          | — |
+| UC063 | Use remote GPU Ollama via a vault ref      | —          | [sample5](../samples/sample5) (remote ollama via gitignored `mt.local.json`) |
+| UC064 | Call LLM through a keyless router          | —          | — |
+| UC065 | Share a team router behind a token         | —          | — |
+| UC066 | Provision LLM keys with KeePass            | —          | — |
+| UC067 | Provision LLM keys with embedded store     | —          | — |
 
 ## Legacy ID Mapping
 
