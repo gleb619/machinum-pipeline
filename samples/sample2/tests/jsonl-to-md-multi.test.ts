@@ -17,11 +17,8 @@ let hasFailure = false
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'en'), { recursive: true, force: true })
-  await rm(join(SAMPLE_DIR, 'chapters', 'ru'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'schema'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'schema-mock'), { recursive: true, force: true })
-  await rm(join(SAMPLE_DIR, 'chapters', 'llm'), { recursive: true, force: true })
-  await rm(join(SAMPLE_DIR, 'chapters', 'translate-mock'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'md', 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
@@ -65,18 +62,6 @@ describe('jsonl-to-md-multi pipeline', () => {
         'utf-8',
       )
       expect(content).toContain(CHAPTERS[i].title)
-      expect(content).toContain(CHAPTERS[i].body)
-    }
-  })
-
-  it('writes translated ru chapters to chapters/ru with [ru] markers', async () => {
-    for (let i = 0; i < CHAPTERS.length; i++) {
-      const content = await readFile(
-        join(SAMPLE_DIR, 'chapters', 'ru', `chapter${i + 1}.md`),
-        'utf-8',
-      )
-      expect(content).toContain('[ru]')
-      expect(content).toContain('[/ru]')
       expect(content).toContain(CHAPTERS[i].body)
     }
   })
@@ -218,55 +203,5 @@ describe('schema-doc mock-emit pipeline (slot override)', () => {
     await expect(
       fs.access(join(SAMPLE_DIR, 'chapters', 'schema', 'chapter1.schema.md')),
     ).rejects.toThrow()
-  })
-})
-
-describe('translate slots mock pipeline (.with({ translate }), offline)', () => {
-  it('runs translateSlotsMockPipeline and writes mock-translated chapters', async () => {
-    execSync(
-      `"${MT_BIN}" run ./pipelines/jsonl-to-md-multi.ts --pipeline translateSlotsMockPipeline`,
-      {
-        cwd: SAMPLE_DIR,
-        stdio: 'pipe',
-        env: { ...process.env, NODE_OPTIONS: '--import tsx' },
-        timeout: 10_000,
-      },
-    )
-    for (let i = 1; i <= 3; i++) {
-      const content = await readFile(
-        join(SAMPLE_DIR, 'chapters', 'translate-mock', `chapter${i}.mock.md`),
-        'utf-8',
-      )
-      // the swapped `translate` slot wrapped both title and body in mock markers
-      expect(content).toContain('[mock]')
-      expect(content).toContain('[/mock]')
-      expect(content).toContain(CHAPTERS[i - 1]?.body)
-    }
-  })
-})
-
-describe('llm gate pipeline (mock call slot, custom prompt, context shrink)', () => {
-  it('runs offline and writes chapters/llm/chapter<N>.llm.md', async () => {
-    execSync(`"${MT_BIN}" run ./pipelines/jsonl-to-md-multi.ts --pipeline llmGatePipeline`, {
-      cwd: SAMPLE_DIR,
-      stdio: 'pipe',
-      env: { ...process.env, NODE_OPTIONS: '--import tsx' },
-      timeout: 10_000,
-    })
-    for (let i = 0; i < CHAPTERS.length; i++) {
-      const content = await readFile(
-        join(SAMPLE_DIR, 'chapters', 'llm', `chapter${i + 1}.llm.md`),
-        'utf-8',
-      )
-      expect(content).toContain('mock-summary(')
-      // custom prompt template reached the (mock) model
-      expect(content).toContain('SAMPLE PROMPT - summarize in 2 sentences')
-      expect(content).toContain(CHAPTERS[i].body)
-      // context budget (60 tokens) trimmed the 12 filler history messages (system + final prompt always kept)
-      expect(content).toMatch(/mock-summary\(3 msgs\)/)
-      const m = content.match(/context: (\d+) -> (\d+) tokens/)
-      expect(Number(m?.[1])).toBeGreaterThan(60)
-      expect(Number(m?.[2])).toBeLessThanOrEqual(60)
-    }
   })
 })

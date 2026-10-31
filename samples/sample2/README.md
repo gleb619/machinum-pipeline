@@ -1,29 +1,30 @@
 # Sample 2 — JSONL to MD Multi-Tool Pipeline
 
 This sample reads book chapters from JSONL and processes them through several tool chains: verification,
-schema-doc generation, and a stub translation. The default export is a pure orchestration pipeline — it has
-no source or target of its own and runs ten named subflows on the same Runner. Extra named pipelines
-(`schemaDocMockPipeline`, `llmGatePipeline`, `translateSlotsMockPipeline`) are run on demand with `--pipeline <name>`.
+schema-doc generation, and mocked-LLM title/paragraph translation. The default export is a pure
+orchestration pipeline — it has no source or target of its own and runs four subflows on the same
+Runner. One extra named pipeline (`schemaDocMockPipeline`, a minimal slot-override demo) is run on
+demand with `--pipeline <name>`.
 
 ## What you will learn
 
 - How to use the **simplified DSL syntax** with string URIs directly in `.from()` and `.to()` — no
   `source()`/`target()` wrappers needed.
 - How to compose subflows into a default pipeline with `.subflow()`.
-- How to define a custom in-memory tool with `defineTool()` and chain it with `.use()` (`stubTranslator`).
 - How to use `.flatMap()` to fan one envelope out into many (paragraph-level translation).
 - How to use `.batch(n)` to group items before a tool, then `.flatMap()` to unwrap them again.
 - How to use `.tap()` for side-effect logging, reading the variables the tools actually write
   (`chapterValidator` sets the `errors` variable, not `warnings`).
 - How to write source/target URIs as `'@name'` shortcuts, resolved from `mt.json` → `"uris"`
   (`en` → `md://./chapters/en`, `ru` → `chapter-output://./chapters`), so the pipeline writes
-  `.to('@en')` / `.to('@ru')` instead of the full URIs.
+  `.to('@en')` instead of the full URI.
 - How to swap the LLM backend (and the model) of every LLM-backed tool with one env var.
+- How to override one slot of a composable tool with `.with({ ... })` (`schemaDocMockPipeline`).
 
 ## LLM backend — one config point
 
-Every LLM-backed tool of this sample (the schema-doc summary / entities / schema extractors, the
-chapter translators, the LLM gate demo) is wired to one pick, made once at the top of
+Every LLM-backed tool of this sample (the schema-doc summary / entities / schema extractors and the
+chapter title / paragraph translators) is wired to one pick, made once at the top of
 `pipelines/jsonl-to-md-multi.ts`:
 
 ```typescript
@@ -74,9 +75,8 @@ samples/sample2/
 │   └── .gitkeep
 ├── chapters/                        # Created at runtime — pipeline output
 │   ├── en/                          #   verifyFlow: chapter1.md … chapterN.md
-│   ├── ru/                          #   translateFlow: chapter1.md … chapterN.md ([ru] markers)
 │   ├── schema/                      #   schemaDocPipeline: chapterN.schema.md
-│   └── llm/                         #   llmGatePipeline: chapterN.llm.md
+│   └── schema-mock/                 #   schemaDocMockPipeline: chapterN.mock.md (slot-override demo)
 └── tests/
     ├── jsonl-to-md-multi.test.ts    # Integration test (runs the real `mt` binary)
     ├── chapter-processing.test.ts   # Unit tests over the tools used by the flows
@@ -88,11 +88,8 @@ Default export — orchestration only, no `.from()`/`.to()` of its own:
 
 ```
 default
-  → subflow(verifyFlow)               → subflow(schemaDocPipeline)    → subflow(smokeTestPipeline)
-  → subflow(splitChaptersPipeline)    → subflow(collectWarningsPipeline)  → subflow(countTokensFlow)
-  → subflow(fixChapterPipeline)       → subflow(translateTitlesPipeline)
-  → subflow(translateChapterPipeline) → subflow(translateFlow)
-  → subflow(translateSlotsMockPipeline)
+  → subflow(verifyFlow) → subflow(schemaDocPipeline)
+  → subflow(translateTitlesPipeline) → subflow(translateChapterPipeline)
 ```
 
 ### verifyFlow — JSONL → verified MD
@@ -126,85 +123,31 @@ jsonl://./jsonl/input.jsonl
 
 ### schemaDocMockPipeline — schemaDocWriter with a swapped emit slot
 
-Same chain as `schemaDocPipeline`, but `.use(schemaDocWriter.with({ emit: mockSchemaEmit }))`: the `build`
-slot (markdown assembly) is reused, the `emit` slot is replaced by a sample-local mock that tags the markdown
-and redirects it to the target root's `schema-mock/` subfolder (`chapters/schema-mock/chapter<N>.mock.md`).
+Same chain as `schemaDocPipeline`, but `.use(schemaDocWriter.with({ emit: stubSchemaEmit }))`: the `build`
+slot (markdown assembly) is reused, the `emit` slot is replaced by a stub that tags the markdown and
+redirects it to the target root's `schema-mock/` subfolder (`chapters/schema-mock/chapter<N>.mock.md`).
+This is the one slot-override (`.with({ ... })`) example of the sample.
 Run with `--pipeline schemaDocMockPipeline`.
 
-### llmGatePipeline — LLM gate with the picked `call` slot (offline by default)
+### translateTitlesPipeline / translateChapterPipeline — mock-LLM translation (no disk I/O)
 
-Not part of the default subflow chain (it is a demo; it needs no API key). Shows the LLM toolkit:
-
-```
-jsonl://./jsonl/input.jsonl
-  → use(toLlmGateInput)        ← record -> {title, body, history[6 earlier notes]}, meta.chapterNum
-  → use(chapterSummaryGate)    ← createLlmGate(...).with({ call: llm.gate.slots.call })
-        prepare: custom 'summary' prompt template (override of the built-in default)
-        fit:     context budget maxTokens=60, strategies ['dropOldest','truncateLines']
-        call:    the picked backend's call slot (mock by default: scripted answer, no network)
-  → use(llmSummaryToMd)        ← markdown incl. `context: <before> -> <after> tokens` (contextWindow variable)
-  → use(mdOutputEmitter(...))  ← write intent (subdir 'llm') -> <root>/llm/chapter<N>.llm.md
-  → md://./chapters
-```
-
-The `call` slot comes from the picked backend, so `MT_LLM_TOOL=ollama` runs the very same gate
-against the GPU server (see "LLM backend" above). Override the prompt without code via
-`MT_PROMPT_SUMMARY='...'` or `MT_PROMPT_SUMMARY=@prompts/summary.md`.
-
-### translateFlow — MD(EN) → MD(RU)
+These two use `ephemeral://` sources/targets — they carry no items at runtime and exist to show the
+DSL grammar and the mock-LLM translation path:
 
 ```
-md://./chapters/en
-  → use(wordCounter)
-  → use(chapterIndexer)
-  → use(stubTranslator)   ← local defineTool stub: wraps paragraphs in [ru]…[/ru], sets translated variable + meta.lang='ru'
-  → @ru (chapter-output://./chapters)  ← chapters/<lang>/chapter<N>.md → chapters/ru/chapter<N>.md
+translateTitlesPipeline:   ephemeral://titles-input
+    → batch(5) → use(titles)      ← title translator on the picked backend (mock by default)
+    → flatMap (unwrap the batch)  → ephemeral://titles-output
+
+translateChapterPipeline:  ephemeral://translate-input
+    → flatMap (split body on blank lines)
+    → use(paragraphs)             ← paragraph translator on the picked backend
+    → ephemeral://translate-output
 ```
 
-### translateSlotsMockPipeline — chapter translators with a swapped `translate` slot (offline)
-
-```
-jsonl://./jsonl/input.jsonl
-  → use(toChapterTranslateInput)                       ← record -> {text, targetLang:'ru'}, meta.chapterNum
-  → use(titleTranslator.with({ translate: titleTranslateSlotMock }))
-  → use(paragraphTranslator.with({ translate: paragraphTranslateSlotMock }))
-        translate slot <- offline mock (wraps title/paragraphs in [mock]…[/mock]); no API key, no router
-  → use(translateOutputToMd)
-  → use(mdOutputEmitter(...))  ← write intent (subdir 'translate-mock') -> <root>/translate-mock/chapter<N>.mock.md
-  → md://./chapters
-```
-
-The composable chapter translators (`extract/translate/assemble`, `split/translate/assemble`) keep every slot
-except `translate`. To swap in another `Tool<TranslateInput, TranslateOutput>` without writing a state-level
-slot, use `createTitleTranslator({ translate })` / `createParagraphTranslator({ translate })`.
-
-### countTokensFlow — token counting demo (batched)
-
-Unlike the ephemeral flows below, this one reads the JSONL source directly and writes to an
-`ephemeral://` target (batch-level variables have no per-item file keying):
-
-```
-jsonl://./jsonl/input.jsonl
-  → flatMap (fan out to title + body)
-  → batch(5)
-  → use(tokenCounterBatch)        ← tokenCount variable (batch-level)
-  → use(tokenCounterBatchCached)  ← cached variant
-  → ephemeral://tokens-output
-```
-
-### Ephemeral flows — tool chains with no disk I/O
-
-These exercise single tools through `ephemeral://` sources; they carry no items at runtime and exist to show
-the DSL grammar.
-
-| Export | Chain |
-|---|---|
-| `smokeTestPipeline` | `chapterValidator` → `tap` |
-| `splitChaptersPipeline` | `tokenSplitter` |
-| `collectWarningsPipeline` | `forbiddenCharDetector` → `tap` (logs `forbidden` variable) |
-| `fixChapterPipeline` | `typoFinder` → `markdownFormatter` |
-| `translateTitlesPipeline` | `batch(5)` → `titles` (title translator on the picked backend) → `flatMap` |
-| `translateChapterPipeline` | `flatMap` (split body on blank lines) → `paragraphs` (paragraph translator on the picked backend) |
+Both translators are built as `createTitleTranslator({ translate: llm.translate })` /
+`createParagraphTranslator({ translate: llm.translate })`, so `MT_LLM_TOOL=ollama` runs the very
+same flows against the GPU server (see "LLM backend" above).
 
 ## Simplified syntax vs full syntax
 
@@ -238,8 +181,8 @@ cd samples/sample2
 npm run cleanup
 ```
 
-This removes `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`, `chapters/llm/*.md`,
-`chapters/translate-mock/*.md`, `jsonl/input.jsonl`, and `.mt/`.
+This removes `chapters/en/*.md`, `chapters/schema/*.md`, `chapters/schema-mock/*.md`,
+`jsonl/input.jsonl`, and `.mt/`.
 
 ## How to run manually
 
@@ -256,7 +199,7 @@ pnpm run runner
 NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocPipeline
 
 # 3. Check the output
-ls chapters/en chapters/ru chapters/schema
+ls chapters/en chapters/schema
 head chapters/en/chapter1.md
 head chapters/schema/chapter1.schema.md
 ```
@@ -267,14 +210,10 @@ The integration test (`tests/jsonl-to-md-multi.test.ts`):
 
 1. Writes a JSONL input file with 3 test chapters (simulating the prepare-input step).
 2. Runs the default pipeline via `mt run ./pipelines/jsonl-to-md-multi.ts` and checks that
-   `chapters/en/chapter<N>.md` holds the right title and body, in order, and that
-   `chapters/ru/chapter<N>.md` holds the `[ru]…[/ru]` markers produced by `stubTranslator`.
+   `chapters/en/chapter<N>.md` holds the right title and body, in order.
 3. Runs `mt run … --pipeline schemaDocPipeline` and checks that `chapters/schema/chapter<N>.schema.md`
    is generated per chapter, with YAML frontmatter plus the Metadata, Summary, and Entities sections.
 4. Runs `--pipeline schemaDocMockPipeline` and checks output lands only in `chapters/schema-mock/` (slot override).
-5. Runs `--pipeline llmGatePipeline` and checks `chapters/llm/chapter<N>.llm.md`: mock answer, custom prompt text, and that the context budget shrank the history (`context: A -> B tokens`, B <= 60).
-6. Runs `--pipeline translateSlotsMockPipeline` and checks `chapters/translate-mock/chapter<N>.mock.md` holds the
-   `[mock]…[/mock]` markers from the swapped `translate` slots (title + paragraphs, offline).
 
 `tests/chapter-processing.test.ts` covers the tools directly (`chapterValidator`, `tokenSplitter`,
 `forbiddenCharDetector`, `typoFinder`, `markdownFormatter`) by importing them from `packages/tools/src`,
@@ -335,10 +274,8 @@ the `mdOutputs` variable as a write intent (`subdir: 'schema'`); the `md://` dir
 its own root, i.e. `chapters/schema/` for the sample's `md://./chapters` target. `wordCount`, `tokenCount`,
 and `charLength` are read from variables, falling back to 0 and the item length.
 
-### stubTranslator
-Sample-local `defineTool()` stub: wraps each paragraph in `[ru]…[/ru]` and sets the `translated` variable plus
-`meta.lang='ru'`, so the translation flow runs without any API call and lands in `chapters/ru/`.
-
-### tokenSplitter / typoFinder / markdownFormatter / titleTranslator / paragraphTranslator
-Used by the ephemeral flows to show splitting, typo detection, markdown formatting, and batched or
-paragraph-level translation.
+### titleTranslator / paragraphTranslator
+Composable chapter translators used by the translation flows: `createTitleTranslator({ translate: llm.translate })`
+and `createParagraphTranslator({ translate: llm.translate })` wire their `translate` slot to the picked
+backend (mock by default). `titleTranslator` runs `extract -> translate -> assemble` (title from
+frontmatter, H1, or first line); `paragraphTranslator` runs `split -> translate -> assemble` per paragraph.

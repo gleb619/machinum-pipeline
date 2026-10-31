@@ -1,39 +1,22 @@
 import { join } from 'node:path'
-import { definePipeline, defineTool, getVariable, withItem } from '@mt/core'
-import type { MdOutputEntry } from '@mt/core'
+import { definePipeline, getVariable } from '@mt/core'
 import {
   type LlmRequest,
-  type ParagraphTranslatorState,
-  type TitleTranslatorInput,
-  type TitleTranslatorState,
   chapterDoc,
   chapterIndexer,
   chapterValidator,
   createEntitiesTool,
-  createLlmGate,
   createParagraphTranslator,
   createSchemaTool,
   createSummaryTool,
   createTitleTranslator,
   forbiddenCharDetector,
-  installStubs,
-  markdownFormatter,
   mdFormatter,
-  mdOutputEmitter,
-  paragraphTranslator,
   pickLlmTool,
   schemaDocWriter,
-  stubParagraphTranslateSlot,
   stubSchemaEmit,
-  stubTitleTranslateSlot,
-  stubTranslator,
-  titleTranslator,
   toMarkdown,
   tokenCounter,
-  tokenCounterBatch,
-  tokenCounterBatchCached,
-  tokenSplitter,
-  typoFinder,
   wordCounter,
 } from '@mt/tools'
 import '@mt/waypoint'
@@ -46,7 +29,7 @@ import '@mt/waypoint'
 const llm = pickLlmTool({
   configPath: join(import.meta.dirname, '..', 'mt.json'),
   mockSource: (req: LlmRequest) =>
-    `mock-summary(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
+    `mock-answer(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
 })
 
 // Schema-doc extractors (summary / entities / schema) and the chapter translators
@@ -62,10 +45,8 @@ const paragraphs = createParagraphTranslator({ translate: llm.translate })
 // Shortcuts are defined in this sample's mt.json under "uris", e.g.:
 //   "uris": { "en": "md://./chapters/en", "ru": "chapter-output://./chapters" }
 // They are resolved at pipeline run time; full URIs still work unchanged.
-// Tools never name these roots: they emit write intents (subdir + filename) and
-// the md:// target resolves them under whichever root the URI points at.
 
-// === Flow 1: JSONL → Verified MD ===
+// === Flow 1: JSONL → Verified MD (.from / .use / .tap / .to) ===
 const verifyFlow = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
   .use(chapterDoc)
@@ -79,56 +60,9 @@ const verifyFlow = definePipeline()
   })
   .to('@en')
 
-// === Flow 2: MD(EN) → MD(RU) translation ===
-const translateFlow = definePipeline()
-  .from('@en')
-  .use(wordCounter)
-  .use(chapterIndexer)
-  .use(stubTranslator)
-  .to('@ru')
-
-// === Install stubs for dry runs ===
-// Call installStubs() to swap real tool slots with stub implementations.
-// Uncomment the line below to enable dry-run mode (no API calls, no LLM).
-// installStubs()
-
-// === Flow 3: token counting demo (batch-optimized tools) ===
-// Batch tools consume a batched envelope (after `.batch(n)`); meta here is
-// batch-level, so this flow targets ephemeral:// (no per-item file keying).
-const countTokensFlow = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (item: unknown) => {
-    const record = item as { title: string; body: string }
-    return [record.title, record.body]
-  })
-  .batch(5)
-  .use(tokenCounterBatch)
-  .tap(async (batch) => {
-    console.log('[tokens] batch total:', getVariable(batch, 'tokenCount'))
-  })
-  .use(tokenCounterBatchCached)
-  .to('ephemeral://tokens-output')
-
-// === Named exports: each uses ephemeral:// source/target ===
-export const smokeTestPipeline = definePipeline()
-  .from('ephemeral://smoke-input')
-  .use(chapterValidator)
-  .tap(async (_item: unknown) => console.log('[smoke] chapter valid'))
-  .to('ephemeral://smoke-output')
-
-export const splitChaptersPipeline = definePipeline()
-  .from('ephemeral://split-input')
-  .use(tokenSplitter)
-  .to('ephemeral://split-output')
-
-export const collectWarningsPipeline = definePipeline()
-  .from('ephemeral://warnings-input')
-  .use(forbiddenCharDetector)
-  .tap(async (ex) => {
-    console.log('[forbidden]', getVariable(ex, 'forbidden'))
-  })
-  .to('ephemeral://warnings-output')
-
+// === Flow 2: JSONL → schema docs (mock-LLM summary / entities / schema) ===
+// Writes <target root>/schema/chapter<N>.schema.md via the write intents the
+// schemaDocWriter appends to the mdOutputs variable.
 export const schemaDocPipeline = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
   .use(toMarkdown)
@@ -142,8 +76,11 @@ export const schemaDocPipeline = definePipeline()
   .use(schemaDocWriter)
   .to('md://./chapters')
 
-// Same build as schemaDocPipeline, but the emit slot is swapped for a mock writer:
-// markdown is tagged and redirected to the target root's schema-mock subfolder.
+// === Slot override demo: `.with({ ... })` swaps one slot of a composable tool ===
+// Same chain as schemaDocPipeline, but schemaDocWriter's `emit` slot is replaced by
+// a stub that tags the markdown and redirects it to the schema-mock/ subfolder.
+// The `build` slot (markdown assembly) is reused untouched. Run with:
+//   mt run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocMockPipeline
 export const schemaDocMockPipeline = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
   .use(toMarkdown)
@@ -157,12 +94,8 @@ export const schemaDocMockPipeline = definePipeline()
   .use(schemaDocWriter.with({ emit: stubSchemaEmit }))
   .to('md://./chapters')
 
-export const fixChapterPipeline = definePipeline()
-  .from('ephemeral://fix-input')
-  .use(typoFinder)
-  .use(markdownFormatter)
-  .to('ephemeral://fix-output')
-
+// === Flow 3: title translation (.batch → mock-LLM tool → .flatMap) ===
+// ephemeral:// sources carry no items at runtime; they exist to show the DSL grammar.
 export const translateTitlesPipeline = definePipeline()
   .from('ephemeral://titles-input')
   .batch(5)
@@ -170,154 +103,19 @@ export const translateTitlesPipeline = definePipeline()
   .flatMap(async (items: unknown) => (items as unknown[]) ?? [])
   .to('ephemeral://titles-output')
 
+// === Flow 4: paragraph translation (.flatMap fan-out → mock-LLM tool) ===
 export const translateChapterPipeline = definePipeline()
   .from('ephemeral://translate-input')
   .flatMap(async (item: unknown) => {
     const record = item as { body: string; [k: string]: unknown }
-    const parts = record.body.split('\n\n')
-    return parts.map((p) => ({ ...record, body: p }))
+    return record.body.split('\n\n').map((p) => ({ ...record, body: p }))
   })
   .use(paragraphs)
   .to('ephemeral://translate-output')
 
-// === LLM gate demo (offline): picked `call` slot + custom prompt + context shrink ===
-// Gate = composable tool with slots prepare -> fit -> call -> parse -> emit.
-// - prompts:  override the built-in 'summary' template (also possible via the `prompts` variable,
-//             mt.json settings `prompts.summary`, or env MT_PROMPT_SUMMARY=text|@file)
-// - context:  token budget + ordered shrink strategies for the `fit` slot
-// - .with({ call: llm.gate.slots.call }) takes the `call` slot of the picked backend
-//             (mock by default: a scripted answer, no API key, no router)
-const chapterSummaryGate = createLlmGate<
-  { title: string; body: string; history: string[] },
-  { content: string; model: string }
->({
-  name: 'chapter-summary-gate',
-  prompts: {
-    summary: 'SAMPLE PROMPT - summarize in {{sentences}} sentences: {{text}}',
-  },
-  context: { maxTokens: 60, strategies: ['dropOldest', 'truncateLines'] },
-  normalize: (input) => ({
-    systemPrompt: 'You summarize book chapters.',
-    // earlier turns the budget will trim (system + final prompt are always kept)
-    messages: input.history.flatMap((h) => [
-      { role: 'user' as const, content: h },
-      { role: 'assistant' as const, content: `noted: ${h}` },
-    ]),
-    promptName: 'summary',
-    vars: { sentences: 2, text: input.body },
-    // the picked model wins over the gate's own default
-    model: llm.model,
-  }),
-}).with({
-  call: llm.gate.slots.call,
-})
-
-// Record -> gate input (history is synthetic filler so the context budget has something to trim).
-const toLlmGateInput = defineTool<{ title: string; body: string }, unknown>({
-  name: 'to-llm-gate-input',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => {
-    const { title, body } = env.item
-    const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
-    const history = Array.from({ length: 6 }, (_, i) => `earlier note ${i + 1} about ${title}`)
-    return { ...withItem(env, { title, body, history }), meta: { ...env.meta, chapterNum: n } }
-  },
-})
-
-// Gate output -> markdown, then the shared emit slot helper requests `<root>/llm/chapter<N>.llm.md`.
-const llmSummaryToMd = defineTool<{ content: string; model: string }, string>({
-  name: 'llm-summary-to-md',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => {
-    const cw = getVariable<{ before: number; after: number }>(env, 'contextWindow')
-    const md = `## LLM summary\n\n${env.item.content}\n\ncontext: ${cw?.before} -> ${cw?.after} tokens\n`
-    return withItem(env, md)
-  },
-})
-
-export const llmGatePipeline = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .use(toLlmGateInput)
-  .use(chapterSummaryGate)
-  .use(llmSummaryToMd)
-  .use(
-    mdOutputEmitter({
-      name: 'llm-summary',
-      subdir: 'llm',
-      filename: (meta) => `chapter${meta.chapterNum}.llm.md`,
-    }),
-  )
-  .to('md://./chapters')
-
-// === Translate slot swap demo (offline): `.with({ translate })` on the chapter translators ===
-// `.with({ translate })` replaces the translate slot of the composable translators with
-// an offline mock — no API key, no router. The rest of each tool (extract/assemble,
-// split/assemble) is untouched. (To swap in another `Tool<TranslateInput, TranslateOutput>`
-// without writing a state-level slot, use `createTitleTranslator({ translate })` /
-// `createParagraphTranslator({ translate })`.)
-// Alternative: call `installStubs()` at module top to auto-swap all stub slots at once.
-const toChapterTranslateInput = defineTool<{ title: string; body: string }, TitleTranslatorInput>({
-  name: 'to-chapter-translate-input',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => {
-    const { title, body } = env.item
-    const n = Number(title.match(/Chapter\s+(\d+)/i)?.[1] ?? 0)
-    return {
-      ...withItem(env, { text: `# ${title}\n\n${body}`, targetLang: 'ru' }),
-      meta: { ...env.meta, chapterNum: n },
-    }
-  },
-})
-
-// Gate/tool output ({ text, ... }) -> markdown string for the md:// target.
-const translateOutputToMd = defineTool<{ text: string }, string>({
-  name: 'translate-output-to-md',
-  version: '1.0.0',
-  mdDescription: 'Markdown description',
-  invoke: async (env, _ctx) => withItem(env, env.item.text),
-})
-
-export const translateSlotsMockPipeline = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .use(toChapterTranslateInput)
-  .use(titleTranslator.with({ translate: stubTitleTranslateSlot }))
-  .use(paragraphTranslator.with({ translate: stubParagraphTranslateSlot }))
-  .use(translateOutputToMd)
-  .use(
-    mdOutputEmitter({
-      name: 'translate-mock',
-      subdir: 'translate-mock',
-      filename: (meta) => `chapter${meta.chapterNum}.mock.md`,
-    }),
-  )
-  .to('md://./chapters')
-
-// === Run lifecycle events demo (RunEvents) ===
-// `events://` is a subscription handle, not storage: `events://<name>?<qualifier>`
-// subscribes to run lifecycle events and prints `[lifecycle] ...` lines.
-// The `#` shortcut (`#only=done`, `#`) resolves to `events://default?<qualifier>`.
-// As a target it subscribes in `open()` and unsubscribes in `close()`; `write()`
-// is a no-op (items never reach it). As a source it yields `RunEvent` envelopes.
-// Run it:  mt run pipelines/jsonl-to-md-multi.ts --pipeline lifecycleLogPipeline
-export const lifecycleLogPipeline = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .use(chapterDoc)
-  .use(chapterIndexer)
-  .to('events://chapter-log?only=done')
-
-// === Default: orchestration pipeline (subflow-only) ===
+// === Default: orchestration pipeline (subflow-only, no source/target of its own) ===
 export default definePipeline()
   .subflow(verifyFlow)
   .subflow(schemaDocPipeline)
-  .subflow(smokeTestPipeline)
-  .subflow(splitChaptersPipeline)
-  .subflow(collectWarningsPipeline)
-  .subflow(countTokensFlow)
-  .subflow(fixChapterPipeline)
   .subflow(translateTitlesPipeline)
   .subflow(translateChapterPipeline)
-  .subflow(translateFlow)
-  .subflow(translateSlotsMockPipeline)
