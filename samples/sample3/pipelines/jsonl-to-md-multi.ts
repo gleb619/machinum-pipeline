@@ -1,5 +1,4 @@
-import { join } from 'node:path'
-import { definePipeline, getVariable } from '@mt/core'
+import { definePipeline, defineProcess, getVariable } from '@mt/core'
 import {
   type LlmRequest,
   chapterDoc,
@@ -12,7 +11,7 @@ import {
   createTitleTranslator,
   forbiddenCharDetector,
   mdFormatter,
-  pickLlmTool,
+  mockLlm,
   schemaDocWriter,
   stubSchemaEmit,
   toMarkdown,
@@ -21,24 +20,19 @@ import {
 } from '@mt/tools'
 import '@mt/waypoint'
 
-// === LLM backend (single config point) ===
-// `MT_LLM_TOOL` picks the backend (router | openrouter-free | openrouter-pool | ollama | mock),
-// `MT_LLM_MODEL` the model; mt.json `settings.llm.tool` / `settings.llm.model` are the
-// file-based fallback (env wins). Default is `mock`: offline, no API key, no router.
-// Every LLM-backed tool below is wired to this one choice.
-const llm = pickLlmTool({
-  configPath: join(import.meta.dirname, '..', 'mt.json'),
-  mockSource: (req: LlmRequest) =>
-    `mock-answer(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
-})
-
-// Schema-doc extractors (summary / entities / schema) and the chapter translators
-// (title / paragraph) all run through the picked backend.
-const summary = createSummaryTool({ model: llm.model, call: llm.schemaCall })
-const entities = createEntitiesTool({ model: llm.model, call: llm.schemaCall })
-const schema = createSchemaTool({ model: llm.model, call: llm.schemaCall })
-const titles = createTitleTranslator({ translate: llm.translate })
-const paragraphs = createParagraphTranslator({ translate: llm.translate })
+// === LLM backend (process-level mock install) ===
+// `defineProcess().install(mockLlm(...))` (see the default export at the bottom)
+// installs a process-wide mock LLM provider at module load. Every LLM-backed tool
+// below is built WITHOUT a `call` / `translate` argument and resolves the backend at
+// invoke time: the installed mock when the picked backend is `mock` (default;
+// `MT_LLM_TOOL` / mt.json `settings.llm.tool`), a real backend (`ollama`,
+// `openrouter-free`, ...) when `MT_LLM_TOOL` names one - env wins over the mock.
+// `pickLlmTool` stays exported for pipelines that prefer explicit wiring.
+const summary = createSummaryTool()
+const entities = createEntitiesTool()
+const schema = createSchemaTool()
+const titles = createTitleTranslator()
+const paragraphs = createParagraphTranslator()
 
 // === URI shortcuts (aliases) ===
 // Source/target URIs can be written as '@name' shortcuts instead of full URIs.
@@ -114,8 +108,19 @@ export const translateChapterPipeline = definePipeline()
   .to('ephemeral://translate-output')
 
 // === Default: orchestration pipeline (subflow-only, no source/target of its own) ===
-export default definePipeline()
-  .subflow(verifyFlow)
-  .subflow(schemaDocPipeline)
-  .subflow(translateTitlesPipeline)
-  .subflow(translateChapterPipeline)
+// defineProcess().install(mockLlm(...)) registers the mock LLM provider process-wide
+// at module load (before the Runner starts); .pipeline(...) returns the pipeline.
+export default defineProcess()
+  .install(
+    mockLlm({
+      source: (req: LlmRequest) =>
+        `mock-answer(${req.messages.length} msgs): ${req.messages.at(-1)?.content}`,
+    }),
+  )
+  .pipeline(
+    definePipeline()
+      .subflow(verifyFlow)
+      .subflow(schemaDocPipeline)
+      .subflow(translateTitlesPipeline)
+      .subflow(translateChapterPipeline),
+  )

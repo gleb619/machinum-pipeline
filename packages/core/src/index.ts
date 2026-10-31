@@ -157,9 +157,17 @@ export {
   defineWaypoint,
   source,
   target,
+  defineProcess,
+  ProcessBuilder,
   PipelineBuilder,
 } from './dsl.js'
-export type { ComposableTool, ToolFn, WaypointSourceHooks, WaypointTargetHooks } from './dsl.js'
+export type {
+  ComposableTool,
+  ProcessInstall,
+  ToolFn,
+  WaypointSourceHooks,
+  WaypointTargetHooks,
+} from './dsl.js'
 export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
 export type {
   ParsedUri,

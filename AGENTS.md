@@ -39,6 +39,7 @@ Full context lives in docs - read on demand:
 | [docs/architecture.md](docs/architecture.md) | High-level architecture, run lifecycle, `.mt/` state dir |
 | [docs/uc.md](docs/uc.md) | Use cases |
 | [docs/tools.md](docs/tools.md) | Tool catalogue |
+| [docs/mock-tools.md](docs/mock-tools.md) | Mock/stub LLM tooling: `pickLlmTool`, slot overrides, `defineProcess().install(mockLlm(...))` |
 | [docs/kanban.md](docs/kanban.md) | Task board / roadmap (managed via `at kanban`; plans in [docs/plans/](docs/plans/)) |
 | [docs/change-workflow.md](docs/change-workflow.md) | Mandatory worktree → branch → gates → FF-merge lifecycle |
 | [docs/samples.md](docs/samples.md) | Sample projects + how to run them manually |

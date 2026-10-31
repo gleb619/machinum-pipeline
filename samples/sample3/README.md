@@ -19,17 +19,25 @@ demand with `--pipeline <name>`.
   (`en` → `md://./chapters/en`, `ru` → `chapter-output://./chapters`), so the pipeline writes
   `.to('@en')` instead of the full URI.
 - How to swap the LLM backend (and the model) of every LLM-backed tool with one env var.
+- How to install a process-wide mock LLM provider with `defineProcess().install(mockLlm(...))`
+  so tools need no per-file wiring.
 - How to override one slot of a composable tool with `.with({ ... })` (`schemaDocMockPipeline`).
 
-## LLM backend — one config point
+## LLM backend — process-level mock install
 
 Every LLM-backed tool of this sample (the schema-doc summary / entities / schema extractors and the
-chapter title / paragraph translators) is wired to one pick, made once at the top of
-`pipelines/jsonl-to-md-multi.ts`:
+chapter title / paragraph translators) is built WITHOUT explicit wiring; the backend is resolved at
+invoke time. The default export installs an offline mock provider process-wide at module load:
 
 ```typescript
-const llm = pickLlmTool()   // reads MT_LLM_TOOL / MT_LLM_MODEL
+export default defineProcess()
+  .install(mockLlm({ source: (req) => `mock-answer: ${req.messages.at(-1)?.content}` }))
+  .pipeline(definePipeline().subflow(...))
 ```
+
+Resolution order: explicit factory argument (`createSummaryTool({ call })`) > `MT_LLM_TOOL` /
+mt.json `settings.llm.tool` naming a real backend > the installed mock (when the pick is `mock`,
+the default) > the factory default (router proxy). See [docs/mock-tools.md](../../docs/mock-tools.md).
 
 | `MT_LLM_TOOL` | Backend | Model default |
 |---|---|---|
@@ -51,7 +59,9 @@ win over the file:
 ```
 
 An unknown `MT_LLM_TOOL` fails fast with the list of valid backends. The default stays offline,
-so the tests and `npm run example` need no credentials.
+so the tests and `npm run example` need no credentials. (`pickLlmTool` is still exported from
+`@mt/tools` for pipelines that prefer explicit wiring — it is what the env-named real backends
+are resolved through.)
 
 ```bash
 # offline (default)
@@ -163,9 +173,8 @@ translateChapterPipeline:  ephemeral://translate-input
     → ephemeral://translate-output
 ```
 
-Both translators are built as `createTitleTranslator({ translate: llm.translate })` /
-`createParagraphTranslator({ translate: llm.translate })`, so `MT_LLM_TOOL=ollama` runs the very
-same flows against the GPU server (see "LLM backend" above).
+Both translators resolve the process-level LLM pick at invoke time (installed mock by default),
+so `MT_LLM_TOOL=ollama` runs the very same flows against the GPU server (see "LLM backend" above).
 
 ## Simplified syntax vs full syntax
 
@@ -250,6 +259,8 @@ without running the CLI.
 `pickLlmTool` / `readLlmConfig` come from `@mt/tools` (`packages/tools/tests/llm-picker.test.ts` covers the LLM config point): the default is the offline `mock` backend,
 `MT_LLM_TOOL` / `MT_LLM_MODEL` select the backend and the model, `mt.json` `settings.llm.*` is the
 file-based fallback, an unknown backend fails fast, and the picked backend answers without network.
+The process-level install (`mockLlm` / `resolveProcessLlm` / invoke-time factory fallback) is covered
+by `packages/tools/tests/llm-install.test.ts`.
 
 ## Tools
 
@@ -286,9 +297,10 @@ credentials. Attempt count and last failure land in the `summaryLlm` / `entities
 Prompts, model, temperature and `maxTokens` are set per tool via `create*Tool({ ... })` or per envelope via
 the `schemaDocLlm` and `<tool>Prompt` variables.
 
-In this sample the three extractors are built with the picked backend instead of the router proxy:
-`createSummaryTool({ model: llm.model, call: llm.schemaCall })` — `call` replaces the router request with
-the picked backend (mock by default, `ollama` / `openrouter-free` / … on demand). Without `call` they use
+In this sample the three extractors are built without explicit wiring (`createSummaryTool()` …):
+at invoke time they resolve the process-level pick — the installed mock by default, or the real
+backend when `MT_LLM_TOOL` names one (see "LLM backend"). An explicit
+`createSummaryTool({ model, call })` still wins when given; without any of the above they use
 the OpenRouter proxy (`ctx.run.global.routerUrl`, default `http://localhost:7777`, also honouring
 `MT_ROUTER_URL`) and the default model `openai/gpt-4o-mini`.
 
@@ -303,7 +315,9 @@ its own root, i.e. `chapters/schema/` for the sample's `md://./chapters` target.
 and `charLength` are read from variables, falling back to 0 and the item length.
 
 ### titleTranslator / paragraphTranslator
-Composable chapter translators used by the translation flows: `createTitleTranslator({ translate: llm.translate })`
-and `createParagraphTranslator({ translate: llm.translate })` wire their `translate` slot to the picked
-backend (mock by default). `titleTranslator` runs `extract -> translate -> assemble` (title from
-frontmatter, H1, or first line); `paragraphTranslator` runs `split -> translate -> assemble` per paragraph.
+Composable chapter translators used by the translation flows: built here as `createTitleTranslator()` /
+`createParagraphTranslator()` with no `translate` option — the `translate` slot resolves the
+process-level pick at invoke time (installed mock by default; `MT_LLM_TOOL=ollama` runs the same
+flows against the GPU server). An explicit `{ translate }` still wins. `titleTranslator` runs
+`extract -> translate -> assemble` (title from frontmatter, H1, or first line); `paragraphTranslator`
+runs `split -> translate -> assemble` per paragraph.

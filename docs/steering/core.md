@@ -9,7 +9,7 @@ Core is the engine library — it contains all types, the DSL, the URI registry,
 ## Public API (`src/index.ts`)
 
 Re-exports everything needed by consumers:
-- `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint` (DSL builders)
+- `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`, `defineProcess` (DSL builders)
 - `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
@@ -170,6 +170,14 @@ const observed = defineWaypoint<Chapter>(target('md://./out'), {
   onWrite: (env) => console.log('wrote', env.item.id),
 })
 ```
+
+**Process-level setup** — `defineProcess()` (same module) wraps a pipeline default export with
+module-load-time installers: `.install(...)` accepts side-effect functions or `{ install() }` objects
+(e.g. `mockLlm(...)` from `@mt/tools` registering a process-wide mock LLM provider) and applies them
+immediately; `.pipeline(p)` returns the pipeline unchanged. Shape:
+`defineProcess().install(mockLlm({ source })).pipeline(definePipeline().from(…))`. Factories resolve
+installed providers at invoke time, so load-time install covers the whole run. See
+[../mock-tools.md](../mock-tools.md).
 
 ### `uri.ts` — `UriRegistry`
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.

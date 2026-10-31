@@ -73,8 +73,9 @@ records `attempts`, `tokens`, `model`, `fallbackUsed`, `lastFailure`.
 **Configuration:** `create*Tool({ model, temperature, maxTokens, systemPrompt, userPrompt, maxAttempts,
 routerUrl, call })`, default model `openai/gpt-4o-mini`; per-envelope overrides via `schemaDocLlm` variable and
 `<key>Prompt` / `<key>SystemPrompt` variables. `call` (`SchemaDocLlmCall`: `(input, ctx) =>
-Promise<ChatCompletionOutput>`) replaces the router-proxy request with a custom backend — used by
-`samples/sample3` to run the extractors through a picked LLM gate. Templates render `{{title}}`,
+Promise<ChatCompletionOutput>`) replaces the router-proxy request with a custom backend. Without `call`,
+`runPromptWithRetry` consults the process-level pick (`resolveProcessLlm` — installed mock or the
+`MT_LLM_TOOL` backend) before falling back to the router proxy. Templates render `{{title}}`,
 `{{body}}`, `{{chapter}}`, …
 Batched envelopes store per-item results in the `<key>ByItem` variable.
 
@@ -305,7 +306,16 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
   config point (`MT_LLM_TOOL`, `MT_LLM_MODEL`, `MT_LLM_USE`, mt.json `settings.llm.*`; default offline `mock`).
   Returns `{ tool, model, gate, schemaCall, translate }`. Pass `configPath` = the project's `mt.json`
   (default `./mt.json` of the cwd); its `imports` (e.g. a gitignored `mt.local.json`) are merged in first.
-  Shared by sample3, sample4 and sample5.
+  Shared by sample3, sample4 and sample5. `mockLlmChoice(source, model)` is the offline mock backend as
+  an `LlmChoice` (building block of `mockLlm`).
+- `core/llm-install.ts` — process-level mock install (`defineProcess().install(mockLlm({ source }))`):
+  a module registry holding the installed `LlmChoice` provider. LLM-backed factories
+  (`createSummaryTool` family via `runPromptWithRetry`, `createTitleTranslator` /
+  `createParagraphTranslator` via the default `translate` slot) call `resolveProcessLlm()` **at invoke
+  time** when no explicit `call`/`translate` was passed: explicit arg > `MT_LLM_TOOL` / mt.json naming a
+  real backend (lazy `pickLlmTool()`) > installed mock (pick = `mock`, the default) > factory default.
+  Helpers: `installLlmProvider` / `uninstallLlmProvider` / `getInstalledLlmProvider` / `resetProcessLlm`
+  (tests). Full write-up incl. the planned router-backed stub mode: [../mock-tools.md](../mock-tools.md).
 - `normalization/chapter-record.ts` — `toChapterRecord`, `chapterRecordMapper` (raw `{key,value}` -> `"title\nbody"`,
   `meta.chapterNum`), `lineTextToMarkdown` (first line -> `# title`, other lines -> paragraphs, `{ text }`),
   `unwrapMarkdownText` (`{ text }` -> string, undoes remark `\[` escaping).
@@ -337,7 +347,8 @@ Higher-level translation tools, composable:
   therefore only re-translates paragraphs that failed. Memo is skipped when the translator tool is
   marked `idempotent: false`.
 
-The `translate` slot defaults to `translateText`; all invocations go through one shared helper
+The `translate` slot defaults to the process-level pick (`resolveProcessLlm`, installed mock /
+`MT_LLM_TOOL` backend) falling back to `translateText`; all invocations go through one shared helper
 (`translateVia`, no hand-built envelopes). Swap the translator for the whole tool either via the factory
 option (any `Tool<TranslateInput, TranslateOutput>`) or per-slot via `.with({ translate })`.
 
@@ -540,8 +551,9 @@ const gate = createLlmGate({
 ```
 
 Tests: `tests/llm-*.test.ts`. Samples: `samples/sample3` `schemaDocMockPipeline` (`.with({ emit })` slot
-override, offline mock) and `translateTitlesPipeline` / `translateChapterPipeline` (`createTitleTranslator` /
-`createParagraphTranslator` with the picked `translate` slot).
+override, offline mock) and `translateTitlesPipeline` / `translateChapterPipeline` (title / paragraph
+translators resolving the process-level LLM pick — `defineProcess().install(mockLlm(...))`, no explicit
+`translate` wiring).
 
 ## Key Patterns
 
@@ -594,6 +606,8 @@ Tests live in `packages/tools/tests/`:
 - `translate-text.test.ts` — translation tests (requires `OPENROUTER_API_KEYS`)
 - `translate-slots.test.ts` — composable translateText / titleTranslator / paragraphTranslator (slot swaps, mock translator)
 - `llm-config|prompts|context|client|gate.test.ts` — LLM toolkit (mock transport, no network)
+- `llm-install.test.ts` — process-level mock install: `mockLlm` provider, `resolveProcessLlm` precedence
+  (explicit arg > `MT_LLM_TOOL` real backend > installed mock > default), invoke-time factory fallback
 - `llm-sdk-transports.test.ts` — official-SDK adapters (vi.mock'd `openai` / `@anthropic-ai/sdk`): error mapping, retry-after, pool block/disable, lazy load, cache skip
 - `llm-context-limits.test.ts` — model context-limit table matching + `MT_CONTEXT_LIMITS` overrides
 - `llm-stream.test.ts` — gate `stream: true` delta aggregation

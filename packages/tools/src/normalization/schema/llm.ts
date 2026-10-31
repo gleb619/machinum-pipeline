@@ -1,4 +1,5 @@
 import type { Exchange, ToolContext } from '@mt/core'
+import { resolveProcessLlm } from '../../core/llm-install.js'
 import { chatCompletionSingle } from '../../core/openrouter-tool.js'
 import type { ChatCompletionInput, ChatCompletionOutput } from '../../core/openrouter-tool.js'
 import { exField } from '../fields.js'
@@ -67,6 +68,11 @@ export async function runPromptWithRetry<T>(
 ): Promise<PromptRetryResult<T>> {
   const routerUrl = options.routerUrl ?? ctx.run?.global?.routerUrl ?? DEFAULT_ROUTER_URL
   const maxAttempts = Math.max(1, Math.floor(options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS))
+  // Backend: explicit `call` wins; otherwise the process-level pick (installed mock,
+  // or the MT_LLM_TOOL backend) applies; falling back to the router proxy.
+  const processLlm = options.call ? undefined : resolveProcessLlm()
+  const call = options.call ?? processLlm?.schemaCall
+  const requestModel = options.model ?? processLlm?.model ?? DEFAULT_LLM_MODEL
 
   let prompt = options.userPrompt
   let content = ''
@@ -79,15 +85,15 @@ export async function runPromptWithRetry<T>(
     attempts = attempt
     const chatInput: ChatCompletionInput = {
       messages: [{ role: 'user', content: prompt }],
-      model: options.model ?? DEFAULT_LLM_MODEL,
+      model: requestModel,
       systemPrompt: options.systemPrompt,
       temperature: options.temperature,
       maxTokens: options.maxTokens,
     }
 
     try {
-      const result = options.call
-        ? await options.call(chatInput, ctx)
+      const result = call
+        ? await call(chatInput, ctx)
         : await chatCompletionSingle(chatInput, routerUrl)
       tokens += result.tokens
       model = result.model

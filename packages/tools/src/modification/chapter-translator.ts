@@ -1,6 +1,7 @@
 import { defineComposableTool, defineTool, mapConcurrent, setVariables, withItem } from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import type { ChunkModeOptions } from '../core/chunk-processor.js'
+import { resolveProcessLlm } from '../core/llm-install.js'
 import {
   type TranslateInput,
   type TranslateOutput,
@@ -61,6 +62,26 @@ function toTranslateInput(
 }
 
 /**
+ * Default `translate` slot when the caller passed none: resolves the process-level
+ * LLM backend at invoke time (installed mock via `defineProcess().install(...)`, or
+ * the `MT_LLM_TOOL` backend) and falls back to `fallback` when neither applies.
+ */
+function processTranslateSlot(
+  fallback: Tool<TranslateInput, TranslateOutput>,
+): Tool<TranslateInput, TranslateOutput> {
+  return defineTool<TranslateInput, TranslateOutput>({
+    name: 'process-llm-translate',
+    version: '1.0.0',
+    mdDescription:
+      'Invoke-time translator resolution: installed process LLM mocks / MT_LLM_TOOL, else the default translator.',
+    async invoke(env, ctx) {
+      const translator = resolveProcessLlm()?.translate ?? fallback
+      return translator.invoke(env, ctx)
+    },
+  })
+}
+
+/**
  * Split text into paragraphs separated by double-newlines.
  * Preserves the blank-line structure.
  */
@@ -100,7 +121,10 @@ export interface TitleTranslatorState {
 export type TitleTranslatorSlot = 'extract' | 'translate' | 'assemble'
 
 export interface TitleTranslatorOptions {
-  /** Translator for the title text. Default: `translateText`. */
+  /**
+   * Translator for the title text. Default: the process-level pick (installed mock /
+   * `MT_LLM_TOOL`, see `resolveProcessLlm`), falling back to `translateText`.
+   */
   translate?: Tool<TranslateInput, TranslateOutput>
 }
 
@@ -214,7 +238,9 @@ export function createTitleTranslator(
       'Composable: slots extract/translate/assemble; swap the translator via `.with({ translate })`.',
     slots: {
       extract: titleExtract as Tool<never, unknown>,
-      translate: titleTranslateSlot(options.translate ?? translateText) as Tool<never, unknown>,
+      translate: titleTranslateSlot(
+        options.translate ?? processTranslateSlot(translateText),
+      ) as Tool<never, unknown>,
       assemble: titleAssemble as Tool<never, unknown>,
     },
   })
@@ -239,10 +265,12 @@ export type ParagraphTranslatorSlot = 'split' | 'translate' | 'assemble'
 
 export interface ParagraphTranslatorOptions extends ChunkModeOptions {
   /**
-   * Translator for each paragraph. Default: `translateText`, or - when `chunkMode` is
-   * `chunk`/`auto` - a `createTranslateText` with the same chunk options, so a paragraph larger
-   * than the model budget is split, translated and merged. Chunk options are ignored when a
-   * custom `translate` is given (build it with `createTranslateText({ chunkMode })` instead).
+   * Translator for each paragraph. Default: the process-level pick (installed mock /
+   * `MT_LLM_TOOL`, see `resolveProcessLlm`), falling back to `translateText` - or, when
+   * `chunkMode` is `chunk`/`auto`, a `createTranslateText` with the same chunk options,
+   * so a paragraph larger than the model budget is split, translated and merged. Chunk
+   * options are ignored when a custom `translate` is given (build it with
+   * `createTranslateText({ chunkMode })` instead).
    */
   translate?: Tool<TranslateInput, TranslateOutput>
   /** Backend of the chunking default translator. Default: `router`. */
@@ -402,9 +430,10 @@ export function createParagraphTranslator(
       'Composable: slots split/translate/assemble; swap the translator via `.with({ translate })`.',
     slots: {
       split: paragraphSplit as Tool<never, unknown>,
-      translate: paragraphTranslateSlot(options.translate ?? defaultParagraphTranslator(options), {
-        concurrency: options.concurrency,
-      }) as Tool<never, unknown>,
+      translate: paragraphTranslateSlot(
+        options.translate ?? processTranslateSlot(defaultParagraphTranslator(options)),
+        { concurrency: options.concurrency },
+      ) as Tool<never, unknown>,
       assemble: paragraphAssemble as Tool<never, unknown>,
     },
   })

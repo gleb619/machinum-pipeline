@@ -283,6 +283,46 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
 }
 
 /**
+ * A process-level installer: either a side-effect function or an object with
+ * `install()`. Runs at pipeline-module load time (before the Runner starts), so
+ * whatever it registers process-wide is active for every run in the process.
+ * The LLM-mock installer (`mockLlm(...)` from `@mt/tools`) is the primary example.
+ */
+export type ProcessInstall = (() => void) | { install(): void }
+
+/**
+ * Entry point for process-level setup that wraps a pipeline definition:
+ * `.install(...)` applies process-wide installers (mock LLM providers, …) at
+ * module load, `.pipeline(p)` returns the pipeline unchanged so the chain can be
+ * the module's default export.
+ *
+ * ```ts
+ * export default defineProcess()
+ *   .install(mockLlm({ source: ['answer'] }))
+ *   .pipeline(definePipeline().from('jsonl://./in.jsonl').use(myTool).to('md://./out'))
+ * ```
+ */
+export function defineProcess(): ProcessBuilder {
+  return new ProcessBuilder()
+}
+
+export class ProcessBuilder {
+  /** Apply installers immediately (pipeline-module load time). Chainable. */
+  install(...installs: ProcessInstall[]): ProcessBuilder {
+    for (const install of installs) {
+      if (typeof install === 'function') install()
+      else install.install()
+    }
+    return this
+  }
+
+  /** Terminal step: returns the pipeline as-is for the module's default export. */
+  pipeline<P extends Pipeline<unknown, unknown>>(pipeline: P): P {
+    return pipeline
+  }
+}
+
+/**
  * Define a tool.
  */
 export function defineTool<I, O>(config: {

@@ -732,11 +732,23 @@ export {
   LLM_TOOLS,
   readLlmConfig,
   pickLlmTool,
+  mockLlmChoice,
   type LlmTool,
   type LlmConfig,
   type LlmChoice,
   type PickLlmToolOptions,
 } from './core/llm-picker.js'
+
+export {
+  mockLlm,
+  installLlmProvider,
+  uninstallLlmProvider,
+  getInstalledLlmProvider,
+  resolveProcessLlm,
+  resetProcessLlm,
+  type InstalledLlmProvider,
+  type MockLlmOptions,
+} from './core/llm-install.js'
 
 export {
   toChapterRecord,

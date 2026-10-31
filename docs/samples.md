@@ -16,7 +16,9 @@ pre-merge gate (see [change-workflow.md](change-workflow.md)).
 
 ## LLM backend of a sample
 
-`sample3` and `sample4` route every LLM-backed tool through one pick (`pickLlmTool` from `@mt/tools`):
+`sample3` and `sample4` route every LLM-backed tool through one pick (`pickLlmTool` from `@mt/tools`;
+sample3 installs the mock process-wide via `defineProcess().install(mockLlm(...))` instead of wiring it
+per tool — see [mock-tools.md](mock-tools.md)):
 `MT_LLM_TOOL` (`router` | `openrouter-free` | `openrouter-pool` | `ollama` | `mock`) selects the
 backend and `MT_LLM_MODEL` the model; `mt.json` → `settings.llm.tool` / `settings.llm.model` are the
 file-based fallback (the env wins). The default is the offline `mock` backend, so the sample tests

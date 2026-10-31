@@ -233,6 +233,21 @@ function translateTool(
 }
 
 /**
+ * The offline mock backend as an {@link LlmChoice} (scripted answers, no network) -
+ * the building block of process-level mock installs (`mockLlm` in `llm-install.ts`).
+ */
+export function mockLlmChoice(mockSource: MockSource = ['mock'], model = 'mock'): LlmChoice {
+  const gate = withModel(gateFor('mock', mockSource), model)
+  return {
+    tool: 'mock',
+    model,
+    gate,
+    schemaCall: (input, ctx) => callGate(gate, input, ctx),
+    translate: translateTool(gate),
+  }
+}
+
+/**
  * Pick the LLM backend and wire it for every LLM-backed tool of the pipeline.
  *
  * ```ts
