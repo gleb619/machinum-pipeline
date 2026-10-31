@@ -1,11 +1,15 @@
 # Sample 2 — Basic Markdown Processing
 
-A minimal `mt` pipeline that shows the core mechanics without LLM calls — and without
-hand-written tools: every step is a shipped waypoint or a package tool.
+Two `mt` pipelines over the same JSONL input, without LLM calls:
+
+- **`pipelines/basic-md-processing.ts`** — the basics. One source, shipped tools, one target.
+- **`pipelines/custom-md-processing.ts`** — the advanced version: a hand-composed pipeline with
+  entity buffers, `.fork()` branches, a parallel step and a non-blocking side pipeline.
 
 ## What you will learn
 
 - How to read a source (`jsonl://`, `range://`) and write a target (`md://`, `jsonl://`).
+- How to use the tools that already ship in `@mt/tools` instead of hand-rolling your own.
 - How to fan data out with `.flatMap()` and group it with `.batch()`.
 - How to hand data between stages through the entity buffers `lines://` and `words://`
   (in-process, no file in between).
@@ -14,20 +18,46 @@ hand-written tools: every step is a shipped waypoint or a package tool.
 - How to discard output with `void://` and how to keep it in memory with `ephemeral://`.
 - How to run a non-blocking side pipeline that counts the corpus independently of the main flow.
 
-## Pipeline file
+## Basics pipeline (`pipelines/basic-md-processing.ts`)
 
-`pipelines/custom-md-processing.ts` — **no `defineTool` in this file**. The only local code is
-data glue inside `.flatMap()` and logging inside `.tap()`.
+**No `defineTool` in this file** — every processing step is a tool that already ships in
+`@mt/tools`. The whole pipeline body is three DSL calls:
+
+```
+jsonl://./jsonl/input.jsonl
+  → flatMap              (record → one envelope per line)
+  → wordCounter          (shipped tool → `wordCount` variable)
+  → toMarkdownTool       (shipped tool → markdown text)
+  → md://./output.md
+```
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` | `pnpm run runner` | JSONL → `lines://` → `words://` → sync/async/parallel steps → two `.fork()` branches → `output.md` |
+| `default` | `pnpm run runner` | JSONL → `wordCounter` → `toMarkdownTool` → `output.md` |
+| `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
+
+Where the advanced pipeline writes its own glue, the basics pipeline reuses shipped tools:
+
+| Advanced (`custom-md-processing.ts`) | Basics (`basic-md-processing.ts`) |
+|-------------------------------------|-------------------------------------|
+| local `toLinePayloads()` glue | `toMarkdownTool` (shipped) |
+| local `sleep()` + `.tap()` counters | `wordCounter` (shipped) |
+| local word-frequency aggregation | `statFreq` (shipped) |
+
+## Advanced pipeline (`pipelines/custom-md-processing.ts`)
+
+**One bespoke `defineTool`** (`toLinePayloads`) turns a JSONL record into prefixed lines — the
+step the package does not ship. Everything else is a shipped waypoint or package tool.
+
+| Pipeline | Command | Purpose |
+|----------|---------|---------|
+| `default` | `pnpm run runner:custom` | JSONL → `lines://` → `words://` → sync/async/parallel steps → two `.fork()` branches → `output.md` |
 | `rangeDemoPipeline` | `pnpm run runner:range` | `range://1..3` → lines → word count → `void://` |
 | `voidDemoPipeline` | `pnpm run runner:void` | Same JSONL source → lines → `void://` |
 | `ephemeralDemoPipeline` | `pnpm run runner:ephemeral` | JSONL → lines → `ephemeral://basic-md-buffer` (in-memory) |
 | `countSidePipeline` | `pnpm run runner:count` | JSONL → lines → batch → word statistics → `counts.jsonl` (independent side branch) |
 
-### The default flow
+### The advanced default flow
 
 ```
 jsonl://./jsonl/input.jsonl
@@ -110,8 +140,14 @@ pnpm run runner:branches    # branch/parallel logs only
 ```bash
 cd samples/sample2
 pnpm run prepare-input
-pnpm run runner
+pnpm run runner          # basics pipeline
 cat output.md
+```
+
+The advanced pipeline:
+
+```bash
+pnpm run runner:custom   # entity buffers + forks + parallel step
 ```
 
 Try the non-blocking counter branch:
@@ -128,7 +164,14 @@ pnpm run cleanup
 
 ## How the test works
 
-The integration test writes fixed three-line JSONL input, runs each pipeline, and asserts:
+`tests/basic-md-processing.test.ts` writes fixed three-line JSONL input, runs the basics
+pipelines, and asserts:
+
+- `output.md` contains every input line,
+- the default pipeline logs the shipped `wordCounter` result per line (`wordCount=5`),
+- `statsPipeline` logs the shipped `statFreq` report (`totalWords=15`, `uniqueWords=7`).
+
+`tests/custom-md-processing.test.ts` writes the same fixture, runs the advanced pipelines, and asserts:
 
 - `output.md` contains every input line.
 - the default pipeline logs one `sync` and one `async` event per line,

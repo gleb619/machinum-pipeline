@@ -4,7 +4,7 @@
 |---------|-------------------|---------------------------------------------------------------|
 | sample0 | `samples/sample0` | `mt init` integration test — validates scaffolded artifacts   |
 | sample1 | `samples/sample1` | HTTP → JSONL pipeline (`hs://` source, `jsonl://` target)     |
-| sample2 | `samples/sample2` | Basic Markdown processing with no bespoke tools: sources/targets (`jsonl://`, `range://`, `md://`, `void://`, `ephemeral://`), entity buffers (`lines://`, `words://`), sync/async/parallel steps, `.fork()` branches and a non-blocking counter branch; entity pipeline (JSONL → md → Chapter → Paragraph → Line → Word) with `paragraphs://`/`lines://` buffers and fork vs parallel demos |
+| sample2 | `samples/sample2` | Markdown processing in two flavours — basics (`pipelines/basic-md-processing.ts`: source → shipped `wordCounter`/`toMarkdownTool`/`statFreq` → target, zero `defineTool`) and custom (`pipelines/custom-md-processing.ts`: one bespoke `defineTool`, entity buffers `lines://`/`words://`, sync/async/parallel steps, `.fork()` branches, non-blocking counter branch); entity pipeline (JSONL → md → Chapter → Paragraph → Line → Word) with `paragraphs://`/`lines://` buffers and fork vs parallel demos |
 | sample3 | `samples/sample3` | Multi-tool pipeline: JSONL → tools → subflows → batch → MD output |
 | sample4 | `samples/sample4` | Book flow in three chained stages: raw JSONL -> normalize -> summary/glossary/`<term>` tagging -> line-by-line EN->RU with a parity linter |
 | sample5 | `samples/sample5` | One tiny pipeline per LLM-backed tool (summary, translate modes, typo-fix, glossary, statdata, ...) with a side-by-side report in `out/<tool>/`; remote ollama via gitignored `mt.local.json` |

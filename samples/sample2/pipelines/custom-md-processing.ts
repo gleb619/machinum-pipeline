@@ -1,20 +1,22 @@
-import { definePipeline, getVariable } from '@mt/core'
+import { definePipeline, defineTool, getVariable, withItem } from '@mt/core'
 import { statFreq, toMarkdownTool, tokenCounter, tokenizeWords, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
 // ---------------------------------------------------------------------------
-// Basic flow, zero bespoke tools.
+// Advanced flow: one bespoke tool + a hand-composed pipeline.
 //
-// Every step is a shipped building block:
+// This file is the "custom" half of the pair. It shows:
 //
+// - a hand-written tool (`defineTool`) for the step the package does not ship:
+//   turning a JSONL record into prefixed lines
 // - waypoints: `jsonl://`, `range://`, `md://`, `void://`, `ephemeral://` and the
 //   entity buffers `lines://` / `words://` (packages/waypoint/src/entity-buffers.ts)
 // - tools:      `wordCounter`, `tokenCounter`, `statFreq`, `toMarkdownTool` and the
 //   word splitter `tokenizeWords` (packages/tools)
 // - DSL ops:    `.from` `.use` `.flatMap` `.batch` `.tap` `.fork` `.subflow` `.to`
 //
-// The only local code is data glue inside `.flatMap()` (how a JSONL record becomes
-// lines) and logging inside `.tap()`.
+// The basics twin is `pipelines/basic-md-processing.ts`: same job, but the
+// bespoke tool below is replaced by the shipped `toMarkdownTool`.
 // ---------------------------------------------------------------------------
 
 /** One JSONL record of the sample input. */
@@ -24,19 +26,29 @@ interface LineRecord {
 }
 
 /**
- * Split one record into line payloads: `1: First line of the document.`
+ * Bespoke tool: split one record into prefixed line payloads.
  *
- * The record id is kept in the text so the markdown output stays traceable back
- * to the input line.
+ * The record id is kept in the text (`1: First line of the document.`) so the
+ * markdown output stays traceable back to the input line.
+ *
+ * The lines are returned as one newline-joined string; the `.flatMap()` below
+ * fans them back into one envelope per line.
  */
-function toLinePayloads(record: unknown): string[] {
-  const { id, text } = record as LineRecord
-  return String(text)
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => `${id}: ${line}`)
-}
+const toLinePayloads = defineTool<LineRecord, string>({
+  name: 'sample2-to-line-payloads',
+  version: '1.0.0',
+  mdDescription: 'Split a JSONL record into prefixed line payloads.',
+  invoke: async (env, _ctx) => {
+    const { id, text } = env.item
+    const payload = String(text)
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => `${id}: ${line}`)
+      .join('\n')
+    return withItem(env, payload)
+  },
+})
 
 /** Await helper for the ASYNC step demo. */
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -50,10 +62,11 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 // `lines://` and never sees the file.
 // ---------------------------------------------------------------------------
 
-const lineStage = definePipeline({ id: 'basic-md-lines' })
+const lineStage = definePipeline({ id: 'custom-md-lines' })
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (record: unknown) => toLinePayloads(record))
-  .to('lines://basic-md')
+  .use(toLinePayloads)
+  .flatMap(async (payload: unknown) => String(payload).split('\n'))
+  .to('lines://custom-md')
 
 // ---------------------------------------------------------------------------
 // Stage 2 — WORDS
@@ -64,11 +77,11 @@ const lineStage = definePipeline({ id: 'basic-md-lines' })
 // The words land in the `words://` buffer.
 // ---------------------------------------------------------------------------
 
-const wordStage = definePipeline({ id: 'basic-md-words' })
-  .from('lines://basic-md')
+const wordStage = definePipeline({ id: 'custom-md-words' })
+  .from('lines://custom-md')
   .use(wordCounter)
   .flatMap(async (line: unknown) => tokenizeWords(String(line)))
-  .to('words://basic-md')
+  .to('words://custom-md')
 
 // ---------------------------------------------------------------------------
 // Stage 3 — MARKDOWN
@@ -90,13 +103,13 @@ const wordStage = definePipeline({ id: 'basic-md-words' })
 // ---------------------------------------------------------------------------
 
 /** Branch 1 — payload branch: the line becomes a markdown document. */
-const markdownBranch = definePipeline({ id: 'basic-md-branch-markdown' }).use(toMarkdownTool)
+const markdownBranch = definePipeline({ id: 'custom-md-branch-markdown' }).use(toMarkdownTool)
 
 /** Branch 2 — analysis branch: the same line, plus a `statFreq` report. */
-const statsBranch = definePipeline({ id: 'basic-md-branch-stats' }).use(statFreq)
+const statsBranch = definePipeline({ id: 'custom-md-branch-stats' }).use(statFreq)
 
-const mdStage = definePipeline({ id: 'basic-md-md' })
-  .from('lines://basic-md')
+const mdStage = definePipeline({ id: 'custom-md-md' })
+  .from('lines://custom-md')
   .tap((env) => {
     console.log(JSON.stringify({ stage: 'sync', id: env.id }))
   })
@@ -127,8 +140,8 @@ const mdStage = definePipeline({ id: 'basic-md-md' })
 // corpus, `statFreq` ranks them offline (no LLM), and the report is logged.
 // ---------------------------------------------------------------------------
 
-const wordStatsStage = definePipeline({ id: 'basic-md-word-stats' })
-  .from('words://basic-md')
+const wordStatsStage = definePipeline({ id: 'custom-md-word-stats' })
+  .from('words://custom-md')
   .batch(100)
   .use(statFreq)
   .tap((env) => {
@@ -152,7 +165,7 @@ const wordStatsStage = definePipeline({ id: 'basic-md-word-stats' })
 // boundaries stay in memory.
 // ---------------------------------------------------------------------------
 
-export default definePipeline({ id: 'basic-md-processing' })
+export default definePipeline({ id: 'custom-md-processing' })
   .subflow(lineStage)
   .subflow(wordStage)
   .subflow(mdStage)
@@ -163,7 +176,7 @@ export default definePipeline({ id: 'basic-md-processing' })
 // then discard everything with void://.
 // ---------------------------------------------------------------------------
 
-export const rangeDemoPipeline = definePipeline({ id: 'basic-md-range' })
+export const rangeDemoPipeline = definePipeline({ id: 'custom-md-range' })
   .from('range://1..3')
   .flatMap(async (n: unknown) => [`${n}: range value ${n}`])
   .use(wordCounter)
@@ -183,9 +196,10 @@ export const rangeDemoPipeline = definePipeline({ id: 'basic-md-range' })
 // of writing a file.
 // ---------------------------------------------------------------------------
 
-export const voidDemoPipeline = definePipeline({ id: 'basic-md-void' })
+export const voidDemoPipeline = definePipeline({ id: 'custom-md-void' })
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (record: unknown) => toLinePayloads(record))
+  .use(toLinePayloads)
+  .flatMap(async (payload: unknown) => String(payload).split('\n'))
   .to('void://')
 
 // ---------------------------------------------------------------------------
@@ -194,13 +208,14 @@ export const voidDemoPipeline = definePipeline({ id: 'basic-md-void' })
 // useful for tests and in-process pipelines. It is not persisted across processes.
 // ---------------------------------------------------------------------------
 
-export const ephemeralDemoPipeline = definePipeline({ id: 'basic-md-ephemeral' })
+export const ephemeralDemoPipeline = definePipeline({ id: 'custom-md-ephemeral' })
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (record: unknown) => toLinePayloads(record))
+  .use(toLinePayloads)
+  .flatMap(async (payload: unknown) => String(payload).split('\n'))
   .tap((env) => {
     console.log(JSON.stringify({ stage: 'ephemeral', id: env.id }))
   })
-  .to('ephemeral://basic-md-buffer')
+  .to('ephemeral://custom-md-buffer')
 
 // ---------------------------------------------------------------------------
 // Non-blocking side pipeline: counts words independently of the main flow.
@@ -209,9 +224,10 @@ export const ephemeralDemoPipeline = definePipeline({ id: 'basic-md-ephemeral' }
 // result to a sidecar JSONL file without blocking or changing the main stream.
 // ---------------------------------------------------------------------------
 
-export const countSidePipeline = definePipeline({ id: 'basic-md-counter' })
+export const countSidePipeline = definePipeline({ id: 'custom-md-counter' })
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (record: unknown) => toLinePayloads(record))
+  .use(toLinePayloads)
+  .flatMap(async (payload: unknown) => String(payload).split('\n'))
   .batch(1000)
   .use(statFreq)
   .tap((env) => {
