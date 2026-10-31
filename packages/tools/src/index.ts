@@ -641,6 +641,9 @@ export {
   resolveChunkBudget,
   shouldChunkText,
   withTextChunks,
+  runChunkedText,
+  resolvePromptBudget,
+  toChunkRecord,
   estimateReasoningReserve,
   VAR_CHUNK_PROCESSOR,
   type ChunkBudget,
@@ -652,6 +655,11 @@ export {
   type ChunkGroupOptions,
   type ChunkProcessorRecord,
   type ChunkedToolOptions,
+  type ChunkMode,
+  type ChunkModeOptions,
+  type ChunkRecord,
+  type ChunkedRunArgs,
+  type ChunkedRunResult,
 } from './core/chunk-processor.js'
 
 export {
@@ -679,6 +687,7 @@ export {
 } from './core/llm-gate.js'
 
 export {
+  createLlmTranslate,
   llmTranslate,
   type LlmTranslateInput,
   type LlmTranslateOutput,

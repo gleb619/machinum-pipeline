@@ -7,6 +7,7 @@ import {
   DEFAULT_OUTPUT_RESERVE,
   estimateOverhead,
   groupItemsToBudget,
+  processChunks,
   resolveChunkBudget,
 } from '../core/chunk-processor.js'
 import type { SemanticUnit } from '../core/chunk-processor.js'
@@ -253,65 +254,59 @@ function groupParagraphsGreedy(paragraphs: readonly string[], budget: ChunkBudge
   return groups
 }
 
-async function proofreadParagraphGroups(
-  groups: string[][],
-  paragraphs: readonly string[],
+interface GroupOutcome {
+  index: number
+  map: Map<number, string>
+  rawXml: string
+  meta: ProofreadMeta
+}
+
+/**
+ * Proofreads pre-built group XMLs (one LLM call each) on the shared {@link processChunks}
+ * loop and merges the results by id. Used by `proofread` and `proofread-xml`.
+ */
+async function proofreadGroupXmls(
+  groupXmls: string[],
   options: ProofreadOptions,
   env: Envelope<string>,
   ctx: ToolContext,
   chunkConcurrency = 2,
-): Promise<{ text: string; xml: string; meta: ProofreadMeta; chunks: number }> {
-  if (groups.length === 0) {
-    return {
-      text: reconstructText(paragraphs, new Map()),
-      xml: buildProofreadOutputXml([]),
-      meta: { attempts: 0, tokens: 0, fallbackUsed: false, proofreadXml: '' },
-      chunks: 0,
-    }
-  }
+): Promise<{ merged: Map<number, string>; meta: ProofreadMeta }> {
+  const outcome = await processChunks<{ outcomes: GroupOutcome[] }>({
+    chunks: groupXmls,
+    process: async (groupXml, index) => {
+      const groupIds = parseResultBlocks(groupXml, 'text').map((b) => b.id)
+      const r = await runProofread(groupXml, groupIds, options, env, ctx)
+      return {
+        outcomes: [
+          {
+            index,
+            map: toResultMap(parseResultBlocks(r.xml, 'proofread')),
+            rawXml: r.xml,
+            meta: r.meta,
+          },
+        ],
+      }
+    },
+    merge: (parts) => ({ outcomes: parts.flatMap((p) => p.outcomes) }),
+    concurrency: chunkConcurrency,
+  })
 
-  let offset = 0
+  const merged = new Map<number, string>()
   let rawXml = ''
   let attempts = 0
   let tokens = 0
   let lastFailure: string | undefined
-  const merged = new Map<number, string>()
-
-  for (let i = 0; i < groups.length; i += chunkConcurrency) {
-    const batch = groups.slice(i, i + chunkConcurrency)
-    const batchResults = await Promise.all(
-      batch.map(async (group) => {
-        const xml = buildProofreadXml(group, offset + 1)
-        const expectedIds = group.map((_, idx) => offset + idx + 1)
-        offset += group.length
-        return runProofread(xml, expectedIds, options, env, ctx)
-      }),
-    )
-    for (const r of batchResults) {
-      const map = toResultMap(parseResultBlocks(r.xml, 'proofread'))
-      for (const [id, text] of map) {
-        merged.set(id, text)
-      }
-      rawXml += r.xml
-      attempts += r.meta.attempts ?? 0
-      tokens += r.meta.tokens ?? 0
-      if (r.meta.lastFailure) lastFailure = r.meta.lastFailure
-    }
+  for (const o of [...outcome.outcomes].sort((x, y) => x.index - y.index)) {
+    for (const [id, text] of o.map) merged.set(id, text)
+    rawXml += o.rawXml
+    attempts += o.meta.attempts ?? 0
+    tokens += o.meta.tokens ?? 0
+    if (o.meta.lastFailure) lastFailure = o.meta.lastFailure
   }
-
-  const resultMeta: ProofreadMeta = {
-    attempts,
-    tokens,
-    fallbackUsed: false,
-    lastFailure,
-    proofreadXml: rawXml,
-  }
-
   return {
-    text: reconstructText(paragraphs, merged),
-    xml: reconstructXml(paragraphs, merged),
-    meta: resultMeta,
-    chunks: groups.length,
+    merged,
+    meta: { attempts, tokens, fallbackUsed: false, lastFailure, proofreadXml: rawXml },
   }
 }
 
@@ -366,18 +361,23 @@ export function createProofreadTool(
           proofreadText = reconstructText(paragraphs, proofreadMap)
         } else {
           const groups = groupParagraphsGreedy(paragraphs, budget)
-          const r = await proofreadParagraphGroups(
-            groups,
-            paragraphs,
+          let start = 1
+          const groupXmls = groups.map((group) => {
+            const groupXml = buildProofreadXml(group, start)
+            start += group.length
+            return groupXml
+          })
+          const r = await proofreadGroupXmls(
+            groupXmls,
             proofOptions,
             env,
             ctx,
             options.chunkConcurrency,
           )
-          xml = r.xml
+          xml = reconstructXml(paragraphs, r.merged)
           meta = r.meta
-          proofreadText = r.text
-          chunks = r.chunks
+          proofreadText = reconstructText(paragraphs, r.merged)
+          chunks = groups.length
         }
       }
 
@@ -459,42 +459,19 @@ export function createProofreadXmlTool(
               `<?xml version="1.0" encoding="UTF-8"?>\n<results>\n${group.join('\n')}\n</results>`,
           })
 
-          let rawXml = ''
-          let attempts = 0
-          let tokens = 0
-          let lastFailure: string | undefined
-          const merged = new Map<number, string>()
-
-          for (let i = 0; i < groups.length; i += options.chunkConcurrency ?? 2) {
-            const batch = groups.slice(i, i + (options.chunkConcurrency ?? 2))
-            const results = await Promise.all(
-              batch.map((groupXml) => {
-                const groupIds = parseResultBlocks(groupXml, 'text').map((b) => b.id)
-                return runProofread(groupXml, groupIds, proofOptions, env, ctx)
-              }),
-            )
-            for (const r of results) {
-              const map = toResultMap(parseResultBlocks(r.xml, 'proofread'))
-              for (const [id, text] of map) {
-                merged.set(id, text)
-              }
-              rawXml += r.xml
-              attempts += r.meta.attempts ?? 0
-              tokens += r.meta.tokens ?? 0
-              if (r.meta.lastFailure) lastFailure = r.meta.lastFailure
-            }
-          }
-
+          const r = await proofreadGroupXmls(
+            groups,
+            proofOptions,
+            env,
+            ctx,
+            options.chunkConcurrency,
+          )
           const originalMap = toResultMap(inputBlocks)
-          const orderedTexts = expectedIds.map((id) => merged.get(id) ?? originalMap.get(id) ?? '')
-          xml = reconstructXml(orderedTexts, merged)
-          meta = {
-            attempts,
-            tokens,
-            fallbackUsed: false,
-            lastFailure,
-            proofreadXml: rawXml,
-          }
+          const orderedTexts = expectedIds.map(
+            (id) => r.merged.get(id) ?? originalMap.get(id) ?? '',
+          )
+          xml = reconstructXml(orderedTexts, r.merged)
+          meta = r.meta
           chunks = groups.length
         }
       }

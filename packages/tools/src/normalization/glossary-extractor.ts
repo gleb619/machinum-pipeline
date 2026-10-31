@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import type { ChunkModeOptions } from '../core/chunk-processor.js'
 import { buildGlossaryGraph, serializeGlossaryGraph } from './glossary-graph.js'
 import type { GlossaryGraph } from './glossary-graph.js'
 import {
@@ -522,6 +523,16 @@ export function chapterNumberOf(md: string, fallback: number): number {
   return n ? Number(n) : fallback
 }
 
+function chunkArgs(options: ChunkModeOptions): ChunkModeOptions {
+  return {
+    chunkMode: options.chunkMode,
+    outputReserve: options.outputReserve,
+    reserve: options.reserve,
+    splitUnit: options.splitUnit,
+    chunkConcurrency: options.chunkConcurrency,
+  }
+}
+
 /** Relation enrichment through the NameRelations prompt (needs an LLM backend). */
 export interface GlossaryRelationsOptions {
   /** Analyse the relations of the terms without references. Default: `false`. */
@@ -538,7 +549,7 @@ export interface GlossaryEnrichOptions {
   maxTerms?: number
 }
 
-export interface GlossaryExtractorToolOptions extends GlossaryExtractOptions {
+export interface GlossaryExtractorToolOptions extends GlossaryExtractOptions, ChunkModeOptions {
   /** Loads the existing glossary (e.g. from `chapters/glossary.json`). */
   load?: () => Promise<Glossary | undefined> | Glossary | undefined
   /** LLM backend (e.g. `pickLlmTool().schemaCall`); without it the extractor stays offline. */
@@ -622,6 +633,7 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
           temperature: options.temperature,
           maxTokens: options.maxTokens,
           maxAttempts: options.maxAttempts,
+          ...chunkArgs(options),
           chapters,
           known: (existing?.terms ?? []).map((t) => t.term),
           candidates: freshNames,
@@ -696,6 +708,7 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
             temperature: options.temperature,
             maxTokens: options.maxTokens,
             maxAttempts: options.maxAttempts,
+            ...chunkArgs(options),
             term: term.term,
             chapters,
           })

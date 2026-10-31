@@ -1,8 +1,10 @@
 import { defineTool, getVariable, setVariables } from '@mt/core'
 import type { SchemaDocLlmCall, SchemaDocLlmOptions } from './schema/llm.js'
-import { createSummaryTool } from './schema/summary.js'
+import { type SummaryChunkOptions, createSummaryTool } from './schema/summary.js'
 
-export interface LlmSummaryToolOptions extends Omit<SchemaDocLlmOptions, 'call'> {
+export interface LlmSummaryToolOptions
+  extends Omit<SchemaDocLlmOptions, 'call'>,
+    SummaryChunkOptions {
   /** LLM backend (e.g. `pickLlmTool().schemaCall`). */
   call: SchemaDocLlmCall
   /** `false` -> pass-through (keeps the heuristic summary). Default: true. */
@@ -19,9 +21,9 @@ export function createLlmSummaryWithFallback(options: LlmSummaryToolOptions) {
   const inner = createSummaryTool(llmOptions)
   return defineTool<string | string[], string | string[]>({
     name: enabled ? 'llm-summary-with-fallback' : 'llm-summary-off',
-    version: '1.1.0',
+    version: '1.2.0',
     mdDescription: enabled
-      ? 'LLM summary through the picked backend; heuristic summary on fallback.'
+      ? 'LLM summary through the picked backend; heuristic summary on fallback. Supports shrink/chunk/auto modes.'
       : 'Pass-through (LLM summary disabled).',
     async invoke(env, ctx) {
       if (!enabled) return env

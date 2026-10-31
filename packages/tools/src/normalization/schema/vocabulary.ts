@@ -1,6 +1,12 @@
 import { defineTool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import {
+  type ChunkModeOptions,
+  resolvePromptBudget,
+  runChunkedText,
+  toChunkRecord,
+} from '../../core/chunk-processor.js'
 import { exField } from '../fields.js'
 import { chapterVars, parseWordList, readChapter, renderPrompt, roundTripIssue } from './doc.js'
 import type { ChapterSource } from './doc.js'
@@ -89,16 +95,26 @@ const DEFAULTS: SchemaDocLlmOptions = {
  * Per-envelope overrides: variable `schemaDocLlm`, variable `vocabularyLimit`,
  * variable `vocabularyPrompt` / variable `vocabularySystemPrompt`.
  */
-export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: number }) {
+export function createVocabularyTool(
+  options?: SchemaDocLlmOptions & ChunkModeOptions & { limit?: number },
+) {
   return defineTool<string, string>({
     name: 'vocabulary',
-    version: '1.1.0',
+    version: '1.2.0',
     mdDescription:
       'Extracts key terms from the chapter with an LLM through the OpenRouter proxy, deduplicates ' +
       'them against variable `knownWords`, and falls back to summary word extraction when the loop guard ' +
-      'is exhausted. Stores variable `vocabulary` and variable `knownWords`.',
+      'is exhausted. Supports shrink/chunk/auto modes (terms merged and deduped across chunks). Stores variable `vocabulary` and variable `knownWords`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
-      const { limit: optionLimit, ...llmOptions } = options ?? {}
+      const {
+        limit: optionLimit,
+        chunkMode,
+        outputReserve,
+        reserve,
+        splitUnit,
+        chunkConcurrency,
+        ...llmOptions
+      } = options ?? {}
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'vocabulary')
       const limit = Math.min(
         MAX_LIMIT,
@@ -114,23 +130,52 @@ export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: n
       const perItem: string[][] = []
       const results: PromptRetryResult<string[]>[] = []
 
+      const chunkRecords: ReturnType<typeof toChunkRecord>[] = []
+
       for (const input of inputs) {
         const source = readChapter(input)
-        const outcome = await runPromptWithRetry(ctx, {
-          ...resolved,
-          systemPrompt: renderPrompt(resolved.systemPrompt ?? VOCABULARY_SYSTEM_PROMPT, {
-            ...chapterVars(source),
-            limit,
-          }),
-          userPrompt: renderPrompt(resolved.userPrompt ?? VOCABULARY_USER_PROMPT, {
-            ...chapterVars(source),
-            limit,
-          }),
-          validate: (content) => validateVocabulary(content, source, limit),
-        })
+        const runOne = async (part: ChapterSource): Promise<string[]> => {
+          const outcome = await runPromptWithRetry(ctx, {
+            ...resolved,
+            systemPrompt: renderPrompt(resolved.systemPrompt ?? VOCABULARY_SYSTEM_PROMPT, {
+              ...chapterVars(part),
+              limit,
+            }),
+            userPrompt: renderPrompt(resolved.userPrompt ?? VOCABULARY_USER_PROMPT, {
+              ...chapterVars(part),
+              limit,
+            }),
+            validate: (content) => validateVocabulary(content, part, limit),
+          })
+          results.push(outcome)
+          return outcome.ok && outcome.value ? outcome.value.slice(0, limit) : []
+        }
 
-        const candidates =
-          outcome.ok && outcome.value ? outcome.value.slice(0, limit) : deterministicWords(source)
+        const run = await runChunkedText<string[]>({
+          mode: chunkMode,
+          text: source.body,
+          budget: () =>
+            resolvePromptBudget(ctx, resolved, { outputReserve, reserve }, [
+              renderPrompt(resolved.systemPrompt ?? VOCABULARY_SYSTEM_PROMPT, {
+                ...chapterVars(source),
+                body: '',
+                limit,
+              }),
+              renderPrompt(resolved.userPrompt ?? VOCABULARY_USER_PROMPT, {
+                ...chapterVars(source),
+                body: '',
+                limit,
+              }),
+            ]),
+          single: () => runOne(source),
+          chunk: (chunk) => runOne({ ...source, body: chunk }),
+          merge: (lists) => [...new Set(lists.flat())].slice(0, limit),
+          splitUnit,
+          concurrency: chunkConcurrency,
+        })
+        if (run.budget) chunkRecords.push(toChunkRecord(run.budget, run.chunks))
+
+        const candidates = run.value.length > 0 ? run.value : deterministicWords(source)
 
         const newWords = [...new Set(candidates)].filter((word) => !knownSet.has(word))
         for (const word of newWords) {
@@ -138,7 +183,6 @@ export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: n
         }
         knownWords.push(...newWords)
         perItem.push(newWords)
-        results.push(outcome)
       }
 
       const values: Record<string, unknown> = {
@@ -148,6 +192,9 @@ export function createVocabularyTool(options?: SchemaDocLlmOptions & { limit?: n
       }
       if (env.items) {
         values.vocabularyByItem = perItem
+      }
+      if (chunkRecords.length > 0) {
+        values.vocabularyChunks = chunkRecords
       }
       return setVariables(env, values)
     },

@@ -470,3 +470,106 @@ export function withTextChunks<I extends { text: string }, O extends { text: str
     },
   }
 }
+
+// ---------------------------------------------------------------------------
+// Shared mode dispatch (shrink | chunk | auto) for LLM tools
+// ---------------------------------------------------------------------------
+
+/** How a tool treats text larger than the model budget. `shrink` (default) = one call. */
+export type ChunkMode = 'shrink' | 'chunk' | 'auto'
+
+/** Option shape shared by every tool that supports chunk modes. */
+export interface ChunkModeOptions {
+  /** Default 'shrink' (one call, the gate/fit behaviour). */
+  chunkMode?: ChunkMode
+  /** Per-call output token reserve. */
+  outputReserve?: number
+  /** Safety reserve tokens. */
+  reserve?: number
+  /** Preferred semantic split unit. Default 'paragraph'. */
+  splitUnit?: SemanticUnit
+  /** Chunk processing concurrency. Default 2. */
+  chunkConcurrency?: number
+}
+
+/** Budget summary a tool stores in its `<tool>Chunks` variable. */
+export interface ChunkRecord {
+  chunks: number
+  limit: number
+  inputBudget: number
+  model: string
+}
+
+export function toChunkRecord(budget: ChunkBudget, chunks: number): ChunkRecord {
+  return { chunks, limit: budget.limit, inputBudget: budget.inputBudget, model: budget.model }
+}
+
+export interface ChunkedRunArgs<T> {
+  mode: ChunkMode | undefined
+  text: string
+  /** Lazy: only evaluated for `chunk`/`auto`. */
+  budget: () => ChunkBudget | null
+  /** One call over the whole text (shrink path, and auto when the text fits). */
+  single: () => Promise<T>
+  /** One call over a chunk of the text. */
+  chunk: (chunkText: string, index: number) => Promise<T>
+  merge: (outputs: readonly T[]) => T
+  splitUnit?: SemanticUnit
+  concurrency?: number
+}
+
+export interface ChunkedRunResult<T> {
+  value: T
+  /** Number of chunks processed; 0 when the single-call path ran. */
+  chunks: number
+  budget?: ChunkBudget
+}
+
+/**
+ * Mode dispatcher on top of {@link processChunks}: decides single call vs split -> process ->
+ * merge, so every tool states only its prompts (`single` / `chunk`) and a `merge`.
+ */
+export async function runChunkedText<T>(args: ChunkedRunArgs<T>): Promise<ChunkedRunResult<T>> {
+  if (args.mode === undefined || args.mode === 'shrink') {
+    return { value: await args.single(), chunks: 0 }
+  }
+  const budget = args.budget()
+  if (!budget || (args.mode === 'auto' && !shouldChunkText(args.text, budget))) {
+    return { value: await args.single(), chunks: 0 }
+  }
+  const chunks = adaptiveSemanticChunks(args.text, budget, {
+    unit: args.splitUnit ?? 'paragraph',
+    count: countTextTokens,
+  })
+  const value = await processChunks({
+    chunks,
+    process: args.chunk,
+    merge: args.merge,
+    concurrency: args.concurrency ?? 2,
+  })
+  return { value, chunks: chunks.length, budget }
+}
+
+/**
+ * Budget for a tool whose prompt is `promptParts` around the text: overhead is estimated from
+ * the parts (render them with an empty text slot). Output reserve falls back to the tool's
+ * `maxTokens`, then `defaultOutputReserve`.
+ */
+export function resolvePromptBudget(
+  ctx: ToolContext,
+  resolved: { model?: string; maxTokens?: number },
+  options: Pick<ChunkModeOptions, 'outputReserve' | 'reserve'>,
+  promptParts: readonly string[],
+  defaultOutputReserve: number = DEFAULT_OUTPUT_RESERVE,
+): ChunkBudget | null {
+  return resolveChunkBudget({
+    ctx,
+    input: {
+      model: resolved.model,
+      outputReserve: options.outputReserve ?? resolved.maxTokens ?? defaultOutputReserve,
+      overhead: estimateOverhead(...promptParts),
+      reserve: options.reserve,
+    },
+    llmConfig: resolved,
+  })
+}

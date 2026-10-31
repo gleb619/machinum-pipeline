@@ -282,12 +282,12 @@ function addToUsage(target: GateUsage, source: Partial<GateUsage>): void {
 // Chunked translate wrapper
 // ---------------------------------------------------------------------------
 
-type TranslateToolLike = Tool<TranslateInput, TranslateOutput> & {
+export type TranslateToolLike = Tool<TranslateInput, TranslateOutput> & {
   slots: ComposableTool<TranslateInput, TranslateOutput, GateSlot>['slots']
   with: ComposableTool<TranslateInput, TranslateOutput, GateSlot>['with']
 }
 
-function createChunkedTranslateText(
+export function createChunkedTranslateText(
   gate: ComposableTool<TranslateInput, TranslateOutput, GateSlot>,
   options: TranslateTextOptions,
 ): TranslateToolLike {

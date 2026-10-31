@@ -88,13 +88,13 @@ Envelope type: `SchemaDocEnvelope`.
   error messages kept); `backend: 'llm'` routes through the LLM toolkit (`resolveLlmConfig` provider,
   prompts `translate.system` / `translate.user`). Options: `TranslateTextOptions` (`targetLang`, `backend`,
   `llm`, `routerUrl`, `prompts`); legacy `TranslateToolConfig` type kept for compatibility.
-  `llmTranslate` (`llm-translate.ts`) shares this one implementation with the `llm` backend.
+  `llmTranslate` / `createLlmTranslate(options)` (`llm-translate.ts`) share this one implementation with the `llm` backend and accept the same chunk options.
   `chunkMode?: 'shrink' | 'chunk' | 'auto'` (default `'shrink'`) plus `outputReserve`, `reserve`, `splitUnit`,
   and `chunkConcurrency` enable budget-aware chunk translation: oversized text is split, translated chunk by
   chunk, and merged with paragraph separators. Chunk metadata is stored in the `translateChunks` variable.
 
 ### `core/chunk-processor.ts`
-Shared budget-aware chunk processing used by `summary`, `translate-text`, and `proofread`.
+Shared budget-aware chunk processing used by every LLM tool listed under chunk-mode coverage below.
 
 - `resolveChunkBudget({ ctx?, input?, llmConfig? })` → `ChunkBudget | null`. Computes a per-call input budget
   from the model context limit (via `modelContextLimit` / `resolveContextConfig`), requested `outputReserve`,
@@ -120,17 +120,47 @@ for every affected tool remains `'shrink'` (single call); opt into chunking with
 oversized input. `chunk` - always split to budget-sized chunks, process each, merge; most thorough, most calls.
 `auto` - compute the budget first, chunk only when the text exceeds it, else one call (best general choice for
 long chapters). Chunk metadata (`chunks`, `limit`, `inputBudget`, `model`) lives in a variable per tool
-(`summaryChunks`, `summaryNotesChunks`, `proofreadChunks`, `proofreadXmlChunks`, `translateChunks`). Merge:
-summary joins parts, notes dedupe + cap, proofread reconstructs by id, translate joins in order (no dedupe).
+(see the coverage table). Merge strategies are per tool (also in the table).
 `estimateOverhead(...promptParts)` and `DEFAULT_OUTPUT_RESERVE` are the single source of overhead/reserve defaults.
 Token counts use tiktoken (`countTextTokens`); providers differ, so budgets are approximate (`reserve` absorbs drift).
 `normalization/token-splitter.ts` is a pipeline Tool that emits chunks; `chunk-processor` is a library used inside
 LLM tools - kept separate on purpose.
 
-**Out of scope for chunk mode (still shrink-only):** `normalization/schema/{entities,metadata,schema,vocabulary}.ts`
-(structured JSON extraction needs a per-tool merge strategy), `normalization/{glossary-llm,llm-summary,llm-typo-fix}.ts`,
-`core/llm-translate.ts`, `modification/chapter-translator.ts`. Follow-up work; use `withTextChunks` or
-`processTextInChunks` + a merge fn to add them.
+**Shared dispatcher.** `runChunkedText({ mode, text, budget, single, chunk, merge, splitUnit?, concurrency? })`
+decides single call vs split -> process -> merge on top of `processChunks`; `resolvePromptBudget(ctx, resolved,
+{ outputReserve, reserve }, promptParts)` builds the budget (overhead from the prompt parts rendered with an empty
+text slot); `ChunkModeOptions` / `ChunkMode` / `toChunkRecord` are the common option and metadata shapes. Every
+tool below supplies only its prompts plus a merge strategy; `proofread` / `proofread-xml` run their group XMLs
+through `processChunks` directly.
+
+**Chunk-mode coverage** (all take `ChunkModeOptions`: `chunkMode`, `outputReserve`, `reserve`, `splitUnit`,
+`chunkConcurrency`; default `'shrink'`):
+
+| Tool | Variable | Merge |
+|---|---|---|
+| `summary`, `summary-notes`, `llm-summary` (wraps `summary`) | `summaryChunks`, `summaryNotesChunks` | join / dedupe + cap |
+| `proofread`, `proofread-xml` | `proofreadChunks`, `proofreadXmlChunks` | by id |
+| `translate-text`, `llm-translate` (`createLlmTranslate(opts)`) | `translateChunks` | join in order |
+| `entities` | `entitiesChunks` | dedupe by name, re-index, cap 200 |
+| `vocabulary` | `vocabularyChunks` | dedupe, cap `limit` |
+| `llm-typo-fix` | `llmTypoFixChunks` | join with blank line; a chunk whose reply changes its line count keeps its original text, `llmFixed` is true only when every chunk applied |
+| `glossary-llm` stage A (`extractGlossaryWithLlm`) and stage C (`enrichTermWithLlm`); threaded through `glossary-extractor` options | result `chunks` field | entries merged by name (references unioned) / bullet lines deduped |
+| `chapter-translator` (`createParagraphTranslator`) | `translateChunks` (from the inner translator) | default translator becomes `createTranslateText({ chunkMode, backend })` so an oversized paragraph is split; ignored when a custom `translate` is passed |
+
+In glossary stages `shrink` keeps the historical `maxChars` truncation; `chunk`/`auto` send the full corpus sized by
+the token budget. A fixed `userPrompt` override carries no corpus text, so those stages stay single-call.
+
+**Not chunkable (left shrink-only on purpose):**
+- `normalization/schema/metadata.ts` - output is one measured row (counters of the whole chapter, validated against
+  ground truth); the body is not what the model produces, chunk replies could not be merged meaningfully.
+- `normalization/schema/schema.ts` - output is one whole-document mermaid diagram; merging per-chunk diagrams would
+  yield a different, non-faithful structure.
+- `glossary-llm` stage B (`relateTermWithLlm`) - prompt is a term plus short name lists, no document text.
+- `title-translator` - input is a single title line.
+
+Translate-chunk dedupe stays out of scope (deliberate): chunks are joined in order without dedupe. The
+`token-splitter` boundary is unchanged: `normalization/token-splitter.ts` is a pipeline Tool, `chunk-processor` a
+library.
 
 ### `modification/proofread.ts`
 - `proofreadTool` / `createProofreadTool(options)` — LLM proofreading of plain text; splits text into paragraphs,
@@ -138,7 +168,7 @@ LLM tools - kept separate on purpose.
   is the lower-level sub-tool that accepts/returns the raw XML. `proofreadPropertiesTool` uses Java properties
   format. All support `ProofreadChunkOptions` (`chunkMode`, `outputReserve`, `reserve`, `splitUnit`,
   `chunkConcurrency`) with default `'shrink'`. In `'chunk'`/`'auto'` mode, paragraphs or XML `<result>` blocks are
-  batched to fit the per-call budget and proofread concurrently; the result is reconstructed by id. Chunk metadata
+  batched to fit the per-call budget and proofread concurrently on the shared `processChunks` loop; the result is reconstructed by id. Chunk metadata
   is stored in `proofreadChunks` / `proofreadXmlChunks` variables.
 
 ### `heuristic-summary.ts` / `glossary-extractor.ts` / `term-tagger.ts`

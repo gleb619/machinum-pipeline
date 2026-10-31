@@ -1,6 +1,12 @@
 import { defineComposableTool, defineTool, mapConcurrent, setVariables, withItem } from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
-import { type TranslateInput, type TranslateOutput, translateText } from '../core/translate-text.js'
+import type { ChunkModeOptions } from '../core/chunk-processor.js'
+import {
+  type TranslateInput,
+  type TranslateOutput,
+  createTranslateText,
+  translateText,
+} from '../core/translate-text.js'
 import { type ChapterDoc, readChapterDoc, writeChapterDoc } from './chapter-doc.js'
 
 // ---------------------------------------------------------------------------
@@ -231,9 +237,16 @@ export interface ParagraphTranslatorState {
 
 export type ParagraphTranslatorSlot = 'split' | 'translate' | 'assemble'
 
-export interface ParagraphTranslatorOptions {
-  /** Translator for each paragraph. Default: `translateText`. */
+export interface ParagraphTranslatorOptions extends ChunkModeOptions {
+  /**
+   * Translator for each paragraph. Default: `translateText`, or - when `chunkMode` is
+   * `chunk`/`auto` - a `createTranslateText` with the same chunk options, so a paragraph larger
+   * than the model budget is split, translated and merged. Chunk options are ignored when a
+   * custom `translate` is given (build it with `createTranslateText({ chunkMode })` instead).
+   */
   translate?: Tool<TranslateInput, TranslateOutput>
+  /** Backend of the chunking default translator. Default: `router`. */
+  backend?: 'router' | 'llm'
   /**
    * Max paragraphs translated concurrently (bounded, output order preserved).
    * Default: 4.
@@ -356,6 +369,20 @@ const paragraphAssemble = defineTool<ParagraphTranslatorState, ParagraphTranslat
   },
 })
 
+function defaultParagraphTranslator(
+  options: ParagraphTranslatorOptions,
+): Tool<TranslateInput, TranslateOutput> {
+  if (!options.chunkMode || options.chunkMode === 'shrink') return translateText
+  return createTranslateText({
+    backend: options.backend,
+    chunkMode: options.chunkMode,
+    outputReserve: options.outputReserve,
+    reserve: options.reserve,
+    splitUnit: options.splitUnit,
+    chunkConcurrency: options.chunkConcurrency,
+  })
+}
+
 /**
  * Composable paragraph translator: slots `split -> translate -> assemble`.
  * `.with({ translate: myTool })` swaps the translator for the whole tool.
@@ -369,13 +396,13 @@ export function createParagraphTranslator(
     ParagraphTranslatorSlot
   >({
     name: 'paragraph-translator',
-    version: '1.0.0',
+    version: '1.1.0',
     mdDescription:
       'Translates chapter body paragraphs. Preserves paragraph structure. ' +
       'Composable: slots split/translate/assemble; swap the translator via `.with({ translate })`.',
     slots: {
       split: paragraphSplit as Tool<never, unknown>,
-      translate: paragraphTranslateSlot(options.translate ?? translateText, {
+      translate: paragraphTranslateSlot(options.translate ?? defaultParagraphTranslator(options), {
         concurrency: options.concurrency,
       }) as Tool<never, unknown>,
       assemble: paragraphAssemble as Tool<never, unknown>,

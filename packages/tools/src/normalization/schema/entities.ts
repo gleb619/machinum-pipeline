@@ -1,6 +1,12 @@
 import { defineTool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import {
+  type ChunkModeOptions,
+  resolvePromptBudget,
+  runChunkedText,
+  toChunkRecord,
+} from '../../core/chunk-processor.js'
 import { chapterVars, parseEntityRows, readChapter, renderPrompt, roundTripIssue } from './doc.js'
 import type { ChapterSource } from './doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
@@ -77,39 +83,70 @@ const DEFAULTS: SchemaDocLlmOptions = {
  * variable `entitiesSystemPrompt`. Fallback order when the loop guard is exhausted:
  * the schema-doc `## Entities` CSV, then a single `chapter` placeholder entity.
  */
-export function createEntitiesTool(options?: SchemaDocLlmOptions) {
+export function createEntitiesTool(options?: SchemaDocLlmOptions & ChunkModeOptions) {
+  const { chunkMode, outputReserve, reserve, splitUnit, chunkConcurrency, ...llmOptions } =
+    options ?? {}
+
   return defineTool<string, string>({
     name: 'entities',
-    version: '1.1.0',
+    version: '1.2.0',
     mdDescription:
       'Extracts named entities from the chapter with an LLM through the OpenRouter proxy, as CSV ' +
       'rows (`index,name`). Loop-guarded retries fall back to the schema-doc Entities block, then a ' +
-      'default entity. Stores variable `entities`.',
+      'default entity. Supports shrink/chunk/auto modes (entities merged and deduped across ' +
+      'chunks). Stores variable `entities`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'entities')
+      const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'entities')
       const inputs = env.items ?? [env.item]
 
       const collected: SchemaEntity[][] = []
       const results: PromptRetryResult<SchemaEntity[]>[] = []
+      const chunkRecords: ReturnType<typeof toChunkRecord>[] = []
 
       for (const input of inputs) {
         const source = readChapter(input)
-        const outcome = await runPromptWithRetry(ctx, {
-          ...resolved,
-          systemPrompt: renderPrompt(
-            resolved.systemPrompt ?? ENTITIES_SYSTEM_PROMPT,
-            chapterVars(source),
-          ),
-          userPrompt: renderPrompt(
-            resolved.userPrompt ?? ENTITIES_USER_PROMPT,
-            chapterVars(source),
-          ),
-          validate: (content) => validateEntities(content, source),
+        const runOne = async (part: ChapterSource): Promise<SchemaEntity[]> => {
+          const outcome = await runPromptWithRetry(ctx, {
+            ...resolved,
+            systemPrompt: renderPrompt(
+              resolved.systemPrompt ?? ENTITIES_SYSTEM_PROMPT,
+              chapterVars(part),
+            ),
+            userPrompt: renderPrompt(
+              resolved.userPrompt ?? ENTITIES_USER_PROMPT,
+              chapterVars(part),
+            ),
+            validate: (content) => validateEntities(content, part),
+          })
+          results.push(outcome)
+          return outcome.ok && outcome.value ? outcome.value : []
+        }
+
+        const run = await runChunkedText<SchemaEntity[]>({
+          mode: chunkMode,
+          text: source.body,
+          budget: () =>
+            resolvePromptBudget(ctx, resolved, { outputReserve, reserve }, [
+              renderPrompt(resolved.systemPrompt ?? ENTITIES_SYSTEM_PROMPT, {
+                ...chapterVars(source),
+                body: '',
+              }),
+              renderPrompt(resolved.userPrompt ?? ENTITIES_USER_PROMPT, {
+                ...chapterVars(source),
+                body: '',
+              }),
+            ]),
+          single: () => runOne(source),
+          chunk: (chunk) => runOne({ ...source, body: chunk }),
+          merge: mergeEntities,
+          splitUnit,
+          concurrency: chunkConcurrency,
         })
+        if (run.budget) chunkRecords.push(toChunkRecord(run.budget, run.chunks))
+
         const fallback =
           source.doc.entities.length > 0 ? source.doc.entities : [{ index: 1, name: 'chapter' }]
-        collected.push(outcome.ok && outcome.value ? outcome.value : fallback)
-        results.push(outcome)
+        collected.push(run.value.length > 0 ? run.value : fallback)
       }
 
       const values: Record<string, unknown> = {
@@ -119,9 +156,27 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions) {
       if (env.items) {
         values.entitiesByItem = collected
       }
+      if (chunkRecords.length > 0) {
+        values.entitiesChunks = chunkRecords
+      }
       return setVariables(env, values)
     },
   })
+}
+
+/** Merges per-chunk entity lists: first occurrence wins (case-insensitive), re-indexed, capped. */
+function mergeEntities(lists: readonly SchemaEntity[][]): SchemaEntity[] {
+  const seen = new Set<string>()
+  const merged: SchemaEntity[] = []
+  for (const list of lists) {
+    for (const entity of list) {
+      const key = entity.name.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      merged.push({ index: merged.length + 1, name: entity.name })
+    }
+  }
+  return merged.slice(0, MAX_ENTITIES)
 }
 
 /** Entity tool with the default prompts and model. */

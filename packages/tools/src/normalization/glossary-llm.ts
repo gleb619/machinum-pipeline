@@ -1,9 +1,17 @@
 import type { ToolContext } from '@mt/core'
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
+import {
+  type ChunkModeOptions,
+  type ChunkRecord,
+  resolvePromptBudget,
+  runChunkedText,
+  toChunkRecord,
+} from '../core/chunk-processor.js'
 import { extractJson } from '../core/llm-gate.js'
 import { renderTemplate } from '../core/llm-prompts.js'
 import {
   type LlmAttemptMeta,
+  type PromptRetryResult,
   type SchemaDocLlmCall,
   attemptMeta,
   runPromptWithRetry,
@@ -168,20 +176,50 @@ function nameList(names: string[]): string {
   return names.length > 0 ? names.join(', ') : 'none'
 }
 
-export interface GlossaryExtractLlmArgs extends GlossaryLlmOptions {
+export interface GlossaryExtractLlmArgs extends GlossaryLlmOptions, ChunkModeOptions {
   /** Chapters of the analysed corpus. */
   chapters: GlossaryChapter[]
   /** Names of the terms already in the glossary (reused, not re-extracted). */
   known?: string[]
   /** Candidate names to extract (heuristic + NER seeded). */
   candidates?: string[]
-  /** Max characters of the corpus sent to the model. Default: 12000. */
+  /**
+   * Max characters of the corpus sent to the model. Default: 12000. Only the default
+   * `shrink` mode truncates; `chunk`/`auto` size the corpus by the token budget instead.
+   */
   maxChars?: number
 }
 
 export interface GlossaryExtractLlmResult {
   entries: LlmGlossaryEntry[]
   meta: LlmAttemptMeta
+  /** Present when the corpus was split into chunks. */
+  chunks?: ChunkRecord
+}
+
+/** Merges per-chunk glossary entries by name (case-insensitive): union of references. */
+export function mergeGlossaryEntries(lists: readonly LlmGlossaryEntry[][]): LlmGlossaryEntry[] {
+  const byName = new Map<string, LlmGlossaryEntry>()
+  for (const list of lists) {
+    for (const entry of list) {
+      const key = entry.name.trim().toLowerCase()
+      const known = byName.get(key)
+      if (!known) {
+        byName.set(key, { ...entry, references: [...entry.references] })
+        continue
+      }
+      if (!known.category) known.category = entry.category
+      if (!known.description) known.description = entry.description
+      const have = new Set(known.references.map((r) => r.toLowerCase()))
+      for (const ref of entry.references) {
+        if (!have.has(ref.toLowerCase())) {
+          have.add(ref.toLowerCase())
+          known.references.push(ref)
+        }
+      }
+    }
+  }
+  return [...byName.values()]
 }
 
 /**
@@ -194,32 +232,59 @@ export async function extractGlossaryWithLlm(
   args: GlossaryExtractLlmArgs,
 ): Promise<GlossaryExtractLlmResult> {
   const systemPrompt = args.systemPrompt ?? loadBundledPrompt(GLOSSARY_PROMPTS.system)
-  const userPrompt =
+  const userFor = (text: string): string =>
     args.userPrompt ??
     renderTemplate(loadBundledPrompt(GLOSSARY_PROMPTS.user), {
-      text: corpusText(args.chapters, args.maxChars),
+      text,
       known: nameList(args.known ?? []),
       candidates: nameList(args.candidates ?? []),
     })
-  const result = await runPromptWithRetry(ctx, {
-    call: args.call,
-    model: args.model,
-    temperature: args.temperature,
-    maxTokens: args.maxTokens,
-    maxAttempts: args.maxAttempts,
-    systemPrompt,
-    userPrompt,
-    validate: (content) => {
-      const entries = parseGlossaryEntries(content)
-      if (entries.length === 0) {
-        return { ok: false, reason: 'no glossary entries found - reply with a JSON array of terms' }
-      }
-      return { ok: true, value: entries }
-    },
+  const results: PromptRetryResult<LlmGlossaryEntry[]>[] = []
+  const runOne = async (text: string): Promise<LlmGlossaryEntry[]> => {
+    const result = await runPromptWithRetry(ctx, {
+      call: args.call,
+      model: args.model,
+      temperature: args.temperature,
+      maxTokens: args.maxTokens,
+      maxAttempts: args.maxAttempts,
+      systemPrompt,
+      userPrompt: userFor(text),
+      validate: (content) => {
+        const entries = parseGlossaryEntries(content)
+        if (entries.length === 0) {
+          return {
+            ok: false,
+            reason: 'no glossary entries found - reply with a JSON array of terms',
+          }
+        }
+        return { ok: true, value: entries }
+      },
+    })
+    results.push(result)
+    return result.ok ? (result.value ?? []) : []
+  }
+
+  // A fixed user prompt override carries no corpus text, so there is nothing to chunk.
+  const mode = args.userPrompt === undefined ? args.chunkMode : 'shrink'
+  const full = corpusText(args.chapters, Number.POSITIVE_INFINITY)
+  const run = await runChunkedText<LlmGlossaryEntry[]>({
+    mode,
+    text: full,
+    budget: () => resolvePromptBudget(ctx, args, args, [systemPrompt, userFor('')]),
+    // shrink keeps the historical `maxChars` truncation; auto-fits send the whole corpus
+    single: () =>
+      runOne(
+        mode === 'shrink' || mode === undefined ? corpusText(args.chapters, args.maxChars) : full,
+      ),
+    chunk: runOne,
+    merge: mergeGlossaryEntries,
+    splitUnit: args.splitUnit,
+    concurrency: args.chunkConcurrency,
   })
   return {
-    entries: result.ok ? (result.value ?? []) : [],
-    meta: attemptMeta([result]),
+    entries: run.value,
+    meta: attemptMeta(results),
+    ...(run.budget ? { chunks: toChunkRecord(run.budget, run.chunks) } : {}),
   }
 }
 
@@ -281,7 +346,7 @@ export async function relateTermWithLlm(
   }
 }
 
-export interface GlossaryEnrichLlmArgs extends GlossaryLlmOptions {
+export interface GlossaryEnrichLlmArgs extends GlossaryLlmOptions, ChunkModeOptions {
   /** Term to describe. */
   term: string
   /** Chapter texts the term appears in. */
@@ -294,6 +359,8 @@ export interface GlossaryEnrichLlmResult {
   /** Bullet list of facts about the term (empty when the call failed). */
   description: string
   meta: LlmAttemptMeta
+  /** Present when the text was split into chunks. */
+  chunks?: ChunkRecord
 }
 
 /**
@@ -305,28 +372,62 @@ export async function enrichTermWithLlm(
   args: GlossaryEnrichLlmArgs,
 ): Promise<GlossaryEnrichLlmResult> {
   const systemPrompt = args.systemPrompt ?? loadBundledPrompt(GLOSSARY_PROMPTS.enrichSystem)
-  const userPrompt =
+  const userFor = (text: string): string =>
     args.userPrompt ??
-    renderTemplate(loadBundledPrompt(GLOSSARY_PROMPTS.enrichUser), {
-      term: args.term,
-      text: corpusText(args.chapters, args.maxChars),
+    renderTemplate(loadBundledPrompt(GLOSSARY_PROMPTS.enrichUser), { term: args.term, text })
+  const results: PromptRetryResult<string>[] = []
+  const runOne = async (text: string): Promise<string> => {
+    const result = await runPromptWithRetry(ctx, {
+      call: args.call,
+      model: args.model,
+      temperature: args.temperature,
+      maxTokens: args.maxTokens,
+      maxAttempts: args.maxAttempts,
+      systemPrompt,
+      userPrompt: userFor(text),
+      validate: (content) => {
+        const trimmed = content.trim()
+        if (trimmed === '') return { ok: false, reason: 'the response was empty' }
+        return { ok: true, value: trimmed }
+      },
     })
-  const result = await runPromptWithRetry(ctx, {
-    call: args.call,
-    model: args.model,
-    temperature: args.temperature,
-    maxTokens: args.maxTokens,
-    maxAttempts: args.maxAttempts,
-    systemPrompt,
-    userPrompt,
-    validate: (content) => {
-      const text = content.trim()
-      if (text === '') return { ok: false, reason: 'the response was empty' }
-      return { ok: true, value: text }
-    },
+    results.push(result)
+    return result.ok ? (result.value ?? '') : ''
+  }
+
+  const mode = args.userPrompt === undefined ? args.chunkMode : 'shrink'
+  const full = corpusText(args.chapters, Number.POSITIVE_INFINITY)
+  const run = await runChunkedText<string>({
+    mode,
+    text: full,
+    budget: () => resolvePromptBudget(ctx, args, args, [systemPrompt, userFor('')]),
+    single: () =>
+      runOne(
+        mode === 'shrink' || mode === undefined ? corpusText(args.chapters, args.maxChars) : full,
+      ),
+    chunk: runOne,
+    merge: mergeFactLists,
+    splitUnit: args.splitUnit,
+    concurrency: args.chunkConcurrency,
   })
   return {
-    description: result.ok ? (result.value ?? '') : '',
-    meta: attemptMeta([result]),
+    description: run.value,
+    meta: attemptMeta(results),
+    ...(run.budget ? { chunks: toChunkRecord(run.budget, run.chunks) } : {}),
   }
+}
+
+/** Joins per-chunk bullet lists, dropping repeated lines (case/whitespace-insensitive). */
+function mergeFactLists(parts: readonly string[]): string {
+  const seen = new Set<string>()
+  const lines: string[] = []
+  for (const part of parts) {
+    for (const line of part.split('\n')) {
+      const key = line.toLowerCase().replace(/\s+/g, ' ').trim()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      lines.push(line.trimEnd())
+    }
+  }
+  return lines.join('\n')
 }
