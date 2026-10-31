@@ -8,6 +8,7 @@ import { createNamedEphemeralSource, createNamedEphemeralTarget } from './epheme
  * These are the same process-local buffers as `ephemeral://`, but named after
  * the entity the pipeline is handing off:
  *
+ *   batches://<namespace>     Fixed-size packages (`.batch(n)` groups, `items[]` + members)
  *   chapters://<namespace>    Chapter envelopes
  *   paragraphs://<namespace>  Paragraph envelopes
  *   chunks://<namespace>      Chunk envelopes
@@ -21,6 +22,7 @@ import { createNamedEphemeralSource, createNamedEphemeralTarget } from './epheme
  */
 
 export const ENTITY_BUFFER_SCHEMES = [
+  'batches',
   'chapters',
   'paragraphs',
   'chunks',

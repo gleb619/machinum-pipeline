@@ -12,7 +12,9 @@ import {
   itemsOf,
   oldItemOf,
   setVariable,
+  unbatchExchange,
   withItem,
+  withMeta,
 } from '../../src/exchange.js'
 import type { Pipeline, Tool } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
@@ -113,6 +115,56 @@ describe('runner exchange semantics', () => {
     expect(outputs[1]?.id).toBe('a.1')
     expect(outputs[0]?.meta.parentId).toBe('a')
     expect(getVariable(outputs[2] as Exchange, 'k')).toBe('second')
+  })
+
+  it('unbatch restores members with their own meta and variables, plus batch-level edits', async () => {
+    inputs.push(
+      withMeta(setVariable(createExchange(1, { id: 'a' }), 'k', 'first'), { chapterNum: 1 }),
+      withMeta(setVariable(createExchange(2, { id: 'b' }), 'k', 'second'), { chapterNum: 2 }),
+      withMeta(setVariable(createExchange(3, { id: 'c' }), 'k', 'third'), { chapterNum: 3 }),
+    )
+    const mark: Tool<number[], number[]> = {
+      name: 'mark',
+      version: '1',
+      mdDescription: 'sets a package-level variable',
+      async invoke(ex) {
+        return setVariable(ex, 'translated', ['one', 'two'])
+      },
+    }
+    await new Runner(
+      pipe([
+        { type: 'batch', config: { size: 2 } },
+        { type: 'tool', config: { name: 'mark', tool: mark } },
+        { type: 'unbatch', config: {} },
+      ]),
+      ctx(root),
+    ).start()
+
+    expect(outputs).toHaveLength(3)
+    expect(outputs.map((o) => o.id)).toEqual(['a', 'b', 'c'])
+    expect(outputs.map((o) => o.meta)).toEqual([
+      { chapterNum: 1, batchIndex: 0 },
+      { chapterNum: 2, batchIndex: 1 },
+      { chapterNum: 3, batchIndex: 0 },
+    ])
+    // Per-member values survive; only variables changed while batched are stamped back.
+    expect(outputs.map((o) => getVariable(o, 'k'))).toEqual(['first', 'second', 'third'])
+    expect(outputs.map((o) => getVariable(o, 'translated'))).toEqual([
+      ['one', 'two'],
+      ['one', 'two'],
+      ['one', 'two'],
+    ])
+  })
+
+  it('unbatch falls back to items[] when a group carries no members', () => {
+    const loose = createExchange([10, 20], { items: [10, 20], meta: { chapterNum: 9 } })
+    const members = unbatchExchange(loose)
+    expect(members.map((m) => m.item)).toEqual([10, 20])
+    expect(members.map((m) => m.meta)).toEqual([
+      { chapterNum: 9, parentId: loose.id, batchIndex: 0 },
+      { chapterNum: 9, parentId: loose.id, batchIndex: 1 },
+    ])
+    expect(members[0]?.id).toBe(`${loose.id}.0`)
   })
 
   it('item variable stays in sync through tool, batch and flatMap', async () => {

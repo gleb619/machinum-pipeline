@@ -2,13 +2,17 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import {
+  BATCH_MEMBERS_VARIABLE,
   type ExchangeInput,
   ITEM_VARIABLE,
+  batchMembersOf,
   createExchange,
   hashableVariables,
   mergeVariables,
   newExchangeId,
   toExchange,
+  unbatchExchange,
+  withBatchMembers,
 } from '../exchange.js'
 import { getSetting } from '../settings.js'
 import { Store } from '../store.js'
@@ -79,16 +83,21 @@ async function drainStream(stream: EnvelopeStream): Promise<void> {
 /**
  * Fold a group of envelopes into a single batched envelope.
  * `item` holds the array too, so plain (non-batch-aware) tools and `flatMap` see the group.
+ * The member envelopes ride along in the ephemeral `batchMembers` variable so `.unbatch()` can
+ * restore each one with its own `meta` + variables.
  */
 function toBatchEnvelope(group: Envelope<unknown>[]): Envelope<unknown> {
   const items = group.map((env) => env.item)
   // Variables merge across the group (later wins on name+qualifier clash); meta is the first item's.
-  return createExchange(items, {
-    id: newExchangeId('batch-'),
-    items,
-    meta: group[0]?.meta ?? {},
-    variables: mergeVariables(group),
-  })
+  return withBatchMembers(
+    createExchange(items, {
+      id: newExchangeId('batch-'),
+      items,
+      meta: group[0]?.meta ?? {},
+      variables: mergeVariables(group),
+    }),
+    group,
+  )
 }
 
 /**
@@ -101,7 +110,20 @@ async function* normalizeStream(source: AsyncIterable<ExchangeInput<unknown>>): 
 
 /** Cache-key view of an exchange: volatile `id` and ephemeral variables are excluded. */
 function cacheInput(ex: Envelope<unknown>): unknown {
-  return { item: ex.item, items: ex.items, meta: ex.meta, variables: hashableVariables(ex) }
+  // Batch members are an ephemeral variable, so hash them explicitly: batch-aware tools read
+  // per-member meta/variables and must not hit another group's cache entry.
+  const members = batchMembersOf(ex)?.map((member) => ({
+    id: member.id,
+    meta: member.meta,
+    variables: hashableVariables(member),
+  }))
+  return {
+    item: ex.item,
+    items: ex.items,
+    meta: ex.meta,
+    variables: hashableVariables(ex),
+    ...(members ? { members } : {}),
+  }
 }
 
 /**
@@ -421,6 +443,23 @@ export class Runner {
           stream = groupStream(stream, size, step.type)
           break
         }
+        case 'unbatch': {
+          if (!stream && !hasSourceStep) {
+            stream = emptyEnvelope()
+          }
+          if (!stream) {
+            throw new Error('Unbatch step requires a preceding stream or source step')
+          }
+          const sourceStream = stream
+          stream = (async function* () {
+            for await (const env of sourceStream) {
+              for (const member of unbatchExchange(env)) {
+                yield member as Envelope<unknown>
+              }
+            }
+          })()
+          break
+        }
         case 'flatmap': {
           const fn = step.config.fn as (item: unknown) => Promise<unknown[]>
           if (!stream && !hasSourceStep) {
@@ -439,7 +478,9 @@ export class Runner {
                 yield createExchange(item, {
                   id: `${env.id}.${n++}`,
                   meta: { ...env.meta, parentId: env.id },
-                  variables: env.variables.filter((v) => v.name !== ITEM_VARIABLE),
+                  variables: env.variables.filter(
+                    (v) => v.name !== ITEM_VARIABLE && v.name !== BATCH_MEMBERS_VARIABLE,
+                  ),
                 })
               }
             }

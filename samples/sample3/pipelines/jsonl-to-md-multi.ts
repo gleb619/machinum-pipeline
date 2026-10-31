@@ -1,9 +1,13 @@
-import { definePipeline, defineProcess, getVariable } from '@mt/core'
+import { definePipeline, defineProcess, defineWaypoint, getVariable } from '@mt/core'
 import {
   type LlmRequest,
   chapterDoc,
   chapterIndexer,
   chapterValidator,
+  createApplyTranslatedTitle,
+  createDictionaryTitleTranslator,
+  createSchemaTitles,
+  createTitlePacketParser,
   entitiesTool,
   forbiddenCharDetector,
   mdFormatter,
@@ -102,6 +106,60 @@ export const translateChapterPipeline = definePipeline()
   .use(paragraphTranslator)
   .to('ephemeral://translate-output')
 
+// === Flow 5: packaged titles — batch → named in-memory waypoint → unbatch → ru chapters ===
+//
+// `.batch(n)` folds the stream into fixed-size packages: one envelope whose `item` is
+// `items[]` AND whose member envelopes ride along (ephemeral `batchMembers` variable).
+// `batches://<name>` is a named ephemeral waypoint — the producer writes the package into one
+// buffer, the consumer reads it back as ONE envelope, so `meta` of the members survives the hop.
+//
+// Two ways to process a package:
+//   .use(tool)          → the tool sees the whole package as one item (titles[] → packet)
+//   .unbatch().use(tool)→ the tool sees every member again, with its own meta (per chapter)
+const enChapters = defineWaypoint<unknown>('chapter-output://./chapters', {
+  filter: (env) => env.meta.lang === 'en',
+})
+
+export const titlePacketProducer = definePipeline()
+  .from(enChapters)
+  .batch(2)
+  .to('batches://title-packets')
+
+// One package = one item: schema-doc titles → non-LLM dictionary translation → parsed packet.
+// `schemaTitles` reads `<schemaDir>/chapter<N>.schema.md` (parsed with `readDoc`), so the title
+// comes from the schema doc, not from the chapter H1.
+export const titlePacketTranslator = definePipeline()
+  .from('batches://title-packets')
+  .use(createSchemaTitles({ schemaDir: 'chapters/schema' }))
+  .use(
+    createDictionaryTitleTranslator({
+      dictionary: {
+        chapter: 'Глава',
+        the: '',
+        road: 'Дорога',
+        from: 'из',
+        thornhaven: 'Тернхейвен',
+        ambush: 'Засада',
+        in: 'в',
+        darkwood: 'Дарквуде',
+        'duke’s': 'Герцога',
+        "duke's": 'Герцога',
+        tribunal: 'Трибунал',
+      },
+    }),
+  )
+  .use(createTitlePacketParser())
+  .to('batches://translated-title-packets')
+
+// One package = each item: `.unbatch()` restores the original chapters (id + meta + variables),
+// the per-item tool stamps the translated title and `meta.lang=ru`, and `chapter-output://`
+// writes `chapters/ru/chapter<N>.md`.
+export const titlePacketApplier = definePipeline()
+  .from('batches://translated-title-packets')
+  .unbatch()
+  .use(createApplyTranslatedTitle({ lang: 'ru' }))
+  .to('chapter-output://./chapters')
+
 // === Default: orchestration pipeline (subflow-only, no source/target of its own) ===
 // defineProcess().install(mockLlm(...)) registers the mock LLM provider process-wide
 // at module load (before the Runner starts); .pipeline(...) returns the pipeline.
@@ -116,6 +174,9 @@ export default defineProcess()
     definePipeline()
       .subflow(verifyFlow)
       .subflow(schemaDocPipeline)
+      .subflow(titlePacketProducer)
+      .subflow(titlePacketTranslator)
+      .subflow(titlePacketApplier)
       .subflow(translateTitlesPipeline)
       .subflow(translateChapterPipeline),
   )

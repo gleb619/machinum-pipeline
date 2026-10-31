@@ -149,7 +149,9 @@ export function variable<U>(name: string, value: U, opts: VariableOptions = {}):
 /** Create a full Exchange from a payload. */
 export function createExchange<T>(
   item: T,
-  init: { id?: string; meta?: ExchangeMeta; variables?: Variable[]; items?: T[] } = {},
+  // `unknown[]`, not `T[]`: a batch envelope's `item` is already the member array, and `T[]`
+  // here would drag inference down to the element type (the classic batch envelope trap).
+  init: { id?: string; meta?: ExchangeMeta; variables?: Variable[]; items?: unknown[] } = {},
 ): Exchange<T> {
   const vars = (init.variables ?? []).filter((v) => !isNewItem(v))
   const ex: Exchange<T> = {
@@ -158,7 +160,7 @@ export function createExchange<T>(
     meta: { ...(init.meta ?? {}) },
     variables: [...vars, variable(ITEM_VARIABLE, item)],
   }
-  if (init.items !== undefined) ex.items = init.items
+  if (init.items !== undefined) ex.items = init.items as T[]
   return ex
 }
 
@@ -400,6 +402,95 @@ export function withoutOldAndEmpty<T>(ex: Exchange<T>): Exchange<T> {
 /** Drop empty variables. */
 export function withoutEmpty<T>(ex: Exchange<T>): Exchange<T> {
   return { ...ex, variables: varsOf(ex).filter((v) => isNewItem(v) || !isEmptyValue(v.value)) }
+}
+
+/**
+ * Name of the ephemeral variable carrying the member envelopes of a `.batch()` / `.window()`
+ * group. Ephemeral: it never reaches checkpoints, dead-letter entries or persisted jsonl, so a
+ * resumed run falls back to the plain `items` list (see {@link unbatchExchange}).
+ */
+export const BATCH_MEMBERS_VARIABLE = 'batchMembers'
+
+/**
+ * Payload of {@link BATCH_MEMBERS_VARIABLE}: the original member envelopes plus a snapshot of
+ * the variables that were merged into the batch when it was created. The snapshot lets
+ * {@link unbatchExchange} tell apart variables that existed before batching (already on the
+ * members) from the ones a batch-aware tool changed since (which must be propagated back).
+ */
+export interface BatchMembers {
+  members: Exchange<unknown>[]
+  base: Variable[]
+}
+
+/**
+ * Attach the source envelopes of a batch/window group to the merged batch exchange, so a later
+ * `.unbatch()` can restore each member with its own `meta` and variables instead of re-creating
+ * loose items. Used by the Runner.
+ */
+export function withBatchMembers<T>(
+  batch: Exchange<T[]>,
+  group: ReadonlyArray<Exchange<T>>,
+): Exchange<T[]> {
+  const pack: BatchMembers = {
+    members: group as Exchange<unknown>[],
+    base: mergeVariables(group),
+  }
+  return withVariable(batch, variable(BATCH_MEMBERS_VARIABLE, pack, { ephemeral: true }))
+}
+
+/** Member envelopes carried by a batch/window exchange; `undefined` for plain envelopes. */
+export function batchMembersOf<T = unknown>(
+  ex: Pick<Exchange, 'variables'>,
+): Exchange<T>[] | undefined {
+  return getVariable<BatchMembers>(ex, BATCH_MEMBERS_VARIABLE)?.members as Exchange<T>[] | undefined
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  try {
+    return JSON.stringify(a) === JSON.stringify(b)
+  } catch {
+    return false
+  }
+}
+
+/** Batch variables that changed after the group was folded (base snapshot excluded). */
+function batchOverrides(ex: Exchange<unknown>, base: Variable[]): Variable[] {
+  return ex.variables.filter((v) => {
+    if (v.name === BATCH_MEMBERS_VARIABLE || isNewItem(v)) return false
+    const previous = base.find((b) => sameKey(b, v))
+    return !previous || !sameValue(previous.value, v.value)
+  })
+}
+
+/**
+ * Inverse of `.batch()` / `.window()`: expand a grouped exchange back into its member
+ * envelopes. Members keep their `id`, `meta` (plus `meta.batchIndex`) and their own variables;
+ * variables a batch-aware tool set or changed since the group was folded are stamped onto every
+ * member (the batch is the most recent stage, so its value wins). A group without carried
+ * members (e.g. a source-level batch, or a batch reloaded from a checkpoint) falls back to
+ * `itemsOf(ex)` with a generated id `<id>.<index>` and `meta.parentId`.
+ */
+export function unbatchExchange<T = unknown>(ex: Exchange<T>): Exchange<unknown>[] {
+  const pack = getVariable<BatchMembers>(ex, BATCH_MEMBERS_VARIABLE)
+  if (!pack || pack.members.length === 0) {
+    const shared = ex.variables.filter(
+      (v) => v.name !== ITEM_VARIABLE && v.name !== BATCH_MEMBERS_VARIABLE,
+    )
+    return (itemsOf(ex) as unknown[]).map((item, index) =>
+      createExchange(item, {
+        id: `${ex.id}.${index}`,
+        meta: { ...ex.meta, parentId: ex.id, batchIndex: index },
+        variables: shared,
+      }),
+    )
+  }
+
+  const overrides = batchOverrides(ex, pack.base)
+  return pack.members.map((member, index) => {
+    const next = overrides.length > 0 ? withVariable(member, ...overrides) : member
+    return { ...next, meta: { ...next.meta, batchIndex: index } }
+  })
 }
 
 /**

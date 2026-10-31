@@ -261,6 +261,22 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this as unknown as PipelineBuilder<I[], O>
   }
 
+  /**
+   * Expand a batched envelope (`items[]`) back into one envelope per member, the inverse of
+   * `.batch()` / `.window()`. Members restored from a batch carry their original `id`, `meta`
+   * (plus `meta.batchIndex`) and variables, so per-item tools still see `meta.chapterNum` and
+   * friends; variables a batch-aware tool set while the group was folded are stamped onto every
+   * member. Groups without carried members (source-level batching, checkpoint reload) expand the
+   * plain `items` list with `<id>.<index>` ids.
+   *
+   * Use `.use(tool)` for "process the package as one item" and `.unbatch().use(tool)` for
+   * "process each item in the package".
+   */
+  unbatch(): PipelineBuilder<I, O> {
+    this._steps.push({ type: 'unbatch', config: {} })
+    return this as unknown as PipelineBuilder<I, O>
+  }
+
   flatMap<R>(fn: (item: I) => Promise<R[]>): PipelineBuilder<R, O> {
     this._steps.push({ type: 'flatmap', config: { fn } })
     return this as unknown as PipelineBuilder<R, O>

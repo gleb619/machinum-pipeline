@@ -106,6 +106,7 @@ export type {
   MdOutputEntry,
 } from './types.js'
 export type {
+  BatchMembers,
   Exchange,
   ExchangeInput,
   ExchangeMeta,
@@ -115,6 +116,8 @@ export type {
   VariableOptions,
 } from './exchange.js'
 export {
+  BATCH_MEMBERS_VARIABLE,
+  batchMembersOf,
   copyVariable,
   createExchange,
   findVariable,
@@ -137,7 +140,9 @@ export {
   setVariable,
   toExchange,
   toPersisted,
+  unbatchExchange,
   variable,
+  withBatchMembers,
   withItem,
   withMeta,
   withVariable,

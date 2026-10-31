@@ -451,6 +451,32 @@ export {
 } from './modification/chapter-translator.js'
 
 export {
+  createBatchApply,
+  createBatchCollect,
+  createEntryPacketParser,
+  createEntryTranslator,
+  findMemberEntry,
+  type BatchApplyOptions,
+  type BatchCollectOptions,
+  type BatchEntry,
+  type EntryPacketParserOptions,
+  type EntryTranslatorOptions,
+} from './modification/batch-packet.js'
+
+export {
+  createSchemaTitles,
+  createDictionaryTitleTranslator,
+  createTitlePacketParser,
+  createApplyTranslatedTitle,
+  dictionaryTranslateTitle,
+  type ChapterTitle,
+  type SchemaTitlesOptions,
+  type DictionaryTitleTranslatorOptions,
+  type TitlePacketParserOptions,
+  type ApplyTranslatedTitleOptions,
+} from './modification/title-packet.js'
+
+export {
   formatMarkdown,
   formatString,
   mdFormatter,
