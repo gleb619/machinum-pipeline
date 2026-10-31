@@ -1,5 +1,5 @@
 import { definePipeline, getVariable } from '@mt/core'
-import { statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
+import { chapterDocBuild, readChapterDoc, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
 // ---------------------------------------------------------------------------
@@ -65,6 +65,56 @@ export default definePipeline({ id: 'basic-md-processing' })
     )
   })
   .to('md://./output.md')
+
+// ---------------------------------------------------------------------------
+// Typed chapter content manipulation example.
+//
+// Demonstrates parsing a markdown chapter into a typed `ChapterDoc`, mutating
+// fields, and serialising back to markdown with the shipped `chapterDocBuild`
+// tool.
+// ---------------------------------------------------------------------------
+
+export const typedContentPipeline = definePipeline({ id: 'typed-content' })
+  .from('jsonl://./jsonl/input.jsonl')
+  .flatMap(async (record: unknown) => [toLineText(record)])
+  .use(toMarkdownTool)
+  .flatMap(async (md: string) => {
+    // Parse markdown into a typed document.
+    const doc = readChapterDoc(md)
+
+    // 1. Change the title - prepend a tag.
+    const newTitle = `Edited: ${doc.title}`
+
+    // 2. Upper-case the first paragraph's lines.
+    const first = doc.body[0]
+    if (first) first.lines = first.lines.map((ln) => ln.toUpperCase())
+
+    const second = doc.body[1]
+    if (second) second.lines = ['[REWRITTEN PARAGRAPH]']
+
+    // Return the mutated doc as the shape expected by `chapterDocBuild`.
+    const input = {
+      title: newTitle,
+      body: doc.body,
+      number: doc.number,
+      series: doc.series,
+      warnings: doc.warnings,
+    }
+    return [input]
+  })
+  .use(chapterDocBuild)
+  .tap((env) => {
+    const doc = getVariable<{ title: string; body: { lines: string[] }[] }>(env, 'chapterDoc')
+    console.log(
+      JSON.stringify({
+        stage: 'typed',
+        id: env.id,
+        title: doc?.title ?? '[unknown]',
+        paragraphs: doc?.body.length ?? 0,
+      }),
+    )
+  })
+  .to('md://./output-typed.md')
 
 // ---------------------------------------------------------------------------
 // Corpus statistics: batch the lines and let `statFreq` rank the words.
