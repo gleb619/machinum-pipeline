@@ -71,13 +71,18 @@ export default definePipeline({ id: 'basic-md-processing' })
 //
 // Demonstrates parsing a markdown chapter into a typed `ChapterDoc`, mutating
 // fields, and serialising back to markdown with the shipped `chapterDocBuild`
-// tool.
+// tool. `readChapterDoc` requires an H1, so the first step mints one from the
+// record id.
 // ---------------------------------------------------------------------------
 
 export const typedContentPipeline = definePipeline({ id: 'typed-content' })
   .from('jsonl://./jsonl/input.jsonl')
-  .flatMap(async (record: unknown) => [toLineText(record)])
-  .use(toMarkdownTool)
+  .flatMap(async (record: unknown) => {
+    const { id } = record as LineRecord
+    // `readChapterDoc` requires an H1 — mint one from the record id. The body is the
+    // record text, exactly what `toMarkdownTool` would have produced for it.
+    return [`# Line ${id}\n\n${toLineText(record)}`]
+  })
   .flatMap(async (md: string) => {
     // Parse markdown into a typed document.
     const doc = readChapterDoc(md)
