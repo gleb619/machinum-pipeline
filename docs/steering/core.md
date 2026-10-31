@@ -123,6 +123,22 @@ definePipeline()
   .to('md://./output.md')
 ```
 
+**DSL method reference:**
+
+| Method | Signature | Effect |
+|---|---|---|
+| `definePipeline()` | `definePipeline({ id?, retry?, onError? }?)` | Entry point — creates the builder. `id` defaults to the pipeline filename (parent dir for `index.ts`/`pipeline.ts`); defaults: `retry { max: 3, backoffMs: 1000, strategy: 'exp' }`, `onError: 'fail-run'`. |
+| `.from()` | `.from(Source<T> \| string)` | Sets the Source. URI string (resolved via the registry; a named `mt.json` alias defers to the Runner at run time) or instance (carried through as-is — what lets `defineWaypoint` wrappers reach the run). |
+| `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
+| `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
+| `.tap()` | `.tap(async (ex) => void)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
+| `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
+| `.batch()` | `.batch(size)` | Groups items into `items[]` batches of `size`, flushing the remainder at end of stream. `size` must be a positive integer (`RangeError` at definition time). |
+| `.window()` | `.window(size)` | Groups items into `items[]` sliding windows of `size` — one window per arrival, so consecutive groups overlap. Same validation as `.batch()`. |
+| `.subflow()` | `.subflow(pipeline)` | Inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. |
+| `.fork()` | `.fork(pipeline)` | Runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. |
+| `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and terminates the chain → the `Pipeline`. Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
+
 **Tool composition** (all optional; plain `Tool`s and `.use()` unchanged):
 - `chain(name, ...tools)` — one `Tool` running tools sequentially (output envelope feeds next).
 - `builder.useAll(a, b, c)` — sugar for `.use(a).use(b).use(c)`.
