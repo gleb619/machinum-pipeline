@@ -419,6 +419,8 @@ export {
   rebalanceLines,
   countTokens,
   heuristicTokenCount,
+  splitParagraphUnits,
+  splitLineUnits,
   DEFAULT_MAX_TOKENS,
   DEFAULT_CHUNK_TARGET,
   type TokenSplitter,
@@ -432,6 +434,8 @@ export {
   type BalancedStrategyOptions,
   type BalancedLineStrategyOptions,
 } from './normalization/token-splitter.js'
+
+export { paragraphSplitter, lineSplitter } from './normalization/entity-splitters.js'
 
 export {
   titleTranslator,
@@ -907,4 +911,10 @@ export {
   type ConstantsEnv,
 } from './resolve-constants.js'
 
-export { createSeriesSplitTool, seriesSplitTool } from './modification/series-split.js'
+export {
+  createSeriesSplitter,
+  seriesSplitter,
+  createSeriesSplitTool,
+  seriesSplitTool,
+  type SeriesSplitOptions,
+} from './modification/series-split.js'

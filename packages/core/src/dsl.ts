@@ -289,9 +289,30 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this
   }
 
-  subflow(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O> {
-    this._steps.push({ type: 'subflow', config: { pipeline } })
-    return this
+  /**
+   * Run an inline sub-pipeline, or split the current stream by an entity/buffer type.
+   *
+   * Pipeline form: inline nested pipeline in the same Runner (a steps-only child is spliced
+   * into the parent stream; a child with its own source is self-contained).
+   *
+   * String form: resolve the registered `Splitter` for that entity/buffer URI scheme and
+   * fan out 1 → N. For example `.subflow('paragraphs')` splits chunks into paragraphs and
+   * `.subflow('lines')` splits paragraphs into lines. Accepts a bare type or a buffer URI
+   * (`'paragraphs://ladder'`). The splitter receives the full Exchange.
+   *
+   * `.fork()` is per-envelope child-Runner nesting, not a split: it starts a nested Runner
+   * for each envelope and is too heavy for a plain 1 → N transformation.
+   */
+  subflow(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O>
+  subflow(splitterType: string): PipelineBuilder<unknown, O>
+  subflow(arg: Pipeline<I, unknown> | string): PipelineBuilder<unknown, O> {
+    if (typeof arg === 'string') {
+      const splitter = registry.resolveSplitter<unknown>(arg)
+      this._steps.push({ type: 'split', config: { splitter, splitterType: arg } })
+      return this as unknown as PipelineBuilder<unknown, O>
+    }
+    this._steps.push({ type: 'subflow', config: { pipeline: arg } })
+    return this as unknown as PipelineBuilder<unknown, O>
   }
 
   /**

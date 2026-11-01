@@ -91,6 +91,7 @@ export interface StepInfo {
     | 'window'
     | 'unbatch'
     | 'flatmap'
+    | 'split'
     | 'tap'
     | 'subflow'
   index: number

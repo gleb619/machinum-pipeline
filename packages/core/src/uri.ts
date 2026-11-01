@@ -1,5 +1,5 @@
 import type { Settings } from './settings.js'
-import type { Source, Target } from './types.ts'
+import type { Source, Splitter, Target } from './types.ts'
 
 /**
  * URI registry — maps URI schemes to Source/Target factories.
@@ -61,6 +61,7 @@ class UriRegistry {
   private sources = new Map<string, SourceFactory<unknown>>()
   private targets = new Map<string, TargetFactory<unknown>>()
   private compositeResolvers = new Map<string, CompositeResolver>()
+  private splitters = new Map<string, Splitter<unknown>>()
 
   /**
    * Register a source factory for a URI scheme.
@@ -82,6 +83,49 @@ class UriRegistry {
    */
   registerComposite(prefix: string, resolver: CompositeResolver): void {
     this.compositeResolvers.set(prefix, resolver)
+  }
+
+  /**
+   * Register a splitter for an entity/buffer URI scheme (e.g. `paragraphs`, `lines`, `series`).
+   * The scheme is the buffer type a pipeline names in `.subflow('<scheme>')`.
+   */
+  registerSplitter<O>(scheme: string, splitter: Splitter<O>): void {
+    this.splitters.set(scheme, splitter as Splitter<unknown>)
+  }
+
+  /**
+   * Check if a scheme has a registered splitter.
+   */
+  hasSplitter(scheme: string): boolean {
+    return this.splitters.has(scheme)
+  }
+
+  /**
+   * Resolve a splitter from an entity type or a buffer URI.
+   *
+   * `'paragraphs'`, `'paragraphs://'` / `'paragraphs://ladder'`, and the `'#paragraphs'`
+   * shortcut all resolve to the same registered splitter.
+   */
+  resolveSplitter<O>(schemeOrUri: string): Splitter<O> {
+    const shortcut = schemeOrUri.startsWith('#') ? schemeOrUri.slice(1) : schemeOrUri
+    const scheme = shortcut.includes('://') ? this.parse(shortcut).scheme : shortcut
+    const splitter = this.splitters.get(scheme)
+    if (!splitter) {
+      const known = this.getSplitterSchemes()
+      throw new Error(
+        `No splitter registered for scheme: ${scheme}` +
+          `${schemeOrUri === scheme ? '' : ` (from '${schemeOrUri}')`}. ` +
+          `Known splitter schemes: ${known.length > 0 ? known.join(', ') : '(none)'}`,
+      )
+    }
+    return splitter as Splitter<O>
+  }
+
+  /**
+   * Get all registered splitter schemes.
+   */
+  getSplitterSchemes(): string[] {
+    return Array.from(this.splitters.keys())
   }
 
   /**

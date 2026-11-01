@@ -29,6 +29,7 @@ import type {
   RunStateData,
   RunnerOptions,
   Source,
+  Splitter,
   Target,
   Tool,
 } from '../types.js'
@@ -106,6 +107,24 @@ function toBatchEnvelope(group: Envelope<unknown>[]): Envelope<unknown> {
  */
 async function* normalizeStream(source: AsyncIterable<ExchangeInput<unknown>>): EnvelopeStream {
   for await (const raw of source) yield toExchange(raw)
+}
+
+/**
+ * Fan one exchange out into child envelopes. Used by both `flatmap` and `split`: children inherit
+ * the parent's meta + variables (minus the parent item and batch members) and get a fresh id.
+ */
+function* fanOut(env: Envelope<unknown>, items: readonly unknown[]): Generator<Envelope<unknown>> {
+  const variables = env.variables.filter(
+    (v) => v.name !== ITEM_VARIABLE && v.name !== BATCH_MEMBERS_VARIABLE,
+  )
+  let n = 0
+  for (const item of items) {
+    yield createExchange(item, {
+      id: `${env.id}.${n++}`,
+      meta: { ...env.meta, parentId: env.id },
+      variables,
+    })
+  }
 }
 
 /** Cache-key view of an exchange: volatile `id` and ephemeral variables are excluded. */
@@ -498,17 +517,24 @@ export class Runner {
           stream = (async function* () {
             for await (const env of sourceStream) {
               const items = await fn(env.item)
-              let n = 0
-              for (const item of items) {
-                // Children inherit the parent's meta + variables and get a fresh id.
-                yield createExchange(item, {
-                  id: `${env.id}.${n++}`,
-                  meta: { ...env.meta, parentId: env.id },
-                  variables: env.variables.filter(
-                    (v) => v.name !== ITEM_VARIABLE && v.name !== BATCH_MEMBERS_VARIABLE,
-                  ),
-                })
-              }
+              yield* fanOut(env, items)
+            }
+          })()
+          break
+        }
+        case 'split': {
+          const splitter = step.config.splitter as Splitter<unknown>
+          if (!stream && !hasSourceStep) {
+            stream = emptyEnvelope()
+          }
+          if (!stream) {
+            throw new Error('Split step requires a preceding stream or source step')
+          }
+          const sourceStream = stream
+          stream = (async function* () {
+            for await (const env of sourceStream) {
+              const items = await splitter.split(env)
+              yield* fanOut(env, items)
             }
           })()
           break

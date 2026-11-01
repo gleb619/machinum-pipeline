@@ -65,6 +65,18 @@ export interface Tool<I, O> {
 }
 
 /**
+ * Splitter abstraction — fans a buffered Exchange out into child entities.
+ *
+ * Unlike a tool, a splitter receives the full Exchange (item + meta + variables), so it can
+ * derive child ids from in-flight identity metadata without turning that metadata into a
+ * payload field. The Runner emits one child envelope per returned entity (1 → N).
+ */
+export interface Splitter<O = unknown> {
+  name: string
+  split(env: Exchange<unknown>): O[] | Promise<O[]>
+}
+
+/**
  * Logger interface — used by the engine to emit log events.
  */
 export interface Logger {
@@ -102,6 +114,7 @@ export interface PipelineStep {
     | 'window'
     | 'unbatch'
     | 'flatmap'
+    | 'split'
     | 'tap'
     | 'subflow'
   config: Record<string, unknown>

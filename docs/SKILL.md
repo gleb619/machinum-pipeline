@@ -2,8 +2,8 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.3.1 | 2026-11-01 -->
-<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint}.md -->
+<!-- skill-version: 1.5.1 | 2026-11-01 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
 
@@ -45,6 +45,7 @@ import 'mt/waypoint'                         // REQUIRED side effect: registers 
 export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 1000, strategy: 'exp' }, onError: 'fail-run' })
   .from('jsonl://./input/*.jsonl')           // Source: URI string (preferred) or instance
   .flatMap(async (item) => [item])           // 1 -> N
+  .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs' / 'paragraphs://'
   .tap(async (ex) => console.log(ex.id))     // observe full Exchange, stream unchanged
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
   .batch(5)                                  // group into items[] (flushes remainder)
@@ -55,7 +56,15 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 ```
 
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
-  `.batch/.window/.flatMap`. Source ids are stable; the engine never mints them.
+  `.batch/.window/.flatMap`, or the string form `.subflow('<splitter>')`
+  (`'paragraphs'`, `'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`;
+  the same three spellings work for `lines` and `series`) which resolves a registered splitter and
+  fans out 1 -> N. Import `mt/tools` (or any `@mt/tools` symbol) to register `paragraphs`, `lines`
+  and `series`. The `series` splitter parses chapter markdown, emits numbered `ChapterDoc` parts
+  with `series` frontmatter only when the chapter is large enough, and otherwise returns the
+  original markdown as one unchanged item. Source ids are stable; the engine never mints them.
+- Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline
+  transformation of the current stream, while `.fork()` starts a child Runner per envelope.
 - `onError`: `fail-run` (default) | `skip-item` | `dead-letter` (-> `.mt/runs/<id>/dead-letter.jsonl`).
 - Pipelines are real modules: plain `import`, `console.log`, conditionals work. No build step.
 - `id` defaults to the file name. `mt resume` refuses with `pipelineId mismatch` if it changed.
@@ -267,6 +276,6 @@ Do:
 Don't:
 - Don't hand-edit `.mt/runs/*/checkpoint.json` or `state.json`.
 - Don't print, log, commit or echo secrets, master keys, `--reveal` output or `.env` contents.
-- Don't add `.batch/.window/.flatMap` casually: they change cardinality for every later step.
+- Don't add `.batch/.window/.flatMap/.subflow('<entity-type>')` casually: they change cardinality for every later step.
 - Don't run `mt serve`/`mt router` bound to a non-loopback host without `MT_ROUTER_TOKEN`.
 - Don't assume a flag exists: run `mt <command> --help` when unsure.

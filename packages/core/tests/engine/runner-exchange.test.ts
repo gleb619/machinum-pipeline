@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import {
+  BATCH_MEMBERS_VARIABLE,
   type Exchange,
   ITEM_VARIABLE,
   createExchange,
@@ -13,10 +14,11 @@ import {
   oldItemOf,
   setVariable,
   unbatchExchange,
+  withBatchMembers,
   withItem,
   withMeta,
 } from '../../src/exchange.js'
-import type { Pipeline, Tool } from '../../src/types.js'
+import type { Pipeline, Splitter, Tool } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 const inputs: Array<Exchange<unknown> | { item: unknown }> = []
@@ -115,6 +117,50 @@ describe('runner exchange semantics', () => {
     expect(outputs[1]?.id).toBe('a.1')
     expect(outputs[0]?.meta.parentId).toBe('a')
     expect(getVariable(outputs[2] as Exchange, 'k')).toBe('second')
+  })
+
+  it('split passes the full envelope and fans out children like flatMap', async () => {
+    const member = createExchange('member', { id: 'member' })
+    const parent = setVariable(
+      withBatchMembers(
+        createExchange(['member'], {
+          id: 'parent',
+          items: ['member'],
+          meta: { chapterId: 'c' },
+        }),
+        [member],
+      ),
+      'k',
+      'v',
+    )
+    inputs.push(parent)
+
+    let seen: Exchange<unknown> | undefined
+    const splitter: Splitter<string> = {
+      name: 'inspect',
+      split(env) {
+        seen = env
+        return ['a', 'b']
+      },
+    }
+    await new Runner(pipe([{ type: 'split', config: { splitter } }]), ctx(root)).start()
+
+    expect(seen?.item).toEqual(['member'])
+    expect(seen?.meta).toEqual({ chapterId: 'c' })
+    expect(seen?.variables.some((v) => v.name === BATCH_MEMBERS_VARIABLE)).toBe(true)
+    expect(outputs).toHaveLength(2)
+    expect(outputs.map((o) => o.id)).toEqual(['parent.0', 'parent.1'])
+    expect(outputs.map((o) => o.meta)).toEqual([
+      { chapterId: 'c', parentId: 'parent' },
+      { chapterId: 'c', parentId: 'parent' },
+    ])
+    expect(outputs.map((o) => getVariable(o, 'k'))).toEqual(['v', 'v'])
+    expect(outputs.some((o) => o.variables.some((v) => v.name === BATCH_MEMBERS_VARIABLE))).toBe(
+      false,
+    )
+    for (const output of outputs) {
+      expect(output.variables.filter((v) => v.name === ITEM_VARIABLE)).toHaveLength(1)
+    }
   })
 
   it('unbatch restores members with their own meta and variables, plus batch-level edits', async () => {

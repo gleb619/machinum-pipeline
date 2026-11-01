@@ -64,6 +64,25 @@ function splitLines(text: string): string[] {
   return lines
 }
 
+/**
+ * Paragraph-level units: split on blank-line runs, trim each unit and drop blanks.
+ */
+export function splitParagraphUnits(text: string): string[] {
+  return text
+    .split(/\n\n+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+}
+
+/**
+ * Line-level units: split on CR/LF, trim each unit and drop blanks.
+ */
+export function splitLineUnits(text: string): string[] {
+  return splitLines(text)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+}
+
 function chunkUnits(
   units: string[],
   weigh: (unit: string) => number,

@@ -1,7 +1,6 @@
 import {
   type Chunk,
   type Line,
-  type Paragraph,
   type Token,
   definePipeline,
   defineProcess,
@@ -17,7 +16,6 @@ import {
   heuristicTokenCount,
   mdOutputEmitter,
   readChapterDoc,
-  seriesSplitTool,
   splitIntoChunks,
   tokenizeChunkDetailed,
   tokenizeWords,
@@ -169,41 +167,19 @@ const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
   .tap(countRung('chunks'))
   .to('temp://chunks/ladder')
 
-// Rung 3: Chunk → Paragraphs, one per \n\n block. The waypoint stores the
-// entities; `.flatMap()` is the cardinality op that performs the descent.
+// Rung 3: Chunk → Paragraphs, one per blank-line block. `.subflow('#paragraphs')`
+// is the shortcut for `.subflow('paragraphs')` / `.subflow('paragraphs://')`.
 const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
   .from('chunks://ladder')
-  .flatMap(async (chunk: unknown) => {
-    const { id, chapterId, body } = chunk as Chunk
-    return body
-      .split(/\n\n+/)
-      .filter((part) => part.trim().length > 0)
-      .map((part, index) => ({
-        id: `${id}/paragraph-${index + 1}`,
-        chapterId,
-        chunkId: id,
-        index,
-        body: part,
-      }))
-  })
+  .subflow('#paragraphs')
   .tap(countRung('paragraphs'))
   .to('temp://paragraphs/ladder')
 
-// Rung 4: Paragraph → Lines (non-empty only).
+// Rung 4: Paragraph → Lines (non-empty only) with the registered line splitter.
+// The explicit URI form resolves the same splitter as `.subflow('lines')`.
 const lineStage = definePipeline({ id: 'sample2-ladder-lines' })
   .from('paragraphs://ladder')
-  .flatMap(async (paragraph: unknown) => {
-    const { id, body } = paragraph as Paragraph
-    return body
-      .split('\n')
-      .map((text, index) => ({
-        id: `${id}/line-${index + 1}`,
-        paragraphId: id,
-        index,
-        text,
-      }))
-      .filter((line) => line.text.trim().length > 0)
-  })
+  .subflow('lines://')
   .tap(countRung('lines'))
   .to('temp://lines/ladder')
 
@@ -283,10 +259,10 @@ export const tokenLadderPipeline = definePipeline({ id: 'sample2-token-ladder' }
   .subflow(tokenStage)
   .subflow(tokenSummaryStage)
 
-// Split chapter1.md into a series doc.
+// Split chapter1.md into a series doc. `series://` and `#series` are equivalent.
 export const seriesSplitPipeline = definePipeline({ id: 'sample2-series-split' })
   .from('md://./chapters/chapter1.md')
-  .use(seriesSplitTool)
+  .subflow('series://')
   .to('md://./chapters/series-output.md')
 
 // All four lessons in one process: clean/split, ladder, token ladder, series split.

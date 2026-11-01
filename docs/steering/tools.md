@@ -428,6 +428,32 @@ The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readT
 
 ### `token-splitter.ts`
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
+Unit helpers: `splitParagraphUnits(text)` (blank-line runs, trimmed, blanks dropped) and
+`splitLineUnits(text)` (CR/LF, trimmed, blanks dropped).
+
+### `normalization/entity-splitters.ts`
+Reusable splitters for the entity buffers, registered at module load. All of them implement the
+single core `Splitter<O>` interface from `@mt/core` and keep their own logic:
+- `paragraphSplitter` → registered as `paragraphs` — `Chunk`/chunk-body string → `Paragraph[]`;
+  ids `${chunkId}/paragraph-N`, `chapterId` + `chunkId` from `meta` or the entity.
+- `lineSplitter` → registered as `lines` — `Paragraph`/paragraph-body string → `Line[]`;
+  ids `${paragraphId}/line-N`, `paragraphId` from `meta` or the entity.
+
+Use with `.subflow('paragraphs')`, `.subflow('paragraphs://')` or the `#` shortcut
+`.subflow('#paragraphs')` (likewise `lines`); all three resolve the same registry entry. Both read
+the full Exchange and use the unit helpers above, so blank units are skipped.
+
+`modification/series-split.ts` registers `seriesSplitter` /
+`createSeriesSplitter({ parts?, shouldSplit? })` under `series` (also `.subflow('series://')` and
+`.subflow('#series')`). It is chapter-document aware: the input markdown is parsed with
+`readChapterDoc`, and each output part is a new `ChapterDoc` serialized with `writeChapterDoc`.
+The default condition splits only when `parts > 1` and the body has at least `parts` non-empty
+lines; `shouldSplit(doc)` replaces that check. A chapter that does not pass is returned unchanged as
+one item, with no series metadata added. Split parts keep `number` and `warnings`, set
+`title` to `<original title> N`, use `series` from the existing frontmatter or the original title,
+and repartition the body paragraph-first (falling back to line, then word, boundaries when
+necessary). The legacy `seriesSplitTool` / `createSeriesSplitTool` API remains and reuses this logic,
+setting the `series` and `partCount` variables only when a split actually happened.
 
 ### `normalization/chunk-separator.ts`
 Fixates source text into stable, token-bounded chunks joined by a `---` separator line; later runs reuse the

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool } from '../src/dsl.js'
 import type { Pipeline, RetryPolicy, Tool } from '../src/index.js'
+import { registry } from '../src/uri.js'
 
 describe('UC-02 — Author a pipeline in TS (architectural)', () => {
   it('definePipeline returns a PipelineBuilder', () => {
@@ -178,6 +179,66 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(typeof flatmapStep?.config.fn).toBe('function')
   })
 
+  it('.subflow(splitterType) resolves a registered splitter into the internal split step', () => {
+    const splitter = {
+      name: 'test-splitter',
+      split: async () => ['a', 'b'],
+    }
+    registry.registerSplitter('test-entities', splitter)
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .subflow('test-entities')
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const splitStep = p.steps.find((s) => s.type === 'split')
+    expect(splitStep).toBeDefined()
+    expect(splitStep?.config.splitter).toBe(splitter)
+    expect(splitStep?.config.splitterType).toBe('test-entities')
+  })
+
+  it('.subflow(uri) reads the splitter type from the URI scheme', () => {
+    const splitter = {
+      name: 'test-splitter-uri',
+      split: async () => ['a'],
+    }
+    registry.registerSplitter('test-uri-entities', splitter)
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .subflow('test-uri-entities://ladder')
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const splitStep = p.steps.find((s) => s.type === 'split')
+    expect(splitStep?.config.splitter).toBe(splitter)
+    expect(splitStep?.config.splitterType).toBe('test-uri-entities://ladder')
+  })
+
+  it('.subflow(#splitterType) resolves the shortcut form', () => {
+    const splitter = {
+      name: 'test-splitter-shortcut',
+      split: async () => ['a'],
+    }
+    registry.registerSplitter('test-shortcut-entities', splitter)
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .subflow('#test-shortcut-entities')
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const splitStep = p.steps.find((s) => s.type === 'split')
+    expect(splitStep?.config.splitter).toBe(splitter)
+    expect(splitStep?.config.splitterType).toBe('#test-shortcut-entities')
+  })
+
+  it('.subflow(unknownType) throws with the known splitter schemes', () => {
+    expect(() =>
+      makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .subflow('missing-entities'),
+    ).toThrow(/No splitter registered for scheme: missing-entities.*Known splitter schemes:/)
+  })
+
   it('.tap(fn) pushes a step with type tap and config.fn', () => {
     const fn = async (_item: unknown) => {}
     const pipeline = makePipeline()
@@ -206,12 +267,15 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(seen).toHaveLength(0)
   })
 
-  it('PipelineStep.type union includes batch, window, fork, flatmap, tap', () => {
+  it('PipelineStep.type union includes batch, window, fork, flatmap, split, tap', () => {
+    const splitter = { name: 'test-splitter', split: async () => ['a'] }
+    registry.registerSplitter('test-union-entities', splitter)
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
       .batch(5)
       .window(3)
       .flatMap(async (item) => [item])
+      .subflow('test-union-entities')
       .tap(async () => {})
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
@@ -221,6 +285,7 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(types).toContain('batch')
     expect(types).toContain('window')
     expect(types).toContain('flatmap')
+    expect(types).toContain('split')
     expect(types).toContain('tap')
     expect(types).toContain('target')
   })

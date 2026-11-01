@@ -14,7 +14,7 @@ Re-exports everything needed by consumers:
 - `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
-- `UriRegistry`, `registry`, `registerSource`, `registerTarget`, `resolveSource`, `resolveTarget` (URI)
+- `UriRegistry`, `registry`, `Splitter`, `registerSource`, `registerTarget`, `registerSplitter`, `resolveSource`, `resolveTarget`, `resolveSplitter`, `hasSplitter` (URI + splitter registry)
 - `Runner`, `Store`, `Cache`
 
 ## Key Modules
@@ -71,8 +71,8 @@ Conventions:
 - The Runner calls `toExchange` at every boundary (source output, after each tool), so literals
   without `id`/`variables` still work from Sources; a missing `id` is minted as `ex-<n>`.
 - Engine: `batch`/`window` get a new `batch-<n>` id and **merge variables** (later wins on
-  name+qualifier clash), meta of the first item; `flatMap` children inherit the parent's variables,
-  get id `<parentId>.<n>` and `meta.parentId`. Cache keys hash `item/items/meta` + non-ephemeral
+  name+qualifier clash), meta of the first item; `flatMap` and `split` children inherit the parent's
+  variables, get id `<parentId>.<n>` and `meta.parentId`. Cache keys hash `item/items/meta` + non-ephemeral
   variables (`id` and ephemeral variables excluded). Dead-letter writes the full exchange.
 
 ### `types.ts`
@@ -114,7 +114,8 @@ over defaults, missing file yields `{}`.
 Fluent chain. The builder itself implements `Pipeline`, so it can be a `default export` without calling `.to()`.
 ```typescript
 definePipeline()
-  .from('jsonl://./input.jsonl')
+  .from('chunks://ladder')
+  .subflow('#paragraphs')   // 1→N split; same as 'paragraphs' / 'paragraphs://'
   .flatMap(async (item) => [...])
   .tap((env) => { /* logging: receives the full Exchange incl. meta + variables; async OK */ })
   .use(myTool)
@@ -137,7 +138,7 @@ definePipeline()
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
 | `.batch()` | `.batch(size)` | Groups items into `items[]` batches of `size`, flushing the remainder at end of stream. `size` must be a positive integer (`RangeError` at definition time). |
 | `.window()` | `.window(size)` | Groups items into `items[]` sliding windows of `size` — one window per arrival, so consecutive groups overlap. Same validation as `.batch()`. |
-| `.subflow()` | `.subflow(pipeline)` | Inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. |
+| `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs'`, `'paragraphs://'`, `'#paragraphs'` (and the same forms for `lines` / `series`) are equivalent; `'paragraphs://ladder'` also resolves by scheme. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope. |
 | `.fork()` | `.fork(pipeline)` | Runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. |
 | `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and terminates the chain → the `Pipeline`. Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
 
@@ -219,6 +220,17 @@ expand `'@name'` strings (e.g. `.to('@en')`) at resolution time (in `resolveSour
 Runner, which has `GlobalContext.settings`). Alias chains are capped at
 `MAX_URI_ALIAS_DEPTH` (10) with cycle detection.
 
+The same registry also holds splitters, keyed by entity/buffer URI scheme:
+`registerSplitter(scheme, splitter)`, `hasSplitter(scheme)`, `resolveSplitter(schemeOrUri)` and
+`getSplitterSchemes()`. Resolution strips a leading `#` first, then uses the URI scheme when the
+remainder contains `://`, otherwise the raw remainder as the scheme. Therefore `'paragraphs'`,
+`'paragraphs://'` / `'paragraphs://ladder'`, and `'#paragraphs'` all resolve the same splitter; a
+missing splitter error lists the known schemes. A pipeline names the scheme in `.subflow(...)`;
+`@mt/tools` registers `paragraphs`, `lines` and `series` at module load.
+
+All split implementations share the `Splitter<O>` interface from `types.ts`
+(`{ name, split(env: Exchange<unknown>): O[] | Promise<O[]> }`) but keep their own logic.
+
 ### `engine/runner.ts` — `Runner`
 Main execution loop. Methods: `start()`, `pause()`, `resume()`, `unpause()`. Manages state machine, checkpoint writes, event log, dead-letter.
 
@@ -236,7 +248,7 @@ buildStream(pipeline, input, runContext) → AsyncIterable<Exchange>
 
 `input` is the stream entering the step chain (`null` at the top level). Each step either
 replaces or extends that stream: `source` starts a new one, `tool`/`batch`/`window`/`flatmap`/
-`tap`/`fork`/`subflow` map it, `target` consumes it into a sink. `fork` and `subflow` call
+`split`/`tap`/`fork`/`subflow` map it, `target` consumes it into a sink. `fork` and `subflow` call
 `buildStream` again with the child pipeline, so nested pipelines support **every** DSL op — not
 just tools. Nested runs extend the checkpoint path (`<stepId>/fork-<n>`, `<stepId>/subflow`) and
 inherit the run context (same `runId`, logger scoped to the node).
@@ -303,7 +315,7 @@ cursor is a number and the source implements `resume`; otherwise it falls back t
 and rebases the cursor at 0 (a full replay re-derives every position). Cursor units are **source
 envelopes**, so a `resume(cursor)` implementation must treat it as "skip this many envelopes" —
 the ordinal a `jsonl://` source reads as its line offset. Cardinality-changing steps
-(`batch`/`window`/`flatMap`) and dropped items (`skip-item`) can only under-count, which is the
+(`batch`/`window`/`flatMap`/`split`) and dropped items (`skip-item`) can only under-count, which is the
 safe direction: the item is re-processed, then deduplicated by the content cache.
 
 A run whose stream ends without a target records no cursor — resume there stays cache-replay.
@@ -354,14 +366,22 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
   `buildStream(child.steps, [envelope], childCtx)` and the child's output is merged back into the
   parent stream. One checkpoint node per envelope (`<stepId>/fork-<n>`). A `target` inside the
   child makes it a sink: results are written there and nothing flows back to the parent.
-- **Subflow (`.subflow`)**: in-process, same Runner, two modes selected by what the sub-pipeline
-  declares — **never** by URI scheme:
+- **Subflow (`.subflow`)**: in-process, same Runner. The pipeline form has two modes selected by
+  what the sub-pipeline declares — **never** by URI scheme:
   - **Inline** — sub-pipeline has no `source` step (steps only). Its steps are spliced into the
     parent stream, so data flows parent → child → parent.
   - **Self-contained** — sub-pipeline declares its own `source`. It runs as a nested pipeline on
     its own data after the upstream stream is consumed; the parent stream passes through unchanged.
     Subflows therefore run in declaration order, and an orchestration-only parent (no `source` /
     `target` of its own) is valid.
+- **Subflow by entity type** — `.subflow('paragraphs')`, `.subflow('paragraphs://')` and
+  `.subflow('#paragraphs')` are three spellings of the same registry lookup (likewise `lines` and
+  `series`); a URI with a path like `'paragraphs://ladder'` also resolves by scheme. The call pushes
+  the internal `split` step: inline, same Runner, 1→N. It is deliberately **not** `.fork()`: a split
+  is a transformation of the current stream, while `.fork()` starts a child Runner per envelope.
+  The `series` splitter is document-aware: it parses with `readChapterDoc`, emits numbered
+  `ChapterDoc` parts via `writeChapterDoc` only when the chapter is large enough (or a custom
+  `shouldSplit` allows it), and otherwise returns the original markdown as one item.
 
 `.batch(n)` groups envelopes into `items[]` (`item` holds the same array) and flushes the
 remainder at end of stream; `.window(n)` emits the same shape but slides one item per arrival, so

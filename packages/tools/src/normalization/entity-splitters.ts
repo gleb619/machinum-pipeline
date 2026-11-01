@@ -1,0 +1,106 @@
+import { registry } from '@mt/core'
+import type { Exchange, Line, Paragraph, Splitter } from '@mt/core'
+import { splitLineUnits, splitParagraphUnits } from './token-splitter.js'
+
+interface ParagraphSource {
+  chapterId: string
+  chunkId: string
+  body: string
+}
+
+interface LineSource {
+  paragraphId: string
+  body: string
+}
+
+function metaString(
+  env: Exchange<unknown>,
+  key: 'chapterId' | 'chunkId' | 'paragraphId',
+): string | undefined {
+  const value = env.meta[key]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+function paragraphSource(env: Exchange<unknown>): ParagraphSource {
+  if (typeof env.item === 'string') {
+    return {
+      chapterId: metaString(env, 'chapterId') ?? env.id,
+      chunkId: metaString(env, 'chunkId') ?? env.id,
+      body: env.item,
+    }
+  }
+
+  const item = asRecord(env.item)
+  if (
+    item !== undefined &&
+    typeof item.chapterId === 'string' &&
+    typeof item.id === 'string' &&
+    typeof item.body === 'string'
+  ) {
+    return { chapterId: item.chapterId, chunkId: item.id, body: item.body }
+  }
+
+  throw new Error(
+    'paragraphSplitter: item must be a string or a Chunk-like object with id, chapterId and body',
+  )
+}
+
+function lineSource(env: Exchange<unknown>): LineSource {
+  if (typeof env.item === 'string') {
+    return {
+      paragraphId: metaString(env, 'paragraphId') ?? env.id,
+      body: env.item,
+    }
+  }
+
+  const item = asRecord(env.item)
+  if (item !== undefined && typeof item.id === 'string' && typeof item.body === 'string') {
+    return { paragraphId: item.id, body: item.body }
+  }
+
+  throw new Error('lineSplitter: item must be a string or a Paragraph-like object with id and body')
+}
+
+/**
+ * Chunk → Paragraph splitter. Accepts a chunk body string (ids from `meta.chunkId` /
+ * `meta.chapterId`, falling back to the exchange id) or a `Chunk`-like object.
+ */
+export const paragraphSplitter: Splitter<Paragraph> = {
+  name: 'paragraph-splitter',
+  split(env) {
+    const { chapterId, chunkId, body } = paragraphSource(env)
+    return splitParagraphUnits(body).map((part, index) => ({
+      id: `${chunkId}/paragraph-${index + 1}`,
+      chapterId,
+      chunkId,
+      index,
+      body: part,
+    }))
+  },
+}
+
+/**
+ * Paragraph → Line splitter. Accepts a paragraph body string (id from `meta.paragraphId`,
+ * falling back to the exchange id) or a `Paragraph`-like object.
+ */
+export const lineSplitter: Splitter<Line> = {
+  name: 'line-splitter',
+  split(env) {
+    const { paragraphId, body } = lineSource(env)
+    return splitLineUnits(body).map((text, index) => ({
+      id: `${paragraphId}/line-${index + 1}`,
+      paragraphId,
+      index,
+      text,
+    }))
+  },
+}
+
+registry.registerSplitter('paragraphs', paragraphSplitter)
+registry.registerSplitter('lines', lineSplitter)

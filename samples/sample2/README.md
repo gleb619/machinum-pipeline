@@ -192,16 +192,22 @@ chapters/chapter1.md
 jsonl://./jsonl/ladder.jsonl      (a chapter record)
   → chapterDocBuild + chapterIndexer + chapterDocEmit   → md://./chapters/ladder-chapters
   → readChapterDoc + splitIntoChunks (md → chunks)      → temp://chunks/ladder
-  → chunks://ladder → split(/\n\n+/) (chunk → paragraphs) → temp://paragraphs/ladder (chunkId)
-  → paragraphs://ladder → split('\n') (paragraph → lines) → temp://lines/ladder
+  → chunks://ladder → .subflow('#paragraphs') (chunk → paragraphs) → temp://paragraphs/ladder (chunkId)
+  → paragraphs://ladder → .subflow('lines://') (paragraph → lines) → temp://lines/ladder
   → lines://ladder → tokenizeWords    (line → words)     → temp://words/ladder
   → words://ladder → batch + summary                     → md://./chapters (chapters/ladder-summary.md)
 ```
 
-Every step down the ladder is one `.flatMap()` (one envelope in, many out) plus one entity
-buffer. The typed rungs are source-only: each stage writes `temp://<rung>/ladder`, the next reads
-`<rung>://ladder`. The buffers are built in, the pipeline only uses them. The entities are the real core
-types (`Chapter`, `Paragraph`, `Chunk`, `Line`); `Word` is not a core type, so the sample
+The paragraph and line descents read like type identification. `.subflow('#paragraphs')`,
+`.subflow('paragraphs')` and `.subflow('paragraphs://')` are three spellings of the same registry
+lookup; the sample uses the `#` shortcut for the paragraph rung and the explicit URI for the line
+rung. A URI with a path also works (`'paragraphs://ladder'`). Each string resolves a splitter
+registered under that buffer scheme; the splitter sees the full Exchange and returns child
+entities, so no local glue or splitter import is needed. Other descents use `.flatMap()` (one
+envelope in, many out). Each stage is still just a cardinality op plus one entity buffer. The typed
+rungs are source-only: each stage writes `temp://<rung>/ladder`, the next reads
+`<rung>://ladder`. The buffers are built in, the pipeline only uses them. The entities are the real
+core types (`Chapter`, `Paragraph`, `Chunk`, `Line`); `Word` is not a core type, so the sample
 declares one. The summary has one row per rung:
 
 ```
@@ -214,6 +220,23 @@ declares one. The summary has one row per rung:
 | 4 | lines:// | 5 |
 | 5 | words:// | 73 |
 ```
+
+Series splitting uses the same type-driven form:
+
+```ts
+definePipeline()
+  .from('md://./chapters/chapter1.md')
+  .subflow('#series') // same as 'series' / 'series://'
+  .to('md://./chapters/series-output.md')
+```
+
+`.subflow('#series')` resolves the series splitter and fans the chapter into frontmatter-bearing
+parts. It parses the markdown with `readChapterDoc` and writes each part with `writeChapterDoc`:
+the H1 title gains the part number (`Chapter One 1`, `Chapter One 2`, …), `series` comes from the
+original frontmatter or falls back to the original title, and `number`/`warnings` are preserved. A
+chapter that is too small (fewer non-empty body lines than the requested `parts`, default 4) is
+returned unchanged as one item; no `series:` frontmatter is introduced. `.fork()` is not used: it
+nests a child Runner per envelope, which is the wrong shape for a plain 1→N split.
 
 #### Alternate route: chunks → tokens
 

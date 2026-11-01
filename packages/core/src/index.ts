@@ -121,6 +121,7 @@ export { VLT_REF_PREFIX, findVlt, getVltSecret, installVlt, resolveVltValue } fr
 export { getSetting } from './settings.js'
 export type {
   Source,
+  Splitter,
   Tool,
   Target,
   Envelope,
