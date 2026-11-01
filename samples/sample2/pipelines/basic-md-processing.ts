@@ -76,7 +76,7 @@ const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
 // record id.
 // ---------------------------------------------------------------------------
 
-const customTypedContentPipeline = definePipeline({ id: 'custom-typed-content' })
+const typedContentPipeline = definePipeline({ id: 'typed-content' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => {
     const { id } = record as LineRecord
@@ -120,25 +120,25 @@ const customTypedContentPipeline = definePipeline({ id: 'custom-typed-content' }
       }),
     )
   })
-  .to('md://./chapters/output-custom-typed.md')
+  .to('md://./chapters/output-typed.md')
 
 // ---------------------------------------------------------------------------
 // Typed chapter content using existing domain types (Chapter).
 // ---------------------------------------------------------------------------
 
-const typedContentPipeline = definePipeline({ id: 'typed-content' })
+const chapterDomainPipeline = definePipeline({ id: 'chapter-domain-content' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => {
     const { id } = record as LineRecord
     const chapter: Chapter = {
-        id: String(id),
-        bookId: 'basic-md',
-        title: `Line ${id}`,
-        body: toLineText(record)
+      id: String(id),
+      bookId: 'basic-md',
+      title: `Line ${id}`,
+      body: toLineText(record),
     }
     return [`# ${chapter.title}\n\n${chapter.body}\n`]
   })
-  .to('md://./chapters/output-typed.md')
+  .to('md://./chapters/output-custom-typed.md')
 
 // ---------------------------------------------------------------------------
 // Corpus statistics: batch the lines and let `statFreq` rank the words.
@@ -164,12 +164,17 @@ const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   })
   .to('void://')
 
-// all three -> implicit suite (alphabetical, sync)
-//export { defaultPipeline, customTypedContentPipeline, typedContentPipeline, statsPipeline }
+// all four -> implicit suite (alphabetical, sync)
+export { chapterDomainPipeline, defaultPipeline, statsPipeline, typedContentPipeline }
 
 // explicit suite -> your order + mode
 import { defineSuite } from '@mt/core'
-export default defineSuite([defaultPipeline, customTypedContentPipeline, typedContentPipeline, statsPipeline]).parallel()
+export default defineSuite([
+  defaultPipeline,
+  chapterDomainPipeline,
+  typedContentPipeline,
+  statsPipeline,
+]).parallel()
 
 // sync shorthand
 // export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
