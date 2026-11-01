@@ -91,6 +91,7 @@ build
 /samples/sample2/out/
 /samples/sample2/chapters/*.md
 /samples/sample2/chapters/**/*.md
+!/samples/sample2/chapters/chapter1.md
 /samples/sample3/vendor/
 /samples/sample3/package-lock.json
 /samples/sample3/runner.log
