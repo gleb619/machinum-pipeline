@@ -54,7 +54,7 @@ async function resolveLifecycleScript(
   ) {
     const hint = pipelineName ? ` (named export '${pipelineName}' not found or invalid)` : ''
     throw new Error(
-      `Invalid lifecycle script '${script}' (${name}). Expected ${pipelineName ? `export const ${pipelineName}` : 'default export'} from definePipeline() or defineSuite().${hint}`,
+      `Invalid lifecycle script '${script}' (${name}). Expected ${pipelineName ? `export const ${pipelineName}` : 'default export'} from definePipeline() or defineProcess().${hint}`,
     )
   }
 

@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Runner, defineSuite } from '@mt/core'
+import { Runner, defineProcess } from '@mt/core'
 import type { Pipeline } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
@@ -205,7 +205,7 @@ describe('run command', () => {
     it('runs an explicit default suite', async () => {
       const one = plainPipeline('one')
       const two = plainPipeline('two')
-      const suite = defineSuite([one, two], { id: 'declared-suite', mode: 'sync' })
+      const suite = defineProcess([one, two], { id: 'declared-suite', mode: 'sync' })
       const pipelinePath = join(testDir, 'pipeline.ts')
       await mockModule(pipelinePath, { default: suite, one, two })
 
@@ -250,7 +250,7 @@ describe('run command', () => {
     })
 
     it('--pipeline still selects exactly one export', async () => {
-      const suite = defineSuite([plainPipeline('one')], { id: 'declared-suite' })
+      const suite = defineProcess([plainPipeline('one')], { id: 'declared-suite' })
       const typed = plainPipeline('typed')
       const pipelinePath = join(testDir, 'pipeline.ts')
       await mockModule(pipelinePath, { default: suite, typed })
@@ -281,7 +281,7 @@ describe('run command', () => {
           { type: 'target', config: { uri: 'mem://fail', instance: failingTarget } },
         ],
       }
-      const suite = defineSuite([failing], { id: 'broken-suite' })
+      const suite = defineProcess([failing], { id: 'broken-suite' })
       const pipelinePath = join(testDir, 'pipeline.ts')
       await mockModule(pipelinePath, { default: suite })
 

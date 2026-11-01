@@ -9,8 +9,8 @@ Core is the engine library — it contains all types, the DSL, the URI registry,
 ## Public API (`src/index.ts`)
 
 Re-exports everything needed by consumers:
-- `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`, `defineProcess` (DSL builders)
-- `defineSuite`, `isPipeline`, `isPipelineSuite` (run several pipelines sync or parallel; see [Suites](#suites))
+- `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`, `defineProcess` (DSL builders; `defineProcess(pipelines, ...)` = suite form, see [Suites](#suites))
+- `isPipeline`, `isPipelineSuite` (suite type guards; see [Suites](#suites))
 - `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
@@ -130,7 +130,7 @@ definePipeline()
 | Method | Signature | Effect |
 |---|---|---|
 | `definePipeline()` | `definePipeline({ id?, retry?, onError? }?)` | Entry point — creates the builder. `id` defaults to the pipeline filename (parent dir for `index.ts`/`pipeline.ts`); defaults: `retry { max: 3, backoffMs: 1000, strategy: 'exp' }`, `onError: 'fail-run'`. |
-| `defineSuite()` | `defineSuite(pipelines, { id?, mode? }?)` | Wraps pipelines into a runnable suite (`mode` defaults to `'sync'`); call `await suite.run()`. |
+| `defineProcess()` (suite form) | `defineProcess(pipelines, { id?, mode? }?)` | Wraps pipelines into a runnable suite (`mode` defaults to `'sync'`); call `await proc.run()`. `.parallel(true\|false)` returns a copy with the mode switched. |
 | `.from()` | `.from(Source<T> \| string)` | Sets the Source. URI string (resolved via the registry; a named `mt.json` alias defers to the Runner at run time) or instance (carried through as-is — what lets `defineWaypoint` wrappers reach the run). |
 | `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
@@ -143,34 +143,42 @@ definePipeline()
 
 ### Suites
 
-`defineSuite(pipelines, { id?, mode? })` returns
-`{ kind: 'pipeline-suite', id, pipelines, mode, sync(), parallel(), run(ctx?, options?) }`.
+`defineProcess(pipelines, { id?, mode? })` (the suite form of `defineProcess`) returns a
+`ProcessBuilder` with `{ kind: 'pipeline-suite', id, pipelines, mode, parallel(flag?), run(ctx?, options?) }`.
 Each pipeline gets its own Runner/run id; all share one `GlobalContext`. `mode` defaults to `'sync'`
 (sequential, declaration order, stops on the first failure). `'parallel'` starts every Runner and awaits
-`Promise.all` over them; a failure rejects the suite. With no context arg `run()` calls
+`Promise.all` over them; a failure rejects the run. With no context arg `run()` calls
 `loadGlobalContext(process.cwd())`.
 
-`suite.sync()` / `suite.parallel()` return a **new** suite with the same id and pipelines and the changed
-mode — the original is never mutated. An empty array or a pipeline without a string `id` and `steps` array
-throws `TypeError` at definition time. Use `isPipelineSuite(value)` / `isPipeline(value)` as type guards.
+`proc.parallel(true)` (default flag) / `proc.parallel(false)` return a **new** process with the same id,
+pipelines, and env config and the changed mode — the original is never mutated. An empty array or a
+pipeline without a string `id` and `steps` array throws `TypeError` at definition time. Use
+`isPipelineSuite(value)` / `isPipeline(value)` as type guards; a setup-only `defineProcess()` builder
+(no pipelines array) is NOT a suite and `run()` on it throws.
 
-`SuiteRunOptions` extends `RunnerOptions` with `onRunner?: (runner, pipeline) => void`, called once per
+`ProcessRunOptions` extends `RunnerOptions` with `onRunner?: (runner, pipeline) => void`, called once per
 pipeline after `runner.start()` has minted the run id (synchronously) and before the run is awaited.
 
 ```ts
-export const all = defineSuite([pipelineA, pipelineB], { id: 'all', mode: 'sync' })
-await all.parallel().run(ctx, { onRunner: (runner, pipeline) => log(pipeline.id, runner.getRunId()) })
+export const all = defineProcess([pipelineA, pipelineB], { id: 'all' }) // sync by default
+await all.parallel(true).run(ctx, { onRunner: (runner, pipeline) => log(pipeline.id, runner.getRunId()) })
 ```
 
 A suite is usually the module's default export; `mt run <file>` runs it as declared. Without a default
 suite, a default pipeline runs alone; only a module with neither gets an implicit suite (see
 [cli.md](cli.md#pipeline-loading)).
 
-### `suite.ts` — `defineSuite()`
+### `dsl.ts` — `defineProcess()`
 
-`defineSuite(pipelines, { id?, mode? })` — wraps several pipelines into one runnable suite (one Runner/run id
-each, shared `GlobalContext`); `.sync()` / `.parallel()` switch mode immutably. Full contract in
-[Suites](#suites).
+`defineProcess()` — process-level setup builder: `.install(...)` runs installers at module load,
+`.config({ env })` declares pipeline-scoped env defaults (also applied to every pipeline of the suite
+form), `.pipeline(p)` is the terminal step returning the pipeline for the default export.
+
+`defineProcess(pipelines, { id?, mode? })` — suite form: wraps several pipelines into one runnable
+entity (one Runner/run id each, shared `GlobalContext`); `.parallel(true|false)` switches mode
+immutably (default `'sync'`). Full contract in [Suites](#suites). `suite.ts` holds the
+`PipelineSuite`/`PipelineSuiteMode`/`ProcessRunOptions` types plus the `isPipeline` / `isPipelineSuite`
+guards.
 
 **Tool composition** (all optional; plain `Tool`s and `.use()` unchanged):
 - `chain(name, ...tools)` — one `Tool` running tools sequentially (output envelope feeds next).

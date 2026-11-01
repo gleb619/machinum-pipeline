@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Runner, defineSuite } from '@mt/core'
+import { Runner, defineProcess } from '@mt/core'
 import type { Pipeline } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
@@ -245,7 +245,7 @@ describe('resume command', () => {
 
   it('resolves a pipeline nested in a suite export', async () => {
     const nested = plainPipeline('nested')
-    const suite = defineSuite([nested], { id: 'nested-suite' })
+    const suite = defineProcess([nested], { id: 'nested-suite' })
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, '// mocked')
     await writeState('test-run-id', { pipelineId: 'nested' })
@@ -262,7 +262,7 @@ describe('resume command', () => {
   })
 
   it('explains that a suite without the recorded pipeline cannot be resumed as a whole', async () => {
-    const suite = defineSuite([plainPipeline('nested')], { id: 'nested-suite' })
+    const suite = defineProcess([plainPipeline('nested')], { id: 'nested-suite' })
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, '// mocked')
     await writeState('test-run-id', { pipelineId: 'missing' })

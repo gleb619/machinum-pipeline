@@ -1,7 +1,7 @@
 import { basename, extname, join, relative, resolve } from 'node:path'
 import {
   Runner,
-  defineSuite,
+  defineProcess,
   importPipelineModule,
   isPipeline,
   isPipelineSuite,
@@ -253,7 +253,7 @@ export async function loadRunnable(filePath: string, name?: string): Promise<Run
   const pipelines = collectPipelines(mod)
   if (pipelines.length > 0) {
     const suiteId = `${basename(filePath, extname(filePath))}-suite`
-    return defineSuite(pipelines, { id: suiteId, mode: 'sync' })
+    return defineProcess(pipelines, { id: suiteId })
   }
 
   throw new Error(

@@ -213,13 +213,9 @@ export type {
   WaypointSourceHooks,
   WaypointTargetHooks,
 } from './dsl.js'
-export { defineSuite, isPipeline, isPipelineSuite } from './suite.js'
-export type {
-  PipelineSuite,
-  PipelineSuiteMode,
-  PipelineSuiteOptions,
-  SuiteRunOptions,
-} from './suite.js'
+export { isPipeline, isPipelineSuite } from './suite.js'
+export type { PipelineSuite, PipelineSuiteMode, ProcessRunOptions } from './suite.js'
+export type { ProcessSuiteOptions } from './dsl.js'
 export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
 export type {
   ParsedUri,

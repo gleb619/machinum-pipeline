@@ -158,19 +158,18 @@ const statsPipeline = definePipeline({ id: 'basic-md-stats' })
 // all four -> implicit suite (alphabetical, sync)
 export { chapterDomainPipeline, defaultPipeline, statsPipeline, typedContentPipeline }
 
-// explicit suite -> your order + mode
-import { defineSuite } from '@mt/core'
-export default defineSuite([
+// explicit suite -> your order + mode (defineProcess([...]).parallel(true))
+import { defineProcess } from '@mt/core'
+export default defineProcess([
   defaultPipeline,
   chapterDomainPipeline,
   typedContentPipeline,
   statsPipeline,
-]).parallel()
+]).parallel(true)
 
-// sync shorthand
-// export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
+// sync shorthand (default mode is sync)
+// export default defineProcess([defaultPipeline, typedContentPipeline, statsPipeline], {
 //   id: 'basic-md-all',
-//   mode: 'sync', // or 'parallel'
 // })
 
 // ---------------------------------------------------------------------------
