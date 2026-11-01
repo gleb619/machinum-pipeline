@@ -95,7 +95,7 @@ const typedContentPipeline = definePipeline({ id: 'typed-content' })
     if (first) first.lines = first.lines.map((ln) => ln.toUpperCase())
 
     const second = doc.body[1]
-    if (second) second.lines = ['[REWRITTEN PARAGRAPH]']
+    if (second) second.lines = ['<REWRITTEN PARAGRAPH>']
 
     // Return the mutated doc as the shape expected by `chapterDocBuild`.
     const input = {

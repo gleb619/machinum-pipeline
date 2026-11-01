@@ -106,6 +106,6 @@ describe('typedContentPipeline', () => {
     run('typedContentPipeline')
     const content = await readFile(join(SAMPLE_DIR, 'chapters', 'output-typed.md'), 'utf-8')
     expect(content).toMatch(/^# Edited: Line /m)
-    expect(content).toContain('[REWRITTEN PARAGRAPH]')
+    expect(content).toContain('<REWRITTEN PARAGRAPH>')
   })
 })
