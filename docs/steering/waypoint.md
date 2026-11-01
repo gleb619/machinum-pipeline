@@ -338,7 +338,19 @@ tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — wh
 Rung 0 (`jsonl://`) is the entry point for machine-readable input; rungs 2–5 and `tokens://` are process-local buffers, so
 a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`). These rungs are
 source-only: a stage writes with `.to('temp://<rung>/<namespace>')` and the next stage reads `.from('<rung>://<namespace>')`.
-Use `batches://` when a package must survive the hop as one envelope (it is not a ladder rung).
+Use `batches://` when a package must survive the hop between pipelines as one envelope (it is not a ladder rung).
+
+### Batch scope waypoints: `batch://group|members|return`
+
+Scope-local views of `.batch(opts, nested)` (see [core.md](core.md#batch-scope-batchopts-nested)); no namespace, no global buffer - they read/write `RunContext.batchScope`.
+
+| URI | Kind | Meaning |
+|---|---|---|
+| `batch://group` | source | The package as ONE exchange (`item` = `items[]`, members carried for batch-aware tools) |
+| `batch://members` | source | Each member as its own exchange (own id/meta/variables, `meta.batchIndex`, group edits stamped on) |
+| `batch://return` | target | Hand a result back: group exchange -> its changed variables reach all members; member exchange -> replaces that member by id |
+
+Outside a batch scope they throw. No `resume()`: scope state is in-memory, a resumed run replays the scope.
 
 ## Composing Waypoints: `defineWaypoint`
 

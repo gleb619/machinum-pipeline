@@ -17,6 +17,7 @@ let hasFailure = false
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'en'), { recursive: true, force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'ru'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'schema'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'schema-mock'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, 'md', 'output.md'), { force: true })
@@ -94,6 +95,29 @@ describe('jsonl-to-md-multi pipeline', () => {
       )
       expect(content).toContain(`Chapter ${i + 1}`)
     }
+  })
+})
+
+describe('nested batch scope (packaged titles)', () => {
+  it('translates the package titles as one text and patches every chapter into chapters/ru', async () => {
+    const expected = [
+      'Глава 1: Дорога из Тернхейвен',
+      'Глава 2: Засада в Дарквуде',
+      'Глава 3: Герцога Трибунал',
+    ]
+    for (let i = 0; i < expected.length; i++) {
+      const content = await readFile(
+        join(SAMPLE_DIR, 'chapters', 'ru', `chapter${i + 1}.md`),
+        'utf-8',
+      )
+      expect(content).toContain(`# ${expected[i]}`)
+      expect(content).toContain(CHAPTERS[i].body)
+    }
+  })
+
+  it('leaves the English originals untouched', async () => {
+    const content = await readFile(join(SAMPLE_DIR, 'chapters', 'en', 'chapter1.md'), 'utf-8')
+    expect(content).toContain(CHAPTERS[0].title)
   })
 })
 

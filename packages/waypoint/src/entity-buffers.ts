@@ -22,6 +22,9 @@ import { createNamedEphemeralSource, createNamedEphemeralTarget } from './epheme
  * through the typed rung (`chunks://ladder` <- `temp://chunks/ladder`).
  * `batches://` stays a bidirectional package buffer because it is not a ladder rung.
  *
+ * Not to be confused with `batch://group|members|return` (`batch-scope.ts`): those are the
+ * scope-local views of `.batch(opts, nested)` and share no global buffer.
+ *
  * Omitting the namespace uses `default`: `paragraphs://` == `paragraphs://default`.
  * Every scheme gets its own key space, so `lines://` never reads a buffer that
  * `ephemeral://lines` or `paragraphs://` wrote.

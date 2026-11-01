@@ -19,6 +19,7 @@ export type {
   RetryPolicy,
   ErrorPolicy,
   RetryStrategy,
+  BatchScope,
 } from './contexts.js'
 export type {
   Vault,
@@ -199,7 +200,10 @@ export {
   defineProcess,
   ProcessBuilder,
   PipelineBuilder,
+  DEFAULT_BATCH_SIZE,
 } from './dsl.js'
+export type { BatchOptions } from './dsl.js'
+export { createBatchScope } from './batch-scope.js'
 export type {
   ComposableTool,
   ProcessConfig,

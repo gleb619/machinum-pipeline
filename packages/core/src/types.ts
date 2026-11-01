@@ -111,8 +111,6 @@ export interface PipelineStep {
     | 'target'
     | 'fork'
     | 'batch'
-    | 'window'
-    | 'unbatch'
     | 'flatmap'
     | 'split'
     | 'tap'

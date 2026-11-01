@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.5.1 | 2026-11-01 -->
+<!-- skill-version: 1.6.0 | 2026-11-01 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -48,15 +48,16 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs://' (bare 'paragraphs' is rejected)
   .tap(async (ex) => console.log(ex.id))     // observe full Exchange, stream unchanged
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
-  .batch(5)                                  // group into items[] (flushes remainder)
-  .window(3)                                 // sliding window of 3 (overlapping)
+  .batch(5)                                  // group into items[] (default size 5; flushes remainder)
+  .batch({ size: 3, slide: true })           // sliding windows (overlapping)
+  .batch(scopePipeline)                      // packages of 5 run through a nested scope (batch://group|members|return)
   .subflow(otherPipeline)                    // inline nested pipeline, same Runner
   .fork(childPipeline)                       // child Runner per envelope, nested checkpoint subtree
   .to('md://./out')                          // Target
 ```
 
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
-  `.batch/.window/.flatMap`, or the string form `.subflow('<splitter>')`
+  `.batch/.flatMap`, or the string form `.subflow('<splitter>')`
   (`'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`; the same
   spellings work for `lines`, `words` and `series`) which resolves a registered splitter and
   fans out 1 -> N. Import `mt/tools` (or any `@mt/tools` symbol) to register `paragraphs`, `lines`,
@@ -276,6 +277,6 @@ Do:
 Don't:
 - Don't hand-edit `.mt/runs/*/checkpoint.json` or `state.json`.
 - Don't print, log, commit or echo secrets, master keys, `--reveal` output or `.env` contents.
-- Don't add `.batch/.window/.flatMap/.subflow('<entity-type>')` casually: they change cardinality for every later step.
+- Don't add `.batch/.flatMap/.subflow('<entity-type>')` casually: they change cardinality for every later step.
 - Don't run `mt serve`/`mt router` bound to a non-loopback host without `MT_ROUTER_TOKEN`.
 - Don't assume a flag exists: run `mt <command> --help` when unsure.

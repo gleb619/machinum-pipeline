@@ -101,19 +101,20 @@ describe('DSL', () => {
     expect(tool.cacheable).toBe(true)
   })
 
-  it('T002-01: .window() operator adds correct step', () => {
+  it('T002-01: .batch({ slide }) operator adds correct step', () => {
     const pipeline = definePipeline({
-      id: 'window-test',
+      id: 'slide-test',
       retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
       onError: 'fail-run',
     })
       .from(source('jsonl://./input.jsonl'))
-      .window(10)
+      .batch({ size: 10, slide: true })
       .to(target('jsonl://./output.jsonl'))
 
     expect(pipeline.steps.length).toBe(3)
-    expect(pipeline.steps[1]?.type).toBe('window')
+    expect(pipeline.steps[1]?.type).toBe('batch')
     expect(pipeline.steps[1]?.config.size).toBe(10)
+    expect(pipeline.steps[1]?.config.slide).toBe(true)
   })
 
   it('T002-05: tool retry overrides are stored correctly', () => {
@@ -155,7 +156,7 @@ describe('DSL', () => {
       .from(source('jsonl://./input.jsonl'))
       .use(tool)
       .batch(5)
-      .window(3)
+      .batch({ size: 3, slide: true })
       .to(target('jsonl://./output.jsonl'))
 
     expect(pipeline.steps.length).toBe(5)
@@ -163,7 +164,7 @@ describe('DSL', () => {
       'source',
       'tool',
       'batch',
-      'window',
+      'batch',
       'target',
     ])
   })

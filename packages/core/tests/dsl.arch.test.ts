@@ -138,16 +138,16 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(batchStep?.config.size).toBe(5)
   })
 
-  it('.window(size) pushes a step with type window and config.size', () => {
+  it('.batch({ size, slide: true }) pushes a batch step with config.slide', () => {
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .window(3)
+      .batch({ size: 3, slide: true })
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
     const p = pipeline as Pipeline
-    const windowStep = p.steps.find((s) => s.type === 'window')
-    expect(windowStep).toBeDefined()
-    expect(windowStep?.config.size).toBe(3)
+    const batchStep = p.steps.find((s) => s.type === 'batch')
+    expect(batchStep?.config.size).toBe(3)
+    expect(batchStep?.config.slide).toBe(true)
   })
 
   it('.fork(subPipeline) pushes a step with type fork and config.pipeline', () => {
@@ -275,13 +275,12 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(seen).toHaveLength(0)
   })
 
-  it('PipelineStep.type union includes batch, window, fork, flatmap, split, tap', () => {
+  it('PipelineStep.type union includes batch, fork, flatmap, split, tap', () => {
     const splitter = { name: 'test-splitter', split: async () => ['a'] }
     registry.registerSplitter('test-union-entities', splitter)
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
       .batch(5)
-      .window(3)
       .flatMap(async (item) => [item])
       .subflow('test-union-entities://')
       .tap(async () => {})
@@ -291,7 +290,6 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     const types = p.steps.map((s) => s.type)
     expect(types).toContain('source')
     expect(types).toContain('batch')
-    expect(types).toContain('window')
     expect(types).toContain('flatmap')
     expect(types).toContain('split')
     expect(types).toContain('tap')

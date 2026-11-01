@@ -106,30 +106,24 @@ export const translateChapterPipeline = definePipeline()
   .use(paragraphTranslator)
   .to('ephemeral://translate-output')
 
-// === Flow 5: packaged titles — batch → named in-memory waypoint → unbatch → ru chapters ===
+// === Flow 5: packaged titles — ONE pipeline, a nested batch scope ===
 //
-// `.batch(n)` folds the stream into fixed-size packages: one envelope whose `item` is
-// `items[]` AND whose member envelopes ride along (ephemeral `batchMembers` variable).
-// `batches://<name>` is a named ephemeral waypoint — the producer writes the package into one
-// buffer, the consumer reads it back as ONE envelope, so `meta` of the members survives the hop.
-//
-// Two ways to process a package:
-//   .use(tool)          → the tool sees the whole package as one item (titles[] → packet)
-//   .unbatch().use(tool)→ the tool sees every member again, with its own meta (per chapter)
+// `.batch(scope)` folds the stream into packages of 5 (default) and runs `scope` once per package.
+// Inside the scope the package is seen through waypoints:
+//   batch://group    → the package as ONE item  (titles of all chapters → one text → parsed back)
+//   batch://members  → every member as its own item, with its own meta (patch each chapter)
+//   batch://return   → hands the result back; the outer stream continues with the ORIGINAL
+//                      chapters (own id/meta/variables), patched, and `chapter-output://` writes them
+// The group stage ends with `batch://return` so its variables (`translatedTitles`, ...) reach every
+// member; the members stage then patches each chapter from them.
 const enChapters = defineWaypoint<unknown>('chapter-output://./chapters', {
   filter: (env) => env.meta.lang === 'en',
 })
 
-export const titlePacketProducer = definePipeline()
-  .from(enChapters)
-  .batch(2)
-  .to('batches://title-packets')
-
-// One package = one item: schema-doc titles → non-LLM dictionary translation → parsed packet.
-// `schemaTitles` reads `<schemaDir>/chapter<N>.schema.md` (parsed with `readDoc`), so the title
-// comes from the schema doc, not from the chapter H1.
-export const titlePacketTranslator = definePipeline()
-  .from('batches://title-packets')
+const titleScope = definePipeline({ id: 'title-scope' })
+  // stage 1 - package = one item: schema-doc titles → non-LLM dictionary translation → parsed packet
+  // (`schemaTitles` reads `<schemaDir>/chapter<N>.schema.md` with `readDoc`, not the chapter H1)
+  .from('batch://group')
   .use(createSchemaTitles({ schemaDir: 'chapters/schema' }))
   .use(
     createDictionaryTitleTranslator({
@@ -149,15 +143,15 @@ export const titlePacketTranslator = definePipeline()
     }),
   )
   .use(createTitlePacketParser())
-  .to('batches://translated-title-packets')
-
-// One package = each item: `.unbatch()` restores the original chapters (id + meta + variables),
-// the per-item tool stamps the translated title and `meta.lang=ru`, and `chapter-output://`
-// writes `chapters/ru/chapter<N>.md`.
-export const titlePacketApplier = definePipeline()
-  .from('batches://translated-title-packets')
-  .unbatch()
+  .to('batch://return')
+  // stage 2 - package = each item: stamp the translated title + `meta.lang=ru` on every chapter
+  .from('batch://members')
   .use(createApplyTranslatedTitle({ lang: 'ru' }))
+  .to('batch://return')
+
+export const titlePacketPipeline = definePipeline()
+  .from(enChapters)
+  .batch(titleScope)
   .to('chapter-output://./chapters')
 
 // === Default: orchestration pipeline (subflow-only, no source/target of its own) ===
@@ -174,9 +168,7 @@ export default defineProcess()
     definePipeline()
       .subflow(verifyFlow)
       .subflow(schemaDocPipeline)
-      .subflow(titlePacketProducer)
-      .subflow(titlePacketTranslator)
-      .subflow(titlePacketApplier)
+      .subflow(titlePacketPipeline)
       .subflow(translateTitlesPipeline)
       .subflow(translateChapterPipeline),
   )

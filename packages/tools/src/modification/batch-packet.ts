@@ -3,8 +3,10 @@ import type { Exchange, ToolContext } from '@mt/core'
 
 /**
  * Generic batch-package pipeline: collect one keyed value per member of a `.batch()` /
- * `.window()` package, transform the package as one item, serialize it to a plain-text packet,
- * parse the packet back, and — after `.unbatch()` — patch each value into its member again.
+ * `.batch({ slide: true })` package, transform the package as one item, serialize it to a plain-text
+ * packet, parse the packet back, and — in the `batch://members` view of a nested `.batch(opts, scope)` —
+ * patch each value into its member again. Group steps run on `batch://group`, per-member steps on
+ * `batch://members`; both end in `batch://return`.
  *
  * Nothing here knows about titles, chapters or any domain: `read`, `keyOf`, `translate` and
  * `apply` are caller-supplied. The title flow in `title-packet.ts` is one configuration of
@@ -52,7 +54,7 @@ export interface BatchCollectOptions {
  * Collect `{ key, value }` for every member of a package (a plain envelope counts as a
  * one-member package). The package payload becomes `BatchEntry[]`, mirrored into `items`, and
  * is stored in the configured variable (default `entries`) so later stages — including members
- * restored by `.unbatch()` — can reach it.
+ * restored in the `batch://members` view — can reach it.
  */
 export function createBatchCollect(options: BatchCollectOptions) {
   const variable = options.variable ?? DEFAULT_ENTRY_VARIABLE
@@ -197,7 +199,7 @@ export function findMemberEntry(
 }
 
 /**
- * Per-member step (run after `.unbatch()`): find the entry for this member via `keyOf`
+ * Per-member step (run on the `batch://members` view): find the entry for this member via `keyOf`
  * (falling back positionally to `meta.batchIndex` when {@link BatchApplyOptions.byIndex}) and
  * patch it in with the supplied `apply` fn. Members without a matching entry pass through.
  */
@@ -207,7 +209,7 @@ export function createBatchApply(options: BatchApplyOptions) {
     name: 'batch-apply',
     version: '1.0.0',
     mdDescription:
-      'Per-item (after `.unbatch()`): patches the member with its entry from the entries ' +
+      'Per-item (on `batch://members`): patches the member with its entry from the entries ' +
       'variable via the supplied `apply` fn; unmatched members pass through.',
     async invoke(env: Exchange<unknown>): Promise<Exchange<unknown>> {
       const raw = getVariable<BatchEntry[]>(env, variable)

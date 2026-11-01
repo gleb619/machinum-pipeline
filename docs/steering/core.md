@@ -53,7 +53,7 @@ Conventions:
   kept in sync by every helper (`createExchange`, `withItem`, `withVariable` family, `toExchange`,
   `fromPersisted`); `fromPersisted`/`itemOf` rebuild `item` from the variable (variable wins), `toPersisted`
   never writes an `item` field. `toExchange` treats a literal whose `item` field differs from its variable
-  (`{ ...env, item: x }`) as a payload edit and pushes it (history kept); prefer `withItem`. `items` (batch/window
+  (`{ ...env, item: x }`) as a payload edit and pushes it (history kept); prefer `withItem`. `items` (batch
   list) stays a plain field (`itemsOf(ex)` = `items ?? [item]`) and is persisted as-is. Item variables (new+old)
   are excluded from `hashableVariables`/cache keys and from `mergeVariables` (batch/flatMap build their own);
   cache keys hash the payload via `ex.item`, so equal payloads hash equally regardless of history. The `item`
@@ -70,7 +70,7 @@ Conventions:
   pause/resume/dead-letter goes in a variable.
 - The Runner calls `toExchange` at every boundary (source output, after each tool), so literals
   without `id`/`variables` still work from Sources; a missing `id` is minted as `ex-<n>`.
-- Engine: `batch`/`window` get a new `batch-<n>` id and **merge variables** (later wins on
+- Engine: `batch` get a new `batch-<n>` id and **merge variables** (later wins on
   name+qualifier clash), meta of the first item; `flatMap` and `split` children inherit the parent's
   variables, get id `<parentId>.<n>` and `meta.parentId`. Cache keys hash `item/items/meta` + non-ephemeral
   variables (`id` and ephemeral variables excluded). Dead-letter writes the full exchange.
@@ -136,11 +136,10 @@ definePipeline()
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
 | `.tap()` | `.tap((ex) => void \| Promise<void>)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
-| `.batch()` | `.batch(size)` | Groups items into `items[]` batches of `size`, flushing the remainder at end of stream. `size` must be a positive integer (`RangeError` at definition time). |
-| `.window()` | `.window(size)` | Groups items into `items[]` sliding windows of `size` — one window per arrival, so consecutive groups overlap. Same validation as `.batch()`. |
+| `.batch()` | `.batch(opts?, nested?)` / `.batch(nested)` | `opts` = `number` \| `{ size?: 5, slide?: false }`. Groups items into `items[]` packages of `size`, flushing the remainder at end of stream; `slide: true` emits overlapping sliding windows instead (one per arrival). `size` must be a positive integer (`RangeError` at definition time). With `nested` (a `definePipeline()` pipeline) each package runs through it - a **batch scope**, see below. |
 | `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `lines`, `words` and `series`; `'paragraphs://ladder'` also resolves by scheme. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope. |
 | `.fork()` | `.fork(pipeline)` | Runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. |
-| `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and terminates the chain → the `Pipeline`. Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
+| `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and ends the stage → the builder, which doubles as the `Pipeline`; a further `.from()` starts the next stage (used by batch scopes). Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
 
 ### Suites
 
@@ -248,7 +247,7 @@ buildStream(pipeline, input, runContext) → AsyncIterable<Exchange>
 ```
 
 `input` is the stream entering the step chain (`null` at the top level). Each step either
-replaces or extends that stream: `source` starts a new one, `tool`/`batch`/`window`/`flatmap`/
+replaces or extends that stream: `source` starts a new one, `tool`/`batch`/`flatmap`/
 `split`/`tap`/`fork`/`subflow` map it, `target` consumes it into a sink. `fork` and `subflow` call
 `buildStream` again with the child pipeline, so nested pipelines support **every** DSL op — not
 just tools. Nested runs extend the checkpoint path (`<stepId>/fork-<n>`, `<stepId>/subflow`) and
@@ -316,7 +315,7 @@ cursor is a number and the source implements `resume`; otherwise it falls back t
 and rebases the cursor at 0 (a full replay re-derives every position). Cursor units are **source
 envelopes**, so a `resume(cursor)` implementation must treat it as "skip this many envelopes" —
 the ordinal a `jsonl://` source reads as its line offset. Cardinality-changing steps
-(`batch`/`window`/`flatMap`/`split`) and dropped items (`skip-item`) can only under-count, which is the
+(`batch`/`flatMap`/`split`) and dropped items (`skip-item`) can only under-count, which is the
 safe direction: the item is re-processed, then deduplicated by the content cache.
 
 A run whose stream ends without a target records no cursor — resume there stays cache-replay.
@@ -384,11 +383,45 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
   `ChapterDoc` parts via `writeChapterDoc` only when the chapter is large enough (or a custom
   `shouldSplit` allows it), and otherwise returns the original markdown as one item.
 
-`.batch(n)` groups envelopes into `items[]` (`item` holds the same array) and flushes the
-remainder at end of stream; `.window(n)` emits the same shape but slides one item per arrival, so
-consecutive groups overlap. Both reject non-positive-integer `n` (`0`, negatives, fractions,
-`NaN`, `Infinity`) with a `RangeError` at pipeline-definition time; the Runner-side grouping
+`.batch()` groups envelopes into `items[]` (`item` holds the same array) and flushes the
+remainder at end of stream (default size 5); `{ slide: true }` slides one item per arrival, so
+consecutive groups overlap. Non-positive-integer sizes (`0`, negatives, fractions, `NaN`,
+`Infinity`) throw a `RangeError` at pipeline-definition time; the Runner-side grouping
 (`groupStream`) keeps a defensive fallback to size 1 for unchecked step configs.
+
+### Batch scope: `.batch(opts, nested)`
+
+```typescript
+const scope = definePipeline({ id: 'titles' })
+  .from('batch://group')            // the package as ONE exchange (item = items[])
+  .use(extractTitles).use(translate).use(parse)
+  .to('batch://return')             // commit: group variable edits reach every member
+  .from('batch://members')          // every member as its own exchange (own id/meta/variables)
+  .use(applyTitle)
+  .to('batch://return')             // commit: the patched member replaces the original (by id)
+
+definePipeline().from('md://./chapters/en').batch(scope).to('chapter-output://./chapters')
+```
+
+- The nested pipeline runs once per package (own checkpoint node `<stepId>/batch-<n>`); afterwards
+  the OUTER stream continues with the ORIGINAL member envelopes (own id/meta/variables, order kept),
+  patched by what the scope committed. `slide: true` + nested is a `RangeError`.
+- Plumbing: the Runner puts a `BatchScope` (`createBatchScope`, `packages/core/src/batch-scope.ts`)
+  on the nested `RunContext.batchScope`; the `batch://` waypoints (`packages/waypoint/src/batch-scope.ts`)
+  only talk to that object, so core never imports waypoint and there is no global buffer.
+- Commit rules: group exchange (id = package id) -> only its CHANGED variables are kept and stamped
+  on every member (payload ignored); member exchange -> replaces that member by id; anything else is
+  an error. A scope that never commits leaves members unchanged (warning logged).
+- Multi-stage choice: ONE definition with several `.from(...)...to('batch://return')` stages (hence
+  `.to()` returns the builder). Chosen over a scope-local named buffer or `.subflow()` per stage:
+  no extra namespace/cleanup, the group-stage -> member-stage hand-off is just the committed
+  group variables, and the whole flow reads top to bottom. Stages run in order, each to completion.
+- Resume: the member envelopes live in the EPHEMERAL `batchMembers` variable and the scope state is
+  in-memory, never persisted. The outer source cursor only advances on outer target writes, so after
+  a crash the package is re-formed from the source and the nested pipeline replays for it (the
+  `batch://` sources define no `resume()`). Scope work is therefore re-done, not restored.
+- A failing nested step fails the run (same policies as `.fork()`); its checkpoint node is `failed`.
+- `unbatchExchange` is internal machinery behind `batch://members`; there is no `.unbatch()` / `.window()` DSL op.
 
 ## Retry & Error Policy
 

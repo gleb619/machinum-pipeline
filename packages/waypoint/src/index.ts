@@ -21,6 +21,7 @@ export {
   type LadderBufferScheme,
   type PackageBufferScheme,
 } from './entity-buffers.js'
+export { createBatchScopeSource, createBatchReturnTarget } from './batch-scope.js'
 export { createEventsSource, createEventsTarget } from './events.js'
 export { createRangeSource } from './range.js'
 export { createVoidTarget } from './void.js'
@@ -34,6 +35,7 @@ export {
 
 // Side-effect imports — register schemes with the URI registry
 import './jsonl.js'
+import './batch-scope.js'
 import './md.js'
 import './schema-doc.js'
 import './http-server.js'

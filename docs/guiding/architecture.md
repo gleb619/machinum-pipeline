@@ -40,7 +40,7 @@ interface Variable<U = unknown> { id: string; name: string; qualifier: Qualifier
 interface Exchange<T = unknown> {
   id: string;
   item: T;
-  items?: T[];   // batch/window channel — never implicit
+  items?: T[];   // batch channel — never implicit
   meta: { chapterId?: string; paragraphId?: string; lineId?: string; [k: string]: unknown };  // identity only
   variables: Variable[];                                                                     // tool-computed data
 }
@@ -55,7 +55,7 @@ token counts, glossary, `mdOutputs` write intents); non-`ephemeral` variables ta
 (non-ephemeral only; ephemeral are in-flight too). Resume replays from the Source cursor, so `meta` is
 re-derived by the Source. See `toPersisted` in [`steering/core.md`](../steering/core.md).
 
-Cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
+Cardinality changes only via DSL ops (`.batch(opts?)`, `.flatMap()`).
 
 Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [steering/waypoint.md](../steering/waypoint.md#structure-ladder).
 
@@ -73,7 +73,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 | **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](../steering/core.md), [`waypoint.md`](../steering/waypoint.md) |
 | **Exchange** | `{ id, item, items?, meta, variables }` — `item` mirrors the `item` variable (payload history via `old`); single or batch; `Envelope` = deprecated alias | [`core.md`](../steering/core.md) |
 | **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](../steering/core.md) |
-| **Pipeline DSL** | `defineSuite()` factory + `.from()` `.use()` `.useAll()` `.tap()` `.flatMap()` `.batch()` `.window()` `.fork()` `.subflow()` `.to()` | [`core.md`](../steering/core.md#dslts--pipelinebuilder) |
+| **Pipeline DSL** | `defineSuite()` factory + `.from()` `.use()` `.useAll()` `.tap()` `.flatMap()` `.batch()` `.fork()` `.subflow()` `.to()` | [`core.md`](../steering/core.md#dslts--pipelinebuilder) |
 | **Run state** | `pending → running → [checkpoint → paused → resumed →] done/failed` | [`core.md`](../steering/core.md) |
 | **Checkpoint tree** | Persisted depth-first replay graph; resume skips `done` nodes | [`core.md`](../steering/core.md) |
 

@@ -157,6 +157,20 @@ redirects it to the target root's `schema-mock/` subfolder (`chapters/schema-moc
 This is the one slot-override (`.with({ ... })`) example of the sample.
 Run with `--pipeline schemaDocMockPipeline`.
 
+### titlePacketPipeline — nested batch scope (packaged titles)
+
+ONE pipeline replaces the old producer / translator / applier split plus `batches://` hop:
+
+```
+chapter-output:// (lang=en) → .batch(titleScope)         ← packages of 5 (default), scope runs per package
+  scope: batch://group   → schemaTitles → dictionary translator → packet parser → batch://return
+         batch://members → applyTranslatedTitle (per chapter)                   → batch://return
+→ chapter-output://./chapters   (original chapters, patched: ru title + meta.lang=ru → chapters/ru/)
+```
+
+`batch://group` shows the package as one item; `batch://members` as N singles; `batch://return`
+hands the result back and the outer stream continues with the original chapters.
+
 ### translateTitlesPipeline / translateChapterPipeline — mock-LLM translation (no disk I/O)
 
 These two use `ephemeral://` sources/targets — they carry no items at runtime and exist to show the

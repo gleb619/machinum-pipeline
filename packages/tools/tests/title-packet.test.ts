@@ -151,7 +151,7 @@ describe('createApplyTranslatedTitle', () => {
   })
 })
 
-/** Stamp the `translatedTitles` batch variable an `.unbatch()` member would carry. */
+/** Stamp the `translatedTitles` batch variable a `batch://members` member would carry. */
 function setTitles<T>(
   env: Exchange<T>,
   entries: { chapter: number; title: string }[],

@@ -22,7 +22,7 @@ Consumers write pipelines as real `.ts` files using a thin DSL, declare project 
 | **Pipeline** | TS module exporting a DSL chain. Real code — plain imports and logic work inside. |
 | **Run** | One execution: `pending → running → [checkpoint → paused →] done / failed`. Fully resumable. |
 | **Checkpoint tree** | Persisted execution graph. Resume = depth-first walk, skip `done` nodes, continue first non-done. |
-| **Exchange** | `{ id, item: T, items?: T[], meta, variables }` (`variables` carry qualifiers `new/old/copy/alt`; `Envelope` is a deprecated alias). Cardinality changes only via DSL ops (`.batch`, `.flatMap`, `.window`). |
+| **Exchange** | `{ id, item: T, items?: T[], meta, variables }` (`variables` carry qualifiers `new/old/copy/alt`; `Envelope` is a deprecated alias). Cardinality changes only via DSL ops (`.batch`, `.flatMap`). |
 | **`.mt/`** | Per-project runtime state directory (runs, cache, events, dead-letter). Filesystem is source of truth. |
 | **`mt.json`** | Project config: book metadata, pipeline paths, secrets env file, model defaults, retry/concurrency. |
 

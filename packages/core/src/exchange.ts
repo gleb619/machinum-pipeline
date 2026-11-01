@@ -11,7 +11,7 @@
  * on disagreement the variable wins when rebuilding ({@link fromPersisted}, {@link itemOf}); a
  * loose input literal whose `item` field differs from its variable (`{ ...env, item: x }`) is
  * normalized by {@link toExchange} as a payload edit (pushed like {@link withItem}).
- * The batch/window payload list stays the plain `items` field ({@link itemsOf}).
+ * The batch payload list stays the plain `items` field ({@link itemsOf}).
  *
  * An Exchange is a plain JSON-serializable object (checkpoints, events.jsonl and dead-letter
  * `JSON.stringify` it). All operations here are pure free functions returning a NEW exchange.
@@ -45,7 +45,7 @@ export interface Exchange<T = unknown> {
   id: string
   /** Materialized copy of the `item` variable (see {@link ITEM_VARIABLE}); read via {@link itemOf}. */
   item: T
-  /** Batch/window payload list (the `item` is the same array); read via {@link itemsOf}. */
+  /** Batch payload list (the `item` is the same array); read via {@link itemsOf}. */
   items?: T[]
   /**
    * In-flight identity data ONLY. Never persisted: dead-letter entries and jsonl targets drop it
@@ -192,7 +192,7 @@ export function oldItemOf<T = unknown>(ex: Pick<Exchange, 'variables'>): T | und
   return getVariable<T>(ex, ITEM_VARIABLE, 'old')
 }
 
-/** Batch/window payload list; `[item]` for a plain single-item exchange. */
+/** Batch payload list; `[item]` for a plain single-item exchange. */
 export function itemsOf<T>(ex: Exchange<T>): T[] {
   return ex.items ?? [itemOf(ex)]
 }
@@ -405,9 +405,8 @@ export function withoutEmpty<T>(ex: Exchange<T>): Exchange<T> {
 }
 
 /**
- * Name of the ephemeral variable carrying the member envelopes of a `.batch()` / `.window()`
- * group. Ephemeral: it never reaches checkpoints, dead-letter entries or persisted jsonl, so a
- * resumed run falls back to the plain `items` list (see {@link unbatchExchange}).
+ * Name of the ephemeral variable carrying the member envelopes of a `.batch()` group. Ephemeral: it never reaches checkpoints, dead-letter entries or persisted jsonl, so a
+ * resumed run re-forms the group from the source and re-runs its scope (see `batch-scope.ts`).
  */
 export const BATCH_MEMBERS_VARIABLE = 'batchMembers'
 
@@ -423,9 +422,9 @@ export interface BatchMembers {
 }
 
 /**
- * Attach the source envelopes of a batch/window group to the merged batch exchange, so a later
- * `.unbatch()` can restore each member with its own `meta` and variables instead of re-creating
- * loose items. Used by the Runner.
+ * Attach the source envelopes of a batch group to the merged batch exchange, so the batch scope
+ * (`.batch(opts, nested)`) can restore each member with its own `meta` and variables. Used by
+ * the Runner.
  */
 export function withBatchMembers<T>(
   batch: Exchange<T[]>,
@@ -438,7 +437,7 @@ export function withBatchMembers<T>(
   return withVariable(batch, variable(BATCH_MEMBERS_VARIABLE, pack, { ephemeral: true }))
 }
 
-/** Member envelopes carried by a batch/window exchange; `undefined` for plain envelopes. */
+/** Member envelopes carried by a batch exchange; `undefined` for plain envelopes. */
 export function batchMembersOf<T = unknown>(
   ex: Pick<Exchange, 'variables'>,
 ): Exchange<T>[] | undefined {
@@ -464,8 +463,20 @@ function batchOverrides(ex: Exchange<unknown>, base: Variable[]): Variable[] {
 }
 
 /**
- * Inverse of `.batch()` / `.window()`: expand a grouped exchange back into its member
- * envelopes. Members keep their `id`, `meta` (plus `meta.batchIndex`) and their own variables;
+ * Variables a group-level step edited since the group was folded, compared with the snapshot
+ * carried by `folded` (the group as created by the Runner). Used by the batch scope's commit.
+ */
+export function groupVariableEdits(
+  edited: Exchange<unknown>,
+  folded: Exchange<unknown>,
+): Variable[] {
+  const pack = getVariable<BatchMembers>(folded, BATCH_MEMBERS_VARIABLE)
+  return batchOverrides(edited, pack?.base ?? [])
+}
+
+/**
+ * Internal inverse of `.batch()`: expand a grouped exchange back into its member
+ * envelopes (the `batch://members` view of a batch scope). Not part of the DSL. Members keep their `id`, `meta` (plus `meta.batchIndex`) and their own variables;
  * variables a batch-aware tool set or changed since the group was folded are stamped onto every
  * member (the batch is the most recent stage, so its value wins). A group without carried
  * members (e.g. a source-level batch, or a batch reloaded from a checkpoint) falls back to
@@ -494,7 +505,7 @@ export function unbatchExchange<T = unknown>(ex: Exchange<T>): Exchange<unknown>
 }
 
 /**
- * Merge variables of several exchanges (later wins on name+qualifier clash). Used by batch/window.
+ * Merge variables of several exchanges (later wins on name+qualifier clash). Used by batch.
  * The payload (`item` variables) is NOT merged: the caller builds the merged exchange's own.
  */
 export function mergeVariables(exchanges: ReadonlyArray<Pick<Exchange, 'variables'>>): Variable[] {

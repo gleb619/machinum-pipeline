@@ -1,4 +1,5 @@
 import type { Book } from './domain.js'
+import type { Exchange } from './exchange.js'
 import type { Settings } from './settings.js'
 import type { Logger, RunEvents } from './types.js'
 import type { Vault } from './vault.js'
@@ -39,6 +40,30 @@ export interface RunContext {
   logger: Logger
   /** Absolute path to .mt/runs/<runId>/artifacts/ — for persisting intermediate outputs */
   artifactsDir: string
+  /**
+   * Set only for the nested run of `.batch(opts, nested)`: the group being processed. The
+   * `batch://members`, `batch://group` and `batch://return` waypoints work against it.
+   */
+  batchScope?: BatchScope
+}
+
+/**
+ * Per-group scope of `.batch(opts, nested)` (see `createBatchScope`). One group, two views,
+ * one commit point.
+ */
+export interface BatchScope {
+  /** Id of the folded group exchange. */
+  readonly groupId: string
+  /** How many results were committed so far (`batch://return` writes). */
+  readonly commits: number
+  /** The package as ONE exchange (`item` = `items[]`, members carried). */
+  group(): Exchange<unknown>
+  /** Every member as its own exchange (own id/meta/variables, group edits stamped on). */
+  members(): Exchange<unknown>[]
+  /** Hand a result back: the group exchange (variable edits) or one member (replaces it by id). */
+  commit(env: Exchange<unknown>): void
+  /** The original members, patched, as the outer stream continues with them. */
+  result(): Exchange<unknown>[]
 }
 
 /**
@@ -88,8 +113,6 @@ export interface StepInfo {
     | 'target'
     | 'fork'
     | 'batch'
-    | 'window'
-    | 'unbatch'
     | 'flatmap'
     | 'split'
     | 'tap'

@@ -16,13 +16,13 @@ import { readDoc } from './schema-doc.js'
 /**
  * Title packets — one configuration of the generic batch-package pipeline in `batch-packet.ts`:
  * collect the members' titles, translate the package as one item, parse the packet back, and
- * patch each chapter after `.unbatch()`. All machinery is generic; only the `read`/`keyOf`/
+ * patch each chapter on the `batch://members` view. All machinery is generic; only the `read`/`keyOf`/
  * `translate`/`apply` fns below are title-specific.
  *
- * A package is the envelope produced by `.batch(n)` / `.window(n)`: `item` is `items[]` and the
+ * A package is the envelope produced by `.batch(n)` (the `batch://group` view): `item` is `items[]` and the
  * member envelopes ride along in the ephemeral `batchMembers` variable. These tools read either
  * a package (all member titles in one shot) or a single chapter, and never touch the member
- * documents — so `.unbatch()` after the translation still restores the original chapters with
+ * documents — so the later `batch://members` view still restores the original chapters with
  * their `meta.chapterNum` and per-item variables.
  */
 
@@ -252,7 +252,7 @@ export interface ApplyTranslatedTitleOptions {
 }
 
 /**
- * Per-item step (run after `.unbatch()`): replaces the chapter's H1 with its translated title,
+ * Per-item step (run on the `batch://members` view): replaces the chapter's H1 with its translated title,
  * picked from the batch-level `translatedTitles` variable by `meta.chapterNum` (falling back to
  * `meta.batchIndex`), and stamps `meta.lang` so a `chapter-output://` target writes the
  * translated chapter into its language folder.
@@ -280,7 +280,7 @@ export function createApplyTranslatedTitle(options: ApplyTranslatedTitleOptions 
       'Per-item: replaces the H1 with the translated title from `translatedTitles` (matched by ' +
       '`meta.chapterNum`) and sets `meta.lang` for `chapter-output://`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
-      // Members restored by `.unbatch()` may carry either the parsed `ChapterTitle[]` (from
+      // Members in the `batch://members` view may carry either the parsed `ChapterTitle[]` (from
       // `titlePacketParser`) or the collected `titles`; normalize either into generic entries.
       const raw =
         getVariable<ChapterTitle[]>(env, variable) ?? getVariable<ChapterTitle[]>(env, 'titles')

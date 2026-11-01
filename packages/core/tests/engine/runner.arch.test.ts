@@ -47,13 +47,11 @@ describe('UC-12/UC-13/UC-14 — Concurrency, Batching & Forking (architectural)'
       'target',
       'fork',
       'batch',
-      'window',
       'flatmap',
       'tap',
     ]
     expect(types).toContain('fork')
     expect(types).toContain('batch')
-    expect(types).toContain('window')
   })
 
   it('GlobalContext.defaults.concurrency exists as a number', () => {

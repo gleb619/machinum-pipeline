@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+import { createBatchScope } from '../batch-scope.js'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import {
   BATCH_MEMBERS_VARIABLE,
@@ -11,7 +12,6 @@ import {
   mergeVariables,
   newExchangeId,
   toExchange,
-  unbatchExchange,
   withBatchMembers,
 } from '../exchange.js'
 import { getSetting } from '../settings.js'
@@ -84,8 +84,8 @@ async function drainStream(stream: EnvelopeStream): Promise<void> {
 /**
  * Fold a group of envelopes into a single batched envelope.
  * `item` holds the array too, so plain (non-batch-aware) tools and `flatMap` see the group.
- * The member envelopes ride along in the ephemeral `batchMembers` variable so `.unbatch()` can
- * restore each one with its own `meta` + variables.
+ * The member envelopes ride along in the ephemeral `batchMembers` variable so a batch scope
+ * can restore each one with its own `meta` + variables.
  */
 function toBatchEnvelope(group: Envelope<unknown>[]): Envelope<unknown> {
   const items = group.map((env) => env.item)
@@ -146,14 +146,10 @@ function cacheInput(ex: Envelope<unknown>): unknown {
 }
 
 /**
- * Group envelopes by cardinality: `batch` tumbles (flushes the remainder at end of
- * stream), `window` slides one item at a time so consecutive groups overlap.
+ * Group envelopes by cardinality: tumbling by default (flushes the remainder at end of
+ * stream); `slide` moves one item at a time so consecutive groups overlap.
  */
-function groupStream(
-  source: EnvelopeStream,
-  size: number,
-  mode: 'batch' | 'window',
-): EnvelopeStream {
+function groupStream(source: EnvelopeStream, size: number, slide: boolean): EnvelopeStream {
   const groupSize = Number.isFinite(size) && size > 0 ? Math.floor(size) : 1
 
   return (async function* () {
@@ -164,10 +160,10 @@ function groupStream(
       if (group.length < groupSize) continue
 
       yield toBatchEnvelope(group)
-      group = mode === 'batch' ? [] : group.slice(1)
+      group = slide ? group.slice(1) : []
     }
 
-    if (mode === 'batch' && group.length > 0) {
+    if (!slide && group.length > 0) {
       yield toBatchEnvelope(group)
     }
   })()
@@ -392,7 +388,7 @@ export class Runner {
    * Build the envelope stream for a pipeline's steps.
    *
    * Recursive: `fork` and `subflow` call this again with the child pipeline, so nested
-   * pipelines support every DSL op (source/target/batch/window/flatMap/tap/fork/subflow)
+   * pipelines support every DSL op (source/target/batch/flatMap/tap/fork/subflow)
    * instead of a tool-only subset. The incoming `input` stream is the head of the chain;
    * `null` means the pipeline must supply its own data via a `source` step.
    */
@@ -476,33 +472,17 @@ export class Runner {
           this.schedulePersist()
           break
         }
-        case 'batch':
-        case 'window': {
+        case 'batch': {
           const size = Number(step.config.size)
           if (!stream && !hasSourceStep) {
             stream = emptyEnvelope()
           }
           if (!stream) {
-            throw new Error('Batch/window step requires a preceding stream or source step')
+            throw new Error('Batch step requires a preceding stream or source step')
           }
-          stream = groupStream(stream, size, step.type)
-          break
-        }
-        case 'unbatch': {
-          if (!stream && !hasSourceStep) {
-            stream = emptyEnvelope()
-          }
-          if (!stream) {
-            throw new Error('Unbatch step requires a preceding stream or source step')
-          }
-          const sourceStream = stream
-          stream = (async function* () {
-            for await (const env of sourceStream) {
-              for (const member of unbatchExchange(env)) {
-                yield member as Envelope<unknown>
-              }
-            }
-          })()
+          const nested = step.config.pipeline as Pipeline | undefined
+          const grouped = groupStream(stream, size, step.config.slide === true)
+          stream = nested ? this.batchScopeStream(nested, grouped, stepId, runContext) : grouped
           break
         }
         case 'flatmap': {
@@ -582,6 +562,48 @@ export class Runner {
     }
 
     return stream
+  }
+
+  /**
+   * Batch scope — run the nested pipeline once per folded group, then continue the outer stream
+   * with the ORIGINAL member envelopes (patched by whatever the scope committed through
+   * `batch://return`). The scope state is in-memory only: after a crash the group is re-formed
+   * from the outer source cursor and the nested pipeline runs again for it. Each group gets its
+   * own checkpoint node like a fork.
+   */
+  private batchScopeStream(
+    nested: Pipeline,
+    grouped: EnvelopeStream,
+    stepId: string,
+    runContext: RunContext,
+  ): EnvelopeStream {
+    const runner = this
+    let groupIndex = 0
+
+    return (async function* () {
+      for await (const folded of grouped) {
+        const nodeId = `${stepId}/batch-${groupIndex++}`
+        const scope = createBatchScope(folded)
+        const childContext: RunContext = {
+          ...runner.enterNested(runContext, nodeId, nested.id),
+          batchScope: scope,
+        }
+        try {
+          const childStream = await runner.buildStream(nested, null, childContext)
+          if (childStream) await drainStream(childStream)
+          if (scope.commits === 0) {
+            runner
+              .logger(nodeId)
+              .warn(`Batch scope '${nested.id}' never wrote to batch://return - members unchanged`)
+          }
+          await runner.completeNested(nodeId)
+        } catch (error) {
+          runner.failNested(nodeId, error as Error)
+          throw error
+        }
+        for (const member of scope.result()) yield member as Envelope<unknown>
+      }
+    })()
   }
 
   /**

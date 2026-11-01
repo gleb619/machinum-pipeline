@@ -10,14 +10,28 @@ import { registry } from './uri.js'
 const DEFAULT_RETRY = { max: 3, backoffMs: 1000, strategy: 'exp' as const }
 const DEFAULT_ON_ERROR: 'fail-run' | 'skip-item' | 'dead-letter' = 'fail-run'
 
+/** Options of `.batch()`. */
+export interface BatchOptions {
+  /** Positive integer package size. Default {@link DEFAULT_BATCH_SIZE}. */
+  size?: number
+  /** Sliding windows (one overlapping package per arrival) instead of tumbling. Default `false`. */
+  slide?: boolean
+}
+
+/** Default `.batch()` package size. */
+export const DEFAULT_BATCH_SIZE = 5
+
 /**
- * Validate a `.batch()` / `.window()` size: must be a positive integer.
+ * Normalize + validate `.batch()` options: size must be a positive integer.
  * Throws at pipeline-definition time so a bad size never reaches the Runner.
  */
-function assertPositiveInt(size: number, op: 'batch' | 'window'): void {
+function normalizeBatchOptions(opts: BatchOptions | number | undefined): Required<BatchOptions> {
+  const o: BatchOptions = typeof opts === 'number' ? { size: opts } : (opts ?? {})
+  const size = o.size ?? DEFAULT_BATCH_SIZE
   if (!Number.isInteger(size) || size < 1) {
-    throw new RangeError(`.${op}(size): size must be a positive integer, got ${size}`)
+    throw new RangeError(`.batch(size): size must be a positive integer, got ${size}`)
   }
+  return { size, slide: o.slide ?? false }
 }
 
 let warnedAboutPipelineId = false
@@ -82,7 +96,7 @@ function getCallerFileId(): string {
 /**
  * DSL builder for defining a pipeline.
  * Chain: .from(source).use(tool).to(target)
- * Also supports .fork(), .subflow(), .flatMap(), .batch(), .window(), .tap()
+ * Also supports .fork(), .subflow(), .flatMap(), .batch(), .tap()
  * for branching, orchestration, and transformation logic.
  *
  * PipelineBuilder implements Pipeline directly — it can be used as a
@@ -212,7 +226,8 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
 
   /**
    * Set the target for the pipeline.
-   * Terminates the builder — returns the completed Pipeline.
+   * Ends the stage — the builder doubles as the completed Pipeline. A further `.from()` starts
+   * the next stage (used by `.batch(opts, nested)` scopes: group stage, then members stage).
    *
    * @param target - Target instance OR URI string (sugar)
    *
@@ -224,7 +239,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * // Using URI string (sugar)
    * .to('md://./output.md')
    */
-  to<T>(target: Target<T> | string): Pipeline<I, O> {
+  to<T>(target: Target<T> | string): PipelineBuilder<I, O> {
     if (typeof target === 'string' && registry.isAliasCandidate(target)) {
       // Named URI alias — needs mt.json settings, so the Runner resolves it at run time
       this._steps.push({ type: 'target', config: { uri: target } })
@@ -242,41 +257,46 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   }
 
   /**
-   * Group envelopes into `items[]` batches of `size`, flushing the remainder at end of stream.
+   * Group envelopes into packages of `size` (default 5), flushing the remainder at end of stream.
    *
-   * @param size - Positive integer batch size; anything else throws `RangeError` here.
+   * Without `nested` the stream continues with ONE grouped envelope per package (`item` =
+   * `items[]`, members carried). With a `nested` pipeline each package runs through it (a batch
+   * SCOPE) and the outer stream continues with the original member envelopes, patched by
+   * whatever the scope committed. Inside the scope, pick the view with waypoints:
+   *
+   * - `batch://group`   source: the package as ONE exchange
+   * - `batch://members` source: every member as its own exchange
+   * - `batch://return`  target: hand a result back to the scope (group: its variable edits
+   *   reach every member; member: replaces that member by id)
+   *
+   * A scope may chain stages (`.to('batch://return').from('batch://members')...`).
+   *
+   * @param opts - Size (positive integer) or `{ size?, slide? }`; anything else throws
+   *   `RangeError` here. `slide: true` makes overlapping sliding windows (one per arrival) and
+   *   cannot be combined with a nested scope.
+   * @param nested - Pipeline run per package (defined with `definePipeline()`). `.batch(nested)`
+   *   alone uses the default size.
    */
-  batch(size: number): PipelineBuilder<I[], O> {
-    assertPositiveInt(size, 'batch')
-    this._steps.push({ type: 'batch', config: { size } })
+  batch(nested: Pipeline<unknown, unknown>): PipelineBuilder<I[], O>
+  batch(opts?: BatchOptions | number, nested?: Pipeline<unknown, unknown>): PipelineBuilder<I[], O>
+  batch(
+    optsOrNested?: BatchOptions | number | Pipeline<unknown, unknown>,
+    maybeNested?: Pipeline<unknown, unknown>,
+  ): PipelineBuilder<I[], O> {
+    const isNested = typeof optsOrNested === 'object' && 'steps' in optsOrNested
+    const opts = isNested ? undefined : (optsOrNested as BatchOptions | number | undefined)
+    const nested = isNested ? (optsOrNested as Pipeline<unknown, unknown>) : maybeNested
+    const { size, slide } = normalizeBatchOptions(opts)
+    if (nested && slide) {
+      throw new RangeError(
+        '.batch(opts, nested): slide:true cannot be combined with a nested scope',
+      )
+    }
+    this._steps.push({
+      type: 'batch',
+      config: nested ? { size, slide, pipeline: nested } : { size, slide },
+    })
     return this as unknown as PipelineBuilder<I[], O>
-  }
-
-  /**
-   * Group envelopes into `items[]` sliding windows of `size` (one item per arrival).
-   *
-   * @param size - Positive integer window size; anything else throws `RangeError` here.
-   */
-  window(size: number): PipelineBuilder<I[], O> {
-    assertPositiveInt(size, 'window')
-    this._steps.push({ type: 'window', config: { size } })
-    return this as unknown as PipelineBuilder<I[], O>
-  }
-
-  /**
-   * Expand a batched envelope (`items[]`) back into one envelope per member, the inverse of
-   * `.batch()` / `.window()`. Members restored from a batch carry their original `id`, `meta`
-   * (plus `meta.batchIndex`) and variables, so per-item tools still see `meta.chapterNum` and
-   * friends; variables a batch-aware tool set while the group was folded are stamped onto every
-   * member. Groups without carried members (source-level batching, checkpoint reload) expand the
-   * plain `items` list with `<id>.<index>` ids.
-   *
-   * Use `.use(tool)` for "process the package as one item" and `.unbatch().use(tool)` for
-   * "process each item in the package".
-   */
-  unbatch(): PipelineBuilder<I, O> {
-    this._steps.push({ type: 'unbatch', config: {} })
-    return this as unknown as PipelineBuilder<I, O>
   }
 
   flatMap<R>(fn: (item: I) => Promise<R[]>): PipelineBuilder<R, O> {

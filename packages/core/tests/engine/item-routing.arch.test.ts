@@ -10,7 +10,6 @@ describe('UC-20 — Item routing (architectural)', () => {
       'target',
       'fork',
       'batch',
-      'window',
       'flatmap',
       'tap',
     ]
@@ -25,7 +24,6 @@ describe('UC-20 — Item routing (architectural)', () => {
       'target',
       'fork',
       'batch',
-      'window',
       'flatmap',
       'tap',
       // 'route',  // <-- expected after implementation
