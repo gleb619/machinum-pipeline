@@ -50,7 +50,7 @@ function toLineText(record: unknown): string {
 // - `md://` is a shipped target: one markdown document per envelope.
 // ---------------------------------------------------------------------------
 
-export const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
+const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => [toLineText(record)])
   .use(wordCounter)
@@ -75,7 +75,7 @@ export const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
 // record id.
 // ---------------------------------------------------------------------------
 
-export const typedContentPipeline = definePipeline({ id: 'typed-content' })
+const typedContentPipeline = definePipeline({ id: 'typed-content' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => {
     const { id } = record as LineRecord
@@ -128,7 +128,7 @@ export const typedContentPipeline = definePipeline({ id: 'typed-content' })
 // `statFreq` variable, which the log line below prints.
 // ---------------------------------------------------------------------------
 
-export const statsPipeline = definePipeline({ id: 'basic-md-stats' })
+const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => [toLineText(record)])
   .batch(100)
@@ -146,36 +146,34 @@ export const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   .to('void://')
 
 // ---------------------------------------------------------------------------
-// Pick what `mt run` runs (uncomment one; no default export = implicit suite of all 3):
-// import { defineSuite } from '@mt/core'
+// Pick what `mt run` runs: comment the line you don't want.
 //
-// all three, explicit order + mode
+// all three -> implicit suite (alphabetical, sync)
+export { defaultPipeline, typedContentPipeline, statsPipeline }
+//
+// explicit suite -> your order + mode
+// import { defineSuite } from '@mt/core'
 // export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
 //   id: 'basic-md-all',
 //   mode: 'sync', // or 'parallel'
 // })
 //
-// all three, parallel shorthand
+// parallel shorthand
 // export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline]).parallel()
 //
 // just one pipeline
-// export default typedContentPipeline
+// export { typedContentPipeline }
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Running this file
+// What runs:
+//   no default export  -> implicit suite `basic-md-processing-suite`: all exported
+//                         pipelines, alphabetical, sync
+//   default pipeline   -> only that one
+//   default suite      -> exactly that suite (order + mode)
+//   --pipeline <name>  -> that export, always wins (pipeline or suite)
 //
-// No default export -> implicit suite `basic-md-processing-suite`: all 3 exported
-// pipelines in alphabetical order (defaultPipeline, statsPipeline,
-// typedContentPipeline), sync:
 //   mt run ./pipelines/basic-md-processing.ts
-//
-// Default pipeline -> only that one:
-//   export default defaultPipeline
-//
-// Default suite -> exactly that suite (order + mode); see the block above.
-//
-// `--pipeline <name>` always wins over the default export:
 //   mt run ./pipelines/basic-md-processing.ts --pipeline defaultPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline
