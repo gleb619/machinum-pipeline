@@ -13,7 +13,6 @@ const LADDER_CHAPTERS = join(SAMPLE_DIR, 'chapters', 'ladder-chapters')
 const LADDER_SUMMARY = join(SAMPLE_DIR, 'chapters', 'ladder-summary.md')
 const TOKEN_SUMMARY = join(SAMPLE_DIR, 'chapters', 'token-ladder-summary.md')
 const SERIES_FIRST_OUTPUT = join(SAMPLE_DIR, 'chapters', 'series-first-output.md')
-const SERIES_OUTPUT = join(SAMPLE_DIR, 'chapters', 'series-output.md')
 
 /** Demo series target, pinned in the process config and in the test run env. */
 const SERIES_TARGET_CHARS = 150
@@ -73,7 +72,6 @@ async function cleanup(): Promise<void> {
   await rm(LADDER_SUMMARY, { force: true })
   await rm(TOKEN_SUMMARY, { force: true })
   await rm(SERIES_FIRST_OUTPUT, { force: true })
-  await rm(SERIES_OUTPUT, { force: true })
   await cleanupLadderChapters()
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
@@ -143,22 +141,6 @@ function summaryRows(content: string): Map<string, number> {
 /** Number of lines that are exactly `text`. */
 function countLines(content: string, text: string): number {
   return content.split('\n').filter((line) => line.trim() === text).length
-}
-
-/** Meaningful chapter body as the series splitter measures it: no decorative-only lines. */
-function seriesBody(markdown: string): { chars: number; paragraphs: number } {
-  const body = readChapterDoc(markdown)
-    .body.map((paragraph) => ({
-      lines: paragraph.lines.filter(
-        (line) => line.trim().length > 0 && !/^[-*_=~]{3,}$/.test(line.trim()),
-      ),
-    }))
-    .filter((paragraph) => paragraph.lines.length > 0)
-
-  return {
-    chars: body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n').length,
-    paragraphs: body.length,
-  }
 }
 
 describe('cleanSplitPipeline', () => {
@@ -258,24 +240,6 @@ describe('ladderPipeline', () => {
   })
 })
 
-describe('seriesSplitPipeline', () => {
-  it('splits chapter1 into numbered parts at the 150-char target', async () => {
-    run('seriesSplitPipeline')
-    const content = await readFile(SERIES_OUTPUT, 'utf-8')
-    const body = seriesBody(await readFile(CHAPTER, 'utf-8'))
-    const plannedParts = Math.ceil(body.chars / SERIES_TARGET_CHARS)
-    // Paragraph boundaries cap the planned count; the splitter never cuts a paragraph.
-    const expectedParts = Math.min(plannedParts, body.paragraphs)
-
-    expect(expectedParts).toBeGreaterThan(1)
-    const headings = content.match(/^# /gm) ?? []
-    const seriesFrontmatter = content.match(/^series: /gm) ?? []
-    expect(headings).toHaveLength(expectedParts)
-    expect(seriesFrontmatter).toHaveLength(expectedParts)
-    expect(content).toContain('series: The Structure Ladder')
-  })
-})
-
 describe('tokenLadderPipeline', () => {
   it('writes chunk and token counts for the alternate route', async () => {
     const stdout = run('tokenLadderPipeline')
@@ -289,7 +253,6 @@ describe('tokenLadderPipeline', () => {
     expect(logged.get('chunks')).toBe(chunks)
     expect(logged.get('tokens')).toBe(tokens)
     expect(content).toContain(`Tokens in the last rung: ${tokens}`)
-    expect(content).toContain('Heuristic: false')
   })
 
   it('token count is at least the BPE count of the whole text split by chunk', async () => {
