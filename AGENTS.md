@@ -32,7 +32,8 @@ through composable, checkpointable, partially-out-of-process tool chains.
 Core data flow: `Source (URI) → [Tool → Tool → …] → Target (URI)`. All data travels in **Exchanges** (Camel-style `{ id, item, items?, meta, variables }`)
 (`{ item, items?, meta }`); cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
 
-Full context lives in docs - read on demand:
+Full context lives in docs - read on demand. Docs split by audience: `docs/steering/` = agent-facing
+development docs, `docs/guiding/` = human-facing project explanation (full layout: [docs/README.md](docs/README.md)):
 
 | Doc                                                                | Contents |
 |--------------------------------------------------------------------|---|
@@ -48,7 +49,7 @@ Full context lives in docs - read on demand:
 
 ## Steering files
 
-Steering files live in `docs/steering/`. Read the relevant one **before editing**:
+Steering files live in `docs/steering/` — development docs for coding agents. Read the relevant one **before editing**:
 
 | File | When to read |
 |---|---|
