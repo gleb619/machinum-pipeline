@@ -1,7 +1,18 @@
 import { registry } from '@mt/core'
-import type { Exchange, Line, Paragraph, Splitter, Word } from '@mt/core'
+import type {
+  Chunk,
+  Exchange,
+  Line,
+  Paragraph,
+  Splitter,
+  SplitterContext,
+  ToolContext,
+  Word,
+} from '@mt/core'
+import { readChapterDoc } from '../modification/chapter-doc.js'
+import { resolveChunkSize, splitIntoChunks } from './chunk-separator.js'
 import { tokenizeWords } from './stat-freq.js'
-import { splitLineUnits, splitParagraphUnits } from './token-splitter.js'
+import { heuristicTokenCount, splitLineUnits, splitParagraphUnits } from './token-splitter.js'
 
 interface ParagraphSource {
   chapterId: string
@@ -97,6 +108,32 @@ function wordSource(env: Exchange<unknown>): WordSource {
 }
 
 /**
+ * Chapter markdown → token-bounded Chunks splitter. Parses the markdown item with
+ * `readChapterDoc`, joins its body paragraphs, resolves the token budget through
+ * `resolveChunkSize` (honoring `meta.chunkSize`, `MT_CHUNK_SIZE`, settings and the
+ * tunable chain), then splits with `splitIntoChunks`.
+ */
+export const chunkSplitter = {
+  name: 'chunk-splitter',
+  split(env: Exchange<unknown>, ctx?: SplitterContext): Chunk[] {
+    if (typeof env.item !== 'string') {
+      throw new Error('chunkSplitter: item must be a chapter markdown string')
+    }
+    const doc = readChapterDoc(env.item)
+    const chapterId = metaString(env, 'chapterId') ?? `chapter-${doc.number ?? 0}`
+    const text = doc.body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n')
+    const targetTokens = resolveChunkSize(env, ctx as ToolContext | undefined)
+    return splitIntoChunks(text, { targetTokens }).map((body, index) => ({
+      id: `${chapterId}/chunk-${index + 1}`,
+      chapterId,
+      index,
+      body,
+      tokens: heuristicTokenCount(body),
+    }))
+  },
+} satisfies Splitter<Chunk>
+
+/**
  * Chunk → Paragraph splitter. Accepts a chunk body string (ids from `meta.chunkId` /
  * `meta.chapterId`, falling back to the exchange id) or a `Chunk`-like object.
  */
@@ -149,6 +186,7 @@ export const wordSplitter: Splitter<Word> = {
   },
 }
 
+registry.registerSplitter('chunks', chunkSplitter)
 registry.registerSplitter('paragraphs', paragraphSplitter)
 registry.registerSplitter('lines', lineSplitter)
 registry.registerSplitter('words', wordSplitter)

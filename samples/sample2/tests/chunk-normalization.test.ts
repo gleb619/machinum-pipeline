@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
-import { tokenizeChunk, tokenizeWords } from '@mt/tools'
+import { readChapterDoc, tokenizeChunk, tokenizeWords } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
@@ -9,8 +9,14 @@ const MT_BIN = join(SAMPLE_DIR, 'node_modules', '.bin', 'mt')
 const CHAPTER = join(SAMPLE_DIR, 'chapters', 'chapter1.md')
 const CHUNKED = join(SAMPLE_DIR, 'chapters', 'chunked.md')
 const CHUNKED_REUSED = join(SAMPLE_DIR, 'chapters', 'chunked-reused.md')
+const LADDER_CHAPTERS = join(SAMPLE_DIR, 'chapters', 'ladder-chapters')
 const LADDER_SUMMARY = join(SAMPLE_DIR, 'chapters', 'ladder-summary.md')
 const TOKEN_SUMMARY = join(SAMPLE_DIR, 'chapters', 'token-ladder-summary.md')
+const SERIES_FIRST_OUTPUT = join(SAMPLE_DIR, 'chapters', 'series-first-output.md')
+const SERIES_OUTPUT = join(SAMPLE_DIR, 'chapters', 'series-output.md')
+
+/** Demo series target, pinned in the process config and in the test run env. */
+const SERIES_TARGET_CHARS = 150
 
 /** Chapter fixture of the Structure Ladder demo (same file as `prepare-input.ts`). */
 const LADDER_RECORDS = [
@@ -51,7 +57,9 @@ async function cleanup(): Promise<void> {
   await rm(CHUNKED_REUSED, { force: true })
   await rm(LADDER_SUMMARY, { force: true })
   await rm(TOKEN_SUMMARY, { force: true })
-  await rm(join(SAMPLE_DIR, 'chapters', 'ladder-chapters'), { recursive: true, force: true })
+  await rm(SERIES_FIRST_OUTPUT, { force: true })
+  await rm(SERIES_OUTPUT, { force: true })
+  await rm(LADDER_CHAPTERS, { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
 
@@ -81,7 +89,12 @@ function run(pipelineName?: string): string {
     stdio: 'pipe',
     // The demo chunk size of the sample, pinned so the run does not depend on
     // the shell of the developer.
-    env: { ...process.env, NODE_OPTIONS: '--import tsx', MT_CHUNK_SIZE: '40' },
+    env: {
+      ...process.env,
+      NODE_OPTIONS: '--import tsx',
+      MT_CHUNK_SIZE: '40',
+      MT_CONST_SERIES_SPLIT_TARGET_CHARS: String(SERIES_TARGET_CHARS),
+    },
     timeout: 20_000,
   }).toString('utf-8')
 }
@@ -115,6 +128,22 @@ function summaryRows(content: string): Map<string, number> {
 /** Number of lines that are exactly `text`. */
 function countLines(content: string, text: string): number {
   return content.split('\n').filter((line) => line.trim() === text).length
+}
+
+/** Meaningful chapter body as the series splitter measures it: no decorative-only lines. */
+function seriesBody(markdown: string): { chars: number; paragraphs: number } {
+  const body = readChapterDoc(markdown)
+    .body.map((paragraph) => ({
+      lines: paragraph.lines.filter(
+        (line) => line.trim().length > 0 && !/^[-*_=~]{3,}$/.test(line.trim()),
+      ),
+    }))
+    .filter((paragraph) => paragraph.lines.length > 0)
+
+  return {
+    chars: body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n').length,
+    paragraphs: body.length,
+  }
 }
 
 describe('cleanSplitPipeline', () => {
@@ -166,6 +195,14 @@ describe('cleanSplitPipeline', () => {
 })
 
 describe('ladderPipeline', () => {
+  it('writes one document per ladder record', async () => {
+    run('ladderPipeline')
+    const first = await readFile(join(LADDER_CHAPTERS, 'chapter1.md'), 'utf-8')
+    const second = await readFile(join(LADDER_CHAPTERS, 'chapter2.md'), 'utf-8')
+    expect(first).toContain('Ladder Chapter One')
+    expect(second).toContain('Ladder Chapter Two')
+  })
+
   it('writes a summary with one row per rung', async () => {
     run('ladderPipeline')
     const content = await readFile(LADDER_SUMMARY, 'utf-8')
@@ -203,6 +240,24 @@ describe('ladderPipeline', () => {
     expect(logged.get('lines')).toBe(rows.get('lines://'))
     expect(logged.get('words')).toBe(rows.get('words://'))
     expect(content).toContain(`Words in the last rung: ${LADDER_WORDS}`)
+  })
+})
+
+describe('seriesSplitPipeline', () => {
+  it('splits chapter1 into numbered parts at the 150-char target', async () => {
+    run('seriesSplitPipeline')
+    const content = await readFile(SERIES_OUTPUT, 'utf-8')
+    const body = seriesBody(await readFile(CHAPTER, 'utf-8'))
+    const plannedParts = Math.ceil(body.chars / SERIES_TARGET_CHARS)
+    // Paragraph boundaries cap the planned count; the splitter never cuts a paragraph.
+    const expectedParts = Math.min(plannedParts, body.paragraphs)
+
+    expect(expectedParts).toBeGreaterThan(1)
+    const headings = content.match(/^# /gm) ?? []
+    const seriesFrontmatter = content.match(/^series: /gm) ?? []
+    expect(headings).toHaveLength(expectedParts)
+    expect(seriesFrontmatter).toHaveLength(expectedParts)
+    expect(content).toContain('series: The Structure Ladder')
   })
 })
 

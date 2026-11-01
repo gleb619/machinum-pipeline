@@ -152,15 +152,16 @@ pnpm run runner:branches    # branch/parallel logs only
 ## Chunk normalization (`pipelines/chunk-normalization.ts`)
 
 The chunk pipelines and the Structure Ladder, all built from shipped pieces only — the package
-tools `chunkSplit` / `splitIntoChunks` / `parseChunks` / `readChapterDoc` / `tokenizeWords` and the
-built-in waypoints. The only local code is data glue inside `.flatMap()` and logging inside
-`.tap()`.
+tools `chunkSplit`, the registered `chunks` and `series` splitters, `tokenizeChunkDetailed`, and
+the built-in entity-buffer waypoints. The only local code is small mapping/rendering glue inside
+`.flatMap()` and logging inside `.tap()`; the chunk descent itself is `.subflow('#chunks')`.
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
 | `default` (explicit suite, sync) | `pnpm run runner:chunks` | All four pipelines in declaration order, sync: clean-split → ladder → token-ladder → series-split |
 | `cleanSplitPipeline` | `pnpm run runner:chunks -- --pipeline cleanSplitPipeline` | Chapter → `chunkSplit` (clean + token-bounded chunks) → `chapters/chunked.md`, then the same file again → `chapters/chunked-reused.md` |
 | `ladderPipeline` | `pnpm run runner:ladder` | The Structure Ladder → `chapters/ladder-chapters/*.md` + `chapters/ladder-summary.md` |
+| `seriesSplitPipeline` | `pnpm run runner:chunks -- --pipeline seriesSplitPipeline` | Chapter → `.subflow('#series')` → `chapters/series-output.md` |
 
 ### Clean + split, and why the second run changes nothing
 
@@ -174,9 +175,9 @@ chapters/chapter1.md
 ```
 
 - **Chunk size.** `chunkSplit` resolves the target as `meta.chunkSize` → tool option →
-  mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000. The sample pins the tool option
-  (`createChunkSplit({ chunkSize: CHUNK_SIZE })`, `CHUNK_SIZE = MT_CHUNK_SIZE ?? 40`) so one
-  chapter always splits into several chunks; `MT_CHUNK_SIZE` still wins when it is set:
+  mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000. The sample pins
+  `MT_CHUNK_SIZE=40` as a process env default (`CHUNK_SIZE = process.env.MT_CHUNK_SIZE ?? 40`) so
+  one chapter always splits into several chunks; a real `MT_CHUNK_SIZE` still wins:
   `MT_CHUNK_SIZE=100 pnpm run runner:chunks`.
 - **Metadata stays out of the file.** `chunkSplit` sets both `meta.chunkCount` (in-flight) and
   the durable `chunkCount` variable, plus `chunkSeparator`. The `md://` target writes the payload
@@ -191,21 +192,22 @@ chapters/chapter1.md
 ```
 jsonl://./jsonl/ladder.jsonl      (a chapter record)
   → chapterDocBuild + chapterIndexer + chapterDocEmit   → md://./chapters/ladder-chapters
-  → readChapterDoc + splitIntoChunks (md → chunks)      → temp://chunks/ladder
+  → .subflow('#chunks') (md → chunks)                   → temp://chunks/ladder
   → chunks://ladder → .subflow('#paragraphs') (chunk → paragraphs) → temp://paragraphs/ladder (chunkId)
   → paragraphs://ladder → .subflow('lines://') (paragraph → lines) → temp://lines/ladder
   → lines://ladder → .subflow('#words') (line → words)   → temp://words/ladder
   → words://ladder → batch + summary                     → md://./chapters (chapters/ladder-summary.md)
 ```
 
-The paragraph, line and word descents read like type identification. `.subflow('#paragraphs')`
-and `.subflow('paragraphs://')` are two spellings of the same registry lookup (bare
-`'paragraphs'` is rejected); the sample uses the `#` shortcut for the paragraph/word rungs and
-explicit URIs for the line/series rungs. A URI with a path also works (`'paragraphs://ladder'`). Each string resolves a splitter
+The chunk, paragraph, line and word descents read like type identification.
+`.subflow('#paragraphs')` and `.subflow('paragraphs://')` are two spellings of the same registry
+lookup (bare `'paragraphs'` is rejected); the sample uses the `#` shortcut for the chunk,
+paragraph and word rungs, and the explicit `'lines://'` form for the line rung (the series stage
+uses `#series`). A URI with a path also works (`'paragraphs://ladder'`). Each string resolves a splitter
 registered under that buffer scheme; the splitter sees the full Exchange and returns child
 entities, so no local glue or splitter import is needed. The word rung uses the registered
-`wordSplitter` via `.subflow('#words')`. Other descents use `.flatMap()` (one envelope in, many
-out). Each stage is still just a cardinality op plus one entity buffer. The typed
+`wordSplitter` via `.subflow('#words')`. `.flatMap()` remains for the record→document mapping and
+the summary rendering. Each stage is still just a cardinality op plus one entity buffer. The typed
 rungs are source-only: each stage writes `temp://<rung>/ladder`, the next reads
 `<rung>://ladder`. The buffers are built in, the pipeline only uses them. The entities are the real
 core types (`Chapter`, `Paragraph`, `Chunk`, `Line`); `Word` is not a core type, so the sample
@@ -227,17 +229,22 @@ Series splitting uses the same type-driven form:
 ```ts
 definePipeline()
   .from('md://./chapters/chapter1.md')
-  .subflow('#series') // same as 'series' / 'series://'
+  .subflow('#series') // same lookup as 'series://'
   .to('md://./chapters/series-output.md')
 ```
 
 `.subflow('#series')` resolves the series splitter and fans the chapter into frontmatter-bearing
 parts. It parses the markdown with `readChapterDoc` and writes each part with `writeChapterDoc`:
 the H1 title gains the part number (`Chapter One 1`, `Chapter One 2`, …), `series` comes from the
-original frontmatter or falls back to the original title, and `number`/`warnings` are preserved. A
-chapter that is too small (fewer non-empty body lines than the requested `parts`, default 4) is
-returned unchanged as one item; no `series:` frontmatter is introduced. `.fork()` is not used: it
-nests a child Runner per envelope, which is the wrong shape for a plain 1→N split.
+original frontmatter or falls back to the original title, and `number`/`warnings` are preserved.
+The balanced strategy splits a chapter whose meaningful body exceeds the target
+(`SERIES_SPLIT_TARGET_CHARS`, 10_000 chars by default) into about
+`ceil(bodyChars / targetChars)` parts, capped by whole paragraph/sentence boundaries. The sample
+pins `MT_CONST_SERIES_SPLIT_TARGET_CHARS=150` as a process env default so the demo chapter splits;
+a real env value still wins, and the full chain is `constants` variable → mt.json
+`settings.constants.SERIES_SPLIT_TARGET_CHARS` → env → shipped constant. A chapter below the
+target is returned unchanged as one item; no `series:` frontmatter is introduced. `.fork()` is not
+used: it nests a child Runner per envelope, which is the wrong shape for a plain 1→N split.
 
 #### Alternate route: chunks → tokens
 
@@ -257,6 +264,9 @@ pnpm run prepare-input    # writes jsonl/ladder.jsonl too
 pnpm run runner:chunks    # chapters/chunked.md + chapters/chunked-reused.md
 pnpm run runner:ladder    # chapters/ladder-chapters/*.md + chapters/ladder-summary.md
 ```
+
+`pnpm test` removes `chapters/ladder-chapters/` in its success cleanup, so the emitted chapter
+files disappear when all tests pass. Use `pnpm run runner:ladder` when you want to inspect them.
 
 ## Run manually
 
@@ -341,6 +351,10 @@ pipelines, and asserts:
   contains only chunk text,
 - the second run reuses the separators: `chapters/chunked-reused.md` is identical to
   `chapters/chunked.md` and both runs report the same chunk count,
+- the document stage writes `chapters/ladder-chapters/chapter1.md` and `chapter2.md` with the
+  fixture titles,
 - the ladder summary has one row per rung and the counts agree with the run log and with the
   fixture (2 records, 2 documents, more chunks than documents, at least one paragraph per chunk, 5 lines,
-  73 words).
+  73 words),
+- the series stage writes multiple numbered `# ` parts with `series:` frontmatter; the part count
+  follows the pinned 150-char target (`ceil(bodyChars / 150)`, capped by paragraph boundaries).

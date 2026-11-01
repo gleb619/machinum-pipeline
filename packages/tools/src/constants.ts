@@ -8,7 +8,6 @@
 // Series splitting
 // ---------------------------------------------------------------------------
 
-export const SERIES_SPLIT_PARTS = 4
 export const SERIES_SPLIT_STRATEGY = 'balanced'
 /**
  * Balanced-strategy target: chapters whose meaningful body exceeds this many

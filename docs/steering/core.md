@@ -225,11 +225,13 @@ The same registry also holds splitters, keyed by entity/buffer URI scheme:
 shortcut; a bare `'paragraphs'` is rejected so buffer references stay visibly distinct from
 pipeline ids and tool names. `'paragraphs://'` / `'paragraphs://ladder'` and `'#paragraphs'`
 resolve the same splitter; a missing splitter error lists the known schemes. A pipeline names the
-scheme in `.subflow(...)`; `@mt/tools` registers `paragraphs`, `lines`, `words` and `series` at
-module load.
+scheme in `.subflow(...)`; `@mt/tools` registers `chunks`, `paragraphs`, `lines`, `words` and
+`series` at module load.
 
 All split implementations share the `Splitter<O>` interface from `types.ts`
-(`{ name, split(env: Exchange<unknown>): O[] | Promise<O[]> }`) but keep their own logic.
+(`{ name, split(env: Exchange<unknown>, ctx?: SplitterContext): O[] | Promise<O[]> }`) but keep
+their own logic. The Runner passes `{ run }`, so a splitter can resolve run-scoped settings and
+tunable constants (`ctx.run.global.env` / `settings`) the same way a tool does.
 
 ### `engine/runner.ts` — `Runner`
 Main execution loop. Methods: `start()`, `pause()`, `resume()`, `unpause()`. Manages state machine, checkpoint writes, event log, dead-letter.
@@ -375,7 +377,7 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
     Subflows therefore run in declaration order, and an orchestration-only parent (no `source` /
     `target` of its own) is valid.
 - **Subflow by entity type** — `.subflow('paragraphs://')` and `.subflow('#paragraphs')` are two
-  spellings of the same registry lookup (likewise `lines`, `words` and `series`); bare
+  spellings of the same registry lookup (likewise `chunks`, `lines`, `words` and `series`); bare
   `'paragraphs'` is rejected, and a URI with a path like `'paragraphs://ladder'` also resolves by
   scheme. The call pushes the internal `split` step: inline, same Runner, 1→N. It is deliberately **not** `.fork()`: a split
   is a transformation of the current stream, while `.fork()` starts a child Runner per envelope.

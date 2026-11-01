@@ -11,6 +11,7 @@ export {
 export type {
   GlobalContext,
   RunContext,
+  SplitterContext,
   ToolContext,
   SourceContext,
   TargetContext,

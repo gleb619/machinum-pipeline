@@ -437,7 +437,12 @@ export {
   type BalancedLineStrategyOptions,
 } from './normalization/token-splitter.js'
 
-export { paragraphSplitter, lineSplitter, wordSplitter } from './normalization/entity-splitters.js'
+export {
+  chunkSplitter,
+  paragraphSplitter,
+  lineSplitter,
+  wordSplitter,
+} from './normalization/entity-splitters.js'
 
 export {
   titleTranslator,

@@ -13,11 +13,7 @@ import {
   chapterDocEmit,
   chapterIndexer,
   chunkSplit,
-  createSeriesSplitter,
-  heuristicTokenCount,
   mdOutputEmitter,
-  readChapterDoc,
-  splitIntoChunks,
   tokenizeChunkDetailed,
 } from '@mt/tools'
 import '@mt/waypoint'
@@ -25,20 +21,30 @@ import '@mt/waypoint'
 // Chunk normalization: clean/split round-trip, Structure Ladder, token route, series split.
 // Ladder default chunk size; MT_CHUNK_SIZE (real env) still wins everywhere.
 const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
-// Series split threshold: number of parts to partition a big chapter into.
-// MT_SERIES_PARTS (real env) still wins.
-const SERIES_PARTS = Number(process.env.MT_SERIES_PARTS ?? 3)
+// Demo series target in characters per part. The splitter resolves the tunable chain
+// (first defined wins): `constants` variable -> mt.json
+// `settings.constants.SERIES_SPLIT_TARGET_CHARS` -> env
+// `MT_CONST_SERIES_SPLIT_TARGET_CHARS` -> shipped `SERIES_SPLIT_TARGET_CHARS`.
+// The process default pins the env layer for the demo; a real env var still wins.
+const SERIES_TARGET_CHARS = 150
+
+// `--pipeline <name>` runs the named export directly and therefore bypasses the
+// `defineProcess()` env defaults below. Seed the same demo values into process.env so
+// every entry point (suite or named pipeline) sees them; a real env value still wins.
+if (!process.env.MT_CHUNK_SIZE) process.env.MT_CHUNK_SIZE = String(CHUNK_SIZE)
+if (!process.env.MT_CONST_SERIES_SPLIT_TARGET_CHARS) {
+  process.env.MT_CONST_SERIES_SPLIT_TARGET_CHARS = String(SERIES_TARGET_CHARS)
+}
 
 // Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
 // A stage writes to the matching temp://<rung>/<namespace> buffer; the next stage
 // reads it back through the typed rung (temp://chunks/ladder -> chunks://ladder).
 
-// Series split runs first: the big chapter-series.md is partitioned into
-// SERIES_PARTS numbered parts by a configured splitter (`.subflow('series://')`
-// would use the registered default instead).
+// Series split runs first: the demo chapter-series.md is partitioned by the
+// registered `series` splitter. The process pins the demo target characters.
 const seriesSplitFirstStage = definePipeline({ id: 'sample2-series-split-first' })
   .from('md://./chapters/chapter-series.md')
-  .flatMap(async (item: unknown) => createSeriesSplitter({ parts: SERIES_PARTS }).split({ item }))
+  .subflow('#series')
   .to('md://./chapters/series-first-output.md')
 
 // Clean chapter1.md, split into chunks, write chunked.md.
@@ -106,18 +112,6 @@ function logLadderCounts(): void {
   }
 }
 
-function toChunks(doc: ReturnType<typeof readChapterDoc>): Chunk[] {
-  const chapterId = `chapter-${doc.number ?? 0}`
-  const text = doc.body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n')
-  return splitIntoChunks(text, { targetTokens: CHUNK_SIZE }).map((body, index) => ({
-    id: `${chapterId}/chunk-${index + 1}`,
-    chapterId,
-    index,
-    body,
-    tokens: heuristicTokenCount(body),
-  }))
-}
-
 function renderLadderSummary(words: number): string {
   const rows: [string, string, number][] = [
     ['0', 'jsonl://', ladderCounts.records],
@@ -154,10 +148,10 @@ const documentStage = definePipeline({ id: 'sample2-ladder-documents' })
   .tap(countRung('documents'))
   .to('md://./chapters/ladder-chapters')
 
-// Rung 2: chapter docs → Chunks (core domain type).
+// Rung 2: chapter docs → Chunks (core domain type) with the registered `chunks` splitter.
 const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
   .from('md://./chapters/ladder-chapters')
-  .flatMap(async (item: unknown) => toChunks(readChapterDoc(String(item))))
+  .subflow('#chunks')
   .tap(countRung('chunks'))
   .to('temp://chunks/ladder')
 
@@ -253,10 +247,12 @@ export const tokenLadderPipeline = definePipeline({ id: 'sample2-token-ladder' }
   .subflow(tokenStage)
   .subflow(tokenSummaryStage)
 
-// Split chapter1.md into a series doc. `series://` and `#series` are equivalent.
+// Split chapter1.md into a series doc. `#series` is the shortcut for `series://`.
+// The no-subflow alternative lets the target run the registered splitter itself:
+// `.to('md://./chapters/series-output.md?series=true')`.
 export const seriesSplitPipeline = definePipeline({ id: 'sample2-series-split' })
   .from('md://./chapters/chapter1.md')
-  .subflow('series://')
+  .subflow('#series')
   .to('md://./chapters/series-output.md')
 
 // All four lessons in one process: clean/split, ladder, token ladder, series split.
@@ -266,7 +262,12 @@ const allPipelines = definePipeline({ id: 'sample2-chunk-normalization-suite' })
   .subflow(tokenLadderPipeline)
   .subflow(seriesSplitPipeline)
 
-// Process entry: pin MT_CHUNK_SIZE and MT_SERIES_PARTS so the run is reproducible.
+// Process entry: pin MT_CHUNK_SIZE and the demo series target so the run is reproducible.
 export default defineProcess()
-  .config({ env: { MT_CHUNK_SIZE: String(CHUNK_SIZE), MT_SERIES_PARTS: String(SERIES_PARTS) } })
+  .config({
+    env: {
+      MT_CHUNK_SIZE: String(CHUNK_SIZE),
+      MT_CONST_SERIES_SPLIT_TARGET_CHARS: String(SERIES_TARGET_CHARS),
+    },
+  })
   .pipeline(allPipelines)

@@ -1,4 +1,10 @@
-import type { RetryPolicy, SourceContext, TargetContext, ToolContext } from './contexts.js'
+import type {
+  RetryPolicy,
+  SourceContext,
+  SplitterContext,
+  TargetContext,
+  ToolContext,
+} from './contexts.js'
 import type { Exchange, ExchangeInput } from './exchange.js'
 
 /**
@@ -73,7 +79,7 @@ export interface Tool<I, O> {
  */
 export interface Splitter<O = unknown> {
   name: string
-  split(env: Exchange<unknown>): O[] | Promise<O[]>
+  split(env: Exchange<unknown>, ctx?: SplitterContext): O[] | Promise<O[]>
 }
 
 /**

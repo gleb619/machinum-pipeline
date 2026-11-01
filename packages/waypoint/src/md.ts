@@ -3,7 +3,15 @@ import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import { MD_OUTPUTS_VARIABLE } from '@mt/core'
-import type { Exchange, ExchangeInput, MdOutputEntry, Source, Target } from '@mt/core'
+import type {
+  Exchange,
+  ExchangeInput,
+  MdOutputEntry,
+  Source,
+  Splitter,
+  SplitterContext,
+  Target,
+} from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { AtomicStreamWriter, atomicWriteFile, registry } from '@mt/core'
 import { exchangeField } from './fields.js'
@@ -106,34 +114,94 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
  * In dir mode the URI is the output *root*: the target resolves it against the
  * project root / `waypoint.md.defaultFolder`, and every `mdOutputs` variable intent
  * lands under it (`<root>/<subdir>/<filename>`). Tools never name the root.
+ *
+ * `?series=true` (or `?series=1`) runs each envelope through the registered `series`
+ * splitter before writing, equivalent to `.subflow('#series')` followed by `.to(...)`.
  */
 export function createMdTarget<T>(uri: ParsedUri): Target<T> {
   let writer: AtomicStreamWriter | null = null
   let autoIndex = 0
   let filePath = ''
   let isFileMode = false
+  let seriesSplitter: Splitter<string> | null = null
+  const seriesEnabled = uri.query.series === 'true' || uri.query.series === '1'
+
+  async function appendFileValue(value: unknown): Promise<void> {
+    if (!writer) {
+      throw new Error('Target not opened. Call open() before write().')
+    }
+    await writer.write(`${String(value)}\n`)
+  }
+
+  /**
+   * Write one envelope as `chapterN.md`. Series parts always take the next auto index:
+   * reusing `meta.chapterNum` for every part would overwrite the same file.
+   */
+  async function writeChapterValue(
+    env: Exchange<T>,
+    value: unknown,
+    autoNumber = false,
+  ): Promise<void> {
+    const chapterNum = autoNumber
+      ? ++autoIndex
+      : env.meta.chapterNum || env.meta.chapter || ++autoIndex
+    const baseDir = filePath
+    mkdirSync(baseDir, { recursive: true })
+    await atomicWriteFile(join(baseDir, `chapter${chapterNum}.md`), String(value))
+  }
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       autoIndex = 0
+      seriesSplitter = null
       const projectRoot = ctx.run.global.project.root
       filePath = resolveWaypointRoot(uri, 'md', ctx.run.global.settings, projectRoot)
       isFileMode = filePath.endsWith('.md')
+      if (seriesEnabled) {
+        if (!registry.hasSplitter('series')) {
+          throw new Error(
+            [
+              `md target '${uri.raw}': ?series=true requires a splitter named 'series'. `,
+              `Import '@mt/tools' (which registers it) or register one with `,
+              `registry.registerSplitter('series', ...).`,
+            ].join(''),
+          )
+        }
+        seriesSplitter = registry.resolveSplitter<string>('#series')
+      }
       if (isFileMode) {
         writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
       }
     },
-    async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
+    async write(env: Exchange<T>, ctx: TargetContext): Promise<void> {
       if (!filePath) {
         throw new Error('Target not opened. Call open() before write().')
       }
-      if (isFileMode) {
-        if (!writer) {
-          throw new Error('Target not opened. Call open() before write().')
+      if (seriesSplitter) {
+        if (!isFileMode) {
+          const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
+          if (mdOutputs && mdOutputs.length > 0) {
+            throw new Error(
+              [
+                `md target '${uri.raw}': ?series=true cannot be combined with mdOutputs `,
+                'intents (no unambiguous filenames)',
+              ].join(''),
+            )
+          }
         }
-        const text = String(env.item)
-        await writer.write(`${text}\n`)
+        const parts = await seriesSplitter.split(env, { run: ctx.run } satisfies SplitterContext)
+        for (const part of parts) {
+          if (isFileMode) {
+            await appendFileValue(part)
+          } else {
+            await writeChapterValue(env, part, true)
+          }
+        }
+        return
+      }
+      if (isFileMode) {
+        await appendFileValue(env.item)
       } else {
         const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
         if (mdOutputs && mdOutputs.length > 0) {
@@ -153,11 +221,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
             await atomicWriteFile(outPath, text)
           }
         } else {
-          const chapterNum = env.meta.chapterNum || env.meta.chapter || ++autoIndex
-          const baseDir = filePath
-          mkdirSync(baseDir, { recursive: true })
-          const text = String(env.item)
-          await atomicWriteFile(join(baseDir, `chapter${chapterNum}.md`), text)
+          await writeChapterValue(env, env.item)
         }
       }
     },

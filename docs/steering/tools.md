@@ -434,6 +434,9 @@ Unit helpers: `splitParagraphUnits(text)` (blank-line runs, trimmed, blanks drop
 ### `normalization/entity-splitters.ts`
 Reusable splitters for the entity buffers, registered at module load. All of them implement the
 single core `Splitter<O>` interface from `@mt/core` and keep their own logic:
+- `chunkSplitter` → registered as `chunks` — chapter-document markdown → core `Chunk[]`; ids
+  `${chapterId}/chunk-N`, `chapterId` from `meta.chapterId` or `chapter-<frontmatter number>`;
+  budget resolved through `resolveChunkSize` (`meta.chunkSize` → option → settings → `MT_CHUNK_SIZE`).
 - `paragraphSplitter` → registered as `paragraphs` — `Chunk`/chunk-body string → `Paragraph[]`;
   ids `${chunkId}/paragraph-N`, `chapterId` + `chunkId` from `meta` or the entity.
 - `lineSplitter` → registered as `lines` — `Paragraph`/paragraph-body string → `Line[]`;
@@ -441,8 +444,9 @@ single core `Splitter<O>` interface from `@mt/core` and keep their own logic:
 - `wordSplitter` → registered as `words` — `Line`/line-text string → core `Word[]`;
   ids `${lineId}/word-N`, `paragraphId` + `lineId` from `meta` or the entity.
 
-Use with `.subflow('paragraphs://')` or the `#` shortcut `.subflow('#paragraphs')` (likewise `lines`
-and `words`); both resolve the same registry entry, while bare `'paragraphs'` is rejected.
+Use with `.subflow('paragraphs://')` or the `#` shortcut `.subflow('#paragraphs')` (likewise
+`chunks`, `lines` and `words`); both resolve the same registry entry, while bare `'paragraphs'` is
+rejected.
 All read the full Exchange and use the unit helpers above, so blank units are skipped.
 
 `modification/series-split.ts` registers `seriesSplitter` /
@@ -450,7 +454,9 @@ All read the full Exchange and use the unit helpers above, so blank units are sk
 `.subflow('#series')`). It is chapter-document aware: the input markdown is parsed with
 `readChapterDoc`, and each output part is a new `ChapterDoc` serialized with `writeChapterDoc`.
 Default condition is the balanced strategy (`SERIES_SPLIT_STRATEGY 'balanced'`): the meaningful
-body must exceed `targetChars` (default `SERIES_SPLIT_TARGET_CHARS`, 10_000 characters), and the
+body must exceed `targetChars` (default `SERIES_SPLIT_TARGET_CHARS`, 10_000 characters; overridable
+through the tunable chain — `constants` variable, `settings.constants.SERIES_SPLIT_TARGET_CHARS`,
+or env `MT_CONST_SERIES_SPLIT_TARGET_CHARS`), and the
 part count is derived as `ceil(bodyChars / targetChars)` so the parts are approximately equal in
 size — intended for very big chapters (10k+ chars). An explicit `parts` splits into a fixed number
 of parts instead; `shouldSplit(doc)` can veto or force the attempt either way. A sentence is never
@@ -486,7 +492,8 @@ the fallback constant. Regex constants stay code-only. Numeric strings are accep
 an invalid value throws citing its source (`variable constants.X`, `settings.constants.X`,
 `env MT_CONST_X`); an absent (`undefined`/`null`/`''`) value falls through. An explicit tool-factory
 option still beats the chain — call sites keep the shape `options.x ?? resolveTunedNum(...)`.
-Migrated call sites: `resolveChunkSize` (`DEFAULT_CHUNK_TARGET`), `translate-text` /
+Migrated call sites: `resolveChunkSize` (`DEFAULT_CHUNK_TARGET`), `series-split`
+(`SERIES_SPLIT_TARGET_CHARS`, resolved from the splitter context), `translate-text` /
 `proofread` outputReserve (`DEFAULT_OUTPUT_RESERVE`), `translate-text` / `summary` chunk concurrency
 (`DEFAULT_CHUNK_CONCURRENCY`), `token-splitter` maxTokens (`DEFAULT_MAX_TOKENS`), `stat-proofread`
 (`MIN_CYRILLIC_RATIO`, `MAX_UNTRANSLATED_SHARE`), `line-parity-linter` (`MIN_CYRILLIC_RATIO`); the

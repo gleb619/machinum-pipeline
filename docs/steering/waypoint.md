@@ -16,7 +16,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | Scheme | File | Source | Target | Notes |
 |---|---|---|---|---|
 | `jsonl://./file.jsonl` | `jsonl.ts` | ✓ | ✓ | Supports glob patterns for source |
-| `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory |
+| `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; `?series=true` splits each document with the registered `series` splitter before writing |
 | `hs://` / `http://` | `http-server.ts` | ✓ | — | Long-lived HTTP POST endpoint |
 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout |
 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
@@ -189,6 +189,14 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   naming the key, never silently rewrite. The final path is additionally asserted inside
   `baseDir` via `relative()` (no `..` prefix) as defence in depth
 
+### `md.ts`
+- Target query `?series=true` (or `?series=1`) is syntax sugar for `.subflow('#series')` +
+  `.to('md://...')`: each incoming markdown item is passed through `registry.resolveSplitter('series')`
+  (with `{ run }` as context) and every part is written through the normal file/dir path. File
+  mode appends each part; dir mode without `mdOutputs` writes `chapterN.md` per part. Combining it
+  with `mdOutputs` intents throws, because there is no unambiguous filename for a part. Import
+  `@mt/tools` to register the `series` splitter; a missing splitter throws a clear error.
+
 ### `settings.ts`
 - `getWaypointSetting(key)` — reads from `mt.json` waypoint section
 - `resolveWaypointPath(uri, scheme, settings, projectRoot)` — the single resolver for all
@@ -299,7 +307,7 @@ URI scheme plus an entity type; descending one rung is a cardinality change, so 
 |-------|-----------------|-------------|------------------------|
 | 0     | `jsonl://`      | record      | `.from()`              |
 | 1     | `md://`         | document / chapter | `.flatMap()` (split into chapters) |
-| 2     | `chunks://`     | chunk       | `.flatMap()` (split into token-bounded chunks) |
+| 2     | `chunks://`     | chunk       | `.subflow('#chunks')` (registered splitter; token-bounded chunks) |
 | 3     | `paragraphs://` | paragraph   | `.flatMap()` (split a chunk into paragraphs; carry `chunkId`) |
 | 4     | `lines://`      | line        | `.flatMap()` (split into lines) |
 | 5     | `words://`      | word        | `.batch()` (group words) |
@@ -311,24 +319,21 @@ descended into paragraphs, lines and words. A chunk is the largest unit that sti
 does not group paragraphs, paragraphs are derived from it (and carry its `chunkId`). The `chunkSplit` tool
 (`@mt/tools`) fixates a chapter into `---`-separated chunks; `chunkClean` strips the separators again.
 
-Descent with `flatMap` — one chapter in, its chunks out:
+Descent with the registered splitter — one chapter in, its chunks out:
 
 ```typescript
 import { definePipeline } from '@mt/core'
-import { splitIntoChunks } from '@mt/tools'
+import '@mt/tools'                          // registers chunks/paragraphs/lines/words/series splitters
 
 export default definePipeline()
-  .from('md://./chapters/')                  // level 1 — one envelope per chapter (string body)
-  .flatMap(async (body: string) =>           // level 2 — chapter → its chunks
-    splitIntoChunks(body).map((chunk, index) => ({
-      id: `chunk-${index}`,
-      chapterId: 'chapter-1',
-      body: chunk,
-      index,
-    })),
-  )
-  .to('temp://chunks/chapters')              // level 2 — write the chunks into the in-memory buffer
+  .from('md://./chapters/')                 // level 1 — one envelope per chapter (string body)
+  .subflow('#chunks')                       // level 2 — chapter markdown → Chunk[] (MT_CHUNK_SIZE)
+  .to('temp://chunks/chapters')             // level 2 — write the chunks into the in-memory buffer
 ```
+
+The `chunks` splitter is the shipped form of the manual `readChapterDoc` + `splitIntoChunks` +
+`heuristicTokenCount` glue; the token budget follows `meta.chunkSize` → tool option → mt.json
+`settings.chunkSize` → `MT_CHUNK_SIZE` → `DEFAULT_CHUNK_TARGET`.
 
 **Alternate route: `chunks → tokens`.** Instead of descending into paragraphs, a chunk can be tokenized into
 tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — what the LLM actually sees. The

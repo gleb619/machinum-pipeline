@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.6.0 | 2026-11-01 -->
+<!-- skill-version: 1.7.0 | 2026-11-01 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -59,11 +59,14 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
   `.batch/.flatMap`, or the string form `.subflow('<splitter>')`
   (`'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`; the same
-  spellings work for `lines`, `words` and `series`) which resolves a registered splitter and
-  fans out 1 -> N. Import `mt/tools` (or any `@mt/tools` symbol) to register `paragraphs`, `lines`,
-  `words` and `series`. Bare `'paragraphs'` is rejected. The `series` splitter parses chapter markdown, emits numbered `ChapterDoc` parts
-  with `series` frontmatter only when the chapter is large enough, and otherwise returns the
-  original markdown as one unchanged item. Source ids are stable; the engine never mints them.
+  spellings work for `chunks`, `paragraphs`, `lines`, `words` and `series`) which resolves a
+  registered splitter and fans out 1 -> N. Import `mt/tools` (or any `@mt/tools` symbol) to
+  register `chunks`, `paragraphs`, `lines`, `words` and `series`. Bare `'paragraphs'` is rejected.
+  The `series` splitter parses chapter markdown, emits numbered `ChapterDoc` parts with `series`
+  frontmatter only when the chapter is large enough, and otherwise returns the original markdown
+  as one unchanged item. Its size threshold is the tunable `SERIES_SPLIT_TARGET_CHARS` (see
+  below). The `chunks` splitter parses chapter markdown into core `Chunk` entities using the
+  chunk-size chain (`MT_CHUNK_SIZE`). Source ids are stable; the engine never mints them.
 - Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline
   transformation of the current stream, while `.fork()` starts a child Runner per envelope.
 - `onError`: `fail-run` (default) | `skip-item` | `dead-letter` (-> `.mt/runs/<id>/dead-letter.jsonl`).
@@ -75,7 +78,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | URI | Use |
 |---|---|
 | `jsonl://./f.jsonl` | JSON lines; source accepts globs; each line `{ "item": ... }` |
-| `md://./dir` or `md://./f.md` | Markdown files / single file |
+| `md://./dir` or `md://./f.md` | Markdown files / single file; `?series=true` runs the registered `series` splitter before writing (same as `.subflow('#series')`) |
 | `chapter://./en/` | language-folder chapter layout |
 | `hs://http://...` | HTTP source |
 | `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
@@ -223,7 +226,7 @@ export default defineProcess()
 ## Tunable constants (`constants` overrides)
 
 Text-processing tuning constants (chunk targets, reserves, concurrency, verification thresholds —
-export names from `@mt/tools` `constants.ts`, e.g. `DEFAULT_CHUNK_TARGET`, `DEFAULT_MAX_TOKENS`,
+export names from `@mt/tools` `constants.ts`, e.g. `DEFAULT_CHUNK_TARGET`, `SERIES_SPLIT_TARGET_CHARS`, `DEFAULT_MAX_TOKENS`,
 `DEFAULT_OUTPUT_RESERVE`, `DEFAULT_CHUNK_CONCURRENCY`, `MIN_CYRILLIC_RATIO`, `MAX_UNTRANSLATED_SHARE`)
 resolve per call, first defined wins:
 

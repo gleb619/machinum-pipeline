@@ -1,5 +1,5 @@
 import { createExchange, getVariable, registry } from '@mt/core'
-import type { ToolContext } from '@mt/core'
+import type { SplitterContext, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
   createSeriesSplitTool,
@@ -31,6 +31,11 @@ const LARGE_WITH_METADATA = [
 
 const SMALL = '# Tiny Chapter\n\nOnly one line.\n'
 const FORCEABLE = '# Tiny Chapter\n\nOne. Two. Three. Four.\n'
+
+/** Minimal splitter context: the tunable resolver only reads `run.global`. */
+function splitterCtx(env: Record<string, string>): SplitterContext {
+  return { run: { global: { env, settings: {} } } } as unknown as SplitterContext
+}
 
 /** Body bigger than the small test target: ~380 meaningful characters. */
 const BALANCED_BIG = [
@@ -196,9 +201,17 @@ describe('seriesSplitter', () => {
       expect(parts).toEqual([BALANCED_BIG])
     })
 
-    it('the registered default splitter does not split mid-size chapters', async () => {
+    it('default 10k target leaves a short chapter whole when resolved through ctx', async () => {
       // Meaningful body is far below SERIES_SPLIT_TARGET_CHARS (10_000).
-      expect(await seriesSplitter.split(createExchange(LARGE))).toEqual([LARGE])
+      expect(await seriesSplitter.split(createExchange(LARGE), splitterCtx({}))).toEqual([LARGE])
+    })
+
+    it('resolves MT_CONST_SERIES_SPLIT_TARGET_CHARS through ctx', async () => {
+      const parts = await seriesSplitter.split(
+        createExchange(BALANCED_BIG),
+        splitterCtx({ MT_CONST_SERIES_SPLIT_TARGET_CHARS: '100' }),
+      )
+      expect(parts.length).toBeGreaterThan(1)
     })
 
     it('splits a chapter above the target into approximately equal shares', async () => {

@@ -1,12 +1,18 @@
 import { createExchange, registry } from '@mt/core'
-import type { Chunk, Line, Paragraph } from '@mt/core'
+import type { Chunk, Line, Paragraph, SplitterContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
+  chunkSplitter,
   lineSplitter,
   paragraphSplitter,
   wordSplitter,
 } from '../src/normalization/entity-splitters.js'
 import { splitLineUnits, splitParagraphUnits } from '../src/normalization/token-splitter.js'
+
+/** Minimal splitter context: the tunable resolver only reads `run.global`. */
+function splitterCtx(env: Record<string, string>): SplitterContext {
+  return { run: { global: { env, settings: {} } } } as unknown as SplitterContext
+}
 
 describe('splitParagraphUnits / splitLineUnits', () => {
   it('trims units and drops blanks', () => {
@@ -16,10 +22,14 @@ describe('splitParagraphUnits / splitLineUnits', () => {
 })
 
 describe('splitter registry', () => {
-  it('registers paragraph, line and word splitters by buffer scheme', () => {
+  it('registers chunk, paragraph, line and word splitters by buffer scheme', () => {
+    expect(registry.hasSplitter('chunks')).toBe(true)
     expect(registry.hasSplitter('paragraphs')).toBe(true)
     expect(registry.hasSplitter('lines')).toBe(true)
     expect(registry.hasSplitter('words')).toBe(true)
+    expect(registry.resolveSplitter('chunks://')).toBe(chunkSplitter)
+    expect(registry.resolveSplitter('chunks://ladder')).toBe(chunkSplitter)
+    expect(registry.resolveSplitter('#chunks')).toBe(chunkSplitter)
     expect(registry.resolveSplitter('paragraphs://')).toBe(paragraphSplitter)
     expect(registry.resolveSplitter('paragraphs://ladder')).toBe(paragraphSplitter)
     expect(registry.resolveSplitter('#paragraphs')).toBe(paragraphSplitter)
@@ -28,6 +38,81 @@ describe('splitter registry', () => {
     expect(registry.resolveSplitter('#lines')).toBe(lineSplitter)
     expect(registry.resolveSplitter('words://')).toBe(wordSplitter)
     expect(registry.resolveSplitter('#words')).toBe(wordSplitter)
+  })
+})
+
+describe('chunkSplitter', () => {
+  const CHAPTER = [
+    '---',
+    'number: 7',
+    '---',
+    '',
+    '# Chapter Seven',
+    '',
+    'First paragraph.',
+    '',
+    'Second paragraph.',
+  ].join('\n')
+
+  it('parses chapter markdown into Chunk entities with ids and token counts', () => {
+    const chunks = chunkSplitter.split(
+      createExchange(CHAPTER, { meta: { chapterId: 'chapter-42' } }),
+      splitterCtx({ MT_CHUNK_SIZE: '1000' }),
+    )
+
+    expect(chunks).toHaveLength(1)
+    const chunk = chunks[0]
+    expect(chunk).toMatchObject({
+      id: 'chapter-42/chunk-1',
+      chapterId: 'chapter-42',
+      index: 0,
+    })
+    expect(chunk?.body).toContain('First paragraph.')
+    expect(chunk?.body).toContain('Second paragraph.')
+    expect(chunk?.tokens).toBe(Math.ceil((chunk?.body.length ?? 0) / 4))
+  })
+
+  it('falls back to the chapter number for the id when meta.chapterId is absent', () => {
+    const chunks = chunkSplitter.split(
+      createExchange(CHAPTER),
+      splitterCtx({ MT_CHUNK_SIZE: '1000' }),
+    )
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]?.chapterId).toBe('chapter-7')
+    expect(chunks[0]?.id).toBe('chapter-7/chunk-1')
+  })
+
+  it('honors the MT_CHUNK_SIZE budget from the splitter ctx env', () => {
+    const markdown = [
+      '# Budget',
+      '',
+      'alpha beta gamma delta epsilon zeta eta theta',
+      '',
+      'iota kappa lambda mu nu xi omicron pi',
+      '',
+      'rho sigma tau upsilon phi chi psi omega',
+      '',
+      'one two three four five six seven eight',
+      '',
+      'nine ten eleven twelve thirteen fourteen',
+    ].join('\n')
+    const chunks = chunkSplitter.split(
+      createExchange(markdown, { meta: { chapterId: 'chapter-budget' } }),
+      splitterCtx({ MT_CHUNK_SIZE: '10' }),
+    )
+
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.map((chunk) => chunk.index)).toEqual(chunks.map((_, index) => index))
+    for (const chunk of chunks) {
+      expect(chunk.tokens).toBeLessThanOrEqual(10)
+    }
+  })
+
+  it('rejects non-markdown items with a clear error', () => {
+    expect(() => chunkSplitter.split(createExchange({ body: 'nope' }))).toThrow(
+      'chunkSplitter: item must be a chapter markdown string',
+    )
   })
 })
 

@@ -513,7 +513,7 @@ export class Runner {
           const sourceStream = stream
           stream = (async function* () {
             for await (const env of sourceStream) {
-              const items = await splitter.split(env)
+              const items = await splitter.split(env, { run: runContext })
               yield* fanOut(env, items)
             }
           })()

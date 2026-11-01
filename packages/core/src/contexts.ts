@@ -48,6 +48,13 @@ export interface RunContext {
 }
 
 /**
+ * Splitter context — splitter execution context scoped to a run.
+ */
+export interface SplitterContext {
+  run: RunContext
+}
+
+/**
  * Per-group scope of `.batch(opts, nested)` (see `createBatchScope`). One group, two views,
  * one commit point.
  */

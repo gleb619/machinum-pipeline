@@ -80,7 +80,9 @@ async function main(): Promise<void> {
   const ladderContent = `${LADDER_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'ladder.jsonl'), ladderContent, 'utf-8')
   await writeFile(join(SAMPLE_DIR, 'chapters', 'chapter-series.md'), SERIES_CHAPTER, 'utf-8')
-  console.log('Wrote jsonl/input.jsonl, jsonl/entities.jsonl, jsonl/ladder.jsonl and chapters/chapter-series.md')
+  console.log(
+    'Wrote jsonl/input.jsonl, jsonl/entities.jsonl, jsonl/ladder.jsonl and chapters/chapter-series.md',
+  )
 }
 
 main()

@@ -1,7 +1,8 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { SourceContext, TargetContext } from '@mt/core'
+import type { Exchange, SourceContext, TargetContext } from '@mt/core'
+import { registry } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMdSource, createMdTarget } from '../../src/md.js'
 import type { ParsedUri } from '../../src/uri.js'
@@ -398,5 +399,102 @@ describe('md target — mdOutputs intents', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("'first' and 'second'"))
     warn.mockRestore()
     expect(readFileSync(join(tempDir, 'chapters', 'dup', 'a.md'), 'utf-8')).toBe('two')
+  })
+})
+
+describe('md target — ?series=true', () => {
+  let tempDir: string
+  let ctx: TargetContext
+
+  const fakeSeriesSplitter = {
+    name: 'test-series-splitter',
+    split(env: Exchange<unknown>): string[] {
+      return String(env.item).split('\n---\n')
+    },
+  }
+
+  const registrySplitters = (registry as unknown as { splitters: Map<string, unknown> }).splitters
+
+  const uri = (path: string, flag: 'true' | '1' = 'true'): ParsedUri => ({
+    raw: `md://${path}?series=${flag}`,
+    host: path,
+    path,
+    query: { series: flag },
+  })
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'md-series-'))
+    ctx = {
+      run: {
+        runId: 'run-1',
+        global: { project: { name: 'test', root: tempDir }, settings: {} },
+      },
+    } as unknown as TargetContext
+    registrySplitters.delete('series')
+    registry.registerSplitter('series', fakeSeriesSplitter)
+  })
+
+  afterEach(() => {
+    registrySplitters.delete('series')
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('writes every split part to the file target', async () => {
+    const filePath = join(tempDir, 'out.md')
+    const target = createMdTarget<string>(uri(filePath))
+    await target.open(ctx)
+    await target.write({ item: '# One\n---\n# Two', meta: {} }, ctx)
+    await target.close(ctx)
+
+    expect(readFileSync(filePath, 'utf-8')).toBe('# One\n# Two\n')
+  })
+
+  it.each(['true', '1'] as const)(
+    'writes chapter1.md and chapter2.md for series=%s in dir mode',
+    async (flag) => {
+      const dir = join(tempDir, 'chapters')
+      const target = createMdTarget<string>(uri(dir, flag))
+      await target.open(ctx)
+      // A shared chapterNum must not collapse the parts onto one filename.
+      await target.write({ item: '# One\n---\n# Two', meta: { chapterNum: 5 } }, ctx)
+      await target.close(ctx)
+
+      expect(readFileSync(join(dir, 'chapter1.md'), 'utf-8')).toBe('# One')
+      expect(readFileSync(join(dir, 'chapter2.md'), 'utf-8')).toBe('# Two')
+    },
+  )
+
+  it('rejects non-empty mdOutputs intents in dir mode', async () => {
+    const dir = join(tempDir, 'chapters')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+
+    await expect(
+      target.write(
+        {
+          item: '# One\n---\n# Two',
+          meta: {
+            mdOutputs: [{ name: 'intro', filename: 'intro.md', content: '# Intro' }],
+          },
+        },
+        ctx,
+      ),
+    ).rejects.toThrow(/cannot be combined with mdOutputs intents/)
+  })
+
+  it('throws a clear error when the series splitter is not registered', async () => {
+    registrySplitters.delete('series')
+    const filePath = join(tempDir, 'out.md')
+    const parsed = uri(filePath)
+    const target = createMdTarget<string>(parsed)
+
+    await expect(target.open(ctx)).rejects.toThrow(
+      new RegExp(
+        [
+          `md target '${parsed.raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}': `,
+          `\\?series=true requires a splitter named 'series'.*@mt/tools`,
+        ].join(''),
+      ),
+    )
   })
 })

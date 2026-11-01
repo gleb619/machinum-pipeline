@@ -1,7 +1,8 @@
 import { defineTool, registry, setVariables, withItem } from '@mt/core'
-import type { Exchange, Splitter, ToolContext } from '@mt/core'
+import type { Exchange, Splitter, SplitterContext, ToolContext } from '@mt/core'
 import { SERIES_SPLIT_TARGET_CHARS } from '../constants.js'
 import { splitParagraphUnits, splitReadableParts } from '../normalization/token-splitter.js'
+import { resolveTunedNum } from '../resolve-constants.js'
 import {
   type ChapterDoc,
   type ChapterDocParagraph,
@@ -40,12 +41,24 @@ interface SeriesSplitResult {
  * ceil(bodyChars / target) parts of approximately equal size. An explicit
  * `parts` option keeps the fixed-part-count behavior.
  */
-function resolveParts(bodyChars: number, options: SeriesSplitOptions): number {
+function resolveParts(
+  bodyChars: number,
+  options: SeriesSplitOptions,
+  env: Exchange<unknown>,
+  ctx?: SplitterContext,
+): number {
   if (options.parts !== undefined) {
     const parts = options.parts
     return Number.isFinite(parts) && parts > 1 ? Math.floor(parts) : 0
   }
-  const target = options.targetChars ?? SERIES_SPLIT_TARGET_CHARS
+  const target =
+    options.targetChars ??
+    resolveTunedNum(
+      'SERIES_SPLIT_TARGET_CHARS',
+      SERIES_SPLIT_TARGET_CHARS,
+      env,
+      ctx as ToolContext | undefined,
+    )
   if (!Number.isFinite(target) || target < 1 || bodyChars <= target) return 0
   return Math.max(2, Math.ceil(bodyChars / target))
 }
@@ -82,10 +95,12 @@ function bodyParagraphs(text: string): ChapterDocParagraph[] {
 async function splitSeriesMarkdown(
   markdown: string,
   options: SeriesSplitOptions,
+  env: Exchange<unknown>,
+  ctx?: SplitterContext,
 ): Promise<SeriesSplitResult> {
   const doc = readChapterDoc(markdown)
   const body = chapterBody(doc)
-  const parts = resolveParts(body.length, options)
+  const parts = resolveParts(body.length, options, env, ctx)
   if (parts < 2 || (options.shouldSplit && !options.shouldSplit(doc))) {
     return { parts: [markdown], split: false }
   }
@@ -132,15 +147,16 @@ function textItem(env: Exchange<unknown>): string {
  * do not pass the condition are returned unchanged as a single item.
  *
  * Default condition (balanced strategy): the meaningful body must exceed
- * `targetChars` (default SERIES_SPLIT_TARGET_CHARS), and the part count is derived as
- * `ceil(bodyChars / targetChars)` so the parts are approximately equal in size. Pass an
- * explicit `parts` to split into a fixed number of parts instead.
+ * `targetChars` (default `SERIES_SPLIT_TARGET_CHARS`, tunable via the `constants` chain),
+ * and the part count is derived as `ceil(bodyChars / targetChars)` so the parts are
+ * approximately equal in size. Pass an explicit `parts` to split into a fixed number of
+ * parts instead.
  */
 export function createSeriesSplitter(options: SeriesSplitOptions = {}): Splitter<string> {
   return {
     name: 'series-splitter',
-    async split(env) {
-      const result = await splitSeriesMarkdown(textItem(env), options)
+    async split(env, ctx) {
+      const result = await splitSeriesMarkdown(textItem(env), options, env, ctx)
       return result.parts
     },
   }
@@ -158,8 +174,8 @@ export function createSeriesSplitTool(options: SeriesSplitOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Split a large chapter document into numbered series parts with series frontmatter.',
-    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string[]>> {
-      const result = await splitSeriesMarkdown(textItem(env), options)
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
+      const result = await splitSeriesMarkdown(textItem(env), options, env, ctx)
       const output = withItem(env, result.parts)
       if (!result.split || result.series === undefined) return output
       return setVariables(output, {
