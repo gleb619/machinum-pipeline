@@ -25,6 +25,20 @@ const EXPECTED_BODY_LINES = [3, 2]
 
 let hasFailure = false
 
+/** Every stage runs offline: mock LLM backend, heuristics only. */
+function runNormalize(): void {
+  execSync(`"${MT_BIN}" run ./pipelines/normalize.ts`, {
+    cwd: SAMPLE_DIR,
+    stdio: 'pipe',
+    env: { ...process.env, NODE_OPTIONS: '--import tsx', MT_LLM_TOOL: 'mock', MT_LLM_TYPO_FIX: '' },
+    timeout: 15_000,
+  })
+}
+
+async function mdFiles(): Promise<string[]> {
+  return (await readdir(EN_DIR)).filter((f) => f.endsWith('.md')).sort()
+}
+
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await mkdir(EN_DIR, { recursive: true })
@@ -36,8 +50,12 @@ async function cleanup(): Promise<void> {
 
 beforeAll(async () => {
   await cleanup()
+  await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
   const jsonl = `${RAW.map((item) => JSON.stringify({ item })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), jsonl, 'utf-8')
+  // Run once here, not in a test: every assertion below reads the artifacts, so a run inside
+  // one `it` would make the others depend on test order (`-t`, shuffle, single-file reruns).
+  runNormalize()
 })
 
 afterEach(({ task }) => {
@@ -49,18 +67,8 @@ afterAll(async () => {
 })
 
 describe('normalize pipeline (offline, heuristics only)', () => {
-  it('runs to completion', () => {
-    execSync(`"${MT_BIN}" run ./pipelines/normalize.ts`, {
-      cwd: SAMPLE_DIR,
-      stdio: 'pipe',
-      env: { ...process.env, NODE_OPTIONS: '--import tsx', MT_LLM_TYPO_FIX: '' },
-      timeout: 20_000,
-    })
-  })
-
-  it('writes one md per chapter with stable names', async () => {
-    const files = (await readdir(EN_DIR)).filter((f) => f.endsWith('.md')).sort()
-    expect(files).toEqual(['chapter1.md', 'chapter2.md'])
+  it('runs to completion and writes one md per chapter with stable names', async () => {
+    expect(await mdFiles()).toEqual(['chapter1.md', 'chapter2.md'])
   })
 
   it('keeps every paragraph line (one per line, none merged or split)', async () => {
