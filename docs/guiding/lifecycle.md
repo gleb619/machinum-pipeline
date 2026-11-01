@@ -128,16 +128,22 @@ flowchart TD
   P -- no --> F2["read ~/.mt/vault.json  (user, MT_HOME aware)"]
   F2 --> F3["read ./.mt/vault.json  (project)"]
   F3 --> M["Object.assign entries:<br/>project overrides user by entry name"]
-  F1 --> R
-  M --> R[resolveSecretRefs: for each entry apiKey / apiKeys]
+  M --> C{"plaintext apiKey / apiKeys?"}
+  F1 --> C
+  C -- yes --> ERR["throw: names entry + field, never the value<br/>(use embed: / vlt: / keepass:)"]
+  C -- no --> R[resolveSecretRefs: for each entry apiKey / apiKeys]
   R --> V{value prefix?}
   V -- "vlt:name" --> V1[vlt CLI - MT_VLT]
   V -- "keepass:title|uuid" --> V2[KeePass .kdbx - MT_KEEPASS_*]
-  V -- "embed:name" --> V3[embedded AES-256-GCM store - MT_EMBED_*]
-  V -- plaintext --> V4[kept as-is]
-  V1 & V2 & V3 & V4 --> OUT[in-memory Vault, resolved secrets never written back]
+  V -- "embed:name" --> V3["embedded store (default backend):<br/>master password (MT_EMBED_PASSWORD*, else built-in default + one-time warning)<br/>→ scrypt unlock → keyring → decrypt secret with its own kid"]
+  V1 & V2 & V3 --> OUT[in-memory Vault, resolved secrets never written back]
 ```
 
+- **Plaintext keys are rejected**, not passed through: any `apiKey`/`apiKeys[i]` without a `vlt:`,
+  `keepass:` or `embed:` prefix fails the load (and `mt vault add` / `saveVault`).
+- `embed:` is the zero-config default: with no `MT_EMBED_PASSWORD(_FILE)` the built-in public
+  password is used and a one-time warning says the store is only obfuscated (fix: `mt vault embed-rekey`).
+  Each secret is AES-256-GCM encrypted under its own encryption key (`kid`) from the store's keyring.
 - Missing vault file is fine (empty vault). A failing ref throws
   `Vault entry "<name>": …` — **names the entry, never the secret value**.
 - Refs are resolved **eagerly at load** (phase 4), every run, even if no tool uses the vault.
