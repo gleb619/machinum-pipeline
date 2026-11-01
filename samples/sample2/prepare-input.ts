@@ -3,9 +3,9 @@ import { join } from 'node:path'
 
 const SAMPLE_DIR = import.meta.dirname
 const RECORDS = [
-  { id: 1, text: 'First line of the document.' },
-  { id: 2, text: 'Second line of the document.' },
-  { id: 3, text: 'Third line of the document.' },
+  { id: 1, text: 'First line of the document.\n\nSecond paragraph here.' },
+  { id: 2, text: 'Second line of the document.\n\nAnother paragraph.' },
+  { id: 3, text: 'Third line of the document.\n\nFinal paragraph.' },
 ]
 
 // Chapter/Paragraph/Line fixture for the entity pipeline.
