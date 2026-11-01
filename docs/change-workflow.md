@@ -1,6 +1,8 @@
 # Change Workflow (state machine)
 
-Every code change follows this lifecycle — no exceptions:
+By default every code change follows this lifecycle. **Explicit user override:** if the user says to
+work in the current worktree / `main` checkout, do not create a worktree or feature branch — make the
+change and commit directly on `main`.
 
 ```
 NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMIT ──► SAMPLES IT ──► FF-MERGE ──► CLEANUP
@@ -10,8 +12,8 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
                                                        stay on branch   fix, re-run
 ```
 
-1. **Worktree + branch** — never code on `main`. Create a git worktree + feature branch
-   (e.g. `../<repo>-<id>` on `feat/<id>`).
+1. **Worktree + branch** — create a git worktree + feature branch (e.g. `../<repo>-<id>` on
+   `feat/<id>`). Skip this step when the user explicitly asked for the current worktree / `main`.
 
    Use `at worktree-new` to create the worktree, then **bootstrap it** (a fresh worktree has no
    `node_modules`, no `dist/`, no workspace bins, no GPU env):

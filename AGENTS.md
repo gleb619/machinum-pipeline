@@ -121,8 +121,11 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
 
 ## Hard rules
 
-- **Change workflow** - never code on `main`; worktree + branch → code → test/lint gate → commit → samples IT gate →
+- **Change workflow** - default: worktree + branch → code → test/lint gate → commit → samples IT gate →
   rebase onto `main`, then FF-merge only (`git merge --ff-only`) → cleanup.
+  **Explicit user override:** when the user says to work in the current worktree / `main` checkout, obey:
+  do not create a new worktree or feature branch; commit directly on `main`. An explicit user instruction
+  wins over the default branch flow.
   **Regular merge commits are forbidden** — never use `git merge --no-ff` or merge without rebase.
   Full state machine: [docs/change-workflow.md](docs/change-workflow.md).
 - **Merge acceptance includes the GPU gate** — run `pnpm test:gpu` (`packages/tools/tests/it/`, real ollama
