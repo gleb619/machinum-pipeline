@@ -10,6 +10,7 @@ import {
   DEFAULT_SENTENCE_MAX_CHARS,
   SENTENCE_END_RE,
 } from '../constants.js'
+import { resolveTunedNum } from '../resolve-constants.js'
 
 export { DEFAULT_CHUNK_TARGET, DEFAULT_MAX_TOKENS }
 
@@ -432,7 +433,7 @@ export function balancedLineStrategy(options?: BalancedLineStrategyOptions): Tok
 }
 
 export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {}): TokenSplitter {
-  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS
+  const maxTokens = options.maxTokens
   const strategy = options.strategy ?? paragraphStrategy()
 
   const base = defineTool<string, string[]>({
@@ -440,13 +441,14 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
     version: '1.0.0',
     mdDescription:
       'Splits text into chunks using a pluggable TokenSplitStrategy. Default strategy splits at paragraph boundaries respecting a token limit.',
-    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string[]>> {
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
       const inputs = env.items ?? [env.item]
       const allChunks: string[] = []
+      const limit = maxTokens ?? resolveTunedNum('DEFAULT_MAX_TOKENS', DEFAULT_MAX_TOKENS, env, ctx)
 
       for (const input of inputs) {
         const tokenCount = await countTokens(input)
-        if (tokenCount <= maxTokens) {
+        if (tokenCount <= limit) {
           allChunks.push(input)
         } else {
           const chunks = await strategy.split(input)

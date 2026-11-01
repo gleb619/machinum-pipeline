@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.1.0 | 2026-11-01 -->
+<!-- skill-version: 1.2.0 | 2026-11-01 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -31,7 +31,8 @@ pipelines/*.ts       pipeline modules (default export = the pipeline)
 `mt init` scaffolds `mt.json`, `.mt/`, `.gitignore` entries and `.mt/master.key`.
 
 `mt.json` keys you will touch: `project.name`, `pipelines[]`, `uris{}` (named aliases),
-`settings.llm.{tool,model,use}`, `secrets.envFile`, `imports[]`, `defaults.{retry,onError,concurrency}`,
+`settings.llm.{tool,model,use}`, `settings.constants.<NAME>` (tunable overrides, below), `secrets.envFile`,
+`imports[]`, `defaults.{retry,onError,concurrency}`,
 `scripts.{install,start,end,stop,exit,resume,error}` (paths to hook pipelines), `router.port`.
 
 ## Pipeline DSL
@@ -202,6 +203,22 @@ export default defineProcess()
 
 `MT_LLM_TOOL=ollama mt run ...` runs the same file against a real backend. Run offline smoke tests with
 `mt router --mock` (no keys, no network). An explicit `call`/`translate` argument on a tool beats everything.
+
+## Tunable constants (`constants` overrides)
+
+Text-processing tuning constants (chunk targets, reserves, concurrency, verification thresholds —
+export names from `@mt/tools` `constants.ts`, e.g. `DEFAULT_CHUNK_TARGET`, `DEFAULT_MAX_TOKENS`,
+`DEFAULT_OUTPUT_RESERVE`, `DEFAULT_CHUNK_CONCURRENCY`, `MIN_CYRILLIC_RATIO`, `MAX_UNTRANSLATED_SHARE`)
+resolve per call, first defined wins:
+
+1. per-call `constants` variable on the Exchange: `setVariable(ex, 'constants', { DEFAULT_CHUNK_TARGET: 250 })`
+2. mt.json `settings.constants.<NAME>` (flat key): `{ "settings": { "constants": { "DEFAULT_CHUNK_TARGET": 250 } } }`
+3. env `MT_CONST_<NAME>` (`MT_CONST_DEFAULT_CHUNK_TARGET=250 mt run ...`)
+4. built-in constant
+
+An invalid value throws an error naming its source (`variable constants.DEFAULT_CHUNK_TARGET`,
+`settings.constants.DEFAULT_CHUNK_TARGET`, `env MT_CONST_DEFAULT_CHUNK_TARGET`); an absent value falls
+through. An explicit tool-factory option (e.g. `chunkSize`) still beats the chain.
 
 ## Run lifecycle, events, resume
 

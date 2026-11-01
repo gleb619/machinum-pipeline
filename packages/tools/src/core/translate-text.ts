@@ -8,6 +8,7 @@ import {
 } from '../constants.js'
 import { countTextTokens } from '../normalization/token-counter.js'
 import { cleanTranslation } from '../normalization/translation-prompt.js'
+import { resolveTunedNum } from '../resolve-constants.js'
 import {
   type ChunkBudget,
   DEFAULT_OUTPUT_RESERVE,
@@ -221,6 +222,7 @@ export function routerTranslateCall(
 function translateBudget(
   input: TranslateInput,
   options: TranslateTextOptions,
+  env: Exchange<unknown>,
   ctx: ToolContext,
 ): ChunkBudget | null {
   const ps = promptSourcesFromCtx(ctx, { tool: options.prompts })
@@ -252,7 +254,9 @@ function translateBudget(
     ctx,
     input: {
       model: input.model,
-      outputReserve: options.outputReserve ?? DEFAULT_OUTPUT_RESERVE,
+      outputReserve:
+        options.outputReserve ??
+        resolveTunedNum('DEFAULT_OUTPUT_RESERVE', DEFAULT_OUTPUT_RESERVE, env, ctx),
       overhead,
       reserve: options.reserve,
     },
@@ -312,7 +316,7 @@ export function createChunkedTranslateText(
       const allUsage = zeroUsage()
 
       for (const input of inputs) {
-        const budget = translateBudget(input, options, ctx)
+        const budget = translateBudget(input, options, env, ctx)
         if (!budget || (mode === 'auto' && !shouldChunkText(input.text, budget))) {
           const single = await gate.invoke(withItem(env, input), ctx)
           outputs.push(single.item)
@@ -340,7 +344,9 @@ export function createChunkedTranslateText(
             return out.item.translatedText
           },
           merge: (parts) => parts.join('\n\n'),
-          concurrency: options.chunkConcurrency ?? DEFAULT_CHUNK_CONCURRENCY,
+          concurrency:
+            options.chunkConcurrency ??
+            resolveTunedNum('DEFAULT_CHUNK_CONCURRENCY', DEFAULT_CHUNK_CONCURRENCY, env, ctx),
         })
 
         outputs.push({

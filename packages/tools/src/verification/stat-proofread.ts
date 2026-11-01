@@ -10,6 +10,7 @@ import {
 } from '../constants.js'
 import type { Glossary, TermMatcher } from '../normalization/term-tagger.js'
 import { compileTermMatcher } from '../normalization/term-tagger.js'
+import { resolveTunedNum } from '../resolve-constants.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -256,9 +257,17 @@ export function createStatProofread(options: StatProofreadOptions = {}): Tool<st
       'Offline proofreader for translated text: term consistency vs a glossary and ' +
       'Cyrillic/untranslated-share checks. Report in the proofread variable; with fix: "llm" it throws ' +
       'a retryable StatProofreadError carrying measured feedback.',
-    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const text = env.item
-      const report = buildProofreadReport(text, options)
+      const report = buildProofreadReport(text, {
+        ...options,
+        minCyrillicShare:
+          options.minCyrillicShare ??
+          resolveTunedNum('MIN_CYRILLIC_RATIO', MIN_CYRILLIC_RATIO, env, ctx),
+        maxUntranslatedShare:
+          options.maxUntranslatedShare ??
+          resolveTunedNum('MAX_UNTRANSLATED_SHARE', MAX_UNTRANSLATED_SHARE, env, ctx),
+      })
       if (!report.ok && options.fix === 'llm') {
         throw new StatProofreadError(report)
       }

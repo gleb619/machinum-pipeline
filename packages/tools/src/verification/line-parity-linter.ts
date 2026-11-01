@@ -8,6 +8,7 @@ import {
   PARITY_REL_TOLERANCE,
   UNTRANSLATED_MIN_LETTERS,
 } from '../constants.js'
+import { resolveTunedNum } from '../resolve-constants.js'
 
 /** Severity of a parity issue: `error` fails the check, `warn` is informational. */
 export type ParitySeverity = 'error' | 'warn'
@@ -322,9 +323,14 @@ export function createLineParityLinter(options: LineParityLinterOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Compares EN vs RU: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and think blocks. Report in the parity variable; throws a retryable error on hard errors. Optional stability escape hatch accepts a chunk when only the Cyrillic-ratio check fails and stays stable.',
-    async invoke(env, _ctx: ToolContext) {
+    async invoke(env, ctx: ToolContext) {
       const previous = history.get(env)
-      const report = lintLineParity(env.item.en, env.item.ru, options)
+      const report = lintLineParity(env.item.en, env.item.ru, {
+        ...options,
+        minCyrillicRatio:
+          options.minCyrillicRatio ??
+          resolveTunedNum('MIN_CYRILLIC_RATIO', MIN_CYRILLIC_RATIO, env, ctx),
+      })
       history.set(env, report)
       const final =
         previous && options.escapeHatch

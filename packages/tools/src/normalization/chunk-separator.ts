@@ -1,7 +1,8 @@
 import { defineTool, setVariables, withItem, withMeta } from '@mt/core'
-import type { Exchange, ToolContext } from '@mt/core'
+import type { Exchange, ToolContext, Variable } from '@mt/core'
 import { DECORATIVE_LINE_RE, DEFAULT_CHUNK_SEPARATOR } from '../constants.js'
 import { readCtx } from '../core/llm-config.js'
+import { resolveTunedNum } from '../resolve-constants.js'
 import { cleanSource } from './text-normalizer.js'
 import { DEFAULT_CHUNK_TARGET, type TokenCountFn, heuristicTokenCount } from './token-splitter.js'
 
@@ -183,10 +184,12 @@ export interface ChunkSizeOptions {
 /**
  * Resolve the chunk size in tokens. First defined wins:
  * `env.meta.chunkSize` → tool option `chunkSize` → mt.json `settings.chunkSize` →
- * `MT_CHUNK_SIZE` env → {@link DEFAULT_CHUNK_TARGET}.
+ * `MT_CHUNK_SIZE` env → `DEFAULT_CHUNK_TARGET` override chain (constants variable →
+ * mt.json `settings.constants.DEFAULT_CHUNK_TARGET` → `MT_CONST_DEFAULT_CHUNK_TARGET` env)
+ * → {@link DEFAULT_CHUNK_TARGET}.
  */
 export function resolveChunkSize(
-  env: Pick<Exchange, 'meta'>,
+  env: Pick<Exchange, 'meta'> & { variables?: Variable[] },
   ctx?: ToolContext,
   opts?: ChunkSizeOptions,
 ): number {
@@ -199,7 +202,7 @@ export function resolveChunkSize(
   if (fromSettings !== undefined) return fromSettings
   const fromEnv = toPositiveInt(view.env.MT_CHUNK_SIZE)
   if (fromEnv !== undefined) return fromEnv
-  return DEFAULT_CHUNK_TARGET
+  return resolveTunedNum('DEFAULT_CHUNK_TARGET', DEFAULT_CHUNK_TARGET, env, ctx)
 }
 
 export interface ChunkCleanOptions {

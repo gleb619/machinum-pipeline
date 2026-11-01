@@ -900,4 +900,11 @@ export {
 
 export * from './constants.js'
 
+export {
+  VAR_CONSTANTS,
+  resolveTunedNum,
+  resolveTunedStr,
+  type ConstantsEnv,
+} from './resolve-constants.js'
+
 export { createSeriesSplitTool, seriesSplitTool } from './modification/series-split.js'

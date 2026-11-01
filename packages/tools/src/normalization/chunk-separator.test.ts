@@ -1,6 +1,7 @@
-import { createExchange, getVariable } from '@mt/core'
+import { createExchange, getVariable, setVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
+import { VAR_CONSTANTS } from '../resolve-constants.js'
 import {
   DEFAULT_CHUNK_SEPARATOR,
   VAR_CHUNK_COUNT,
@@ -193,5 +194,34 @@ describe('resolveChunkSize', () => {
 
   it('falls back to the default chunk target', () => {
     expect(resolveChunkSize({ meta: {} }, ctxStub())).toBe(DEFAULT_CHUNK_TARGET)
+  })
+})
+
+describe('chunkSplit DEFAULT_CHUNK_TARGET overrides', () => {
+  it('stays single-chunk by default and splits via the constants variable', async () => {
+    const input = prose() // ~1000 heuristic tokens at 100/paragraph
+    const defaultOut = await chunkSplit.invoke(createExchange(input), ctxStub())
+    expect(getVariable(defaultOut, VAR_CHUNK_COUNT)).toBe(1)
+
+    const ex = setVariable(createExchange(input), VAR_CONSTANTS, { DEFAULT_CHUNK_TARGET: 250 })
+    const out = await chunkSplit.invoke(ex, ctxStub())
+    expect(getVariable(out, VAR_CHUNK_COUNT)).toBeGreaterThan(1)
+  })
+
+  it('splits via the settings.constants layer', async () => {
+    const input = prose()
+    const out = await chunkSplit.invoke(
+      createExchange(input),
+      ctxStub({ 'constants.DEFAULT_CHUNK_TARGET': 250 }),
+    )
+    expect(getVariable(out, VAR_CHUNK_COUNT)).toBeGreaterThan(1)
+  })
+
+  it('the per-call variables layer wins over settings', async () => {
+    const input = prose()
+    const ex = setVariable(createExchange(input), VAR_CONSTANTS, { DEFAULT_CHUNK_TARGET: 60_000 })
+    const ctx = ctxStub({ 'constants.DEFAULT_CHUNK_TARGET': 250 })
+    const out = await chunkSplit.invoke(ex, ctx)
+    expect(getVariable(out, VAR_CHUNK_COUNT)).toBe(1)
   })
 })

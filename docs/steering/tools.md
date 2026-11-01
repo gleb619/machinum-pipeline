@@ -443,6 +443,21 @@ separator instead of re-splitting.
 - Pure helpers: `stripSeparators`, `splitIntoChunks` (paragraph → line → word boundaries, never mid-word,
   never loses/reorders text), `joinChunks`, `parseChunks` (inverse; no re-split).
 
+### `resolve-constants.ts` — tunable constant overrides
+`resolveTunedNum(name, fallback, ex?, ctx?)` / `resolveTunedStr(...)` resolve a numeric/string tuning
+constant from `constants.ts` per call, first defined wins: per-call `constants` variable
+(`{ NAME: value }`, `VAR_CONSTANTS`) > mt.json `settings.constants.<NAME>` (flat key on
+`ctx.run.global.settings`) > env `MT_CONST_<NAME>` (`process.env` overlaid by `ctx.run.global.env`) >
+the fallback constant. Regex constants stay code-only. Numeric strings are accepted on every layer;
+an invalid value throws citing its source (`variable constants.X`, `settings.constants.X`,
+`env MT_CONST_X`); an absent (`undefined`/`null`/`''`) value falls through. An explicit tool-factory
+option still beats the chain — call sites keep the shape `options.x ?? resolveTunedNum(...)`.
+Migrated call sites: `resolveChunkSize` (`DEFAULT_CHUNK_TARGET`), `translate-text` /
+`proofread` outputReserve (`DEFAULT_OUTPUT_RESERVE`), `translate-text` / `summary` chunk concurrency
+(`DEFAULT_CHUNK_CONCURRENCY`), `token-splitter` maxTokens (`DEFAULT_MAX_TOKENS`), `stat-proofread`
+(`MIN_CYRILLIC_RATIO`, `MAX_UNTRANSLATED_SHARE`), `line-parity-linter` (`MIN_CYRILLIC_RATIO`); the
+remaining constants migrate the same way when needed.
+
 ### `normalization/chunk-tokens.ts`
 Alternate descent `chunks -> tokens` (sibling of `chunks -> paragraphs`): tiktoken-style BPE tokens of a chunk.
 

@@ -22,6 +22,7 @@ import type {
   SchemaDocLlmOptions,
 } from '../normalization/schema/llm.js'
 import { countTextTokens } from '../normalization/token-counter.js'
+import { resolveTunedNum } from '../resolve-constants.js'
 
 // ---------------------------------------------------------------------------
 // Bundled prompts
@@ -228,7 +229,10 @@ function proofreadBudget(
     ctx,
     input: {
       model: resolved.model,
-      outputReserve: options.outputReserve ?? options.maxTokens ?? DEFAULT_OUTPUT_RESERVE,
+      outputReserve:
+        options.outputReserve ??
+        options.maxTokens ??
+        resolveTunedNum('DEFAULT_OUTPUT_RESERVE', DEFAULT_OUTPUT_RESERVE, env, ctx),
       overhead,
       reserve: options.reserve,
     },

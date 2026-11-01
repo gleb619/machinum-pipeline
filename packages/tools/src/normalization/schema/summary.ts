@@ -19,6 +19,7 @@ import {
   shouldChunkText,
 } from '../../core/chunk-processor.js'
 import { composePromptBlocks } from '../../core/prompt-blocks.js'
+import { resolveTunedNum } from '../../resolve-constants.js'
 import { splitSentences } from '../heuristic-summary.js'
 import { countTextTokens } from '../token-counter.js'
 import {
@@ -158,6 +159,7 @@ async function runChunkedSummary(
   resolved: SchemaDocLlmOptions,
   budget: ChunkBudget,
   options: Pick<SummaryChunkOptions, 'splitUnit' | 'chunkConcurrency'>,
+  env: Exchange<unknown>,
 ): Promise<{ summary: string; chunks: number; outcomes: PromptRetryResult<string>[] }> {
   const chunks = adaptiveSemanticChunks(source.body, budget, {
     unit: options.splitUnit ?? 'paragraph',
@@ -173,7 +175,9 @@ async function runChunkedSummary(
       return outcome.ok && outcome.value !== undefined ? outcome.value : chunk
     },
     merge: mergeSummaries,
-    concurrency: options.chunkConcurrency ?? DEFAULT_CHUNK_CONCURRENCY,
+    concurrency:
+      options.chunkConcurrency ??
+      resolveTunedNum('DEFAULT_CHUNK_CONCURRENCY', DEFAULT_CHUNK_CONCURRENCY, env, ctx),
   })
   return { summary, chunks: chunks.length, outcomes: outcomes.filter(Boolean) }
 }
@@ -227,10 +231,17 @@ export function createSummaryTool(options?: SchemaDocLlmOptions & SummaryChunkOp
             outcome = await runSingleSummary(ctx, source, resolved)
             summary = outcome.ok && outcome.value !== undefined ? outcome.value : source.body
           } else {
-            const chunked = await runChunkedSummary(ctx, source, resolved, budget, {
-              splitUnit,
-              chunkConcurrency,
-            })
+            const chunked = await runChunkedSummary(
+              ctx,
+              source,
+              resolved,
+              budget,
+              {
+                splitUnit,
+                chunkConcurrency,
+              },
+              env,
+            )
             summary = chunked.summary
             results.push(...chunked.outcomes)
             chunkRecords.push({ chunks: chunked.chunks, budget })
@@ -398,7 +409,9 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions & SummaryCh
                 return once.notes
               },
               merge: (outs) => mergeNotes(outs, noteCount),
-              concurrency: chunkConcurrency ?? DEFAULT_CHUNK_CONCURRENCY,
+              concurrency:
+                chunkConcurrency ??
+                resolveTunedNum('DEFAULT_CHUNK_CONCURRENCY', DEFAULT_CHUNK_CONCURRENCY, env, ctx),
             })
             chunkRecords.push({ chunks: chunks.length, budget })
           }
