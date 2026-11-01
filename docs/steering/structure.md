@@ -41,7 +41,7 @@ packages/core/src/
 ├── types.ts          # Source<T>, Tool<I,O>, Target<T>, Exchange<T> (Envelope alias), Lifecycle, RunState
 ├── contexts.ts       # GlobalContext → RunContext → ToolContext chain (backrefs, no copies)
 ├── dsl.ts            # definePipeline(), defineTool(), defineSource(), defineTarget(), defineWaypoint()
-├── suite.ts          # defineSuite(): run several pipelines sequentially in one process
+├── suite.ts          # defineSuite(): run several pipelines sync or in parallel in one process
 ├── uri.ts            # UriRegistry: registerSource/Target, resolveSource/Target, parse
 ├── config.ts         # mt.json loader and shape
 ├── settings.ts       # getSetting() helper

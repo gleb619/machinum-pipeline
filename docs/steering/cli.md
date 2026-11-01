@@ -69,9 +69,9 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | Command | File | Description |
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
-| `mt run <pipeline.ts>` | `run.ts` | Execute a pipeline; build GlobalContext, load module, start Runner. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit |
+| `mt run <pipeline.ts> [--pipeline <name>]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit |
 | `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup); `--pipeline <name>` for named exports |
-| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file comes from state.json unless given; runs `scripts.resume` before resuming |
+| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file/id come from state.json (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON exchange on stdin/stdout (`id`/`variables` optional, normalized by `toExchange`)); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
@@ -84,15 +84,37 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 
 `tool.ts` resolves the tool before reading stdin (a bad name must not hang the terminal), then builds a minimal RunContext/ToolContext like the Runner's (`loadGlobalContext` + a `tool-<uuid>` runId, checkpoint id `standalone`).
 
-Both `run.ts` and `resume.ts` use `@mt/core`'s `loadGlobalContext()` plus a local `loadPipeline()`:
+Both `run.ts` and `resume.ts` use `@mt/core`'s `loadGlobalContext()` plus a local loader:
 
 ```typescript
 const ctx = await loadGlobalContext(projectRoot) // mt.json + secrets.envFile — same loader as the backend
-const pipeline = await loadPipeline(pipelineFilePath, pipelineName)
-// pipeline is a Pipeline instance (result of definePipeline().…)
+const runnable = await loadRunnable(pipelineFilePath, pipelineName) // run.ts → Pipeline | PipelineSuite
+// resume.ts: const pipeline = await loadPipeline(pipelineFilePath, state.pipelineId, state.pipelineName)
 ```
 
-`loadPipeline()` uses `tsx`/`jiti` dynamic import — the consumer file is **not** compiled ahead of time. Plain `import`, `console.log`, and conditionals all work inside pipeline files.
+`mt run <file>` resolves the runnable in this order:
+
+1. `--pipeline <name>` — exactly that export, whether it is a `Pipeline` or a `PipelineSuite`.
+2. Default export is a suite (`isPipelineSuite`) — run it as declared (`mode` from the suite).
+3. Otherwise — build an **implicit suite** from every exported `Pipeline` (`isPipeline`: object with a
+   string `id` and a `steps` array). The default export comes first (falling back to `pipeline`), then
+   the remaining exports alphabetically, deduped by identity. Id: `<file-basename>-suite`
+   (e.g. `basic-md-processing-suite`), mode `'sync'`. The suite is run, not awaited from sample code.
+
+A `--pipeline` export that is an id-only legacy object is still accepted. Errors name the missing/invalid
+export.
+
+For suites the CLI logs `Starting suite: <id> (<n> pipelines, mode: <mode>)`, collects each Runner via
+`onRunner` (binding the DuplexLogger run id), pauses every collected Runner on SIGINT, and on success
+prints `✅ Suite complete.` plus each `pipeline.id -> runId`.
+
+`resume` always reads `.mt/runs/<runId>/state.json` for `pipelineId` (and `pipelineFile`/`pipelineName`
+when the file argument is missing). It resolves a named export first, otherwise finds the `Pipeline` whose
+`id` equals `pipelineId` among the module exports **including `suite.pipelines`**. If the export is a suite
+without that pipeline it fails with a clear message: a suite cannot be resumed as a whole.
+
+The loader uses `tsx`/`jiti` dynamic import — the consumer file is **not** compiled ahead of time. Plain
+`import`, `console.log`, and conditionals all work inside pipeline files.
 
 The single-file binary installs its own loader (`@mt/core`'s `setPipelineModuleLoader`, implemented in
 `packages/mt/src/pipeline-loader.ts`): it resolves every bare specifier of the pipeline against the
@@ -108,11 +130,13 @@ Entry point: `main()` function, arg parsing, dispatch to command modules. Handle
 
 ### `src/commands/run.ts`
 1. `loadGlobalContext(projectRoot)` → `GlobalContext` (from `@mt/core`; no CLI-local `mt.json` parsing)
-2. `loadPipeline(file, name?)` → `Pipeline`
+2. `loadRunnable(file, name?)` → `Pipeline | PipelineSuite` (named export → default suite → implicit suite)
 3. `runLifecycleScript(ctx, 'start')` → no-op unless `scripts.start` is defined in mt.json
-4. `new Runner(pipeline, ctx)` → `runner.start()`
-5. Listen for SIGINT → `runner.pause()` → `runLifecycleScript(ctx, 'stop')` → `runLifecycleScript(ctx, 'exit')`
-6. On main pipeline failure → `runLifecycleScript(ctx, 'error')`
+4. Pipeline: `new Runner(pipeline, ctx)` → `runner.start()`; suite: `suite.run(ctx, { onRunner })`, one
+   Runner per pipeline (sync sequential, or `Promise.all` in `'parallel'` mode)
+5. Listen for SIGINT → pause the pipeline Runner (or every collected suite Runner) →
+   `runLifecycleScript(ctx, 'stop')` → `runLifecycleScript(ctx, 'exit')`
+6. On main run failure → `runLifecycleScript(ctx, 'error')`
 7. `runLifecycleScript(ctx, 'end')` in a finally-style path (runs on success AND failure; an
    end-hook error is logged as a warning and never masks the main outcome)
 8. `runLifecycleScript(ctx, 'exit')` before the process exits
@@ -127,12 +151,14 @@ undefined or the script file is invalid.
 ### `src/commands/resume.ts`
 Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`, and runs
 `runLifecycleScript(ctx, 'resume')` before resuming. On resume failure it also runs
-`runLifecycleScript(ctx, 'error')`. The pipeline file
-is resolved in this order: the explicit `[pipeline.ts]` argument, then `pipelineFile`/`pipelineName`
-recorded in `.mt/runs/<runId>/state.json` (written by `mt run` since T096). Runs started by older
-versions without a recorded file get an error naming the exact `mt resume <runId> <pipeline.ts>`
-fallback. `Runner.resume()` throws `pipelineId mismatch` when the loaded pipeline's `id` differs
-from the recorded run.
+`runLifecycleScript(ctx, 'error')`. `state.json` is always read for `pipelineId`; the pipeline file is
+the explicit `[pipeline.ts]` argument when given, otherwise `pipelineFile` recorded in
+`.mt/runs/<runId>/state.json` (written by `mt run` since T096). The pipeline is then found by matching
+`pipelineId` against module exports, including pipelines nested in a suite export. A suite itself cannot
+be resumed: if only a non-matching suite is found, the command explains that the run belongs to one of its
+pipelines. Runs started by older versions without a recorded file get an error naming the exact
+`mt resume <runId> <pipeline.ts>` fallback. `Runner.resume()` throws `pipelineId mismatch` when the loaded
+pipeline's `id` differs from the recorded run.
 
 ### `src/commands/serve.ts`
 - `serveCommand()` lazy-imports `@mt/backend/standalone` and calls `startBackend()` (plain h3 on `node:http`; no Nitro

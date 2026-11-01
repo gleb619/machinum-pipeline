@@ -59,7 +59,7 @@ Cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
 
 Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [steering/waypoint.md](../steering/waypoint.md#structure-ladder).
 
-A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) and suite factory (`defineSuite`) are only the orchestration grammar.
+A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) and suite factory (`defineSuite`) are only the orchestration grammar; `mt run <file>` runs the default suite (or an implicit suite of all exported pipelines).
 
 ---
 

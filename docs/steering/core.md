@@ -10,7 +10,7 @@ Core is the engine library — it contains all types, the DSL, the URI registry,
 
 Re-exports everything needed by consumers:
 - `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`, `defineProcess` (DSL builders)
-- `defineSuite`, `isPipelineSuite` (run several pipelines sequentially; see [Suites](#suites))
+- `defineSuite`, `isPipeline`, `isPipelineSuite` (run several pipelines sync or parallel; see [Suites](#suites))
 - `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
@@ -129,7 +129,7 @@ definePipeline()
 | Method | Signature | Effect |
 |---|---|---|
 | `definePipeline()` | `definePipeline({ id?, retry?, onError? }?)` | Entry point — creates the builder. `id` defaults to the pipeline filename (parent dir for `index.ts`/`pipeline.ts`); defaults: `retry { max: 3, backoffMs: 1000, strategy: 'exp' }`, `onError: 'fail-run'`. |
-| `defineSuite()` | `defineSuite(pipelines, { id? }?)` | Runs pipelines sequentially in declaration order against one shared `GlobalContext`; call `await suite.run()`. |
+| `defineSuite()` | `defineSuite(pipelines, { id?, mode? }?)` | Wraps pipelines into a runnable suite (`mode` defaults to `'sync'`); call `await suite.run()`. |
 | `.from()` | `.from(Source<T> \| string)` | Sets the Source. URI string (resolved via the registry; a named `mt.json` alias defers to the Runner at run time) or instance (carried through as-is — what lets `defineWaypoint` wrappers reach the run). |
 | `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
@@ -143,23 +143,32 @@ definePipeline()
 
 ### Suites
 
-`defineSuite(pipelines, { id? })` returns `{ kind: 'pipeline-suite', id, pipelines, run(ctx?, runnerOptions?) }`.
-`await suite.run()` runs each pipeline sequentially in declaration order — one Runner/run id per pipeline, one
-shared `GlobalContext` — and stops on the first failure. With no context arg it calls
-`loadGlobalContext(process.cwd())`. An empty array or a pipeline without a string `id` throws `TypeError` at
-definition time. Use `isPipelineSuite(value)` as the type guard.
+`defineSuite(pipelines, { id?, mode? })` returns
+`{ kind: 'pipeline-suite', id, pipelines, mode, sync(), parallel(), run(ctx?, options?) }`.
+Each pipeline gets its own Runner/run id; all share one `GlobalContext`. `mode` defaults to `'sync'`
+(sequential, declaration order, stops on the first failure). `'parallel'` starts every Runner and awaits
+`Promise.all` over them; a failure rejects the suite. With no context arg `run()` calls
+`loadGlobalContext(process.cwd())`.
+
+`suite.sync()` / `suite.parallel()` return a **new** suite with the same id and pipelines and the changed
+mode — the original is never mutated. An empty array or a pipeline without a string `id` and `steps` array
+throws `TypeError` at definition time. Use `isPipelineSuite(value)` / `isPipeline(value)` as type guards.
+
+`SuiteRunOptions` extends `RunnerOptions` with `onRunner?: (runner, pipeline) => void`, called once per
+pipeline after `runner.start()` has minted the run id (synchronously) and before the run is awaited.
 
 ```ts
-export const all = defineSuite([pipelineA, pipelineB], { id: 'all' })
-await all.run()
+export const all = defineSuite([pipelineA, pipelineB], { id: 'all', mode: 'sync' })
+await all.parallel().run(ctx, { onRunner: (runner, pipeline) => log(pipeline.id, runner.getRunId()) })
 ```
 
-Programmatic only: `mt run --pipeline` selects one `Pipeline` per invocation.
+`mt run <file>` runs the default suite (or an implicit suite built from every exported pipeline); see
+[cli.md](cli.md#pipeline-loading).
 
 ### `suite.ts` — `defineSuite()`
 
-`defineSuite(pipelines, { id? })` — wraps several pipelines into one runnable suite; `await suite.run()`
-executes them sequentially (one Runner/run id each) against a shared `GlobalContext`. Full contract in
+`defineSuite(pipelines, { id?, mode? })` — wraps several pipelines into one runnable suite (one Runner/run id
+each, shared `GlobalContext`); `.sync()` / `.parallel()` switch mode immutably. Full contract in
 [Suites](#suites).
 
 **Tool composition** (all optional; plain `Tool`s and `.use()` unchanged):

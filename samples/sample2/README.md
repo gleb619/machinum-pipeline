@@ -32,15 +32,15 @@ jsonl://./jsonl/input.jsonl
   → flatMap              (record → one envelope per line)
   → wordCounter          (shipped tool → `wordCount` variable)
   → toMarkdownTool       (shipped tool → markdown text)
-  → md://./output.md
+  → md://./chapters/output.md
 ```
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` | `pnpm run runner:basic` | JSONL → `wordCounter` → `toMarkdownTool` → `output.md` |
+| `default` (suite `basic-md-all`) | `pnpm run runner:basic` | Runs all three pipelines below, sequentially, in one process |
+| `defaultPipeline` | `pnpm run runner:basic -- --pipeline defaultPipeline` | JSONL → `wordCounter` → `toMarkdownTool` → `chapters/output.md` |
 | `typedContentPipeline` | `pnpm run runner:basic -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `output-typed.md` |
 | `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
-| `allPipelines` | see below | `defineSuite([...])` — runs the three pipelines sequentially in one process |
 
 Where the advanced pipeline writes its own glue, the basics pipeline reuses shipped tools:
 
@@ -228,15 +228,15 @@ pnpm run runner:ladder    # out/ladder-chapters/*.md + out/ladder-summary.md
 ```bash
 cd samples/sample2
 pnpm run prepare-input
-pnpm run runner          # basics pipeline
-cat output.md
+pnpm run runner:basic    # default suite: all three basics pipelines
+cat chapters/output.md
 ```
 
-Run all three in one process:
+`mt run` runs the file's default suite. Select one export with `--pipeline`:
 
-```ts
-import { allPipelines } from './pipelines/basic-md-processing.ts'
-await allPipelines.run()
+```bash
+pnpm run runner:basic -- --pipeline defaultPipeline
+pnpm run runner:stats
 ```
 
 The advanced pipeline:
@@ -262,7 +262,7 @@ pnpm run cleanup
 `tests/basic-md-processing.test.ts` writes fixed three-line JSONL input, runs the basics
 pipelines, and asserts:
 
-- `output.md` contains every input line,
+- `chapters/output.md` contains every input line,
 - the default pipeline logs the shipped `wordCounter` result per line (`wordCount=5`),
 - `statsPipeline` logs the shipped `statFreq` report (`totalWords=15`, `uniqueWords=7`).
 
