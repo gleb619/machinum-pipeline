@@ -1,7 +1,7 @@
 import {
   type Chunk,
-  type Line,
   type Token,
+  type Word,
   definePipeline,
   defineProcess,
   getVariable,
@@ -18,7 +18,6 @@ import {
   readChapterDoc,
   splitIntoChunks,
   tokenizeChunkDetailed,
-  tokenizeWords,
 } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -29,6 +28,12 @@ const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
 // Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
 // A stage writes to the matching temp://<rung>/<namespace> buffer; the next stage
 // reads it back through the typed rung (temp://chunks/ladder -> chunks://ladder).
+
+// Series split runs first: chapter1.md → series doc.
+const seriesSplitFirstStage = definePipeline({ id: 'sample2-series-split-first' })
+  .from('md://./chapters/chapter1.md')
+  .subflow('series://')
+  .to('md://./chapters/series-output.md')
 
 // Clean chapter1.md, split into chunks, write chunked.md.
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
@@ -62,6 +67,7 @@ const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
 
 // Round-trip: split, persist, reload, split again.
 export const cleanSplitPipeline = definePipeline({ id: 'sample2-chunk-normalization' })
+  .subflow(seriesSplitFirstStage)
   .subflow(cleanSplitStage)
   .subflow(reuseStage)
 
@@ -69,14 +75,6 @@ interface LadderRecord {
   number: number
   title: string
   paragraphs: string[][]
-}
-
-interface WordEntity {
-  id: string
-  paragraphId: string
-  lineId: string
-  word: string
-  index: number
 }
 
 // Rung counters, bumped by .tap() in each ladder stage.
@@ -111,16 +109,6 @@ function toChunks(doc: ReturnType<typeof readChapterDoc>): Chunk[] {
     index,
     body,
     tokens: heuristicTokenCount(body),
-  }))
-}
-
-function toWords(line: Line): WordEntity[] {
-  return tokenizeWords(line.text).map((word, index) => ({
-    id: `${line.id}/word-${index + 1}`,
-    paragraphId: line.paragraphId,
-    lineId: line.id,
-    index,
-    word,
   }))
 }
 
@@ -168,7 +156,7 @@ const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
   .to('temp://chunks/ladder')
 
 // Rung 3: Chunk → Paragraphs, one per blank-line block. `.subflow('#paragraphs')`
-// is the shortcut for `.subflow('paragraphs')` / `.subflow('paragraphs://')`.
+// is the shortcut for `.subflow('paragraphs://')`; bare `'paragraphs'` is rejected.
 const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
   .from('chunks://ladder')
   .subflow('#paragraphs')
@@ -176,17 +164,17 @@ const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
   .to('temp://paragraphs/ladder')
 
 // Rung 4: Paragraph → Lines (non-empty only) with the registered line splitter.
-// The explicit URI form resolves the same splitter as `.subflow('lines')`.
+// The explicit URI form resolves the same splitter as `.subflow('#lines')`.
 const lineStage = definePipeline({ id: 'sample2-ladder-lines' })
   .from('paragraphs://ladder')
   .subflow('lines://')
   .tap(countRung('lines'))
   .to('temp://lines/ladder')
 
-// Rung 5: Line → Words (lightweight entities with parent ids).
+// Rung 5: Line → Words (core Word entities with parent ids).
 const wordStage = definePipeline({ id: 'sample2-ladder-words' })
   .from('lines://ladder')
-  .flatMap(async (line: unknown) => toWords(line as Line))
+  .subflow('#words')
   .tap(countRung('words'))
   .to('temp://words/ladder')
 
@@ -195,7 +183,7 @@ const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
   .from('words://ladder')
   .batch(10_000)
   .tap(async () => logLadderCounts())
-  .flatMap(async (words: unknown) => [renderLadderSummary((words as WordEntity[]).length)])
+  .flatMap(async (words: unknown) => [renderLadderSummary((words as Word[]).length)])
   .use(mdOutputEmitter({ name: 'ladder-summary', filename: () => 'ladder-summary.md' }))
   .to('md://./chapters')
 
