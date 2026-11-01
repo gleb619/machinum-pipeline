@@ -1,4 +1,4 @@
-import { definePipeline, getVariable } from '@mt/core'
+import { definePipeline, defineSuite, getVariable } from '@mt/core'
 import { chapterDocBuild, readChapterDoc, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -147,32 +147,22 @@ export const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   })
   .to('void://')
 
+export const allPipelines = defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
+  id: 'basic-md-all',
+})
+
 // ---------------------------------------------------------------------------
 // Running this file
 //
 // `mt run` does one pipeline per process:
-//   (no flag)          -> default export
-//   --pipeline <name>  -> named export
-//
 //   mt run ./pipelines/basic-md-processing.ts
 //   mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline
 //
 // package.json is still half-wired: `runner` is `echo 'todo'` and there is no
-// script for typedContentPipeline. Quick fix for whoever touches it:
-//   "runner":       "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
-//   "runner:typed": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline",
-//   "runner:all":   "pnpm run runner:basic && pnpm run runner:typed && pnpm run runner:stats"
+// script for typedContentPipeline. Point it at the commands above.
+//
+// run all three in one process:
+//   import { allPipelines } from './basic-md-processing.ts'
+//   await allPipelines.run()
 // ---------------------------------------------------------------------------
-
-// Run all three in one process. Commented out because `mt run` only takes one
-// pipeline anyway; uncomment, wire the imports and call it from a script if needed.
-//
-// import { Runner, loadGlobalContext } from '@mt/core'
-//
-// export async function runAll() {
-//   const ctx = await loadGlobalContext(process.cwd())
-//   for (const p of [defaultPipeline, typedContentPipeline, statsPipeline]) {
-//     await new Runner(p, ctx).start()
-//   }
-// }

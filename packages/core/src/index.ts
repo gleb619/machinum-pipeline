@@ -173,6 +173,8 @@ export type {
   WaypointSourceHooks,
   WaypointTargetHooks,
 } from './dsl.js'
+export { defineSuite, isPipelineSuite } from './suite.js'
+export type { PipelineSuite, PipelineSuiteOptions } from './suite.js'
 export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
 export type {
   ParsedUri,

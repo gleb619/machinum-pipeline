@@ -128,6 +128,7 @@ definePipeline()
 | Method | Signature | Effect |
 |---|---|---|
 | `definePipeline()` | `definePipeline({ id?, retry?, onError? }?)` | Entry point — creates the builder. `id` defaults to the pipeline filename (parent dir for `index.ts`/`pipeline.ts`); defaults: `retry { max: 3, backoffMs: 1000, strategy: 'exp' }`, `onError: 'fail-run'`. |
+| `defineSuite()` | `defineSuite(pipelines, { id? }?)` | Runs pipelines sequentially in declaration order against one shared `GlobalContext`; call `await suite.run()`. |
 | `.from()` | `.from(Source<T> \| string)` | Sets the Source. URI string (resolved via the registry; a named `mt.json` alias defers to the Runner at run time) or instance (carried through as-is — what lets `defineWaypoint` wrappers reach the run). |
 | `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
