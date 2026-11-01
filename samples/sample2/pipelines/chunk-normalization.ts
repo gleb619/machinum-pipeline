@@ -1,19 +1,13 @@
 import {
-  type Chapter,
   type Chunk,
   type Line,
   type Paragraph,
-  type Target,
   type Token,
   definePipeline,
   defineProcess,
-  defineSource,
-  defineTarget,
-  defineWaypoint,
   getVariable,
 } from '@mt/core'
 import {
-  type ChapterDoc,
   VAR_CHUNK_COUNT,
   VAR_CHUNK_SEPARATOR,
   chapterDocBuild,
@@ -34,6 +28,7 @@ import '@mt/waypoint'
 // Ladder default chunk size; MT_CHUNK_SIZE (real env) still wins everywhere.
 const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
 
+// Clean chapter1.md, split into chunks, write chunked.md.
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   .from('md://./chapters/chapter1.md')
   .use(chunkSplit)
@@ -48,6 +43,7 @@ const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   })
   .to('md://./chapters/chunked.md')
 
+// Read chunked.md back in and split again — chunk reuse via plain files.
 const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
   .from('md://./chapters/chunked.md')
   .use(chunkSplit)
@@ -62,35 +58,26 @@ const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
   })
   .to('md://./chapters/chunked-reused.md')
 
+// Round-trip: split, persist, reload, split again.
 export const cleanSplitPipeline = definePipeline({ id: 'sample2-chunk-normalization' })
   .subflow(cleanSplitStage)
   .subflow(reuseStage)
 
-interface LadderChapter extends Pick<Chapter, 'title'> {
+interface LadderRecord {
   number: number
+  title: string
   paragraphs: string[][]
-}
-
-type ChunkEntity = Chunk
-type ParagraphEntity = Paragraph & { chunkId: string }
-
-interface LineEntity extends Line {
-  chapterId: string
-  chunkId: string
 }
 
 interface WordEntity {
   id: string
-  chapterId: string
-  chunkId: string
   paragraphId: string
   lineId: string
   word: string
   index: number
 }
 
-type TokenEntity = Token
-
+// Rung counters, bumped by .tap() in each ladder stage.
 const ladderCounts = {
   records: 0,
   documents: 0,
@@ -101,39 +88,19 @@ const ladderCounts = {
   tokens: 0,
 }
 
-const ladderSource = defineWaypoint(defineSource<LadderChapter>('jsonl://./jsonl/ladder.jsonl'), {
-  onItem: () => {
-    ladderCounts.records += 1
-  },
-})
+type LadderRung = keyof typeof ladderCounts
 
-function countingTarget<T>(uri: string, key: keyof typeof ladderCounts): Target<T> {
-  return defineWaypoint(defineTarget<T>(uri), {
-    onOpen: () => {
-      ladderCounts[key] = 0
-    },
-    onWrite: () => {
-      ladderCounts[key] += 1
-    },
-    onClose: () => {
-      console.log(`[ladder] ${key}=${ladderCounts[key]}`)
-    },
-  })
+const countRung = (rung: LadderRung) => async () => {
+  ladderCounts[rung] += 1
 }
 
-function toChapterInput(record: LadderChapter): {
-  title: string
-  number: number
-  body: { lines: string[] }[]
-} {
-  return {
-    number: record.number,
-    title: record.title,
-    body: record.paragraphs.map((lines) => ({ lines })),
+function logLadderCounts(): void {
+  for (const [rung, count] of Object.entries(ladderCounts)) {
+    console.log(`[ladder] ${rung}=${count}`)
   }
 }
 
-function toChunks(doc: ChapterDoc): ChunkEntity[] {
+function toChunks(doc: ReturnType<typeof readChapterDoc>): Chunk[] {
   const chapterId = `chapter-${doc.number ?? 0}`
   const text = doc.body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n')
   return splitIntoChunks(text, { targetTokens: CHUNK_SIZE }).map((body, index) => ({
@@ -145,7 +112,7 @@ function toChunks(doc: ChapterDoc): ChunkEntity[] {
   }))
 }
 
-function toParagraphs(chunk: ChunkEntity): ParagraphEntity[] {
+function toParagraphs(chunk: Chunk): Paragraph[] {
   return chunk.body
     .split(/\n\n+/)
     .filter((part) => part.trim().length > 0)
@@ -158,25 +125,21 @@ function toParagraphs(chunk: ChunkEntity): ParagraphEntity[] {
     }))
 }
 
-function toLines(paragraph: ParagraphEntity): LineEntity[] {
+function toLines(paragraph: Paragraph): Line[] {
   return paragraph.body
     .split('\n')
     .map((text, index) => ({
       id: `${paragraph.id}/line-${index + 1}`,
       paragraphId: paragraph.id,
-      chapterId: paragraph.chapterId,
-      chunkId: paragraph.chunkId,
       index,
       text,
     }))
     .filter((line) => line.text.trim().length > 0)
 }
 
-function toWords(line: LineEntity): WordEntity[] {
+function toWords(line: Line): WordEntity[] {
   return tokenizeWords(line.text).map((word, index) => ({
     id: `${line.id}/word-${index + 1}`,
-    chapterId: line.chapterId,
-    chunkId: line.chunkId,
     paragraphId: line.paragraphId,
     lineId: line.id,
     index,
@@ -206,41 +169,58 @@ function renderLadderSummary(words: number): string {
   ].join('\n')
 }
 
+// Rung 0→1: ladder.jsonl records → chapter docs (md://).
 const documentStage = definePipeline({ id: 'sample2-ladder-documents' })
-  .from(ladderSource)
-  .flatMap(async (record: unknown) => [toChapterInput(record as LadderChapter)])
+  .from('jsonl://./jsonl/ladder.jsonl')
+  .tap(countRung('records'))
+  .flatMap(async (record: unknown) => {
+    const { title, number, paragraphs } = record as LadderRecord
+    return [{ title, number, body: paragraphs.map((lines) => ({ lines })) }]
+  })
   .use(chapterDocBuild)
   .use(chapterIndexer)
   .use(chapterDocEmit)
-  .to(countingTarget<string>('md://./chapters/ladder-chapters', 'documents'))
+  .tap(countRung('documents'))
+  .to('md://./chapters/ladder-chapters')
 
+// Rung 2: chapter docs → Chunks (core domain type).
 const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
   .from('md://./chapters/ladder-chapters')
   .flatMap(async (item: unknown) => toChunks(readChapterDoc(String(item))))
-  .to(countingTarget<ChunkEntity>('chunks://ladder', 'chunks'))
+  .tap(countRung('chunks'))
+  .to('chunks://ladder')
 
+// Rung 3: Chunk → Paragraphs, one per \n\n block.
 const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
   .from('chunks://ladder')
-  .flatMap(async (chunk: unknown) => toParagraphs(chunk as ChunkEntity))
-  .to(countingTarget<ParagraphEntity>('paragraphs://ladder', 'paragraphs'))
+  .flatMap(async (chunk: unknown) => toParagraphs(chunk as Chunk))
+  .tap(countRung('paragraphs'))
+  .to('paragraphs://ladder')
 
+// Rung 4: Paragraph → Lines (non-empty only).
 const lineStage = definePipeline({ id: 'sample2-ladder-lines' })
   .from('paragraphs://ladder')
-  .flatMap(async (paragraph: unknown) => toLines(paragraph as ParagraphEntity))
-  .to(countingTarget<LineEntity>('lines://ladder', 'lines'))
+  .flatMap(async (paragraph: unknown) => toLines(paragraph as Paragraph))
+  .tap(countRung('lines'))
+  .to('lines://ladder')
 
+// Rung 5: Line → Words (lightweight entities with parent ids).
 const wordStage = definePipeline({ id: 'sample2-ladder-words' })
   .from('lines://ladder')
-  .flatMap(async (line: unknown) => toWords(line as LineEntity))
-  .to(countingTarget<WordEntity>('words://ladder', 'words'))
+  .flatMap(async (line: unknown) => toWords(line as Line))
+  .tap(countRung('words'))
+  .to('words://ladder')
 
+// Collect all words, print rung counts, render summary table.
 const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
   .from('words://ladder')
   .batch(10_000)
+  .tap(async () => logLadderCounts())
   .flatMap(async (words: unknown) => [renderLadderSummary((words as WordEntity[]).length)])
   .use(mdOutputEmitter({ name: 'ladder-summary', filename: () => 'ladder-summary.md' }))
   .to('md://./chapters')
 
+// The Structure Ladder: records → docs → chunks → paragraphs → lines → words.
 export const ladderPipeline = definePipeline({ id: 'sample2-ladder' })
   .subflow(documentStage)
   .subflow(chunkStage)
@@ -251,7 +231,7 @@ export const ladderPipeline = definePipeline({ id: 'sample2-ladder' })
 
 let tokenHeuristic = false
 
-async function toTokens(chunk: ChunkEntity): Promise<TokenEntity[]> {
+async function toTokens(chunk: Chunk): Promise<Token[]> {
   const { tokens, heuristic } = await tokenizeChunkDetailed(chunk.body)
   if (heuristic) tokenHeuristic = true
   return tokens.map((token, index) => ({
@@ -278,35 +258,42 @@ function renderTokenSummary(tokens: number): string {
   ].join('\n')
 }
 
+// Token rung: reuse ladder chunks, tokenize each into core Tokens.
 const tokenStage = definePipeline({ id: 'sample2-ladder-tokens' })
   .from('chunks://ladder')
-  .flatMap(async (chunk: unknown) => toTokens(chunk as ChunkEntity))
-  .to(countingTarget<TokenEntity>('tokens://ladder', 'tokens'))
+  .flatMap(async (chunk: unknown) => toTokens(chunk as Chunk))
+  .tap(countRung('tokens'))
+  .to('tokens://ladder')
 
 const tokenSummaryStage = definePipeline({ id: 'sample2-ladder-token-summary' })
   .from('tokens://ladder')
   .batch(100_000)
-  .flatMap(async (tokens: unknown) => [renderTokenSummary((tokens as TokenEntity[]).length)])
+  .tap(async () => logLadderCounts())
+  .flatMap(async (tokens: unknown) => [renderTokenSummary((tokens as Token[]).length)])
   .use(mdOutputEmitter({ name: 'token-ladder-summary', filename: () => 'token-ladder-summary.md' }))
   .to('md://./chapters')
 
+// Same ladder but chunks → tokens instead of the paragraph/line/word rungs.
 export const tokenLadderPipeline = definePipeline({ id: 'sample2-token-ladder' })
   .subflow(documentStage)
   .subflow(chunkStage)
   .subflow(tokenStage)
   .subflow(tokenSummaryStage)
 
+// Split chapter1.md into a series doc.
 export const seriesSplitPipeline = definePipeline({ id: 'sample2-series-split' })
   .from('md://./chapters/chapter1.md')
   .use(seriesSplitTool)
   .to('md://./chapters/series-output.md')
 
+// All four lessons in one process: clean/split, ladder, token ladder, series split.
 const allPipelines = definePipeline({ id: 'sample2-chunk-normalization-suite' })
   .subflow(cleanSplitPipeline)
   .subflow(ladderPipeline)
   .subflow(tokenLadderPipeline)
   .subflow(seriesSplitPipeline)
 
+// Process entry: pin MT_CHUNK_SIZE so the run is reproducible.
 export default defineProcess()
   .config({ env: { MT_CHUNK_SIZE: String(CHUNK_SIZE) } })
   .pipeline(allPipelines)
