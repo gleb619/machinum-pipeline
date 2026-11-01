@@ -84,6 +84,8 @@ pnpm test               # All tests (Vitest)
 pnpm test --filter=@mt/core          # Single package
 pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts  # Single file
 pnpm dev --filter=@mt/core           # Watch mode
+pnpm ci:check           # wrkflw validate only (fast loop when editing workflows)
+pnpm ci:local           # wrkflw guard: validate + Docker job subset (pre-merge gate)
 pnpm build:bin          # Single-file binary (incl. `mt serve` + UI) -> packages/mt/dist/bin/mt (needs bun)
 pnpm smoke:bin          # Build binary + smoke test: run/imports/serve/SSE/UI (no node_modules, no node on PATH)
 bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build -> dist/bin/mt-linux-arm64

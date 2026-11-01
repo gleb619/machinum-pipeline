@@ -48,7 +48,7 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
 4. **Commit** — only when the pre-commit gate is green.
 5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
    (`samples/sample*/tests/`) **and** the GPU gate `pnpm test:gpu` has been **run**. Red → stay on
-   branch, fix, re-run.
+   branch, fix, re-run. Also run the **wrkflw guard** `pnpm ci:local` (see below) and paste its summary line.
 6. **Rebase + FF-merge + cleanup** — rebase the feature branch onto `main` (`git rebase main`),
    then merge → FF only (`git merge --ff-only`) → delete branch + worktree.
    **Regular merge commits are forbidden.** Never use `git merge --no-ff` or merge without rebase.
@@ -66,6 +66,17 @@ and must be run explicitly before FF-merge. If the server is unreachable the tes
 message** — that failure is reported, never silently skipped: a skipped or unrun GPU gate is not a green
 merge, and the merge report must state the `pnpm test:gpu` result (or why it could not run).
 
+**wrkflw guard (`pnpm ci:local`, `scripts/wrkflw-guard.sh`)** — proves a change will not break `main` CI.
+- `pnpm ci:check` (`--quick`): `wrkflw validate` only, no Docker, <1s. Fast loop while editing workflows; not the gate.
+- `pnpm ci:local`: pre-merge gate. Validate + `wrkflw run --runtime docker` for `skill-drift` + faithful stand-ins for
+  `shellcheck` (local or `koalaman/shellcheck`) and `hadolint`. Prints one summary line (`RESULT=GREEN|RED`) for the merge note.
+  Needs `wrkflw` and Docker; missing either **fails** (never silent skip). `WRKFLW_GUARD_SKIP=1` is a loud, explicit
+  opt-out that must be stated in the merge note. `WRKFLW_JOBS="a b"` / `--jobs` / `--all` override the job set.
+- wrkflw limits (v0.8.0, empirical): jobs run on bare `ubuntu:latest` (no node/corepack/shellcheck/docker CLI).
+  `lint`, `typecheck`, `test`, `binary` fail at the composite `.github/actions/setup` (`corepack enable`: command not found),
+  `docker` fails (needs `binary`, docker-in-docker). Those stay covered by `pnpm lint`/`typecheck`/`test`/`smoke:bin`.
+  No `--dry-run` exists; `validate` is the dry check. `--event` needs `--diff`/`--changed-files`, so the guard omits it.
+
 **Commit hygiene** — tests leave temp artifacts (e.g. `samples/sample3/chapters/en/*.md.tmp.*`,
 `samples/*/out/`). Never `git add -A` / `git add .`: stage explicit paths and check `git status`
 first. Pre-existing lint errors on `main` (e.g. `samples/sample3/pipelines/jsonl-to-md-multi.ts`
@@ -76,7 +87,7 @@ organizeImports) are not caused by your worktree; do not fix unrelated files.
 2. `pnpm install --offline --frozen-lockfile && pnpm build && pnpm install --offline --frozen-lockfile`
 3. Export `MT_OLLAMA_URL`/`MT_OLLAMA_MODEL` from `.ollama-remote.md`
 4. Code -> `pnpm lint` + scoped tests -> `git status` -> `git add <paths>` -> commit
-5. Samples IT + `pnpm test:gpu` green -> `git rebase main` -> `git merge --ff-only` from main -> remove worktree + branch
+5. Samples IT + `pnpm test:gpu` + `pnpm ci:local` green -> `git rebase main` -> `git merge --ff-only` from main -> remove worktree + branch
 
 ---
 

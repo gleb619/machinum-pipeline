@@ -130,6 +130,10 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
   Host-specific commands for the `borispc3.ai` remote GPU are kept in the gitignored `.ollama-remote.md`; use the
   `borispc3ai` skill to read or refresh them. It is excluded from `pnpm test`, so it must be run explicitly.
   An unreachable server **fails with a clear message** — report that failure; never skip it silently or merge claiming the gate passed.
+- **Merge acceptance includes the wrkflw guard** — run `pnpm ci:local` (wrkflw validate + Docker job subset;
+  needs `wrkflw` + Docker) before any FF-merge and report its one-line result. Failure to run = red, never silent
+  skip. `pnpm ci:check` (validate only, seconds) is the fast loop while editing `.github/workflows/`. Scope/limits:
+  [docs/change-workflow.md](docs/change-workflow.md).
 - **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse; `cli/` may also import `waypoint/` for URI registration and `backend/standalone` for `mt serve` - lazy, so the CLI starts without h3/SQLite); `frontend/` → backend API only;
   `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
 - **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.

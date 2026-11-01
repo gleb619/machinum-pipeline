@@ -74,7 +74,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: shellcheck (ubuntu-latest ships shellcheck)
-        run: shellcheck -s sh docs/install.sh && shellcheck -s sh docker/entrypoint.sh
+        run: shellcheck -s sh docs/install.sh && shellcheck -s sh docker/entrypoint.sh && shellcheck -s bash scripts/wrkflw-guard.sh
 
   docker:
     # Lint + build (no push) of the Dockerfile from the binary built in the `binary` job.
