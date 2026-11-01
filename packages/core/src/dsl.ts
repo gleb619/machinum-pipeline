@@ -316,9 +316,10 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * into the parent stream; a child with its own source is self-contained).
    *
    * String form: resolve the registered `Splitter` for that entity/buffer URI scheme and
-   * fan out 1 → N. For example `.subflow('paragraphs')` splits chunks into paragraphs and
-   * `.subflow('lines')` splits paragraphs into lines. Accepts a bare type or a buffer URI
-   * (`'paragraphs://ladder'`). The splitter receives the full Exchange.
+   * fan out 1 → N. For example `.subflow('paragraphs://')` (or `'#paragraphs'`) splits chunks
+   * into paragraphs and `.subflow('lines://')` splits paragraphs into lines. Accepts a buffer
+   * URI (`'paragraphs://'` / `'paragraphs://ladder'`) or the `#scheme` shortcut; a bare
+   * `'paragraphs'` is rejected. The splitter receives the full Exchange.
    *
    * `.fork()` is per-envelope child-Runner nesting, not a split: it starts a nested Runner
    * for each envelope and is too heavy for a plain 1 → N transformation.

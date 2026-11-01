@@ -160,9 +160,9 @@ function partitionReadableUnits(
 /**
  * Split text into `parts` readable pieces without cutting a sentence.
  *
- * Whole paragraphs are used first when there are enough of them; otherwise sentences are
- * grouped, with paragraph breaks preserved between groups. A single sentence is never cut,
- * so the result may contain fewer than `parts` pieces when the text is too short.
+ * Two or more paragraphs are kept whole and grouped (never split mid-paragraph); a single
+ * paragraph falls back to whole sentences. A sentence is never cut, so the result may contain
+ * fewer than `parts` pieces when the text is too short.
  */
 export function splitReadableParts(text: string, parts: number): string[] {
   const count = Number.isFinite(parts) && parts > 1 ? Math.floor(parts) : 0
@@ -174,14 +174,17 @@ export function splitReadableParts(text: string, parts: number): string[] {
     .filter((paragraph) => paragraph.length > 0)
   if (paragraphs.length === 0) return [text]
 
-  if (paragraphs.length >= count) {
+  // Multiple paragraphs: never break paragraph logic to hit an exact part count.
+  // The result may contain fewer than `count` pieces when the chapter is short.
+  if (paragraphs.length >= 2) {
     return partitionReadableUnits(
       paragraphs.map((paragraph, index) => ({ text: paragraph, paragraph: index })),
-      count,
+      Math.min(count, paragraphs.length),
       '\n\n',
     )
   }
 
+  // A single paragraph: fall back to whole-sentence boundaries so the text stays readable.
   const sentences: ReadableUnit[] = []
   paragraphs.forEach((paragraph, paragraphIndex) => {
     for (const sentence of splitSentenceUnits(paragraph)) {
