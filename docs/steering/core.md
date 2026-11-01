@@ -162,8 +162,9 @@ export const all = defineSuite([pipelineA, pipelineB], { id: 'all', mode: 'sync'
 await all.parallel().run(ctx, { onRunner: (runner, pipeline) => log(pipeline.id, runner.getRunId()) })
 ```
 
-`mt run <file>` runs the default suite (or an implicit suite built from every exported pipeline); see
-[cli.md](cli.md#pipeline-loading).
+A suite is usually the module's default export; `mt run <file>` runs it as declared. Without a default
+suite, a default pipeline runs alone; only a module with neither gets an implicit suite (see
+[cli.md](cli.md#pipeline-loading)).
 
 ### `suite.ts` — `defineSuite()`
 

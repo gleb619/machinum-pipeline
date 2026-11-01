@@ -37,10 +37,13 @@ jsonl://./jsonl/input.jsonl
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` (suite `basic-md-all`) | `pnpm run runner:basic` | Runs all three pipelines below, sequentially, in one process |
+| `default` (implicit suite) | `pnpm run runner:basic` | No default export: implicit `basic-md-processing-suite` runs all three, alphabetical, sync |
 | `defaultPipeline` | `pnpm run runner:basic -- --pipeline defaultPipeline` | JSONL → `wordCounter` → `toMarkdownTool` → `chapters/output.md` |
 | `typedContentPipeline` | `pnpm run runner:basic -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `output-typed.md` |
 | `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
+
+Commented examples at the end of the file show how to declare an explicit suite (order + mode) or make
+one pipeline the default. Uncomment one to override the implicit suite.
 
 Where the advanced pipeline writes its own glue, the basics pipeline reuses shipped tools:
 
@@ -228,11 +231,11 @@ pnpm run runner:ladder    # out/ladder-chapters/*.md + out/ladder-summary.md
 ```bash
 cd samples/sample2
 pnpm run prepare-input
-pnpm run runner:basic    # default suite: all three basics pipelines
+pnpm run runner:basic    # implicit suite: all three basics pipelines
 cat chapters/output.md
 ```
 
-`mt run` runs the file's default suite. Select one export with `--pipeline`:
+`mt run` builds an implicit suite when the file has no default export. Select one export with `--pipeline`:
 
 ```bash
 pnpm run runner:basic -- --pipeline defaultPipeline

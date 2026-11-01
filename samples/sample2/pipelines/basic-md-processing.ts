@@ -1,4 +1,4 @@
-import { definePipeline, defineSuite, getVariable } from '@mt/core'
+import { definePipeline, getVariable } from '@mt/core'
 import { chapterDocBuild, readChapterDoc, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -50,7 +50,7 @@ function toLineText(record: unknown): string {
 // - `md://` is a shipped target: one markdown document per envelope.
 // ---------------------------------------------------------------------------
 
-const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
+export const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => [toLineText(record)])
   .use(wordCounter)
@@ -65,8 +65,6 @@ const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
     )
   })
   .to('md://./chapters/output.md')
-
-export { defaultPipeline }
 
 // ---------------------------------------------------------------------------
 // Typed chapter content manipulation example.
@@ -147,23 +145,38 @@ export const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   })
   .to('void://')
 
-export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
-  id: 'basic-md-all',
-  mode: 'sync',
-})
+// ---------------------------------------------------------------------------
+// Pick what `mt run` runs (uncomment one; no default export = implicit suite of all 3):
+//
+// all three, explicit order + mode
+// import { defineSuite } from '@mt/core'
+// export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
+//   id: 'basic-md-all',
+//   mode: 'sync', // or 'parallel'
+// })
+//
+// all three, parallel shorthand
+// export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline]).parallel()
+//
+// just one pipeline
+// export default typedContentPipeline
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Running this file
 //
-// `mt run <file>` runs the file's default suite (all three pipelines):
+// No default export -> implicit suite `basic-md-processing-suite`: all 3 exported
+// pipelines in alphabetical order (defaultPipeline, statsPipeline,
+// typedContentPipeline), sync:
 //   mt run ./pipelines/basic-md-processing.ts
 //
-// `--pipeline <name>` runs exactly one export:
+// Default pipeline -> only that one:
+//   export default defaultPipeline
+//
+// Default suite -> exactly that suite (order + mode); see the block above.
+//
+// `--pipeline <name>` always wins over the default export:
 //   mt run ./pipelines/basic-md-processing.ts --pipeline defaultPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline
-//
-// Suite mode is `'sync' | 'parallel'`:
-//   export default defineSuite([...], { mode: 'parallel' })
-//   defineSuite([...]).parallel().sync()
 // ---------------------------------------------------------------------------

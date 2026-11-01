@@ -96,10 +96,12 @@ const runnable = await loadRunnable(pipelineFilePath, pipelineName) // run.ts �
 
 1. `--pipeline <name>` — exactly that export, whether it is a `Pipeline` or a `PipelineSuite`.
 2. Default export is a suite (`isPipelineSuite`) — run it as declared (`mode` from the suite).
-3. Otherwise — build an **implicit suite** from every exported `Pipeline` (`isPipeline`: object with a
-   string `id` and a `steps` array). The default export comes first (falling back to `pipeline`), then
-   the remaining exports alphabetically, deduped by identity. Id: `<file-basename>-suite`
-   (e.g. `basic-md-processing-suite`), mode `'sync'`. The suite is run, not awaited from sample code.
+3. Default export (`mod.default ?? mod.pipeline`) is a pipeline — run **only** that pipeline (an
+   id-only legacy object is accepted).
+4. Otherwise — no default pipeline/suite, so build an **implicit suite** from every exported `Pipeline`
+   (`isPipeline`: object with a string `id` and a `steps` array), alphabetically, deduped by identity.
+   Id: `<file-basename>-suite` (e.g. `basic-md-processing-suite`), mode `'sync'`. The suite is run, not
+   awaited from sample code.
 
 A `--pipeline` export that is an id-only legacy object is still accepted. Errors name the missing/invalid
 export.
