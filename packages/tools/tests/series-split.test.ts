@@ -32,6 +32,16 @@ const LARGE_WITH_METADATA = [
 const SMALL = '# Tiny Chapter\n\nOnly one line.\n'
 const FORCEABLE = '# Tiny Chapter\n\nOne. Two. Three. Four.\n'
 
+/** Body bigger than the small test target: ~380 meaningful characters. */
+const BALANCED_BIG = [
+  '# Saga Chapter',
+  '',
+  ...Array.from({ length: 8 }, (_, index) => [
+    `Paragraph ${index + 1} opens with a long descriptive line that carries real weight.`,
+    `Paragraph ${index + 1} closes with another long reflective line to add more bulk.`,
+  ]).flatMap((lines) => [...lines, '']),
+].join('\n')
+
 describe('seriesSplitter', () => {
   it('is registered under the series scheme and its URI/shortcut forms', () => {
     expect(registry.hasSplitter('series')).toBe(true)
@@ -175,6 +185,51 @@ describe('seriesSplitter', () => {
     await expect(seriesSplitter.split(createExchange(['not', 'text']))).rejects.toThrow(
       'seriesSplitter: item must be a string',
     )
+  })
+
+  describe('balanced strategy (default, no explicit parts)', () => {
+    it('leaves a chapter at or below the target size whole', async () => {
+      // Meaningful body is ~1200 characters, below the 2000 target.
+      const parts = await createSeriesSplitter({ targetChars: 2000 }).split(
+        createExchange(BALANCED_BIG),
+      )
+      expect(parts).toEqual([BALANCED_BIG])
+    })
+
+    it('the registered default splitter does not split mid-size chapters', async () => {
+      // Meaningful body is far below SERIES_SPLIT_TARGET_CHARS (10_000).
+      expect(await seriesSplitter.split(createExchange(LARGE))).toEqual([LARGE])
+    })
+
+    it('splits a chapter above the target into approximately equal shares', async () => {
+      const parts = await createSeriesSplitter({ targetChars: 100 }).split(
+        createExchange(BALANCED_BIG),
+      )
+      const docs = parts.map((part) => readChapterDoc(part))
+      const sizes = docs.map(
+        (doc) => doc.body.flatMap((paragraph) => paragraph.lines.join('\n')).join('\n').length,
+      )
+
+      expect(parts.length).toBeGreaterThan(1)
+      // 8 paragraphs of ~150 chars each: with a 100-char target every part holds exactly
+      // one paragraph, and none is wildly bigger than the target.
+      expect(parts).toHaveLength(8)
+      for (const size of sizes) {
+        expect(size).toBeLessThan(200)
+      }
+      // Round-trip: no line lost or duplicated.
+      const sourceLines = readChapterDoc(BALANCED_BIG).body.flatMap((paragraph) => paragraph.lines)
+      expect(docs.flatMap((doc) => doc.body.flatMap((paragraph) => paragraph.lines))).toEqual(
+        sourceLines,
+      )
+    })
+
+    it('an explicit parts option overrides the balanced strategy', async () => {
+      const parts = await createSeriesSplitter({ targetChars: 100, parts: 2 }).split(
+        createExchange(BALANCED_BIG),
+      )
+      expect(parts).toHaveLength(2)
+    })
   })
 })
 

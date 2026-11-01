@@ -1,6 +1,6 @@
 import { defineTool, registry, setVariables, withItem } from '@mt/core'
 import type { Exchange, Splitter, ToolContext } from '@mt/core'
-import { SERIES_SPLIT_PARTS } from '../constants.js'
+import { SERIES_SPLIT_TARGET_CHARS } from '../constants.js'
 import { splitParagraphUnits, splitReadableParts } from '../normalization/token-splitter.js'
 import {
   type ChapterDoc,
@@ -10,8 +10,17 @@ import {
 } from './chapter-doc.js'
 
 export interface SeriesSplitOptions {
-  /** Number of parts to produce when the chapter passes the split condition. */
+  /**
+   * Number of parts to produce when the chapter passes the split condition. Omit to use the
+   * balanced strategy (SERIES_SPLIT_STRATEGY 'balanced'): only chapters whose meaningful
+   * body exceeds `targetChars` are split, into parts of approximately `targetChars` each.
+   */
   parts?: number
+  /**
+   * Balanced-strategy target: meaningful body size in characters per part
+   * (default SERIES_SPLIT_TARGET_CHARS). Chapters at or below the target stay whole.
+   */
+  targetChars?: number
   /**
    * Override the default readability gate. Returning false always leaves the original
    * markdown intact; returning true still cannot cut a sentence, so the result may contain
@@ -26,9 +35,19 @@ interface SeriesSplitResult {
   series?: string
 }
 
-function resolveParts(value: number | undefined): number {
-  const parts = value ?? SERIES_SPLIT_PARTS
-  return Number.isFinite(parts) && parts > 1 ? Math.floor(parts) : 0
+/**
+ * Balanced default: split only bodies larger than the target, into
+ * ceil(bodyChars / target) parts of approximately equal size. An explicit
+ * `parts` option keeps the fixed-part-count behavior.
+ */
+function resolveParts(bodyChars: number, options: SeriesSplitOptions): number {
+  if (options.parts !== undefined) {
+    const parts = options.parts
+    return Number.isFinite(parts) && parts > 1 ? Math.floor(parts) : 0
+  }
+  const target = options.targetChars ?? SERIES_SPLIT_TARGET_CHARS
+  if (!Number.isFinite(target) || target < 1 || bodyChars <= target) return 0
+  return Math.max(2, Math.ceil(bodyChars / target))
 }
 
 function isDecorativeLine(line: string): boolean {
@@ -65,14 +84,16 @@ async function splitSeriesMarkdown(
   options: SeriesSplitOptions,
 ): Promise<SeriesSplitResult> {
   const doc = readChapterDoc(markdown)
-  const parts = resolveParts(options.parts)
+  const body = chapterBody(doc)
+  const parts = resolveParts(body.length, options)
   if (parts < 2 || (options.shouldSplit && !options.shouldSplit(doc))) {
     return { parts: [markdown], split: false }
   }
 
-  // Paragraph-first, sentence-safe partition from token-splitter. The last sentence of a
-  // piece always stays whole, and whole paragraphs are preferred when there are enough.
-  const bodyParts = splitReadableParts(chapterBody(doc), parts)
+  // Paragraph-first, sentence-safe partition from token-splitter (balanced: each part gets
+  // approximately body.length / parts characters). The last sentence of a piece always
+  // stays whole, and whole paragraphs are preferred when there are enough.
+  const bodyParts = splitReadableParts(body, parts)
   if (bodyParts.length < 2) {
     return { parts: [markdown], split: false }
   }
@@ -109,6 +130,11 @@ function textItem(env: Exchange<unknown>): string {
  * `writeChapterDoc`. The partition is paragraph-first and sentence-safe (delegated to
  * `splitReadableParts` in token-splitter), so a sentence is never cut in half. Chapters that
  * do not pass the condition are returned unchanged as a single item.
+ *
+ * Default condition (balanced strategy): the meaningful body must exceed
+ * `targetChars` (default SERIES_SPLIT_TARGET_CHARS), and the part count is derived as
+ * `ceil(bodyChars / targetChars)` so the parts are approximately equal in size. Pass an
+ * explicit `parts` to split into a fixed number of parts instead.
  */
 export function createSeriesSplitter(options: SeriesSplitOptions = {}): Splitter<string> {
   return {

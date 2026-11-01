@@ -446,12 +446,16 @@ and `words`); both resolve the same registry entry, while bare `'paragraphs'` is
 All read the full Exchange and use the unit helpers above, so blank units are skipped.
 
 `modification/series-split.ts` registers `seriesSplitter` /
-`createSeriesSplitter({ parts?, shouldSplit? })` under `series` (also `.subflow('series://')` and
+`createSeriesSplitter({ parts?, targetChars?, shouldSplit? })` under `series` (also `.subflow('series://')` and
 `.subflow('#series')`). It is chapter-document aware: the input markdown is parsed with
 `readChapterDoc`, and each output part is a new `ChapterDoc` serialized with `writeChapterDoc`.
-The default condition splits only when `parts > 1` and `splitReadableParts` can produce at least two
-readable pieces; `shouldSplit(doc)` can veto or force the attempt. A sentence is never cut in half
-and whole paragraphs are preferred, so the result may contain fewer than `parts` pieces. A chapter that does not pass is returned unchanged as
+Default condition is the balanced strategy (`SERIES_SPLIT_STRATEGY 'balanced'`): the meaningful
+body must exceed `targetChars` (default `SERIES_SPLIT_TARGET_CHARS`, 10_000 characters), and the
+part count is derived as `ceil(bodyChars / targetChars)` so the parts are approximately equal in
+size — intended for very big chapters (10k+ chars). An explicit `parts` splits into a fixed number
+of parts instead; `shouldSplit(doc)` can veto or force the attempt either way. A sentence is never
+cut in half
+and whole paragraphs are preferred, so the result may contain fewer than the planned number of pieces. A chapter that does not pass is returned unchanged as
 one item, with no series metadata added. Split parts keep `number` and `warnings`, set
 `title` to `<original title> N`, use `series` from the existing frontmatter or the original title,
 and repartition the body paragraph-first, sentence-safe via `splitReadableParts`: whole paragraphs

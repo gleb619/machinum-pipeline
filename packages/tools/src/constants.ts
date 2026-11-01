@@ -10,6 +10,12 @@
 
 export const SERIES_SPLIT_PARTS = 4
 export const SERIES_SPLIT_STRATEGY = 'balanced'
+/**
+ * Balanced-strategy target: chapters whose meaningful body exceeds this many
+ * characters are split into parts of approximately this size
+ * (parts = ceil(bodyChars / target)). Chapters at or below the target stay whole.
+ */
+export const SERIES_SPLIT_TARGET_CHARS = 10_000
 
 // ---------------------------------------------------------------------------
 // Tokens / budgets
