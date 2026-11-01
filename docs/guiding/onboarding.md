@@ -1,6 +1,6 @@
 # Onboarding — machinum-pipeline at a glance
 
-Simple arch digest for coding agents. Deep specs live in [architecture.md](architecture.md), [steering/](../steering/), [steering/tools.md](../steering/tools.md); install paths in [installation.md](../installation.md); tasks in [kanban.md](../kanban.md) (managed by `at kanban` only).
+Simple arch digest for coding agents. Deep specs live in [architecture.md](architecture.md), [steering/](../steering/), [steering/tools.md](../steering/tools.md); install paths in [installation.md](installation.md); tasks in [kanban.md](../kanban.md) (managed by `at kanban` only).
 
 ## What it is
 

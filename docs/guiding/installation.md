@@ -2,7 +2,7 @@
 
 How to get a working `mt` on a machine: prerequisites, install paths, the `mt-cli` wrapper (Linux
 name collision), config/secrets, Docker. Arch digest: [onboarding.md](onboarding.md) ·
-[architecture.md](architecture.md) · [steering/tech.md](steering/tech.md).
+[architecture.md](architecture.md) · [steering/tech.md](../steering/tech.md).
 
 ## What you install
 
@@ -66,7 +66,7 @@ but no compile step — use while hacking on the CLI.
 
 ## Path C — npm package (pre-release)
 
-Not published to npm yet ([steering/product.md](steering/product.md)). `packages/mt/package.json`
+Not published to npm yet ([steering/product.md](../steering/product.md)). `packages/mt/package.json`
 declares `bin: { "mt": "./dist/bin.js" }`, so a global install puts **`mt`** on PATH — which collides
 with Linux's `/usr/bin/mt` (see below). Until an aliased bin is published, use the wrapper.
 
@@ -145,7 +145,7 @@ mt-cli init          # scaffolds mt.json + .mt/ in the current dir
 | logging | `MT_LOG_LEVEL`, `MT_DEBUG` | per-run CLI logs |
 | run state | `.mt/` in the project root | `runs/`, `cache/`, `worktrees/`, `mt.sqlite` |
 
-Secret refs also resolve through `vlt:` / `keepass:` / `embed:` (see [steering/tech.md](steering/tech.md#environment-variables)).
+Secret refs also resolve through `vlt:` / `keepass:` / `embed:` (see [steering/tech.md](../steering/tech.md#environment-variables)).
 Never log key material; vault files are gitignored.
 
 ## Docker
@@ -161,7 +161,7 @@ Never log key material; vault files are gitignored.
    ```dockerfile
    FROM node:22-bookworm AS build
    WORKDIR /app
-   COPY . .
+   COPY .. .
    RUN corepack enable && pnpm install --frozen-lockfile && pnpm build:bin
 
    FROM debian:bookworm-slim

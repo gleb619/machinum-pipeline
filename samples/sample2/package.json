@@ -4,7 +4,8 @@
   "description": "Machinum Pipeline sample \u2014 basic markdown processing with fork, subflow, range:// and void://",
   "type": "module",
   "scripts": {
-    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
+    "runner": "echo 'todo'",
+    "runner:basic": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
     "runner:stats": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline",
     "runner:custom": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts",
     "runner:range": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts --pipeline rangeDemoPipeline",
