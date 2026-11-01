@@ -179,6 +179,31 @@ describe('md target', () => {
     expect(readFileSync(join(dir, 'chapter2.md'), 'utf-8')).toBe('# Chapter 2')
   })
 
+  it('logs how many files it wrote in directory mode', async () => {
+    const dir = join(tempDir, 'logged')
+    const uri: ParsedUri = {
+      raw: `md://${dir}`,
+      host: dir,
+      path: dir,
+      query: {},
+    }
+
+    const info = vi.fn()
+    const target = createMdTarget(uri)
+    const ctx = {
+      run: {
+        global: { project: { name: 'test', root: tempDir }, settings: {} },
+        logger: { info, warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      },
+    } as unknown as TargetContext
+    await target.open(ctx)
+    await target.write({ item: '# One', meta: {} }, ctx)
+    await target.write({ item: '# Two', meta: {} }, ctx)
+    await target.close(ctx)
+
+    expect(info).toHaveBeenCalledWith(`md target 'md://${dir}' wrote 2 file(s) under ${dir}`)
+  })
+
   it('should use meta.chapterNum for filenames in directory mode', async () => {
     const dir = join(tempDir, 'output')
     const uri: ParsedUri = {

@@ -123,6 +123,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
   let autoIndex = 0
   let filePath = ''
   let isFileMode = false
+  let writtenFiles = 0
   let seriesSplitter: Splitter<string> | null = null
   const seriesEnabled = uri.query.series === 'true' || uri.query.series === '1'
 
@@ -148,12 +149,14 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
     const baseDir = filePath
     mkdirSync(baseDir, { recursive: true })
     await atomicWriteFile(join(baseDir, `chapter${chapterNum}.md`), String(value))
+    writtenFiles += 1
   }
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       autoIndex = 0
+      writtenFiles = 0
       seriesSplitter = null
       const projectRoot = ctx.run.global.project.root
       filePath = resolveWaypointRoot(uri, 'md', ctx.run.global.settings, projectRoot)
@@ -219,17 +222,23 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
             const text =
               typeof output.content === 'string' ? output.content : String(output.content)
             await atomicWriteFile(outPath, text)
+            writtenFiles += 1
           }
         } else {
           await writeChapterValue(env, env.item)
         }
       }
     },
-    async close(_ctx: TargetContext): Promise<void> {
+    async close(ctx: TargetContext): Promise<void> {
       if (writer) {
         const pending = writer
         writer = null
         await pending.commit()
+      }
+      if (!isFileMode && writtenFiles > 0) {
+        ctx.run.logger?.info(
+          `md target '${uri.raw}' wrote ${writtenFiles} file(s) under ${filePath}`,
+        )
       }
     },
   }

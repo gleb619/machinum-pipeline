@@ -265,8 +265,11 @@ pnpm run runner:chunks    # chapters/chunked.md + chapters/chunked-reused.md
 pnpm run runner:ladder    # chapters/ladder-chapters/*.md + chapters/ladder-summary.md
 ```
 
-`pnpm test` removes `chapters/ladder-chapters/` in its success cleanup, so the emitted chapter
-files disappear when all tests pass. Use `pnpm run runner:ladder` when you want to inspect them.
+`pnpm test` deletes the generated `chapters/ladder-chapters/chapterN.md` files in its success
+cleanup but keeps the tracked `.gitkeep`, so the directory never vanishes. The chapter files are
+gitignored — only `.gitkeep` is committed. After `pnpm run runner:chunks` or `pnpm run runner:ladder`,
+`ls chapters/ladder-chapters` shows them, and the run log prints the absolute directory the `md://`
+target wrote to.
 
 ## Run manually
 

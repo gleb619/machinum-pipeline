@@ -92,6 +92,8 @@ build
 /samples/sample2/chapters/*.md
 /samples/sample2/chapters/**/*.md
 !/samples/sample2/chapters/chapter1.md
+# Ladder demo output: generated chapterN.md stay ignored; the tracked
+# ladder-chapters/.gitkeep keeps the directory visible to git-aware tools.
 /samples/sample3/vendor/
 /samples/sample3/package-lock.json
 /samples/sample3/runner.log

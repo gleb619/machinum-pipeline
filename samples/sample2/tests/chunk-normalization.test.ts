@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { readChapterDoc, tokenizeChunk, tokenizeWords } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -51,6 +51,21 @@ const LADDER_WORDS = LADDER_LINES.reduce((sum, line) => sum + tokenizeWords(line
 
 let hasFailure = false
 
+/** Remove the generated ladder chapters but keep the tracked `.gitkeep` placeholder. */
+async function cleanupLadderChapters(): Promise<void> {
+  let entries: string[]
+  try {
+    entries = await readdir(LADDER_CHAPTERS)
+  } catch {
+    return
+  }
+  await Promise.all(
+    entries
+      .filter((name) => /^chapter\d+\.md$/.test(name))
+      .map((name) => rm(join(LADDER_CHAPTERS, name), { force: true })),
+  )
+}
+
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'ladder.jsonl'), { force: true })
   await rm(CHUNKED, { force: true })
@@ -59,7 +74,7 @@ async function cleanup(): Promise<void> {
   await rm(TOKEN_SUMMARY, { force: true })
   await rm(SERIES_FIRST_OUTPUT, { force: true })
   await rm(SERIES_OUTPUT, { force: true })
-  await rm(LADDER_CHAPTERS, { recursive: true, force: true })
+  await cleanupLadderChapters()
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
 
