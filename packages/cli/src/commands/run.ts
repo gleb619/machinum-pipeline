@@ -23,8 +23,9 @@ export type Runnable = Pipeline | PipelineSuite
 /**
  * `mt run <pipelineFile>` — execute a pipeline or suite.
  *
- * Without `--pipeline` a suite default export wins; otherwise the CLI builds an
- * implicit suite from every exported pipeline (default first, then alphabetical).
+ * Without `--pipeline` the default export wins: a suite runs as declared, a
+ * pipeline runs alone. Only a module with no default pipeline/suite gets an
+ * implicit sync suite built from every exported pipeline (alphabetical).
  *
  * Usage: mt run ./pipelines/example.ts [--pipeline <name>]
  */
@@ -212,8 +213,8 @@ export function collectPipelines(mod: Record<string, unknown>): Pipeline[] {
     pipelines.push(value)
   }
 
-  const primaryKey = mod.default !== undefined ? 'default' : 'pipeline'
-  add(mod[primaryKey])
+  const primaryKey = 'default' in mod ? 'default' : 'pipeline' in mod ? 'pipeline' : undefined
+  if (primaryKey) add(mod[primaryKey])
   for (const key of Object.keys(mod).sort()) {
     if (key === primaryKey) continue
     add(mod[key])
@@ -227,14 +228,15 @@ export function collectPipelines(mod: Record<string, unknown>): Pipeline[] {
  *
  * 1. `--pipeline <name>` selects exactly that export (pipeline or suite).
  * 2. A suite default export is run as-is.
- * 3. Otherwise every exported pipeline becomes an implicit sync suite.
+ * 3. A pipeline default export (`mod.default ?? mod.pipeline`) runs alone.
+ * 4. Otherwise every exported pipeline becomes an implicit sync suite.
  */
 export async function loadRunnable(filePath: string, name?: string): Promise<Runnable> {
   const resolvedPath = resolve(process.cwd(), filePath)
   const mod = (await importPipelineModule(resolvedPath)) as Record<string, unknown>
 
   if (name) {
-    const selected = mod[name]
+    const selected = name in mod ? mod[name] : undefined
     if (isPipelineSuite(selected) || isPipeline(selected)) return selected
     // Legacy modules/tests may expose an id-only pipeline object.
     if (isLegacyPipeline(selected)) return selected
@@ -243,8 +245,10 @@ export async function loadRunnable(filePath: string, name?: string): Promise<Run
     )
   }
 
-  const primary = mod.default ?? mod.pipeline
+  const primaryKey = 'default' in mod ? 'default' : 'pipeline' in mod ? 'pipeline' : undefined
+  const primary = primaryKey ? mod[primaryKey] : undefined
   if (isPipelineSuite(primary)) return primary
+  if (isPipeline(primary) || isLegacyPipeline(primary)) return primary
 
   const pipelines = collectPipelines(mod)
   if (pipelines.length > 0) {
@@ -252,10 +256,8 @@ export async function loadRunnable(filePath: string, name?: string): Promise<Run
     return defineSuite(pipelines, { id: suiteId, mode: 'sync' })
   }
 
-  if (isLegacyPipeline(primary)) return primary
-
   throw new Error(
-    `Invalid pipeline module: ${filePath}. Expected a default suite export or exported pipelines from definePipeline().`,
+    `Invalid pipeline module: ${filePath}. Expected a default pipeline/suite export or exported pipelines from definePipeline().`,
   )
 }
 

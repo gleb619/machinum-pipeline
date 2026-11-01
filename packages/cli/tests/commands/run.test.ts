@@ -218,11 +218,11 @@ describe('run command', () => {
       expect(output).toContain('two -> ')
     })
 
-    it('builds an implicit suite from every exported pipeline', async () => {
+    it('builds an implicit suite from every exported pipeline when there is no default', async () => {
       const one = plainPipeline('one')
       const two = plainPipeline('two')
       const pipelinePath = join(testDir, 'pipeline.ts')
-      await mockModule(pipelinePath, { default: one, alpha: two, beta: one })
+      await mockModule(pipelinePath, { alpha: one, beta: two, dup: one })
 
       await runCommand(['pipeline.ts'])
 
@@ -231,6 +231,22 @@ describe('run command', () => {
       expect(output).toContain('✅ Suite complete.')
       expect(output).toContain('one -> ')
       expect(output).toContain('two -> ')
+    })
+
+    it('runs only the default pipeline even when other pipelines are exported', async () => {
+      const primary = plainPipeline('primary')
+      const other = plainPipeline('other')
+      const pipelinePath = join(testDir, 'pipeline.ts')
+      await mockModule(pipelinePath, { default: primary, alpha: other })
+
+      await runCommand(['pipeline.ts'])
+
+      const output = logText()
+      expect(output).toContain('Starting pipeline: primary')
+      expect(output).toContain('Pipeline complete')
+      expect(output).not.toContain('Starting suite')
+      expect(output).not.toContain('Suite complete')
+      expect(mockStart).toHaveBeenCalledTimes(1)
     })
 
     it('--pipeline still selects exactly one export', async () => {
