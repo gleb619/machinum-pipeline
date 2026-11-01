@@ -6,8 +6,8 @@ import {
   type Target,
   type Token,
   definePipeline,
+  defineProcess,
   defineSource,
-  defineSuite,
   defineTarget,
   defineWaypoint,
   getVariable,
@@ -19,7 +19,7 @@ import {
   chapterDocBuild,
   chapterDocEmit,
   chapterIndexer,
-  createChunkSplit,
+  chunkSplit,
   heuristicTokenCount,
   mdOutputEmitter,
   readChapterDoc,
@@ -30,55 +30,17 @@ import {
 } from '@mt/tools'
 import '@mt/waypoint'
 
-// ---------------------------------------------------------------------------
-// Chunk normalization — the `---` separator round-trip and the Structure Ladder.
-//
-// Pipelines in this file, all built from shipped pieces only:
-//
-// - `cleanSplitPipeline`: a markdown chapter is cleaned of
-//   its decorative `---` lines, split into token-bounded chunks and written back
-//   with `---` between the chunks. A second stage reads that output again and
-//   shows separator reuse: the chunks stay exactly the same. The count and the
-//   separator stay in the exchange (`chunkCount` / `chunkSeparator`); the
-//   markdown file contains only chunk text.
-// - `ladderPipeline`: the Structure Ladder — a JSONL record becomes a markdown
-//   document, and every rung below it (chunks, paragraphs, lines, words) is one
-//   envelope per unit, handed over through an entity buffer.
-// - `tokenLadderPipeline`: the alternate descent `chunks://` -> `tokens://`.
-// - `seriesSplitPipeline`: split a chapter into equal parts with series frontmatter.
-//
-// The only local code is data glue inside `.flatMap()` (how a document becomes
-// chunks, paragraphs, lines and words) and logging inside `.tap()`.
-// ---------------------------------------------------------------------------
-
-/**
- * Chunk size in tokens.
- *
- * `chunkSplit` resolves the size as `meta.chunkSize` → tool option → mt.json
- * `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000. The sample pins the tool
- * option so one chapter always splits into several chunks; `MT_CHUNK_SIZE`
- * still wins when it is set (`MT_CHUNK_SIZE=100 pnpm run runner:chunks`).
- */
+// Chunk normalization: clean/split round-trip, Structure Ladder, token route, series split.
 const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
 
-/** The chunk splitter used by both stages of the clean/split pipeline. */
-const chunkSplitter = createChunkSplit({ chunkSize: CHUNK_SIZE })
-
-// ---------------------------------------------------------------------------
-// Stage 1 — CLEAN + SPLIT
-//
-// `md://` reads the chapter as one envelope. `chunkSplit` drops the decorative
-// `---` lines (and every other decorative-only line), cuts the text into
-// token-bounded chunks and writes them back with `---` between them. The chunk
-// count lands in `meta.chunkCount` and in the durable `chunkCount` variable.
-//
-// The `md://` directory target owns the output folder: `mdOutputEmitter` only
-// names the file, the target creates `chapters/` and writes `chapters/chunked.md`.
-// ---------------------------------------------------------------------------
+// Per-pipeline split default; MT_CHUNK_SIZE still wins when set.
+function overrideSplitDefaults(): void {
+  process.env.MT_CHUNK_SIZE ??= String(CHUNK_SIZE)
+}
 
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   .from('md://./chapters/chapter1.md')
-  .use(chunkSplitter)
+  .use(chunkSplit)
   .tap(async (env) => {
     console.log(
       JSON.stringify({
@@ -90,17 +52,9 @@ const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   })
   .to('md://./chapters/chunked.md')
 
-// ---------------------------------------------------------------------------
-// Stage 2 — REUSE
-//
-// The same splitter, one stage later: the input already carries `---`
-// separators, so the splitter keeps the chunks as they are instead of cutting
-// them again. The result is the file of stage 1, unchanged.
-// ---------------------------------------------------------------------------
-
 const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
   .from('md://./chapters/chunked.md')
-  .use(chunkSplitter)
+  .use(chunkSplit)
   .tap(async (env) => {
     console.log(
       JSON.stringify({
@@ -112,51 +66,23 @@ const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
   })
   .to('md://./chapters/chunked-reused.md')
 
-/**
- * Clean + split a chapter, then run the result through the splitter again.
- *
- * The two stages are `.subflow()`s: each one declares its own `.from()`, so each
- * one is self-contained and runs in declaration order. The entity buffers are not
- * needed here — the handoff between the stages is the markdown file itself.
- */
 export const cleanSplitPipeline = definePipeline({ id: 'sample2-chunk-normalization' })
   .subflow(cleanSplitStage)
   .subflow(reuseStage)
 
-// ---------------------------------------------------------------------------
-// The Structure Ladder
-//
-//   jsonl://      record     → markdown document
-//   md://         document   → Chunk entities (token-bounded, `---` units)
-//   chunks://                → Paragraph entities (carrying `chunkId`)
-//   paragraphs://            → Line entities
-//   lines://                 → Word entities
-//   words://                 → the summary
-//
-// Every step down the ladder is one `.flatMap()` (one envelope in, many out)
-// plus one entity buffer (many in, one buffer). The buffers are built in — the
-// pipeline only uses them, it does not define them.
-// ---------------------------------------------------------------------------
-
-/** JSONL record of the ladder demo: a chapter and its paragraphs. */
 interface LadderChapter extends Pick<Chapter, 'title'> {
   number: number
   paragraphs: string[][]
 }
 
-/** Chunk entity — the core type plus the lines of its text. */
 type ChunkEntity = Chunk
-
-/** Paragraph entity — the core type; `chunkId` points at the chunk it belongs to. */
 type ParagraphEntity = Paragraph & { chunkId: string }
 
-/** Line entity — the core type plus the chunk and chapter it came from. */
 interface LineEntity extends Line {
   chapterId: string
   chunkId: string
 }
 
-/** Word entity — `Word` is not a core domain type, so the demo declares one. */
 interface WordEntity {
   id: string
   chapterId: string
@@ -167,10 +93,8 @@ interface WordEntity {
   index: number
 }
 
-/** Token entity — the core type; `chunkId` points at the chunk it was derived from. */
 type TokenEntity = Token
 
-/** Counts per rung of the ladder, filled by the counting waypoints below. */
 const ladderCounts = {
   records: 0,
   documents: 0,
@@ -181,14 +105,12 @@ const ladderCounts = {
   tokens: 0,
 }
 
-/** Count the records that enter the ladder (rung 0). */
 const ladderSource = defineWaypoint(defineSource<LadderChapter>('jsonl://./jsonl/ladder.jsonl'), {
   onItem: () => {
     ladderCounts.records += 1
   },
 })
 
-/** Count what a target stores and log the count when the stage closes. */
 function countingTarget<T>(uri: string, key: keyof typeof ladderCounts): Target<T> {
   return defineWaypoint(defineTarget<T>(uri), {
     onOpen: () => {
@@ -203,7 +125,6 @@ function countingTarget<T>(uri: string, key: keyof typeof ladderCounts): Target<
   })
 }
 
-/** JSONL record → the shape `chapterDocBuild` accepts. */
 function toChapterInput(record: LadderChapter): {
   title: string
   number: number
@@ -216,7 +137,6 @@ function toChapterInput(record: LadderChapter): {
   }
 }
 
-/** Markdown document → token-bounded Chunk entities (the paragraphs stay whole). */
 function toChunks(doc: ChapterDoc): ChunkEntity[] {
   const chapterId = `chapter-${doc.number ?? 0}`
   const text = doc.body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n')
@@ -229,7 +149,6 @@ function toChunks(doc: ChapterDoc): ChunkEntity[] {
   }))
 }
 
-/** Chunk → Paragraph entities (blank-line separated parts of the chunk). */
 function toParagraphs(chunk: ChunkEntity): ParagraphEntity[] {
   return chunk.body
     .split(/\n\n+/)
@@ -243,7 +162,6 @@ function toParagraphs(chunk: ChunkEntity): ParagraphEntity[] {
     }))
 }
 
-/** Paragraph → Line entities. */
 function toLines(paragraph: ParagraphEntity): LineEntity[] {
   return paragraph.body
     .split('\n')
@@ -258,7 +176,6 @@ function toLines(paragraph: ParagraphEntity): LineEntity[] {
     .filter((line) => line.text.trim().length > 0)
 }
 
-/** Line → Word entities (`tokenizeWords` is the package word splitter). */
 function toWords(line: LineEntity): WordEntity[] {
   return tokenizeWords(line.text).map((word, index) => ({
     id: `${line.id}/word-${index + 1}`,
@@ -271,7 +188,6 @@ function toWords(line: LineEntity): WordEntity[] {
   }))
 }
 
-/** Render the summary: one row per rung with the number of units it produced. */
 function renderLadderSummary(words: number): string {
   const rows: [string, string, number][] = [
     ['0', 'jsonl://', ladderCounts.records],
@@ -294,7 +210,6 @@ function renderLadderSummary(words: number): string {
   ].join('\n')
 }
 
-/** Rung 0 → 1: a JSONL record becomes a markdown document. */
 const documentStage = definePipeline({ id: 'sample2-ladder-documents' })
   .from(ladderSource)
   .flatMap(async (record: unknown) => [toChapterInput(record as LadderChapter)])
@@ -303,31 +218,26 @@ const documentStage = definePipeline({ id: 'sample2-ladder-documents' })
   .use(chapterDocEmit)
   .to(countingTarget<string>('md://./chapters/ladder-chapters', 'documents'))
 
-/** Rung 1 → 2: the markdown document becomes token-bounded Chunk entities. */
 const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
   .from('md://./chapters/ladder-chapters')
   .flatMap(async (item: unknown) => toChunks(readChapterDoc(String(item))))
   .to(countingTarget<ChunkEntity>('chunks://ladder', 'chunks'))
 
-/** Rung 2 → 3: a chunk becomes Paragraph entities (each carries its `chunkId`). */
 const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
   .from('chunks://ladder')
   .flatMap(async (chunk: unknown) => toParagraphs(chunk as ChunkEntity))
   .to(countingTarget<ParagraphEntity>('paragraphs://ladder', 'paragraphs'))
 
-/** Rung 3 → 4: a paragraph becomes Line entities. */
 const lineStage = definePipeline({ id: 'sample2-ladder-lines' })
   .from('paragraphs://ladder')
   .flatMap(async (paragraph: unknown) => toLines(paragraph as ParagraphEntity))
   .to(countingTarget<LineEntity>('lines://ladder', 'lines'))
 
-/** Rung 4 → 5: a line becomes Word entities. */
 const wordStage = definePipeline({ id: 'sample2-ladder-words' })
   .from('lines://ladder')
   .flatMap(async (line: unknown) => toWords(line as LineEntity))
   .to(countingTarget<WordEntity>('words://ladder', 'words'))
 
-/** The last rung writes the summary: how many units every rung produced. */
 const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
   .from('words://ladder')
   .batch(10_000)
@@ -335,12 +245,6 @@ const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
   .use(mdOutputEmitter({ name: 'ladder-summary', filename: () => 'ladder-summary.md' }))
   .to('md://./chapters')
 
-/**
- * The Structure Ladder, one `.subflow()` per rung.
- *
- * The stages run in declaration order, so every rung finds the envelopes of the
- * rung above it in the entity buffer it reads.
- */
 export const ladderPipeline = definePipeline({ id: 'sample2-ladder' })
   .subflow(documentStage)
   .subflow(chunkStage)
@@ -349,21 +253,8 @@ export const ladderPipeline = definePipeline({ id: 'sample2-ladder' })
   .subflow(wordStage)
   .subflow(summaryStage)
 
-// ---------------------------------------------------------------------------
-// The alternate route: chunks -> tokens
-//
-// The ladder is a tree. `chunks://` has two children: the descent into text
-// units (`paragraphs://` -> `lines://` -> `words://`) and the descent into what
-// the LLM actually sees (`tokens://`, tiktoken-style BPE tokens).
-//
-//   jsonl -> md -> chunks -+-> paragraphs -> lines -> words   (ladderPipeline)
-//                          `-> tokens                         (tokenLadderPipeline)
-// ---------------------------------------------------------------------------
-
-/** True when any chunk fell back to heuristic pieces (gpt-tokenizer unavailable). */
 let tokenHeuristic = false
 
-/** Chunk -> Token entities (BPE ids with their decoded pieces). */
 async function toTokens(chunk: ChunkEntity): Promise<TokenEntity[]> {
   const { tokens, heuristic } = await tokenizeChunkDetailed(chunk.body)
   if (heuristic) tokenHeuristic = true
@@ -376,7 +267,6 @@ async function toTokens(chunk: ChunkEntity): Promise<TokenEntity[]> {
   }))
 }
 
-/** Render the token-ladder summary: chunk and token counts plus the heuristic flag. */
 function renderTokenSummary(tokens: number): string {
   return [
     '# Token Ladder',
@@ -392,13 +282,11 @@ function renderTokenSummary(tokens: number): string {
   ].join('\n')
 }
 
-/** Chunk -> Token: every chunk becomes its BPE tokens. */
 const tokenStage = definePipeline({ id: 'sample2-ladder-tokens' })
   .from('chunks://ladder')
   .flatMap(async (chunk: unknown) => toTokens(chunk as ChunkEntity))
   .to(countingTarget<TokenEntity>('tokens://ladder', 'tokens'))
 
-/** The last rung writes the summary: chunk and token counts. */
 const tokenSummaryStage = definePipeline({ id: 'sample2-ladder-token-summary' })
   .from('tokens://ladder')
   .batch(100_000)
@@ -406,39 +294,21 @@ const tokenSummaryStage = definePipeline({ id: 'sample2-ladder-token-summary' })
   .use(mdOutputEmitter({ name: 'token-ladder-summary', filename: () => 'token-ladder-summary.md' }))
   .to('md://./chapters')
 
-/**
- * The alternate route of the ladder: jsonl -> md -> chunks:// -> tokens:// -> summary.
- *
- * Shares the document and chunk rungs with `ladderPipeline`; only the descent
- * below `chunks://` differs.
- */
 export const tokenLadderPipeline = definePipeline({ id: 'sample2-token-ladder' })
   .subflow(documentStage)
   .subflow(chunkStage)
   .subflow(tokenStage)
   .subflow(tokenSummaryStage)
-// ---------------------------------------------------------------------------
-// Series split — split a chapter into equal parts with series frontmatter.
-// ---------------------------------------------------------------------------
+
 export const seriesSplitPipeline = definePipeline({ id: 'sample2-series-split' })
   .from('md://./chapters/chapter1.md')
   .use(seriesSplitTool)
   .to('md://./chapters/series-output.md')
 
-// ---------------------------------------------------------------------------
-// What runs:
-//   default suite      -> all four pipelines in declaration order, sync (default mode)
-//   --pipeline <name>  -> that export, always wins (pipeline or suite)
-//
-//   mt run ./pipelines/chunk-normalization.ts
-//   mt run ./pipelines/chunk-normalization.ts --pipeline cleanSplitPipeline
-//   mt run ./pipelines/chunk-normalization.ts --pipeline ladderPipeline
-//   mt run ./pipelines/chunk-normalization.ts --pipeline tokenLadderPipeline
-//   mt run ./pipelines/chunk-normalization.ts --pipeline seriesSplitPipeline
-// ---------------------------------------------------------------------------
-export default defineSuite([
-  cleanSplitPipeline,
-  ladderPipeline,
-  tokenLadderPipeline,
-  seriesSplitPipeline,
-])
+const allPipelines = definePipeline({ id: 'sample2-chunk-normalization-suite' })
+  .subflow(cleanSplitPipeline)
+  .subflow(ladderPipeline)
+  .subflow(tokenLadderPipeline)
+  .subflow(seriesSplitPipeline)
+
+export default defineProcess().install(overrideSplitDefaults).pipeline(allPipelines)
