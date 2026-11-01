@@ -152,7 +152,8 @@ built-in waypoints. The only local code is data glue inside `.flatMap()` and log
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `cleanSplitPipeline` (default) | `pnpm run runner:chunks` | Chapter → `chunkSplit` (clean + token-bounded chunks) → `chapters/chunked.md`, then the same file again → `chapters/chunked-reused.md` |
+| `default` (explicit suite, sync) | `pnpm run runner:chunks` | All four pipelines in declaration order, sync: clean-split → ladder → token-ladder → series-split |
+| `cleanSplitPipeline` | `pnpm run runner:chunks -- --pipeline cleanSplitPipeline` | Chapter → `chunkSplit` (clean + token-bounded chunks) → `chapters/chunked.md`, then the same file again → `chapters/chunked-reused.md` |
 | `ladderPipeline` | `pnpm run runner:ladder` | The Structure Ladder → `chapters/ladder-chapters/*.md` + `chapters/ladder-summary.md` |
 
 ### Clean + split, and why the second run changes nothing

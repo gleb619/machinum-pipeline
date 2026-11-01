@@ -7,6 +7,7 @@ import {
   type Token,
   definePipeline,
   defineSource,
+  defineSuite,
   defineTarget,
   defineWaypoint,
   getVariable,
@@ -34,7 +35,7 @@ import '@mt/waypoint'
 //
 // Pipelines in this file, all built from shipped pieces only:
 //
-// - `cleanSplitPipeline` (the default export): a markdown chapter is cleaned of
+// - `cleanSplitPipeline`: a markdown chapter is cleaned of
 //   its decorative `---` lines, split into token-bounded chunks and written back
 //   with `---` between the chunks. A second stage reads that output again and
 //   shows separator reuse: the chunks stay exactly the same. The count and the
@@ -121,8 +122,6 @@ const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
 export const cleanSplitPipeline = definePipeline({ id: 'sample2-chunk-normalization' })
   .subflow(cleanSplitStage)
   .subflow(reuseStage)
-
-export default cleanSplitPipeline
 
 // ---------------------------------------------------------------------------
 // The Structure Ladder
@@ -425,3 +424,21 @@ export const seriesSplitPipeline = definePipeline({ id: 'sample2-series-split' }
   .from('md://./chapters/chapter1.md')
   .use(seriesSplitTool)
   .to('md://./chapters/series-output.md')
+
+// ---------------------------------------------------------------------------
+// What runs:
+//   default suite      -> all four pipelines in declaration order, sync (default mode)
+//   --pipeline <name>  -> that export, always wins (pipeline or suite)
+//
+//   mt run ./pipelines/chunk-normalization.ts
+//   mt run ./pipelines/chunk-normalization.ts --pipeline cleanSplitPipeline
+//   mt run ./pipelines/chunk-normalization.ts --pipeline ladderPipeline
+//   mt run ./pipelines/chunk-normalization.ts --pipeline tokenLadderPipeline
+//   mt run ./pipelines/chunk-normalization.ts --pipeline seriesSplitPipeline
+// ---------------------------------------------------------------------------
+export default defineSuite([
+  cleanSplitPipeline,
+  ladderPipeline,
+  tokenLadderPipeline,
+  seriesSplitPipeline,
+])
