@@ -155,6 +155,32 @@ function groupStream(
 }
 
 /**
+ * Overlay pipeline-scoped env defaults onto the global context: a default is added to
+ * `env` only when the key is absent from both `process.env` and the mt.json env, so
+ * real environment variables always win. Returns the input unchanged when there are
+ * no defaults. The vault is re-attached non-enumerably (spread alone would drop it).
+ */
+function applyEnvDefaults(
+  globalContext: GlobalContext,
+  envDefaults: Record<string, string> | undefined,
+): GlobalContext {
+  if (!envDefaults) return globalContext
+  const env = { ...globalContext.env }
+  for (const [key, value] of Object.entries(envDefaults)) {
+    if (key in process.env || key in env) continue
+    env[key] = value
+  }
+  const ctx: GlobalContext = { ...globalContext, env }
+  Object.defineProperty(ctx, 'vault', {
+    value: globalContext.vault,
+    enumerable: false,
+    writable: true,
+    configurable: true,
+  })
+  return ctx
+}
+
+/**
  * Runner — executes a pipeline definition, manages state machine, checkpointing, and logging.
  */
 export class Runner {
@@ -195,7 +221,7 @@ export class Runner {
 
   constructor(pipeline: Pipeline, globalContext: GlobalContext, options?: RunnerOptions) {
     this.pipeline = pipeline
-    this.globalContext = globalContext
+    this.globalContext = applyEnvDefaults(globalContext, pipeline.envDefaults)
     this.options = options ?? {}
     for (const listener of this.options.events ?? []) this.eventListeners.add(listener)
     const mtRoot = join(globalContext.project.root, '.mt')

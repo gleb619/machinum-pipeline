@@ -201,6 +201,7 @@ export {
 } from './dsl.js'
 export type {
   ComposableTool,
+  ProcessConfig,
   ProcessInstall,
   ToolFn,
   WaypointSourceHooks,

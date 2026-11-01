@@ -31,12 +31,8 @@ import {
 import '@mt/waypoint'
 
 // Chunk normalization: clean/split round-trip, Structure Ladder, token route, series split.
+// Ladder default chunk size; MT_CHUNK_SIZE (real env) still wins everywhere.
 const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
-
-// Per-pipeline split default; MT_CHUNK_SIZE still wins when set.
-function overrideSplitDefaults(): void {
-  process.env.MT_CHUNK_SIZE ??= String(CHUNK_SIZE)
-}
 
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   .from('md://./chapters/chapter1.md')
@@ -311,4 +307,6 @@ const allPipelines = definePipeline({ id: 'sample2-chunk-normalization-suite' })
   .subflow(tokenLadderPipeline)
   .subflow(seriesSplitPipeline)
 
-export default defineProcess().install(overrideSplitDefaults).pipeline(allPipelines)
+export default defineProcess()
+  .config({ env: { MT_CHUNK_SIZE: String(CHUNK_SIZE) } })
+  .pipeline(allPipelines)

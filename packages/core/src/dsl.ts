@@ -129,6 +129,8 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   private readonly _retry: RetryPolicy
   private readonly _onError: 'fail-run' | 'skip-item' | 'dead-letter'
   private readonly _steps: PipelineStep[] = []
+  /** Set by `defineProcess().config({ env }).pipeline(...)` — pipeline-scoped env defaults. */
+  envDefaults?: Record<string, string>
 
   get id(): string {
     return this._id
@@ -313,14 +315,25 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
 export type ProcessInstall = (() => void) | { install(): void }
 
 /**
+ * Process-level configuration for a pipeline module. `env` entries are defaults:
+ * the Runner applies them to the run env only for keys not already set in
+ * `process.env` or the mt.json env, so real environment variables always win.
+ */
+export interface ProcessConfig {
+  env?: Record<string, string>
+}
+
+/**
  * Entry point for process-level setup that wraps a pipeline definition:
  * `.install(...)` applies process-wide installers (mock LLM providers, …) at
- * module load, `.pipeline(p)` returns the pipeline unchanged so the chain can be
- * the module's default export.
+ * module load, `.config({ env })` declares pipeline-scoped env defaults,
+ * `.pipeline(p)` returns the pipeline (with the config attached) so the chain
+ * can be the module's default export.
  *
  * ```ts
  * export default defineProcess()
  *   .install(mockLlm({ source: ['answer'] }))
+ *   .config({ env: { MT_CHUNK_SIZE: '40' } })
  *   .pipeline(definePipeline().from('jsonl://./in.jsonl').use(myTool).to('md://./out'))
  * ```
  */
@@ -329,6 +342,8 @@ export function defineProcess(): ProcessBuilder {
 }
 
 export class ProcessBuilder {
+  private readonly _config: ProcessConfig = {}
+
   /** Apply installers immediately (pipeline-module load time). Chainable. */
   install(...installs: ProcessInstall[]): ProcessBuilder {
     for (const install of installs) {
@@ -338,8 +353,20 @@ export class ProcessBuilder {
     return this
   }
 
-  /** Terminal step: returns the pipeline as-is for the module's default export. */
+  /**
+   * Declare pipeline-scoped env defaults. Repeated calls merge; later values win.
+   * Defaults never override `process.env` or the mt.json env at run time.
+   */
+  config(config: ProcessConfig): ProcessBuilder {
+    if (config.env) this._config.env = { ...this._config.env, ...config.env }
+    return this
+  }
+
+  /** Terminal step: returns the pipeline as-is (with env defaults attached) for the default export. */
   pipeline<P extends Pipeline<unknown, unknown>>(pipeline: P): P {
+    if (this._config.env) {
+      pipeline.envDefaults = { ...pipeline.envDefaults, ...this._config.env }
+    }
     return pipeline
   }
 }

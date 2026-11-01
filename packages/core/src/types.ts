@@ -82,6 +82,11 @@ export interface Pipeline<_I = unknown, _O = unknown> {
   retry: RetryPolicy
   onError: 'fail-run' | 'skip-item' | 'dead-letter'
   steps: PipelineStep[]
+  /**
+   * Pipeline-scoped env defaults (from `defineProcess().config({ env })`), merged into the
+   * run env by the Runner for keys not already set in `process.env` or the mt.json env.
+   */
+  envDefaults?: Record<string, string>
 }
 
 /**

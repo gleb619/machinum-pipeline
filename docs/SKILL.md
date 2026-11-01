@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.2.0 | 2026-11-01 -->
+<!-- skill-version: 1.3.0 | 2026-11-01 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -198,8 +198,13 @@ import 'mt/waypoint'
 
 export default defineProcess()
   .install(mockLlm({ source: (req) => `mock: ${req.messages.at(-1)?.content}` }))
+  .config({ env: { MT_CHUNK_SIZE: '40' } }) // pipeline-scoped env defaults; real process.env always wins
   .pipeline(definePipeline().from('jsonl://./input.jsonl').use(createSummaryTool()).to('md://./out'))
 ```
+
+`defineProcess().config({ env })` sets pipeline-scoped env defaults (e.g. split defaults for
+`chunkSplit`): the Runner applies them to the run env only for keys not already set in
+`process.env` or the mt.json env.
 
 `MT_LLM_TOOL=ollama mt run ...` runs the same file against a real backend. Run offline smoke tests with
 `mt router --mock` (no keys, no network). An explicit `call`/`translate` argument on a tool beats everything.
