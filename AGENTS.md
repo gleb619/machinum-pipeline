@@ -123,6 +123,9 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
 
 - **Change workflow** - default: worktree + branch → code → test/lint gate → commit → samples IT gate →
   rebase onto `main`, then FF-merge only (`git merge --ff-only`) → cleanup.
+  **Simple tasks: stay put.** For small/simple tasks (tweak, sample edit, doc fix, single-commit change) do
+  NOT create a new worktree or feature branch — work in the current worktree and commit directly on the
+  current branch (usually `main`).
   **Explicit user override:** when the user says to work in the current worktree / `main` checkout, obey:
   do not create a new worktree or feature branch; commit directly on `main`. An explicit user instruction
   wins over the default branch flow.
