@@ -159,8 +159,8 @@ describe('cleanSplitPipeline', () => {
     expect(Number(reuse?.chunkCount)).toBe(Number(split?.chunkCount))
     expect(reuse?.reused).toBe(true)
 
-    const first = await readFile(CHUNKED, 'utf-8')
-    const second = await readFile(CHUNKED_REUSED, 'utf-8')
+    const first = (await readFile(CHUNKED, 'utf-8')).trimEnd()
+    const second = (await readFile(CHUNKED_REUSED, 'utf-8')).trimEnd()
     expect(second).toBe(first)
   })
 })

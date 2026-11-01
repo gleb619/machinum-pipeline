@@ -75,15 +75,6 @@ const chunkSplitter = createChunkSplit({ chunkSize: CHUNK_SIZE })
 // names the file, the target creates `chapters/` and writes `chapters/chunked.md`.
 // ---------------------------------------------------------------------------
 
-/** Write the chunked text as `chapters/chunked.md`. */
-const emitChunked = mdOutputEmitter({ name: 'chunked', filename: () => 'chunked.md' })
-
-/** Write the chunked text of the second run as `chapters/chunked-reused.md`. */
-const emitChunkedReused = mdOutputEmitter({
-  name: 'chunked-reused',
-  filename: () => 'chunked-reused.md',
-})
-
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   .from('md://./chapters/chapter1.md')
   .use(chunkSplitter)
@@ -96,8 +87,7 @@ const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
       }),
     )
   })
-  .use(emitChunked)
-  .to('md://./chapters')
+  .to('md://./chapters/chunked.md')
 
 // ---------------------------------------------------------------------------
 // Stage 2 — REUSE
@@ -119,8 +109,7 @@ const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
       }),
     )
   })
-  .use(emitChunkedReused)
-  .to('md://./chapters')
+  .to('md://./chapters/chunked-reused.md')
 
 /**
  * Clean + split a chapter, then run the result through the splitter again.
