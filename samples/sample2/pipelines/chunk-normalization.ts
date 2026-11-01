@@ -119,7 +119,7 @@ const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
     return [stampChunkHeader(text, parseChunks(text).length)]
   })
   .use(emitChunked)
-  .to('md://./out')
+  .to('md://./chapters')
 
 // ---------------------------------------------------------------------------
 // Stage 2 — REUSE
@@ -130,7 +130,7 @@ const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
 // ---------------------------------------------------------------------------
 
 const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
-  .from('md://./out/chunked.md')
+  .from('md://./chapters/chunked.md')
   .flatMap(async (item: unknown) => [stripChunkHeader(String(item))])
   .use(chunkSplitter)
   .tap(async (env) => {
@@ -141,7 +141,7 @@ const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
     return [stampChunkHeader(text, parseChunks(text).length)]
   })
   .use(emitChunkedReused)
-  .to('md://./out')
+  .to('md://./chapters')
 
 /**
  * Clean + split a chapter, then run the result through the splitter again.
@@ -334,11 +334,11 @@ const documentStage = definePipeline({ id: 'sample2-ladder-documents' })
   .use(chapterDocBuild)
   .use(chapterIndexer)
   .use(chapterDocEmit)
-  .to(countingTarget<string>('md://./out/ladder-chapters', 'documents'))
+  .to(countingTarget<string>('md://./chapters/ladder-chapters', 'documents'))
 
 /** Rung 1 → 2: the markdown document becomes token-bounded Chunk entities. */
 const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
-  .from('md://./out/ladder-chapters')
+  .from('md://./chapters/ladder-chapters')
   .flatMap(async (item: unknown) => toChunks(readChapterDoc(String(item))))
   .to(countingTarget<ChunkEntity>('chunks://ladder', 'chunks'))
 
@@ -366,7 +366,7 @@ const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
   .batch(10_000)
   .flatMap(async (words: unknown) => [renderLadderSummary((words as WordEntity[]).length)])
   .use(mdOutputEmitter({ name: 'ladder-summary', filename: () => 'ladder-summary.md' }))
-  .to('md://./out')
+  .to('md://./chapters')
 
 /**
  * The Structure Ladder, one `.subflow()` per rung.
@@ -437,7 +437,7 @@ const tokenSummaryStage = definePipeline({ id: 'sample2-ladder-token-summary' })
   .batch(100_000)
   .flatMap(async (tokens: unknown) => [renderTokenSummary((tokens as TokenEntity[]).length)])
   .use(mdOutputEmitter({ name: 'token-ladder-summary', filename: () => 'token-ladder-summary.md' }))
-  .to('md://./out')
+  .to('md://./chapters')
 
 /**
  * The alternate route of the ladder: jsonl -> md -> chunks:// -> tokens:// -> summary.
