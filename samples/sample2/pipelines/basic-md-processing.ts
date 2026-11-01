@@ -1,5 +1,4 @@
 import { definePipeline, getVariable } from '@mt/core'
-import type { Chapter } from '@mt/core'
 import { chapterDocBuild, readChapterDoc, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -76,7 +75,7 @@ const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
 // record id.
 // ---------------------------------------------------------------------------
 
-const customTypedContentPipeline = definePipeline({ id: 'custom-typed-content' })
+const typedContentPipeline = definePipeline({ id: 'typed-content' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => {
     const { id } = record as LineRecord
@@ -122,7 +121,6 @@ const customTypedContentPipeline = definePipeline({ id: 'custom-typed-content' }
   })
   .to('md://./chapters/output-typed.md')
 
-// ---------------------------------------------------------------------------\n// Typed chapter content using existing domain types (Chapter).\n// ---------------------------------------------------------------------------\n\nconst typedContentPipeline = definePipeline({ id: 'typed-content' })\n  .from('jsonl://./jsonl/input.jsonl')\n  .flatMap(async (record: unknown) => {\n    const { id } = record as LineRecord\n    const chapter: Chapter = { id: String(id), bookId: 'basic-md', title: `Line ${id}`, body: toLineText(record) }\n    return [`# ${chapter.title}\\n\\n${chapter.body}`]\n  })\n  .to('md://./chapters/output-typed.md')\n\n
 // ---------------------------------------------------------------------------
 // Corpus statistics: batch the lines and let `statFreq` rank the words.
 //
@@ -152,7 +150,7 @@ export { defaultPipeline, typedContentPipeline, statsPipeline }
 
 // explicit suite -> your order + mode
 import { defineSuite } from '@mt/core'
-export default defineSuite([defaultPipeline, customTypedContentPipeline, typedContentPipeline, statsPipeline]).parallel()
+export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline]).parallel()
 
 // sync shorthand
 // export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
