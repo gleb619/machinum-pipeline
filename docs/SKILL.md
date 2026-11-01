@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.3.0 | 2026-11-01 -->
+<!-- skill-version: 1.3.1 | 2026-11-01 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -69,6 +69,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `chapter://./en/` | language-folder chapter layout |
 | `hs://http://...` | HTTP source |
 | `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
+| `temp://<entity>/<ns>` | in-memory write side for typed ladder buffers; `temp://chunks/ladder` feeds `chunks://ladder` (ladder schemes are source-only) |
 | `@name` | alias from `mt.json` `"uris": { "en": "md://./chapters/en" }` -> `.to('@en')` |
 
 Custom steps: a Tool is `{ name, version, invoke(exchange, ctx), cacheable? }`; set `cacheable: true`

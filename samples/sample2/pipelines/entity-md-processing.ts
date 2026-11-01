@@ -154,14 +154,15 @@ const chapterMdPipeline = definePipeline({ id: 'sample2-entity-chapter-md' })
   .to(CHAPTERS_DIR)
 
 // ---------------------------------------------------------------------------
-// Stage 2: markdown -> Paragraph entities, buffered in paragraphs://
+// Stage 2: markdown -> Paragraph entities, written through temp://paragraphs
+// (ladder rungs are source-only; the next stage reads them back as paragraphs://).
 // ---------------------------------------------------------------------------
 
 const paragraphPipeline = definePipeline({ id: 'sample2-entity-paragraphs' })
   .from(CHAPTERS_DIR)
   .use(parseChapterDoc)
   .flatMap(async (doc: unknown) => toParagraphs(doc as ChapterDoc))
-  .to(entitySink<ParagraphEntity>('paragraphs://', 'paragraphs'))
+  .to(entitySink<ParagraphEntity>('temp://paragraphs', 'paragraphs'))
 
 // ---------------------------------------------------------------------------
 // Stage 3: Paragraph -> Line entities (entity-buffer handoff, same process)
@@ -170,7 +171,7 @@ const paragraphPipeline = definePipeline({ id: 'sample2-entity-paragraphs' })
 const linePipeline = definePipeline({ id: 'sample2-entity-lines' })
   .from('paragraphs://')
   .flatMap(async (paragraph: unknown) => toLines(paragraph as ParagraphEntity))
-  .to(entitySink<LineEntity>('lines://', 'lines'))
+  .to(entitySink<LineEntity>('temp://lines', 'lines'))
 
 // ---------------------------------------------------------------------------
 // Stage 4: Line -> Word entities, then one JSONL line per word
@@ -193,8 +194,9 @@ const wordPipeline = definePipeline({ id: 'sample2-entity-words' })
 // Default: orchestrate the four self-contained stages.
 //
 // Each `.subflow()` has its own `.from()`, so it drains the parent (empty) and
-// runs independently. `paragraphs://` and `lines://` are process-local entity
-// buffers: stage boundaries 2 -> 3 -> 4 stay in memory inside this one process.
+// runs independently. Each stage writes with `temp://` and the next reads the
+// typed rung (`paragraphs://`, `lines://`): stage boundaries 2 -> 3 -> 4 stay in
+// memory inside this one process.
 // ---------------------------------------------------------------------------
 
 export default definePipeline({ id: 'sample2-entity-md-processing' })
@@ -259,4 +261,4 @@ export const parallelBranchesPipeline = definePipeline({ id: 'sample2-entity-bra
   .fork(syncBranch)
   .fork(asyncBranch)
   .use(concurrencyProbe)
-  .to(entitySink<ParagraphEntity>('paragraphs://branches', 'branch-output'))
+  .to(entitySink<ParagraphEntity>('temp://paragraphs/branches', 'branch-output'))

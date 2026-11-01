@@ -11,7 +11,7 @@ Two `mt` pipelines over the same JSONL input, without LLM calls:
 - How to read a source (`jsonl://`, `range://`) and write a target (`md://`, `jsonl://`).
 - How to use the tools that already ship in `@mt/tools` instead of hand-rolling your own.
 - How to fan data out with `.flatMap()` and group it with `.batch()`.
-- How to hand data between stages through the entity buffers `lines://` and `words://`
+- How to hand data between stages through the entity buffers: write `temp://lines/...`, read `lines://...`
   (in-process, no file in between).
 - How to process the same stream in **sync**, **async** and **parallel** ways.
 - How to branch the flow with `.fork()` and merge the branch results back.
@@ -60,7 +60,7 @@ step the package does not ship. Everything else is a shipped waypoint or package
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` | `pnpm run runner:custom` | JSONL → `lines://` → `words://` → sync/async/parallel steps → two `.fork()` branches → `output.md` |
+| `default` | `pnpm run runner:custom` | JSONL → `temp://lines/custom-md` → `lines://custom-md` → `temp://words/custom-md` → `words://custom-md` → sync/async/parallel steps → two `.fork()` branches → `output.md` |
 | `rangeDemoPipeline` | `pnpm run runner:range` | `range://1..3` → lines → word count → `void://` |
 | `voidDemoPipeline` | `pnpm run runner:void` | Same JSONL source → lines → `void://` |
 | `ephemeralDemoPipeline` | `pnpm run runner:ephemeral` | JSONL → lines → `ephemeral://basic-md-buffer` (in-memory) |
@@ -71,17 +71,20 @@ step the package does not ship. Everything else is a shipped waypoint or package
 ```
 jsonl://./jsonl/input.jsonl
   → flatMap              (record → one envelope per line)
-  → lines://basic-md     (entity buffer — in-process handoff)
+  → temp://lines/custom-md (write the line buffer — in-process handoff)
+  → lines://custom-md    (read it back through the typed rung)
   → wordCounter          (package tool → `wordCount` variable)
   → flatMap              (line → words, via the package splitter `tokenizeWords`)
-  → words://basic-md     (entity buffer)
+  → temp://words/custom-md (write the word buffer)
+  → words://custom-md    (read it back through the typed rung)
   → tap (sync) / tap (async) / tokenCounter (parallel) / fork / fork
   → md://./output.md
 ```
 
 The four stages are `.subflow()`s of an orchestration-only parent. A subflow that declares its
 own `.from()` is **self-contained**: it runs after the upstream stream is consumed, in declaration
-order. `lines://` and `words://` are process-local buffers, so the stage boundaries stay in memory.
+order. Ladder rungs are source-only: each stage writes `temp://<rung>/<namespace>` and the next
+reads `<rung>://<namespace>`, so the stage boundaries stay in memory.
 
 ### Sync, async, parallel, branching — what is really going on
 
@@ -105,9 +108,11 @@ jsonl/entities.jsonl
   → chapterDocBuild + chapterIndexer + chapterDocEmit   (JSONL → chapters-out/chapterN.md)
   → readChapterDoc                                     (md → ChapterDoc)
   → flatMap                                            (ChapterDoc → Paragraph entities)
-  → paragraphs://                                      (in-process handoff)
+  → temp://paragraphs                                  (write — in-process handoff)
+  → paragraphs://                                      (read back through the typed rung)
   → flatMap                                            (Paragraph → Line entities)
-  → lines://                                           (in-process handoff)
+  → temp://lines                                       (write)
+  → lines://                                           (read back through the typed rung)
   → tokenizeWords                                      (Line → Word entities)
   → entities/words.jsonl
 ```
@@ -116,12 +121,13 @@ Key points:
 
 - `@mt/tools` supplies the real builders/parsers: `chapterDocBuild`, `chapterDocEmit`,
   `chapterIndexer`, `readChapterDoc`, `tokenizeWords`. The sample only adds tiny `flatMap` glue.
-- `paragraphs://` and `lines://` are built-in entity-buffer shortcuts over the same process-local
-  buffer as `ephemeral://`, with one key space per entity level (and optional namespaces such as
-  `paragraphs://branches`). They are registered globally by `@mt/waypoint` and embedded in the `mt`
-  binary/CLI — this pipeline only uses them, it does not define them. The four stages therefore run
-  as `.subflow()`s inside one `mt run`.
-- `defineWaypoint` wraps the entity-buffer targets to log counts without changing payloads.
+- `paragraphs://` and `lines://` are built-in **source-only** entity-buffer shortcuts over the same
+  process-local buffer as `ephemeral://`, with one key space per entity level (and optional
+  namespaces such as `paragraphs://branches`). Writes go through `temp://<rung>/<namespace>`
+  (`temp://paragraphs`, `temp://paragraphs/branches`); reads use the typed rung. They are registered
+  globally by `@mt/waypoint` and embedded in the `mt` binary/CLI — this pipeline only uses them,
+  it does not define them. The four stages therefore run as `.subflow()`s inside one `mt run`.
+- `defineWaypoint` wraps the `temp://` targets to log counts without changing payloads.
 - `Word` is not a core domain type; the sample declares a local `WordEntity`.
 
 | Pipeline | Command | Purpose |
@@ -185,15 +191,16 @@ chapters/chapter1.md
 ```
 jsonl://./jsonl/ladder.jsonl      (a chapter record)
   → chapterDocBuild + chapterIndexer + chapterDocEmit   → md://./chapters/ladder-chapters
-  → readChapterDoc + splitIntoChunks (md → chunks)      → chunks://ladder
-  → split(/\n\n+/)                 (chunk → paragraphs) → paragraphs://ladder  (chunkId)
-  → split('\n')                    (paragraph → lines)  → lines://ladder
-  → tokenizeWords                  (line → words)       → words://ladder
-  → batch + summary                                     → md://./chapters (chapters/ladder-summary.md)
+  → readChapterDoc + splitIntoChunks (md → chunks)      → temp://chunks/ladder
+  → chunks://ladder → split(/\n\n+/) (chunk → paragraphs) → temp://paragraphs/ladder (chunkId)
+  → paragraphs://ladder → split('\n') (paragraph → lines) → temp://lines/ladder
+  → lines://ladder → tokenizeWords    (line → words)     → temp://words/ladder
+  → words://ladder → batch + summary                     → md://./chapters (chapters/ladder-summary.md)
 ```
 
 Every step down the ladder is one `.flatMap()` (one envelope in, many out) plus one entity
-buffer; the buffers are built in, the pipeline only uses them. The entities are the real core
+buffer. The typed rungs are source-only: each stage writes `temp://<rung>/ladder`, the next reads
+`<rung>://ladder`. The buffers are built in, the pipeline only uses them. The entities are the real core
 types (`Chapter`, `Paragraph`, `Chunk`, `Line`); `Word` is not a core type, so the sample
 declares one. The summary has one row per rung:
 
@@ -211,7 +218,8 @@ declares one. The summary has one row per rung:
 #### Alternate route: chunks → tokens
 
 `chunks://` also branches into `tokens://` (tiktoken-style BPE tokens, what the LLM sees).
-`tokenLadderPipeline` runs jsonl → md → `chunks://` → `tokens://` → summary and writes
+`tokenLadderPipeline` runs jsonl → md → `temp://chunks/ladder` → `chunks://ladder` →
+`temp://tokens/ladder` → `tokens://ladder` → summary and writes
 `chapters/token-ladder-summary.md` with the chunk count, the token count and a `Heuristic` flag
 (true only when `gpt-tokenizer` is unavailable and ~4-char pieces are used). With the demo
 fixture: 4 chunks, 86 tokens.

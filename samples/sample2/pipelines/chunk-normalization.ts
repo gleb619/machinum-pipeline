@@ -28,6 +28,10 @@ import '@mt/waypoint'
 // Ladder default chunk size; MT_CHUNK_SIZE (real env) still wins everywhere.
 const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
 
+// Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
+// A stage writes to the matching temp://<rung>/<namespace> buffer; the next stage
+// reads it back through the typed rung (temp://chunks/ladder -> chunks://ladder).
+
 // Clean chapter1.md, split into chunks, write chunked.md.
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   .from('md://./chapters/chapter1.md')
@@ -188,28 +192,28 @@ const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
   .from('md://./chapters/ladder-chapters')
   .flatMap(async (item: unknown) => toChunks(readChapterDoc(String(item))))
   .tap(countRung('chunks'))
-  .to('chunks://ladder')
+  .to('temp://chunks/ladder')
 
 // Rung 3: Chunk → Paragraphs, one per \n\n block.
 const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
   .from('chunks://ladder')
   .flatMap(async (chunk: unknown) => toParagraphs(chunk as Chunk))
   .tap(countRung('paragraphs'))
-  .to('paragraphs://ladder')
+  .to('temp://paragraphs/ladder')
 
 // Rung 4: Paragraph → Lines (non-empty only).
 const lineStage = definePipeline({ id: 'sample2-ladder-lines' })
   .from('paragraphs://ladder')
   .flatMap(async (paragraph: unknown) => toLines(paragraph as Paragraph))
   .tap(countRung('lines'))
-  .to('lines://ladder')
+  .to('temp://lines/ladder')
 
 // Rung 5: Line → Words (lightweight entities with parent ids).
 const wordStage = definePipeline({ id: 'sample2-ladder-words' })
   .from('lines://ladder')
   .flatMap(async (line: unknown) => toWords(line as Line))
   .tap(countRung('words'))
-  .to('words://ladder')
+  .to('temp://words/ladder')
 
 // Collect all words, print rung counts, render summary table.
 const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
@@ -263,7 +267,7 @@ const tokenStage = definePipeline({ id: 'sample2-ladder-tokens' })
   .from('chunks://ladder')
   .flatMap(async (chunk: unknown) => toTokens(chunk as Chunk))
   .tap(countRung('tokens'))
-  .to('tokens://ladder')
+  .to('temp://tokens/ladder')
 
 const tokenSummaryStage = definePipeline({ id: 'sample2-ladder-token-summary' })
   .from('tokens://ladder')

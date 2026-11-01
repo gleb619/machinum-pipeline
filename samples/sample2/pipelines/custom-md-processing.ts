@@ -57,16 +57,17 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 // Stage 1 — LINES
 //
 // `jsonl://` reads records, `.flatMap()` fans every record out into one envelope
-// per line, and `lines://` parks those envelopes in a process-local buffer.
-// The buffer is a waypoint, not a tool: the next stage reads it back with
-// `lines://` and never sees the file.
+// per line, and `temp://lines/custom-md` parks those envelopes in a process-local
+// buffer. Ladder rungs are source-only, so the write goes through `temp://`; the
+// next stage reads the same buffer back with `lines://custom-md` and never sees
+// the file.
 // ---------------------------------------------------------------------------
 
 const lineStage = definePipeline({ id: 'custom-md-lines' })
   .from('jsonl://./jsonl/input.jsonl')
   .use(toLinePayloads)
   .flatMap(async (payload: unknown) => String(payload).split('\n'))
-  .to('lines://custom-md')
+  .to('temp://lines/custom-md')
 
 // ---------------------------------------------------------------------------
 // Stage 2 — WORDS
@@ -74,14 +75,14 @@ const lineStage = definePipeline({ id: 'custom-md-lines' })
 // Reads the `lines://` buffer, counts the words of every line with a real
 // package tool (`wordCounter` sets the `wordCount` variable), then fans each
 // line out into its words with `tokenizeWords` (the package word splitter).
-// The words land in the `words://` buffer.
+// The words land in the process-local buffer read as `words://custom-md`.
 // ---------------------------------------------------------------------------
 
 const wordStage = definePipeline({ id: 'custom-md-words' })
   .from('lines://custom-md')
   .use(wordCounter)
   .flatMap(async (line: unknown) => tokenizeWords(String(line)))
-  .to('words://custom-md')
+  .to('temp://words/custom-md')
 
 // ---------------------------------------------------------------------------
 // Stage 3 — MARKDOWN

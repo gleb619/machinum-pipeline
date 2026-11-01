@@ -22,11 +22,12 @@ describe('mt umbrella exports', () => {
     expect(typeof waypoint.createEntityBufferSource).toBe('function')
   })
 
-  it('entity buffer schemes are registered globally by the umbrella', () => {
+  it('ladder entity buffer schemes are source-only', () => {
     for (const scheme of ['chapters', 'paragraphs', 'chunks', 'tokens', 'lines', 'words']) {
       expect(root.registry.resolveSource(`${scheme}://`)).toHaveProperty('start')
-      expect(root.registry.resolveTarget(`${scheme}://`)).toHaveProperty('write')
+      expect(root.registry.hasTarget(scheme)).toBe(false)
     }
+    expect(root.registry.resolveTarget('temp://chunks/ladder')).toHaveProperty('write')
   })
 
   it('embedded-module registration is a no-op outside Bun', () => {

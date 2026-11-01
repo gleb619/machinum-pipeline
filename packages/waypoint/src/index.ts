@@ -11,10 +11,15 @@ export { createChapterOutputSource, createChapterOutputTarget } from './chapter-
 export { createEphemeralSource, createEphemeralTarget } from './ephemeral.js'
 export {
   ENTITY_BUFFER_SCHEMES,
+  LADDER_BUFFER_SCHEMES,
+  PACKAGE_BUFFER_SCHEMES,
   entityBufferKey,
   createEntityBufferSource,
   createEntityBufferTarget,
+  createTempBufferTarget,
   type EntityBufferScheme,
+  type LadderBufferScheme,
+  type PackageBufferScheme,
 } from './entity-buffers.js'
 export { createEventsSource, createEventsTarget } from './events.js'
 export { createRangeSource } from './range.js'

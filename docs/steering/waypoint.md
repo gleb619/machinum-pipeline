@@ -9,7 +9,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `review://`, `events://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `review://`, `events://`, `temp://`.
 
 ## URI Scheme Reference
 
@@ -25,8 +25,9 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
+| `temp://<entity>/<namespace>` | `entity-buffers.ts` | — | ✓ | In-memory write side for a typed entity buffer (`temp://chunks/ladder` → `chunks://ladder`) |
 
-Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [Structure Ladder](#structure-ladder) below.
+Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [Structure Ladder](#structure-ladder) below. Ladder rungs are **source-only** (creational); write their output through `temp://<entity>/<namespace>`. `batches://` is a non-ladder package buffer and stays bidirectional.
 
 ## Source/Target Shape
 
@@ -238,7 +239,7 @@ packages/waypoint/tests/builtins/
 ├── range.test.ts / range.arch.test.ts   # integer generator: directions, step, validation, resume skip
 ├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
 ├── review.test.ts / review.arch.test.ts # glossary review queue render + atomic write; target-only registration
-├── entity-buffers.test.ts # entity buffer schemes: registration, round-trip, namespace + scheme isolation
+├── entity-buffers.test.ts # entity buffer schemes: source-only rungs, temp:// write side, namespace isolation
 └── settings.test.ts
 ```
 
@@ -246,7 +247,7 @@ Architecture tests (`.arch.test.ts`) verify the registered schemes and interface
 
 ## WP index (planned-scheme spec)
 
-The WP001–WP011 entries below are the planned-scheme spec index for the waypoint catalogue.
+The WP001–WP012 entries below are the planned-scheme spec index for the waypoint catalogue.
 
 | ID   | Waypoint         | Source | Target | Lifestyle     | Used in Samples                           |
 |------|------------------|--------|--------|---------------|-------------------------------------------|
@@ -260,7 +261,8 @@ The WP001–WP011 entries below are the planned-scheme spec index for the waypoi
 | WP008 | range://         | ✓      | —      | resumable     | sample2                                   |
 | WP009 | void://          | —      | ✓      | —             | sample2                                   |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
-| WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | ✓ | resumable | sample2 (`paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
+| WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | — | resumable | sample2 (`paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
+| WP012 | temp:// | — | ✓ | — | sample2 (write side of the ladder rungs) |
 
 ---
 
@@ -276,7 +278,8 @@ The WP001–WP011 entries below are the planned-scheme spec index for the waypoi
 | 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
 | 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
 | 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
-| 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | ✓ | resumable | `T` | `T` | Entity-level shortcuts over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
+| 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | — | resumable | — | `T` | Entity-level **source-only** ladder views over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
+| 12    | WP012 | `temp://<entity>/<namespace>` | — | ✓ | — | `T` | — | Target-only in-memory write side for an entity buffer; `temp://chunks/ladder` fills the buffer that `chunks://ladder` reads. |
 
 ## Structure Ladder
 
@@ -324,7 +327,7 @@ export default definePipeline()
       index,
     })),
   )
-  .to('chunks://chapters')                   // level 2 — hand the chunks to the next stage
+  .to('temp://chunks/chapters')              // level 2 — write the chunks into the in-memory buffer
 ```
 
 **Alternate route: `chunks → tokens`.** Instead of descending into paragraphs, a chunk can be tokenized into
@@ -333,7 +336,9 @@ tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — wh
 `heuristic`) does the split. Demonstrated by `tokenLadderPipeline` in sample2.
 
 Rung 0 (`jsonl://`) is the entry point for machine-readable input; rungs 2–5 and `tokens://` are process-local buffers, so
-a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`).
+a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`). These rungs are
+source-only: a stage writes with `.to('temp://<rung>/<namespace>')` and the next stage reads `.from('<rung>://<namespace>')`.
+Use `batches://` when a package must survive the hop as one envelope (it is not a ladder rung).
 
 ## Composing Waypoints: `defineWaypoint`
 
