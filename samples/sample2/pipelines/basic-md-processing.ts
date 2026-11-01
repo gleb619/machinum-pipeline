@@ -147,9 +147,9 @@ export const statsPipeline = definePipeline({ id: 'basic-md-stats' })
 
 // ---------------------------------------------------------------------------
 // Pick what `mt run` runs (uncomment one; no default export = implicit suite of all 3):
+// import { defineSuite } from '@mt/core'
 //
 // all three, explicit order + mode
-// import { defineSuite } from '@mt/core'
 // export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
 //   id: 'basic-md-all',
 //   mode: 'sync', // or 'parallel'
