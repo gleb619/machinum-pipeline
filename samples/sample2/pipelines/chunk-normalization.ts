@@ -18,6 +18,23 @@ import {
 } from '@mt/tools'
 import '@mt/waypoint'
 
+// Chunk normalization: clean/split round-trip, Structure Ladder, token route, series split.
+// Ladder default chunk size; MT_CHUNK_SIZE (real env) still wins everywhere.
+const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
+// Demo series target in characters per part. The splitter resolves the tunable chain
+// (first defined wins): `constants` variable -> mt.json
+// `settings.constants.SERIES_SPLIT_TARGET_CHARS` -> env
+// `MT_CONST_SERIES_SPLIT_TARGET_CHARS` -> shipped `SERIES_SPLIT_TARGET_CHARS`.
+const SERIES_TARGET_CHARS = 150
+
+// `--pipeline <name>` runs the named export directly and therefore bypasses the
+// `defineProcess()` env defaults below. Seed the same demo values into process.env so
+// every entry point (suite or named pipeline) sees them; a real env value still wins.
+if (!process.env.MT_CHUNK_SIZE) process.env.MT_CHUNK_SIZE = String(CHUNK_SIZE)
+if (!process.env.MT_CONST_SERIES_SPLIT_TARGET_CHARS) {
+  process.env.MT_CONST_SERIES_SPLIT_TARGET_CHARS = String(SERIES_TARGET_CHARS)
+}
+
 // Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
 // A stage writes to the matching temp://<rung>/<namespace> buffer; the next stage
 // reads it back through the typed rung (temp://chunks/ladder -> chunks://ladder).
@@ -229,18 +246,27 @@ export const tokenLadderPipeline = definePipeline({ id: 'sample2-token-ladder' }
   .subflow(tokenStage)
   .subflow(tokenSummaryStage)
 
+// Series split: `.subflow('#series')` is the shortcut for the registered `series`
+// splitter (`series://`). The target can do the same split itself:
+// `.to('md://./chapters/series-output.md?series=true')` — then drop the `.subflow(...)`.
+export const seriesSplitPipeline = definePipeline({ id: 'sample2-series-split' })
+  .from('md://./chapters/chapter1.md')
+  .subflow('#series')
+  .to('md://./chapters/series-output.md')
+
 // All four lessons in one process: clean/split, ladder, token ladder, series split.
 const allPipelines = definePipeline({ id: 'sample2-chunk-normalization-suite' })
   .subflow(cleanSplitPipeline)
   .subflow(ladderPipeline)
   .subflow(tokenLadderPipeline)
+  .subflow(seriesSplitPipeline)
 
 // Process entry: pin MT_CHUNK_SIZE and the demo series target so the run is reproducible.
 export default defineProcess()
   .config({
     env: {
-      MT_CHUNK_SIZE: '40',
-      MT_CONST_SERIES_SPLIT_TARGET_CHARS: '150',
+      MT_CHUNK_SIZE: String(CHUNK_SIZE),
+      MT_CONST_SERIES_SPLIT_TARGET_CHARS: String(SERIES_TARGET_CHARS),
     },
   })
   .pipeline(allPipelines)
