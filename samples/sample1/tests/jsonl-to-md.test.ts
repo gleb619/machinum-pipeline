@@ -68,7 +68,7 @@ describe('jsonl-to-md pipeline', () => {
       )
       expect(content.split(`# ${CHAPTERS[i].title}`).length).toBe(2)
       expect(content).toContain(CHAPTERS[i].body)
-      expect(content).toContain('---')
+      expect(content.startsWith('---')).toBe(false)
     }
   })
 })
