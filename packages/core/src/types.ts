@@ -105,16 +105,7 @@ export interface Pipeline<_I = unknown, _O = unknown> {
  * A single step in a pipeline.
  */
 export interface PipelineStep {
-  type:
-    | 'source'
-    | 'tool'
-    | 'target'
-    | 'fork'
-    | 'batch'
-    | 'flatmap'
-    | 'split'
-    | 'tap'
-    | 'subflow'
+  type: 'source' | 'tool' | 'target' | 'fork' | 'batch' | 'flatmap' | 'split' | 'tap' | 'subflow'
   config: Record<string, unknown>
 }
 

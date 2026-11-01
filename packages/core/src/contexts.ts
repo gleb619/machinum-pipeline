@@ -107,16 +107,7 @@ export interface CheckpointHandle {
 export interface StepInfo {
   stepId: string
   name: string
-  type:
-    | 'source'
-    | 'tool'
-    | 'target'
-    | 'fork'
-    | 'batch'
-    | 'flatmap'
-    | 'split'
-    | 'tap'
-    | 'subflow'
+  type: 'source' | 'tool' | 'target' | 'fork' | 'batch' | 'flatmap' | 'split' | 'tap' | 'subflow'
   index: number
 }
 
