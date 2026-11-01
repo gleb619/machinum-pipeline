@@ -13,11 +13,11 @@
  *     script is picked up without touching this file.
  *  2. `prepare-input` runs first when the sample defines it, so the fixtures the
  *     pipelines read (`jsonl/*.jsonl`) always exist.
- *  3. The sibling runners run one by one. sample2 cannot run them in parallel:
- *     `basic-md-processing.ts` and `custom-md-processing.ts` both write
- *     `output.md`, and `chunk-normalization.ts` writes `chapters/ladder-chapters/`
- *     from two of its pipelines. A sample whose runners write to disjoint paths
- *     can raise `CONCURRENCY` and let them run side by side.
+ *  3. The sibling runners run one by one. Several runners in sample2 share
+ *     output paths and entity buffers, and `chunk-normalization.ts` writes
+ *     `chapters/ladder-chapters/` from two of its pipelines. A sample whose
+ *     runners write to disjoint paths can raise `CONCURRENCY` and let them run
+ *     side by side.
  *  4. Each run is recorded: exit code, duration, the run id and the files the
  *     run touched. The run id also names the log file the CLI's duplex logger
  *     wrote (`<sample>/.mt/runs/<runId>/run.log`), which is what

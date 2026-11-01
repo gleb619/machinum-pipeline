@@ -1,22 +1,20 @@
-# Sample 2 — Basic Markdown Processing
+# Sample 2 — Markdown Processing
 
-Two `mt` pipelines over the same JSONL input, without LLM calls:
+Pipelines over JSONL and markdown, without LLM calls:
 
-- **`pipelines/basic-md-processing.ts`** — the basics. One source, shipped tools, one target.
-- **`pipelines/custom-md-processing.ts`** — the advanced version: a hand-composed pipeline with
-  entity buffers, `.fork()` branches, a parallel step and a non-blocking side pipeline.
+- **`pipelines/basic-md-processing.ts`** — the basics. Shipped tools, typed chapter content and
+  corpus statistics.
+- **`pipelines/parallel-forks-md-processing.ts`** — JSONL → `Chapter` → `Paragraph` → `Line`,
+  then three async branches that run in parallel and merge into one markdown file.
+- **`pipelines/chunk-normalization.ts`** — chunk splitting, separator reuse and the Structure Ladder.
 
 ## What you will learn
 
-- How to read a source (`jsonl://`, `range://`) and write a target (`md://`, `jsonl://`).
+- How to read a source (`jsonl://`) and write a target (`md://`).
 - How to use the tools that already ship in `@mt/tools` instead of hand-rolling your own.
 - How to fan data out with `.flatMap()` and group it with `.batch()`.
-- How to hand data between stages through the entity buffers: write `temp://lines/...`, read `lines://...`
-  (in-process, no file in between).
-- How to process the same stream in **sync**, **async** and **parallel** ways.
-- How to branch the flow with `.fork()` and merge the branch results back.
-- How to discard output with `void://` and how to keep it in memory with `ephemeral://`.
-- How to run a non-blocking side pipeline that counts the corpus independently of the main flow.
+- How to process the main entities `Chapter → Paragraph → Line`.
+- How to run independent async branches in true parallel with `Promise.all`.
 - How to clean a chapter of its decorative `---` lines, split it into token-bounded chunks and
   put the chunks back together — without re-splitting them on the next run.
 - How to walk the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` → `paragraphs://` →
@@ -37,117 +35,41 @@ jsonl://./jsonl/input.jsonl
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` (implicit suite) | `pnpm run runner:basic` | No default export: implicit `basic-md-processing-suite` runs all three, alphabetical, sync |
+| `default` (explicit suite) | `pnpm run runner:basic` | Runs the four exported basics pipelines |
 | `defaultPipeline` | `pnpm run runner:basic -- --pipeline defaultPipeline` | JSONL → `wordCounter` → `toMarkdownTool` → `chapters/output.md` |
 | `typedContentPipeline` | `pnpm run runner:basic -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `chapters/output-typed.md` |
 | `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
 
-Commented examples at the end of the file show how to declare an explicit suite (order + mode) or make
-one pipeline the default. Uncomment one to override the implicit suite.
+The end of the file shows the explicit suite and the `.parallel(true)` / sync alternatives.
 
-Where the advanced pipeline writes its own glue, the basics pipeline reuses shipped tools:
+## Parallel forks (`pipelines/parallel-forks-md-processing.ts`)
 
-| Advanced (`custom-md-processing.ts`) | Basics (`basic-md-processing.ts`) |
-|-------------------------------------|-------------------------------------|
-| local `toLinePayloads()` glue | `toMarkdownTool` (shipped) |
-| local `sleep()` + `.tap()` counters | `wordCounter` (shipped) |
-| local word-frequency aggregation | `statFreq` (shipped) |
+One JSONL record is one chapter. Each chapter is expanded into its paragraphs and lines, then
+three async branches process the same chapter at the same time:
 
-## Advanced pipeline (`pipelines/custom-md-processing.ts`)
-
-**One bespoke `defineTool`** (`toLinePayloads`) turns a JSONL record into prefixed lines — the
-step the package does not ship. Everything else is a shipped waypoint or package tool.
+```
+jsonl://./jsonl/entities.jsonl
+  → flatMap                  (record → Chapter → Paragraph → Line entities)
+  → flatMap                  (async step, branches started with Promise.all)
+       ├─ count-paragraphs   count paragraphs, lines and words
+       ├─ reorder-lines      sort every paragraph's lines alphabetically
+       └─ dots-to-commas     replace every '.' with ','
+  → flatMap                  (merge branch results and render markdown)
+  → md://./chapters/parallel-forks.md
+```
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` | `pnpm run runner:custom` | JSONL → `temp://lines/custom-md` → `lines://custom-md` → `temp://words/custom-md` → `words://custom-md` → sync/async/parallel steps → two `.fork()` branches → `output.md` |
-| `rangeDemoPipeline` | `pnpm run runner:range` | `range://1..3` → lines → word count → `void://` |
-| `voidDemoPipeline` | `pnpm run runner:void` | Same JSONL source → lines → `void://` |
-| `ephemeralDemoPipeline` | `pnpm run runner:ephemeral` | JSONL → lines → `ephemeral://basic-md-buffer` (in-memory) |
-| `countSidePipeline` | `pnpm run runner:count` | JSONL → lines → batch → word statistics → `counts.jsonl` (independent side branch) |
+| `default` | `pnpm run runner:parallel` | Three parallel async branches per chapter → `chapters/parallel-forks.md` |
 
-### The advanced default flow
+Why `Promise.all` instead of three `.fork()` steps? Core `.fork()` creates a nested Runner per
+envelope and runs the branches **sequentially** for that envelope. This sample needs the branches
+to overlap, so it forks the work explicitly with `Promise.all` inside one async pipeline step.
+Every branch logs `{ "phase": "start" | "done", "at": ... }`; the test asserts the three start
+timestamps for a chapter precede every done timestamp.
 
-```
-jsonl://./jsonl/input.jsonl
-  → flatMap              (record → one envelope per line)
-  → temp://lines/custom-md (write the line buffer — in-process handoff)
-  → lines://custom-md    (read it back through the typed rung)
-  → wordCounter          (package tool → `wordCount` variable)
-  → flatMap              (line → words, via the package splitter `tokenizeWords`)
-  → temp://words/custom-md (write the word buffer)
-  → words://custom-md    (read it back through the typed rung)
-  → tap (sync) / tap (async) / tokenCounter (parallel) / fork / fork
-  → md://./output.md
-```
-
-The four stages are `.subflow()`s of an orchestration-only parent. A subflow that declares its
-own `.from()` is **self-contained**: it runs after the upstream stream is consumed, in declaration
-order. Ladder rungs are source-only: each stage writes `temp://<rung>/<namespace>` and the next
-reads `<rung>://<namespace>`, so the stage boundaries stay in memory.
-
-### Sync, async, parallel, branching — what is really going on
-
-| Step | Construct | Semantics |
-|------|-----------|-----------|
-| SYNC | `.tap(env => …)` | Observes each envelope, does not await. The stream moves on immediately. |
-| ASYNC | `.tap(async env => { await … })` | The pipeline waits for the promise; the process does not block. |
-| PARALLEL | `.use(tokenCounter)` | A tool step — the engine runs up to `defaults.concurrency` envelopes of that step at the same time (4 in `mt.json`), order preserved. |
-| BRANCH | `.fork(child)` | A child pipeline per envelope, run one after another for that envelope. The child's output is merged back into the parent stream. |
-
-`.fork()` is **per-envelope nesting, not parallelism** — the two branches of this sample run
-sequentially for every line. Real parallelism is the per-tool-step limiter
-(`defaults.concurrency`), and `.tap()` / `.flatMap()` are always sequential.
-
-## Entity pipeline (`pipelines/entity-md-processing.ts`)
-
-Shows how to move through the core entities `Chapter → Paragraph → Line → Word`:
-
-```
-jsonl/entities.jsonl
-  → chapterDocBuild + chapterIndexer + chapterDocEmit   (JSONL → chapters-out/chapterN.md)
-  → readChapterDoc                                     (md → ChapterDoc)
-  → flatMap                                            (ChapterDoc → Paragraph entities)
-  → temp://paragraphs                                  (write — in-process handoff)
-  → paragraphs://                                      (read back through the typed rung)
-  → flatMap                                            (Paragraph → Line entities)
-  → temp://lines                                       (write)
-  → lines://                                           (read back through the typed rung)
-  → tokenizeWords                                      (Line → Word entities)
-  → entities/words.jsonl
-```
-
-Key points:
-
-- `@mt/tools` supplies the real builders/parsers: `chapterDocBuild`, `chapterDocEmit`,
-  `chapterIndexer`, `readChapterDoc`, `tokenizeWords`. The sample only adds tiny `flatMap` glue.
-- `paragraphs://` and `lines://` are built-in **source-only** entity-buffer shortcuts over the same
-  process-local buffer as `ephemeral://`, with one key space per entity level (and optional
-  namespaces such as `paragraphs://branches`). Writes go through `temp://<rung>/<namespace>`
-  (`temp://paragraphs`, `temp://paragraphs/branches`); reads use the typed rung. They are registered
-  globally by `@mt/waypoint` and embedded in the `mt` binary/CLI — this pipeline only uses them,
-  it does not define them. The four stages therefore run as `.subflow()`s inside one `mt run`.
-- `defineWaypoint` wraps the `temp://` targets to log counts without changing payloads.
-- `Word` is not a core domain type; the sample declares a local `WordEntity`.
-
-| Pipeline | Command | Purpose |
-|----------|---------|---------|
-| `default` | `pnpm run runner:entities` | Full four-stage entity flow |
-| `parallelBranchesPipeline` | `pnpm run runner:branches` | Two `.fork()` branches per paragraph + a concurrent probe step |
-
-Branching facts the demo makes visible:
-
-- `.fork()` is **per-envelope nesting, not parallelism** — `syncBranch` then `asyncBranch` run
-  one after another for each paragraph.
-- Real parallelism is the engine's per-tool-step concurrency (`defaults.concurrency` = 4 in
-  `mt.json`). `parallelBranchesPipeline` logs `start`/`end` timestamps from `concurrencyProbe`;
-  the test asserts the windows overlap.
-
-```bash
-pnpm run prepare-input      # writes jsonl/input.jsonl + jsonl/entities.jsonl
-pnpm run runner:entities    # chapters-out/*.md + entities/words.jsonl
-pnpm run runner:branches    # branch/parallel logs only
-```
+The final markdown contains one section per chapter with the paragraph/line/word counts, the
+alphabetically reordered lines and the comma-replaced text.
 
 ## Chunk normalization (`pipelines/chunk-normalization.ts`)
 
@@ -280,17 +202,18 @@ cat out/runner-report.md # the markdown report of the whole sweep
 ```
 
 `pnpm run runner` runs `run-all.ts`: it prepares the fixtures, then launches every sibling
-runner script (`runner:basic`, `runner:custom`, `runner:entities`, …) one after another and
-writes a markdown report to `out/runner-report.md` — one row per runner with its status,
-duration, run id and the files it touched, plus the captured output of each run. The same
-text goes to stdout, so `pnpm run runner | less` works too.
+runner script (`runner:basic`, `runner:parallel`, …) one after another and writes a markdown
+report to `out/runner-report.md` — one row per runner with its status, duration, run id and the
+files it touched, plus the captured output of each run. The same text goes to stdout, so
+`pnpm run runner | less` works too.
 
-The runner scripts stay individually runnable. `mt run` builds an implicit suite when the
-file has no default export, so `runner:basic` runs all three basics pipelines:
+The runner scripts stay individually runnable:
 
 ```bash
-pnpm run runner:basic    # implicit suite: all three basics pipelines
-cat chapters/output.md
+pnpm run runner:basic      # basics pipelines
+pnpm run runner:parallel   # parallel branches → chapters/parallel-forks.md
+pnpm run runner:chunks     # chapters/chunked.md + chapters/chunked-reused.md
+pnpm run runner:ladder     # chapters/ladder-chapters/*.md + chapters/ladder-summary.md
 ```
 
 Select one export with `--pipeline`:
@@ -298,18 +221,6 @@ Select one export with `--pipeline`:
 ```bash
 pnpm run runner:basic -- --pipeline defaultPipeline
 pnpm run runner:stats
-```
-
-The advanced pipeline:
-
-```bash
-pnpm run runner:custom   # entity buffers + forks + parallel step
-```
-
-Try the non-blocking counter branch:
-
-```bash
-pnpm run runner:count    # writes counts.jsonl
 ```
 
 ## Clean up
@@ -327,24 +238,13 @@ pipelines, and asserts:
 - the default pipeline logs the shipped `wordCounter` result per line (`wordCount=5`),
 - `statsPipeline` logs the shipped `statFreq` report (`totalWords=15`, `uniqueWords=7`).
 
-`tests/custom-md-processing.test.ts` writes the same fixture, runs the advanced pipelines, and asserts:
+`tests/parallel-forks-md-processing.test.ts` writes a two-chapter JSONL fixture and asserts:
 
-- `output.md` contains every input line.
-- the default pipeline logs one `sync` and one `async` event per line,
-- both `.fork()` branches are merged back (`tokenCount` from the parallel tool step,
-  `statWords` from the stats branch appear on the same envelope),
-- the side stage counts the corpus (`totalWords=18`, `uniqueWords=10`).
-- `rangeDemoPipeline` processes every generated number.
-- `voidDemoPipeline` produces no `output.md` because `void://` discards everything.
-- `ephemeralDemoPipeline` runs to completion using the built-in `ephemeral://` target.
-- `countSidePipeline` logs the corpus totals and writes `counts.jsonl`.
-
-`tests/entity-md-processing.test.ts` writes a two-chapter JSONL fixture and asserts:
-
-- one markdown file per chapter under `chapters-out/`,
-- the entity counts logged by the waypoint sinks (`paragraphs=4`, `lines=5`, `words=22`),
-- one persisted `Word` envelope per JSONL line in `entities/words.jsonl`,
-- `parallelBranchesPipeline` runs both forks per paragraph and the concurrency-probe windows overlap.
+- `chapters/parallel-forks.md` contains the chapter titles and counts (`2 paragraphs · 3 lines ·
+  13 words` for the first chapter),
+- lines are reordered alphabetically and every `.` becomes `,`,
+- each chapter logs three branch starts and three branch dones, and all starts precede every done
+  timestamp (the branches overlap).
 
 `tests/chunk-normalization.test.ts` runs the chunk pipelines and asserts:
 

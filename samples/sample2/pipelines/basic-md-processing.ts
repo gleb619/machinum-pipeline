@@ -6,24 +6,15 @@ import '@mt/waypoint'
 // ---------------------------------------------------------------------------
 // The basics: one source, one shipped tool, one target.
 //
-// This is the short version of the sample. The advanced flow lives next door in
-// `pipelines/custom-md-processing.ts`: there the pipeline is hand-composed —
-// custom glue functions, entity buffers (`lines://`, `words://`), `.fork()`
-// branches, a parallel step and a non-blocking side pipeline.
+// This is the short version of the sample. The parallel-branch demo lives next
+// door in `pipelines/parallel-forks-md-processing.ts`: JSONL → Chapter →
+// Paragraph → Line, three async branches joined with `Promise.all`, one
+// markdown target.
 //
 // Here every processing step is a tool that already ships in `@mt/tools`, so
 // the pipeline body is only the three DSL calls you would write first:
 //
 //     .from(...)  →  .use(tool)  →  .to(...)
-//
-// Concretely, the custom tool of the advanced version is replaced by shipped
-// equivalents:
-//
-//   custom                                   shipped (this file)
-//   -------------------------------------   --------------------------------
-//   local `toLinePayloads()` glue function   `toMarkdownTool` (builds markdown)
-//   local `sleep()` + `.tap()` counters      `wordCounter` (sets `wordCount`)
-//   local word-frequency aggregation         `statFreq` (offline frequency report)
 // ---------------------------------------------------------------------------
 
 /** One JSONL record of the sample input. */
