@@ -1,4 +1,5 @@
 import { definePipeline, getVariable } from '@mt/core'
+import type { Chapter } from '@mt/core'
 import { chapterDocBuild, readChapterDoc, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -75,7 +76,7 @@ const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
 // record id.
 // ---------------------------------------------------------------------------
 
-const typedContentPipeline = definePipeline({ id: 'typed-content' })
+const customTypedContentPipeline = definePipeline({ id: 'custom-typed-content' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => {
     const { id } = record as LineRecord
@@ -119,6 +120,24 @@ const typedContentPipeline = definePipeline({ id: 'typed-content' })
       }),
     )
   })
+  .to('md://./chapters/output-custom-typed.md')
+
+// ---------------------------------------------------------------------------
+// Typed chapter content using existing domain types (Chapter).
+// ---------------------------------------------------------------------------
+
+const typedContentPipeline = definePipeline({ id: 'typed-content' })
+  .from('jsonl://./jsonl/input.jsonl')
+  .flatMap(async (record: unknown) => {
+    const { id } = record as LineRecord
+    const chapter: Chapter = {
+        id: String(id),
+        bookId: 'basic-md',
+        title: `Line ${id}`,
+        body: toLineText(record)
+    }
+    return [`# ${chapter.title}\n\n${chapter.body}\n`]
+  })
   .to('md://./chapters/output-typed.md')
 
 // ---------------------------------------------------------------------------
@@ -146,11 +165,11 @@ const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   .to('void://')
 
 // all three -> implicit suite (alphabetical, sync)
-export { defaultPipeline, typedContentPipeline, statsPipeline }
+//export { defaultPipeline, customTypedContentPipeline, typedContentPipeline, statsPipeline }
 
 // explicit suite -> your order + mode
 import { defineSuite } from '@mt/core'
-export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline]).parallel()
+export default defineSuite([defaultPipeline, customTypedContentPipeline, typedContentPipeline, statsPipeline]).parallel()
 
 // sync shorthand
 // export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
