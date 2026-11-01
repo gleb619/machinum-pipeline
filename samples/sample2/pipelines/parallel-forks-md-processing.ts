@@ -1,16 +1,22 @@
-import { type Chapter, type Paragraph, definePipeline } from '@mt/core'
-import { readChapterDoc, tokenizeWords } from '@mt/tools'
+import { definePipeline, defineTool, withItem } from '@mt/core'
+import {
+  type MarkdownStatsOutput,
+  markdownStatsTool,
+  readChapterDoc,
+  tokenizeWords,
+} from '@mt/tools'
 import '@mt/waypoint'
 
 // ---------------------------------------------------------------------------
 // One chapter, three views, one markdown file.
 //
-// The parent pipeline turns every JSONL record into a core `Chapter`, then
-// hands that chapter to three branch pipelines with:
+// Every JSONL item is one markdown chapter. The parent pipeline does not fan
+// out or run the views itself; it hands the same chapter to three steps-only
+// branch pipelines with one core call:
 //
 //     .fork('chapter-views', [countBranch, reorderBranch, commasBranch])
 //
-// That single call is the whole concurrency demo:
+// The runner owns the concurrency contract:
 //
 //   - each branch gets an isolated, deep-cloned copy of the chapter envelope;
 //   - the branches run concurrently for every parent envelope;
@@ -19,115 +25,69 @@ import '@mt/waypoint'
 //   - branch output is buffered and merged in declaration order, so the file
 //     is deterministic even when branches finish at different times;
 //   - a failed branch fails the run after every branch has settled.
+//
+// The branches use the package pieces where they exist: `markdownStatsTool`
+// for structure, `readChapterDoc` for paragraphs/lines, and `tokenizeWords`
+// for the body word count. Only the rendering glue is local.
 // ---------------------------------------------------------------------------
 
-interface ChapterInput {
-  number: number
-  markdown: string
-}
+const renderStats = defineTool<MarkdownStatsOutput, string>({
+  name: 'sample2-render-stats',
+  version: '1.0.0',
+  mdDescription: 'Render markdown stats as the chapter count section.',
+  invoke: async (env) => {
+    const { text, stats } = env.item
+    const doc = readChapterDoc(text)
+    let lines = 0
+    for (const paragraph of doc.body) lines += paragraph.lines.length
+    const body = doc.body.map((paragraph) => paragraph.lines.join(' ')).join(' ')
+    const words = tokenizeWords(body).length
+    const title = stats.title ?? doc.title
 
-/** Parse one JSONL record into the core `Chapter` entity used by the branches. */
-function toChapter(input: ChapterInput): Chapter {
-  const doc = readChapterDoc(input.markdown)
-  const id = `chapter-${input.number}`
+    return withItem(
+      env,
+      `# ${title}\n\n## counts\n\n${stats.paragraphs} paragraphs · ${lines} lines · ${words} words\n`,
+    )
+  },
+})
 
-  return {
-    id,
-    bookId: 'sample2',
-    title: doc.title,
-    body: doc.body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n'),
-    index: input.number - 1,
-  }
-}
+const reorderLines = defineTool<string, string>({
+  name: 'sample2-reorder-lines',
+  version: '1.0.0',
+  mdDescription: 'Parse a markdown chapter and sort every paragraph’s lines alphabetically.',
+  invoke: async (env) => {
+    const doc = readChapterDoc(env.item)
+    const paragraphs = doc.body.map((paragraph, index) => {
+      const ordered = [...paragraph.lines].sort((left, right) => left.localeCompare(right))
+      return [`### paragraph ${index + 1}`, '', ...ordered.map((line) => `- ${line}`)].join('\n')
+    })
 
-/** Split chapter body on blank lines and stamp stable paragraph ids. */
-function paragraphsOf(chapter: Chapter): Paragraph[] {
-  return chapter.body
-    .split(/\n\s*\n/)
-    .map((body) => body.trim())
-    .filter((body) => body.length > 0)
-    .map((body, index) => ({
-      id: `${chapter.id}/paragraph-${index + 1}`,
-      chapterId: chapter.id,
-      body,
-      index,
-    }))
-}
+    return withItem(env, `## lines reordered\n\n${paragraphs.join('\n\n')}\n`)
+  },
+})
 
-/** Display lines of one paragraph. */
-function linesOf(paragraph: Paragraph): string[] {
-  return paragraph.body
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-}
+const replaceDots = defineTool<string, string>({
+  name: 'sample2-dots-to-commas',
+  version: '1.0.0',
+  mdDescription: 'Parse a markdown chapter and replace every dot in its body with a comma.',
+  invoke: async (env) => {
+    const doc = readChapterDoc(env.item)
+    const body = doc.body
+      .map((paragraph) => paragraph.lines.join('\n').replaceAll('.', ','))
+      .join('\n\n')
 
-interface ChapterCounts {
-  paragraphs: number
-  lines: number
-  words: number
-}
-
-function countChapter(chapter: Chapter): ChapterCounts {
-  const paragraphs = paragraphsOf(chapter)
-
-  return {
-    paragraphs: paragraphs.length,
-    lines: paragraphs.reduce((total, paragraph) => total + linesOf(paragraph).length, 0),
-    words: tokenizeWords(chapter.body).length,
-  }
-}
-
-/** Render one markdown section; the trailing newline separates target writes. */
-function renderSection(heading: string, lines: string[]): string {
-  return [`## ${heading}`, '', ...lines, ''].join('\n')
-}
-
-function renderCounts(chapter: Chapter): string {
-  const counts = countChapter(chapter)
-  const summary = `${counts.paragraphs} paragraphs · ${counts.lines} lines · ${counts.words} words`
-
-  return [`# ${chapter.title}`, '', renderSection('counts', [summary])].join('\n')
-}
-
-function renderReorderedLines(chapter: Chapter): string {
-  const blocks = paragraphsOf(chapter).flatMap((paragraph, index) => {
-    const ordered = [...linesOf(paragraph)].sort((left, right) => left.localeCompare(right))
-
-    return [
-      ...(index > 0 ? [''] : []),
-      `### paragraph ${index + 1}`,
-      '',
-      ...ordered.map((line) => `- ${line}`),
-    ]
-  })
-
-  return renderSection('lines reordered', blocks)
-}
-
-function renderCommas(chapter: Chapter): string {
-  const paragraphs = paragraphsOf(chapter).map((paragraph) => paragraph.body.replaceAll('.', ','))
-
-  return renderSection('dots replaced with commas', [paragraphs.join('\n\n')])
-}
+    return withItem(env, `## dots replaced with commas\n\n${body}\n`)
+  },
+})
 
 // Steps-only pipelines: each branch consumes the parent envelope. The runner
 // supplies the isolated chapter copy and the checkpoint node.
-const countBranch = definePipeline<Chapter>({ id: 'chapter-counts' }).flatMap(async (chapter) => [
-  renderCounts(chapter),
-])
-
-const reorderBranch = definePipeline<Chapter>({ id: 'chapter-line-order' }).flatMap(
-  async (chapter) => [renderReorderedLines(chapter)],
-)
-
-const commasBranch = definePipeline<Chapter>({ id: 'chapter-commas' }).flatMap(async (chapter) => [
-  renderCommas(chapter),
-])
+const countBranch = definePipeline({ id: 'chapter-counts' }).use(markdownStatsTool).use(renderStats)
+const reorderBranch = definePipeline({ id: 'chapter-line-order' }).use(reorderLines)
+const commasBranch = definePipeline({ id: 'chapter-commas' }).use(replaceDots)
 
 const parallelForksPipeline = definePipeline({ id: 'sample2-parallel-forks' })
   .from('jsonl://./jsonl/entities.jsonl')
-  .flatMap(async (record: unknown) => [toChapter(record as ChapterInput)])
   .fork('chapter-views', [countBranch, reorderBranch, commasBranch])
   .to('md://./chapters/parallel-forks.md')
 

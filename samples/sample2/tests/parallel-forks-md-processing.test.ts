@@ -8,15 +8,8 @@ const MT_BIN = join(SAMPLE_DIR, 'node_modules', '.bin', 'mt')
 const OUTPUT = join(SAMPLE_DIR, 'chapters', 'parallel-forks.md')
 
 const RECORDS = [
-  {
-    number: 1,
-    markdown:
-      '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
-  },
-  {
-    number: 2,
-    markdown: '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
-  },
+  '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
+  '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
 ]
 
 const SECTION_HEADINGS = ['counts', 'lines reordered', 'dots replaced with commas']
@@ -32,7 +25,7 @@ async function cleanup(): Promise<void> {
 beforeAll(async () => {
   await cleanup()
   await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
-  const content = `${RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
+  const content = `${RECORDS.map((markdown) => JSON.stringify({ item: markdown })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'entities.jsonl'), content, 'utf-8')
 })
 

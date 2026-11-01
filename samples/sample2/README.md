@@ -4,7 +4,7 @@ Pipelines over JSONL and markdown, without LLM calls:
 
 - **`pipelines/basic-md-processing.ts`** — the basics. Shipped tools, typed chapter content and
   corpus statistics.
-- **`pipelines/parallel-forks-md-processing.ts`** — JSONL → `Chapter` → `Paragraph`, then three
+- **`pipelines/parallel-forks-md-processing.ts`** — JSONL markdown chapters, then three tool-based
   branch pipelines run concurrently through core `.fork('chapter-views', [...])` and merge into
   one markdown file.
 - **`pipelines/chunk-normalization.ts`** — chunk splitting, separator reuse and the Structure Ladder.
@@ -14,7 +14,7 @@ Pipelines over JSONL and markdown, without LLM calls:
 - How to read a source (`jsonl://`) and write a target (`md://`).
 - How to use the tools that already ship in `@mt/tools` instead of hand-rolling your own.
 - How to fan data out with `.flatMap()` and group it with `.batch()`.
-- How to process the main entities `Chapter → Paragraph`.
+- How to parse the main entities (`Chapter → Paragraph → Line`) with shipped tools inside each branch.
 - How to run independent branch pipelines concurrently with core `.fork(name, branches)` and
   merge their output deterministically.
 - How to clean a chapter of its decorative `---` lines, split it into token-bounded chunks and
@@ -46,17 +46,15 @@ The end of the file shows the explicit suite and the `.parallel(true)` / sync al
 
 ## Parallel forks (`pipelines/parallel-forks-md-processing.ts`)
 
-One JSONL record is one chapter. A `flatMap` parses the record's markdown with `readChapterDoc`
-into a core `Chapter`, then the parent pipeline forks the chapter into three steps-only branch
-pipelines:
+One JSONL item is one markdown chapter. The parent pipeline does no branching of its own; it
+forks the chapter into three steps-only tool pipelines:
 
 ```
-jsonl://./jsonl/entities.jsonl
-  → flatMap                    (record → Chapter)
-  → fork('chapter-views', …)   (three branches per chapter, concurrently)
-       ├─ countBranch          count paragraphs, lines and words
-       ├─ reorderBranch        sort every paragraph's lines alphabetically
-       └─ commasBranch         replace every '.' with ','
+jsonl://./jsonl/entities.jsonl   (one markdown chapter per item)
+  → fork('chapter-views', …)     (three branches per chapter, concurrently)
+       ├─ countBranch           markdownStatsTool + readChapterDoc + tokenizeWords
+       ├─ reorderBranch         readChapterDoc, sort each paragraph's lines
+       └─ commasBranch          readChapterDoc, replace '.' with ','
   → md://./chapters/parallel-forks.md
 ```
 

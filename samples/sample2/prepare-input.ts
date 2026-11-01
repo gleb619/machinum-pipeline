@@ -8,17 +8,10 @@ const RECORDS = [
   { id: 3, text: 'Third line of the document.\n\nFinal paragraph.' },
 ]
 
-// Markdown chapter fixture for the parallel-fork pipeline.
-const ENTITY_RECORDS = [
-  {
-    number: 1,
-    markdown:
-      '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
-  },
-  {
-    number: 2,
-    markdown: '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
-  },
+// One markdown chapter per JSONL item for the parallel-fork pipeline.
+const CHAPTER_MARKDOWN = [
+  '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
+  '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
 ]
 
 // Chapter fixture for the Structure Ladder demo. The long paragraph of the
@@ -71,7 +64,7 @@ async function main(): Promise<void> {
   await mkdir(join(SAMPLE_DIR, 'chapters'), { recursive: true })
   const jsonlContent = `${RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
-  const entityContent = `${ENTITY_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
+  const entityContent = `${CHAPTER_MARKDOWN.map((markdown) => JSON.stringify({ item: markdown })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'entities.jsonl'), entityContent, 'utf-8')
   const ladderContent = `${LADDER_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'ladder.jsonl'), ladderContent, 'utf-8')
