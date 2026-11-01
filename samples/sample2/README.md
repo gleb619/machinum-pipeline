@@ -230,12 +230,25 @@ pnpm run runner:ladder    # out/ladder-chapters/*.md + out/ladder-summary.md
 
 ```bash
 cd samples/sample2
-pnpm run prepare-input
+pnpm run runner          # every runner script of this sample, one by one
+cat out/runner-report.md # the markdown report of the whole sweep
+```
+
+`pnpm run runner` runs `run-all.ts`: it prepares the fixtures, then launches every sibling
+runner script (`runner:basic`, `runner:custom`, `runner:entities`, …) one after another and
+writes a markdown report to `out/runner-report.md` — one row per runner with its status,
+duration, run id and the files it touched, plus the captured output of each run. The same
+text goes to stdout, so `pnpm run runner | less` works too.
+
+The runner scripts stay individually runnable. `mt run` builds an implicit suite when the
+file has no default export, so `runner:basic` runs all three basics pipelines:
+
+```bash
 pnpm run runner:basic    # implicit suite: all three basics pipelines
 cat chapters/output.md
 ```
 
-`mt run` builds an implicit suite when the file has no default export. Select one export with `--pipeline`:
+Select one export with `--pipeline`:
 
 ```bash
 pnpm run runner:basic -- --pipeline defaultPipeline

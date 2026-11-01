@@ -1,0 +1,21 @@
+{
+  // Config for markdownlint-cli2 (`pnpm lint:md`).
+  //
+  // Scope: the markdown the sample runners produce (`out/runner-report.md`).
+  // The hand-written docs and READMEs are not covered — they predate this
+  // gate and carry their own style.
+  //
+  // MD013 (line length) stays on for prose but is off for tables and code
+  // blocks: a report table and captured tool output are naturally wider than
+  // 80 columns.
+  "config": {
+    "MD013": {
+      "line_length": 80,
+      "tables": false,
+      "code_blocks": false
+    }
+  },
+  "globs": [
+    "samples/*/out/runner-report.md"
+  ]
+}

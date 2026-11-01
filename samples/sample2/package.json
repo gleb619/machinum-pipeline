@@ -4,7 +4,7 @@
   "description": "Machinum Pipeline sample \u2014 basic markdown processing with fork, subflow, range:// and void://",
   "type": "module",
   "scripts": {
-    "runner": "echo 'todo'",
+    "runner": "tsx run-all.ts",
     "runner:basic": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
     "runner:stats": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline",
     "runner:custom": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts",
@@ -14,6 +14,7 @@
     "example": "pnpm run prepare-input && pnpm run runner",
     "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl jsonl/ladder.jsonl chapters-out entities out .mt",
     "lint": "biome check .",
+    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.jsonc out/runner-report.md",
     "test": "vitest run",
     "test:watch": "vitest",
     "runner:count": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts --pipeline countSidePipeline",
