@@ -898,4 +898,6 @@ export {
   stubParagraphTranslateSlot,
 } from './stubs/index.js'
 
+export * from './constants.js'
+
 export { createSeriesSplitTool, seriesSplitTool } from './modification/series-split.js'
