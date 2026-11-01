@@ -1,11 +1,11 @@
-import { mkdtemp, readFile } from 'node:fs/promises'
+import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import { Store } from '../../src/store.js'
-import type { Envelope, Pipeline, RunStateData, Tool } from '../../src/types.js'
+import type { Envelope, Pipeline, RunEventType, Tool } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 const sourceItems: Array<Envelope<unknown>> = []
@@ -69,26 +69,43 @@ function pipeline(): Pipeline {
   }
 }
 
-async function readState(runner: Runner): Promise<RunStateData> {
-  const runId = runner.getRunId()
-  if (!runId) throw new Error('runner has no run id')
-  const raw = await readFile(join(projectRoot, '.mt', 'runs', runId, 'state.json'), 'utf-8')
-  return JSON.parse(raw) as RunStateData
-}
-
-describe('runner log writes', () => {
-  let logWrites: number
+/**
+ * Run `body` while collecting process-level unhandled rejections.
+ *
+ * The listener is scoped to this call and always removed; the trailing macrotask is the
+ * barrier that lets a rejected log-write promise reach Node's unhandled-rejection check
+ * (which runs at the end of the tick, after the microtask queue drains) before the
+ * collected list is read. A fixed sleep would be both slower and able to miss a late
+ * rejection; a bare macrotask could race a rejected write that has not been attempted yet.
+ */
+async function watchUnhandledRejections(body: () => Promise<void>): Promise<unknown[]> {
   const rejections: unknown[] = []
   const onUnhandled = (reason: unknown): void => {
     rejections.push(reason)
   }
+  process.on('unhandledRejection', onUnhandled)
+  try {
+    await body()
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    return rejections
+  } finally {
+    process.off('unhandledRejection', onUnhandled)
+  }
+}
 
+describe('runner log writes', () => {
   beforeEach(async () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'mt-log-'))
     sourceItems.length = 0
-    logWrites = 0
-    rejections.length = 0
-    process.on('unhandledRejection', onUnhandled)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('finishes the run when the log directory cannot be created', async () => {
+    sourceItems.push({ id: 'ex-log', variables: [], item: 'a', meta: {} })
+    const attempts: string[] = []
 
     // The log directory is the only thing that fails: a full disk (ENOSPC), a
     // read-only mount, or a run dir removed mid-run all look like this.
@@ -96,41 +113,64 @@ describe('runner log writes', () => {
       this: Store,
       ...parts: string[]
     ) {
-      if (parts.includes('logs')) {
-        logWrites++
-        throw new Error('ENOSPC: no space left on device')
-      }
-      return originalEnsureDir.call(this, ...parts)
+      if (!parts.includes('logs')) return originalEnsureDir.call(this, ...parts)
+      attempts.push(parts.join('/'))
+      throw new Error('ENOSPC: no space left on device')
     })
+
+    const runner = new Runner(pipeline(), context())
+    const events: RunEventType[] = []
+    runner.subscribeEvents((event) => {
+      events.push(event.type)
+    })
+
+    const rejections = await watchUnhandledRejections(async () => {
+      await runner.start()
+      // `start()` resolves after the failing log write was attempted; waiting here keeps
+      // the assertion meaningful even if a log write is scheduled further out.
+      await vi.waitFor(() => {
+        expect(attempts.length).toBeGreaterThan(0)
+      })
+    })
+
+    expect(rejections).toEqual([])
+    expect(events).toContain('done')
+    expect(events).not.toContain('failed')
+  })
+
+  it('finishes the run when the per-step log write fails', async () => {
+    sourceItems.push({ id: 'ex-log', variables: [], item: 'a', meta: {} })
+    const attempts: string[] = []
+
+    // Directory creation succeeds; the append itself fails — the shape of a full disk.
     vi.spyOn(Store.prototype, 'append').mockImplementation(async function (
       this: Store,
       content: string,
       ...parts: string[]
     ) {
-      if (parts.includes('logs')) {
-        logWrites++
-        throw new Error('ENOSPC: no space left on device')
-      }
-      return originalAppend.call(this, content, ...parts)
+      if (!parts.includes('logs')) return originalAppend.call(this, content, ...parts)
+      attempts.push(parts.join('/'))
+      throw new Error('ENOSPC: no space left on device')
     })
-  })
-
-  afterEach(() => {
-    process.off('unhandledRejection', onUnhandled)
-    vi.restoreAllMocks()
-  })
-
-  it('finishes the run when a log write fails, without an unhandled rejection', async () => {
-    sourceItems.push({ id: 'ex-log', variables: [], item: 'a', meta: {} })
 
     const runner = new Runner(pipeline(), context())
-    await runner.start()
+    const events: RunEventType[] = []
+    runner.subscribeEvents((event) => {
+      events.push(event.type)
+    })
 
-    // Unhandled rejections surface on the next event-loop turn.
-    await new Promise((resolve) => setTimeout(resolve, 20))
+    const rejections = await watchUnhandledRejections(async () => {
+      await runner.start()
+      await vi.waitFor(() => {
+        expect(attempts.length).toBeGreaterThan(0)
+      })
+    })
 
-    expect(logWrites).toBeGreaterThan(0)
+    // The failed write is a per-step log file, so the guard really covers run logs and
+    // not just some incidental write.
+    expect(attempts.some((path) => /\/tool-logger-\d+\.log$/.test(path))).toBe(true)
     expect(rejections).toEqual([])
-    expect((await readState(runner)).state).toBe('done')
+    expect(events).toContain('done')
+    expect(events).not.toContain('failed')
   })
 })
