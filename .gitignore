@@ -90,6 +90,7 @@ build
 /samples/sample2/chapters/glossary.graph.json
 /samples/sample2/out/
 /samples/sample2/chapters/output.md
+/samples/sample2/chapters/output-typed.md
 /samples/sample3/vendor/
 /samples/sample3/package-lock.json
 /samples/sample3/runner.log
