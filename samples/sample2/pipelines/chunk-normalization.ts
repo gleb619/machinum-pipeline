@@ -23,6 +23,7 @@ import {
   mdOutputEmitter,
   parseChunks,
   readChapterDoc,
+  seriesSplitTool,
   splitIntoChunks,
   tokenizeChunkDetailed,
   tokenizeWords,
@@ -450,3 +451,10 @@ export const tokenLadderPipeline = definePipeline({ id: 'sample2-token-ladder' }
   .subflow(chunkStage)
   .subflow(tokenStage)
   .subflow(tokenSummaryStage)
+// ---------------------------------------------------------------------------
+// Series split — split a chapter into equal parts with series frontmatter.
+// ---------------------------------------------------------------------------
+export const seriesSplitPipeline = definePipeline({ id: 'sample2-series-split' })
+  .from('md://./chapters/chapter1.md')
+  .use(seriesSplitTool)
+  .to('md://./chapters/series-output.md')
