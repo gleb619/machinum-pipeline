@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { MtConfig, Settings } from '@mt/core'
 import { DEFAULT_MT_CONFIG, Store } from '@mt/core'
 import { VAULT_IGNORE_PATTERNS, ensureIgnorePatterns } from '../utils/gitignore.js'
+import { ensureProjectMasterKey } from './master-key.js'
 
 export type { Settings }
 
@@ -16,6 +17,8 @@ export interface InitOptions {
   settings?: Settings
   /** Overwrite existing mt.json / pipelines/example.ts instead of failing */
   force?: boolean
+  /** Do not generate `.mt/master.key` for the embedded secret store */
+  noMasterKey?: boolean
 }
 
 /**
@@ -72,6 +75,19 @@ export async function initCommand(options: InitOptions = {}): Promise<void> {
   const ignored = await ensureIgnorePatterns(projectRoot, VAULT_IGNORE_PATTERNS)
   if (ignored.length > 0) {
     console.log(`Added to .gitignore: ${ignored.join(', ')}`)
+  }
+
+  // Fresh install: private master key for the embedded secret store (never the public default)
+  if (!options.noMasterKey) {
+    const outcome = await ensureProjectMasterKey(projectRoot)
+    if (outcome.status === 'created') {
+      console.log(`Created ${outcome.path} (mode 0600)`)
+      console.log(
+        '  BACK UP .mt/master.key: losing it makes embed secrets unrecoverable. It is gitignored, never commit it.',
+      )
+    } else if (outcome.status === 'skipped') {
+      console.log(`Skipped master key: ${outcome.reason}`)
+    }
   }
 
   // Create sample pipeline only when settings are provided

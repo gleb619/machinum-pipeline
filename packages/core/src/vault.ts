@@ -109,7 +109,10 @@ export async function loadVault(
     if (file) Object.assign(vault.entries, file.entries)
   }
   if (options.resolveRefs !== false && options.resolveVlt !== false) {
-    await resolveSecretRefs(vault, env)
+    await resolveSecretRefs(vault, {
+      ...env,
+      MT_PROJECT_ROOT: env.MT_PROJECT_ROOT ?? resolve(projectRoot),
+    })
   }
   return vault
 }

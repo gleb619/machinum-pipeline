@@ -32,9 +32,11 @@ export function parseInitArgs(args: string[]): InitOptions {
       }
     } else if (arg === '--force') {
       options.force = true
+    } else if (arg === '--no-master-key') {
+      options.noMasterKey = true
     } else if (arg.startsWith('-')) {
       console.error(`Error: Unknown option for mt init: ${arg}`)
-      console.error('Usage: mt init [projectName] [--settings <json>] [--force]')
+      console.error('Usage: mt init [projectName] [--settings <json>] [--force] [--no-master-key]')
       process.exit(1)
     } else {
       // First non-flag argument is the project name

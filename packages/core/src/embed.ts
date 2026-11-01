@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto'
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { tmpPathFor } from './atomic.js'
@@ -18,8 +18,13 @@ import { tmpPathFor } from './atomic.js'
  * - `MT_EMBED_PATH`          store path (default `$MT_HOME|~/.mt/secrets.embed.json`)
  * - `MT_EMBED_PASSWORD`      master password
  * - `MT_EMBED_PASSWORD_FILE` master password read from a file (trailing newline stripped)
- *   (neither set: the built-in {@link DEFAULT_EMBED_PASSWORD} is used and a one-time warning
- *   is emitted — the store is then only obfuscated, not protected)
+ * - `MT_PROJECT_ROOT`        project root for the `.mt/master.key` lookup (default: cwd)
+ *
+ * Master-password resolution order (first hit wins): `MT_EMBED_PASSWORD` >
+ * `MT_EMBED_PASSWORD_FILE` > project `<root>/.mt/master.key` > user
+ * `$MT_HOME|~/.mt/master.key` > built-in {@link DEFAULT_EMBED_PASSWORD} (one-time warning —
+ * the store is then only obfuscated, not protected). `mt init` and
+ * `mt vault master-key generate` create a random master key file.
  * - `MT_EMBED=false`         disable resolution entirely (refs pass through)
  *
  * Store format v2 (keyring, envelope encryption): the master password (scrypt) unlocks a
@@ -41,7 +46,7 @@ export const EMBED_REF_PREFIX = 'embed:'
 export const DEFAULT_EMBED_PASSWORD = 'mt-embed-default-password-NOT-SECRET'
 
 export const DEFAULT_EMBED_WARNING =
-  'mt: embedded secret store uses the built-in default password: secrets are only obfuscated, not protected. Set MT_EMBED_NEW_PASSWORD (or MT_EMBED_NEW_PASSWORD_FILE) to a private value and run `mt vault embed-rekey` to re-encrypt the store with it, then export it as MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE).'
+  'mt: embedded secret store uses the built-in default password: secrets are only obfuscated, not protected. Run `mt vault master-key generate --rekey` to create a private master key and re-encrypt the store with it (or set MT_EMBED_PASSWORD / MT_EMBED_PASSWORD_FILE; `mt vault embed-rekey` changes the password explicitly).'
 
 let defaultWarned = false
 
@@ -54,6 +59,13 @@ function warnDefaultPassword(): void {
   if (defaultWarned) return
   defaultWarned = true
   console.warn(DEFAULT_EMBED_WARNING)
+}
+
+const warnedKeyFiles = new Set<string>()
+
+/** Forget which master-key files already produced a permissions warning (tests). */
+export function resetMasterKeyWarnings(): void {
+  warnedKeyFiles.clear()
 }
 
 const KEYRING_AAD = Buffer.from('mt-embed-v2-keyring', 'ascii')
@@ -82,7 +94,7 @@ export function embedDisabled(env: Env = process.env): boolean {
   return env.MT_EMBED === 'false'
 }
 
-/** True when a master password is explicitly configured (not the built-in default). */
+/** True when a master password is explicitly configured via env (not a key file or the built-in default). */
 export function embedCredentialsConfigured(env: Env = process.env): boolean {
   return Boolean(env.MT_EMBED_PASSWORD || env.MT_EMBED_PASSWORD_FILE)
 }
@@ -193,31 +205,169 @@ interface EmbedEnvelope {
   secrets: Record<string, StoredSecret>
 }
 
-async function masterPassword(env: Env, explicit: string | undefined): Promise<string | undefined> {
-  if (explicit !== undefined) return explicit
-  if (env.MT_EMBED_PASSWORD !== undefined) return env.MT_EMBED_PASSWORD
-  const file = env.MT_EMBED_PASSWORD_FILE
-  if (!file) return undefined
-  try {
-    return (await readFile(resolve(file), 'utf-8')).replace(/\r?\n$/, '')
-  } catch (err) {
-    const code = (err as { code?: string }).code ?? 'unknown error'
-    throw new Error(`Cannot read MT_EMBED_PASSWORD_FILE ${resolve(file)}: ${code}`)
+/** Where the active master password comes from. */
+export type MasterKeySource = 'env' | 'env-file' | 'project' | 'user' | 'default'
+
+export interface MasterKeyPaths {
+  project: string
+  user: string
+}
+
+/** Candidate master-key file locations: project `<root>/.mt/master.key`, user `$MT_HOME|~/.mt/master.key`. */
+export function masterKeyPaths(env: Env = process.env): MasterKeyPaths {
+  const root = resolve(env.MT_PROJECT_ROOT || process.cwd())
+  return {
+    project: join(root, '.mt', 'master.key'),
+    user: join(env.MT_HOME || join(env.HOME || homedir(), '.mt'), 'master.key'),
   }
 }
 
+export interface MasterKeyResolution {
+  source: MasterKeySource
+  /** File the password came from (`env-file`, `project`, `user`). */
+  path?: string
+  /** The master password. Never print or log it. */
+  password: string
+}
+
+/** Permission bits beyond the owner (group/other) make a key file readable by others. */
+export async function masterKeyFileTooOpen(path: string): Promise<boolean> {
+  if (process.platform === 'win32') return false
+  try {
+    return ((await stat(path)).mode & 0o077) !== 0
+  } catch {
+    return false
+  }
+}
+
+async function readKeyFile(path: string): Promise<string | undefined> {
+  let raw: string
+  try {
+    raw = await readFile(path, 'utf-8')
+  } catch (err) {
+    const code = (err as { code?: string }).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return undefined
+    throw new Error(`Cannot read master key file ${path}: ${code ?? 'unknown error'}`)
+  }
+  if (await masterKeyFileTooOpen(path)) {
+    if (!warnedKeyFiles.has(path)) {
+      warnedKeyFiles.add(path)
+      console.warn(
+        `mt: master key file ${path} is readable by other users: run \`chmod 600 ${path}\``,
+      )
+    }
+  }
+  const key = raw.trim()
+  if (key === '') throw new Error(`Master key file ${path} is empty: regenerate it`)
+  return key
+}
+
+/**
+ * Resolve the master password without the default fallback; `undefined` when nothing is
+ * configured. Order: explicit > `MT_EMBED_PASSWORD` > `MT_EMBED_PASSWORD_FILE` > project key
+ * file > user key file.
+ */
+export async function resolveMasterKey(
+  env: Env = process.env,
+  explicit?: string,
+): Promise<MasterKeyResolution | undefined> {
+  if (explicit !== undefined) return { source: 'env', password: explicit }
+  if (env.MT_EMBED_PASSWORD !== undefined) {
+    return { source: 'env', password: env.MT_EMBED_PASSWORD }
+  }
+  const file = env.MT_EMBED_PASSWORD_FILE
+  if (file) {
+    try {
+      const password = (await readFile(resolve(file), 'utf-8')).replace(/\r?\n$/, '')
+      return { source: 'env-file', path: resolve(file), password }
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? 'unknown error'
+      throw new Error(`Cannot read MT_EMBED_PASSWORD_FILE ${resolve(file)}: ${code}`)
+    }
+  }
+  const paths = masterKeyPaths(env)
+  const project = await readKeyFile(paths.project)
+  if (project !== undefined) return { source: 'project', path: paths.project, password: project }
+  const user = await readKeyFile(paths.user)
+  if (user !== undefined) return { source: 'user', path: paths.user, password: user }
+  return undefined
+}
+
 async function requirePassword(env: Env, explicit: string | undefined): Promise<string> {
-  const password = await masterPassword(env, explicit)
-  if (password === undefined) {
+  const resolved = await resolveMasterKey(env, explicit)
+  if (resolved === undefined) {
     warnDefaultPassword()
     return DEFAULT_EMBED_PASSWORD
   }
-  if (password === '') {
+  if (resolved.password === '') {
     throw new Error(
-      'Embedded store master password must be non-empty: fix MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE), or unset both to use the built-in default',
+      'Embedded store master password must be non-empty: fix MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE), or unset both to use a master key file or the built-in default',
     )
   }
-  return password
+  return resolved.password
+}
+
+/** A fresh random 256-bit master key, base64url (43 chars, no padding). */
+export function generateMasterKey(): string {
+  return randomBytes(32).toString('base64url')
+}
+
+export interface WriteMasterKeyOptions {
+  /** Overwrite an existing file. Overwriting a key that sealed a store locks that store. */
+  force?: boolean
+  /** Key to write; defaults to {@link generateMasterKey}. */
+  key?: string
+}
+
+/**
+ * Write a master key file atomically (temp + rename, mode 0600, parent dir 0700 when
+ * created). Refuses to overwrite an existing file unless `force` — silently replacing a key
+ * would make every secret sealed under it unrecoverable. Returns the path only; the key is
+ * never returned or printed.
+ */
+export async function writeMasterKeyFile(
+  path: string,
+  options: WriteMasterKeyOptions = {},
+): Promise<{ path: string }> {
+  const target = resolve(path)
+  if (!options.force) {
+    const exists = await stat(target).then(
+      () => true,
+      () => false,
+    )
+    if (exists) {
+      throw new Error(
+        `Master key file ${target} already exists: refusing to overwrite (a replaced key makes secrets sealed under it unrecoverable). Use --force only after re-keying the store.`,
+      )
+    }
+  }
+  await mkdir(dirname(target), { recursive: true, mode: 0o700 })
+  const tmp = tmpPathFor(target)
+  try {
+    await writeFile(tmp, `${options.key ?? generateMasterKey()}\n`, {
+      encoding: 'utf-8',
+      mode: 0o600,
+    })
+    await chmod(tmp, 0o600)
+    await rename(tmp, target)
+  } catch (err) {
+    await unlink(tmp).catch(() => {})
+    throw err
+  }
+  return { path: target }
+}
+
+/** The active source for the embed master password (`default` when nothing is configured). Never exposes the key. */
+export async function masterKeyStatus(
+  env: Env = process.env,
+): Promise<{ source: MasterKeySource; path?: string; tooOpen: boolean }> {
+  const resolved = await resolveMasterKey(env)
+  if (resolved === undefined) return { source: 'default', tooOpen: false }
+  return {
+    source: resolved.source,
+    ...(resolved.path !== undefined && { path: resolved.path }),
+    tooOpen: resolved.path !== undefined && (await masterKeyFileTooOpen(resolved.path)),
+  }
 }
 
 function deriveKey(password: string, salt: Buffer): Buffer {
@@ -715,7 +865,7 @@ export async function rotateEmbedSecret(
 export interface RekeyEmbedOptions {
   /** Store path; defaults to {@link defaultEmbedPath}. */
   path?: string
-  /** Current master password; defaults to the environment (or the built-in default). */
+  /** Current master password; defaults to the resolution order (or the built-in default). */
   currentPassword?: string
   /** New master password (required, non-empty, different from the current one). */
   newPassword: string

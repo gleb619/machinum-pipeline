@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,11 +7,23 @@ import { initCommand } from '../../src/commands/init.js'
 describe('init command (T001)', () => {
   let testDir: string
   let originalCwd: string
+  const savedEnv: Record<string, string | undefined> = {}
 
   beforeEach(async () => {
     testDir = await mkdtemp(join(tmpdir(), 'mt-init-test-'))
     originalCwd = process.cwd()
     process.chdir(testDir)
+    for (const key of [
+      'MT_HOME',
+      'MT_EMBED_PATH',
+      'MT_EMBED_PASSWORD',
+      'MT_EMBED_PASSWORD_FILE',
+      'MT_PROJECT_ROOT',
+    ]) {
+      savedEnv[key] = process.env[key]
+      Reflect.deleteProperty(process.env, key)
+    }
+    process.env.MT_HOME = join(testDir, 'home')
 
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(process, 'exit').mockImplementation(((code: number) => {
@@ -21,6 +33,10 @@ describe('init command (T001)', () => {
 
   afterEach(async () => {
     process.chdir(originalCwd)
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key)
+      else process.env[key] = value
+    }
     await rm(testDir, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
@@ -42,6 +58,25 @@ describe('init command (T001)', () => {
 
     // Sample pipeline should NOT be created without settings
     await expect(access(join(testDir, 'pipelines/example.ts'))).rejects.toThrow()
+  })
+
+  it('T001-MK: generates a 0600 .mt/master.key and gitignores it', async () => {
+    await initCommand({})
+    const keyPath = join(testDir, '.mt', 'master.key')
+    expect((await stat(keyPath)).mode & 0o777).toBe(0o600)
+    expect((await readFile(keyPath, 'utf-8')).trim()).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const ignore = await readFile(join(testDir, '.gitignore'), 'utf-8')
+    expect(ignore).toContain('.mt/master.key')
+    expect(ignore).toContain('*.key')
+  })
+
+  it('T001-MK2: --no-master-key skips it; rerun keeps the existing key', async () => {
+    await initCommand({ noMasterKey: true })
+    await expect(access(join(testDir, '.mt', 'master.key'))).rejects.toThrow()
+    await initCommand({ force: true })
+    const first = await readFile(join(testDir, '.mt', 'master.key'), 'utf-8')
+    await initCommand({ force: true })
+    expect(await readFile(join(testDir, '.mt', 'master.key'), 'utf-8')).toBe(first)
   })
 
   it('T001-02: uses custom project name when provided', async () => {
@@ -214,7 +249,7 @@ describe('init command (T001)', () => {
 
   it('T116-03: leaves an existing .gitignore untouched when it already covers the patterns', async () => {
     const existing =
-      'node_modules/\n.mt/\nvault.json\n*.vault.json\n.mt/vault*\n*.kdbx\n*.embed.json\n'
+      'node_modules/\n.mt/\nvault.json\n*.vault.json\n.mt/vault*\n*.kdbx\n*.embed.json\n.mt/master.key\n*.key\n'
     await writeFile(join(testDir, '.gitignore'), existing, 'utf-8')
 
     await initCommand({})

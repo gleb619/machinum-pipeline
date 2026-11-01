@@ -19,9 +19,10 @@ export const EMBED_REF_PREFIX = 'embed:'
 export const DEFAULT_EMBED_PASSWORD = 'mt-embed-default-password-NOT-SECRET'
 
 export const DEFAULT_EMBED_WARNING =
-  'mt: embedded secret store uses the built-in default password: secrets are only obfuscated, not protected. Set MT_EMBED_NEW_PASSWORD (or MT_EMBED_NEW_PASSWORD_FILE) to a private value and run `mt vault embed-rekey` to re-encrypt the store with it, then export it as MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE).'
+  'mt: embedded secret store uses the built-in default password: secrets are only obfuscated, not protected. Run `mt vault master-key generate --rekey` to create a private master key and re-encrypt the store with it (or set MT_EMBED_PASSWORD / MT_EMBED_PASSWORD_FILE; `mt vault embed-rekey` changes the password explicitly).'
 
 let defaultWarned = false
+const warnedKeyFiles = new Set<string>()
 
 function warnDefaultPassword(): void {
   if (defaultWarned) return
@@ -53,16 +54,58 @@ export function embedDisabled(env: Env = process.env): boolean {
   return env.MT_EMBED === 'false'
 }
 
+/**
+ * Master-password resolution order (identical to `@mt/core`): `MT_EMBED_PASSWORD` >
+ * `MT_EMBED_PASSWORD_FILE` > project `<MT_PROJECT_ROOT|cwd>/.mt/master.key` > user
+ * `$MT_HOME|~/.mt/master.key` > built-in default.
+ */
+export function masterKeyPaths(env: Env = process.env): { project: string; user: string } {
+  const root = resolve(env.MT_PROJECT_ROOT || process.cwd())
+  return {
+    project: join(root, '.mt', 'master.key'),
+    user: join(env.MT_HOME || join(env.HOME || homedir(), '.mt'), 'master.key'),
+  }
+}
+
+function readKeyFile(path: string): string | undefined {
+  let raw: string
+  try {
+    raw = readFileSync(path, 'utf-8')
+  } catch (err) {
+    const code = (err as { code?: string }).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return undefined
+    throw new Error(`Cannot read master key file ${path}: ${code ?? 'unknown error'}`)
+  }
+  if (process.platform !== 'win32' && !warnedKeyFiles.has(path)) {
+    try {
+      if ((statSync(path).mode & 0o077) !== 0) {
+        warnedKeyFiles.add(path)
+        console.warn(
+          `mt: master key file ${path} is readable by other users: run \`chmod 600 ${path}\``,
+        )
+      }
+    } catch {
+      // stat race: ignore
+    }
+  }
+  const key = raw.trim()
+  if (key === '') throw new Error(`Master key file ${path} is empty: regenerate it`)
+  return key
+}
+
 function masterPassword(env: Env): string | undefined {
   if (env.MT_EMBED_PASSWORD !== undefined) return env.MT_EMBED_PASSWORD
   const file = env.MT_EMBED_PASSWORD_FILE
-  if (!file) return undefined
-  try {
-    return readFileSync(resolve(file), 'utf-8').replace(/\r?\n$/, '')
-  } catch (err) {
-    const code = (err as { code?: string }).code ?? 'unknown error'
-    throw new Error(`Cannot read MT_EMBED_PASSWORD_FILE ${resolve(file)}: ${code}`)
+  if (file) {
+    try {
+      return readFileSync(resolve(file), 'utf-8').replace(/\r?\n$/, '')
+    } catch (err) {
+      const code = (err as { code?: string }).code ?? 'unknown error'
+      throw new Error(`Cannot read MT_EMBED_PASSWORD_FILE ${resolve(file)}: ${code}`)
+    }
   }
+  const paths = masterKeyPaths(env)
+  return readKeyFile(paths.project) ?? readKeyFile(paths.user)
 }
 
 function requirePassword(env: Env): string {
@@ -73,7 +116,7 @@ function requirePassword(env: Env): string {
   }
   if (password === '') {
     throw new Error(
-      'Embedded store master password must be non-empty: fix MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE), or unset both to use the built-in default',
+      'Embedded store master password must be non-empty: fix MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE), or unset both to use a master key file or the built-in default',
     )
   }
   return password
@@ -168,6 +211,7 @@ const storeCache = new Map<string, CacheEntry>()
 export function resetEmbedState(): void {
   storeCache.clear()
   defaultWarned = false
+  warnedKeyFiles.clear()
 }
 
 /** Cheap change detector: store mtime + size. Never reads content. */

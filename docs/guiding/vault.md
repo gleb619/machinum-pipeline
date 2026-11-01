@@ -32,7 +32,9 @@ the entry (never the value).
 | `mt vault keepass-add <title>` | Adds or updates a KeePass entry (`--secret`, `--username`, `--group`) |
 | `mt vault keepass-list` | Entry titles, group paths and UUIDs — never passwords |
 | `mt vault keepass-status` | Database path, existence, credential config and unlock state |
-| `mt vault embed-init` / `embed-add <name>` / `embed-list` / `embed-status` | Embedded store management; works with the default password (see below) |
+| `mt vault embed-init` / `embed-add <name>` / `embed-list` / `embed-status` | Embedded store management; master key resolution and the default-password fallback: see below |
+| `mt vault master-key generate [--user] [--path <file>] [--force] [--rekey]` | Creates a random 256-bit master key file (mode 0600, atomic): project `.mt/master.key`, or `~/.mt/master.key` with `--user`. Never overwrites an existing file without `--force`; refuses when a store exists unless `--rekey` (re-wraps the store under the new key, rolled back on failure) or `--force` (store becomes unreadable). Never prints the key |
+| `mt vault master-key status` / `show-path` | Active source (`env` / `env-file` / `project` / `user` / `default`), path, file mode; both candidate locations. Never prints the key |
 | `mt vault embed-init` | Creates an empty embedded encrypted store (mode 0600) at `--path`/`MT_EMBED_PATH` |
 | `mt vault embed-add <name>` | Adds or updates an embedded-store secret (`--secret`, `--username`, `--notes`, `--force`) |
 | `mt vault embed-list` | Entry names and usernames — never secrets |
@@ -89,7 +91,8 @@ Missing file = empty vault. Malformed JSON / bad entry = error naming file + ent
 
 `apiKey` / `apiKeys[]` values must be secret references (plaintext is rejected). Resolution happens
 **in memory only** — the vault file keeps the original refs and `saveVault` never persists resolved
-values. The embedded store is the default backend and needs no setup.
+values. The embedded store is the default backend; `mt init` generates its master key (see
+[Master key](installation.md#master-key-every-new-installation)).
 
 | Ref | Backend | Config |
 |---|---|---|
@@ -182,6 +185,66 @@ no native addon, no external binary; `node:crypto` only. `embed://<name>` is acc
   covered by the `*.embed.json` ignore pattern), `MT_EMBED_PASSWORD` or `MT_EMBED_PASSWORD_FILE`
   (one trailing newline stripped). An explicitly empty password is an error. The core resolver
   never prompts.
+- **Master key resolution order** (first hit wins): `MT_EMBED_PASSWORD` > `MT_EMBED_PASSWORD_FILE` >
+  project `<root>/.mt/master.key` > user `$MT_HOME|~/.mt/master.key` > built-in default (warns).
+  `<root>` is `MT_PROJECT_ROOT`, else the project passed to `loadVault`, else the cwd. A key file
+  holds one line (random 256-bit, base64url or hex) used as the master password string; a file
+  readable by group/others only produces a warning. `mt init` generates the project key;
+  `mt vault master-key generate [--user] [--rekey]` does it for existing installs. The router
+  (`packages/router/server/utils/embed.ts`) uses the same order.
+- **Built-in default password (fallback only)**: when no env password and no master key file is
+  found, the public `DEFAULT_EMBED_PASSWORD` is used so an unconfigured, pre-existing setup keeps
+  working. That password is public: the store is only **obfuscated, not protected**. The first use
+  per process emits `console.warn` suggesting `mt vault master-key generate --rekey`. New
+  installations should not rely on it: `mt init` creates a private master key. A store sealed under
+  the default cannot be opened once another source takes over - run
+  `mt vault master-key generate --rekey` (or `mt vault embed-rekey`) first.
+- **Provisioning**:
+  ```bash
+  export MT_KEEPASS_PASSWORD='…'          # CI only; interactive commands prompt
+  mt vault keepass-init                    # empty db, mode 0600
+  mt vault keepass-add OpenRouter-Key --secret "$OPENROUTER_KEY" --group LLM/API
+  mt vault add or --provider openrouter --api-key keepass:OpenRouter-Key
+  ```
+  KeePassXC can edit the same file; AES-KDF (KDBX 3.1) and Argon2 (KDBX 4) databases are supported.
+- **Opt-out**: `MT_KEEPASS=false` disables resolution entirely (refs pass through as-is).
+- **Errors are sanitized**: a wrong password, missing file or missing entry names the path/entry
+  and never includes the master password or a secret value.
+- **Router**: `packages/router/server/utils/keepass.ts` is a standalone duplicate. Loading is
+  async (WebCrypto), so a changed vault with `keepass:` refs triggers a background refresh and
+  keeps serving the previous result until it completes; `startRouter()` awaits the first load.
+  Database mtime is part of the hot-reload signature.
+
+### Embedded store (embed)
+
+`packages/core/src/embed.ts` reads a small JSON file encrypted with AES-256-GCM — no dependency,
+no native addon, no external binary; `node:crypto` only. `embed://<name>` is accepted as an alias of
+`embed:<name>`.
+
+- **Terminology**: *master password* unlocks the store; *encryption key* (`kid`) is the 256-bit cipher
+  key that seals secrets; *secret* is the stored value (API key, token).
+- **Format v2 (keyring, envelope encryption)**: the file holds
+  `{ version: 2, kdf: "scrypt", n, r, p, salt, iv, tag, ciphertext, secrets }`. `ciphertext` is the
+  keyring - `{ "keys": { "<kid>": { "key": <base64 32 bytes>, "createdAt", "status": "active"|"retired",
+  "note"? } } }` - sealed under `scryptSync(masterPassword, salt, 32, { N: 16384, r: 8, p: 1,
+  maxmem: 64MiB })` with AES-256-GCM, a random 12-byte IV and AAD `mt-embed-v2-keyring`.
+  `secrets` maps `<name>` to `{ kid, iv, tag, ciphertext, createdAt, rotatedAt? }`; each secret's
+  ciphertext is `{ secret, username?, url?, notes? }` sealed with the encryption key `kid`, its own
+  random IV and AAD `mt-embed-v2-secret:<kid>:<name>` (so entries cannot be swapped between names
+  or keys). Entry names, `kid`s and timestamps are plaintext; values, usernames, URLs, notes and key
+  material are not. KDF parameters are validated against the fixed values before deriving a key.
+  Writes are atomic (temp-then-rename), mode 0600, fresh keyring salt/IV per write. Exactly one key
+  is `active`; a new store gets a generated key `k1`. v1 stores are not supported (re-create).
+- **Threat model**: the keyring limits the blast radius of a single leaked encryption key and lets you
+  rotate or retire keys (`embed-keyring rotate --reencrypt`). It does NOT protect a store opened with
+  the public built-in default password: anyone with the file can unlock the keyring. Set a private
+  master password (`embed-rekey`) first. `embed-rekey` re-wraps the keyring under the new password; if
+  the file was ever exposed under the default password, also run
+  `embed-keyring rotate --reencrypt` and remove the old key to replace the key material itself.
+- **Config**: `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`, outside any repo and
+  covered by the `*.embed.json` ignore pattern), `MT_EMBED_PASSWORD` or `MT_EMBED_PASSWORD_FILE`
+  (one trailing newline stripped). An explicitly empty password is an error. The core resolver
+  never prompts.
 - **Default password (zero-config)**: with neither variable set, the built-in
   `DEFAULT_EMBED_PASSWORD` is used, so `embed:` works out of the box and the store file is created
   on first `embed-add` / `mt vault add --api-key`. That password is public: the store is only
@@ -220,10 +283,13 @@ no native addon, no external binary; `node:crypto` only. `embed://<name>` is acc
 
 ### Caveats — what the embedded store does and does not protect
 
-- **Default password is public.** Without `MT_EMBED_PASSWORD(_FILE)` the store is sealed with a
-  built-in password that ships in the source. That is obfuscation, not protection: anyone who gets the
-  store file can open it. Zero-config is for local development and demos. For real secrets set a private
-  master password (`mt vault embed-rekey`) *before* adding production keys.
+- **Default password is public.** Without `MT_EMBED_PASSWORD(_FILE)` or a `master.key` file the store
+  is sealed with a built-in password that ships in the source. That is obfuscation, not protection:
+  anyone who gets the store file can open it. `mt init` avoids this by generating a private master
+  key; for older installs run `mt vault master-key generate --rekey` *before* adding production keys.
+- **Master key file = the store's lock.** Back up `.mt/master.key` (or `~/.mt/master.key`): losing it
+  makes the embedded secrets unrecoverable. It is gitignored (`.mt/master.key`, `*.key`); never commit
+  it, and keep it 0600. A project key shadows a user-level store opened without it.
 - **Re-key is not re-encrypt.** `embed-rekey` only re-wraps the keyring under the new master password;
   the encryption keys stay the same. If a store was ever exposed under the default (or an old) password,
   also run `mt vault embed-keyring rotate --reencrypt` and `embed-keyring rm <old-kid>`, and rotate the

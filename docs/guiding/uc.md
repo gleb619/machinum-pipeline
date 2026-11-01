@@ -80,6 +80,7 @@
 | UC072 | Change the embedded store master password  | —          | — |
 | UC073 | Choose a secret backend (embed / KeePass / vlt) | —          | — |
 | UC074 | Replace one secret value (`embed-rotate`)  | —          | — |
+| UC075 | Generate a master key on new installation  | —          | [sample0](../../samples/sample0) |
 
 ## Legacy ID Mapping
 
@@ -186,6 +187,7 @@
 | UC072 | Change the embedded store master password | Operator | Move from the public default password (or an old one) to a private master password | Store exists; current password known (or default) | Keyring re-wrapped under the new password; secret ciphertexts untouched; only the new password opens the store | 1. `MT_EMBED_NEW_PASSWORD_FILE=… mt vault embed-rekey` (current password = `MT_EMBED_PASSWORD(_FILE)` or default) 2. Export the new password as `MT_EMBED_PASSWORD(_FILE)` 3. If the file was exposed under the default password, also run `embed-keyring rotate --reencrypt` |
 | UC073 | Choose a secret backend (embed / KeePass / vlt) | Author/Operator | Pick where vault refs resolve: `embed:<name>` (default, pure `node:crypto`), `keepass:<title|uuid>` (`.kdbx`), `vlt:<name>` (vlt CLI) | Backend set up (see `samples/sample4` `demo:*` scripts) | `loadVault` resolves refs in memory regardless of backend; keys never reach disk, logs or checkpoints | 1. Provision the secret (`embed-add` / `keepass-add` / `vlt` CLI) 2. Reference it as `apiKey` ref in a vault entry 3. Run; unavailable backend (e.g. locked vlt) fails clearly |
 | UC074 | Replace one secret value (`embed-rotate`) | Operator | Swap an upstream key value while keeping every `embed:<name>` ref valid | Secret exists in the store | Secret re-sealed under the active encryption key; `rotatedAt` stamped | 1. `mt vault embed-rotate <name> --value-file …` (or stdin / hidden prompt) 2. Refs unchanged 3. Next run resolves the new value |
+| UC075 | Generate a master key on new installation | Author/Operator | Give every new installation its own random 256-bit master key for the embedded store instead of the public built-in default | Fresh project (`mt init`), or an existing/global install (`mt vault master-key generate [--user] [--rekey]`); no `MT_EMBED_PASSWORD(_FILE)` set | `<root>/.mt/master.key` (or `~/.mt/master.key`) exists with mode 0600, is gitignored, and seals the embedded store; the key is never printed; an existing key file is never overwritten silently | 1. `mt init` writes `.mt/master.key` and adds `.mt/master.key`/`*.key` to `.gitignore` (skip with `--no-master-key`) 2. User backs the file up (losing it makes embed secrets unrecoverable) 3. For an existing store: `mt vault master-key generate --rekey` re-wraps it under the new key 4. `mt vault master-key status` shows the active source (env / env-file / project / user / default) without the key 5. CI/Docker pass the key via `MT_EMBED_PASSWORD_FILE` |
 
 ---
 
@@ -194,7 +196,7 @@
 - **Goals (§1):** UC002..004 (pluggable), UC006/015/016 (resumable), UC012..014 (parallel/forks), UC026/027/028 (hybrid runtime), UC024/025 (git-aware), UC015/029/053 (observable).
 - **CLI commands (§9.2):** UC001, 005, 006, 008, 009, 010, 026, 027, plus UC037..041 (MCP).
 - **Backend/Frontend (§9.3–9.4):** UC028..032, UC054.
-- **Router (§9.5):** UC032..036, UC063..074 (keyless gateway, vault-fed upstreams, KeePass/embed refs, keyring rotation, token guard).
+- **Router (§9.5):** UC032..036, UC063..075 (keyless gateway, vault-fed upstreams, KeePass/embed refs, keyring rotation, token guard).
 - **Extensions (§9.7–9.8):** UC042..046.
 - **Execution model (§7):** UC015..020.
 - **URI DSL (§6) & I/O (§9.1):** UC021..025, UC051.

@@ -40,6 +40,11 @@ import {
 } from '@mt/core'
 import type { Vault, VaultEntry, VaultProvider } from '@mt/core'
 import { VAULT_IGNORE_PATTERNS, ensureIgnorePatterns } from '../utils/gitignore.js'
+import {
+  masterKeyGenerateCommand,
+  masterKeyShowPathCommand,
+  masterKeyStatusCommand,
+} from './master-key.js'
 
 const USAGE = `Usage: mt vault <subcommand> [options]
 
@@ -70,6 +75,12 @@ Subcommands:
   embed-rekey           Change the store MASTER PASSWORD (default -> custom, or custom -> custom).
                         Current: MT_EMBED_PASSWORD(_FILE) or the built-in default; new:
                         --new-password-file, $MT_EMBED_NEW_PASSWORD(_FILE) or hidden prompt
+  master-key <action>   Master key file that seals the embedded store (random 256-bit):
+      generate [--user] [--path <file>] [--force] [--rekey]
+                        create <project>/.mt/master.key (or ~/.mt/master.key with --user);
+                        refuses to overwrite; --rekey re-wraps an existing store under it
+      status            active source (env / env-file / project / user / default); never the key
+      show-path         project and user key file locations
   embed-rotate <name>   Replace the VALUE of an existing embedded secret under the active
                         encryption key, keeping its embed:<name> ref (value: --value-file,
                         stdin or hidden prompt)
@@ -107,6 +118,7 @@ Options:
                         (default: active key); embed-keyring uses it as the key id
   --note <text>         Note for embed-keyring generate / add (same as --notes)
   --no-activate         embed-keyring generate / add: keep the current active key
+  --rekey               master-key generate: re-wrap the existing embedded store under the new key
   --reencrypt           embed-keyring rotate: re-seal all secrets under the new key
   --force               Overwrite an existing entry / embedded secret
   -h, --help            Show this help
@@ -134,6 +146,7 @@ interface VaultOptions {
   kid?: string
   noActivate: boolean
   reencrypt: boolean
+  rekey: boolean
   valueFile?: string
   positionals: string[]
 }
@@ -171,6 +184,7 @@ function parseArgs(args: string[]): VaultOptions {
     force: false,
     noActivate: false,
     reencrypt: false,
+    rekey: false,
     help: false,
     positionals: [],
   }
@@ -244,6 +258,9 @@ function parseArgs(args: string[]): VaultOptions {
         break
       case '--reencrypt':
         options.reencrypt = true
+        break
+      case '--rekey':
+        options.rekey = true
         break
       case '--value-file':
         options.valueFile = takeValue(args, i, arg)
@@ -745,7 +762,7 @@ async function embedStatusCommand(options: VaultOptions): Promise<void> {
   console.log(`  state: ${existsSync(path) ? 'exists' : 'missing'}`)
   const configured = embedCredentialsConfigured(env)
   console.log(
-    `  credentials: ${configured ? 'configured' : 'built-in default (obfuscation only) — run `mt vault embed-rekey` to set a private master password'}`,
+    `  credentials: ${configured ? 'configured' : 'no env password: see `mt vault master-key status` (key file, else built-in default = obfuscation only)'}`,
   )
   if (!existsSync(path)) return
   try {
@@ -919,6 +936,26 @@ async function embedRotateCommand(options: VaultOptions): Promise<void> {
   console.log(`  rotatedAt: ${result.rotatedAt}`)
 }
 
+async function masterKeyCommandDispatch(options: VaultOptions): Promise<void> {
+  const action = options.positionals[1]
+  const env: NodeJS.ProcessEnv = { ...process.env }
+  switch (action) {
+    case 'generate':
+      return masterKeyGenerateCommand(
+        { path: options.path, user: options.user, force: options.force, rekey: options.rekey },
+        env,
+      )
+    case 'status':
+      return masterKeyStatusCommand(env)
+    case 'show-path':
+      return masterKeyShowPathCommand(env)
+    default:
+      return fail(
+        'Usage: mt vault master-key <generate [--user] [--path <file>] [--force] [--rekey] | status | show-path>',
+      )
+  }
+}
+
 async function dispatch(args: string[]): Promise<void> {
   const options = parseArgs(args)
   if (options.help) {
@@ -971,6 +1008,8 @@ async function dispatch(args: string[]): Promise<void> {
       return embedRekeyCommand(options)
     case 'embed-rotate':
       return embedRotateCommand(options)
+    case 'master-key':
+      return masterKeyCommandDispatch(options)
     default:
       return fail(`Unknown vault subcommand: ${subcommand}\n\n${USAGE}`)
   }

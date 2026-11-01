@@ -445,7 +445,7 @@ master password / encryption key (`kid`) / secret. Config:
 `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`), `MT_EMBED_PASSWORD` /
 `MT_EMBED_PASSWORD_FILE`. Errors name the path/entry only.
 
-The embedded store is the default backend: without `MT_EMBED_PASSWORD(_FILE)` it uses `DEFAULT_EMBED_PASSWORD` plus a one-time `console.warn` (obfuscation only), and `setEmbedSecret` creates the store on first use.
+Master password resolution (`resolveMasterKey`): `MT_EMBED_PASSWORD` > `MT_EMBED_PASSWORD_FILE` > project `<MT_PROJECT_ROOT|cwd>/.mt/master.key` > user `$MT_HOME|~/.mt/master.key` > `DEFAULT_EMBED_PASSWORD` plus a one-time `console.warn` (obfuscation only; suggests `mt vault master-key generate`). `loadVault` sets `MT_PROJECT_ROOT` to its `projectRoot`. Key files: `generateMasterKey()` (256-bit base64url), `writeMasterKeyFile(path,{force,key})` (atomic, 0600, refuses overwrite without `force`), `masterKeyStatus()`, `masterKeyPaths()`, `masterKeyFileTooOpen()` (warn, never fail). The router duplicate (`packages/router/server/utils/embed.ts`) must keep the same order. The embedded store is the default backend, and `setEmbedSecret` creates the store on first use.
 
 `loadVault` resolves all three ref kinds (`resolveRefs: false` keeps stored refs for
 editing); details: [../guiding/vault.md](../guiding/vault.md).

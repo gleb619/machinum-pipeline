@@ -131,8 +131,32 @@ rebuild (the path does not change).
 ```bash
 mt-cli --help        # Usage: mt <command> [options]
 mt-cli --version     # mt 0.1.0
-mt-cli init          # scaffolds mt.json + .mt/ in the current dir
+mt-cli init          # scaffolds mt.json + .mt/ (+ .mt/master.key) in the current dir
 ```
+
+## Master key (every new installation)
+
+The embedded secret store (`embed:<name>` refs) is sealed under a master password. Without one it
+falls back to a **public** built-in password, which only obfuscates. So every new installation gets
+its own random 256-bit master key.
+
+- **New project:** `mt init` writes `.mt/master.key` (mode 0600), adds `.mt/master.key` and `*.key`
+  to `.gitignore`, and prints a reminder. Skip with `mt init --no-master-key`. It is also skipped
+  (with a notice) when a key is already configured or an embedded store already exists.
+- **Existing or global install:** `mt vault master-key generate --rekey` (project) or
+  `mt vault master-key generate --user --rekey` (`~/.mt/master.key`). `--rekey` re-wraps an existing
+  store under the new key; without it generate refuses when a store exists. An existing key file is
+  never overwritten without `--force`.
+- **Inspect:** `mt vault master-key status` (active source: env / env-file / project / user /
+  default; never prints the key), `mt vault master-key show-path`.
+- **Resolution order:** `MT_EMBED_PASSWORD` > `MT_EMBED_PASSWORD_FILE` > `<root>/.mt/master.key` >
+  `~/.mt/master.key` > built-in default (warns).
+- **Back it up.** Losing the file makes embedded secrets unrecoverable. It is gitignored; never commit it.
+- **CI / Docker:** do not bake a key into an image. Mount a secret and point
+  `MT_EMBED_PASSWORD_FILE=/run/secrets/mt_master_key` at it (or generate one at container start with
+  `mt vault master-key generate --user`, on a persistent volume).
+- **Install scripts and the Docker image** (`docs/install.sh`, `Dockerfile`, added separately) must
+  generate a master key on first install rather than shipping the default.
 
 ## Configuration & secrets
 

@@ -77,7 +77,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON exchange on stdin/stdout (`id`/`variables` optional, normalized by `toExchange`)); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
 | `mt serve [--port N\|0] [--host H] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/backend/standalone`); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
 | `mt router [--port N\|0] [--host H] [--mock] [--log-dir D] [-d\|--detach]` | `router.ts` | Start the keyless LLM gateway + dashboard (`@mt/router/standalone`); no `--token` flag — the token is `MT_ROUTER_TOKEN`; `--detach` re-execs self in background (`.mt/router/{pid,server.log}`) |
-| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init`, `vlt-install`, `vlt-status`, `keepass-init`, `keepass-add`, `keepass-list`, `keepass-status`, `embed-init`, `embed-add`, `embed-list`, `embed-status`, `embed-rekey`, `embed-rotate`, `embed-keyring` (secrets masked unless `--reveal`) |
+| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init`, `vlt-install`, `vlt-status`, `keepass-init`, `keepass-add`, `keepass-list`, `keepass-status`, `embed-init`, `embed-add`, `embed-list`, `embed-status`, `embed-rekey`, `embed-rotate`, `embed-keyring`, `master-key` (secrets masked unless `--reveal`) |
 
 ## Pipeline Loading
 
@@ -172,9 +172,12 @@ generate|add|list|use|retire|rm|rotate` manages the encryption keys (`--kid`, `-
 never accepted as CLI argument values and never printed. The router reads those same files as upstream key sources
 ([router.md](router.md#vault-t118)). Details: [docs/vault.md](../guiding/vault.md).
 
+### `src/commands/master-key.ts`
+`mt vault master-key generate [--user] [--path <file>] [--force] [--rekey]` / `status` / `show-path`, and `ensureProjectMasterKey()` used by `mt init`. Generate writes via core `writeMasterKeyFile` (0600, atomic); refuses to overwrite a key file without `--force`, refuses when an embed store exists unless `--rekey` (re-wraps via `rekeyEmbedStore`, key file rolled back on failure; refused when the password comes from `MT_EMBED_PASSWORD(_FILE)`) or `--force`. The key is never printed or taken as an argument. `mt init` creates `.mt/master.key` (skip: `--no-master-key`; auto-skip when a key is configured or an embed store exists), gitignored via `.mt/master.key` and `*.key`.
+
 ### `src/utils/gitignore.ts`
 `ensureIgnorePatterns()` — appends the missing ignore lines (`.mt/`, `vault.json`, `*.vault.json`,
-`.mt/vault*`, `*.kdbx`, `*.embed.json`) to `.gitignore`; idempotent, never duplicates a line.
+`.mt/vault*`, `*.kdbx`, `*.embed.json`, `.mt/master.key`, `*.key`) to `.gitignore`; idempotent, never duplicates a line.
 
 ### `src/utils/args.ts`
 `parseInitArgs()` — parses `mt init` flags (`--settings <json>`/`-s`, `--force`); unknown flags fail with usage. `--force` overwrites an existing `mt.json`/`pipelines/example.ts` (without it `initCommand` refuses, exit 1).

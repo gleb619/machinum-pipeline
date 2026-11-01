@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,6 +6,7 @@ import {
   DEFAULT_EMBED_PASSWORD,
   DEFAULT_EMBED_WARNING,
   resetEmbedState,
+  resolveEmbedValue,
 } from '../server/utils/embed.js'
 import { redact } from '../server/utils/redact.js'
 import {
@@ -35,12 +36,21 @@ describe('router embed', () => {
     dir = await mkdtemp(join(tmpdir(), 'mt-router-embed-'))
     vaultFile = join(dir, 'vault.json')
     storePath = join(dir, 'secrets.embed.json')
-    for (const key of ['MT_VAULT', 'MT_EMBED_PATH', 'MT_EMBED_PASSWORD', 'MT_EMBED']) {
+    for (const key of [
+      'MT_VAULT',
+      'MT_EMBED_PATH',
+      'MT_EMBED_PASSWORD',
+      'MT_EMBED',
+      'MT_HOME',
+      'MT_PROJECT_ROOT',
+    ]) {
       saved[key] = process.env[key]
     }
     process.env.MT_VAULT = vaultFile
     process.env.MT_EMBED_PATH = storePath
     process.env.MT_EMBED_PASSWORD = MASTER
+    process.env.MT_HOME = dir
+    process.env.MT_PROJECT_ROOT = dir
     Reflect.deleteProperty(process.env, 'MT_EMBED')
     await writeFile(storePath, encryptFixture({ 'OpenRouter-Key': { secret: SECRET } }, MASTER), {
       mode: 0o600,
@@ -181,5 +191,84 @@ describe('router embed', () => {
     resetEmbedState()
     await writeVault({ a: { provider: 'openrouter', apiKey: 'embed:one' } }, 5)
     expect(() => readVaultEntries([vaultFile])).toThrow('wrong master password')
+  })
+})
+
+describe('router embed master key resolution', () => {
+  let dir: string
+  const saved: Record<string, string | undefined> = {}
+  const keys = [
+    'MT_VAULT',
+    'MT_EMBED_PATH',
+    'MT_EMBED_PASSWORD',
+    'MT_EMBED_PASSWORD_FILE',
+    'MT_EMBED',
+    'MT_HOME',
+    'MT_PROJECT_ROOT',
+  ]
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'mt-router-masterkey-'))
+    for (const key of keys) {
+      saved[key] = process.env[key]
+      Reflect.deleteProperty(process.env, key)
+    }
+    await mkdir(join(dir, 'project', '.mt'), { recursive: true })
+    await mkdir(join(dir, 'home'), { recursive: true })
+    process.env.MT_PROJECT_ROOT = join(dir, 'project')
+    process.env.MT_HOME = join(dir, 'home')
+    process.env.MT_EMBED_PATH = join(dir, 'secrets.embed.json')
+    resetEmbedState()
+  })
+
+  afterEach(async () => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key)
+      else process.env[key] = value
+    }
+    resetEmbedState()
+    vi.restoreAllMocks()
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  const resolveWith = (name = 'K') => resolveEmbedValue(`embed:${name}`)
+
+  it('uses project key, then user key, before the default; env wins over both', async () => {
+    const projectKey = join(dir, 'project', '.mt', 'master.key')
+    const userKey = join(dir, 'home', 'master.key')
+    await writeFile(projectKey, 'project-key\n', { mode: 0o600 })
+    await writeFile(userKey, 'user-key\n', { mode: 0o600 })
+    const store = (pw: string) =>
+      writeFile(process.env.MT_EMBED_PATH as string, encryptFixture({ K: { secret: 'S1' } }, pw), {
+        mode: 0o600,
+      })
+
+    await store('project-key')
+    expect(resolveWith()).toBe('S1')
+
+    await rm(projectKey)
+    resetEmbedState()
+    await store('user-key')
+    expect(resolveWith()).toBe('S1')
+
+    process.env.MT_EMBED_PASSWORD = 'env-pw'
+    resetEmbedState()
+    await store('env-pw')
+    expect(resolveWith()).toBe('S1')
+  })
+
+  it('warns on a group-readable key file and tells how to generate one when defaulting', async () => {
+    const projectKey = join(dir, 'project', '.mt', 'master.key')
+    await writeFile(projectKey, 'project-key\n')
+    await chmod(projectKey, 0o644)
+    await writeFile(
+      process.env.MT_EMBED_PATH as string,
+      encryptFixture({ K: { secret: 'S1' } }, 'project-key'),
+      { mode: 0o600 },
+    )
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(resolveWith()).toBe('S1')
+    expect(String(warn.mock.calls[0]?.[0])).toContain('chmod 600')
+    expect(DEFAULT_EMBED_WARNING).toContain('mt vault master-key generate')
   })
 })

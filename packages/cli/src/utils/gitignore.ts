@@ -13,6 +13,8 @@ export const VAULT_IGNORE_PATTERNS = [
   '.mt/vault*',
   '*.kdbx',
   '*.embed.json',
+  '.mt/master.key',
+  '*.key',
 ]
 
 /** Accepted spellings of a pattern: the pattern itself and its slash-less form. */
