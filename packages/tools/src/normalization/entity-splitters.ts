@@ -1,5 +1,6 @@
 import { registry } from '@mt/core'
-import type { Exchange, Line, Paragraph, Splitter } from '@mt/core'
+import type { Exchange, Line, Paragraph, Splitter, Word } from '@mt/core'
+import { tokenizeWords } from './stat-freq.js'
 import { splitLineUnits, splitParagraphUnits } from './token-splitter.js'
 
 interface ParagraphSource {
@@ -13,9 +14,15 @@ interface LineSource {
   body: string
 }
 
+interface WordSource {
+  paragraphId: string
+  lineId: string
+  text: string
+}
+
 function metaString(
   env: Exchange<unknown>,
-  key: 'chapterId' | 'chunkId' | 'paragraphId',
+  key: 'chapterId' | 'chunkId' | 'paragraphId' | 'lineId',
 ): string | undefined {
   const value = env.meta[key]
   return typeof value === 'string' && value.length > 0 ? value : undefined
@@ -67,6 +74,28 @@ function lineSource(env: Exchange<unknown>): LineSource {
   throw new Error('lineSplitter: item must be a string or a Paragraph-like object with id and body')
 }
 
+function wordSource(env: Exchange<unknown>): WordSource {
+  if (typeof env.item === 'string') {
+    const lineId = metaString(env, 'lineId') ?? env.id
+    return {
+      paragraphId: metaString(env, 'paragraphId') ?? lineId,
+      lineId,
+      text: env.item,
+    }
+  }
+
+  const item = asRecord(env.item)
+  if (item !== undefined && typeof item.id === 'string' && typeof item.text === 'string') {
+    return {
+      paragraphId: typeof item.paragraphId === 'string' ? item.paragraphId : item.id,
+      lineId: item.id,
+      text: item.text,
+    }
+  }
+
+  throw new Error('wordSplitter: item must be a string or a Line-like object with id, text')
+}
+
 /**
  * Chunk → Paragraph splitter. Accepts a chunk body string (ids from `meta.chunkId` /
  * `meta.chapterId`, falling back to the exchange id) or a `Chunk`-like object.
@@ -102,5 +131,24 @@ export const lineSplitter: Splitter<Line> = {
   },
 }
 
+/**
+ * Line → Words splitter. Accepts a line text string (ids from `meta.lineId` /
+ * `meta.paragraphId`, falling back to the exchange id) or a `Line`-like object.
+ */
+export const wordSplitter: Splitter<Word> = {
+  name: 'word-splitter',
+  split(env) {
+    const { paragraphId, lineId, text } = wordSource(env)
+    return tokenizeWords(text).map((word, index) => ({
+      id: `${lineId}/word-${index + 1}`,
+      paragraphId,
+      lineId,
+      word,
+      index,
+    }))
+  },
+}
+
 registry.registerSplitter('paragraphs', paragraphSplitter)
 registry.registerSplitter('lines', lineSplitter)
+registry.registerSplitter('words', wordSplitter)

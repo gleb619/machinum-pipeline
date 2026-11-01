@@ -83,6 +83,115 @@ export function splitLineUnits(text: string): string[] {
     .filter((line) => line.length > 0)
 }
 
+/**
+ * Sentence-level units: split after `.` / `!` / `?`, trim each unit and drop blanks.
+ * A sentence is never cut: the terminator stays with its text.
+ */
+export function splitSentenceUnits(text: string): string[] {
+  if (!text.trim()) return []
+  const sentences: string[] = []
+  let cursor = 0
+  for (const match of text.matchAll(SENTENCE_END_RE)) {
+    const end = (match.index ?? 0) + match[0].length
+    sentences.push(text.slice(cursor, end))
+    cursor = end
+  }
+  if (cursor < text.length) sentences.push(text.slice(cursor))
+  return sentences.map((sentence) => sentence.trim()).filter((sentence) => sentence.length > 0)
+}
+
+interface ReadableUnit {
+  text: string
+  paragraph: number
+}
+
+function joinReadableUnits(units: readonly ReadableUnit[], forcedSeparator?: string): string {
+  let output = ''
+  let previousParagraph: number | undefined
+  for (const unit of units) {
+    if (output.length === 0) {
+      output = unit.text
+    } else {
+      const separator = forcedSeparator ?? (unit.paragraph === previousParagraph ? ' ' : '\n\n')
+      output += `${separator}${unit.text}`
+    }
+    previousParagraph = unit.paragraph
+  }
+  return output.trim()
+}
+
+function partitionReadableUnits(
+  units: readonly ReadableUnit[],
+  count: number,
+  forcedSeparator?: string,
+): string[] {
+  if (units.length === 0) return []
+  const groupCount = Math.min(count, units.length)
+  if (groupCount <= 1) return [joinReadableUnits(units, forcedSeparator)]
+
+  const groups: ReadableUnit[][] = []
+  let index = 0
+  let remainingWeight = units.reduce((sum, unit) => sum + unit.text.length + 1, 0)
+
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex++) {
+    const groupsLeft = groupCount - groupIndex
+    const maxEnd = units.length - (groupsLeft - 1)
+    const target = remainingWeight / groupsLeft
+    const first = units[index]
+    if (first === undefined) break
+    let end = index + 1
+    let weight = first.text.length + 1
+
+    while (end < maxEnd) {
+      const next = units[end]
+      if (next === undefined || weight >= target) break
+      weight += next.text.length + 1
+      end += 1
+    }
+
+    groups.push(units.slice(index, end))
+    remainingWeight -= weight
+    index = end
+  }
+
+  return groups.map((group) => joinReadableUnits(group, forcedSeparator))
+}
+
+/**
+ * Split text into `parts` readable pieces without cutting a sentence.
+ *
+ * Whole paragraphs are used first when there are enough of them; otherwise sentences are
+ * grouped, with paragraph breaks preserved between groups. A single sentence is never cut,
+ * so the result may contain fewer than `parts` pieces when the text is too short.
+ */
+export function splitReadableParts(text: string, parts: number): string[] {
+  const count = Number.isFinite(parts) && parts > 1 ? Math.floor(parts) : 0
+  if (count < 2 || !text.trim()) return [text]
+
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0)
+  if (paragraphs.length === 0) return [text]
+
+  if (paragraphs.length >= count) {
+    return partitionReadableUnits(
+      paragraphs.map((paragraph, index) => ({ text: paragraph, paragraph: index })),
+      count,
+      '\n\n',
+    )
+  }
+
+  const sentences: ReadableUnit[] = []
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    for (const sentence of splitSentenceUnits(paragraph)) {
+      sentences.push({ text: sentence, paragraph: paragraphIndex })
+    }
+  })
+  if (sentences.length < 2) return [text]
+  return partitionReadableUnits(sentences, count)
+}
+
 function chunkUnits(
   units: string[],
   weigh: (unit: string) => number,
@@ -353,28 +462,15 @@ export function sentenceStrategy(options?: SentenceStrategyOptions): TokenSplitS
     split(text: string): string[] {
       if (!text.trim()) return [text]
 
-      const sentences: string[] = []
-      let cursor = 0
-      for (const match of text.matchAll(SENTENCE_END_RE)) {
-        const end = (match.index ?? 0) + match[0].length
-        sentences.push(text.slice(cursor, end))
-        cursor = end
-      }
-      if (cursor < text.length) {
-        sentences.push(text.slice(cursor))
-      }
-
       const chunks: string[] = []
       let current = ''
-      for (const sentence of sentences) {
-        const trimmed = sentence.trim()
-        if (!trimmed) continue
+      for (const sentence of splitSentenceUnits(text)) {
         const separator = current ? ' ' : ''
-        if (current.length + separator.length + trimmed.length > maxChars) {
+        if (current.length + separator.length + sentence.length > maxChars) {
           if (current) chunks.push(current)
-          current = trimmed
+          current = sentence
         } else {
-          current = current ? `${current}${separator}${trimmed}` : trimmed
+          current = current ? `${current}${separator}${sentence}` : sentence
         }
       }
       if (current) chunks.push(current)

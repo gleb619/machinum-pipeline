@@ -1,7 +1,11 @@
 import { createExchange, registry } from '@mt/core'
-import type { Chunk, Paragraph } from '@mt/core'
+import type { Chunk, Line, Paragraph } from '@mt/core'
 import { describe, expect, it } from 'vitest'
-import { lineSplitter, paragraphSplitter } from '../src/normalization/entity-splitters.js'
+import {
+  lineSplitter,
+  paragraphSplitter,
+  wordSplitter,
+} from '../src/normalization/entity-splitters.js'
 import { splitLineUnits, splitParagraphUnits } from '../src/normalization/token-splitter.js'
 
 describe('splitParagraphUnits / splitLineUnits', () => {
@@ -12,13 +16,18 @@ describe('splitParagraphUnits / splitLineUnits', () => {
 })
 
 describe('splitter registry', () => {
-  it('registers paragraph and line splitters by buffer scheme', () => {
+  it('registers paragraph, line and word splitters by buffer scheme', () => {
     expect(registry.hasSplitter('paragraphs')).toBe(true)
     expect(registry.hasSplitter('lines')).toBe(true)
-    expect(registry.resolveSplitter('paragraphs')).toBe(paragraphSplitter)
+    expect(registry.hasSplitter('words')).toBe(true)
+    expect(registry.resolveSplitter('paragraphs://')).toBe(paragraphSplitter)
     expect(registry.resolveSplitter('paragraphs://ladder')).toBe(paragraphSplitter)
-    expect(registry.resolveSplitter('lines')).toBe(lineSplitter)
+    expect(registry.resolveSplitter('#paragraphs')).toBe(paragraphSplitter)
+    expect(registry.resolveSplitter('lines://')).toBe(lineSplitter)
     expect(registry.resolveSplitter('lines://ladder')).toBe(lineSplitter)
+    expect(registry.resolveSplitter('#lines')).toBe(lineSplitter)
+    expect(registry.resolveSplitter('words://')).toBe(wordSplitter)
+    expect(registry.resolveSplitter('#words')).toBe(wordSplitter)
   })
 })
 
@@ -181,5 +190,63 @@ describe('lineSplitter', () => {
       .filter((line) => line.text.trim().length > 0)
 
     expect(lineSplitter.split(createExchange(paragraph))).toEqual(old)
+  })
+})
+
+describe('wordSplitter', () => {
+  it('splits a string item and derives ids from meta', () => {
+    const env = createExchange('  alpha, beta  gamma. ', {
+      id: 'exchange-word',
+      meta: { paragraphId: 'paragraph-2', lineId: 'line-5' },
+    })
+
+    expect(wordSplitter.split(env)).toEqual([
+      {
+        id: 'line-5/word-1',
+        paragraphId: 'paragraph-2',
+        lineId: 'line-5',
+        word: 'alpha',
+        index: 0,
+      },
+      {
+        id: 'line-5/word-2',
+        paragraphId: 'paragraph-2',
+        lineId: 'line-5',
+        word: 'beta',
+        index: 1,
+      },
+      {
+        id: 'line-5/word-3',
+        paragraphId: 'paragraph-2',
+        lineId: 'line-5',
+        word: 'gamma',
+        index: 2,
+      },
+    ])
+  })
+
+  it('accepts a Line-like entity and uses its ids', () => {
+    const line: Line = {
+      id: 'line-9',
+      paragraphId: 'paragraph-3',
+      text: 'one two',
+    }
+
+    expect(wordSplitter.split(createExchange(line))).toEqual([
+      {
+        id: 'line-9/word-1',
+        paragraphId: 'paragraph-3',
+        lineId: 'line-9',
+        word: 'one',
+        index: 0,
+      },
+      {
+        id: 'line-9/word-2',
+        paragraphId: 'paragraph-3',
+        lineId: 'line-9',
+        word: 'two',
+        index: 1,
+      },
+    ])
   })
 })

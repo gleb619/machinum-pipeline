@@ -120,13 +120,21 @@ describe('splitter registry', () => {
     return testRegistry
   }
 
-  it('resolves bare, scheme:// and #scheme forms to the same splitter', () => {
+  it('resolves scheme:// and #scheme forms to the same splitter', () => {
     const testRegistry = makeRegistry()
 
-    expect(testRegistry.resolveSplitter('paragraphs')).toBe(splitter)
     expect(testRegistry.resolveSplitter('paragraphs://')).toBe(splitter)
     expect(testRegistry.resolveSplitter('paragraphs://ladder')).toBe(splitter)
     expect(testRegistry.resolveSplitter('#paragraphs')).toBe(splitter)
+    expect(testRegistry.resolveSplitter('#paragraphs://ladder')).toBe(splitter)
+  })
+
+  it('rejects the bare scheme form', () => {
+    const testRegistry = makeRegistry()
+
+    expect(() => testRegistry.resolveSplitter('paragraphs')).toThrow(
+      /must be a buffer URI \('paragraphs:\/\/'\) or a '#paragraphs' shortcut/,
+    )
   })
 
   it('applies the # shortcut before URI parsing', () => {
@@ -138,7 +146,7 @@ describe('splitter registry', () => {
   it('lists the known splitter schemes when resolution fails', () => {
     const testRegistry = makeRegistry()
 
-    expect(() => testRegistry.resolveSplitter('missing')).toThrow(
+    expect(() => testRegistry.resolveSplitter('missing://')).toThrow(
       /No splitter registered for scheme: missing.*Known splitter schemes: paragraphs, lines/,
     )
     expect(() => testRegistry.resolveSplitter('#missing')).toThrow(

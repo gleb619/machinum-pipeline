@@ -45,7 +45,7 @@ import 'mt/waypoint'                         // REQUIRED side effect: registers 
 export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 1000, strategy: 'exp' }, onError: 'fail-run' })
   .from('jsonl://./input/*.jsonl')           // Source: URI string (preferred) or instance
   .flatMap(async (item) => [item])           // 1 -> N
-  .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs' / 'paragraphs://'
+  .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs://' (bare 'paragraphs' is rejected)
   .tap(async (ex) => console.log(ex.id))     // observe full Exchange, stream unchanged
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
   .batch(5)                                  // group into items[] (flushes remainder)
@@ -57,10 +57,10 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
   `.batch/.window/.flatMap`, or the string form `.subflow('<splitter>')`
-  (`'paragraphs'`, `'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`;
-  the same three spellings work for `lines` and `series`) which resolves a registered splitter and
-  fans out 1 -> N. Import `mt/tools` (or any `@mt/tools` symbol) to register `paragraphs`, `lines`
-  and `series`. The `series` splitter parses chapter markdown, emits numbered `ChapterDoc` parts
+  (`'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`; the same
+  spellings work for `lines`, `words` and `series`) which resolves a registered splitter and
+  fans out 1 -> N. Import `mt/tools` (or any `@mt/tools` symbol) to register `paragraphs`, `lines`,
+  `words` and `series`. Bare `'paragraphs'` is rejected. The `series` splitter parses chapter markdown, emits numbered `ChapterDoc` parts
   with `series` frontmatter only when the chapter is large enough, and otherwise returns the
   original markdown as one unchanged item. Source ids are stable; the engine never mints them.
 - Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline

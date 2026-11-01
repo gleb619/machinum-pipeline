@@ -101,14 +101,24 @@ class UriRegistry {
   }
 
   /**
-   * Resolve a splitter from an entity type or a buffer URI.
+   * Resolve a splitter from a buffer URI or the `#scheme` shortcut.
    *
-   * `'paragraphs'`, `'paragraphs://'` / `'paragraphs://ladder'`, and the `'#paragraphs'`
-   * shortcut all resolve to the same registered splitter.
+   * `'paragraphs://'` / `'paragraphs://ladder'` and `'#paragraphs'` resolve the same
+   * registered splitter. Bare `'paragraphs'` is deliberately rejected: the URI form keeps
+   * buffer/type references visibly distinct from pipeline ids and tool names.
    */
   resolveSplitter<O>(schemeOrUri: string): Splitter<O> {
-    const shortcut = schemeOrUri.startsWith('#') ? schemeOrUri.slice(1) : schemeOrUri
-    const scheme = shortcut.includes('://') ? this.parse(shortcut).scheme : shortcut
+    const shortcut = schemeOrUri.trim().startsWith('#')
+    const reference = shortcut ? schemeOrUri.trim().slice(1) : schemeOrUri.trim()
+    if (!shortcut && !reference.includes('://')) {
+      const known = this.getSplitterSchemes()
+      throw new Error(
+        `Splitter reference '${schemeOrUri}' must be a buffer URI ('${schemeOrUri}://') or a ` +
+          `'#${schemeOrUri}' shortcut. Known splitter schemes: ` +
+          `${known.length > 0 ? known.join(', ') : '(none)'}`,
+      )
+    }
+    const scheme = reference.includes('://') ? this.parse(reference).scheme : reference
     const splitter = this.splitters.get(scheme)
     if (!splitter) {
       const known = this.getSplitterSchemes()

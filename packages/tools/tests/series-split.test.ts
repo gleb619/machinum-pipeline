@@ -30,29 +30,31 @@ const LARGE_WITH_METADATA = [
 ].join('\n')
 
 const SMALL = '# Tiny Chapter\n\nOnly one line.\n'
-const FORCEABLE = '# Tiny Chapter\n\nline one\nline two\nline three\n'
+const FORCEABLE = '# Tiny Chapter\n\nOne. Two. Three. Four.\n'
 
 describe('seriesSplitter', () => {
   it('is registered under the series scheme and its URI/shortcut forms', () => {
     expect(registry.hasSplitter('series')).toBe(true)
-    expect(registry.resolveSplitter('series')).toBe(seriesSplitter)
     expect(registry.resolveSplitter('series://')).toBe(seriesSplitter)
     expect(registry.resolveSplitter('series://ladder')).toBe(seriesSplitter)
     expect(registry.resolveSplitter('#series')).toBe(seriesSplitter)
+    expect(() => registry.resolveSplitter('series')).toThrow(/must be a buffer URI/)
   })
 
   it('registers every tools splitter after importing @mt/tools', () => {
-    expect(registry.resolveSplitter('paragraphs').name).toBe('paragraph-splitter')
-    expect(registry.resolveSplitter('lines').name).toBe('line-splitter')
-    expect(registry.resolveSplitter('series').name).toBe('series-splitter')
+    expect(registry.resolveSplitter('paragraphs://').name).toBe('paragraph-splitter')
+    expect(registry.resolveSplitter('lines://').name).toBe('line-splitter')
+    expect(registry.resolveSplitter('words://').name).toBe('word-splitter')
+    expect(registry.resolveSplitter('series://').name).toBe('series-splitter')
   })
 
-  it('splits a large chapter document into N numbered parts', async () => {
+  it('splits a large chapter document into N numbered parts at paragraph boundaries', async () => {
     const splitter = createSeriesSplitter({ parts: 4 })
     const parts = await splitter.split(createExchange(LARGE))
     const docs = parts.map((part) => readChapterDoc(part))
 
     expect(parts).toHaveLength(4)
+    expect(docs.map((doc) => doc.body.length)).toEqual([2, 2, 2, 2])
     expect(docs.map((doc) => doc.title)).toEqual([
       'Chapter One 1',
       'Chapter One 2',
@@ -109,16 +111,64 @@ describe('seriesSplitter', () => {
       'Tiny Chapter 3',
       'Tiny Chapter 4',
     ])
-    expect(
-      parts.every((part) =>
-        readChapterDoc(part).body.some((paragraph) => paragraph.lines.length > 0),
-      ),
-    ).toBe(true)
+    expect(parts.map((part) => readChapterDoc(part).body[0]?.lines.join(' '))).toEqual([
+      'One.',
+      'Two.',
+      'Three.',
+      'Four.',
+    ])
+  })
+
+  it('never cuts a sentence in half', async () => {
+    const text = '# Readable\n\nFirst sentence. Second sentence! Third sentence? Fourth sentence.\n'
+    const splitter = createSeriesSplitter({ parts: 3 })
+    const parts = await splitter.split(createExchange(text))
+    const bodies = parts.map((part) =>
+      readChapterDoc(part)
+        .body.flatMap((paragraph) => paragraph.lines)
+        .join(' ')
+        .trim(),
+    )
+
+    expect(bodies.join(' ')).toContain('First sentence. Second sentence!')
+    expect(bodies.join(' ')).toContain('Third sentence?')
+    expect(bodies.join(' ')).toContain('Fourth sentence.')
+    for (const body of bodies) {
+      expect(body).toMatch(/[.!?]$/)
+    }
   })
 
   it('custom shouldSplit can deny a split of a large chapter', async () => {
     const splitter = createSeriesSplitter({ parts: 2, shouldSplit: () => false })
     expect(await splitter.split(createExchange(LARGE))).toEqual([LARGE])
+  })
+
+  it('drops decorative-only paragraphs and never emits a decorative-only part', async () => {
+    const text = [
+      '# Decorated',
+      '',
+      '---',
+      '',
+      'First paragraph.',
+      '',
+      '***',
+      '',
+      'Second paragraph.',
+      '',
+      '___',
+      '',
+      'Third paragraph.',
+    ].join('\n')
+    const parts = await createSeriesSplitter({ parts: 3 }).split(createExchange(text))
+    const bodies = parts.map((part) =>
+      readChapterDoc(part)
+        .body.flatMap((paragraph) => paragraph.lines)
+        .join(' ')
+        .trim(),
+    )
+
+    expect(bodies).toEqual(['First paragraph.', 'Second paragraph.', 'Third paragraph.'])
+    expect(bodies.every((body) => /[\p{L}\p{N}]/u.test(body))).toBe(true)
   })
 
   it('rejects non-string items with a clear error', async () => {

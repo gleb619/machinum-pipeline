@@ -187,14 +187,14 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     registry.registerSplitter('test-entities', splitter)
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .subflow('test-entities')
+      .subflow('test-entities://')
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
     const p = pipeline as Pipeline
     const splitStep = p.steps.find((s) => s.type === 'split')
     expect(splitStep).toBeDefined()
     expect(splitStep?.config.splitter).toBe(splitter)
-    expect(splitStep?.config.splitterType).toBe('test-entities')
+    expect(splitStep?.config.splitterType).toBe('test-entities://')
   })
 
   it('.subflow(uri) reads the splitter type from the URI scheme', () => {
@@ -231,11 +231,19 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(splitStep?.config.splitterType).toBe('#test-shortcut-entities')
   })
 
+  it('.subflow(bareScheme) rejects the old simple spelling', () => {
+    expect(() =>
+      makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .subflow('test-bare-entities'),
+    ).toThrow(/must be a buffer URI/)
+  })
+
   it('.subflow(unknownType) throws with the known splitter schemes', () => {
     expect(() =>
       makePipeline()
         .from({ uri: 'jsonl://./in.jsonl' } as never)
-        .subflow('missing-entities'),
+        .subflow('missing-entities://'),
     ).toThrow(/No splitter registered for scheme: missing-entities.*Known splitter schemes:/)
   })
 
@@ -275,7 +283,7 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
       .batch(5)
       .window(3)
       .flatMap(async (item) => [item])
-      .subflow('test-union-entities')
+      .subflow('test-union-entities://')
       .tap(async () => {})
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 

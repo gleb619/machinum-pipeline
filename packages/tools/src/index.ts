@@ -421,6 +421,8 @@ export {
   heuristicTokenCount,
   splitParagraphUnits,
   splitLineUnits,
+  splitSentenceUnits,
+  splitReadableParts,
   DEFAULT_MAX_TOKENS,
   DEFAULT_CHUNK_TARGET,
   type TokenSplitter,
@@ -435,7 +437,7 @@ export {
   type BalancedLineStrategyOptions,
 } from './normalization/token-splitter.js'
 
-export { paragraphSplitter, lineSplitter } from './normalization/entity-splitters.js'
+export { paragraphSplitter, lineSplitter, wordSplitter } from './normalization/entity-splitters.js'
 
 export {
   titleTranslator,

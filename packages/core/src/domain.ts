@@ -78,3 +78,16 @@ export interface Line {
   text: string
   index?: number
 }
+
+/**
+ * Word — one word within a line (the smallest rung of the Structure Ladder).
+ * `Word` is a core entity so splitters can return a stable shape without
+ * importing a sample-local type.
+ */
+export interface Word {
+  id: string
+  paragraphId: string
+  lineId: string
+  word: string
+  index?: number
+}

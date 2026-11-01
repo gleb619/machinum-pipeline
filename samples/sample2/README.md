@@ -194,17 +194,18 @@ jsonl://./jsonl/ladder.jsonl      (a chapter record)
   → readChapterDoc + splitIntoChunks (md → chunks)      → temp://chunks/ladder
   → chunks://ladder → .subflow('#paragraphs') (chunk → paragraphs) → temp://paragraphs/ladder (chunkId)
   → paragraphs://ladder → .subflow('lines://') (paragraph → lines) → temp://lines/ladder
-  → lines://ladder → tokenizeWords    (line → words)     → temp://words/ladder
+  → lines://ladder → .subflow('#words') (line → words)   → temp://words/ladder
   → words://ladder → batch + summary                     → md://./chapters (chapters/ladder-summary.md)
 ```
 
-The paragraph and line descents read like type identification. `.subflow('#paragraphs')`,
-`.subflow('paragraphs')` and `.subflow('paragraphs://')` are three spellings of the same registry
-lookup; the sample uses the `#` shortcut for the paragraph rung and the explicit URI for the line
-rung. A URI with a path also works (`'paragraphs://ladder'`). Each string resolves a splitter
+The paragraph, line and word descents read like type identification. `.subflow('#paragraphs')`
+and `.subflow('paragraphs://')` are two spellings of the same registry lookup (bare
+`'paragraphs'` is rejected); the sample uses the `#` shortcut for the paragraph/word rungs and
+explicit URIs for the line/series rungs. A URI with a path also works (`'paragraphs://ladder'`). Each string resolves a splitter
 registered under that buffer scheme; the splitter sees the full Exchange and returns child
-entities, so no local glue or splitter import is needed. Other descents use `.flatMap()` (one
-envelope in, many out). Each stage is still just a cardinality op plus one entity buffer. The typed
+entities, so no local glue or splitter import is needed. The word rung uses the registered
+`wordSplitter` via `.subflow('#words')`. Other descents use `.flatMap()` (one envelope in, many
+out). Each stage is still just a cardinality op plus one entity buffer. The typed
 rungs are source-only: each stage writes `temp://<rung>/ladder`, the next reads
 `<rung>://ladder`. The buffers are built in, the pipeline only uses them. The entities are the real
 core types (`Chapter`, `Paragraph`, `Chunk`, `Line`); `Word` is not a core type, so the sample
