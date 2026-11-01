@@ -12,7 +12,7 @@
     "runner:void": "NODE_OPTIONS='--import tsx' mt run ./pipelines/custom-md-processing.ts --pipeline voidDemoPipeline",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl jsonl/ladder.jsonl chapters-out entities out .mt",
+    "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl jsonl/ladder.jsonl chapters-out entities out .mt chapters/*.md chapters/glossary.graph.json",
     "lint": "biome check .",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.jsonc out/runner-report.md",
     "test": "vitest run",
