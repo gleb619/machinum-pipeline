@@ -116,31 +116,6 @@ function toChunks(doc: ReturnType<typeof readChapterDoc>): Chunk[] {
   }))
 }
 
-function toParagraphs(chunk: Chunk): Paragraph[] {
-  return chunk.body
-    .split(/\n\n+/)
-    .filter((part) => part.trim().length > 0)
-    .map((body, index) => ({
-      id: `${chunk.id}/paragraph-${index + 1}`,
-      chapterId: chunk.chapterId,
-      chunkId: chunk.id,
-      index,
-      body,
-    }))
-}
-
-function toLines(paragraph: Paragraph): Line[] {
-  return paragraph.body
-    .split('\n')
-    .map((text, index) => ({
-      id: `${paragraph.id}/line-${index + 1}`,
-      paragraphId: paragraph.id,
-      index,
-      text,
-    }))
-    .filter((line) => line.text.trim().length > 0)
-}
-
 function toWords(line: Line): WordEntity[] {
   return tokenizeWords(line.text).map((word, index) => ({
     id: `${line.id}/word-${index + 1}`,
@@ -194,17 +169,41 @@ const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
   .tap(countRung('chunks'))
   .to('temp://chunks/ladder')
 
-// Rung 3: Chunk → Paragraphs, one per \n\n block.
+// Rung 3: Chunk → Paragraphs, one per \n\n block. The waypoint stores the
+// entities; `.flatMap()` is the cardinality op that performs the descent.
 const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
   .from('chunks://ladder')
-  .flatMap(async (chunk: unknown) => toParagraphs(chunk as Chunk))
+  .flatMap(async (chunk: unknown) => {
+    const { id, chapterId, body } = chunk as Chunk
+    return body
+      .split(/\n\n+/)
+      .filter((part) => part.trim().length > 0)
+      .map((part, index) => ({
+        id: `${id}/paragraph-${index + 1}`,
+        chapterId,
+        chunkId: id,
+        index,
+        body: part,
+      }))
+  })
   .tap(countRung('paragraphs'))
   .to('temp://paragraphs/ladder')
 
 // Rung 4: Paragraph → Lines (non-empty only).
 const lineStage = definePipeline({ id: 'sample2-ladder-lines' })
   .from('paragraphs://ladder')
-  .flatMap(async (paragraph: unknown) => toLines(paragraph as Paragraph))
+  .flatMap(async (paragraph: unknown) => {
+    const { id, body } = paragraph as Paragraph
+    return body
+      .split('\n')
+      .map((text, index) => ({
+        id: `${id}/line-${index + 1}`,
+        paragraphId: id,
+        index,
+        text,
+      }))
+      .filter((line) => line.text.trim().length > 0)
+  })
   .tap(countRung('lines'))
   .to('temp://lines/ladder')
 
