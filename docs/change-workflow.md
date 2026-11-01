@@ -68,10 +68,11 @@ merge, and the merge report must state the `pnpm test:gpu` result (or why it cou
 
 **wrkflw guard (`pnpm ci:local`, `scripts/wrkflw-guard.sh`)** — proves a change will not break `main` CI.
 - `pnpm ci:check` (`--quick`): `wrkflw validate` only, no Docker, <1s. Fast loop while editing workflows; not the gate.
-- `pnpm ci:local`: pre-merge gate. Validate + `wrkflw run --runtime docker` for `skill-drift` + faithful stand-ins for
-  `shellcheck` (local or `koalaman/shellcheck`) and `hadolint`. Prints one summary line (`RESULT=GREEN|RED`) for the merge note.
+- `pnpm ci:local`: pre-merge gate. Validate + `wrkflw run --runtime docker` for `skill-drift` + `actionlint` (local or
+  `rhysd/actionlint`; catches unknown keys / bad `${{ }}` that `wrkflw validate` misses) + stand-ins for
+  `shellcheck` (local or `koalaman/shellcheck`) and `hadolint`, whose commands/flags/image are parsed from `ci.yml` (no drift). Prints one summary line (`RESULT=GREEN|RED`) for the merge note.
   Needs `wrkflw` and Docker; missing either **fails** (never silent skip). `WRKFLW_GUARD_SKIP=1` is a loud, explicit
-  opt-out that must be stated in the merge note. `WRKFLW_JOBS="a b"` / `--jobs` / `--all` override the job set.
+  opt-out (exit 0 but prints `RESULT=SKIPPED`, never GREEN) that must be stated in the merge note. `WRKFLW_JOBS="a b"` / `--jobs` / `--all` override the job set.
 - wrkflw limits (v0.8.0, empirical): jobs run on bare `ubuntu:latest` (no node/corepack/shellcheck/docker CLI).
   `lint`, `typecheck`, `test`, `binary` fail at the composite `.github/actions/setup` (`corepack enable`: command not found),
   `docker` fails (needs `binary`, docker-in-docker). Those stay covered by `pnpm lint`/`typecheck`/`test`/`smoke:bin`.
