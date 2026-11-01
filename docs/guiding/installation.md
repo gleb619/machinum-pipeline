@@ -36,6 +36,53 @@ mt mcp           # MCP server over stdio
 | docker + compose | any | optional dev services | ollama / qdrant / lightrag for pipelines |
 | ollama (or `MT_OLLAMA_URL`) | any | local LLM inference | remote GPU host also works |
 
+## Path 0 — install script (no repo checkout)
+
+[`docs/install.sh`](../install.sh) installs `mt` three ways. POSIX `sh`, idempotent, **never uses sudo**,
+never prints a master key. It prints its plan first and asks to confirm (`--yes` skips; without a
+terminal `--yes` is required).
+
+```bash
+# read it first, then run it (preferred over piping)
+curl -fsSL https://raw.githubusercontent.com/gleb619/machinum-pipeline/main/docs/install.sh -o install.sh
+less install.sh && sh install.sh --dry-run
+sh install.sh --user-master-key            # released binary -> ~/.local/bin/mt + ~/.mt/master.key
+
+# one-liner (prints the plan, then asks on /dev/tty)
+curl -fsSL https://raw.githubusercontent.com/gleb619/machinum-pipeline/main/docs/install.sh | sh -s -- --docker
+```
+
+| Flag | Meaning |
+|---|---|
+| `--no-docker` (default) | download `mt-<target>` from GitHub Releases, verify sha256 against `SHA256SUMS`, install |
+| `--docker` | `docker pull ghcr.io/gleb619/machinum-pipeline:<v>` + install a wrapper command that runs it |
+| `--from-source` | clone, `corepack` pnpm shim in a temp dir, `pnpm build:bin`, install (needs git, node>=20, corepack, bun) |
+| `--version <v>` | release to install (default: latest GitHub release; fails with a hint if none is published) |
+| `--prefix <dir>` / `MT_INSTALL_DIR` | install into `<dir>/bin` (default `~/.local/bin`) |
+| `--name <n>` | command name; use `--name mt-cli` to dodge Linux's `/usr/bin/mt` (the script warns on collision) |
+| `--user-master-key` | run `mt vault master-key generate --user`, unless `MT_EMBED_PASSWORD(_FILE)` or `~/.mt/master.key` exists |
+| `--force`, `--yes`, `--dry-run` | reinstall same version / no prompt / show plan only |
+| `--uninstall` | remove the command only (`~/.mt`, vault and `master.key` are never touched) |
+
+Targets: `linux-x64`, `linux-x64-musl` (auto-picked on Alpine), `linux-arm64`, `linux-arm64-musl`,
+`darwin-x64`, `darwin-arm64`. Windows: use `--docker` under WSL.
+
+**`curl | sh` caution.** Piping runs whatever the URL serves at that moment. Download, read, then run;
+or pin a tag in the URL (`.../v0.1.0/docs/install.sh`). The script itself only fetches release assets
+and refuses to install on a checksum mismatch.
+
+**Verify a binary by hand:**
+
+```bash
+v=0.1.0; t=linux-x64
+curl -fsSLO https://github.com/gleb619/machinum-pipeline/releases/download/v$v/mt-$t
+curl -fsSLO https://github.com/gleb619/machinum-pipeline/releases/download/v$v/SHA256SUMS
+grep " mt-$t\$" SHA256SUMS | sha256sum -c -        # macOS: shasum -a 256 -c -
+```
+
+macOS binaries are not code-signed/notarized. Files fetched with `curl` carry no quarantine flag; if you
+download through a browser run `xattr -d com.apple.quarantine mt-darwin-arm64`.
+
 ## Path A — build from source (recommended)
 
 ```bash
@@ -156,8 +203,8 @@ its own random 256-bit master key.
 - **CI / Docker:** do not bake a key into an image. Mount a secret and point
   `MT_EMBED_PASSWORD_FILE=/run/secrets/mt_master_key` at it (or generate one at container start with
   `mt vault master-key generate --user`, on a persistent volume).
-- **Install scripts and the Docker image** (`docs/install.sh`, `Dockerfile`, added separately) must
-  generate a master key on first install rather than shipping the default.
+- **Install script and Docker image:** `install.sh --user-master-key` and the image's entrypoint both
+  generate a key on first use instead of shipping the default (details in [Docker](#docker)).
 
 ## Teach your agent: `mt skill --install`
 
@@ -190,35 +237,54 @@ Never log key material; vault files are gitignored.
 
 ## Docker
 
-**Status: no image/Dockerfile in the repo yet.** Two separate needs:
+Image: `ghcr.io/gleb619/machinum-pipeline:<X.Y.Z | X.Y | latest>` (linux/amd64 + arm64, Debian slim,
+non-root user `mt` uid 1000, `WORKDIR /work`, `MT_HOME=/home/mt/.mt`). Built by the
+[`Dockerfile`](../../Dockerfile) from the **released binary** (sha256-verified), not from npm: the
+artifact is a Bun binary, and the `mt` npm name is unscoped, which GitHub Packages' npm registry does not accept.
+Inside the container the name is plain `mt` (no `/usr/bin/mt` clash). No HEALTHCHECK: it is a CLI.
+The release is published by `.github/workflows/release.yml` on a `vX.Y.Z` tag (the package may need to be
+made public once in the GitHub package settings).
 
-1. **Run `mt` inside a container** — planned shape: build stage `node:22` (pnpm install + build) →
-   compile stage `oven/bun` (`bun scripts/build-bin.ts`) → runtime stage with just the binary.
-   The runtime needs **no** Node; it needs glibc ≥ 2.17 (Debian/Ubuntu base) or the **musl** build for
-   Alpine, plus a writable project dir (`.mt/` state) and a writable `HOME` (vault).
-   Sketch:
+```bash
+sh install.sh --docker --yes        # installs a wrapper `mt` in ~/.local/bin
+mt run ./pipelines/p.ts             # == docker run --rm -it --user $(id -u):$(id -g) -v $PWD:/work -w /work -v ~/.mt:/home/mt/.mt ... image run ./pipelines/p.ts
 
-   ```dockerfile
-   FROM node:22-bookworm AS build
-   WORKDIR /app
-   COPY .. .
-   RUN corepack enable && pnpm install --frozen-lockfile && pnpm build:bin
+# or by hand
+docker run --rm -v "$PWD":/work -v "$HOME/.mt":/home/mt/.mt ghcr.io/gleb619/machinum-pipeline:latest run ./pipelines/p.ts
+```
 
-   FROM debian:bookworm-slim
-   COPY --from=build /app/packages/mt/dist/bin/mt /usr/local/bin/mt
-   WORKDIR /work
-   ENV HOME=/work
-   VOLUME ["/work"]
-   ENTRYPOINT ["mt"]
-   ```
+What to mount:
 
-   `docker run --rm -v "$PWD:/work" myimage run ./pipelines/p.ts`
-   `MT_OLLAMA_URL` / `OPENROUTER_API_KEYS` come in as env vars; secrets via `env_file`, not baked in.
-   Inside the container the name is plain `mt` — the `mt-cli` wrapper is a host-side workaround only.
+| Mount | Why |
+|---|---|
+| `$PWD` -> `/work` | project: `mt.json`, `pipelines/`, `.mt/` run state |
+| `~/.mt` -> `/home/mt/.mt` | `master.key`, embedded secret store (`secrets.embed.json`), user vault. Without it every `--rm` container forgets its key and its secrets |
 
-2. **Dev services for pipelines** — the `dockerComposeEmitter` tool
-   (`packages/tools/src/core/docker-compose.ts`) writes a `docker-compose.yml` with presets for
-   `ollama`, `qdrant`, `lightrag` (the `lightrag` image is a placeholder — pin a real one first).
+Env passed by the wrapper: `OPENROUTER_API_KEYS`, `MT_OLLAMA_URL`, `MT_ROUTER_URL`, `MT_LOG_LEVEL`, `MT_DEBUG`,
+`MT_EMBED_PASSWORD`. Extra flags: `MT_DOCKER_ARGS="-p 3000:3000"` (for `mt serve`), `MT_IMAGE` overrides the image.
+`localhost` inside the container is the container: point `MT_OLLAMA_URL` at the host/GPU address.
+
+**Master key in Docker.** Never bake a key into an image or commit it.
+
+- *First run (default):* the entrypoint (`mt-entrypoint`) generates `/home/mt/.mt/master.key` (mode 0600) when no key
+  source exists (no `MT_EMBED_PASSWORD(_FILE)`, no `$MT_HOME/master.key`, no `<project>/.mt/master.key`). It prints
+  only the path. It skips `--help`, `--version`, `skill`, `init` and `vault master-key ...`, and `MT_NO_AUTO_KEY=1` disables it.
+  This only helps if `/home/mt/.mt` **persists** (host dir or named volume `-v mt-home:/home/mt/.mt`).
+- *CI / orchestrators:* mount a secret and point at it, no key file is created:
+  `docker run -v ./mt_master_key:/run/secrets/mt_master_key:ro -e MT_EMBED_PASSWORD_FILE=/run/secrets/mt_master_key ...`
+  (compose: `secrets:` + the same env var; GitHub Actions: write the secret to a file, never echo it).
+- *Back it up:* lose `master.key` (or the secret) and `embed:` secrets are gone. `docker run --rm -v ~/.mt:/home/mt/.mt ... vault master-key status` shows the active source without printing the key.
+
+Build the image yourself:
+
+```bash
+docker build --build-arg MT_VERSION=0.1.0 -t mt .                      # from the GitHub release
+pnpm build:bin && docker build --build-arg MT_SOURCE=local -t mt .     # from packages/mt/dist/bin/mt (BuildKit)
+```
+
+**Dev services for pipelines** are a separate topic: the `dockerComposeEmitter` tool
+(`packages/tools/src/core/docker-compose.ts`) writes a `docker-compose.yml` with presets for
+`ollama`, `qdrant`, `lightrag` (the `lightrag` image is a placeholder — pin a real one first).
 
 ## Gotchas
 
@@ -229,6 +295,9 @@ Never log key material; vault files are gitignored.
 | binary behaves like an old version | stale binary | rebuild: `pnpm build:bin` |
 | `mt-cli` not found in a new terminal | `~/.local/bin` not on PATH | add to `~/.profile` / `~/.bashrc` |
 | `GLIBC_2.x not found` | ancient distro / Alpine | use the musl target |
+| `install.sh`: could not determine the latest release | no release published / rate limited | `--version <v>` or `--from-source` |
+| `docker pull` denied | ghcr package still private | make it public in package settings, or `docker login ghcr.io` |
+| secrets vanish between `docker run`s | `~/.mt` not mounted | mount a volume/dir at `/home/mt/.mt` or use `MT_EMBED_PASSWORD_FILE` |
 | `mt serve` port busy | default port taken | `mt serve --port <p>` |
 | 401 / 429 from the LLM | keys missing or pool exhausted | `OPENROUTER_API_KEYS`, vault refs |
 | pipeline fails on a missing package | binary has no `node_modules` | project-local deps must be installed next to the pipeline |

@@ -1,0 +1,105 @@
+name: Release
+
+# Push a tag `vX.Y.Z` (matching packages/mt/package.json version) to publish:
+#   - GitHub Release with mt-<target> binaries + SHA256SUMS
+#   - ghcr.io/gleb619/machinum-pipeline:{X.Y.Z, X.Y, latest} (linux/amd64 + linux/arm64)
+on:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # Bun cross-compiles every target from one linux-x64 runner (see packages/mt/scripts/build-bin.ts).
+    # Windows is built by `--all` but intentionally not released: it is not smoke-tested.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+        with:
+          bun: 'true'
+      - name: Tag must match the package version
+        run: |
+          want="$(node -p "require('./packages/mt/package.json').version")"
+          test "v${want}" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != package version v${want}" >&2; exit 1; }
+      - name: Build packages
+        run: pnpm build
+      - name: Smoke the host binary before releasing anything
+        run: pnpm --filter=mt run build:bin && pnpm --filter=mt run smoke:bin -- --no-build
+      - name: Cross-build release targets
+        working-directory: packages/mt
+        run: |
+          mkdir -p ../../release
+          cp dist/bin/mt ../../release/mt-linux-x64
+          for t in linux-arm64 linux-x64-musl linux-arm64-musl darwin-x64 darwin-arm64; do
+            bun scripts/build-bin.ts --target "bun-${t}" --outfile "../../release/mt-${t}"
+          done
+      - name: SHA256SUMS
+        working-directory: release
+        run: |
+          sha256sum mt-* > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+
+  github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release
+          path: release
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+  docker:
+    # Builds the image from the just-released assets, so the image and the release stay identical.
+    needs: github-release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ghcr.io/gleb619/machinum-pipeline
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            MT_VERSION=${{ steps.meta.outputs.version }}
+            VCS_REF=${{ github.sha }}

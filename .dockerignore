@@ -1,0 +1,4 @@
+# Allow-list: the image only ever needs the entrypoint and (MT_SOURCE=local) the prebuilt binary.
+*
+!docker/entrypoint.sh
+!packages/mt/dist/bin/mt

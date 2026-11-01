@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.0.0 | 2026-11-01 -->
+<!-- skill-version: 1.1.0 | 2026-11-01 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -101,6 +101,19 @@ mt resume 8f3a1c2e                      # after a crash or Ctrl-C
 echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
 ```
 
+### Install `mt`
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gleb619/machinum-pipeline/main/docs/install.sh -o install.sh
+sh install.sh --dry-run                         # read the plan first
+sh install.sh --user-master-key                 # released binary -> ~/.local/bin/mt (verified sha256)
+sh install.sh --docker --yes                    # wrapper around ghcr.io/gleb619/machinum-pipeline
+sh install.sh --name mt-cli                     # Linux: avoid /usr/bin/mt (tape tool)
+```
+
+Docker by hand: `docker run --rm -v "$PWD":/work -v ~/.mt:/home/mt/.mt ghcr.io/gleb619/machinum-pipeline run ./pipelines/p.ts`.
+Never `sudo` the installer; never pipe it to a shell without reading it. Full guide: `docs/guiding/installation.md`.
+
 ### Install this skill into an agent folder
 
 ```bash
@@ -138,7 +151,8 @@ Backends:
 Master key resolution (first hit wins): `MT_EMBED_PASSWORD` > `MT_EMBED_PASSWORD_FILE` >
 `<project>/.mt/master.key` > `~/.mt/master.key` > public built-in default (only obfuscates, warns).
 Existing install without a key: `mt vault master-key generate --rekey` (add `--user` for the global one).
-CI/Docker: mount a secret and set `MT_EMBED_PASSWORD_FILE`; never bake a key into an image.
+CI/Docker: mount a secret and set `MT_EMBED_PASSWORD_FILE`; never bake a key into an image. The
+Docker image generates `$MT_HOME/master.key` on first run (needs a persistent `~/.mt` mount).
 
 ```bash
 mt vault list | show <name> [--reveal] | rm <name> | path | init

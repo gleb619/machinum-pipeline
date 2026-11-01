@@ -89,6 +89,21 @@ pnpm smoke:bin          # Build binary + smoke test: run/imports/serve/SSE/UI (n
 bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build -> dist/bin/mt-linux-arm64
 ```
 
+## CI, Release, Docker
+
+- `.github/workflows/ci.yml` (push to `main` + PRs): lint, typecheck, test, binary build + `smoke:bin`, `skill-drift`
+  (`node packages/cli/scripts/gen-skill.mjs --check`), shellcheck (`docs/install.sh`, `docker/entrypoint.sh`),
+  hadolint + image build (`MT_SOURCE=local`, no push). `pnpm test` never runs GPU tests (`test:gpu` is a separate
+  vitest config); GPU gate stays manual before FF-merge. Shared setup: `.github/actions/setup`.
+- `.github/workflows/release.yml` (tag `vX.Y.Z` = `packages/mt/package.json` version): smoke host binary, cross-build
+  `linux-{x64,arm64}[-musl]` + `darwin-{x64,arm64}`, `SHA256SUMS`, GitHub Release, push
+  `ghcr.io/gleb619/machinum-pipeline` (`X.Y.Z`, `X.Y`, `latest`; amd64+arm64). Only `GITHUB_TOKEN`; third-party actions pinned by SHA.
+- `Dockerfile` (BuildKit): binary from GitHub Release (`--build-arg MT_VERSION=x.y.z`, sha256-verified) or
+  `MT_SOURCE=local` (copies `packages/mt/dist/bin/mt`). No npm-registry mode: `mt` is unscoped (GitHub Packages needs a scope).
+  Entry `mt-entrypoint` (`docker/entrypoint.sh`) generates `$MT_HOME/master.key` on first run; never bake keys in.
+- `docs/install.sh`: POSIX sh, shellcheck-clean, no sudo. Test hooks: `MT_INSTALL_FROM_LOCAL`, `MT_INSTALL_SKIP_PULL`.
+  Human docs: [guiding/installation.md](../guiding/installation.md).
+
 ## Environment Variables
 
 | Variable | Default | Purpose |
