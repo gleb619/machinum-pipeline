@@ -191,6 +191,21 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(typeof tapStep?.config.fn).toBe('function')
   })
 
+  it('.tap(fn) accepts a synchronous callback (void, no async)', () => {
+    const seen: unknown[] = []
+    const pipeline = makePipeline()
+      .from({ uri: 'jsonl://./in.jsonl' } as never)
+      .tap((ex) => {
+        seen.push(ex.item)
+      })
+      .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+    const p = pipeline as Pipeline
+    const tapStep = p.steps.find((s) => s.type === 'tap')
+    expect(typeof tapStep?.config.fn).toBe('function')
+    expect(seen).toHaveLength(0)
+  })
+
   it('PipelineStep.type union includes batch, window, fork, flatmap, tap', () => {
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)

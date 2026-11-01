@@ -488,7 +488,7 @@ export class Runner {
           break
         }
         case 'tap': {
-          const fn = step.config.fn as (env: Envelope<unknown>) => Promise<void>
+          const fn = step.config.fn as (env: Envelope<unknown>) => void | Promise<void>
           if (!stream && !hasSourceStep) {
             stream = emptyEnvelope()
           }

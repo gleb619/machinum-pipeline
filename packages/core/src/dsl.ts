@@ -292,7 +292,13 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this
   }
 
-  tap(fn: (ex: Exchange<I>) => Promise<void>): PipelineBuilder<I, O> {
+  /**
+   * Observe every envelope; the stream passes through unchanged.
+   *
+   * Synchronous callbacks are fine (the engine awaits the result, and `await`
+   * on a non-promise is a no-op), so logging/metrics taps need no `async`.
+   */
+  tap(fn: (ex: Exchange<I>) => void | Promise<void>): PipelineBuilder<I, O> {
     this._steps.push({ type: 'tap', config: { fn } })
     return this
   }

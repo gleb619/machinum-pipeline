@@ -78,6 +78,40 @@ describe('runner tap', () => {
     mockTargetItems.length = 0
   })
 
+  it('a synchronous tap callback runs and the stream passes through', async () => {
+    mockSourceItems.push({
+      id: 'ex-sync',
+      variables: [],
+      item: 'sync-hello',
+      meta: {},
+    })
+
+    const seen: Envelope<unknown>[] = []
+    const pipeline: Pipeline = {
+      id: 'tap-sync-pipeline',
+      retry: defaultRetry,
+      onError: 'fail-run',
+      steps: [
+        { type: 'source', config: { uri: 'tap-source://input' } },
+        {
+          type: 'tap',
+          config: {
+            fn: (env: Envelope<unknown>) => {
+              seen.push(env)
+            },
+          },
+        },
+        { type: 'target', config: { uri: 'tap-target://output' } },
+      ],
+    }
+
+    await new Runner(pipeline, globalContext).start()
+
+    expect(seen).toHaveLength(1)
+    expect(seen[0]?.item).toBe('sync-hello')
+    expect(mockTargetItems).toHaveLength(1)
+  })
+
   it('tap receives the full envelope including meta written by an upstream tool', async () => {
     mockSourceItems.push({
       id: 'ex-test',

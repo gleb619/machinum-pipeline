@@ -115,7 +115,7 @@ Fluent chain. The builder itself implements `Pipeline`, so it can be a `default 
 definePipeline()
   .from('jsonl://./input.jsonl')
   .flatMap(async (item) => [...])
-  .tap(async (env) => { /* logging: receives the full Exchange incl. meta + variables */ })
+  .tap((env) => { /* logging: receives the full Exchange incl. meta + variables; async OK */ })
   .use(myTool)
   .subflow(otherPipeline)   // inline nested pipeline, same Runner
   .fork(subPipeline)        // child pipeline per envelope, checkpoint subtree
@@ -131,7 +131,7 @@ definePipeline()
 | `.from()` | `.from(Source<T> \| string)` | Sets the Source. URI string (resolved via the registry; a named `mt.json` alias defers to the Runner at run time) or instance (carried through as-is — what lets `defineWaypoint` wrappers reach the run). |
 | `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
-| `.tap()` | `.tap(async (ex) => void)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
+| `.tap()` | `.tap((ex) => void \| Promise<void>)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
 | `.batch()` | `.batch(size)` | Groups items into `items[]` batches of `size`, flushing the remainder at end of stream. `size` must be a positive integer (`RangeError` at definition time). |
 | `.window()` | `.window(size)` | Groups items into `items[]` sliding windows of `size` — one window per arrival, so consecutive groups overlap. Same validation as `.batch()`. |

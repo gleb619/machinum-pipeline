@@ -50,7 +50,7 @@ function toLineText(record: unknown): string {
 // - `md://` is a shipped target: one markdown document per envelope.
 // ---------------------------------------------------------------------------
 
-export default definePipeline({ id: 'basic-md-processing' })
+const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => [toLineText(record)])
   .use(wordCounter)
@@ -64,7 +64,9 @@ export default definePipeline({ id: 'basic-md-processing' })
       }),
     )
   })
-  .to('md://./output.md')
+  .to('md://./chapters/output.md')
+
+export default defaultPipeline
 
 // ---------------------------------------------------------------------------
 // Typed chapter content manipulation example.
@@ -144,3 +146,33 @@ export const statsPipeline = definePipeline({ id: 'basic-md-stats' })
     )
   })
   .to('void://')
+
+// ---------------------------------------------------------------------------
+// Running this file
+//
+// `mt run` does one pipeline per process:
+//   (no flag)          -> default export
+//   --pipeline <name>  -> named export
+//
+//   mt run ./pipelines/basic-md-processing.ts
+//   mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline
+//   mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline
+//
+// package.json is still half-wired: `runner` is `echo 'todo'` and there is no
+// script for typedContentPipeline. Quick fix for whoever touches it:
+//   "runner":       "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
+//   "runner:typed": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline",
+//   "runner:all":   "pnpm run runner:basic && pnpm run runner:typed && pnpm run runner:stats"
+// ---------------------------------------------------------------------------
+
+// Run all three in one process. Commented out because `mt run` only takes one
+// pipeline anyway; uncomment, wire the imports and call it from a script if needed.
+//
+// import { Runner, loadGlobalContext } from '@mt/core'
+//
+// export async function runAll() {
+//   const ctx = await loadGlobalContext(process.cwd())
+//   for (const p of [defaultPipeline, typedContentPipeline, statsPipeline]) {
+//     await new Runner(p, ctx).start()
+//   }
+// }
