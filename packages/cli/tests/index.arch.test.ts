@@ -52,4 +52,10 @@ describe('CLI command registry (architectural)', () => {
     expect(src).toMatch(/case\s+['"]install['"]/)
     expect(src).toMatch(/await import\(['"]\.\/commands\/install\.js['"]\)/)
   })
+
+  it('CLI index registers skill command (lazily)', async () => {
+    const src = await readCliIndex()
+    expect(src).toMatch(/case\s+['"]skill['"]/)
+    expect(src).toMatch(/await import\(['"]\.\/commands\/skill\.js['"]\)/)
+  })
 })

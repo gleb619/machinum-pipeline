@@ -1,0 +1,235 @@
+---
+name: mt
+description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
+---
+<!-- skill-version: 1.0.0 | 2026-11-01 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint}.md -->
+
+# mt (machinum-pipeline) for coding agents
+
+`mt` is a TypeScript ETL engine for long-form text. Data flows
+`Source (URI) -> [Tool -> Tool -> ...] -> Target (URI)`, every step is checkpointed, and a failed or
+paused run resumes where it stopped. Pipelines are ordinary TS modules.
+
+Check the binary first: `mt --version`. On Linux `/usr/bin/mt` is the tape tool, not this one. If
+`mt --help` prints tape usage, use the wrapper name (`mt-cli`) or the full path to the binary.
+
+## Project layout
+
+```
+mt.json              project config (committed)
+mt.local.json        optional, gitignored; pulled in via "imports": ["./mt.local.json"]
+.env                 secrets.envFile (gitignored); process.env always wins over it
+pipelines/*.ts       pipeline modules (default export = the pipeline)
+.mt/                 state dir (gitignored)
+  runs/<runId>/      state.json, checkpoint.json, events.jsonl, dead-letter.jsonl, artifacts/
+  cache/             content-hash memo for cacheable tools
+  vault.json         vault entries (refs only, never plaintext keys)
+  master.key         master key for the embedded secret store (0600, gitignored, back it up)
+```
+
+`mt init` scaffolds `mt.json`, `.mt/`, `.gitignore` entries and `.mt/master.key`.
+
+`mt.json` keys you will touch: `project.name`, `pipelines[]`, `uris{}` (named aliases),
+`settings.llm.{tool,model,use}`, `secrets.envFile`, `imports[]`, `defaults.{retry,onError,concurrency}`,
+`scripts.{install,start,end,stop,exit,resume,error}` (paths to hook pipelines), `router.port`.
+
+## Pipeline DSL
+
+```ts
+import { definePipeline } from 'mt'          // legacy: '@mt/core'
+import { chapterDoc } from 'mt/tools'        // legacy: '@mt/tools'
+import 'mt/waypoint'                         // REQUIRED side effect: registers URI schemes
+
+export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 1000, strategy: 'exp' }, onError: 'fail-run' })
+  .from('jsonl://./input/*.jsonl')           // Source: URI string (preferred) or instance
+  .flatMap(async (item) => [item])           // 1 -> N
+  .tap(async (ex) => console.log(ex.id))     // observe full Exchange, stream unchanged
+  .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
+  .batch(5)                                  // group into items[] (flushes remainder)
+  .window(3)                                 // sliding window of 3 (overlapping)
+  .subflow(otherPipeline)                    // inline nested pipeline, same Runner
+  .fork(childPipeline)                       // child Runner per envelope, nested checkpoint subtree
+  .to('md://./out')                          // Target
+```
+
+- Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
+  `.batch/.window/.flatMap`. Source ids are stable; the engine never mints them.
+- `onError`: `fail-run` (default) | `skip-item` | `dead-letter` (-> `.mt/runs/<id>/dead-letter.jsonl`).
+- Pipelines are real modules: plain `import`, `console.log`, conditionals work. No build step.
+- `id` defaults to the file name. `mt resume` refuses with `pipelineId mismatch` if it changed.
+
+### URI schemes (from `mt/waypoint`)
+
+| URI | Use |
+|---|---|
+| `jsonl://./f.jsonl` | JSON lines; source accepts globs; each line `{ "item": ... }` |
+| `md://./dir` or `md://./f.md` | Markdown files / single file |
+| `chapter://./en/` | language-folder chapter layout |
+| `hs://http://...` | HTTP source |
+| `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
+| `@name` | alias from `mt.json` `"uris": { "en": "md://./chapters/en" }` -> `.to('@en')` |
+
+Custom steps: a Tool is `{ name, version, invoke(exchange, ctx), cacheable? }`; set `cacheable: true`
+for content-hash memoization in `.mt/cache/`. Use `defineWaypoint` for custom Sources/Targets.
+
+## CLI
+
+All commands run from the project root. Exit code 0 ok, 1 error/usage (messages on stderr).
+
+| Command | What it does |
+|---|---|
+| `mt init [--settings <json>\|-s] [--force] [--no-master-key]` | scaffold project; `--settings` also writes `pipelines/example.ts`; `--force` overwrites |
+| `mt run <pipeline.ts>` | run in foreground; runs `scripts.start/end/error/stop/exit` hooks; Ctrl-C pauses |
+| `mt install [--pipeline <name>]` | run the `scripts.install` hook pipeline |
+| `mt resume <runId> [pipeline.ts]` | resume from the first non-done node; file comes from `state.json` unless given |
+| `mt ls runs` | table of runs (id, pipeline, state, start) |
+| `mt inspect <runId>` | checkpoint tree, events, metadata |
+| `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
+| `mt serve [--port N\|0] [--host H] [-d\|--detach]` | admin API + UI + SSE; detached state in `.mt/backend/{pid,server.log}` |
+| `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | keyless LLM gateway + dashboard; token only via `MT_ROUTER_TOKEN` |
+| `mt vault <sub>` | secrets, see below |
+| `mt skill [...]` | print/install this file, see below |
+| `mt --help`, `mt --version` | |
+
+Examples:
+
+```bash
+mt init && mt run ./pipelines/example.ts
+mt ls runs
+mt resume 8f3a1c2e                      # after a crash or Ctrl-C
+echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
+```
+
+### Install this skill into an agent folder
+
+```bash
+mt skill > .agent/skills/mt/SKILL.md      # stdout carries only the file; notices go to stderr
+mt skill --install                        # -> .agent/skills/mt/SKILL.md (cwd)
+mt skill --install --target claude        # .claude/skills/mt/SKILL.md
+mt skill --install ~/proj/.codex/skills/mt  # explicit dir
+mt skill --out ./SKILL.md [--force]       # atomic write, refuses to overwrite without --force
+mt skill --path                           # skill-version and where the embedded copy came from
+```
+
+Presets: `agents` (`.agent/skills/mt/`, default), `claude` (`.claude/skills/mt/`),
+`codex` (`.codex/skills/mt/`), `opencode` (`.opencode/skills/mt/`). Re-run after upgrading `mt`.
+
+## Secrets and vault
+
+Hard rules:
+
+1. NEVER put API keys in `mt.json`, pipelines, vault files, `.env` committed to git, logs or chat.
+2. A vault `apiKey` / `apiKeys[]` is a reference only: `embed:<name>`, `vlt:<name>` or
+   `keepass:<title|uuid>`. Plaintext is rejected at load/save with an error naming the entry.
+3. Never pass passwords or secret values as CLI argument values where a file/stdin/prompt exists.
+   Do not print `--reveal` output into transcripts.
+4. Never commit `.mt/`, `vault.json`, `*.vault.json`, `*.kdbx`, `*.embed.json`, `*.key`. `mt init` and
+   `mt vault init` add these to `.gitignore`; verify with `git check-ignore -v .mt/master.key`.
+
+Backends:
+
+| Ref | Backend | Config |
+|---|---|---|
+| `embed:<name>` | built-in AES-256-GCM store (default) | `MT_EMBED_PATH`, `MT_EMBED_PASSWORD(_FILE)` or master key file |
+| `vlt:<name>` | external `vlt` CLI | `MT_VLT=false` disables |
+| `keepass:<title\|uuid>` | KeePass `.kdbx` | `MT_KEEPASS_PATH`, `MT_KEEPASS_PASSWORD(_FILE)`, `MT_KEEPASS_KEY_FILE`; `MT_KEEPASS=false` disables |
+
+Master key resolution (first hit wins): `MT_EMBED_PASSWORD` > `MT_EMBED_PASSWORD_FILE` >
+`<project>/.mt/master.key` > `~/.mt/master.key` > public built-in default (only obfuscates, warns).
+Existing install without a key: `mt vault master-key generate --rekey` (add `--user` for the global one).
+CI/Docker: mount a secret and set `MT_EMBED_PASSWORD_FILE`; never bake a key into an image.
+
+```bash
+mt vault list | show <name> [--reveal] | rm <name> | path | init
+mt vault add or --provider openrouter --models a,b --default-model a   # key via hidden prompt; stored as embed:or, only the ref hits vault.json
+mt vault master-key generate [--user] [--path <f>] [--force] [--rekey] | status | show-path
+mt vault embed-init | embed-add <name> [--secret v] [--kid k] | embed-list | embed-status
+mt vault embed-rekey [--new-password-file f]          # change master password
+mt vault embed-rotate <name> [--value-file f]          # replace a secret value, ref stays valid
+mt vault embed-keyring generate|add|list|use|retire|rm|rotate [--kid k] [--reencrypt] [--force]
+mt vault keepass-init | keepass-add <title> --secret v | keepass-list | keepass-status
+mt vault vlt-install | vlt-status
+```
+
+`mt vault add --user` targets `~/.mt/vault.json`; default is `<project>/.mt/vault.json`; `MT_VAULT=<path>`
+overrides both. Project entries override user entries by name. Entry names contain no `/`.
+Losing `master.key` makes embedded secrets unrecoverable.
+
+### Use a vault entry for the LLM
+
+```jsonc
+// mt.json
+{ "settings": { "llm": { "use": "vault://my-openrouter/openai/gpt-4o-mini" } } }
+```
+
+`vault://<entry>[/<model>]` (alias `@vault/<entry>[/<model>]`). Model may contain `:` and `/`; it defaults
+to the entry's `defaultModel`. Same via env `MT_LLM_USE` (mt.json wins). Refs resolve lazily at tool
+call time, in memory only.
+
+## LLM backends and tests (mock)
+
+One pick configures every LLM tool: env `MT_LLM_TOOL` (or `settings.llm.tool`) =
+`mock` (default, offline) | `router` | `openrouter-free` | `openrouter-pool` | `ollama`.
+`MT_LLM_MODEL`, `MT_LLM_PROVIDER`, `MT_LLM_BASE_URL`, `MT_ROUTER_URL` (default `http://localhost:7777`),
+`MT_ROUTER_TOKEN`, `OPENROUTER_API_KEYS` (comma pool), `MT_OLLAMA_URL` also apply.
+
+Offline pipeline for tests:
+
+```ts
+import { definePipeline, defineProcess } from 'mt'
+import { createSummaryTool, mockLlm } from 'mt/tools'
+import 'mt/waypoint'
+
+export default defineProcess()
+  .install(mockLlm({ source: (req) => `mock: ${req.messages.at(-1)?.content}` }))
+  .pipeline(definePipeline().from('jsonl://./input.jsonl').use(createSummaryTool()).to('md://./out'))
+```
+
+`MT_LLM_TOOL=ollama mt run ...` runs the same file against a real backend. Run offline smoke tests with
+`mt router --mock` (no keys, no network). An explicit `call`/`translate` argument on a tool beats everything.
+
+## Run lifecycle, events, resume
+
+`pending -> running -> [checkpoint -> paused -> resumed ->] done | failed`. `paused -> done` is illegal.
+
+- Order per event: `state.json` write -> `events.jsonl` append -> in-process listeners.
+- Event types: `started`, `step-done` (with `stepId`), `paused`, `resumed`, `done`, `failed` (with `error`).
+- Checkpoint tree `.mt/runs/<id>/checkpoint.json` is the only resume mechanism; resume skips `done` nodes
+  and continues sources from their cursor. Resume keeps the run id and emits no new `started`.
+- File writes are atomic (temp then rename); safe to kill the process.
+- Watch live: `tail -f .mt/runs/<id>/events.jsonl`, `mt inspect <id>`, or `mt serve` (`GET /api/runs`,
+  SSE at `/api/runs/<id>/events?stream=true`).
+
+## Common errors
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `mt` prints tape usage | `/usr/bin/mt` shadows the binary | use `mt-cli` or the full path |
+| URI scheme not resolved | missing `import 'mt/waypoint'` | add the side-effect import |
+| `pipelineId mismatch` on resume | pipeline `id` changed | restore the id, or start a new run |
+| resume says no pipeline file | run predates recorded `pipelineFile` | `mt resume <id> <pipeline.ts>` |
+| `apiKey ... plaintext` rejected | raw key in vault | `mt vault add --api-key` (moves it to `embed:`) or use a ref |
+| warning about built-in default password | no master key | `mt vault master-key generate --rekey` |
+| cannot decrypt embedded secret | wrong/lost master key or removed `kid` | restore `master.key` / `MT_EMBED_PASSWORD`; check `mt vault embed-status` |
+| `vlt` session expired | vlt locked | `vlt login`, retry |
+| 401 / 429 from LLM | keys missing or pool exhausted | check vault refs, `OPENROUTER_API_KEYS`, router status |
+| missing package in the standalone binary | binary has no project `node_modules` | install deps next to the pipeline; native addons (`.node`) are unsupported |
+| port busy | `mt serve` default taken | `--port <p>` or `--port 0` |
+| behaviour matches old code | stale `mt` binary | rebuild/upgrade the binary |
+
+## Do / Don't
+
+Do:
+- Read `mt.json` and an existing pipeline before writing a new one; copy its imports.
+- Keep pipelines deterministic and idempotent; use `cacheable` tools for LLM-heavy steps.
+- Test offline first (`MT_LLM_TOOL=mock` or `mockLlm`), then switch the backend by env.
+- Prefer URI aliases in `mt.json` so output locations are retargetable.
+- After a failure, `mt inspect <id>` then `mt resume <id>`; do not delete `.mt/runs`.
+
+Don't:
+- Don't hand-edit `.mt/runs/*/checkpoint.json` or `state.json`.
+- Don't print, log, commit or echo secrets, master keys, `--reveal` output or `.env` contents.
+- Don't add `.batch/.window/.flatMap` casually: they change cardinality for every later step.
+- Don't run `mt serve`/`mt router` bound to a non-loopback host without `MT_ROUTER_TOKEN`.
+- Don't assume a flag exists: run `mt <command> --help` when unsure.

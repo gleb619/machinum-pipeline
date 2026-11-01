@@ -7,6 +7,8 @@ Two audiences, two doc sets:
 | [steering/](steering/) | **Coding agents** | Development docs — read the relevant steering file *before editing* a package (API contracts, conventions, invariants, test rules). Concise, prescriptive, maintained alongside code. |
 | [guiding/](guiding/) | **Humans** | Project explanation — what machinum-pipeline is, how it works, how to install/run/extend it (architecture, use cases, tools catalogue, samples, vault, onboarding, lifecycle). Descriptive, readable top to bottom. |
 
+Also here: [SKILL.md](SKILL.md) — the agent skill for projects that *use* `mt` (embedded in the binary; `mt skill` prints/installs it). Keep it in sync with big changes (see AGENTS.md hard rules).
+
 Everything else in this directory:
 
 - Flow docs (repo root): [kanban.md](kanban.md) (task board), [kanban-loop.md](kanban-loop.md), [kanban-compose.md](kanban-compose.md), [kanban-feeder-loop.md](kanban-feeder-loop.md) (automated loops), [change-workflow.md](change-workflow.md) (worktree → branch → gates → FF-merge lifecycle).

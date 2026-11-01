@@ -20,6 +20,7 @@ mt tool <name>   # invoke a tool standalone (JSON on stdin/stdout)
 mt serve         # admin backend (h3 + bun:sqlite + embedded UI)
 mt router        # LLM proxy (OpenRouter pool, budgets)
 mt vault <sub>   # vault: list|show|add|rm|path|init|vlt-install|vlt-status
+mt skill         # print/install the agent skill (SKILL.md)
 mt mcp           # MCP server over stdio
 ```
 
@@ -157,6 +158,21 @@ its own random 256-bit master key.
   `mt vault master-key generate --user`, on a persistent volume).
 - **Install scripts and the Docker image** (`docs/install.sh`, `Dockerfile`, added separately) must
   generate a master key on first install rather than shipping the default.
+
+## Teach your agent: `mt skill --install`
+
+The binary embeds an agent skill (`docs/SKILL.md`) that explains project layout, the DSL, CLI, secrets and
+common errors to any coding agent.
+
+```bash
+mt skill --install                    # .agent/skills/mt/SKILL.md in the current project
+mt skill --install --target claude    # .claude/skills/mt/SKILL.md (also: codex, opencode, agents)
+mt skill > path/SKILL.md              # or redirect stdout
+mt skill --out ./SKILL.md --force     # explicit file, overwrite
+mt skill --path                       # embedded skill-version
+```
+
+Re-run with `--force` after upgrading `mt`.
 
 ## Configuration & secrets
 

@@ -38,6 +38,7 @@ development docs, `docs/guiding/` = human-facing project explanation (full layou
 | Doc                                                                | Contents |
 |--------------------------------------------------------------------|---|
 | [docs/guiding/architecture.md](docs/guiding/architecture.md)       | High-level architecture, run lifecycle, `.mt/` state dir |
+| [docs/SKILL.md](docs/SKILL.md)                                     | Agent skill for consumer projects (how to use `mt`); embedded in the binary, printed by `mt skill` |
 | [docs/guiding/installation.md](docs/guiding/installation.md)       | Install paths: source build, Bun binary, `mt-cli` wrapper, config/secrets, Docker |
 | [docs/guiding/uc.md](docs/guiding/uc.md)                           | Use cases |
 | [docs/steering/tools.md](docs/steering/tools.md)                   | Tool catalogue |
@@ -132,6 +133,7 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
 - **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse; `cli/` may also import `waypoint/` for URI registration and `backend/standalone` for `mt serve` - lazy, so the CLI starts without h3/SQLite); `frontend/` → backend API only;
   `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
 - **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
+- **Agent skill stays current** — `docs/SKILL.md` MUST be reviewed and updated in the same change whenever the project gets a big update: a new/changed/removed CLI command or flag, DSL op, URI scheme, tool category, vault/secret handling, config key, lifecycle/run-state change, or install path. Bump its `skill-version` and date, then regenerate the embedded copy (`pnpm --filter=@mt/cli gen:skill`; `pnpm build` does it too) and verify `mt skill` output matches. The drift test `packages/cli/tests/commands/skill.test.ts` fails when the embedded copy differs from `docs/SKILL.md`.
 - **Binary freshness** — after any change to packages embedded in the `mt` binary (`core`/`tools`/`waypoint`/`cli`/`router`/`backend`), rebuild it (`pnpm build:bin`, smoke via `pnpm smoke:bin`). A stale binary silently runs old code.
 - **Do not run git mutations** (commit/push/reset/rebase) unless explicitly asked.
 - **NEVER** `git stash` or `git reset` (`--hard`/`--mixed`/`--soft`) without explicit user approval - working tree

@@ -61,6 +61,11 @@ export async function main(): Promise<void> {
       await vaultCommand(args.slice(1))
       break
     }
+    case 'skill': {
+      const { skillCommand } = await import('./commands/skill.js')
+      await skillCommand(args.slice(1))
+      break
+    }
     case 'mcp':
       console.error('mt mcp — not yet implemented')
       process.exit(1)
@@ -83,6 +88,7 @@ Commands:
   serve [-d|--detach]    Start admin backend
   router [opts]          Start LLM router proxy (--help)
   vault <sub>            Manage the vault: list|show|add|rm|path|init|vlt-install|vlt-status (--help)
+  skill [opts]           Print/install the agent skill (SKILL.md): --out|--install|--target|--path (--help)
   mcp                    Start MCP server over stdio
 
 Options:

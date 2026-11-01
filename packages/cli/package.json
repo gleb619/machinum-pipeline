@@ -16,7 +16,8 @@
   "types": "./dist/index.d.ts",
   "files": ["dist"],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node scripts/gen-skill.mjs && tsc -p tsconfig.build.json",
+    "gen:skill": "node scripts/gen-skill.mjs",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
