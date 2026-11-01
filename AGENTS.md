@@ -37,6 +37,7 @@ Full context lives in docs - read on demand:
 | Doc | Contents |
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | High-level architecture, run lifecycle, `.mt/` state dir |
+| [docs/installation.md](docs/installation.md) | Install paths: source build, Bun binary, `mt-cli` wrapper, config/secrets, Docker |
 | [docs/uc.md](docs/uc.md) | Use cases |
 | [docs/tools.md](docs/tools.md) | Tool catalogue |
 | [docs/mock-tools.md](docs/mock-tools.md) | Mock/stub LLM tooling: `pickLlmTool`, slot overrides, `defineProcess().install(mockLlm(...))` |
