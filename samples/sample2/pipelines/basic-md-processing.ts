@@ -119,7 +119,7 @@ const typedContentPipeline = definePipeline({ id: 'typed-content' })
       }),
     )
   })
-  .to('md://./output-typed.md')
+  .to('md://./chapters/output-typed.md')
 
 // ---------------------------------------------------------------------------
 // Corpus statistics: batch the lines and let `statFreq` rank the words.

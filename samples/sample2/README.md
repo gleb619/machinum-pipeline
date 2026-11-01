@@ -39,7 +39,7 @@ jsonl://./jsonl/input.jsonl
 |----------|---------|---------|
 | `default` (implicit suite) | `pnpm run runner:basic` | No default export: implicit `basic-md-processing-suite` runs all three, alphabetical, sync |
 | `defaultPipeline` | `pnpm run runner:basic -- --pipeline defaultPipeline` | JSONL → `wordCounter` → `toMarkdownTool` → `chapters/output.md` |
-| `typedContentPipeline` | `pnpm run runner:basic -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `output-typed.md` |
+| `typedContentPipeline` | `pnpm run runner:basic -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `chapters/output-typed.md` |
 | `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
 
 Commented examples at the end of the file show how to declare an explicit suite (order + mode) or make

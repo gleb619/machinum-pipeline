@@ -25,7 +25,7 @@ async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'output.md'), { force: true })
-  await rm(join(SAMPLE_DIR, 'output-typed.md'), { force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'output-typed.md'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
 
@@ -101,10 +101,10 @@ describe('typedContentPipeline', () => {
     run('typedContentPipeline')
   })
 
-  it('writes output-typed.md with an edited heading and rewritten paragraph', async () => {
+  it('writes chapters/output-typed.md with an edited heading and rewritten paragraph', async () => {
     await writeInput(TYPED_RECORDS)
     run('typedContentPipeline')
-    const content = await readFile(join(SAMPLE_DIR, 'output-typed.md'), 'utf-8')
+    const content = await readFile(join(SAMPLE_DIR, 'chapters', 'output-typed.md'), 'utf-8')
     expect(content).toMatch(/^# Edited: Line /m)
     expect(content).toContain('[REWRITTEN PARAGRAPH]')
   })
