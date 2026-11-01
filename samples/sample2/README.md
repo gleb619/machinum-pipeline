@@ -39,6 +39,7 @@ jsonl://./jsonl/input.jsonl
 |----------|---------|---------|
 | `default` | `pnpm run runner` | JSONL → `wordCounter` → `toMarkdownTool` → `output.md` |
 | `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
+| `allPipelines` | — | `defineSuite([...])` — runs the three pipelines sequentially in one process |
 
 Where the advanced pipeline writes its own glue, the basics pipeline reuses shipped tools:
 
@@ -228,6 +229,13 @@ cd samples/sample2
 pnpm run prepare-input
 pnpm run runner          # basics pipeline
 cat output.md
+```
+
+Run all three in one process:
+
+```ts
+import { allPipelines } from './pipelines/basic-md-processing.ts'
+await allPipelines.run()
 ```
 
 The advanced pipeline:

@@ -140,6 +140,21 @@ definePipeline()
 | `.fork()` | `.fork(pipeline)` | Runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. |
 | `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and terminates the chain → the `Pipeline`. Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
 
+### Suites
+
+`defineSuite(pipelines, { id? })` returns `{ kind: 'pipeline-suite', id, pipelines, run(ctx?, runnerOptions?) }`.
+`await suite.run()` runs each pipeline sequentially in declaration order — one Runner/run id per pipeline, one
+shared `GlobalContext` — and stops on the first failure. With no context arg it calls
+`loadGlobalContext(process.cwd())`. An empty array or a pipeline without a string `id` throws `TypeError` at
+definition time. Use `isPipelineSuite(value)` as the type guard.
+
+```ts
+export const all = defineSuite([pipelineA, pipelineB], { id: 'all' })
+await all.run()
+```
+
+Programmatic only: `mt run --pipeline` selects one `Pipeline` per invocation.
+
 **Tool composition** (all optional; plain `Tool`s and `.use()` unchanged):
 - `chain(name, ...tools)` — one `Tool` running tools sequentially (output envelope feeds next).
 - `builder.useAll(a, b, c)` — sugar for `.use(a).use(b).use(c)`.
