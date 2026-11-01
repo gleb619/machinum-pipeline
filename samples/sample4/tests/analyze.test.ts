@@ -1,5 +1,5 @@
 import { execSync } from 'node:child_process'
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { stripTerms } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
@@ -89,7 +89,10 @@ beforeAll(async () => {
   for (const [name, text] of Object.entries(FIXTURE)) {
     await writeFile(join(EN_DIR, name), text, 'utf-8')
   }
-})
+  // Baseline run: every test below reads its artifacts, so it must happen once
+  // before any assertion regardless of test order. A failure here fails the suite.
+  runAnalyze()
+}, 60_000)
 
 afterEach(({ task }) => {
   if (task.result?.state === 'fail') hasFailure = true
@@ -100,8 +103,12 @@ afterAll(async () => {
 })
 
 describe('analyze pipeline (offline, heuristics only)', () => {
-  it('runs to completion', () => {
-    runAnalyze()
+  it('runs to completion', async () => {
+    // beforeAll runs the pipeline once; a completed run leaves this artifact set behind.
+    for (const rel of ['schema', 'en-tagged', 'glossary.json', 'glossary.graph.json']) {
+      const info = await stat(join(CHAPTERS, rel))
+      expect(info.isDirectory() || info.isFile()).toBe(true)
+    }
   })
 
   it('writes one heuristic summary per chapter', async () => {
@@ -146,12 +153,14 @@ describe('analyze pipeline (offline, heuristics only)', () => {
   })
 
   it('keeps manual glossary edits (ru, aliases) on re-run', async () => {
-    const g = await readGlossary()
-    const marta = g.terms.find((t) => t.term === 'Marta')
+    // Self-contained: take our own snapshot, mutate it, and re-run the pipeline
+    // after dropping the checkpoint. Must not depend on what earlier tests left behind.
+    const snapshot = await readGlossary()
+    const marta = snapshot.terms.find((t) => t.term === 'Marta')
     if (!marta) throw new Error('Marta missing')
     marta.ru = 'Марта'
     marta.aliases = ['Marty']
-    await writeFile(join(CHAPTERS, 'glossary.json'), JSON.stringify(g, null, 2), 'utf-8')
+    await writeFile(join(CHAPTERS, 'glossary.json'), JSON.stringify(snapshot, null, 2), 'utf-8')
     await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
     runAnalyze()
     const again = await readGlossary()
@@ -159,6 +168,6 @@ describe('analyze pipeline (offline, heuristics only)', () => {
       ru: 'Марта',
       aliases: ['Marty'],
     })
-    expect(again.terms.map((t) => t.id)).toEqual(g.terms.map((t) => t.id))
+    expect(again.terms.map((t) => t.id)).toEqual(snapshot.terms.map((t) => t.id))
   })
 })
