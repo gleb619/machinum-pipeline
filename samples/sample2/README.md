@@ -4,8 +4,9 @@ Pipelines over JSONL and markdown, without LLM calls:
 
 - **`pipelines/basic-md-processing.ts`** — the basics. Shipped tools, typed chapter content and
   corpus statistics.
-- **`pipelines/parallel-forks-md-processing.ts`** — JSONL → `Chapter` → `Paragraph` → `Line`,
-  then three async branches that run in parallel and merge into one markdown file.
+- **`pipelines/parallel-forks-md-processing.ts`** — JSONL → `Chapter` → `Paragraph`, then three
+  branch pipelines run concurrently through core `.fork('chapter-views', [...])` and merge into
+  one markdown file.
 - **`pipelines/chunk-normalization.ts`** — chunk splitting, separator reuse and the Structure Ladder.
 
 ## What you will learn
@@ -13,8 +14,9 @@ Pipelines over JSONL and markdown, without LLM calls:
 - How to read a source (`jsonl://`) and write a target (`md://`).
 - How to use the tools that already ship in `@mt/tools` instead of hand-rolling your own.
 - How to fan data out with `.flatMap()` and group it with `.batch()`.
-- How to process the main entities `Chapter → Paragraph → Line`.
-- How to run independent async branches in true parallel with `Promise.all`.
+- How to process the main entities `Chapter → Paragraph`.
+- How to run independent branch pipelines concurrently with core `.fork(name, branches)` and
+  merge their output deterministically.
 - How to clean a chapter of its decorative `---` lines, split it into token-bounded chunks and
   put the chunks back together — without re-splitting them on the next run.
 - How to walk the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` → `paragraphs://` →
@@ -44,32 +46,37 @@ The end of the file shows the explicit suite and the `.parallel(true)` / sync al
 
 ## Parallel forks (`pipelines/parallel-forks-md-processing.ts`)
 
-One JSONL record is one chapter. Each chapter is expanded into its paragraphs and lines, then
-three async branches process the same chapter at the same time:
+One JSONL record is one chapter. A `flatMap` parses the record's markdown with `readChapterDoc`
+into a core `Chapter`, then the parent pipeline forks the chapter into three steps-only branch
+pipelines:
 
 ```
 jsonl://./jsonl/entities.jsonl
-  → flatMap                  (record → Chapter → Paragraph → Line entities)
-  → flatMap                  (async step, branches started with Promise.all)
-       ├─ count-paragraphs   count paragraphs, lines and words
-       ├─ reorder-lines      sort every paragraph's lines alphabetically
-       └─ dots-to-commas     replace every '.' with ','
-  → flatMap                  (merge branch results and render markdown)
+  → flatMap                    (record → Chapter)
+  → fork('chapter-views', …)   (three branches per chapter, concurrently)
+       ├─ countBranch          count paragraphs, lines and words
+       ├─ reorderBranch        sort every paragraph's lines alphabetically
+       └─ commasBranch         replace every '.' with ','
   → md://./chapters/parallel-forks.md
 ```
 
+The `.fork('chapter-views', [countBranch, reorderBranch, commasBranch])` call is the demo. The
+engine, not the sample, provides the concurrency contract:
+
+- every branch receives an isolated, deep-cloned copy of the parent envelope, so mutations stay
+  branch-local;
+- the three branches run concurrently for each chapter;
+- each parent/branch gets its own checkpoint node (`<stepId>/fork-<parent>/branch-<branch>`);
+- branch output is buffered and merged in declaration order, independent of completion timing;
+- if any branch fails, the run fails after every branch settles — no partially merged output.
+
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` | `pnpm run runner:parallel` | Three parallel async branches per chapter → `chapters/parallel-forks.md` |
+| `default` | `pnpm run runner:parallel` | Three concurrent branch pipelines per chapter → `chapters/parallel-forks.md` |
 
-Why `Promise.all` instead of three `.fork()` steps? Core `.fork()` creates a nested Runner per
-envelope and runs the branches **sequentially** for that envelope. This sample needs the branches
-to overlap, so it forks the work explicitly with `Promise.all` inside one async pipeline step.
-Every branch logs `{ "phase": "start" | "done", "at": ... }`; the test asserts the three start
-timestamps for a chapter precede every done timestamp.
-
-The final markdown contains one section per chapter with the paragraph/line/word counts, the
-alphabetically reordered lines and the comma-replaced text.
+For each chapter the file contains `counts`, `lines reordered`, then `dots replaced with commas`,
+followed by the next chapter. The order is deterministic because it follows the branch declaration
+order.
 
 ## Chunk normalization (`pipelines/chunk-normalization.ts`)
 
@@ -238,13 +245,14 @@ pipelines, and asserts:
 - the default pipeline logs the shipped `wordCounter` result per line (`wordCount=5`),
 - `statsPipeline` logs the shipped `statFreq` report (`totalWords=15`, `uniqueWords=7`).
 
-`tests/parallel-forks-md-processing.test.ts` writes a two-chapter JSONL fixture and asserts:
+`tests/parallel-forks-md-processing.test.ts` writes two markdown chapter records and asserts:
 
-- `chapters/parallel-forks.md` contains the chapter titles and counts (`2 paragraphs · 3 lines ·
-  13 words` for the first chapter),
-- lines are reordered alphabetically and every `.` becomes `,`,
-- each chapter logs three branch starts and three branch dones, and all starts precede every done
-  timestamp (the branches overlap).
+- both chapters' counts (`2 paragraphs · 3 lines · 13 words` for Chapter One and `2 paragraphs ·
+  2 lines · 9 words` for Chapter Two),
+- every paragraph's lines are in alphabetical order,
+- every `.` in the body became a `,`,
+- each chapter's headings are `counts`, `lines reordered`, `dots replaced with commas`, and
+  Chapter One's three sections precede Chapter Two's.
 
 `tests/chunk-normalization.test.ts` runs the chunk pipelines and asserts:
 

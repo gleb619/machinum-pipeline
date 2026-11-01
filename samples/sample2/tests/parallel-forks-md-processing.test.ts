@@ -10,26 +10,16 @@ const OUTPUT = join(SAMPLE_DIR, 'chapters', 'parallel-forks.md')
 const RECORDS = [
   {
     number: 1,
-    title: 'Chapter One',
-    paragraphs: [
-      ['The first line has words.', 'Second line follows here.'],
-      ['A short paragraph ends.'],
-    ],
+    markdown:
+      '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
   },
   {
     number: 2,
-    title: 'Chapter Two',
-    paragraphs: [['Third chapter starts now.'], ['Final line closes the book.']],
+    markdown: '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
   },
 ]
 
-interface ForkEvent {
-  stage?: string
-  name?: string
-  phase?: 'start' | 'done'
-  chapterId?: string
-  at?: number
-}
+const SECTION_HEADINGS = ['counts', 'lines reordered', 'dots replaced with commas']
 
 let hasFailure = false
 
@@ -67,12 +57,31 @@ function run(): string {
   }).toString('utf-8')
 }
 
-function forkEvents(stdout: string): ForkEvent[] {
-  return stdout
-    .split('\n')
-    .filter((line) => line.startsWith('{'))
-    .map((line) => JSON.parse(line) as ForkEvent)
-    .filter((event) => event.stage === 'fork')
+function headingsIn(markdown: string): string[] {
+  return [...markdown.matchAll(/^## (.+)$/gm)].map((match) => match[1] ?? '')
+}
+
+/** Body text after every `## <heading>`, up to the next heading or chapter. */
+function sectionsUnder(markdown: string, heading: string): string[] {
+  const marker = `## ${heading}`
+  const sections: string[] = []
+  let cursor = 0
+
+  while (cursor < markdown.length) {
+    const start = markdown.indexOf(marker, cursor)
+    if (start === -1) break
+
+    const contentStart = start + marker.length
+    const nextSection = markdown.indexOf('\n## ', contentStart)
+    const nextChapter = markdown.indexOf('\n# ', contentStart)
+    const ends = [nextSection, nextChapter].filter((index) => index !== -1)
+    const end = ends.length > 0 ? Math.min(...ends) : markdown.length
+
+    sections.push(markdown.slice(contentStart, end))
+    cursor = end
+  }
+
+  return sections
 }
 
 describe('parallel forks pipeline', () => {
@@ -84,30 +93,46 @@ describe('parallel forks pipeline', () => {
     expect(content).toContain('2 paragraphs · 3 lines · 13 words')
     expect(content).toContain('# Chapter Two')
     expect(content).toContain('2 paragraphs · 2 lines · 9 words')
-
-    expect(content).toContain('- Second line follows here,\n- The first line has words,')
-    expect(content).toContain('- A short paragraph ends,')
-    expect(content).toContain('- Final line closes the book,')
-    expect(content).not.toContain('.')
   })
 
-  it('runs the three branches concurrently for every chapter', () => {
-    const events = forkEvents(run())
-    for (const chapterId of ['chapter-1', 'chapter-2']) {
-      const chapterEvents = events.filter((event) => event.chapterId === chapterId)
-      const starts = chapterEvents
-        .filter((event) => event.phase === 'start')
-        .map((event) => event.at ?? 0)
-      const dones = chapterEvents
-        .filter((event) => event.phase === 'done')
-        .map((event) => event.at ?? 0)
+  it('reorders each paragraph alphabetically', async () => {
+    run()
+    const content = await readFile(OUTPUT, 'utf-8')
+    const sections = sectionsUnder(content, 'lines reordered')
 
-      expect(starts).toHaveLength(3)
-      expect(dones).toHaveLength(3)
-      expect(Math.max(...starts)).toBeLessThan(Math.min(...dones))
-      expect(new Set(chapterEvents.map((event) => event.name))).toEqual(
-        new Set(['count-paragraphs', 'reorder-lines', 'dots-to-commas']),
-      )
-    }
+    expect(sections).toHaveLength(2)
+    expect(sections[0] ?? '').toContain('- Second line follows here.\n- The first line has words.')
+    expect(sections[0] ?? '').toContain('- A short paragraph ends.')
+    expect(sections[1] ?? '').toContain('- Third chapter starts now.')
+    expect(sections[1] ?? '').toContain('- Final line closes the book.')
+  })
+
+  it('replaces every dot in the chapter body with a comma', async () => {
+    run()
+    const content = await readFile(OUTPUT, 'utf-8')
+    const sections = sectionsUnder(content, 'dots replaced with commas')
+
+    expect(sections).toHaveLength(2)
+    expect(sections[0] ?? '').toContain('The first line has words,\nSecond line follows here,')
+    expect(sections[0] ?? '').toContain('A short paragraph ends,')
+    expect(sections[1] ?? '').toContain('Third chapter starts now,')
+    expect(sections[1] ?? '').toContain('Final line closes the book,')
+
+    for (const section of sections) expect(section).not.toContain('.')
+  })
+
+  it('merges the three branch sections in declaration order for each chapter', async () => {
+    run()
+    const content = await readFile(OUTPUT, 'utf-8')
+    const chapterTwoStart = content.indexOf('# Chapter Two')
+
+    expect(content.indexOf('# Chapter One')).toBeGreaterThanOrEqual(0)
+    expect(chapterTwoStart).toBeGreaterThan(0)
+
+    const chapterOne = content.slice(0, chapterTwoStart)
+    const chapterTwo = content.slice(chapterTwoStart)
+
+    expect(headingsIn(chapterOne)).toEqual(SECTION_HEADINGS)
+    expect(headingsIn(chapterTwo)).toEqual(SECTION_HEADINGS)
   })
 })

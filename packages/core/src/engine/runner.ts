@@ -66,6 +66,23 @@ async function* singleEnvelope(env: Envelope<unknown>): EnvelopeStream {
 }
 
 /**
+ * Clone a parent envelope for one parallel fork branch.
+ *
+ * `structuredClone` preserves the object graph, but relinking `item` to the cloned `new`
+ * `ITEM_VARIABLE` value makes the payload/variable contract explicit: `Object.is(ex.item,
+ * itemVariable.value)` stays true, so `toExchange` sees no payload edit. Branches therefore
+ * cannot observe each other's in-place mutations.
+ */
+function cloneEnvelopeForFork(env: Envelope<unknown>): Envelope<unknown> {
+  const clone = structuredClone(env)
+  const itemVariable = clone.variables.find(
+    (variable) => variable.name === ITEM_VARIABLE && variable.qualifier === 'new',
+  )
+  if (itemVariable) clone.item = itemVariable.value
+  return clone
+}
+
+/**
  * Stream of one empty envelope — lets tool-only pipelines run without a source.
  */
 async function* emptyEnvelope(): EnvelopeStream {
@@ -543,7 +560,15 @@ export class Runner {
           if (!stream) {
             throw new Error('Fork step requires a preceding stream or source step')
           }
-          stream = this.forkStream(step, stream, stepId, runContext)
+          stream =
+            step.config.parallel === true && Array.isArray(step.config.pipelines)
+              ? this.parallelForkStream(
+                  step.config.pipelines as Pipeline[],
+                  stream,
+                  stepId,
+                  runContext,
+                )
+              : this.forkStream(step, stream, stepId, runContext)
           break
         }
         case 'subflow': {
@@ -607,7 +632,7 @@ export class Runner {
   }
 
   /**
-   * Fork — run the child pipeline per parent envelope and merge results back
+   * Sequential fork — run the child pipeline per parent envelope and merge results back
    * into the parent stream. Each envelope gets its own checkpoint node.
    */
   private forkStream(
@@ -641,6 +666,93 @@ export class Runner {
         } catch (error) {
           runner.failNested(nodeId, error as Error)
           throw error
+        }
+      }
+    })()
+  }
+
+  /**
+   * Parallel fork — run every branch concurrently for each parent envelope.
+   *
+   * - Concurrency: branch tasks start together and each drains its own branch stream;
+   *   `Promise.allSettled` waits for every branch before the parent continues or fails.
+   * - Isolation: every branch receives its own deep-cloned envelope (payload and item
+   *   variable relinked), so in-place mutations stay branch-local.
+   * - Checkpoints: one nested node per parent/branch is created up front in declaration
+   *   order (`<stepId>/fork-<parent>/branch-<branch>`), then marked done/failed after all
+   *   branches settle.
+   * - Merge: outputs are buffered per branch and emitted in declaration order (parent 0's
+   *   branches, then parent 1's, ...), independent of branch completion timing.
+   * - Errors: all branches are accounted for before the first rejection (declaration order)
+   *   is rethrown, so a failed branch can never be silently swallowed.
+   */
+  private parallelForkStream(
+    branches: readonly Pipeline[],
+    sourceStream: EnvelopeStream | null,
+    stepId: string,
+    runContext: RunContext,
+  ): EnvelopeStream {
+    const runner = this
+    let parentIndex = 0
+
+    return (async function* () {
+      if (!sourceStream) return
+
+      for await (const env of sourceStream) {
+        const currentParentIndex = parentIndex++
+
+        // Create all checkpoint nodes before any concurrent work starts. `enterNested`
+        // mutates the shared checkpoint tree synchronously, so declaration order wins.
+        const prepared = branches.map((branch, branchIndex) => {
+          const nodeId = `${stepId}/fork-${currentParentIndex}/branch-${branchIndex}`
+          return {
+            branch,
+            nodeId,
+            childContext: runner.enterNested(runContext, nodeId, branch.id),
+          }
+        })
+
+        const drainBranch = async (
+          branch: (typeof prepared)[number],
+        ): Promise<Envelope<unknown>[]> => {
+          const isolatedEnvelope = cloneEnvelopeForFork(env)
+          const outputs: Envelope<unknown>[] = []
+          const childStream = await runner.buildStream(
+            branch.branch,
+            singleEnvelope(isolatedEnvelope),
+            branch.childContext,
+          )
+          if (childStream) {
+            for await (const output of childStream) outputs.push(output)
+          }
+          return outputs
+        }
+
+        const settlements = await Promise.allSettled(prepared.map((branch) => drainBranch(branch)))
+
+        // Mark every branch after all of them settled, then surface the first failure in
+        // declaration order. Successful branch output is buffered, never partially merged.
+        for (const [branchIndex, settlement] of settlements.entries()) {
+          const branch = prepared[branchIndex]
+          if (!branch) continue
+          if (settlement.status === 'fulfilled') {
+            await runner.completeNested(branch.nodeId)
+          } else {
+            runner.failNested(
+              branch.nodeId,
+              settlement.reason instanceof Error
+                ? settlement.reason
+                : new Error(String(settlement.reason)),
+            )
+          }
+        }
+        for (const settlement of settlements) {
+          if (settlement.status === 'rejected') throw settlement.reason
+        }
+
+        for (const settlement of settlements) {
+          if (settlement.status !== 'fulfilled') continue
+          for (const output of settlement.value) yield output
         }
       }
     })()

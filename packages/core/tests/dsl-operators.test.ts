@@ -54,7 +54,35 @@ describe('DSL Operators: flatMap, fork, tap', () => {
       'target',
     ])
 
-    expect(pipeline.steps.find((s) => s.type === 'fork')?.config.pipeline).toBeDefined()
+    const forkConfig = pipeline.steps.find((s) => s.type === 'fork')?.config
+    expect(forkConfig?.pipeline).toBe(forkPipeline)
+    expect(forkConfig).not.toHaveProperty('parallel')
+  })
+
+  it('should push exactly one parallel fork step for named branches', () => {
+    const branchA = definePipeline({ id: 'branch-a' }).from(source('jsonl://a.jsonl'))
+    const branchB = definePipeline({ id: 'branch-b' }).from(source('jsonl://b.jsonl'))
+
+    const pipeline = definePipeline({ id: 'parallel-fork' }).fork('views', [branchA, branchB])
+    const forkSteps = pipeline.steps.filter((step) => step.type === 'fork')
+
+    expect(forkSteps).toHaveLength(1)
+    const config = forkSteps[0]?.config
+    expect(config?.name).toBe('views')
+    expect(config?.pipelines).toEqual([branchA, branchB])
+    expect(config?.parallel).toBe(true)
+    expect(config).not.toHaveProperty('pipeline')
+  })
+
+  it('validates the parallel fork name and branches at definition time', () => {
+    const branch = definePipeline({ id: 'branch' })
+
+    expect(() => definePipeline().fork('', [branch])).toThrow(TypeError)
+    expect(() => definePipeline().fork('   ', [branch])).toThrow(TypeError)
+    expect(() => definePipeline().fork('views', [])).toThrow(TypeError)
+    expect(() =>
+      definePipeline().fork('views', [{ id: 'invalid', steps: 'nope' } as unknown as Pipeline]),
+    ).toThrow(TypeError)
   })
 })
 

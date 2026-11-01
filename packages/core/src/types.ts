@@ -108,7 +108,21 @@ export interface Pipeline<_I = unknown, _O = unknown> {
 }
 
 /**
+ * Config shapes carried by a `fork` step:
+ *
+ * - sequential `.fork(pipeline)`: `{ pipeline }`
+ * - parallel `.fork(name, branches)`: `{ name, pipelines, parallel: true }`
+ *
+ * `PipelineStep.config` stays a plain record; this type documents the two fork variants.
+ */
+export type ForkStepConfig =
+  | { pipeline: Pipeline }
+  | { name: string; pipelines: Pipeline[]; parallel: true }
+
+/**
  * A single step in a pipeline.
+ *
+ * Fork steps use one of the two {@link ForkStepConfig} shapes.
  */
 export interface PipelineStep {
   type: 'source' | 'tool' | 'target' | 'fork' | 'batch' | 'flatmap' | 'split' | 'tap' | 'subflow'

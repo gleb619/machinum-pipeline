@@ -8,20 +8,16 @@ const RECORDS = [
   { id: 3, text: 'Third line of the document.\n\nFinal paragraph.' },
 ]
 
-// Chapter/Paragraph/Line fixture for the entity pipeline.
+// Markdown chapter fixture for the parallel-fork pipeline.
 const ENTITY_RECORDS = [
   {
     number: 1,
-    title: 'Chapter One',
-    paragraphs: [
-      ['The first line has words.', 'Second line follows here.'],
-      ['A short paragraph ends.'],
-    ],
+    markdown:
+      '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
   },
   {
     number: 2,
-    title: 'Chapter Two',
-    paragraphs: [['Third chapter starts now.'], ['Final line closes the book.']],
+    markdown: '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
   },
 ]
 

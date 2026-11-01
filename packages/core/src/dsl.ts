@@ -314,8 +314,44 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this as unknown as PipelineBuilder<R, O>
   }
 
-  fork(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O> {
-    this._steps.push({ type: 'fork', config: { pipeline } })
+  /**
+   * Fork the stream into a child pipeline per envelope (sequential), or into several
+   * concurrently running branches per envelope (parallel).
+   *
+   * The sequential form is unchanged: each parent envelope runs the child pipeline and
+   * its output is merged back in arrival order. The parallel form validates `name` and
+   * `branches` at definition time; the Runner then runs every branch concurrently and
+   * merges their buffered output in branch declaration order.
+   */
+  fork(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O>
+  fork(name: string, branches: readonly Pipeline[]): PipelineBuilder<I, O>
+  fork(
+    pipelineOrName: Pipeline<I, unknown> | string,
+    branches?: readonly Pipeline[],
+  ): PipelineBuilder<I, O> {
+    if (typeof pipelineOrName === 'string') {
+      if (pipelineOrName.trim().length === 0) {
+        throw new TypeError('.fork(name, branches): name must be a non-empty string')
+      }
+      if (!Array.isArray(branches) || branches.length === 0) {
+        throw new TypeError(
+          '.fork(name, branches): branches must be a non-empty array of pipelines',
+        )
+      }
+      for (const [index, branch] of branches.entries()) {
+        if (!isPipeline(branch)) {
+          throw new TypeError(
+            `.fork(name, branches): branches[${index}] must be an object with a string id and a steps array`,
+          )
+        }
+      }
+      this._steps.push({
+        type: 'fork',
+        config: { name: pipelineOrName, pipelines: [...branches], parallel: true },
+      })
+      return this
+    }
+    this._steps.push({ type: 'fork', config: { pipeline: pipelineOrName } })
     return this
   }
 
@@ -331,8 +367,8 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * URI (`'paragraphs://'` / `'paragraphs://ladder'`) or the `#scheme` shortcut; a bare
    * `'paragraphs'` is rejected. The splitter receives the full Exchange.
    *
-   * `.fork()` is per-envelope child-Runner nesting, not a split: it starts a nested Runner
-   * for each envelope and is too heavy for a plain 1 → N transformation.
+   * `.fork()` is per-envelope child-Runner nesting (or one child per branch in the parallel
+   * form), not a split: it is too heavy for a plain 1 → N transformation.
    */
   subflow(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O>
   subflow(splitterType: string): PipelineBuilder<unknown, O>

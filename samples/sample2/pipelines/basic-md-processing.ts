@@ -8,8 +8,8 @@ import '@mt/waypoint'
 //
 // This is the short version of the sample. The parallel-branch demo lives next
 // door in `pipelines/parallel-forks-md-processing.ts`: JSONL → Chapter →
-// Paragraph → Line, three async branches joined with `Promise.all`, one
-// markdown target.
+// Paragraph, then three branch pipelines run concurrently through core
+// `.fork('chapter-views', [...])`, all writing to one markdown target.
 //
 // Here every processing step is a tool that already ships in `@mt/tools`, so
 // the pipeline body is only the three DSL calls you would write first:

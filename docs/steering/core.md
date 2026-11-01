@@ -120,7 +120,8 @@ definePipeline()
   .tap((env) => { /* logging: receives the full Exchange incl. meta + variables; async OK */ })
   .use(myTool)
   .subflow(otherPipeline)   // inline nested pipeline, same Runner
-  .fork(subPipeline)        // child pipeline per envelope, checkpoint subtree
+  .fork(subPipeline)        // sequential: child pipeline per envelope, checkpoint subtree
+  .fork('views', [branchA, branchB]) // parallel: branches per envelope, deterministic merge
   .batch(5)
   .to('md://./output.md')
 ```
@@ -137,8 +138,8 @@ definePipeline()
 | `.tap()` | `.tap((ex) => void \| Promise<void>)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
 | `.batch()` | `.batch(opts?, nested?)` / `.batch(nested)` | `opts` = `number` \| `{ size?: 5, slide?: false }`. Groups items into `items[]` packages of `size`, flushing the remainder at end of stream; `slide: true` emits overlapping sliding windows instead (one per arrival). `size` must be a positive integer (`RangeError` at definition time). With `nested` (a `definePipeline()` pipeline) each package runs through it - a **batch scope**, see below. |
-| `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `lines`, `words` and `series`; `'paragraphs://ladder'` also resolves by scheme. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope. |
-| `.fork()` | `.fork(pipeline)` | Runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. |
+| `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `lines`, `words` and `series`; `'paragraphs://ladder'` also resolves by scheme. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope (or one per branch in the parallel form). |
+| `.fork()` | `.fork(pipeline)` / `.fork(name, branches)` | Sequential form: runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. Parallel form: `name` must be a non-empty string and `branches` a non-empty `Pipeline[]` (validated at definition time); every branch runs concurrently per parent envelope via real `Promise.allSettled`, each on its own isolated deep-cloned envelope. One checkpoint node `${stepId}/fork-<n>/branch-<m>` is created per parent/branch in declaration order before work starts. Branch outputs are buffered and merged in declaration order (all of parent 0's branches, then parent 1's, ...); any branch failure fails the run after all branches settle, with the first failure in declaration order. |
 | `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and ends the stage → the builder, which doubles as the `Pipeline`; a further `.from()` starts the next stage (used by batch scopes). Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
 
 ### Suites
@@ -367,15 +368,23 @@ Atomic file I/O under `.mt/`. All writes: write to temp file → `fs.rename()`. 
 
 ## Checkpoint Tree Replay Rules
 
-The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The first non-done node is resumed. Sibling forks are sequential by status: a later fork (e.g. `fork:2`) is **not** started until all earlier siblings (`fork:0`, `fork:1`) reach a terminal state (`done` or `failed`). This prevents out-of-order side effects across branches.
+The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The first non-done node is resumed. Sequential fork envelopes are ordered by status: a later envelope (e.g. `fork:2`) is **not** started until all earlier siblings (`fork:0`, `fork:1`) reach a terminal state (`done` or `failed`), preventing out-of-order side effects across envelopes. Parallel fork branches (`<stepId>/fork-<n>/branch-<m>`) are created together and all settle before the parent continues or fails. A resumed run re-executes the fork step from the persisted source cursor, like any other stream step.
 
 ## Concurrency Primitives
 
 - **In-process**: per-step limiter (`p-limit`-style), configurable via URI query param (`concurrency`), DSL, or global defaults. Tools always run in-process via `tool.invoke()`.
-- **Fork (`.fork`)**: runs the child pipeline **per parent envelope** — the envelope is fed into
-  `buildStream(child.steps, [envelope], childCtx)` and the child's output is merged back into the
-  parent stream. One checkpoint node per envelope (`<stepId>/fork-<n>`). A `target` inside the
-  child makes it a sink: results are written there and nothing flows back to the parent.
+- **Fork (`.fork`)**: two forms, both operating **per parent envelope**.
+  - **Sequential** (`.fork(pipeline)`): feeds the envelope into
+    `buildStream(child.steps, [envelope], childCtx)` and merges the child's output back into the
+    parent stream. One checkpoint node per envelope (`<stepId>/fork-<n>`). A `target` inside the
+    child makes it a sink: results are written there and nothing flows back to the parent.
+  - **Parallel** (`.fork(name, branches)`): starts every branch concurrently for the envelope
+    with `Promise.allSettled`, each branch draining its own cloned stream. Each branch gets a
+    `structuredClone` envelope with `item` relinked to its cloned `item` variable, so in-place
+    mutation cannot leak across branches. Branch outputs are buffered, then emitted in branch
+    declaration order after every branch settles (parent 0's branches first, then parent 1's,
+    ...). Checkpoint nodes are `<stepId>/fork-<n>/branch-<m>`, created in declaration order
+    before the concurrent work. Any rejection fails the run after all branches settle.
 - **Subflow (`.subflow`)**: in-process, same Runner. The pipeline form has two modes selected by
   what the sub-pipeline declares — **never** by URI scheme:
   - **Inline** — sub-pipeline has no `source` step (steps only). Its steps are spliced into the
@@ -388,7 +397,8 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
   spellings of the same registry lookup (likewise `chunks`, `lines`, `words` and `series`); bare
   `'paragraphs'` is rejected, and a URI with a path like `'paragraphs://ladder'` also resolves by
   scheme. The call pushes the internal `split` step: inline, same Runner, 1→N. It is deliberately **not** `.fork()`: a split
-  is a transformation of the current stream, while `.fork()` starts a child Runner per envelope.
+  is a transformation of the current stream, while `.fork()` starts a child Runner per envelope
+  (or one per branch in the parallel form).
   The `series` splitter is document-aware: it parses with `readChapterDoc`, emits numbered
   `ChapterDoc` parts via `writeChapterDoc` only when the chapter is large enough (or a custom
   `shouldSplit` allows it), and otherwise returns the original markdown as one item.

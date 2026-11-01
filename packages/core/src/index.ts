@@ -130,6 +130,7 @@ export type {
   Lifecycle,
   Logger,
   Pipeline,
+  ForkStepConfig,
   PipelineStep,
   RunState,
   RunEvent,

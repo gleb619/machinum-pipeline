@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.7.0 | 2026-11-01 -->
+<!-- skill-version: 1.8.0 | 2026-11-01 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -52,7 +52,8 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .batch({ size: 3, slide: true })           // sliding windows (overlapping)
   .batch(scopePipeline)                      // packages of 5 run through a nested scope (batch://group|members|return)
   .subflow(otherPipeline)                    // inline nested pipeline, same Runner
-  .fork(childPipeline)                       // child Runner per envelope, nested checkpoint subtree
+  .fork(childPipeline)                       // sequential: child Runner per envelope
+  .fork('views', [branchA, branchB])         // parallel: branches per envelope, deterministic merge
   .to('md://./out')                          // Target
 ```
 
@@ -68,7 +69,11 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   below). The `chunks` splitter parses chapter markdown into core `Chunk` entities using the
   chunk-size chain (`MT_CHUNK_SIZE`). Source ids are stable; the engine never mints them.
 - Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline
-  transformation of the current stream, while `.fork()` starts a child Runner per envelope.
+  transformation of the current stream. `.fork(pipeline)` runs the child sequentially per envelope.
+  `.fork(name, [branchA, branchB])` runs every branch concurrently per envelope via real
+  `Promise.allSettled`, each on an isolated deep-cloned envelope, with one checkpoint node per
+  parent/branch and a deterministic declaration-order merge; a branch failure fails the run after
+  all branches settle.
 - `onError`: `fail-run` (default) | `skip-item` | `dead-letter` (-> `.mt/runs/<id>/dead-letter.jsonl`).
 - Pipelines are real modules: plain `import`, `console.log`, conditionals work. No build step.
 - `id` defaults to the file name. `mt resume` refuses with `pipelineId mismatch` if it changed.
