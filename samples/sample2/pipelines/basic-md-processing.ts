@@ -145,25 +145,20 @@ const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   })
   .to('void://')
 
-// ---------------------------------------------------------------------------
-// Pick what `mt run` runs: comment the line you don't want.
-//
+
 // all three -> implicit suite (alphabetical, sync)
-export { defaultPipeline, typedContentPipeline, statsPipeline }
-//
+// export { defaultPipeline, typedContentPipeline, statsPipeline }
+
 // explicit suite -> your order + mode
-// import { defineSuite } from '@mt/core'
+import { defineSuite } from '@mt/core'
+export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline]).parallel()
+
+// sync shorthand
 // export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
 //   id: 'basic-md-all',
 //   mode: 'sync', // or 'parallel'
 // })
-//
-// parallel shorthand
-// export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline]).parallel()
-//
-// just one pipeline
-// export { typedContentPipeline }
-// ---------------------------------------------------------------------------
+
 
 // ---------------------------------------------------------------------------
 // What runs:
