@@ -147,9 +147,8 @@ const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   })
   .to('void://')
 
-
 // all three -> implicit suite (alphabetical, sync)
-// export { defaultPipeline, typedContentPipeline, statsPipeline }
+export { defaultPipeline, typedContentPipeline, statsPipeline }
 
 // explicit suite -> your order + mode
 import { defineSuite } from '@mt/core'
@@ -160,7 +159,6 @@ export default defineSuite([defaultPipeline, customTypedContentPipeline, typedCo
 //   id: 'basic-md-all',
 //   mode: 'sync', // or 'parallel'
 // })
-
 
 // ---------------------------------------------------------------------------
 // What runs:
