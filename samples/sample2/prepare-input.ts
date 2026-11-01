@@ -52,16 +52,35 @@ const LADDER_RECORDS = [
   },
 ]
 
+// Bigger chapter fixture for the series-split demo: several long paragraphs so
+// the splitter has enough body text to partition into numbered series parts.
+const SERIES_CHAPTER = `# The Long Road
+
+The first part of the chapter introduces the road. It winds through hills and
+valleys, and every mile brings a new view of the country ahead.
+
+The second part follows the traveler. She walks at dawn, rests at noon, and
+writes down what she saw before the light is gone.
+
+The third part reaches the mountains. The air is thin, the path is steep, and
+every paragraph here is longer so the series split has real work to do.
+
+The last part comes home again. The road behind is longer than the road ahead,
+and the chapter closes where it began, at the same quiet door.
+`
+
 async function main(): Promise<void> {
   await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
   await mkdir(join(SAMPLE_DIR, 'entities'), { recursive: true })
+  await mkdir(join(SAMPLE_DIR, 'chapters'), { recursive: true })
   const jsonlContent = `${RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
   const entityContent = `${ENTITY_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'entities.jsonl'), entityContent, 'utf-8')
   const ladderContent = `${LADDER_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'ladder.jsonl'), ladderContent, 'utf-8')
-  console.log('Wrote jsonl/input.jsonl, jsonl/entities.jsonl and jsonl/ladder.jsonl')
+  await writeFile(join(SAMPLE_DIR, 'chapters', 'chapter-series.md'), SERIES_CHAPTER, 'utf-8')
+  console.log('Wrote jsonl/input.jsonl, jsonl/entities.jsonl, jsonl/ladder.jsonl and chapters/chapter-series.md')
 }
 
 main()

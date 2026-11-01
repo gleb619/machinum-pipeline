@@ -13,6 +13,7 @@ import {
   chapterDocEmit,
   chapterIndexer,
   chunkSplit,
+  createSeriesSplitter,
   heuristicTokenCount,
   mdOutputEmitter,
   readChapterDoc,
@@ -24,16 +25,21 @@ import '@mt/waypoint'
 // Chunk normalization: clean/split round-trip, Structure Ladder, token route, series split.
 // Ladder default chunk size; MT_CHUNK_SIZE (real env) still wins everywhere.
 const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
+// Series split threshold: number of parts to partition a big chapter into.
+// MT_SERIES_PARTS (real env) still wins.
+const SERIES_PARTS = Number(process.env.MT_SERIES_PARTS ?? 3)
 
 // Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
 // A stage writes to the matching temp://<rung>/<namespace> buffer; the next stage
 // reads it back through the typed rung (temp://chunks/ladder -> chunks://ladder).
 
-// Series split runs first: chapter1.md → series doc.
+// Series split runs first: the big chapter-series.md is partitioned into
+// SERIES_PARTS numbered parts by a configured splitter (`.subflow('series://')`
+// would use the registered default instead).
 const seriesSplitFirstStage = definePipeline({ id: 'sample2-series-split-first' })
-  .from('md://./chapters/chapter1.md')
-  .subflow('series://')
-  .to('md://./chapters/series-output.md')
+  .from('md://./chapters/chapter-series.md')
+  .flatMap(async (item: unknown) => createSeriesSplitter({ parts: SERIES_PARTS }).split({ item }))
+  .to('md://./chapters/series-first-output.md')
 
 // Clean chapter1.md, split into chunks, write chunked.md.
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
@@ -260,7 +266,7 @@ const allPipelines = definePipeline({ id: 'sample2-chunk-normalization-suite' })
   .subflow(tokenLadderPipeline)
   .subflow(seriesSplitPipeline)
 
-// Process entry: pin MT_CHUNK_SIZE so the run is reproducible.
+// Process entry: pin MT_CHUNK_SIZE and MT_SERIES_PARTS so the run is reproducible.
 export default defineProcess()
-  .config({ env: { MT_CHUNK_SIZE: String(CHUNK_SIZE) } })
+  .config({ env: { MT_CHUNK_SIZE: String(CHUNK_SIZE), MT_SERIES_PARTS: String(SERIES_PARTS) } })
   .pipeline(allPipelines)
