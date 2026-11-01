@@ -37,7 +37,7 @@ export default defineProcess()
 
 Resolution order: explicit factory argument (`createSummaryTool({ call })`) > `MT_LLM_TOOL` /
 mt.json `settings.llm.tool` naming a real backend > the installed mock (when the pick is `mock`,
-the default) > the factory default (router proxy). See [docs/mock-tools.md](../../docs/mock-tools.md).
+the default) > the factory default (router proxy). See [docs/mock-tools.md](../../docs/guiding/mock-tools.md).
 
 | `MT_LLM_TOOL` | Backend | Model default |
 |---|---|---|

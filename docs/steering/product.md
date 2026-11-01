@@ -1,6 +1,6 @@
 # Product Overview
 
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 **machinum-pipeline** (`mt`) is a TypeScript ETL engine for processing long-form text — primarily books — through composable, checkpointable tool chains.
 
@@ -123,4 +123,4 @@ Tool invocation (in-process)
 - **`.mt/`** — Per-project filesystem source of truth.
 - **`mt.json`** — Project configuration root.
 
-← [Architecture Overview](../architecture.md)
+← [Architecture Overview](../guiding/architecture.md)

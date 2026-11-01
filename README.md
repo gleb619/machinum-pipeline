@@ -67,9 +67,9 @@ export default definePipeline()
 
 ## Documentation
 
-- [docs/architecture.md](docs/architecture.md) — how it works under the hood
-- [docs/uc.md](docs/uc.md) — use cases
-- [docs/tools.md](docs/tools.md) — tool catalogue
+- [docs/guiding/architecture.md](docs/guiding/architecture.md) — how it works under the hood
+- [docs/guiding/uc.md](docs/guiding/uc.md) — use cases
+- [docs/steering/tools.md](docs/steering/tools.md) — tool catalogue
 - [docs/kanban.md](docs/kanban.md) — roadmap / task board
 - [AGENTS.md](AGENTS.md) — guidance for AI coding agents working in this repo
 

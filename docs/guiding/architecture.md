@@ -3,7 +3,7 @@
 > **Scope:** Vision, data flow, module map, and pointers to deep detail.
 > **Status:** Draft v1 · **Full spec:** `docs/tdd.md` · **Module detail:** `docs/steering/*.md`
 
-← [Steering Index](#details-index) · [Back to docs/steering/](steering/)
+← [Steering Index](#details-index) · [Back to docs/steering/](../steering/)
 
 ---
 
@@ -21,7 +21,7 @@ Primary goals:
 
 Non-goals (v1): distributed execution across machines, hot-reloading while a Run is in flight, built-in scheduling daemon (folder reserved in `.mt/schedules/`).
 
-For full product overview (what it is / is not, core concepts, services), see [`docs/steering/product.md`](steering/product.md).
+For full product overview (what it is / is not, core concepts, services), see [`docs/steering/product.md`](../steering/product.md).
 
 ---
 
@@ -53,11 +53,11 @@ token counts, glossary, `mdOutputs` write intents); non-`ephemeral` variables ta
 **Persistence contract:** `meta` is in-flight only and is never written to persisted exchange state
 (dead-letter, `jsonl://` target; checkpoints/events carry no exchange payload); `variables` are persisted
 (non-ephemeral only; ephemeral are in-flight too). Resume replays from the Source cursor, so `meta` is
-re-derived by the Source. See `toPersisted` in [`steering/core.md`](steering/core.md).
+re-derived by the Source. See `toPersisted` in [`steering/core.md`](../steering/core.md).
 
 Cardinality changes only via DSL ops (`.batch(n)`, `.window(n)`, `.flatMap()`).
 
-Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [waypoints.md](waypoints.md#structure-ladder).
+Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [steering/waypoint.md](../steering/waypoint.md#structure-ladder).
 
 A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) is only the orchestration grammar.
 
@@ -67,15 +67,15 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 
 | Concept | Shape / Role | Deep spec |
 |---|---|---|
-| **Domain** | `Book` → `Chapter` → `Chunk` → `Paragraph` → `Line` (plain interfaces) | [`core.md`](steering/core.md) |
-| **Source** | `start()` / `resume()`; lifestyle `long-lived` or `resumable` | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
-| **Tool** | `invoke(ex, ctx) → Promise<Exchange<O>>` (always in-process) | [`core.md`](steering/core.md), [`tools.md`](steering/tools.md) |
-| **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](steering/core.md), [`waypoint.md`](steering/waypoint.md) |
-| **Exchange** | `{ id, item, items?, meta, variables }` — `item` mirrors the `item` variable (payload history via `old`); single or batch; `Envelope` = deprecated alias | [`core.md`](steering/core.md) |
-| **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](steering/core.md) |
-| **Pipeline DSL** | `.from()` `.use()` `.useAll()` `.tap()` `.flatMap()` `.batch()` `.window()` `.fork()` `.subflow()` `.to()` | [`core.md`](steering/core.md#dslts--pipelinebuilder) |
-| **Run state** | `pending → running → [checkpoint → paused → resumed →] done/failed` | [`core.md`](steering/core.md) |
-| **Checkpoint tree** | Persisted depth-first replay graph; resume skips `done` nodes | [`core.md`](steering/core.md) |
+| **Domain** | `Book` → `Chapter` → `Chunk` → `Paragraph` → `Line` (plain interfaces) | [`core.md`](../steering/core.md) |
+| **Source** | `start()` / `resume()`; lifestyle `long-lived` or `resumable` | [`core.md`](../steering/core.md), [`waypoint.md`](../steering/waypoint.md) |
+| **Tool** | `invoke(ex, ctx) → Promise<Exchange<O>>` (always in-process) | [`core.md`](../steering/core.md), [`tools.md`](../steering/tools.md) |
+| **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](../steering/core.md), [`waypoint.md`](../steering/waypoint.md) |
+| **Exchange** | `{ id, item, items?, meta, variables }` — `item` mirrors the `item` variable (payload history via `old`); single or batch; `Envelope` = deprecated alias | [`core.md`](../steering/core.md) |
+| **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](../steering/core.md) |
+| **Pipeline DSL** | `.from()` `.use()` `.useAll()` `.tap()` `.flatMap()` `.batch()` `.window()` `.fork()` `.subflow()` `.to()` | [`core.md`](../steering/core.md#dslts--pipelinebuilder) |
+| **Run state** | `pending → running → [checkpoint → paused → resumed →] done/failed` | [`core.md`](../steering/core.md) |
+| **Checkpoint tree** | Persisted depth-first replay graph; resume skips `done` nodes | [`core.md`](../steering/core.md) |
 
 ---
 
@@ -83,17 +83,17 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 
 | Package | Role | Steering file |
 |---|---|---|
-| `@mt/core` | Types, DSL, URI registry, Runner engine, built-in Sources/Targets | [`core.md`](steering/core.md) |
-| `@mt/cli` | `mt` binary; loads pipelines via `tsx`/`jiti` (no consumer build step) | [`cli.md`](steering/cli.md) |
-| `mt` | Publishable umbrella (`import … from 'mt'`, `mt/tools`, `mt/waypoint`) + single-file Bun binary | [`structure.md`](steering/structure.md) |
-| `@mt/tools` | Chapter processing tools (validator, splitter, translator, schema-doc, …) | [`tools.md`](steering/tools.md) |
-| `@mt/waypoint` | Source/Target implementations; URI scheme registrations (side-effect import) | [`waypoint.md`](steering/waypoint.md) |
-| `@mt/backend` | h3 admin API + SSE event stream + SQLite indicator; serves frontend (Nitro in dev only) | [`backend.md`](steering/backend.md) |
-| `@mt/frontend` | Vue 3 + Tailwind admin UI (bundled into backend) | [`structure.md`](steering/structure.md) |
-| `@mt/router` | Standalone Nuxt: keyless LLM gateway — OpenRouter proxy, upstream routing, key pool, cost tracking, mock mode | [`router.md`](steering/router.md) |
-| `@mt/mcp` | MCP server over stdio; wraps core/cli — no HTTP | [`mcp.md`](steering/mcp.md) |
-| `chrome-extension` | MV3 — scrape chapters, auto-upload to web editors | [`extensions.md`](steering/extensions.md) |
-| `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens | [`extensions.md`](steering/extensions.md) |
+| `@mt/core` | Types, DSL, URI registry, Runner engine, built-in Sources/Targets | [`core.md`](../steering/core.md) |
+| `@mt/cli` | `mt` binary; loads pipelines via `tsx`/`jiti` (no consumer build step) | [`cli.md`](../steering/cli.md) |
+| `mt` | Publishable umbrella (`import … from 'mt'`, `mt/tools`, `mt/waypoint`) + single-file Bun binary | [`structure.md`](../steering/structure.md) |
+| `@mt/tools` | Chapter processing tools (validator, splitter, translator, schema-doc, …) | [`tools.md`](../steering/tools.md) |
+| `@mt/waypoint` | Source/Target implementations; URI scheme registrations (side-effect import) | [`waypoint.md`](../steering/waypoint.md) |
+| `@mt/backend` | h3 admin API + SSE event stream + SQLite indicator; serves frontend (Nitro in dev only) | [`backend.md`](../steering/backend.md) |
+| `@mt/frontend` | Vue 3 + Tailwind admin UI (bundled into backend) | [`structure.md`](../steering/structure.md) |
+| `@mt/router` | Standalone Nuxt: keyless LLM gateway — OpenRouter proxy, upstream routing, key pool, cost tracking, mock mode | [`router.md`](../steering/router.md) |
+| `@mt/mcp` | MCP server over stdio; wraps core/cli — no HTTP | [`mcp.md`](../steering/mcp.md) |
+| `chrome-extension` | MV3 — scrape chapters, auto-upload to web editors | [`extensions.md`](../steering/extensions.md) |
+| `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens | [`extensions.md`](../steering/extensions.md) |
 
 Import layer rules:
 - `cli/` → `core/` only (never reverse)
@@ -102,7 +102,7 @@ Import layer rules:
 - `router/` is standalone (no dependency on other `@mt/*` packages except shared config types)
 - Extensions communicate via HTTP or MCP, never direct imports.
 
-For full workspace layout, see [`structure.md`](steering/structure.md).
+For full workspace layout, see [`structure.md`](../steering/structure.md).
 
 ---
 
@@ -149,7 +149,7 @@ The router is the inverse arrangement — a **gateway that holds the keys** so c
 
 A client only names a model; the router resolves the upstream, attaches that upstream's key and forwards
 the request. Prefix routing lets one endpoint serve OpenRouter's free pool, a remote GPU Ollama and any
-other OpenAI-compatible server. Details: [steering/router.md](steering/router.md), [vault.md](vault.md).
+other OpenAI-compatible server. Details: [steering/router.md](../steering/router.md), [vault.md](vault.md).
 
 ---
 
@@ -188,19 +188,19 @@ Every topic below links to the steering file that holds the full specification, 
 
 | Topic | Steering file |
 |---|---|
-| Product overview, concepts, services, execution flows | [`product.md`](steering/product.md) |
-| Tech stack, Biome, TypeScript rules, naming, import layers | [`tech.md`](steering/tech.md) |
-| Workspace layout, package map, source trees, key rules | [`structure.md`](steering/structure.md) |
-| Core: types (`Exchange`, `Source`, `Tool`, `Target`), DSL, URI registry, Runner, checkpoint tree, state machine, retry, cache, store | [`core.md`](steering/core.md) |
-| CLI commands (`init`, `run`, `resume`, `ls`, `inspect`, `serve`, `router`, `mcp`) | [`cli.md`](steering/cli.md) |
-| Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](steering/tools.md) |
-| URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`, `range`, `void`) | [`waypoint.md`](steering/waypoint.md) |
-| Backend (Nuxt): routes, SSE, SQLite, runner registry, frontend integration | [`backend.md`](steering/backend.md) |
-| Router (standalone Nuxt): keyless gateway, upstream routing, vault-fed keys, pool, cost tracking, mock mode, logs | [`router.md`](steering/router.md) |
-| Vault: gitignored secret store, refs (`llm.use`), `mt vault` CLI | [`vault.md`](vault.md), [`router.md`](steering/router.md) |
-| MCP server (stdio): methods, handlers, test shape | [`mcp.md`](steering/mcp.md) |
-| Chrome extension (MV3) & VS Code extension (schema, hover, code lens) | [`extensions.md`](steering/extensions.md) |
+| Product overview, concepts, services, execution flows | [`product.md`](../steering/product.md) |
+| Tech stack, Biome, TypeScript rules, naming, import layers | [`tech.md`](../steering/tech.md) |
+| Workspace layout, package map, source trees, key rules | [`structure.md`](../steering/structure.md) |
+| Core: types (`Exchange`, `Source`, `Tool`, `Target`), DSL, URI registry, Runner, checkpoint tree, state machine, retry, cache, store | [`core.md`](../steering/core.md) |
+| CLI commands (`init`, `run`, `resume`, `ls`, `inspect`, `serve`, `router`, `mcp`) | [`cli.md`](../steering/cli.md) |
+| Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](../steering/tools.md) |
+| URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`, `range`, `void`) | [`waypoint.md`](../steering/waypoint.md) |
+| Backend (Nuxt): routes, SSE, SQLite, runner registry, frontend integration | [`backend.md`](../steering/backend.md) |
+| Router (standalone Nuxt): keyless gateway, upstream routing, vault-fed keys, pool, cost tracking, mock mode, logs | [`router.md`](../steering/router.md) |
+| Vault: gitignored secret store, refs (`llm.use`), `mt vault` CLI | [`vault.md`](vault.md), [`router.md`](../steering/router.md) |
+| MCP server (stdio): methods, handlers, test shape | [`mcp.md`](../steering/mcp.md) |
+| Chrome extension (MV3) & VS Code extension (schema, hover, code lens) | [`extensions.md`](../steering/extensions.md) |
 
 ---
 
-*This document is intentionally brief. Deep interface definitions, per-module architecture tests, build commands, and implementation plans live in the linked steering files and in `docs/tdd.md`, `docs/uc.md`, `docs/tools.md`.*
+*This document is intentionally brief. Deep interface definitions, per-module architecture tests, build commands, and implementation plans live in the linked steering files and in `docs/tdd.md`, `docs/uc.md`, `docs/steering/tools.md`.*

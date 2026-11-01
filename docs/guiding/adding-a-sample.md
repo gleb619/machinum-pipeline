@@ -1,18 +1,12 @@
 # Adding a new sample
 
 Samples = runnable mini-projects showing how to work with `mt`. Each doubles as an integration test
-(pre-merge gate, see [change-workflow.md](change-workflow.md)). Index: [samples.md](samples.md).
+(pre-merge gate, see [change-workflow.md](../change-workflow.md)). Index: [samples.md](samples.md).
 
 ## Existing samples (reference)
 
-| Sample | Shows | Look at |
-|---|---|---|
-| `sample0` | `mt init` scaffolding, asserts generated files | `tests/init.test.ts` |
-| `sample1` | `hs://` HTTP source → `jsonl://` target; 2nd pipeline `jsonl://` → `chapterDoc` → `md://`; external client script | `pipelines/`, `simulation1.ts`, `run-example.ts`, `tests/full-flow.test.ts` |
-| `sample2` | Markdown processing in two flavours: basics (shipped tools only) and custom (one bespoke `defineTool`); waypoints (`jsonl://`, `range://`, `md://`, `void://`, `ephemeral://`), entity buffers (`lines://`, `words://`), `.tap` sync/async, tool-step parallelism, `.fork()` branches ; chunk normalization (`chunkClean`/`chunkSplit`, separator reuse) and the Structure Ladder | `pipelines/basic-md-processing.ts`, `pipelines/custom-md-processing.ts`, `pipelines/entity-md-processing.ts`, `pipelines/chunk-normalization.ts` |
-| `sample3` | Multi-tool pipeline: custom `defineTool`, `.flatMap/.tap/.batch`, `.subflow()`, named pipeline exports (`--pipeline <name>`), `ephemeral://` | `pipelines/jsonl-to-md-multi.ts`, `prepare-input.ts` |
-
-Shared sample data: `books/book1/chapter-N.en.md` (repo root).
+The live, up-to-date index of existing samples is [samples.md](samples.md) — consult it instead of
+duplicating a table here. Shared sample data: `books/book1/chapter-N.en.md` (repo root).
 
 ## Layout
 
@@ -31,7 +25,7 @@ samples/sampleN/
 ## Steps
 
 1. **Pick name + goal.** Next free `sampleN`. One concept per sample (one new URI scheme, DSL op, or tool group).
-2. **Work in a worktree/branch**, never `main` ([change-workflow.md](change-workflow.md)).
+2. **Work in a worktree/branch**, never `main` ([change-workflow.md](../change-workflow.md)).
 3. **`package.json`** — copy sample2's. Keep `"type": "module"`, `engines.node >=22`. Deps use
    `workspace:*` (`@mt/core`, `@mt/cli`, `@mt/waypoint`, plus `@mt/tools` if used); dev deps `tsx`, `vitest`.
    Scripts:

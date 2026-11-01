@@ -58,7 +58,7 @@ samples/sample5/
 may be absent (then the mock backend runs). It is gitignored, so the real host never reaches the repo.
 Alternatives that keep working: env `MT_LLM_TOOL=ollama MT_LLM_MODEL=... MT_OLLAMA_URL=...`
 (env beats the file), per-pipeline `MT_LLM_MODEL_<PIPELINE>` (`MT_LLM_MODEL_TYPO_FIX`), or a vault entry
-(`MT_LLM_USE=@vault/<entry>`, see `docs/vault.md`). A `.env` file alone is NOT enough: it only reaches the
+(`MT_LLM_USE=@vault/<entry>`, see `docs/guiding/vault.md`). A `.env` file alone is NOT enough: it only reaches the
 call-time context (URL), not the backend choice made when the pipeline loads.
 
 ## Pipelines: what to look at

@@ -1,5 +1,5 @@
 # @mt/router
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 Path: `packages/router/`
 
@@ -41,7 +41,7 @@ OpenAI-compatible upstreams (Ollama, vLLM, …). Runs on a configurable port (de
 
 The router is the only component that ever holds an upstream credential. Clients speak plain
 OpenAI to the router; the router attaches the key of the upstream it picked. See
-[docs/vault.md](../vault.md) for the vault format and [docs/uc.md](../uc.md) (UC063–UC065) for the
+[docs/vault.md](../guiding/vault.md) for the vault format and [docs/uc.md](../guiding/uc.md) (UC063–UC065) for the
 end-to-end flows.
 
 ## Server Routes
@@ -128,7 +128,7 @@ picked up by the regular ≤2s poll with no background refresh.
 
 The vault is written by `mt vault` (`packages/cli/src/commands/vault.ts`, see
 [docs/steering/cli.md](cli.md#srccommandsvaultts)); the router only reads it. Format and CLI:
-[docs/vault.md](../vault.md).
+[docs/vault.md](../guiding/vault.md).
 
 ## Security Model (T119)
 

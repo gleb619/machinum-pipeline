@@ -1,5 +1,5 @@
 # @mt/waypoint
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 Path: `packages/waypoint/`
 
@@ -26,7 +26,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 
-Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [waypoints.md](../waypoints.md#structure-ladder).
+Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [Structure Ladder](#structure-ladder) below.
 
 ## Source/Target Shape
 
@@ -238,7 +238,112 @@ packages/waypoint/tests/builtins/
 ├── range.test.ts / range.arch.test.ts   # integer generator: directions, step, validation, resume skip
 ├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
 ├── review.test.ts / review.arch.test.ts # glossary review queue render + atomic write; target-only registration
+├── entity-buffers.test.ts # entity buffer schemes: registration, round-trip, namespace + scheme isolation
 └── settings.test.ts
 ```
 
 Architecture tests (`.arch.test.ts`) verify the registered schemes and interface shapes without full I/O.
+
+## WP index (planned-scheme spec)
+
+The WP001–WP011 entries below are the planned-scheme spec index for the waypoint catalogue.
+
+| ID   | Waypoint         | Source | Target | Lifestyle     | Used in Samples                           |
+|------|------------------|--------|--------|---------------|-------------------------------------------|
+| WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
+| WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4, sample5        |
+| WP003 | hs:// / http://  | ✓      | —      | long-lived    | sample1, sample2                          |
+| WP004 | chapter-output://| ✓      | ✓      | resumable     | sample3                                   |
+| WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (sample3 writes schema docs via `md://` write intents, not this scheme) |
+| WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
+| WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample2, sample3                          |
+| WP008 | range://         | ✓      | —      | resumable     | sample2                                   |
+| WP009 | void://          | —      | ✓      | —             | sample2                                   |
+| WP010 | review://        | —      | ✓      | —             | —                                         |
+| WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | ✓ | resumable | sample2 (`paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
+
+---
+
+| Index | ID    | Name                | Source | Target | Lifestyle  | Input     | Output    | Description                                                                                                                               |
+|:------|-------|---------------------|--------|--------|------------|-----------|-----------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| 1     | WP001 | `jsonl://`          | ✓      | ✓      | resumable  | `unknown` | `unknown` | JSONL file source/target; supports glob patterns for source; position cursor for resume; atomic write with temp file.                     |
+| 2     | WP002 | `md://`             | ✓      | ✓      | resumable  | `string`  | `string`  | Markdown directory source/target; dir mode supports `mdOutputs` variable write intents (subdir + filename); single-file mode ignores intents. |
+| 3     | WP003 | `hs://` / `http://` | ✓      | —      | long-lived | `unknown` | —         | Long-lived HTTP server source; POST ingest, GET /health, GET /events (SSE fan-out); no resume support.                                    |
+| 4     | WP004 | `chapter-output://` | ✓      | ✓      | resumable  | `string`  | `string`  | Chapter-specific layout: `<base-dir>/<lang>/chapter<num>.md`; validates `meta.lang` and `meta.chapterNum`; atomic per-file writes.        |
+| 5     | WP005 | `schema-doc://`     | ✓      | ✓      | resumable  | `string`  | `string`  | Schema document source/target; custom YAML + CSV format; per-chapter `<dir>/chapter<num>.schema.md`.                                      |
+| 6     | WP006 | `git://`            | ✓      | ✓      | resumable  | varies    | varies    | Git worktree isolation wrapper; composites with inner scheme via `git+`; auto-commit on close with `commit=on-close`.                     |
+| 7     | WP007 | `ephemeral://`      | ✓      | ✓      | resumable  | `T`       | `T`       | In-memory buffer keyed by URI path; for testing and in-memory pipelines; process-local, no persistence.                                   |
+| 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
+| 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
+| 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
+| 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | ✓ | resumable | `T` | `T` | Entity-level shortcuts over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
+
+## Structure Ladder
+
+The **Structure Ladder** is the descent from a whole document to its smallest units. It is a tree: below
+`chunks://` it branches into the text descent and the token descent.
+
+```
+jsonl:// → md:// → chunks:// ─┬→ paragraphs:// → lines:// → words://
+                              └→ tokens://
+```
+
+Each rung is a
+URI scheme plus an entity type; descending one rung is a cardinality change, so it happens through a DSL op
+(`.flatMap()` fans one envelope out into many, `.batch()` groups many into one).
+
+| Level | Scheme          | Entity type | Typical op             |
+|-------|-----------------|-------------|------------------------|
+| 0     | `jsonl://`      | record      | `.from()`              |
+| 1     | `md://`         | document / chapter | `.flatMap()` (split into chapters) |
+| 2     | `chunks://`     | chunk       | `.flatMap()` (split into token-bounded chunks) |
+| 3     | `paragraphs://` | paragraph   | `.flatMap()` (split a chunk into paragraphs; carry `chunkId`) |
+| 4     | `lines://`      | line        | `.flatMap()` (split into lines) |
+| 5     | `words://`      | word        | `.batch()` (group words) |
+| alt   | `tokens://`     | token       | `.flatMap()` (chunk → BPE tokens; sibling of `paragraphs://`, parent `chunks://`) |
+
+**Chunks are the coarsest rung under the document.** A document is first split into token-bounded,
+`---`-separated chunks (the fixated text units sent to the LLM for translation); each chunk is then
+descended into paragraphs, lines and words. A chunk is the largest unit that still fits one request; it
+does not group paragraphs, paragraphs are derived from it (and carry its `chunkId`). The `chunkSplit` tool
+(`@mt/tools`) fixates a chapter into `---`-separated chunks; `chunkClean` strips the separators again.
+
+Descent with `flatMap` — one chapter in, its chunks out:
+
+```typescript
+import { definePipeline } from '@mt/core'
+import { splitIntoChunks } from '@mt/tools'
+
+export default definePipeline()
+  .from('md://./chapters/')                  // level 1 — one envelope per chapter (string body)
+  .flatMap(async (body: string) =>           // level 2 — chapter → its chunks
+    splitIntoChunks(body).map((chunk, index) => ({
+      id: `chunk-${index}`,
+      chapterId: 'chapter-1',
+      body: chunk,
+      index,
+    })),
+  )
+  .to('chunks://chapters')                   // level 2 — hand the chunks to the next stage
+```
+
+**Alternate route: `chunks → tokens`.** Instead of descending into paragraphs, a chunk can be tokenized into
+tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — what the LLM actually sees. The
+`chunkTokenize` tool / `tokenizeChunk()` helper (`@mt/tools`, `gpt-tokenizer`; ~4 chars/token fallback flagged
+`heuristic`) does the split. Demonstrated by `tokenLadderPipeline` in sample2.
+
+Rung 0 (`jsonl://`) is the entry point for machine-readable input; rungs 2–5 and `tokens://` are process-local buffers, so
+a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`).
+
+## Composing Waypoints: `defineWaypoint`
+
+`defineWaypoint(source|target, hooks)` wraps an existing Source/Target **instance** with lifecycle hooks
+— no new scheme registration needed:
+
+- Source hooks: `onStart`, `filter` (drop envelopes), `onItem`
+- Target hooks: `onOpen`, `onWrite`, `onClose`
+
+Demonstrated in `samples/sample4/pipelines/waypoint-log.ts`, which re-runs the sample4 normalize chain
+with an audit-logging `jsonl://` source and `md://` target. The base accepts a URI string or an instance
+(`defineSource(...)` / `defineTarget(...)`); the sample passes instances so the wrapped endpoints are built
+explicitly next to their hooks.

@@ -1,5 +1,5 @@
 # Extensions
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 ## Chrome Extension
 

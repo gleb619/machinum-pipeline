@@ -5,7 +5,7 @@ Gitignored store for sensitive LLM endpoint data (URLs, API keys, headers). Impl
 
 ## Format
 
-See [vault.example.json](vault.example.json) (fake values). `{ "version": 1, "entries": { "<name>": VaultEntry } }`.
+See [vault.example.json](../vault.example.json) (fake values). `{ "version": 1, "entries": { "<name>": VaultEntry } }`.
 `VaultEntry`: `provider` (`ollama|openrouter|openai|anthropic|custom|router`), optional `baseUrl`,
 `apiKey`, `apiKeys[]`, `headers{}`, `models[]`, `defaultModel`, `notes`. Entry names contain no `/`.
 
@@ -190,7 +190,7 @@ pool (after `OPENROUTER_API_KEYS`). `anthropic` is skipped with a warning, `rout
 most every 2s); a broken file keeps the previous entries. `embed:` refs resolve synchronously in the
 same poll; `keepass:` refs refresh in the background. Key values are never logged or returned by the
 router API.
-Router side in detail: [steering/router.md](steering/router.md) (upstreams, routing prefixes, hot reload, keyless
+Router side in detail: [steering/router.md](../steering/router.md) (upstreams, routing prefixes, hot reload, keyless
 security model); end-to-end flows: [uc.md](uc.md) (UC063–UC067).
 
 ## Using a vault entry (`llm.use`)

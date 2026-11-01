@@ -7,10 +7,10 @@
 
 | ID    | Use Case                                     | Uses tools | Samples |
 |-------|----------------------------------------------|------------|---------|
-| UC001 | Initialize project                           | —          | [sample0](../samples/sample0) |
+| UC001 | Initialize project                           | —          | [sample0](../../samples/sample0) |
 | UC002 | Author a pipeline in TS                      | —          | all samples ([samples.md](samples.md)) |
-| UC003 | Define a custom Tool                        | —          | [sample2](../samples/sample2) (entity pipeline defines local tools) |
-| UC004 | Define custom Source/Target                 | —          | [sample4](../samples/sample4) (`defineWaypoint` in `pipelines/waypoint-log.ts`) |
+| UC003 | Define a custom Tool                        | —          | [sample2](../../samples/sample2) (entity pipeline defines local tools) |
+| UC004 | Define custom Source/Target                 | —          | [sample4](../../samples/sample4) (`defineWaypoint` in `pipelines/waypoint-log.ts`) |
 | UC005 | Run a pipeline (foreground)                 | —          | all samples ([samples.md](samples.md)) |
 | UC006 | Resume a paused/failed Run                  | —          | — |
 | UC007 | Pause a running Run                         | —          | — |
@@ -18,18 +18,18 @@
 | UC009 | Inspect a Run                              | —          | — |
 | UC010 | Invoke a single Tool standalone             | —          | — |
 | UC011 | Invoke a Tool via `npx`                     | —          | — |
-| UC012 | Process items in parallel                   | —          | [sample2](../samples/sample2) |
-| UC013 | Batch items (`Item[]`)                      | —          | [sample2](../samples/sample2), [sample3](../samples/sample3) |
-| UC014 | Fork into nested pipeline                   | —          | [sample2](../samples/sample2) |
+| UC012 | Process items in parallel                   | —          | [sample2](../../samples/sample2) |
+| UC013 | Batch items (`Item[]`)                      | —          | [sample2](../../samples/sample2), [sample3](../../samples/sample3) |
+| UC014 | Fork into nested pipeline                   | —          | [sample2](../../samples/sample2) |
 | UC015 | Auto-checkpoint at step boundary            | —          | — |
 | UC016 | Recover from crash                          | —          | — |
 | UC017 | Retry failing step                          | —          | — |
 | UC018 | Skip item on error (`skip-item`)            | —          | — |
 | UC019 | Route failures to dead-letter               | —          | — |
 | UC020 | Cache tool outputs                          | —          | — |
-| UC021 | Consume from JSONL Source                   | —          | [sample1](../samples/sample1), [sample2](../samples/sample2), [sample3](../samples/sample3), [sample4](../samples/sample4) |
-| UC022 | Write to JSONL Target                      | —          | [sample1](../samples/sample1), [sample2](../samples/sample2) |
-| UC023 | Long-lived HTTP Source                      | —          | [sample1](../samples/sample1) |
+| UC021 | Consume from JSONL Source                   | —          | [sample1](../../samples/sample1), [sample2](../../samples/sample2), [sample3](../../samples/sample3), [sample4](../../samples/sample4) |
+| UC022 | Write to JSONL Target                      | —          | [sample1](../../samples/sample1), [sample2](../../samples/sample2) |
+| UC023 | Long-lived HTTP Source                      | —          | [sample1](../../samples/sample1) |
 | UC024 | Use Git worktree isolation                  | —          | — |
 | UC025 | Commit results on Target close              | —          | — |
 | UC026 | Start backend in-process                    | —          | — |
@@ -41,7 +41,7 @@
 | UC032 | Open Router dashboard                      | —          | — |
 | UC033 | Proxy LLM call via Router                  | —          | — |
 | UC034 | Track cost/usage per Run                    | —          | — |
-| UC035 | Use Router offline/mock mode                | —          | [sample3](../samples/sample3), [sample4](../samples/sample4), [sample5](../samples/sample5) (offline `mock` LLM backend) |
+| UC035 | Use Router offline/mock mode                | —          | [sample3](../../samples/sample3), [sample4](../../samples/sample4), [sample5](../../samples/sample5) (offline `mock` LLM backend) |
 | UC036 | Roll router logs                            | —          | — |
 | UC037 | List pipelines via MCP                     | Done       | — |
 | UC038 | Run pipeline via MCP                       | Done       | — |
@@ -60,15 +60,15 @@
 | UC052 | Persist artifacts under Run dir            | —          | — |
 | UC053 | Forward console logs to `.mt`               | —          | — |
 | UC054 | Mirror runs to SQLite (indicator)          | —          | — |
-| UC055 | Validate chapter structure (was UC-55)       | [TL008](tools.md), [TL010](tools.md), [TL011](tools.md), [TL063](tools.md), [TL071](tools.md) | — |
-| UC056 | Split large chapters by token count (was UC-56) | [TL106](tools.md)     | — |
-| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](tools.md), [TL005](tools.md), [TL006](tools.md), [TL014](tools.md), [TL015](tools.md), [TL043](tools.md), [TL059](tools.md) | [sample3](../samples/sample3) (`chapterValidator`, `forbiddenCharDetector`), [sample4](../samples/sample4) (`typoFinder` warnings) |
-| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](tools.md), [TL002](tools.md), [TL016](tools.md), [TL036](tools.md), [TL041](tools.md), [TL046](tools.md), [TL062](tools.md) | [sample4](../samples/sample4) (`textNormalizer`, `markdownFormatter`, optional LLM typo fix) |
-| UC059 | Batch translate chapter titles (was UC-59) | [TL026](tools.md), [TL051](tools.md) | [sample4](../samples/sample4) (`pipelines/translate.ts`), [sample5](../samples/sample5) (`pipelines/translate-title.ts`) |
-| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](tools.md), [TL051](tools.md), [TL054](tools.md) | [sample4](../samples/sample4), [sample5](../samples/sample5) (`pipelines/translate-paragraphs.ts`) |
-| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](tools.md), [TL051](tools.md) | [sample3](../samples/sample3), [sample4](../samples/sample4), [sample5](../samples/sample5) (`openrouter-pool` backend of `pickLlmTool`) |
+| UC055 | Validate chapter structure (was UC-55)       | [TL008](../steering/tools.md), [TL010](../steering/tools.md), [TL011](../steering/tools.md), [TL063](../steering/tools.md), [TL071](../steering/tools.md) | — |
+| UC056 | Split large chapters by token count (was UC-56) | [TL106](../steering/tools.md)     | — |
+| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](../steering/tools.md), [TL005](../steering/tools.md), [TL006](../steering/tools.md), [TL014](../steering/tools.md), [TL015](../steering/tools.md), [TL043](../steering/tools.md), [TL059](../steering/tools.md) | [sample3](../../samples/sample3) (`chapterValidator`, `forbiddenCharDetector`), [sample4](../../samples/sample4) (`typoFinder` warnings) |
+| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](../steering/tools.md), [TL002](../steering/tools.md), [TL016](../steering/tools.md), [TL036](../steering/tools.md), [TL041](../steering/tools.md), [TL046](../steering/tools.md), [TL062](../steering/tools.md) | [sample4](../../samples/sample4) (`textNormalizer`, `markdownFormatter`, optional LLM typo fix) |
+| UC059 | Batch translate chapter titles (was UC-59) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample4](../../samples/sample4) (`pipelines/translate.ts`), [sample5](../../samples/sample5) (`pipelines/translate-title.ts`) |
+| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](../steering/tools.md), [TL051](../steering/tools.md), [TL054](../steering/tools.md) | [sample4](../../samples/sample4), [sample5](../../samples/sample5) (`pipelines/translate-paragraphs.ts`) |
+| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample3](../../samples/sample3), [sample4](../../samples/sample4), [sample5](../../samples/sample5) (`openrouter-pool` backend of `pickLlmTool`) |
 | UC062 | Manage OpenRouter API key pool (was UC-62) | —          | — |
-| UC063 | Use remote GPU Ollama via a vault ref      | —          | [sample5](../samples/sample5) (remote ollama via gitignored `mt.local.json`) |
+| UC063 | Use remote GPU Ollama via a vault ref      | —          | [sample5](../../samples/sample5) (remote ollama via gitignored `mt.local.json`) |
 | UC064 | Call LLM through a keyless router          | —          | — |
 | UC065 | Share a team router behind a token         | —          | — |
 | UC066 | Provision LLM keys with KeePass            | —          | — |

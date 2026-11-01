@@ -1,6 +1,6 @@
 # @mt/core
 
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 Path: `packages/core/`
 
@@ -177,7 +177,7 @@ module-load-time installers: `.install(...)` accepts side-effect functions or `{
 immediately; `.pipeline(p)` returns the pipeline unchanged. Shape:
 `defineProcess().install(mockLlm({ source })).pipeline(definePipeline().from(…))`. Factories resolve
 installed providers at invoke time, so load-time install covers the whole run. See
-[../mock-tools.md](../mock-tools.md).
+[../guiding/mock-tools.md](../guiding/mock-tools.md).
 
 ### `uri.ts` — `UriRegistry`
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.
@@ -376,7 +376,7 @@ When `tool.cacheable === true`, output is memoised by `hash(toolName + version +
 
 `vault.ts`: gitignored store of LLM endpoints/keys (`~/.mt/vault.json` + `<root>/.mt/vault.json`, or only `MT_VAULT`).
 `loadVault`, `maskVault`, `parseVaultRef`/`resolveVaultRef` (`vault://entry/model`, `@vault/entry/model`), atomic 0600 `saveVault`.
-`loadGlobalContext` attaches it as non-enumerable `GlobalContext.vault` - never serialized. Details: [../vault.md](../vault.md).
+`loadGlobalContext` attaches it as non-enumerable `GlobalContext.vault` - never serialized. Details: [../guiding/vault.md](../guiding/vault.md).
 
 ### `vlt.ts` — vlt secret backend
 
@@ -413,7 +413,7 @@ provision stores atomically (mode 0600); `resolveEmbedValue()` honors `MT_EMBED=
 `MT_EMBED_PASSWORD_FILE`. Errors name the path/entry only.
 
 `loadVault` resolves all three ref kinds (`resolveRefs: false` keeps stored refs for
-editing); details: [../vault.md](../vault.md).
+editing); details: [../guiding/vault.md](../guiding/vault.md).
 
 A vault ref is also a config value: `settings.llm.use` in `mt.json` and env `MT_LLM_USE` expand into
 provider/baseUrl/keys/headers/model for the LLM gates ([tools.md](tools.md#llm-toolkit)). The router reads

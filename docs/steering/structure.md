@@ -1,5 +1,5 @@
 # Project Structure
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 ## Workspace Layout
 
@@ -23,11 +23,9 @@ machinum-pipeline/
 │   ├── sample2/    — Basic Markdown processing: waypoints + package tools, entity buffers, fork/parallel
 │   └── sample3/    — Multi-tool: JSONL → tools → fork → batch → MD
 ├── docs/
-│   ├── tdd.md       — Architecture spec
-│   ├── uc.md        — 54 use cases
-│   ├── tools.md     — Tool catalogue
-│   ├── kanban.md — Implementation roadmap (managed via `at kanban`)
-│   ├── steering/    — docs/steering/ (legacy; Kiro steering is in .kiro/steering/)
+│   ├── guiding/     — Architecture spec, use cases, samples, vault, onboarding
+│   ├── steering/    — Per-package steering docs (incl. canonical tool catalogue)
+│   ├── kanban.md    — Implementation roadmap (managed via `at kanban`)
 │   └── plans/       — Per-feature implementation plans
 ├── biome.json
 ├── turbo.json

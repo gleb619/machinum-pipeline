@@ -1,5 +1,5 @@
 # @mt/cli
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 Path: `packages/cli/`
 
@@ -164,7 +164,7 @@ over both. `list`/`show` and the file-editing flows load with `resolveRefs: fals
 and no secret is ever printed. `embed-init` / `embed-add` / `embed-list` / `embed-status` manage
 the embedded encrypted store (`--path`, `--secret`, `--username`, `--notes`, `--force`); the master
 password comes from `MT_EMBED_PASSWORD` / `_FILE` or a hidden TTY prompt. The router reads those same files as upstream key sources
-([router.md](router.md#vault-t118)). Details: [docs/vault.md](../vault.md).
+([router.md](router.md#vault-t118)). Details: [docs/vault.md](../guiding/vault.md).
 
 ### `src/utils/gitignore.ts`
 `ensureIgnorePatterns()` — appends the missing ignore lines (`.mt/`, `vault.json`, `*.vault.json`,

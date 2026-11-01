@@ -8,7 +8,7 @@ import { resolveWaypointRoot } from './settings.js'
  * Structural mirror of the `@mt/tools` glossary JSON (`chapters/glossary.json`).
  * `review://` deliberately does NOT import `@mt/tools` — waypoint depends on
  * `@mt/core` only — so the few fields it reads are declared locally and kept in
- * sync with `GlossaryTerm` by convention (see docs/waypoints.md WP010).
+ * sync with `GlossaryTerm` by convention (see docs/steering/waypoint.md WP010).
  */
 export interface ReviewTerm {
   id: string

@@ -61,7 +61,7 @@ Pick **one** focus area, rotating so ticks differ. Choose the area least recentl
 | Tools | `packages/tools/src/` | duplicated logic, missing tests, unvalidated I/O |
 | Waypoint | `packages/waypoint/src/` | non-atomic writes, URI-scheme gaps |
 | CLI/Backend/MCP | `packages/{cli,backend,mcp}/src/` | layer violations, duplicated handlers, error paths |
-| Docs vs code | `docs/uc.md`, `docs/steering/*` | promised behavior with no implementation |
+| Docs vs code | `docs/guiding/uc.md`, `docs/steering/*` | promised behavior with no implementation |
 
 Method: `codegraph_context` for the area, then ONE `codegraph_explore` for suspect symbols. Verify a claim by reading the
 exact lines before believing it. Also skim `at feedback list` and `git log -20` for recurring pain.

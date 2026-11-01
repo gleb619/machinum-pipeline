@@ -4,8 +4,8 @@
 > `.env` loading, vault loading, module import, URI alias/registry lookup, hooks, events and
 > checkpoints each fit in.
 > **Entry points traced:** `mt run`, `mt resume`, `mt install` (`packages/cli/src/commands/`).
-> **Related:** [architecture.md](architecture.md) · [steering/core.md](steering/core.md) ·
-> [steering/cli.md](steering/cli.md) · [vault.md](vault.md)
+> **Related:** [architecture.md](architecture.md) · [steering/core.md](../steering/core.md) ·
+> [steering/cli.md](../steering/cli.md) · [vault.md](vault.md)
 
 ---
 

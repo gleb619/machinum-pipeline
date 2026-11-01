@@ -5,7 +5,7 @@
  *   `ollama` | `mock` (default `mock` - offline, no API key, no router).
  * - `MT_LLM_MODEL` picks the model (default: the backend's own model).
  * - `MT_LLM_USE` / `settings.llm.use` = `vault://<entry>[/<model>]` | `@vault/<entry>[/<model>]`
- *   routes the chosen backend through a vault entry (endpoint, keys, model; see docs/vault.md).
+ *   routes the chosen backend through a vault entry (endpoint, keys, model; see docs/guiding/vault.md).
  *   Without an explicit `MT_LLM_MODEL` / `settings.llm.model`, the vault model is used.
  * - `mt.json` -> `settings.llm.tool` / `settings.llm.model` are the file-based fallback;
  *   the env vars win over them. Files listed in `mt.json` -> `imports` (a gitignored

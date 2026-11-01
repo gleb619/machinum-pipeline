@@ -36,15 +36,15 @@ Full context lives in docs - read on demand:
 
 | Doc | Contents |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | High-level architecture, run lifecycle, `.mt/` state dir |
+| [docs/guiding/architecture.md](docs/guiding/architecture.md) | High-level architecture, run lifecycle, `.mt/` state dir |
 | [docs/installation.md](docs/installation.md) | Install paths: source build, Bun binary, `mt-cli` wrapper, config/secrets, Docker |
-| [docs/uc.md](docs/uc.md) | Use cases |
-| [docs/tools.md](docs/tools.md) | Tool catalogue |
-| [docs/mock-tools.md](docs/mock-tools.md) | Mock/stub LLM tooling: `pickLlmTool`, slot overrides, `defineProcess().install(mockLlm(...))` |
+| [docs/guiding/uc.md](docs/guiding/uc.md) | Use cases |
+| [docs/steering/tools.md](docs/steering/tools.md) | Tool catalogue |
+| [docs/guiding/mock-tools.md](docs/guiding/mock-tools.md) | Mock/stub LLM tooling: `pickLlmTool`, slot overrides, `defineProcess().install(mockLlm(...))` |
 | [docs/kanban.md](docs/kanban.md) | Task board / roadmap (managed via `at kanban`; plans in [docs/plans/](docs/plans/)) |
 | [docs/change-workflow.md](docs/change-workflow.md) | Mandatory worktree → branch → gates → FF-merge lifecycle |
-| [docs/samples.md](docs/samples.md) | Sample projects + how to run them manually |
-| [docs/adding-a-sample.md](docs/adding-a-sample.md) | How to add a new sample (layout, scripts, IT pattern, checklist) |
+| [docs/guiding/samples.md](docs/guiding/samples.md) | Sample projects + how to run them manually |
+| [docs/guiding/adding-a-sample.md](docs/guiding/adding-a-sample.md) | How to add a new sample (layout, scripts, IT pattern, checklist) |
 
 ## Steering files
 

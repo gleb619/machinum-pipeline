@@ -1,5 +1,5 @@
 # @mt/backend
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 Path: `packages/backend/`
 

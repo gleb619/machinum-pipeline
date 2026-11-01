@@ -1,5 +1,5 @@
 # Tech Stack & Code Style
-← [Architecture](../architecture.md)
+← [Architecture](../guiding/architecture.md)
 
 ## Runtime & Toolchain
 
@@ -102,7 +102,7 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_CLIENT_BUDGET` | — | Router: daily USD budget per `X-MT-Client` id; unset/0 = off (global `MT_DAILY_BUDGET` still applies) |
 | `MT_CLIENT_ID` | — | Tools: sent as `X-MT-Client` on router-provider requests (per-client budget key); not a secret |
 | `MT_LLM_PROVIDER` | `router` | `router` \| `openrouter` \| `openai` \| `ollama` \| `anthropic` \| `custom` |
-| `MT_LLM_USE` | — | Vault ref `vault://<entry>[/<model>]` \| `@vault/<entry>[/<model>]`; expands to provider/baseUrl/keys/headers/model (same as mt.json `settings.llm.use`, which wins). See [vault.md](../vault.md) |
+| `MT_LLM_USE` | — | Vault ref `vault://<entry>[/<model>]` \| `@vault/<entry>[/<model>]`; expands to provider/baseUrl/keys/headers/model (same as mt.json `settings.llm.use`, which wins). See [vault.md](../guiding/vault.md) |
 | `MT_LLM_MODEL` | provider default | Default model id |
 | `MT_LLM_BASE_URL` | provider default | API base URL (required for `custom`) |
 | `MT_LLM_API_KEY` | — | API key for any provider (wins over provider-specific vars) |
@@ -121,17 +121,17 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_CHUNK_SIZE` | `6000` | Default chunk size in tokens for the `chunkSplit` tool (below mt.json `settings.chunkSize` and per-envelope `meta.chunkSize` / tool option) |
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |
-| `MT_VAULT` | — | Path to a single vault file; when set, user/project vaults are ignored ([vault.md](../vault.md)) |
-| `MT_VLT` | `true` | Vault `vlt:<name>` secret refs: `false` disables vlt resolution entirely ([vault.md](../vault.md)) |
+| `MT_VAULT` | — | Path to a single vault file; when set, user/project vaults are ignored ([vault.md](../guiding/vault.md)) |
+| `MT_VLT` | `true` | Vault `vlt:<name>` secret refs: `false` disables vlt resolution entirely ([vault.md](../guiding/vault.md)) |
 | `MT_VLT_SKIP_VERIFY` | `false` | `mt vault vlt-install`: skip the release-archive sha256 checksum verification (warned; not recommended) |
 | `VLT_CONFIG_PATH` | `~/.vlt.toml` | vlt config file location (vlt itself also reads this) |
-| `MT_KEEPASS` | `true` | Vault `keepass:<title\|uuid>` secret refs: `false` disables resolution entirely ([vault.md](../vault.md)) |
-| `MT_KEEPASS_PATH` | `$MT_HOME\|~/.mt/secrets.kdbx` | KeePass database path ([vault.md](../vault.md)) |
+| `MT_KEEPASS` | `true` | Vault `keepass:<title\|uuid>` secret refs: `false` disables resolution entirely ([vault.md](../guiding/vault.md)) |
+| `MT_KEEPASS_PATH` | `$MT_HOME\|~/.mt/secrets.kdbx` | KeePass database path ([vault.md](../guiding/vault.md)) |
 | `MT_KEEPASS_PASSWORD` | — | KeePass master password (CI; interactive commands prompt instead) |
 | `MT_KEEPASS_PASSWORD_FILE` | — | File containing the master password (one trailing newline stripped) |
 | `MT_KEEPASS_KEY_FILE` | — | Optional KeePass key file |
-| `MT_EMBED` | `true` | Vault `embed:<name>` secret refs: `false` disables resolution entirely ([vault.md](../vault.md)) |
-| `MT_EMBED_PATH` | `$MT_HOME\|~/.mt/secrets.embed.json` | Embedded encrypted store path ([vault.md](../vault.md)) |
+| `MT_EMBED` | `true` | Vault `embed:<name>` secret refs: `false` disables resolution entirely ([vault.md](../guiding/vault.md)) |
+| `MT_EMBED_PATH` | `$MT_HOME\|~/.mt/secrets.embed.json` | Embedded encrypted store path ([vault.md](../guiding/vault.md)) |
 | `MT_EMBED_PASSWORD` | — | Embedded store master password (CI; interactive commands prompt instead) |
 | `MT_EMBED_PASSWORD_FILE` | — | File containing the master password (one trailing newline stripped) |
 

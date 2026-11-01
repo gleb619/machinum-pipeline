@@ -12,7 +12,7 @@
 Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 
 Integration tests for samples live under `samples/sample*/tests/` and are part of the
-pre-merge gate (see [change-workflow.md](change-workflow.md)).
+pre-merge gate (see [change-workflow.md](../change-workflow.md)).
 
 ## LLM backend of a sample
 
