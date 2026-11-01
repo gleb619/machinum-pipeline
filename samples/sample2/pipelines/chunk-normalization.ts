@@ -13,15 +13,14 @@ import {
 } from '@mt/core'
 import {
   type ChapterDoc,
+  VAR_CHUNK_COUNT,
   VAR_CHUNK_SEPARATOR,
   chapterDocBuild,
   chapterDocEmit,
   chapterIndexer,
-  chunkClean,
   createChunkSplit,
   heuristicTokenCount,
   mdOutputEmitter,
-  parseChunks,
   readChapterDoc,
   seriesSplitTool,
   splitIntoChunks,
@@ -33,15 +32,19 @@ import '@mt/waypoint'
 // ---------------------------------------------------------------------------
 // Chunk normalization — the `---` separator round-trip and the Structure Ladder.
 //
-// Two pipelines, both built from shipped pieces only:
+// Pipelines in this file, all built from shipped pieces only:
 //
 // - `cleanSplitPipeline` (the default export): a markdown chapter is cleaned of
 //   its decorative `---` lines, split into token-bounded chunks and written back
 //   with `---` between the chunks. A second stage reads that output again and
-//   shows separator reuse: the chunks stay exactly the same.
+//   shows separator reuse: the chunks stay exactly the same. The count and the
+//   separator stay in the exchange (`chunkCount` / `chunkSeparator`); the
+//   markdown file contains only chunk text.
 // - `ladderPipeline`: the Structure Ladder — a JSONL record becomes a markdown
 //   document, and every rung below it (chunks, paragraphs, lines, words) is one
 //   envelope per unit, handed over through an entity buffer.
+// - `tokenLadderPipeline`: the alternate descent `chunks://` -> `tokens://`.
+// - `seriesSplitPipeline`: split a chapter into equal parts with series frontmatter.
 //
 // The only local code is data glue inside `.flatMap()` (how a document becomes
 // chunks, paragraphs, lines and words) and logging inside `.tap()`.
@@ -61,40 +64,21 @@ const CHUNK_SIZE = Number(process.env.MT_CHUNK_SIZE ?? 40)
 const chunkSplitter = createChunkSplit({ chunkSize: CHUNK_SIZE })
 
 // ---------------------------------------------------------------------------
-// The chunk-count header
-//
-// The `md://` target writes the payload verbatim — it has no frontmatter of its
-// own — so the sample puts the chunk count into the markdown itself, as a
-// comment header. The header is stripped again before the next split, so it is
-// never counted as content and a re-run stays byte-identical.
-// ---------------------------------------------------------------------------
-
-/** Remove a chunk-count header (and the blank lines behind it) from a text. */
-function stripChunkHeader(text: string): string {
-  return text.replace(/^\s*<!--\s*chunkCount:\s*\d+\s*-->\s*\n+/, '')
-}
-
-/** Prefix a chunked text with the chunk-count header. */
-function stampChunkHeader(text: string, chunkCount: number): string {
-  return `<!-- chunkCount: ${chunkCount} -->\n\n${stripChunkHeader(text).trimEnd()}`
-}
-
-// ---------------------------------------------------------------------------
 // Stage 1 — CLEAN + SPLIT
 //
-// `md://` reads the chapter as one envelope. `chunkClean` drops the decorative
-// `---` lines (and every other decorative-only line), `chunkSplit` cuts the
-// text into token-bounded chunks and writes them back with `---` between them.
-// The chunk count lands in `meta.chunkCount` and in the `chunkCount` variable.
+// `md://` reads the chapter as one envelope. `chunkSplit` drops the decorative
+// `---` lines (and every other decorative-only line), cuts the text into
+// token-bounded chunks and writes them back with `---` between them. The chunk
+// count lands in `meta.chunkCount` and in the durable `chunkCount` variable.
 //
 // The `md://` directory target owns the output folder: `mdOutputEmitter` only
-// names the file, the target creates `out/` and writes `out/chunked.md`.
+// names the file, the target creates `chapters/` and writes `chapters/chunked.md`.
 // ---------------------------------------------------------------------------
 
-/** Write the chunked text as `out/chunked.md`. */
+/** Write the chunked text as `chapters/chunked.md`. */
 const emitChunked = mdOutputEmitter({ name: 'chunked', filename: () => 'chunked.md' })
 
-/** Write the chunked text of the second run as `out/chunked-reused.md`. */
+/** Write the chunked text of the second run as `chapters/chunked-reused.md`. */
 const emitChunkedReused = mdOutputEmitter({
   name: 'chunked-reused',
   filename: () => 'chunked-reused.md',
@@ -102,22 +86,15 @@ const emitChunkedReused = mdOutputEmitter({
 
 const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   .from('md://./chapters/chapter1.md')
-  .use(chunkClean)
   .use(chunkSplitter)
   .tap(async (env) => {
     console.log(
       JSON.stringify({
         stage: 'clean-split',
-        chunkCount: env.meta.chunkCount,
+        chunkCount: getVariable<number>(env, VAR_CHUNK_COUNT),
         separator: getVariable<string>(env, VAR_CHUNK_SEPARATOR),
       }),
     )
-  })
-  // The header carries the same count the tool put into the exchange meta:
-  // both are `parseChunks()` of the very same text.
-  .flatMap(async (item: unknown) => {
-    const text = String(item)
-    return [stampChunkHeader(text, parseChunks(text).length)]
   })
   .use(emitChunked)
   .to('md://./chapters')
@@ -132,14 +109,15 @@ const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
 
 const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
   .from('md://./chapters/chunked.md')
-  .flatMap(async (item: unknown) => [stripChunkHeader(String(item))])
   .use(chunkSplitter)
   .tap(async (env) => {
-    console.log(JSON.stringify({ stage: 'reuse', chunkCount: env.meta.chunkCount, reused: true }))
-  })
-  .flatMap(async (item: unknown) => {
-    const text = String(item)
-    return [stampChunkHeader(text, parseChunks(text).length)]
+    console.log(
+      JSON.stringify({
+        stage: 'reuse',
+        chunkCount: getVariable<number>(env, VAR_CHUNK_COUNT),
+        reused: true,
+      }),
+    )
   })
   .use(emitChunkedReused)
   .to('md://./chapters')

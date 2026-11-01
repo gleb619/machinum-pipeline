@@ -145,25 +145,25 @@ pnpm run runner:branches    # branch/parallel logs only
 
 ## Chunk normalization (`pipelines/chunk-normalization.ts`)
 
-Two pipelines, both built from shipped pieces only — the package tools `chunkClean` /
-`chunkSplit` / `splitIntoChunks` / `parseChunks` / `readChapterDoc` / `tokenizeWords` and the
+The chunk pipelines and the Structure Ladder, all built from shipped pieces only — the package
+tools `chunkSplit` / `splitIntoChunks` / `parseChunks` / `readChapterDoc` / `tokenizeWords` and the
 built-in waypoints. The only local code is data glue inside `.flatMap()` and logging inside
 `.tap()`.
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `cleanSplitPipeline` (default) | `pnpm run runner:chunks` | Chapter → clean → token-bounded chunks → `out/chunked.md`, then the same file again → `out/chunked-reused.md` |
-| `ladderPipeline` | `pnpm run runner:ladder` | The Structure Ladder → `out/ladder-chapters/*.md` + `out/ladder-summary.md` |
+| `cleanSplitPipeline` (default) | `pnpm run runner:chunks` | Chapter → `chunkSplit` (clean + token-bounded chunks) → `chapters/chunked.md`, then the same file again → `chapters/chunked-reused.md` |
+| `ladderPipeline` | `pnpm run runner:ladder` | The Structure Ladder → `chapters/ladder-chapters/*.md` + `chapters/ladder-summary.md` |
 
 ### Clean + split, and why the second run changes nothing
 
 ```
 chapters/chapter1.md
   → md://./chapters/chapter1.md     (one envelope: the whole chapter)
-  → chunkClean                       (drops the decorative `---` lines)
-  → chunkSplit                       (cuts the text into token-bounded chunks,
+  → chunkSplit                       (drops the decorative `---` lines, cuts the
+                                      text into token-bounded chunks and
                                       writes them back with `---` between them)
-  → md://./out                       (out/chunked.md)
+  → md://./chapters                  (chapters/chunked.md)
 ```
 
 - **Chunk size.** `chunkSplit` resolves the target as `meta.chunkSize` → tool option →
@@ -171,25 +171,24 @@ chapters/chapter1.md
   (`createChunkSplit({ chunkSize: CHUNK_SIZE })`, `CHUNK_SIZE = MT_CHUNK_SIZE ?? 40`) so one
   chapter always splits into several chunks; `MT_CHUNK_SIZE` still wins when it is set:
   `MT_CHUNK_SIZE=100 pnpm run runner:chunks`.
-- **The chunk count** lands in `meta.chunkCount` and in the `chunkCount` variable, and in the
-  output file. The `md://` target writes the payload verbatim — it has no frontmatter of its
-  own — so the sample writes the count as a comment header (`<!-- chunkCount: 4 -->`) instead
-  of a sidecar file. The header is stripped again before the next split, so it never counts as
-  content.
-- **Separator reuse.** Stage two reads `out/chunked.md` and runs the same splitter. The text
+- **Metadata stays out of the file.** `chunkSplit` sets both `meta.chunkCount` (in-flight) and
+  the durable `chunkCount` variable, plus `chunkSeparator`. The `md://` target writes the payload
+  verbatim, so `chapters/chunked.md` is pure chunk text — no synthetic comment header. Downstream
+  stages read the text they actually split, and the `md://` round-trip stays byte-identical.
+- **Separator reuse.** Stage two reads `chapters/chunked.md` and runs the same splitter. The text
   already carries `---` separators, so the splitter keeps the chunks as they are instead of
-  cutting them again — `out/chunked-reused.md` is byte-identical to `out/chunked.md`.
+  cutting them again — `chapters/chunked-reused.md` is byte-identical to `chapters/chunked.md`.
 
 ### The Structure Ladder
 
 ```
 jsonl://./jsonl/ladder.jsonl      (a chapter record)
-  → chapterDocBuild + chapterIndexer + chapterDocEmit   → md://./out/ladder-chapters
+  → chapterDocBuild + chapterIndexer + chapterDocEmit   → md://./chapters/ladder-chapters
   → readChapterDoc + splitIntoChunks (md → chunks)      → chunks://ladder
   → split(/\n\n+/)                 (chunk → paragraphs) → paragraphs://ladder  (chunkId)
   → split('\n')                    (paragraph → lines)  → lines://ladder
   → tokenizeWords                  (line → words)       → words://ladder
-  → batch + summary                                     → md://./out (out/ladder-summary.md)
+  → batch + summary                                     → md://./chapters (chapters/ladder-summary.md)
 ```
 
 Every step down the ladder is one `.flatMap()` (one envelope in, many out) plus one entity
@@ -212,18 +211,18 @@ declares one. The summary has one row per rung:
 
 `chunks://` also branches into `tokens://` (tiktoken-style BPE tokens, what the LLM sees).
 `tokenLadderPipeline` runs jsonl → md → `chunks://` → `tokens://` → summary and writes
-`out/token-ladder-summary.md` with the chunk count, the token count and a `Heuristic` flag
+`chapters/token-ladder-summary.md` with the chunk count, the token count and a `Heuristic` flag
 (true only when `gpt-tokenizer` is unavailable and ~4-char pieces are used). With the demo
 fixture: 4 chunks, 86 tokens.
 
 ```bash
-pnpm run runner:tokens    # out/token-ladder-summary.md
+pnpm run runner:tokens    # chapters/token-ladder-summary.md
 ```
 
 ```bash
 pnpm run prepare-input    # writes jsonl/ladder.jsonl too
-pnpm run runner:chunks    # out/chunked.md + out/chunked-reused.md
-pnpm run runner:ladder    # out/ladder-chapters/*.md + out/ladder-summary.md
+pnpm run runner:chunks    # chapters/chunked.md + chapters/chunked-reused.md
+pnpm run runner:ladder    # chapters/ladder-chapters/*.md + chapters/ladder-summary.md
 ```
 
 ## Run manually
@@ -303,11 +302,12 @@ pipelines, and asserts:
 
 `tests/chunk-normalization.test.ts` runs the chunk pipelines and asserts:
 
-- `out/chunked.md` holds the chapter as chunks separated by `---`,
-- the chunk count in the exchange meta, in the file header and in the number of separators
-  agree (`chunkCount - 1` separators, so no decorative line survived the clean step),
-- the second run reuses the separators: `out/chunked-reused.md` is identical to
-  `out/chunked.md` and both runs report the same chunk count,
+- `chapters/chunked.md` holds the chapter as chunks separated by `---`,
+- the chunk count in the `chunkCount` variable and in the number of separators agree
+  (`chunkCount - 1` separators, so no decorative line survived the clean step) and the file
+  contains only chunk text,
+- the second run reuses the separators: `chapters/chunked-reused.md` is identical to
+  `chapters/chunked.md` and both runs report the same chunk count,
 - the ladder summary has one row per rung and the counts agree with the run log and with the
   fixture (2 records, 2 documents, more chunks than documents, at least one paragraph per chunk, 5 lines,
   73 words).

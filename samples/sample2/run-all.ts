@@ -15,7 +15,7 @@
  *     pipelines read (`jsonl/*.jsonl`) always exist.
  *  3. The sibling runners run one by one. sample2 cannot run them in parallel:
  *     `basic-md-processing.ts` and `custom-md-processing.ts` both write
- *     `output.md`, and `chunk-normalization.ts` writes `out/ladder-chapters/`
+ *     `output.md`, and `chunk-normalization.ts` writes `chapters/ladder-chapters/`
  *     from two of its pipelines. A sample whose runners write to disjoint paths
  *     can raise `CONCURRENCY` and let them run side by side.
  *  4. Each run is recorded: exit code, duration, the run id and the files the

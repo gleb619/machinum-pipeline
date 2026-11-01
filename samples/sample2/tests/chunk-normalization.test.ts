@@ -7,10 +7,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const MT_BIN = join(SAMPLE_DIR, 'node_modules', '.bin', 'mt')
 const CHAPTER = join(SAMPLE_DIR, 'chapters', 'chapter1.md')
-const CHUNKED = join(SAMPLE_DIR, 'out', 'chunked.md')
-const CHUNKED_REUSED = join(SAMPLE_DIR, 'out', 'chunked-reused.md')
-const LADDER_SUMMARY = join(SAMPLE_DIR, 'out', 'ladder-summary.md')
-const TOKEN_SUMMARY = join(SAMPLE_DIR, 'out', 'token-ladder-summary.md')
+const CHUNKED = join(SAMPLE_DIR, 'chapters', 'chunked.md')
+const CHUNKED_REUSED = join(SAMPLE_DIR, 'chapters', 'chunked-reused.md')
+const LADDER_SUMMARY = join(SAMPLE_DIR, 'chapters', 'ladder-summary.md')
+const TOKEN_SUMMARY = join(SAMPLE_DIR, 'chapters', 'token-ladder-summary.md')
 
 /** Chapter fixture of the Structure Ladder demo (same file as `prepare-input.ts`). */
 const LADDER_RECORDS = [
@@ -47,7 +47,11 @@ let hasFailure = false
 
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'ladder.jsonl'), { force: true })
-  await rm(join(SAMPLE_DIR, 'out'), { recursive: true, force: true })
+  await rm(CHUNKED, { force: true })
+  await rm(CHUNKED_REUSED, { force: true })
+  await rm(LADDER_SUMMARY, { force: true })
+  await rm(TOKEN_SUMMARY, { force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'ladder-chapters'), { recursive: true, force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
 
@@ -121,14 +125,16 @@ describe('cleanSplitPipeline', () => {
     expect(content).toContain('The Structure Ladder')
   })
 
-  it('records the chunk count in the exchange meta and in the file header', async () => {
+  it('reports the chunk count from the variable and leaves only chunk text in the file', async () => {
     const stdout = run()
     const split = events(stdout).find((entry) => entry.stage === 'clean-split')
     const chunkCount = Number(split?.chunkCount)
     expect(chunkCount).toBeGreaterThan(1)
 
     const content = await readFile(CHUNKED, 'utf-8')
-    expect(content.startsWith(`<!-- chunkCount: ${chunkCount} -->`)).toBe(true)
+    // The count stays in the exchange; the markdown payload is pure chunk text.
+    expect(content).not.toContain('chunkCount')
+    expect(content.startsWith('# The Structure Ladder')).toBe(true)
     // Every separator line in the output is a chunk separator — nothing else.
     expect(countLines(content, '---')).toBe(chunkCount - 1)
   })
