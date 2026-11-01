@@ -48,26 +48,26 @@ function yamlEscapeString(value: string): string {
 }
 
 function serializeFrontmatter(doc: ChapterDoc): string {
-  const lines: string[] = ['---']
+  const fields: string[] = []
 
   if (doc.number !== undefined) {
-    lines.push(`number: ${doc.number}`)
+    fields.push(`number: ${doc.number}`)
   }
 
   if (doc.series !== undefined && doc.series !== '') {
-    lines.push(`series: ${yamlEscapeString(doc.series)}`)
+    fields.push(`series: ${yamlEscapeString(doc.series)}`)
   }
 
   if (doc.warnings.length > 0) {
-    lines.push('warnings:')
+    fields.push('warnings:')
     for (const w of doc.warnings) {
-      lines.push(`  - id: ${typeof w.id === 'string' ? yamlEscapeString(w.id) : w.id}`)
-      lines.push(`    text: ${yamlEscapeString(w.text)}`)
+      fields.push(`  - id: ${typeof w.id === 'string' ? yamlEscapeString(w.id) : w.id}`)
+      fields.push(`    text: ${yamlEscapeString(w.text)}`)
     }
   }
 
-  lines.push('---')
-  return lines.join('\n')
+  if (fields.length === 0) return ''
+  return ['---', ...fields, '---'].join('\n')
 }
 
 function normalizeWarnings(input: unknown): ChapterDocWarning[] {
@@ -148,7 +148,8 @@ function normalizeBody(input: unknown): ChapterDocParagraph[] {
 export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
   const parts: string[] = []
 
-  parts.push(serializeFrontmatter(doc))
+  const frontmatter = serializeFrontmatter(doc)
+  if (frontmatter) parts.push(frontmatter)
   parts.push('')
   parts.push(`# ${doc.title}`)
 
@@ -170,7 +171,10 @@ export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
   const formattedBody = formattedBodyResult.formatted
 
   // Remove leading blank line that formatString may add before the heading
-  return `${rawFrontmatter}\n${formattedBody}`
+  if (rawFrontmatter) {
+    return `${rawFrontmatter}\n${formattedBody}`
+  }
+  return formattedBody.replace(/^\n+/, '')
 }
 
 // ---------------------------------------------------------------------------
