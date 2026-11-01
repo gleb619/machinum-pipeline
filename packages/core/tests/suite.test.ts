@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../src/engine/runner.js', () => ({ Runner: mocks.Runner }))
 vi.mock('../src/config.js', () => ({ loadGlobalContext: mocks.loadGlobalContext }))
 
-import { defineSuite, isPipelineSuite } from '../src/suite.js'
+import { defineSuite, isPipeline, isPipelineSuite } from '../src/suite.js'
 
 function makePipeline(id: string): Pipeline {
   return {
@@ -161,5 +161,91 @@ describe('PipelineSuite.run', () => {
 
     await expect(suite.run(makeContext())).rejects.toBe(failure)
     expect(events).toEqual(['construct:one', 'start:one'])
+  })
+})
+
+describe('suite modes', () => {
+  it('defaults to sync', () => {
+    expect(defineSuite([makePipeline('one')]).mode).toBe('sync')
+  })
+
+  it('accepts an explicit mode', () => {
+    expect(defineSuite([makePipeline('one')], { mode: 'parallel' }).mode).toBe('parallel')
+  })
+
+  it('sync() and parallel() return new suites without mutating the original', () => {
+    const one = makePipeline('one')
+    const two = makePipeline('two')
+    const sync = defineSuite([one, two], { id: 'all' })
+
+    const parallel = sync.parallel()
+    const backToSync = parallel.sync()
+
+    expect(sync.mode).toBe('sync')
+    expect(parallel.mode).toBe('parallel')
+    expect(backToSync.mode).toBe('sync')
+    expect(parallel).not.toBe(sync)
+    expect(backToSync).not.toBe(parallel)
+    for (const suite of [sync, parallel, backToSync]) {
+      expect(suite.id).toBe('all')
+      expect(suite.pipelines).toEqual([one, two])
+    }
+  })
+
+  it('starts every pipeline before resolving any runner in parallel mode', async () => {
+    const started: string[] = []
+    const resolvers = new Map<string, () => void>()
+
+    mocks.Runner.mockImplementation((pipeline) => ({
+      start: () =>
+        new Promise<void>((resolve) => {
+          started.push(pipeline.id)
+          resolvers.set(pipeline.id, resolve)
+        }),
+    }))
+
+    const suite = defineSuite([makePipeline('one'), makePipeline('two')], {
+      mode: 'parallel',
+    })
+    const running = suite.run(makeContext())
+
+    expect(started).toEqual(['one', 'two'])
+    resolvers.get('one')?.()
+    resolvers.get('two')?.()
+    await running
+  })
+
+  it('reports each runner through onRunner once, with its pipeline', async () => {
+    const runners: unknown[] = []
+    mocks.Runner.mockImplementation(() => {
+      const runner = { start: async () => undefined }
+      runners.push(runner)
+      return runner
+    })
+
+    const suite = defineSuite([makePipeline('one'), makePipeline('two')])
+    const seen: string[] = []
+
+    await suite.run(makeContext(), {
+      onRunner: (runner, pipeline) => {
+        seen.push(`${pipeline.id}:${runners.includes(runner)}`)
+      },
+    })
+
+    expect(seen).toEqual(['one:true', 'two:true'])
+  })
+})
+
+describe('isPipeline', () => {
+  it('accepts a pipeline-shaped object', () => {
+    expect(isPipeline(makePipeline('one'))).toBe(true)
+  })
+
+  it('rejects values without a string id or steps array', () => {
+    expect(isPipeline(null)).toBe(false)
+    expect(isPipeline('pipeline')).toBe(false)
+    expect(isPipeline({ id: 'one' })).toBe(false)
+    expect(isPipeline({ steps: [] })).toBe(false)
+    expect(isPipeline({ id: 'one', steps: 'nope' })).toBe(false)
   })
 })

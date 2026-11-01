@@ -1,7 +1,8 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Runner } from '@mt/core'
+import { Runner, defineSuite } from '@mt/core'
+import type { Pipeline } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
 import { runCommand } from '../../src/commands/run.js'
@@ -176,6 +177,102 @@ describe('run command', () => {
     expect(console.error).toHaveBeenCalledWith(
       expect.stringContaining('Pipeline failed: Runner failed'),
     )
+  })
+
+  describe('suite loading', () => {
+    function plainPipeline(id: string): Pipeline {
+      return {
+        id,
+        retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+        onError: 'fail-run',
+        steps: [],
+      }
+    }
+
+    function logText(): string {
+      return vi
+        .mocked(console.log)
+        .mock.calls.flat()
+        .map((line) => String(line))
+        .join('\n')
+    }
+
+    async function mockModule(pipelinePath: string, exports: Record<string, unknown>) {
+      await writeFile(pipelinePath, '// mocked')
+      vi.doMock(pipelinePath, () => exports)
+    }
+
+    it('runs an explicit default suite', async () => {
+      const one = plainPipeline('one')
+      const two = plainPipeline('two')
+      const suite = defineSuite([one, two], { id: 'declared-suite', mode: 'sync' })
+      const pipelinePath = join(testDir, 'pipeline.ts')
+      await mockModule(pipelinePath, { default: suite, one, two })
+
+      await runCommand(['pipeline.ts'])
+
+      const output = logText()
+      expect(output).toContain('Starting suite: declared-suite (2 pipelines, mode: sync)')
+      expect(output).toContain('✅ Suite complete.')
+      expect(output).toContain('one -> ')
+      expect(output).toContain('two -> ')
+    })
+
+    it('builds an implicit suite from every exported pipeline', async () => {
+      const one = plainPipeline('one')
+      const two = plainPipeline('two')
+      const pipelinePath = join(testDir, 'pipeline.ts')
+      await mockModule(pipelinePath, { default: one, alpha: two, beta: one })
+
+      await runCommand(['pipeline.ts'])
+
+      const output = logText()
+      expect(output).toContain('Starting suite: pipeline-suite (2 pipelines, mode: sync)')
+      expect(output).toContain('✅ Suite complete.')
+      expect(output).toContain('one -> ')
+      expect(output).toContain('two -> ')
+    })
+
+    it('--pipeline still selects exactly one export', async () => {
+      const suite = defineSuite([plainPipeline('one')], { id: 'declared-suite' })
+      const typed = plainPipeline('typed')
+      const pipelinePath = join(testDir, 'pipeline.ts')
+      await mockModule(pipelinePath, { default: suite, typed })
+
+      await runCommand(['pipeline.ts', '--pipeline', 'typed'])
+
+      const output = logText()
+      expect(output).toContain('Pipeline complete')
+      expect(output).not.toContain('Suite complete')
+      expect(mockStart).toHaveBeenCalled()
+    })
+
+    it('runs the error hook and exits when a suite pipeline fails', async () => {
+      const failingTarget = {
+        uri: 'mem://fail',
+        open: async () => undefined,
+        write: async () => {
+          throw new Error('boom')
+        },
+        close: async () => undefined,
+      }
+      const failing: Pipeline = {
+        id: 'failing',
+        retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+        onError: 'fail-run',
+        steps: [
+          { type: 'tap', config: { fn: () => undefined } },
+          { type: 'target', config: { uri: 'mem://fail', instance: failingTarget } },
+        ],
+      }
+      const suite = defineSuite([failing], { id: 'broken-suite' })
+      const pipelinePath = join(testDir, 'pipeline.ts')
+      await mockModule(pipelinePath, { default: suite })
+
+      await expect(runCommand(['pipeline.ts'])).rejects.toThrow('EXIT 1')
+
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Suite failed: boom'))
+    })
   })
 
   describe('lifecycle hooks (scripts.start / scripts.end)', () => {

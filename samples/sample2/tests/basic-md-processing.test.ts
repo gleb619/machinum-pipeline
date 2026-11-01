@@ -24,6 +24,7 @@ let hasFailure = false
 async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), { force: true })
   await rm(join(SAMPLE_DIR, 'output.md'), { force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, 'output-typed.md'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
@@ -67,7 +68,7 @@ describe('default pipeline', () => {
   })
 
   it('writes output.md with every input line', async () => {
-    const content = await readFile(join(SAMPLE_DIR, 'output.md'), 'utf-8')
+    const content = await readFile(join(SAMPLE_DIR, 'chapters', 'output.md'), 'utf-8')
     for (const record of RECORDS) {
       expect(content).toContain(record.text)
     }

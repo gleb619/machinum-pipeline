@@ -66,7 +66,7 @@ const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
   })
   .to('md://./chapters/output.md')
 
-export default defaultPipeline
+export { defaultPipeline }
 
 // ---------------------------------------------------------------------------
 // Typed chapter content manipulation example.
@@ -147,22 +147,23 @@ export const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   })
   .to('void://')
 
-export const allPipelines = defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
+export default defineSuite([defaultPipeline, typedContentPipeline, statsPipeline], {
   id: 'basic-md-all',
+  mode: 'sync',
 })
 
 // ---------------------------------------------------------------------------
 // Running this file
 //
-// `mt run` does one pipeline per process:
+// `mt run <file>` runs the file's default suite (all three pipelines):
 //   mt run ./pipelines/basic-md-processing.ts
+//
+// `--pipeline <name>` runs exactly one export:
+//   mt run ./pipelines/basic-md-processing.ts --pipeline defaultPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline
 //
-// package.json is still half-wired: `runner` is `echo 'todo'` and there is no
-// script for typedContentPipeline. Point it at the commands above.
-//
-// run all three in one process:
-//   import { allPipelines } from './basic-md-processing.ts'
-//   await allPipelines.run()
+// Suite mode is `'sync' | 'parallel'`:
+//   export default defineSuite([...], { mode: 'parallel' })
+//   defineSuite([...]).parallel().sync()
 // ---------------------------------------------------------------------------

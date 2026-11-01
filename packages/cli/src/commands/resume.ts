@@ -3,11 +3,13 @@ import {
   Runner,
   Store,
   importPipelineModule,
+  isPipeline,
+  isPipelineSuite,
   loadGlobalContext,
   nativeAddonHint,
   packageResolutionHint,
 } from '@mt/core'
-import type { Pipeline, RunStateData } from '@mt/core'
+import type { Pipeline, PipelineSuite, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
 
@@ -16,6 +18,7 @@ import { runLifecycleScript } from './utils/lifecycle.js'
  *
  * The pipeline file recorded in `.mt/runs/<runId>/state.json` is used when no file
  * argument is given, so the operator does not have to remember what started the run.
+ * A run always belongs to one pipeline — suites cannot be resumed as a whole.
  */
 export async function resumeCommand(args: string[]): Promise<void> {
   const [runId, pipelineFileArg] = args
@@ -29,29 +32,31 @@ export async function resumeCommand(args: string[]): Promise<void> {
   // Build global context
   const globalContext = await loadGlobalContext(projectRoot)
 
-  // Resolve pipeline file: explicit arg wins, otherwise read it from the run's state.json
-  let pipelineFile = pipelineFileArg
-  let pipelineName: string | undefined
-  if (!pipelineFile) {
-    const store = new Store(join(projectRoot, '.mt'))
-    if (!(await store.exists('runs', runId, 'state.json'))) {
-      throw new Error(
-        `No state found for run '${runId}' (expected .mt/runs/${runId}/state.json). Pass the pipeline file explicitly: mt resume <runId> <pipeline.ts>`,
-      )
-    }
-    const state = await store.readJson<RunStateData>('runs', runId, 'state.json')
-    if (!state.pipelineFile) {
-      throw new Error(
-        `Run '${runId}' was started by an older version and has no pipelineFile in state.json. ` +
-          `Pass the pipeline file explicitly: mt resume ${runId} <pipeline.ts>`,
-      )
-    }
-    pipelineFile = state.pipelineFile
-    pipelineName = state.pipelineName
+  // Always read state.json: it carries the pipeline id, plus file/name provenance.
+  const store = new Store(join(projectRoot, '.mt'))
+  if (!(await store.exists('runs', runId, 'state.json'))) {
+    throw new Error(
+      `No state found for run '${runId}' (expected .mt/runs/${runId}/state.json). Cannot resume without the recorded pipeline id.`,
+    )
+  }
+  const state = await store.readJson<RunStateData>('runs', runId, 'state.json')
+  if (!state.pipelineId) {
+    throw new Error(
+      `Run '${runId}' has no pipelineId in state.json. Pass the pipeline file explicitly: mt resume ${runId} <pipeline.ts>`,
+    )
   }
 
-  // Load pipeline
-  const pipeline = await loadPipeline(pipelineFile, pipelineName)
+  const pipelineFile = pipelineFileArg ?? state.pipelineFile
+  if (!pipelineFile) {
+    throw new Error(
+      `Run '${runId}' was started by an older version and has no pipelineFile in state.json. ` +
+        `Pass the pipeline file explicitly: mt resume ${runId} <pipeline.ts>`,
+    )
+  }
+  const pipelineName = state.pipelineName
+
+  // Load the pipeline that owns this run (possibly nested in a suite export)
+  const pipeline = await loadPipeline(pipelineFile, state.pipelineId, pipelineName)
 
   // Initialize Runner (re-record provenance so later pauses/resumes keep it)
   const pipelineFileRel = relative(projectRoot, resolve(projectRoot, pipelineFile))
@@ -106,15 +111,69 @@ async function runSwallowingHookErrors(
 }
 
 /**
- * Load a pipeline module from a file path.
+ * Load the pipeline that owns a run.
+ *
+ * A named export is resolved first. Otherwise the module exports are searched for
+ * a pipeline with `pipelineId`, including pipelines nested in suite exports. A
+ * suite itself cannot be resumed — only the individual pipeline run can.
  */
-async function loadPipeline(filePath: string, name?: string): Promise<Pipeline> {
+async function loadPipeline(
+  filePath: string,
+  pipelineId: string,
+  name?: string,
+): Promise<Pipeline> {
   const resolvedPath = resolve(process.cwd(), filePath)
-  const mod = await importPipelineModule(resolvedPath)
-  const pipeline = (name ? mod[name] : (mod.default ?? mod.pipeline)) as Pipeline | undefined
-  if (!pipeline || typeof pipeline.id !== 'string') {
-    const hint = name ? ` (named export '${name}' not found or invalid)` : ''
-    throw new Error(`Invalid pipeline module: ${filePath}.${hint}`)
+  const mod = (await importPipelineModule(resolvedPath)) as Record<string, unknown>
+
+  if (name) {
+    const selected = mod[name]
+    if (isPipelineSuite(selected)) {
+      const nested = findInSuite(selected, pipelineId)
+      if (nested) return nested
+      throw new Error(
+        `Run '${pipelineId}' belongs to a pipeline in suite '${selected.id}', but export '${name}' does not contain it. A suite cannot be resumed as a whole; select the pipeline export that owns this run.`,
+      )
+    }
+    if (isPipeline(selected) || isLegacyPipeline(selected)) return selected
+
+    throw new Error(
+      `Invalid pipeline module: ${filePath}. (named export '${name}' not found or invalid)`,
+    )
   }
-  return pipeline
+
+  for (const value of Object.values(mod)) {
+    if (isPipeline(value) && value.id === pipelineId) return value
+  }
+  for (const value of Object.values(mod)) {
+    if (isPipelineSuite(value)) {
+      const nested = findInSuite(value, pipelineId)
+      if (nested) return nested
+    }
+  }
+  for (const value of Object.values(mod)) {
+    if (isLegacyPipeline(value) && value.id === pipelineId) return value
+  }
+
+  const suiteIds = Object.values(mod)
+    .filter(isPipelineSuite)
+    .map((suite) => suite.id)
+  if (suiteIds.length > 0) {
+    throw new Error(
+      `Run '${pipelineId}' belongs to a pipeline in suite ${suiteIds.map((id) => `'${id}'`).join(', ')}, but that pipeline was not found in the module exports. A suite cannot be resumed as a whole; select the pipeline export that owns this run.`,
+    )
+  }
+
+  throw new Error(`Cannot find pipeline '${pipelineId}' among exports of ${filePath}.`)
+}
+
+function findInSuite(suite: PipelineSuite, pipelineId: string): Pipeline | undefined {
+  return suite.pipelines.find((pipeline) => pipeline.id === pipelineId)
+}
+
+function isLegacyPipeline(value: unknown): value is Pipeline {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === 'string'
+  )
 }

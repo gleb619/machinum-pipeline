@@ -1,6 +1,6 @@
 import { relative, resolve } from 'node:path'
-import { Runner, importPipelineModule, readMtConfig } from '@mt/core'
-import type { GlobalContext, Logger, Pipeline } from '@mt/core'
+import { Runner, importPipelineModule, isPipeline, isPipelineSuite, readMtConfig } from '@mt/core'
+import type { GlobalContext, Logger, Pipeline, PipelineSuite } from '@mt/core'
 
 /**
  * Shared runner for `mt.json` lifecycle hook scripts (`scripts.install` /
@@ -29,7 +29,7 @@ async function resolveLifecycleScript(
   ctx: GlobalContext,
   name: LifecycleHookName,
   pipelineName?: string,
-): Promise<{ pipeline: Pipeline; pipelineFile: string } | undefined> {
+): Promise<{ runnable: Pipeline | PipelineSuite; pipelineFile: string } | undefined> {
   const config = await readMtConfig(ctx.project.root)
   const script = config.scripts?.[name]
   if (!script) return undefined
@@ -44,17 +44,21 @@ async function resolveLifecycleScript(
     )
   }
 
-  const pipeline = (pipelineName ? mod[pipelineName] : (mod.default ?? mod.pipeline)) as
+  const runnable = (pipelineName ? mod[pipelineName] : (mod.default ?? mod.pipeline)) as
     | Pipeline
+    | PipelineSuite
     | undefined
-  if (!pipeline || typeof pipeline.id !== 'string') {
+  if (
+    !runnable ||
+    !(isPipeline(runnable) || isPipelineSuite(runnable) || isLegacyPipeline(runnable))
+  ) {
     const hint = pipelineName ? ` (named export '${pipelineName}' not found or invalid)` : ''
     throw new Error(
-      `Invalid lifecycle script '${script}' (${name}). Expected ${pipelineName ? `export const ${pipelineName}` : 'default export'} from definePipeline().${hint}`,
+      `Invalid lifecycle script '${script}' (${name}). Expected ${pipelineName ? `export const ${pipelineName}` : 'default export'} from definePipeline() or defineSuite().${hint}`,
     )
   }
 
-  return { pipeline, pipelineFile: relative(ctx.project.root, resolvedPath) }
+  return { runnable, pipelineFile: relative(ctx.project.root, resolvedPath) }
 }
 
 /**
@@ -71,11 +75,26 @@ export async function runLifecycleScript(
   const script = await resolveLifecycleScript(ctx, name, options.pipelineName)
   if (!script) return
 
-  logger.info(`Running ${name} hook: ${script.pipeline.id} (${script.pipelineFile})`)
-  const runner = new Runner(script.pipeline, ctx, {
-    pipelineFile: script.pipelineFile,
-    pipelineName: options.pipelineName,
-  })
-  await runner.start()
-  logger.info(`${name} hook completed: ${script.pipeline.id}`)
+  logger.info(`Running ${name} hook: ${script.runnable.id} (${script.pipelineFile})`)
+  if (isPipelineSuite(script.runnable)) {
+    await script.runnable.run(ctx, {
+      pipelineFile: script.pipelineFile,
+      pipelineName: options.pipelineName,
+    })
+  } else {
+    const runner = new Runner(script.runnable, ctx, {
+      pipelineFile: script.pipelineFile,
+      pipelineName: options.pipelineName,
+    })
+    await runner.start()
+  }
+  logger.info(`${name} hook completed: ${script.runnable.id}`)
+}
+
+function isLegacyPipeline(value: unknown): value is Pipeline {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { id?: unknown }).id === 'string'
+  )
 }

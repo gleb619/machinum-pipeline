@@ -1,7 +1,8 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Runner } from '@mt/core'
+import { Runner, defineSuite } from '@mt/core'
+import type { Pipeline } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
 import { resumeCommand } from '../../src/commands/resume.js'
@@ -50,6 +51,36 @@ describe('resume command', () => {
     await rm(testDir, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
+
+  async function writeState(
+    runId = 'test-run-id',
+    extra: Record<string, unknown> = {},
+  ): Promise<void> {
+    const runDir = join(testDir, '.mt', 'runs', runId)
+    await mkdir(runDir, { recursive: true })
+    await writeFile(
+      join(runDir, 'state.json'),
+      JSON.stringify({
+        runId,
+        pipelineId: 'test-pipeline',
+        state: 'paused',
+        startedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        checkpoint: { stepId: 'root' },
+        contextRef: `runs/${runId}/context.json`,
+        ...extra,
+      }),
+    )
+  }
+
+  function plainPipeline(id: string): Pipeline {
+    return {
+      id,
+      retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+      onError: 'fail-run',
+      steps: [],
+    }
+  }
 
   it('fails if no runId is provided', async () => {
     await expect(resumeCommand([])).rejects.toThrow('EXIT 1')
@@ -114,6 +145,7 @@ describe('resume command', () => {
   it('resumes a valid pipeline', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    await writeState()
 
     vi.doMock(pipelinePath, () => ({
       default: { id: 'test-pipeline' },
@@ -130,6 +162,7 @@ describe('resume command', () => {
   it('writes the CLI log to .mt/runs/<runId>/run.log', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    await writeState()
     vi.doMock(pipelinePath, () => ({
       default: { id: 'test-pipeline' },
     }))
@@ -144,6 +177,7 @@ describe('resume command', () => {
   it('handles resume failure', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    await writeState()
     vi.doMock(pipelinePath, () => ({
       default: { id: 'test-pipeline' },
     }))
@@ -159,6 +193,7 @@ describe('resume command', () => {
   it('prints the already-done message without a stack when resume rejects (T133)', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
+    await writeState()
     vi.doMock(pipelinePath, () => ({
       default: { id: 'test-pipeline' },
     }))
@@ -178,6 +213,7 @@ describe('resume command', () => {
     const hookPath = join(testDir, 'resume-hook.ts')
     await writeFile(pipelinePath, 'export default { id: "test-pipeline" }')
     await writeFile(hookPath, 'export default { id: "resume-hook" }')
+    await writeState()
     vi.doMock(pipelinePath, () => ({ default: { id: 'test-pipeline' } }))
     vi.doMock(hookPath, () => ({ default: { id: 'resume-hook' } }))
 
@@ -205,5 +241,36 @@ describe('resume command', () => {
       expect.anything(),
       expect.anything(),
     )
+  })
+
+  it('resolves a pipeline nested in a suite export', async () => {
+    const nested = plainPipeline('nested')
+    const suite = defineSuite([nested], { id: 'nested-suite' })
+    const pipelinePath = join(testDir, 'pipeline.ts')
+    await writeFile(pipelinePath, '// mocked')
+    await writeState('test-run-id', { pipelineId: 'nested' })
+    vi.doMock(pipelinePath, () => ({ default: suite }))
+
+    await resumeCommand(['test-run-id', 'pipeline.ts'])
+
+    expect(mockResume).toHaveBeenCalledWith('test-run-id')
+    expect(vi.mocked(Runner)).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'nested' }),
+      expect.anything(),
+      expect.anything(),
+    )
+  })
+
+  it('explains that a suite without the recorded pipeline cannot be resumed as a whole', async () => {
+    const suite = defineSuite([plainPipeline('nested')], { id: 'nested-suite' })
+    const pipelinePath = join(testDir, 'pipeline.ts')
+    await writeFile(pipelinePath, '// mocked')
+    await writeState('test-run-id', { pipelineId: 'missing' })
+    vi.doMock(pipelinePath, () => ({ default: suite }))
+
+    await expect(resumeCommand(['test-run-id', 'pipeline.ts'])).rejects.toThrow(
+      /suite cannot be resumed as a whole|belongs to a pipeline in suite/,
+    )
+    expect(mockResume).not.toHaveBeenCalled()
   })
 })
