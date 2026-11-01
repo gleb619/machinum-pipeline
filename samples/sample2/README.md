@@ -37,9 +37,10 @@ jsonl://./jsonl/input.jsonl
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` | `pnpm run runner` | JSONL → `wordCounter` → `toMarkdownTool` → `output.md` |
+| `default` | `pnpm run runner:basic` | JSONL → `wordCounter` → `toMarkdownTool` → `output.md` |
+| `typedContentPipeline` | `pnpm run runner:basic -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `output-typed.md` |
 | `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
-| `allPipelines` | — | `defineSuite([...])` — runs the three pipelines sequentially in one process |
+| `allPipelines` | see below | `defineSuite([...])` — runs the three pipelines sequentially in one process |
 
 Where the advanced pipeline writes its own glue, the basics pipeline reuses shipped tools:
 

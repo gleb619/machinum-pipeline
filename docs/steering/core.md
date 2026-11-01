@@ -10,6 +10,7 @@ Core is the engine library — it contains all types, the DSL, the URI registry,
 
 Re-exports everything needed by consumers:
 - `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`, `defineProcess` (DSL builders)
+- `defineSuite`, `isPipelineSuite` (run several pipelines sequentially; see [Suites](#suites))
 - `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
@@ -154,6 +155,12 @@ await all.run()
 ```
 
 Programmatic only: `mt run --pipeline` selects one `Pipeline` per invocation.
+
+### `suite.ts` — `defineSuite()`
+
+`defineSuite(pipelines, { id? })` — wraps several pipelines into one runnable suite; `await suite.run()`
+executes them sequentially (one Runner/run id each) against a shared `GlobalContext`. Full contract in
+[Suites](#suites).
 
 **Tool composition** (all optional; plain `Tool`s and `.use()` unchanged):
 - `chain(name, ...tools)` — one `Tool` running tools sequentially (output envelope feeds next).
