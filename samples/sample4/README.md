@@ -186,3 +186,68 @@ present in the line), `titles.json`, `lint-parity.ts` pass/fail, `MT_ONLY_CHAPTE
 `tests/normalize.test.ts` writes a tiny synthetic fixture to `jsonl/input.jsonl`, runs the pipeline
 through `mt`, and asserts file count, preserved paragraph lines, no curly quotes / zero-width chars,
 and literal `[bracketed]` text. No network, no LLM.
+
+## Secret backends
+
+Vault `apiKey` values are never plaintext: they are refs (`embed:<name>`, `keepass:<title>`,
+`vlt:<name>`) resolved in memory when `mt run` loads the vault. This sample shows each backend
+resolving a ref with no LLM call: `pipelines/secrets-demo.ts` looks the entry up and prints entry
+name, provider and key **length** only. All keys are fake (`sk-demo-FAKE-...`); everything generated
+lives in `.demo/` (gitignored).
+
+`mt run` has no flag to pick a config file, so a variant is selected with existing mechanisms:
+
+| Variant | Vault file (via `MT_VAULT`) | Backend env | Config layer |
+|---|---|---|---|
+| embed (default password) | `vault.embed.json` | `MT_EMBED_PATH` | `mt-embed.json` |
+| embed (own password) | `vault.embed-custom.json` | `MT_EMBED_PATH`, `MT_EMBED_PASSWORD_FILE` | `mt-embed-custom.json` |
+| keepass | `vault.keepass.json` | `MT_KEEPASS_PATH`, `MT_KEEPASS_PASSWORD_FILE` | `mt-keepass.json` |
+| vlt | `vault.vlt.json` | vlt session (`vlt login`) | `mt-vlt.json` |
+
+`mt.json` (embed, `demo.vaultRef = vault://demo-embed`) imports an optional gitignored
+`mt.local.json`. The `mt-*.json` files are layers that only set `demo.vaultRef`; to use one by hand:
+`cp mt-keepass.json mt.local.json`. The demo scripts set `MT_DEMO_VAULT_REF` instead (it wins).
+
+```bash
+pnpm --filter sample4 run demo:embed         # zero config: built-in default password
+pnpm --filter sample4 run demo:embed-custom  # MT_EMBED_PASSWORD_FILE
+pnpm --filter sample4 run demo:keepass       # creates .demo/demo.kdbx (pure JS, no binary)
+pnpm --filter sample4 run demo:vlt           # needs vlt + unlocked session + secret demo_key
+```
+
+Expected tail (key length 23 for embed, 24 custom, 25 keepass, entry name varies):
+
+```
+[secrets-demo] entry=demo-embed provider=openrouter keyLength=23
+[demo] OK, result written to .demo/result.jsonl (entry + key length only)
+```
+
+Manual equivalent of `demo:embed`:
+
+```bash
+export MT_EMBED_PATH=$PWD/.demo/secrets.embed.json MT_VAULT=./vault.embed.json
+mt vault embed-add demo-embed --secret sk-demo-FAKE-embed-0000
+MT_DEMO_VAULT_REF=vault://demo-embed NODE_OPTIONS='--import tsx' mt run ./pipelines/secrets-demo.ts
+```
+
+- **Rotating encryption keys.** The master password unlocks a keyring of named 256-bit encryption
+  keys; each secret is sealed under one key (`kid`). `demo:embed` shows a second key and a secret under it:
+
+  ```bash
+  mt vault embed-keyring generate --kid k2          # new active key
+  mt vault embed-add other --kid k2 --secret ...    # secret under k2
+  mt vault embed-keyring list                       # kid, status, secret count; no key material
+  mt vault embed-keyring rotate --reencrypt         # new key + re-seal every secret under it
+  mt vault embed-keyring rm k1                      # only once no secret uses k1
+  ```
+
+  Changing the master password is a separate step: `mt vault embed-rekey`.
+- **Default embed password is public obfuscation, not protection.** It prints a one-time warning.
+  Set `MT_EMBED_PASSWORD` (or `MT_EMBED_PASSWORD_FILE`, see `demo:embed-custom`) for real use,
+  before the first `embed-add`; a store made with the default cannot be opened with another password.
+- **vlt**: `vlt create`/`login` are interactive-only, so the script does not seed it. It runs
+  `mt vault vlt-status` and, if vlt is missing, locked, or `demo_key` absent, prints a `SKIPPED`
+  message with setup steps and exits 0. Setup: `vlt create; vlt login;
+  echo sk-demo-FAKE-vlt-0000 | vlt save --name demo_key`, then `pnpm --filter sample4 run demo:vlt`.
+- Test: `tests/secrets.test.ts` runs embed, embed-custom, keepass end to end and the vlt script
+  (passes either by resolving or by the graceful skip); also asserts vault files hold refs only.

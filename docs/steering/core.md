@@ -398,7 +398,7 @@ When `tool.cacheable === true`, output is memoised by `hash(toolName + version +
 ## Vault
 
 `vault.ts`: gitignored store of LLM endpoints/keys (`~/.mt/vault.json` + `<root>/.mt/vault.json`, or only `MT_VAULT`).
-`loadVault`, `maskVault`, `parseVaultRef`/`resolveVaultRef` (`vault://entry/model`, `@vault/entry/model`), atomic 0600 `saveVault`.
+`loadVault` (rejects plaintext `apiKey`/`apiKeys[]`), `isSecretRef`/`findPlaintextKeys`, `maskVault` (refs stay visible), `parseVaultRef`/`resolveVaultRef` (`vault://entry/model`, `@vault/entry/model`), atomic 0600 `saveVault`.
 `loadGlobalContext` attaches it as non-enumerable `GlobalContext.vault` - never serialized. Details: [../guiding/vault.md](../guiding/vault.md).
 
 ### `vlt.ts` — vlt secret backend
@@ -431,9 +431,21 @@ small JSON file encrypted with AES-256-GCM (scrypt KDF, AAD `mt-embed-v1`) — p
 no dependency/native addon/external binary. `getEmbedSecret()` reads by name,
 `listEmbedEntries()` returns metadata without secrets. The decrypted store is memoized per
 process by path + mtime + size + password fingerprint. `createEmbedStore()` / `setEmbedSecret()`
-provision stores atomically (mode 0600); `resolveEmbedValue()` honors `MT_EMBED=false`. Config:
+provision stores atomically (mode 0600); `resolveEmbedValue()` honors `MT_EMBED=false`.
+Store format **v2** (keyring): the master password (scrypt) unlocks a keyring of named 256-bit
+*encryption keys* (`kid`, status `active|retired`); each secret is AES-256-GCM-sealed under its own
+`kid` (AAD `mt-embed-v2-secret:<kid>:<name>`), and `getEmbedSecret`/`resolveEmbedValue` pick the
+entry's key transparently. Keyring API: `generateEmbedKey`, `addEmbedKey` (+ `parseSuppliedEmbedKey`:
+64 hex / 32-byte base64 / >=12-char passphrase via scrypt), `listEmbedKeys`, `useEmbedKey`,
+`retireEmbedKey`, `removeEmbedKey({ force })`, `rotateEmbedKeys({ reencrypt })`; `setEmbedSecret`
+takes `kid`; `rotateEmbedSecret` replaces a value under the active key (`rotatedAt`);
+`rekeyEmbedStore` changes the master password (re-wraps the keyring, verified via temp file before the
+atomic rename; wrong current password or new == current changes nothing). Terminology is strict:
+master password / encryption key (`kid`) / secret. Config:
 `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`), `MT_EMBED_PASSWORD` /
 `MT_EMBED_PASSWORD_FILE`. Errors name the path/entry only.
+
+The embedded store is the default backend: without `MT_EMBED_PASSWORD(_FILE)` it uses `DEFAULT_EMBED_PASSWORD` plus a one-time `console.warn` (obfuscation only), and `setEmbedSecret` creates the store on first use.
 
 `loadVault` resolves all three ref kinds (`resolveRefs: false` keeps stored refs for
 editing); details: [../guiding/vault.md](../guiding/vault.md).

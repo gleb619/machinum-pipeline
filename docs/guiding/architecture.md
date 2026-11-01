@@ -122,10 +122,18 @@ Endpoints and API keys live in a **vault** — a gitignored JSON file (`.mt/vaul
 not read files: they resolve a vault ref (`vault://entry/model`, `@vault/entry/model`) against that
 in-memory vault.
 
-`apiKey`/`apiKeys[]` values may be secret refs resolved at load time instead of plaintext:
-`vlt:<name>` (vlt CLI), `keepass:<title|uuid>` (KeePass `.kdbx`, pure JS/WASM) or `embed:<name>`
-(embedded AES-256-GCM store, pure `node:crypto`). The vault file
-keeps the refs; resolved values stay in memory. See [vault.md](vault.md#secret-backends).
+`apiKey`/`apiKeys[]` values are **never plaintext**: they must be secret refs, resolved at load time
+(plaintext is rejected at load and on write, naming the entry; there is no migration command):
+`embed:<name>` (embedded AES-256-GCM store, pure `node:crypto`; the zero-config default), `vlt:<name>`
+(vlt CLI) or `keepass:<title|uuid>` (KeePass `.kdbx`, pure JS/WASM). The vault file keeps the refs;
+resolved values stay in memory. `mt vault add --api-key …` stores the key in the embed store and writes
+only the `embed:<name>` ref.
+
+The embed store (format v2) is keyless by default: with no `MT_EMBED_PASSWORD(_FILE)` a public built-in
+master password is used (obfuscation only, one-time warning). The master password (scrypt) unlocks a
+**keyring** of named 256-bit encryption keys (`kid`, active/retired); each secret is AES-256-GCM sealed
+under its own `kid`. Keys rotate with `mt vault embed-keyring …`, the master password changes with
+`embed-rekey`. See [vault.md](vault.md#secret-backends).
 
 The router is the inverse arrangement — a **gateway that holds the keys** so clients never need them:
 
@@ -165,7 +173,7 @@ other OpenAI-compatible server. Details: [steering/router.md](../steering/router
 │   ├── logs/<stepId>.log
 │   └── artifacts/             # intermediate outputs
 ├── cache/                     # tool memoisation
-├── vault.json                 # gitignored secret store (endpoints, API keys) — never committed
+├── vault.json                 # gitignored vault: endpoints + secret REFS (embed:/vlt:/keepass:), never plaintext keys
 ├── schedules/                 # reserved (post-MVP)
 ├── worktrees/                 # git worktree roots when used
 └── backend/
@@ -178,7 +186,8 @@ other OpenAI-compatible server. Details: [steering/router.md](../steering/router
 
 The vault lives outside `mt.json`: `.mt/vault.json` (project scope) and `~/.mt/vault.json` (user scope);
 project entries override user entries by name, and `MT_VAULT` pins a single file. Both are gitignored and
-written atomically with mode 0600.
+written atomically with mode 0600. The embedded secret store (v2: keyring + per-secret `kid`) is a separate
+file outside any repo: `MT_EMBED_PATH`, default `$MT_HOME|~/.mt/secrets.embed.json`.
 
 ---
 

@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,6 +16,11 @@ function errored(): string[] {
   return vi.mocked(console.error).mock.calls.map((call) => String(call[0]))
 }
 
+async function getEmbedSecret(name: string): Promise<{ secret: string }> {
+  const { getEmbedSecret: get } = await import('@mt/core')
+  return get(name)
+}
+
 describe('vault command', () => {
   let testDir: string
   let home: string
@@ -23,6 +28,7 @@ describe('vault command', () => {
   let originalHome: string | undefined
   let originalMtHome: string | undefined
   let originalVault: string | undefined
+  let originalEmbed: { path?: string; password?: string; file?: string }
 
   const projectVault = (): string => join(testDir, '.mt', 'vault.json')
   const userVault = (): string => join(home, '.mt', 'vault.json')
@@ -42,6 +48,15 @@ describe('vault command', () => {
 
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    originalEmbed = {
+      path: process.env.MT_EMBED_PATH,
+      password: process.env.MT_EMBED_PASSWORD,
+      file: process.env.MT_EMBED_PASSWORD_FILE,
+    }
+    process.env.MT_EMBED_PATH = join(testDir, 'store.embed.json')
+    process.env.MT_EMBED_PASSWORD = 'cli-vault-test-master'
+    Reflect.deleteProperty(process.env, 'MT_EMBED_PASSWORD_FILE')
     vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
       throw new Error(`EXIT ${code}`)
     })
@@ -55,9 +70,36 @@ describe('vault command', () => {
     else process.env.MT_HOME = originalMtHome
     if (originalVault === undefined) Reflect.deleteProperty(process.env, 'MT_VAULT')
     else process.env.MT_VAULT = originalVault
+    for (const [key, value] of [
+      ['MT_EMBED_PATH', originalEmbed.path],
+      ['MT_EMBED_PASSWORD', originalEmbed.password],
+      ['MT_EMBED_PASSWORD_FILE', originalEmbed.file],
+    ] as const) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key)
+      else process.env[key] = value
+    }
     await rm(testDir, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
+
+  async function writeLegacy(): Promise<void> {
+    await mkdir(join(testDir, '.mt'), { recursive: true })
+    await writeFile(
+      projectVault(),
+      JSON.stringify({
+        version: 1,
+        entries: {
+          legacy: {
+            provider: 'openrouter',
+            apiKey: SECRET,
+            apiKeys: ['pool-key-1', 'embed:ref-kept'],
+          },
+          ollama: { provider: 'ollama' },
+        },
+      }),
+      'utf-8',
+    )
+  }
 
   it('init creates an empty project vault with mode 0600', async () => {
     await vaultCommand(['init'])
@@ -164,23 +206,56 @@ describe('vault command', () => {
     expect(logged().join('\n')).toContain('Vault is empty')
   })
 
-  it('show masks the API key', async () => {
+  it('show prints the embed ref, never the secret', async () => {
     await vaultCommand(['add', 'local', '--provider', 'openrouter', '--api-key', SECRET])
 
     await vaultCommand(['show', 'local'])
-
-    const output = logged().join('\n')
-    expect(output).not.toContain(SECRET)
-    expect(output).not.toContain('SUPERSECRET')
-    expect(output).toContain('1234')
-  })
-
-  it('show --reveal prints the raw API key', async () => {
-    await vaultCommand(['add', 'local', '--provider', 'openrouter', '--api-key', SECRET])
-
     await vaultCommand(['show', 'local', '--reveal'])
 
-    expect(logged().join('\n')).toContain(SECRET)
+    const output = logged().join('\n')
+    expect(output).toContain('embed:local')
+    expect(output).not.toContain(SECRET)
+    expect(output).not.toContain('SUPERSECRET')
+  })
+
+  it('add moves a plaintext --api-key into the embed store and writes only the ref', async () => {
+    await vaultCommand(['add', 'local', '--provider', 'openrouter', '--api-key', SECRET])
+
+    const raw = await readFile(projectVault(), 'utf-8')
+    expect(raw).not.toContain(SECRET)
+    expect(JSON.parse(raw).entries.local.apiKey).toBe('embed:local')
+    expect((await stat(process.env.MT_EMBED_PATH as string)).mode & 0o777).toBe(0o600)
+    expect((await getEmbedSecret('local')).secret).toBe(SECRET)
+    expect(logged().join('\n')).not.toContain(SECRET)
+  })
+
+  it('add moves an --api-keys pool into numbered embed entries', async () => {
+    await vaultCommand(['add', 'pool', '--provider', 'openrouter', '--api-keys', `${SECRET},k2-xx`])
+
+    const stored = JSON.parse(await readFile(projectVault(), 'utf-8'))
+    expect(stored.entries.pool.apiKeys).toEqual(['embed:pool-1', 'embed:pool-2'])
+    expect((await getEmbedSecret('pool-2')).secret).toBe('k2-xx')
+  })
+
+  it('add refuses to clobber a different embedded secret without --force', async () => {
+    await vaultCommand(['add', 'local', '--provider', 'openrouter', '--api-key', SECRET])
+    await vaultCommand(['rm', 'local'])
+    await expect(
+      vaultCommand(['add', 'local', '--provider', 'openrouter', '--api-key', 'other-key-value']),
+    ).rejects.toThrow('EXIT 1')
+    const err = errored().join('\n')
+    expect(err).toContain('use --force')
+    expect(err).not.toContain('other-key-value')
+    expect((await getEmbedSecret('local')).secret).toBe(SECRET)
+  })
+
+  it('list rejects a vault file holding a plaintext key, without printing it', async () => {
+    await writeLegacy()
+    await expect(vaultCommand(['list'])).rejects.toThrow('EXIT 1')
+    const err = errored().join('\n')
+    expect(err).toContain('entry "legacy"')
+    expect(err).toContain('mt vault add')
+    expect(err).not.toContain(SECRET)
   })
 
   it('show fails for an unknown entry', async () => {

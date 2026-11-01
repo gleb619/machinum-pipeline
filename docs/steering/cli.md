@@ -77,7 +77,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON exchange on stdin/stdout (`id`/`variables` optional, normalized by `toExchange`)); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
 | `mt serve [--port N\|0] [--host H] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/backend/standalone`); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
 | `mt router [--port N\|0] [--host H] [--mock] [--log-dir D] [-d\|--detach]` | `router.ts` | Start the keyless LLM gateway + dashboard (`@mt/router/standalone`); no `--token` flag — the token is `MT_ROUTER_TOKEN`; `--detach` re-execs self in background (`.mt/router/{pid,server.log}`) |
-| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init`, `vlt-install`, `vlt-status`, `keepass-init`, `keepass-add`, `keepass-list`, `keepass-status`, `embed-init`, `embed-add`, `embed-list`, `embed-status` (secrets masked unless `--reveal`) |
+| `mt vault <sub>` | `vault.ts` | Manage the vault: `list`, `show`, `add`, `rm`, `path`, `init`, `vlt-install`, `vlt-status`, `keepass-init`, `keepass-add`, `keepass-list`, `keepass-status`, `embed-init`, `embed-add`, `embed-list`, `embed-status`, `embed-rekey`, `embed-rotate`, `embed-keyring` (secrets masked unless `--reveal`) |
 
 ## Pipeline Loading
 
@@ -152,7 +152,7 @@ Writes to both console (with ANSI colour) and a log file under `.mt/runs/<runId>
   non-loopback `MT_ROUTER_HOST` / `--host` without it — see [router.md](router.md#security-model-t119)
 
 ### `src/commands/vault.ts`
-`mt vault` — `list` / `show` / `add` / `rm` / `path` / `init` over the `@mt/core` vault. Writes go
+`mt vault` — `list` / `show` / `add` / `rm` / `path` / `init` over the `@mt/core` vault. Plaintext keys are never written: `add` moves `--api-key(s)` into the embedded store (`embed:<name>`), embed commands never prompt (default password fallback + warning). Writes go
 through `saveVault` (atomic, mode 0600). Secrets are masked in every output unless `--reveal` is
 given. `--user` targets `~/.mt/vault.json`, otherwise `<project>/.mt/vault.json`; `MT_VAULT` wins
 over both. `list`/`show` and the file-editing flows load with `resolveRefs: false` so stored
@@ -163,7 +163,13 @@ over both. `list`/`show` and the file-editing flows load with `resolveRefs: fals
 `--group`); the master password comes from `MT_KEEPASS_PASSWORD` / `_FILE` or a hidden TTY prompt,
 and no secret is ever printed. `embed-init` / `embed-add` / `embed-list` / `embed-status` manage
 the embedded encrypted store (`--path`, `--secret`, `--username`, `--notes`, `--force`); the master
-password comes from `MT_EMBED_PASSWORD` / `_FILE` or a hidden TTY prompt. The router reads those same files as upstream key sources
+password comes from `MT_EMBED_PASSWORD` / `_FILE` or a hidden TTY prompt. `embed-add --kid <kid>`
+seals under a chosen encryption key. `embed-rekey` changes the master password (new one via
+`--new-password-file`, `MT_EMBED_NEW_PASSWORD(_FILE)` or a confirmed hidden prompt); `embed-rotate <name>`
+replaces a secret value (`--value-file`, stdin or hidden prompt); `embed-keyring
+generate|add|list|use|retire|rm|rotate` manages the encryption keys (`--kid`, `--enc-key-file`,
+`--note`, `--no-activate`, `--reencrypt`, `--force`). Passwords, secret values and encryption keys are
+never accepted as CLI argument values and never printed. The router reads those same files as upstream key sources
 ([router.md](router.md#vault-t118)). Details: [docs/vault.md](../guiding/vault.md).
 
 ### `src/utils/gitignore.ts`

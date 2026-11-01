@@ -11,10 +11,10 @@ import { isVltRef, resolveVltValue } from './vlt.js'
  * Loaded from `~/.mt/vault.json` and `<project>/.mt/vault.json`; never serialized
  * into checkpoints, meta or logs. Error messages never echo secret values.
  *
- * `apiKey` / `apiKeys[]` values may be secret references instead of plaintext:
+ * `apiKey` / `apiKeys[]` values must be secret references, never plaintext:
  * `vlt:<name>` (vlt CLI), `keepass:<title|uuid>` (KeePass database) or `embed:<name>`
- * (embedded encrypted store). Refs are resolved in memory at load time; the file on
- * disk keeps the refs.
+ * (embedded encrypted store, the default backend). Plaintext values are rejected at load
+ * and at save. Refs are resolved in memory at load time; the file on disk keeps the refs.
  */
 
 export const VAULT_PROVIDERS = [
@@ -75,6 +75,27 @@ export interface LoadVaultOptions {
   resolveRefs?: boolean
   /** @deprecated use {@link resolveRefs}. */
   resolveVlt?: boolean
+}
+
+const SECRET_REF_PREFIXES = ['vlt:', 'keepass:', 'embed:'] as const
+
+/** True when a key value is a secret reference (`vlt:`, `keepass:` or `embed:`). */
+export function isSecretRef(value: string): boolean {
+  return SECRET_REF_PREFIXES.some((prefix) => value.startsWith(prefix))
+}
+
+/** Fields of an entry holding a plaintext (non-ref) key: `apiKey` and/or `apiKeys[i]`. */
+export function findPlaintextKeys(entry: VaultEntry): string[] {
+  const found: string[] = []
+  if (entry.apiKey !== undefined && !isSecretRef(entry.apiKey)) found.push('apiKey')
+  entry.apiKeys?.forEach((key, i) => {
+    if (!isSecretRef(key)) found.push(`apiKeys[${i}]`)
+  })
+  return found
+}
+
+function plaintextMessage(name: string, fields: string[]): string {
+  return `entry "${name}": plaintext ${fields.join(', ')} is not allowed (value not shown). Store the key in the embedded store and reference it as "embed:<name>" (or "vlt:<name>" / "keepass:<title>"), e.g. via \`mt vault add ${name} --api-key <key>\`.`
 }
 
 export async function loadVault(
@@ -149,7 +170,10 @@ function validateVault(data: unknown, path: string): Vault {
   if (!isRecord(data.entries)) throw new Error(`Invalid vault ${path}: "entries" must be an object`)
   const entries: Record<string, VaultEntry> = {}
   for (const [name, value] of Object.entries(data.entries)) {
-    entries[name] = validateEntry(name, value, path)
+    const entry = validateEntry(name, value, path)
+    const plain = findPlaintextKeys(entry)
+    if (plain.length > 0) throw new Error(`Invalid vault ${path}: ${plaintextMessage(name, plain)}`)
+    entries[name] = entry
   }
   return { version: 1, entries }
 }
@@ -209,13 +233,18 @@ export function maskSecret(secret: string): string {
   return `${prefix}…${secret.slice(-4)}`
 }
 
+/** Refs (`embed:x`) are not secrets and stay readable; anything else is masked. */
+function maskKey(value: string): string {
+  return isSecretRef(value) ? value : maskSecret(value)
+}
+
 /** Copy of the vault with apiKey / apiKeys / header values masked. */
 export function maskVault(vault: Vault): Vault {
   const entries: Record<string, VaultEntry> = {}
   for (const [name, e] of Object.entries(vault.entries)) {
     const copy: VaultEntry = { ...e }
-    if (e.apiKey !== undefined) copy.apiKey = maskSecret(e.apiKey)
-    if (e.apiKeys) copy.apiKeys = e.apiKeys.map(maskSecret)
+    if (e.apiKey !== undefined) copy.apiKey = maskKey(e.apiKey)
+    if (e.apiKeys) copy.apiKeys = e.apiKeys.map(maskKey)
     if (e.headers) {
       copy.headers = Object.fromEntries(
         Object.entries(e.headers).map(([k, v]) => [k, maskSecret(v)]),
@@ -247,6 +276,8 @@ export function addEntry(vault: Vault, name: string, entry: VaultEntry): Vault {
       `Invalid vault entry "${name}": "provider" must be one of ${VAULT_PROVIDERS.join(', ')}`,
     )
   }
+  const plain = findPlaintextKeys(entry)
+  if (plain.length > 0) throw new Error(`Invalid vault ${plaintextMessage(name, plain)}`)
   return { version: 1, entries: { ...vault.entries, [name]: entry } }
 }
 
@@ -296,8 +327,13 @@ export function resolveVaultRef(vault: Vault, ref: string): ResolvedVaultRef {
   return { entry: found, name: parsed.entry, model }
 }
 
-/** Atomic write (temp-then-rename), file mode 0600, parent dir created if needed. */
+/** Atomic write (temp-then-rename), file mode 0600; rejects plaintext keys, parent dir created if needed. */
 export async function saveVault(path: string, vault: Vault): Promise<void> {
+  for (const [name, entry] of Object.entries(vault.entries)) {
+    const plain = findPlaintextKeys(entry)
+    if (plain.length > 0)
+      throw new Error(`Refusing to write ${path}: ${plaintextMessage(name, plain)}`)
+  }
   await mkdir(dirname(path), { recursive: true })
   const tmp = tmpPathFor(path)
   try {

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "entries": {
+    "demo-embed": {
+      "provider": "openrouter",
+      "apiKey": "embed:demo-embed",
+      "notes": "Demo only. Ref into the embedded encrypted store; the key itself is not in this file."
+    }
+  }
+}

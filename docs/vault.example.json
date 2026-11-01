@@ -1,5 +1,5 @@
 {
-  "_comment": "Example vault with fake keys. Manage real vaults with `mt vault add` — see docs/vault.md.",
+  "_comment": "Example vault: keys are refs only (embed:/vlt:/keepass:), never plaintext. Manage real vaults with `mt vault add` — see docs/guiding/vault.md.",
   "version": 1,
   "entries": {
     "local-ollama": {
@@ -12,22 +12,22 @@
     "my-openrouter": {
       "provider": "openrouter",
       "baseUrl": "https://openrouter.ai/api/v1",
-      "apiKeys": ["sk-or-v1-EXAMPLEKEYAAAA1111", "sk-or-v1-EXAMPLEKEYBBBB2222"],
+      "apiKeys": ["embed:my-openrouter-1", "embed:my-openrouter-2"],
       "headers": { "X-Title": "example-project" },
       "defaultModel": "openai/gpt-4o-mini",
-      "notes": "Fake example: key pool"
+      "notes": "Fake example: key pool, secrets live in the embedded store"
     },
     "keepass-openrouter": {
       "provider": "openrouter",
       "baseUrl": "https://openrouter.ai/api/v1",
       "apiKey": "keepass:EXAMPLE-OpenRouter-Key",
-      "notes": "Fake example: key lives in a KeePass entry (see docs/vault.md)"
+      "notes": "Fake example: key lives in a KeePass entry (see docs/guiding/vault.md)"
     },
     "embed-openrouter": {
       "provider": "openrouter",
       "baseUrl": "https://openrouter.ai/api/v1",
       "apiKey": "embed:EXAMPLE-OpenRouter-Key",
-      "notes": "Fake example: key lives in the embedded encrypted store (see docs/vault.md)"
+      "notes": "Fake example: key lives in the embedded encrypted store (see docs/guiding/vault.md)"
     }
   }
 }

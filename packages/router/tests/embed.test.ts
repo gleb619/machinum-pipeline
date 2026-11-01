@@ -1,9 +1,12 @@
-import { createCipheriv, randomBytes, scryptSync } from 'node:crypto'
 import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetEmbedState } from '../server/utils/embed.js'
+import {
+  DEFAULT_EMBED_PASSWORD,
+  DEFAULT_EMBED_WARNING,
+  resetEmbedState,
+} from '../server/utils/embed.js'
 import { redact } from '../server/utils/redact.js'
 import {
   readVaultEntries,
@@ -11,34 +14,10 @@ import {
   vaultSignature,
 } from '../server/utils/vault-reader.js'
 
+import { encryptFixture } from './helpers/embed-fixture.js'
+
 const MASTER = 'test-embed-master-password'
 const SECRET = 'sk-or-v1-ROUTEREMBEDSECRET1234'
-
-const AAD = Buffer.from('mt-embed-v1', 'ascii')
-
-/** Fixture writer mirroring the store format (router tests must not import `@mt/*`). */
-function encryptFixture(entries: Record<string, { secret: string }>, password: string): string {
-  const salt = randomBytes(16)
-  const iv = randomBytes(12)
-  const key = scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 })
-  const cipher = createCipheriv('aes-256-gcm', key, iv)
-  cipher.setAAD(AAD)
-  const ciphertext = Buffer.concat([
-    cipher.update(JSON.stringify({ version: 1, entries }), 'utf-8'),
-    cipher.final(),
-  ])
-  return JSON.stringify({
-    version: 1,
-    kdf: 'scrypt',
-    n: 16384,
-    r: 8,
-    p: 1,
-    salt: salt.toString('base64'),
-    iv: iv.toString('base64'),
-    tag: cipher.getAuthTag().toString('base64'),
-    ciphertext: ciphertext.toString('base64'),
-  })
-}
 
 describe('router embed', () => {
   let dir: string
@@ -138,5 +117,69 @@ describe('router embed', () => {
     expect(redact('failed for embed:OpenRouter-Key and embed://Other/Key')).not.toContain(
       'OpenRouter-Key',
     )
+  })
+
+  it('falls back to the built-in default password and warns once', async () => {
+    Reflect.deleteProperty(process.env, 'MT_EMBED_PASSWORD')
+    Reflect.deleteProperty(process.env, 'MT_EMBED_PASSWORD_FILE')
+    await writeFile(
+      storePath,
+      encryptFixture({ 'OpenRouter-Key': { secret: SECRET } }, DEFAULT_EMBED_PASSWORD),
+    )
+    resetEmbedState()
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await writeVault({ a: { provider: 'openrouter', apiKey: 'embed:OpenRouter-Key' } })
+    expect(readVaultEntries([vaultFile]).a?.apiKey).toBe(SECRET)
+    expect(readVaultEntries([vaultFile]).a?.apiKey).toBe(SECRET)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]?.[0]).toBe(DEFAULT_EMBED_WARNING)
+  })
+  it('reads a v2 store with two keys and secrets under different kids', async () => {
+    await writeFile(
+      storePath,
+      encryptFixture(
+        { one: { secret: 'alpha', kid: 'k1' }, two: { secret: 'beta', kid: 'prod' } },
+        MASTER,
+      ),
+    )
+    resetEmbedState()
+    await writeVault({
+      a: { provider: 'openrouter', apiKey: 'embed:one' },
+      b: { provider: 'openrouter', apiKey: 'embed:two' },
+    })
+    const entries = readVaultEntries([vaultFile])
+    expect(entries.a?.apiKey).toBe('alpha')
+    expect(entries.b?.apiKey).toBe('beta')
+  })
+
+  it('reads a store written, re-keyed and rotated by core (shared v2 format)', async () => {
+    const core = await import('../../core/src/embed.js')
+    const coreEnv = { MT_EMBED_PATH: storePath, MT_EMBED_PASSWORD: MASTER }
+    const NEW = 'router-compat-new-master'
+    await rm(storePath)
+    core.resetEmbedCache()
+    await core.setEmbedSecret({ name: 'one', secret: 'alpha' }, {}, coreEnv)
+    await core.generateEmbedKey({ kid: 'prod' }, coreEnv)
+    await core.setEmbedSecret({ name: 'two', secret: 'beta' }, {}, coreEnv)
+    await core.rekeyEmbedStore({ newPassword: NEW }, coreEnv)
+    await core.rotateEmbedSecret(
+      { name: 'one', secret: 'alpha-2' },
+      {},
+      { ...coreEnv, MT_EMBED_PASSWORD: NEW },
+    )
+    process.env.MT_EMBED_PASSWORD = NEW
+    resetEmbedState()
+    await writeVault({
+      a: { provider: 'openrouter', apiKey: 'embed:one' },
+      b: { provider: 'openrouter', apiKey: 'embed:two' },
+    })
+    const entries = readVaultEntries([vaultFile])
+    expect(entries.a?.apiKey).toBe('alpha-2')
+    expect(entries.b?.apiKey).toBe('beta')
+
+    process.env.MT_EMBED_PASSWORD = MASTER
+    resetEmbedState()
+    await writeVault({ a: { provider: 'openrouter', apiKey: 'embed:one' } }, 5)
+    expect(() => readVaultEntries([vaultFile])).toThrow('wrong master password')
   })
 })

@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { startRouter } from '../server/standalone.js'
+import { resetEmbedState } from '../server/utils/embed.js'
 import { readVaultEntries, vaultPaths } from '../server/utils/vault-reader.js'
 import { mapVaultEntries } from '../server/utils/vault-upstreams.js'
+import { encryptFixture } from './helpers/embed-fixture.js'
 
 const SECRET = 'sk-SUPER-SECRET-123'
 
@@ -49,6 +51,24 @@ describe('vault-reader', () => {
     const merged = readVaultEntries([a, b])
     expect(merged.x).toEqual({ provider: 'ollama', baseUrl: 'http://b' })
     expect(Object.keys(merged)).toEqual(['x', 'y'])
+  })
+
+  it('rejects plaintext keys without echoing them', async () => {
+    const f = join(dir, 'plain.json')
+    await writeFile(
+      f,
+      JSON.stringify({ version: 1, entries: { leaky: { provider: 'openai', apiKey: SECRET } } }),
+    )
+    let message = ''
+    try {
+      readVaultEntries([f])
+    } catch (e) {
+      message = String(e)
+    }
+    expect(message).toContain('entry "leaky"')
+    expect(message).toContain('plaintext apiKey')
+    expect(message).toContain('embed:<name>')
+    expect(message).not.toContain(SECRET)
   })
 
   it('bad JSON error never contains content', async () => {
@@ -118,6 +138,7 @@ describe('router with vault (fake upstream)', () => {
   let fakeUrl: string
   let dir: string
   let vaultFile: string
+  let storePath: string
   let stop: () => Promise<void>
   let url: string
   const seen: Array<{ auth?: string; path: string; body: Record<string, unknown> }> = []
@@ -152,6 +173,17 @@ describe('router with vault (fake upstream)', () => {
     dir = await mkdtemp(join(tmpdir(), 'mt-router-vault-'))
     vaultFile = join(dir, 'vault.json')
     process.env.MT_VAULT = vaultFile
+    storePath = join(dir, 'secrets.embed.json')
+    await writeFile(
+      storePath,
+      encryptFixture(
+        { ai: { secret: SECRET }, v1: { secret: 'v1' }, v2: { secret: 'v2' } },
+        'router-vault-test',
+      ),
+    )
+    process.env.MT_EMBED_PATH = storePath
+    process.env.MT_EMBED_PASSWORD = 'router-vault-test'
+    resetEmbedState()
   })
 
   beforeEach(async () => {
@@ -161,7 +193,7 @@ describe('router with vault (fake upstream)', () => {
       ai: {
         provider: 'openai',
         baseUrl: `${fakeUrl}/v1`,
-        apiKey: SECRET,
+        apiKey: 'embed:ai',
         headers: { 'X-V': 'yes' },
       },
     })
@@ -181,8 +213,11 @@ describe('router with vault (fake upstream)', () => {
   afterAll(async () => {
     await stop()
     await new Promise<void>((r) => fake.close(() => r()))
-    if (prevVault === undefined) process.env.MT_VAULT = undefined
+    if (prevVault === undefined) Reflect.deleteProperty(process.env, 'MT_VAULT')
     else process.env.MT_VAULT = prevVault
+    Reflect.deleteProperty(process.env, 'MT_EMBED_PATH')
+    Reflect.deleteProperty(process.env, 'MT_EMBED_PASSWORD')
+    resetEmbedState()
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -252,7 +287,7 @@ describe('router with vault (fake upstream)', () => {
   it('vault openrouter keys feed the default pool after env keys; env upstream wins', async () => {
     await stop()
     await writeVault({
-      or: { provider: 'openrouter', apiKeys: ['v1', 'v2'] },
+      or: { provider: 'openrouter', apiKeys: ['embed:v1', 'embed:v2'] },
       box: { provider: 'ollama', baseUrl: 'http://vault.invalid' },
     })
     const handle = await startRouter({

@@ -7,8 +7,11 @@ const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }))
 vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
 import { loadGlobalContext } from '../src/config.js'
+import { setEmbedSecret } from '../src/embed.js'
 import {
   type Vault,
+  findPlaintextKeys,
+  isSecretRef,
   loadVault,
   maskVault,
   parseVaultRef,
@@ -138,8 +141,12 @@ describe('vault', () => {
   it('global context carries vault but excludes it from serialization', async () => {
     const saved = process.env.MT_VAULT
     const p = join(dir, 'v.json')
-    await write(p, { a: { provider: 'openai', apiKey: SECRET } })
+    await write(p, { a: { provider: 'openai', apiKey: 'embed:a' } })
     process.env.MT_VAULT = p
+    const savedEmbed = { path: process.env.MT_EMBED_PATH, pw: process.env.MT_EMBED_PASSWORD }
+    process.env.MT_EMBED_PATH = join(dir, 'store.embed.json')
+    process.env.MT_EMBED_PASSWORD = 'test-master'
+    await setEmbedSecret({ name: 'a', secret: SECRET })
     try {
       const ctx = await loadGlobalContext(join(dir, 'proj'))
       expect(ctx.vault?.entries.a?.apiKey).toBe(SECRET)
@@ -149,7 +156,40 @@ describe('vault', () => {
     } finally {
       if (saved === undefined) Reflect.deleteProperty(process.env, 'MT_VAULT')
       else process.env.MT_VAULT = saved
+      for (const [key, value] of [
+        ['MT_EMBED_PATH', savedEmbed.path],
+        ['MT_EMBED_PASSWORD', savedEmbed.pw],
+      ] as const) {
+        if (value === undefined) Reflect.deleteProperty(process.env, key)
+        else process.env[key] = value
+      }
     }
+  })
+
+  describe('plaintext keys', () => {
+    it('rejects plaintext apiKey at load, naming the entry but never the value', async () => {
+      const p = join(dir, 'proj', '.mt', 'vault.json')
+      await write(p, { leaky: { provider: 'openai', apiKey: SECRET } })
+      const err = (await loadVault(join(dir, 'proj'), env).catch((e: Error) => e)) as Error
+      expect(err.message).toContain('entry "leaky"')
+      expect(err.message).toContain('plaintext apiKey')
+      expect(err.message).toContain('embed:<name>')
+      expect(err.message).not.toContain('SUPERSECRET')
+    })
+
+    it('rejects a plaintext member of apiKeys[]', async () => {
+      const p = join(dir, 'proj', '.mt', 'vault.json')
+      await write(p, { pool: { provider: 'openai', apiKeys: ['embed:ok', SECRET] } })
+      const err = (await loadVault(join(dir, 'proj'), env).catch((e: Error) => e)) as Error
+      expect(err.message).toContain('apiKeys[1]')
+      expect(err.message).not.toContain('SUPERSECRET')
+    })
+
+    it('treats vlt:/keepass:/embed: values as refs', () => {
+      for (const ref of ['vlt:a', 'keepass:b', 'embed:c']) expect(isSecretRef(ref)).toBe(true)
+      expect(isSecretRef(SECRET)).toBe(false)
+      expect(isSecretRef('')).toBe(false)
+    })
   })
 
   describe('vlt refs', () => {
@@ -173,12 +213,12 @@ describe('vault', () => {
     it('resolves vlt: refs in apiKey/apiKeys in memory', async () => {
       mockShow((name) => `sk-resolved-${name}`)
       await write(join(dir, 'proj', '.mt', 'vault.json'), {
-        a: { provider: 'openrouter', apiKey: 'vlt:main', apiKeys: ['vlt:pool1', 'plain-key'] },
+        a: { provider: 'openrouter', apiKey: 'vlt:main', apiKeys: ['vlt:pool1', 'vlt:pool2'] },
       })
       const v = await loadVault(join(dir, 'proj'), env)
       expect(v.entries.a?.apiKey).toBe('sk-resolved-main')
-      expect(v.entries.a?.apiKeys).toEqual(['sk-resolved-pool1', 'plain-key'])
-      expect(execFileMock).toHaveBeenCalledTimes(2)
+      expect(v.entries.a?.apiKeys).toEqual(['sk-resolved-pool1', 'sk-resolved-pool2'])
+      expect(execFileMock).toHaveBeenCalledTimes(3)
     })
 
     it('never writes resolved values back to the vault file', async () => {

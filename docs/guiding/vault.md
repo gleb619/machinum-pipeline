@@ -9,6 +9,10 @@ See [vault.example.json](../vault.example.json) (fake values). `{ "version": 1, 
 `VaultEntry`: `provider` (`ollama|openrouter|openai|anthropic|custom|router`), optional `baseUrl`,
 `apiKey`, `apiKeys[]`, `headers{}`, `models[]`, `defaultModel`, `notes`. Entry names contain no `/`.
 
+**No plaintext keys.** `apiKey` / `apiKeys[]` must be refs (`embed:<name>`, `vlt:<name>`, `keepass:<title>`).
+A plaintext value is rejected at load, at `saveVault`/`addEntry` and by the router reader, with an error naming
+the entry (never the value).
+
 ## CLI (`mt vault`)
 
 `mt vault` lives in `packages/cli/src/commands/vault.ts` and imports `@mt/core` only.
@@ -18,7 +22,7 @@ See [vault.example.json](../vault.example.json) (fake values). `{ "version": 1, 
 | `mt vault list` | One line per entry: name, provider, base URL, model count |
 | `mt vault show <name>` | The entry as JSON — secrets masked |
 | `mt vault show <name> --reveal` | The entry as JSON — secrets unmasked |
-| `mt vault add <name> [flags]` | Adds an entry to the project vault (see below) |
+| `mt vault add <name> [flags]` | Adds an entry to the project vault. A plaintext `--api-key` / `--api-keys` (flag or hidden prompt) is stored in the embedded store as `embed:<name>` (`<name>-1`, `<name>-2`, … for a pool); only the ref is written to the vault file. An existing different embedded secret needs `--force` |
 | `mt vault rm <name>` | Removes the entry (project vault first, then the user vault) |
 | `mt vault path` | The resolved vault paths and whether they exist |
 | `mt vault init` | Creates an empty `{ "version": 1, "entries": {} }` vault file |
@@ -28,10 +32,20 @@ See [vault.example.json](../vault.example.json) (fake values). `{ "version": 1, 
 | `mt vault keepass-add <title>` | Adds or updates a KeePass entry (`--secret`, `--username`, `--group`) |
 | `mt vault keepass-list` | Entry titles, group paths and UUIDs — never passwords |
 | `mt vault keepass-status` | Database path, existence, credential config and unlock state |
+| `mt vault embed-init` / `embed-add <name>` / `embed-list` / `embed-status` | Embedded store management; works with the default password (see below) |
 | `mt vault embed-init` | Creates an empty embedded encrypted store (mode 0600) at `--path`/`MT_EMBED_PATH` |
 | `mt vault embed-add <name>` | Adds or updates an embedded-store secret (`--secret`, `--username`, `--notes`, `--force`) |
 | `mt vault embed-list` | Entry names and usernames — never secrets |
-| `mt vault embed-status` | Store path, existence, credential config and unlock state |
+| `mt vault embed-status` | Store path, existence, credential config, unlock state, encryption key count and active `kid` |
+| `mt vault embed-rekey` | Changes the **master password** (default -> custom, or custom -> custom). Current password: `MT_EMBED_PASSWORD(_FILE)` or the built-in default. New password: `--new-password-file <file>`, `MT_EMBED_NEW_PASSWORD` / `MT_EMBED_NEW_PASSWORD_FILE`, or a hidden TTY prompt with confirmation - never a CLI value. Wrong current password changes nothing; new == current is refused |
+| `mt vault embed-rotate <name>` | Replaces the **value** of an existing secret and re-seals it under the active encryption key; the `embed:<name>` ref stays valid. Value: `--value-file <file>`, stdin or hidden prompt - never a CLI value. Missing name: error pointing at `mt vault add`/`embed-add`. Stamps `rotatedAt` |
+| `mt vault embed-keyring generate [--kid <kid>] [--note <t>] [--no-activate]` | Generates a random 256-bit **encryption key** and makes it active (unless `--no-activate`) |
+| `mt vault embed-keyring add --kid <kid> [--enc-key-file <file>]` | Adds a supplied encryption key (file, stdin or hidden prompt). Accepted: 64 hex chars, base64 of exactly 32 bytes, or a passphrase of at least 12 chars stretched with scrypt (salt `mt-embed-v2-supplied-key:<kid>`); anything shorter is rejected |
+| `mt vault embed-keyring list` | `kid`, status (`active`/`retired`), created, note, secret count - never key material |
+| `mt vault embed-keyring use <kid>` / `retire <kid>` | `use`: active key for NEW secrets (previous active becomes retired). `retire`: still decrypts, never used for new secrets; the active key cannot be retired |
+| `mt vault embed-keyring rm <kid> [--force]` | Removes a key; refused while any secret still uses it unless `--force` (those secrets then become undecryptable); the active key is never removed |
+| `mt vault embed-keyring rotate [--kid <kid>] [--reencrypt]` | Generates and activates a new key; `--reencrypt` re-seals every secret under it, otherwise old secrets stay readable under their old `kid` |
+| `mt vault embed-add <name> --kid <kid>` | Stores the secret under a chosen encryption key (default: the active one) |
 
 `add` flags: `--provider` (`ollama|openrouter|openai|anthropic|custom|router`), `--base-url`,
 `--api-key`, `--api-keys k1,k2`, `--models a,b`, `--default-model`, `--notes`. Missing flags are
@@ -73,9 +87,9 @@ Missing file = empty vault. Malformed JSON / bad entry = error naming file + ent
 
 ## Secret backends
 
-`apiKey` / `apiKeys[]` values may be secret references instead of plaintext. Resolution happens
+`apiKey` / `apiKeys[]` values must be secret references (plaintext is rejected). Resolution happens
 **in memory only** — the vault file keeps the original refs and `saveVault` never persists resolved
-values. A value that is not a known ref prefix passes through unchanged.
+values. The embedded store is the default backend and needs no setup.
 
 | Ref | Backend | Config |
 |---|---|---|
@@ -144,21 +158,43 @@ the standalone `mt` binary stays self-contained). `keepass://<title>` is accepte
 no native addon, no external binary; `node:crypto` only. `embed://<name>` is accepted as an alias of
 `embed:<name>`.
 
-- **Format**: the file holds `{ version, kdf: "scrypt", n, r, p, salt, iv, tag, ciphertext }` (all
-  base64 except the KDF params); the plaintext before encryption is
-  `{ "version": 1, "entries": { "<name>": { "secret", "username"?, "url"?, "notes"? } } }`.
-  Key: `scryptSync(password, salt, 32, { N: 16384, r: 8, p: 1, maxmem: 64MiB })`; cipher:
-  AES-256-GCM with a random 12-byte IV and AAD `mt-embed-v1`. The envelope KDF parameters are
-  validated against these fixed values before deriving a key (no attacker-controlled work factor).
-  Writes are atomic (temp-then-rename) with mode 0600 and a fresh salt/IV per write.
-- **Config**: `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`), `MT_EMBED_PASSWORD`
-  or `MT_EMBED_PASSWORD_FILE` (one trailing newline stripped). Missing credentials are a clear
-  error naming the vars; the core resolver never prompts (the CLI prompts with hidden input on a
-  TTY).
+- **Terminology**: *master password* unlocks the store; *encryption key* (`kid`) is the 256-bit cipher
+  key that seals secrets; *secret* is the stored value (API key, token).
+- **Format v2 (keyring, envelope encryption)**: the file holds
+  `{ version: 2, kdf: "scrypt", n, r, p, salt, iv, tag, ciphertext, secrets }`. `ciphertext` is the
+  keyring - `{ "keys": { "<kid>": { "key": <base64 32 bytes>, "createdAt", "status": "active"|"retired",
+  "note"? } } }` - sealed under `scryptSync(masterPassword, salt, 32, { N: 16384, r: 8, p: 1,
+  maxmem: 64MiB })` with AES-256-GCM, a random 12-byte IV and AAD `mt-embed-v2-keyring`.
+  `secrets` maps `<name>` to `{ kid, iv, tag, ciphertext, createdAt, rotatedAt? }`; each secret's
+  ciphertext is `{ secret, username?, url?, notes? }` sealed with the encryption key `kid`, its own
+  random IV and AAD `mt-embed-v2-secret:<kid>:<name>` (so entries cannot be swapped between names
+  or keys). Entry names, `kid`s and timestamps are plaintext; values, usernames, URLs, notes and key
+  material are not. KDF parameters are validated against the fixed values before deriving a key.
+  Writes are atomic (temp-then-rename), mode 0600, fresh keyring salt/IV per write. Exactly one key
+  is `active`; a new store gets a generated key `k1`. v1 stores are not supported (re-create).
+- **Threat model**: the keyring limits the blast radius of a single leaked encryption key and lets you
+  rotate or retire keys (`embed-keyring rotate --reencrypt`). It does NOT protect a store opened with
+  the public built-in default password: anyone with the file can unlock the keyring. Set a private
+  master password (`embed-rekey`) first. `embed-rekey` re-wraps the keyring under the new password; if
+  the file was ever exposed under the default password, also run
+  `embed-keyring rotate --reencrypt` and remove the old key to replace the key material itself.
+- **Config**: `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`, outside any repo and
+  covered by the `*.embed.json` ignore pattern), `MT_EMBED_PASSWORD` or `MT_EMBED_PASSWORD_FILE`
+  (one trailing newline stripped). An explicitly empty password is an error. The core resolver
+  never prompts.
+- **Default password (zero-config)**: with neither variable set, the built-in
+  `DEFAULT_EMBED_PASSWORD` is used, so `embed:` works out of the box and the store file is created
+  on first `embed-add` / `mt vault add --api-key`. That password is public: the store is only
+  **obfuscated, not protected**. The first use per process emits `console.warn`
+  ("mt: embedded secret store uses the built-in default password: secrets are only obfuscated, not
+  protected. Set MT_EMBED_NEW_PASSWORD … and run `mt vault embed-rekey` …"). A store made with the default
+  cannot be opened once `MT_EMBED_PASSWORD` is set - run `mt vault embed-rekey` first (current
+  password = the default, new password via `--new-password-file`), then export the new one.
 - **Provisioning**:
   ```bash
-  export MT_EMBED_PASSWORD='…'               # CI only; interactive commands prompt
-  mt vault embed-init                        # empty store, mode 0600
+  mt vault add or --provider openrouter --api-key "$OPENROUTER_KEY"   # -> embed:or in the vault
+  # or explicitly:
+  export MT_EMBED_PASSWORD='…'               # protects the store; set before the first add
   mt vault embed-add OpenRouter-Key --secret "$OPENROUTER_KEY"
   mt vault add or --provider openrouter --api-key embed:OpenRouter-Key
   ```
@@ -174,11 +210,36 @@ no native addon, no external binary; `node:crypto` only. `embed://<name>` is acc
 
 ## Security
 
+- Plaintext keys never reach disk in the vault file; resolved values are never written back to the vault,
+  checkpoints, meta or logs.
 - `.mt/vault*`, `vault.json`, `*.vault.json`, `*.kdbx` and `*.embed.json` are gitignored. Never
   commit real vaults, databases or encrypted stores.
 - `saveVault` writes atomically with mode 0600.
 - `GlobalContext.vault` is non-enumerable: excluded from `JSON.stringify`, spreads, checkpoints, meta, logs.
 - Use `maskVault()` before displaying/logging any entry.
+
+### Caveats — what the embedded store does and does not protect
+
+- **Default password is public.** Without `MT_EMBED_PASSWORD(_FILE)` the store is sealed with a
+  built-in password that ships in the source. That is obfuscation, not protection: anyone who gets the
+  store file can open it. Zero-config is for local development and demos. For real secrets set a private
+  master password (`mt vault embed-rekey`) *before* adding production keys.
+- **Re-key is not re-encrypt.** `embed-rekey` only re-wraps the keyring under the new master password;
+  the encryption keys stay the same. If a store was ever exposed under the default (or an old) password,
+  also run `mt vault embed-keyring rotate --reencrypt` and `embed-keyring rm <old-kid>`, and rotate the
+  upstream secrets themselves at the provider — an attacker who copied the old file still holds the old
+  keys and the old ciphertexts.
+- **Rotation does not revoke.** Rotating an encryption key or a secret value protects future use only.
+  Copies of an older store file stay readable with their old password; secrets exposed that way must be
+  revoked at the issuer.
+- **Metadata is plaintext.** Secret names, `kid`s and timestamps in the store file are not encrypted.
+- **Memory and process scope.** Resolved secrets live in process memory for the run (`GlobalContext.vault`);
+  anyone who can read the process or its environment (`MT_EMBED_PASSWORD`, `/proc`) can read them. Prefer
+  `MT_EMBED_PASSWORD_FILE` with 0600 over an inline env var.
+- **No plaintext fallback, no migration.** Plaintext `apiKey`/`apiKeys[]` are rejected at load and write;
+  put keys in a backend with `mt vault add --api-key` or the `embed-*` / `keepass-*` / `vlt` commands.
+- **Backends differ.** `vlt:` and `keepass:` delegate protection to those tools; their strength is theirs,
+  not this store's.
 
 ## Router
 
@@ -222,14 +283,14 @@ to the chosen tool; without an explicit `MT_LLM_MODEL` / `llm.model` the vault m
 ## Router entry (client side)
 
 A `router` entry points `llm.use` at the router; no upstream key is needed (the router holds them). `apiKey` is
-optional and, if set, is sent as the router token (`MT_ROUTER_TOKEN` equivalent). Models are routable ids; list them
+optional and, if set (as a ref, e.g. `embed:router-token`), is sent as the router token (`MT_ROUTER_TOKEN` equivalent). Models are routable ids; list them
 with `listRouterModels()` (`GET /api/models`). All values below are fake.
 
 ```json
 { "version": 1, "entries": {
   "rt":   { "provider": "router", "baseUrl": "http://localhost:7777", "defaultModel": "openrouter/free" },
   "rtol": { "provider": "router", "baseUrl": "http://localhost:7777", "defaultModel": "ollama/gemma4:latest",
-            "apiKey": "fake-router-token" }
+            "apiKey": "embed:router-token" }
 } }
 ```
 

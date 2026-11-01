@@ -35,7 +35,7 @@ Pluggable, resumable document-processing orchestration engine for long-form text
 
 - **Composable LLM gate** (`tools/core/llm-gate.ts`): slot chain `prepare → fit → call → parse → emit`, each slot a Tool. Presets: `openrouterFree`, `openrouterPool` (sticky free-model pinning), `ollamaTool`, `llmTranslate`, `translateText` (router or direct).
 - Providers: OpenRouter (free/paid), Ollama, OpenAI-compatible, Anthropic, `router` (keyless gateway; only `MT_ROUTER_TOKEN` client-side).
-- **Vault**: `~/.mt/vault.json` / `<root>/.mt/vault.json` — provider/baseUrl/keys storage; refs like `@vault/entry/model` in `llm.use`.
+- **Vault**: `~/.mt/vault.json` / `<root>/.mt/vault.json` — provider/baseUrl + secret refs (`embed:`/`vlt:`/`keepass:`, never plaintext keys; `mt vault add --api-key` writes to the embedded store); refs like `@vault/entry/model` in `llm.use`.
 - Prompts: template registry `llm-prompts.ts` (overridable per tool / mt.json); `buildTranslationPrompt()` injects only glossary terms whose `<term id>` occurs in the unit.
 - Validation: `cleanTranslation()` strips think-blocks/term tags; **line-parity-linter** checks line count, empty/bracketed line positions, leftover tags, Cyrillic ratio; failures throw retryable `LineParityError` → engine retry + content-hash cache re-send only failed lines.
 

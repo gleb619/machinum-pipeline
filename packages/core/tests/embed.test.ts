@@ -1,8 +1,10 @@
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  DEFAULT_EMBED_PASSWORD,
+  DEFAULT_EMBED_WARNING,
   createEmbedStore,
   defaultEmbedPath,
   embedCredentialsConfigured,
@@ -10,6 +12,7 @@ import {
   isEmbedRef,
   listEmbedEntries,
   resetEmbedCache,
+  resetEmbedDefaultWarning,
   resolveEmbedValue,
   setEmbedSecret,
 } from '../src/embed.js'
@@ -77,15 +80,9 @@ describe('embed backend', () => {
     expect((err as Error).message).toContain('already exists')
   })
 
-  it('requires an existing store and honors overwrite', async () => {
-    const missing = await setEmbedSecret(
-      { name: 'Key', secret: SECRET },
-      { path: storePath },
-      env,
-    ).catch((e: Error) => e)
-    expect((missing as Error).message).toContain('embed-init')
+  it('creates the store on first add and honors overwrite', async () => {
+    await expect(getEmbedSecret('Key', env)).rejects.toThrow('Embedded store not found')
 
-    await createEmbedStore({ path: storePath, password: MASTER })
     await setEmbedSecret({ name: 'Key', secret: 'one' }, { path: storePath }, env)
     const dup = await setEmbedSecret(
       { name: 'Key', secret: 'two' },
@@ -123,13 +120,15 @@ describe('embed backend', () => {
     expect(secret.secret).toBe(SECRET)
   })
 
-  it('requires configured non-empty credentials', async () => {
+  it('rejects an empty explicit password', async () => {
     expect(embedCredentialsConfigured(env)).toBe(true)
     expect(embedCredentialsConfigured({})).toBe(false)
     expect(embedCredentialsConfigured({ MT_EMBED_PASSWORD: '' })).toBe(false)
-    const err = await getEmbedSecret('Key', { MT_EMBED_PATH: storePath }).catch((e: Error) => e)
-    expect((err as Error).message).toContain('master password required')
-    expect((err as Error).message).toContain('MT_EMBED_PASSWORD')
+    const emptyEnv = await getEmbedSecret('Key', {
+      MT_EMBED_PATH: storePath,
+      MT_EMBED_PASSWORD: '',
+    }).catch((e: Error) => e)
+    expect((emptyEnv as Error).message).toContain('non-empty')
 
     const empty = await createEmbedStore({ path: storePath, password: '' }).catch((e: Error) => e)
     expect((empty as Error).message).toContain('non-empty')
@@ -160,7 +159,7 @@ describe('embed backend', () => {
     await writeFile(
       storePath,
       JSON.stringify({
-        version: 1,
+        version: 2,
         kdf: 'scrypt',
         n: 32768,
         r: 8,
@@ -169,6 +168,7 @@ describe('embed backend', () => {
         iv: '',
         tag: '',
         ciphertext: '',
+        secrets: {},
       }),
     )
     resetEmbedCache(storePath)
@@ -224,5 +224,53 @@ describe('embed backend', () => {
     expect(defaultEmbedPath({ MT_HOME: '/h' })).toBe('/h/secrets.embed.json')
     expect(defaultEmbedPath({ HOME: '/x' })).toBe('/x/.mt/secrets.embed.json')
     expect(defaultEmbedPath({ MT_EMBED_PATH: 'rel/f.json' })).toBe(resolve('rel/f.json'))
+  })
+
+  describe('default password', () => {
+    const defEnv = (): Record<string, string> => ({ MT_EMBED_PATH: storePath })
+
+    beforeEach(() => {
+      resetEmbedDefaultWarning()
+    })
+
+    it('works with no password configured and warns exactly once', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        await setEmbedSecret({ name: 'Key', secret: SECRET }, {}, defEnv())
+        const got = await getEmbedSecret('Key', defEnv())
+        expect(got.secret).toBe(SECRET)
+        expect(await resolveEmbedValue('embed:Key', defEnv())).toBe(SECRET)
+        expect(warn).toHaveBeenCalledTimes(1)
+        const text = String(warn.mock.calls[0]?.[0])
+        expect(text).toBe(DEFAULT_EMBED_WARNING)
+        expect(text).toContain('MT_EMBED_PASSWORD')
+        expect(text).toContain('obfuscated')
+        expect(text).not.toContain(SECRET)
+        expect(text).not.toContain(DEFAULT_EMBED_PASSWORD)
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('does not warn when a password is configured', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        await setEmbedSecret({ name: 'Key', secret: SECRET }, { path: storePath }, env)
+        await getEmbedSecret('Key', env)
+        expect(warn).not.toHaveBeenCalled()
+      } finally {
+        warn.mockRestore()
+      }
+    })
+
+    it('a default-password store cannot be opened with another password', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      try {
+        await setEmbedSecret({ name: 'Key', secret: SECRET }, {}, defEnv())
+        await expect(getEmbedSecret('Key', env)).rejects.toThrow('wrong master password')
+      } finally {
+        warn.mockRestore()
+      }
+    })
   })
 })

@@ -129,12 +129,12 @@ describe('router keepass', () => {
   })
 
   it('keeps the previous upstreams while the async load is pending, then swaps', async () => {
-    await writeVault({ a: { provider: 'openrouter', apiKey: 'plain-one' } })
-    expect(getVaultUpstreams().openRouterKeys).toEqual(['plain-one'])
+    await writeVault({ a: { provider: 'openrouter' } })
+    expect(getVaultUpstreams().openRouterKeys).toEqual([])
 
     await writeVault({ a: { provider: 'openrouter', apiKey: 'keepass:OpenRouter-Key' } }, 5000)
     // Signature changed, but the keepass load is async: old value is still served.
-    expect(getVaultUpstreams().openRouterKeys).toEqual(['plain-one'])
+    expect(getVaultUpstreams().openRouterKeys).toEqual([])
     await refreshVaultUpstreams()
     expect(getVaultUpstreams().openRouterKeys).toEqual([SECRET])
   })

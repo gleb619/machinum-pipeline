@@ -99,7 +99,7 @@ describe('committed vault values (architectural)', () => {
     expect(offenders).toEqual([])
   })
 
-  it('the example vault ships placeholders only', async () => {
+  it('the example vault ships secret refs only, never plaintext keys', async () => {
     const raw = await readFile(join(repoRoot, 'docs', 'vault.example.json'), 'utf8')
     const example = JSON.parse(raw) as {
       entries: Record<string, { apiKey?: string; apiKeys?: string[] }>
@@ -110,7 +110,7 @@ describe('committed vault values (architectural)', () => {
       values.push(...(entry.apiKeys ?? []))
     }
     expect(values.length).toBeGreaterThan(0)
-    for (const value of values) expect(value).toMatch(PLACEHOLDER)
+    for (const value of values) expect(value).toMatch(/^(embed|vlt|keepass):/)
   })
 
   it('the vault files are gitignored', () => {

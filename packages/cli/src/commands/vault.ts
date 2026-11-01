@@ -1,10 +1,12 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import {
   VAULT_PROVIDERS,
+  addEmbedKey,
   addEntry,
   addKeepassSecret,
   createEmbedStore,
@@ -14,17 +16,26 @@ import {
   embedCredentialsConfigured,
   emptyVault,
   findVlt,
+  generateEmbedKey,
+  getEmbedSecret,
   installVlt,
+  isSecretRef,
   isVaultProvider,
   keepassCredentialsConfigured,
   listEmbedEntries,
+  listEmbedKeys,
   listKeepassEntries,
   loadVault,
-  maskSecret,
   maskVault,
+  rekeyEmbedStore,
+  removeEmbedKey,
   removeEntry,
+  retireEmbedKey,
+  rotateEmbedKeys,
+  rotateEmbedSecret,
   saveVault,
   setEmbedSecret,
+  useEmbedKey,
   vaultPaths,
 } from '@mt/core'
 import type { Vault, VaultEntry, VaultProvider } from '@mt/core'
@@ -32,12 +43,17 @@ import { VAULT_IGNORE_PATTERNS, ensureIgnorePatterns } from '../utils/gitignore.
 
 const USAGE = `Usage: mt vault <subcommand> [options]
 
-Manage the vault: gitignored store of LLM endpoint data (URLs, API keys, headers).
+Manage the vault: gitignored store of LLM endpoint data (URLs, key refs, headers).
+Keys are never stored in plaintext: vault files hold only embed:<name>, vlt:<name> or
+keepass:<title> refs. The embedded store is the default backend and works without setup
+(built-in default password, obfuscation only; set MT_EMBED_PASSWORD to protect it).
 
 Subcommands:
   list                  List entries (provider, base URL, model count)
   show <name>           Show one entry (secrets masked)
-  add <name>            Add an entry (flags, or prompts when a TTY is attached)
+  add <name>            Add an entry (flags, or prompts when a TTY is attached);
+                        a plaintext --api-key/--api-keys goes into the embedded store,
+                        only the embed:<name> ref is written to the vault file
   rm <name>             Remove an entry
   path                  Print the resolved vault paths and whether they exist
   init                  Create an empty vault file
@@ -51,6 +67,23 @@ Subcommands:
   embed-add <name>      Add or update a secret in the embedded store
   embed-list            List embedded store entry names (no secrets)
   embed-status          Embedded store path and whether it can be unlocked
+  embed-rekey           Change the store MASTER PASSWORD (default -> custom, or custom -> custom).
+                        Current: MT_EMBED_PASSWORD(_FILE) or the built-in default; new:
+                        --new-password-file, $MT_EMBED_NEW_PASSWORD(_FILE) or hidden prompt
+  embed-rotate <name>   Replace the VALUE of an existing embedded secret under the active
+                        encryption key, keeping its embed:<name> ref (value: --value-file,
+                        stdin or hidden prompt)
+  embed-keyring <action>  Manage the ENCRYPTION keys (kid) that seal secrets in the store:
+      generate [--kid <kid>] [--note <text>] [--no-activate]   random 256-bit key
+      add --kid <kid> [--enc-key-file <file>] [--note <text>] [--no-activate]
+                        supplied key (64 hex chars, 32-byte base64, or a >=12 char
+                        passphrase stretched with scrypt); file, stdin or hidden prompt
+      list              kid, status, created, secret count (never key material)
+      use <kid>         make a key the active one for NEW secrets
+      retire <kid>      still decrypts existing secrets, never used for new ones
+      rm <kid> [--force]  remove a key (refused while secrets still use it)
+      rotate [--kid <kid>] [--reencrypt]  generate + activate a new key; --reencrypt
+                        re-seals every secret under it
 
 Options:
   --provider <name>     Provider: ${VAULT_PROVIDERS.join(' | ')}
@@ -67,7 +100,15 @@ Options:
   --key-file <file>     KeePass key file
   --user                Use the user vault (~/.mt/vault.json) instead of the project one
   --reveal              Print secret values unmasked
-  --force               Overwrite an existing entry
+  --new-password-file <file>  New master password for embed-rekey (never a CLI value)
+  --value-file <file>   New secret value for embed-rotate (never a CLI value)
+  --enc-key-file <file> Supplied encryption key for embed-keyring add (never a CLI value)
+  --kid <kid>           Encryption key id: embed-add stores the secret under it
+                        (default: active key); embed-keyring uses it as the key id
+  --note <text>         Note for embed-keyring generate / add (same as --notes)
+  --no-activate         embed-keyring generate / add: keep the current active key
+  --reencrypt           embed-keyring rotate: re-seal all secrets under the new key
+  --force               Overwrite an existing entry / embedded secret
   -h, --help            Show this help
 `
 
@@ -88,6 +129,12 @@ interface VaultOptions {
   group?: string
   path?: string
   keyFile?: string
+  newPasswordFile?: string
+  encKeyFile?: string
+  kid?: string
+  noActivate: boolean
+  reencrypt: boolean
+  valueFile?: string
   positionals: string[]
 }
 
@@ -122,6 +169,8 @@ function parseArgs(args: string[]): VaultOptions {
     user: false,
     reveal: false,
     force: false,
+    noActivate: false,
+    reencrypt: false,
     help: false,
     positionals: [],
   }
@@ -153,6 +202,7 @@ function parseArgs(args: string[]): VaultOptions {
         options.defaultModel = takeValue(args, i, arg)
         i++
         break
+      case '--note':
       case '--notes':
         options.notes = takeValue(args, i, arg)
         i++
@@ -175,6 +225,28 @@ function parseArgs(args: string[]): VaultOptions {
         break
       case '--key-file':
         options.keyFile = takeValue(args, i, arg)
+        i++
+        break
+      case '--new-password-file':
+        options.newPasswordFile = takeValue(args, i, arg)
+        i++
+        break
+      case '--enc-key-file':
+        options.encKeyFile = takeValue(args, i, arg)
+        i++
+        break
+      case '--kid':
+        options.kid = takeValue(args, i, arg)
+        i++
+        break
+      case '--no-activate':
+        options.noActivate = true
+        break
+      case '--reencrypt':
+        options.reencrypt = true
+        break
+      case '--value-file':
+        options.valueFile = takeValue(args, i, arg)
         i++
         break
       case '--user':
@@ -355,12 +427,51 @@ async function addCommand(
   if (existing.entries[name] && !options.force) {
     fail(`Entry "${name}" already exists in ${target} (use --force to overwrite)`)
   }
+  const env = embedEnv(options)
+  const stored = await moveKeysToEmbed(name, entry, options.force, env)
   await saveVault(target, addEntry(existing, name, entry))
   console.log(`Added entry "${name}" to ${target}`)
-  if (entry.apiKey) console.log(`  apiKey: ${maskSecret(entry.apiKey)}`)
-  if (entry.apiKeys?.length) {
-    console.log(`  apiKeys: ${entry.apiKeys.map((key) => maskSecret(key)).join(', ')}`)
+  if (entry.apiKey) console.log(`  apiKey: ${entry.apiKey}`)
+  if (entry.apiKeys?.length) console.log(`  apiKeys: ${entry.apiKeys.join(', ')}`)
+  if (stored > 0) {
+    console.log(`  ${stored} key${stored === 1 ? '' : 's'} stored in ${defaultEmbedPath(env)}`)
   }
+}
+
+/**
+ * Replace every plaintext key of `entry` with an `embed:<name>` ref, storing the value in the
+ * embedded store (`<entry>` for `apiKey`, `<entry>-<n>` for `apiKeys[n-1]`). Returns the number
+ * of keys moved. Secret values never reach output or errors.
+ */
+async function moveKeysToEmbed(
+  entryName: string,
+  entry: VaultEntry,
+  force: boolean,
+  env: NodeJS.ProcessEnv,
+): Promise<number> {
+  let moved = 0
+  const store = async (secretName: string, value: string): Promise<string> => {
+    if (isSecretRef(value)) return value
+    const existing = await getEmbedSecret(secretName, env).catch(() => undefined)
+    if (existing?.secret !== value) {
+      if (existing && !force) {
+        fail(
+          `Embedded store already has a different secret "${secretName}" (use --force to overwrite, or pass --api-key embed:<other-name>)`,
+        )
+      }
+      await setEmbedSecret({ name: secretName, secret: value }, { overwrite: true }, env)
+    }
+    moved++
+    return `embed:${secretName}`
+  }
+  if (entry.apiKey !== undefined) entry.apiKey = await store(entryName, entry.apiKey)
+  if (entry.apiKeys !== undefined) {
+    const refs: string[] = []
+    for (const [i, key] of entry.apiKeys.entries())
+      refs.push(await store(`${entryName}-${i + 1}`, key))
+    entry.apiKeys = refs
+  }
+  return moved
 }
 
 async function rmCommand(
@@ -568,18 +679,13 @@ async function keepassStatusCommand(options: VaultOptions): Promise<void> {
 }
 
 /**
- * Environment for the embedded-store commands. `--path` overrides the environment;
- * when no credentials are configured and a TTY is attached, the master password is
- * prompted for (keystrokes hidden). Otherwise the core resolver reports the missing
- * configuration.
+ * Environment for the embedded-store commands. `--path` overrides the environment. Without
+ * `MT_EMBED_PASSWORD(_FILE)` the core falls back to the built-in default password (with a
+ * one-time warning), so no prompting is needed.
  */
-async function embedEnv(options: VaultOptions, prompt: boolean): Promise<NodeJS.ProcessEnv> {
+function embedEnv(options: VaultOptions): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }
   if (options.path) env.MT_EMBED_PATH = options.path
-  if (prompt && !embedCredentialsConfigured(env)) {
-    const password = await askSecret('Embedded store master password')
-    if (password) env.MT_EMBED_PASSWORD = password
-  }
   return env
 }
 
@@ -588,21 +694,7 @@ async function embedInitCommand(options: VaultOptions): Promise<void> {
   if (existsSync(path)) {
     fail(`Embedded store already exists: ${path} (remove it first or pick --path)`)
   }
-  const env = await embedEnv(options, false)
-  let password = env.MT_EMBED_PASSWORD
-  if (!embedCredentialsConfigured(env)) {
-    if (!process.stdin.isTTY) {
-      fail(
-        'Missing embedded store credentials: set MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE) for non-interactive use',
-      )
-    }
-    const first = await askSecret('Master password')
-    if (!first) fail('Master password must be non-empty')
-    const second = await askSecret('Repeat master password')
-    if (first !== second) fail('Passwords do not match')
-    password = first
-  }
-  const created = await createEmbedStore({ path, password }, env)
+  const created = await createEmbedStore({ path }, embedEnv(options))
   console.log(`Created ${created}`)
   console.log('  mode: 0600')
 }
@@ -612,19 +704,19 @@ async function embedAddCommand(options: VaultOptions): Promise<void> {
   if (!name) {
     fail('Usage: mt vault embed-add <name> [--secret <value>] [--username <name>]')
   }
-  const env = await embedEnv(options, true)
+  const env = embedEnv(options)
   const secret = options.secret ?? (await askSecret(`Secret for "${name}"`))
   if (!secret) fail('Missing secret: pass --secret (or run on a TTY to be prompted)')
   const result = await setEmbedSecret(
     { name, secret, username: options.username, notes: options.notes },
-    { path: options.path, overwrite: options.force },
+    { path: options.path, overwrite: options.force, kid: options.kid },
     env,
   )
-  console.log(`Saved embedded secret "${name}" in ${result.path}`)
+  console.log(`Saved embedded secret "${name}" in ${result.path} (encryption key: ${result.kid})`)
 }
 
 async function embedListCommand(options: VaultOptions): Promise<void> {
-  const env = await embedEnv(options, true)
+  const env = embedEnv(options)
   const path = defaultEmbedPath(env)
   const entries = await listEmbedEntries(env)
   console.log(path)
@@ -634,27 +726,197 @@ async function embedListCommand(options: VaultOptions): Promise<void> {
   }
   const nameWidth = Math.max(4, ...entries.map((entry) => entry.name.length))
   const userWidth = Math.max(8, ...entries.map((entry) => (entry.username ?? '-').length))
+  const kidWidth = Math.max(3, ...entries.map((entry) => entry.kid.length))
   for (const entry of entries) {
-    console.log(`  ${entry.name.padEnd(nameWidth)}  ${(entry.username ?? '-').padEnd(userWidth)}`)
+    const stamps = [
+      `created ${entry.createdAt}`,
+      entry.rotatedAt ? `rotated ${entry.rotatedAt}` : '',
+    ]
+    console.log(
+      `  ${entry.name.padEnd(nameWidth)}  ${(entry.username ?? '-').padEnd(userWidth)}  ${entry.kid.padEnd(kidWidth)}  ${stamps.filter(Boolean).join('  ')}`,
+    )
   }
 }
 
 async function embedStatusCommand(options: VaultOptions): Promise<void> {
-  const env = await embedEnv(options, false)
+  const env = embedEnv(options)
   const path = defaultEmbedPath(env)
   console.log(`store: ${path}`)
   console.log(`  state: ${existsSync(path) ? 'exists' : 'missing'}`)
   const configured = embedCredentialsConfigured(env)
   console.log(
-    `  credentials: ${configured ? 'configured' : 'missing — set MT_EMBED_PASSWORD or MT_EMBED_PASSWORD_FILE'}`,
+    `  credentials: ${configured ? 'configured' : 'built-in default (obfuscation only) — run `mt vault embed-rekey` to set a private master password'}`,
   )
-  if (!existsSync(path) || !configured) return
+  if (!existsSync(path)) return
   try {
     const entries = await listEmbedEntries(env)
+    const keys = await listEmbedKeys({ path: options.path }, env)
     console.log(`  unlocked: ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`)
+    const active = keys.find((key) => key.status === 'active')
+    console.log(`  encryption keys: ${keys.length} (active: ${active?.kid ?? 'none'})`)
   } catch (err) {
     console.log(`  locked: ${err instanceof Error ? err.message : String(err)}`)
   }
+}
+
+/** Read a secret from a file, dropping one trailing newline. */
+async function readSecretFile(path: string, label: string): Promise<string> {
+  try {
+    return (await readFile(resolve(path), 'utf-8')).replace(/\r?\n$/, '')
+  } catch (err) {
+    const code = (err as { code?: string }).code ?? 'unknown error'
+    return fail(`Cannot read ${label} ${resolve(path)}: ${code}`)
+  }
+}
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = []
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
+  }
+  return Buffer.concat(chunks)
+    .toString('utf-8')
+    .replace(/\r?\n$/, '')
+}
+
+async function resolveNewPassword(options: VaultOptions, env: NodeJS.ProcessEnv): Promise<string> {
+  let password: string | undefined
+  if (options.newPasswordFile) {
+    password = await readSecretFile(options.newPasswordFile, 'new password file')
+  } else if (env.MT_EMBED_NEW_PASSWORD !== undefined) {
+    password = env.MT_EMBED_NEW_PASSWORD
+  } else if (env.MT_EMBED_NEW_PASSWORD_FILE) {
+    password = await readSecretFile(env.MT_EMBED_NEW_PASSWORD_FILE, 'MT_EMBED_NEW_PASSWORD_FILE')
+  } else if (process.stdin.isTTY) {
+    const first = await askSecret('New master password')
+    if (!first) fail('New master password must be non-empty')
+    const second = await askSecret('Repeat new master password')
+    if (first !== second) fail('Passwords do not match')
+    password = first
+  } else {
+    fail(
+      'Missing new master password: pass --new-password-file, set MT_EMBED_NEW_PASSWORD(_FILE), or run on a TTY',
+    )
+  }
+  if (!password) fail('New master password must be non-empty')
+  return password
+}
+
+/** Value from a file, a hidden TTY prompt, or stdin (in that order); never an argument. */
+async function readSuppliedValue(
+  file: string | undefined,
+  label: string,
+  prompt: string,
+): Promise<string | undefined> {
+  if (file) return readSecretFile(file, label)
+  if (process.stdin.isTTY) return askSecret(prompt)
+  return readStdin()
+}
+
+async function embedKeyringCommand(options: VaultOptions): Promise<void> {
+  const action = options.positionals[1]
+  const kidArg = options.positionals[2]
+  const env = embedEnv(options)
+  const where = { path: options.path }
+  const usage = 'Usage: mt vault embed-keyring generate|add|list|use|retire|rm|rotate [options]'
+  const needKid = (): string => kidArg ?? fail(`${usage}\n  ${action} needs a <kid>`)
+  switch (action) {
+    case 'generate': {
+      const result = await generateEmbedKey(
+        { ...where, kid: options.kid, note: options.notes, activate: !options.noActivate },
+        env,
+      )
+      console.log(`Generated encryption key "${result.kid}" in ${result.path}`)
+      console.log(`  status: ${result.active ? 'active' : 'retired (not used for new secrets)'}`)
+      return
+    }
+    case 'add': {
+      if (!options.kid)
+        fail('Usage: mt vault embed-keyring add --kid <kid> [--enc-key-file <file>]')
+      const key = await readSuppliedValue(
+        options.encKeyFile,
+        'encryption key file',
+        `Encryption key for "${options.kid}"`,
+      )
+      if (!key)
+        fail('Missing encryption key: use --enc-key-file, pipe it on stdin, or run on a TTY')
+      const result = await addEmbedKey(
+        { ...where, kid: options.kid, key, note: options.notes, activate: !options.noActivate },
+        env,
+      )
+      console.log(`Added encryption key "${result.kid}" to ${result.path}`)
+      console.log(`  status: ${result.active ? 'active' : 'retired (not used for new secrets)'}`)
+      return
+    }
+    case 'list': {
+      const keys = await listEmbedKeys(where, env)
+      console.log(defaultEmbedPath(env))
+      const kidWidth = Math.max(3, ...keys.map((key) => key.kid.length))
+      for (const key of keys) {
+        const note = key.note ? `  ${key.note}` : ''
+        console.log(
+          `  ${key.kid.padEnd(kidWidth)}  ${key.status.padEnd(7)}  ${key.secrets} secret${key.secrets === 1 ? ' ' : 's'}  created ${key.createdAt}${note}`,
+        )
+      }
+      return
+    }
+    case 'use':
+      await useEmbedKey(needKid(), where, env)
+      console.log(`Encryption key "${kidArg}" is now active for new secrets`)
+      return
+    case 'retire':
+      await retireEmbedKey(needKid(), where, env)
+      console.log(`Encryption key "${kidArg}" retired (still decrypts existing secrets)`)
+      return
+    case 'rm':
+      await removeEmbedKey(needKid(), { ...where, force: options.force }, env)
+      console.log(`Removed encryption key "${kidArg}"`)
+      return
+    case 'rotate': {
+      const result = await rotateEmbedKeys(
+        { ...where, kid: options.kid, note: options.notes, reencrypt: options.reencrypt },
+        env,
+      )
+      console.log(`Generated and activated encryption key "${result.kid}" in ${result.path}`)
+      console.log(
+        options.reencrypt
+          ? `  re-encrypted ${result.reencrypted} secret${result.reencrypted === 1 ? '' : 's'}`
+          : '  existing secrets keep their old key (use --reencrypt to move them)',
+      )
+      return
+    }
+    default:
+      return fail(usage)
+  }
+}
+
+async function embedRekeyCommand(options: VaultOptions): Promise<void> {
+  const env = embedEnv(options)
+  const newPassword = await resolveNewPassword(options, env)
+  const result = await rekeyEmbedStore({ path: options.path, newPassword }, env)
+  console.log(
+    `Re-keyed ${result.entries} secret${result.entries === 1 ? '' : 's'} in ${result.path}`,
+  )
+  console.log('  mode: 0600')
+  console.log('  next: export the new password as MT_EMBED_PASSWORD (or MT_EMBED_PASSWORD_FILE)')
+  console.log(
+    '  tip: `mt vault embed-keyring rotate --reencrypt` also replaces the encryption keys',
+  )
+}
+
+async function embedRotateCommand(options: VaultOptions): Promise<void> {
+  const name = options.positionals[1]
+  if (!name || options.secret !== undefined) {
+    fail(
+      'Usage: mt vault embed-rotate <name> [--value-file <file>] (value via file, stdin or hidden prompt; never an argument)',
+    )
+  }
+  const env = embedEnv(options)
+  const value = await readSuppliedValue(options.valueFile, 'value file', `New value for "${name}"`)
+  if (!value) fail('Missing new value: use --value-file, pipe it on stdin, or run on a TTY')
+  const result = await rotateEmbedSecret({ name, secret: value }, { path: options.path }, env)
+  console.log(`Rotated embedded secret "${name}" in ${result.path}`)
+  console.log(`  rotatedAt: ${result.rotatedAt}`)
 }
 
 async function dispatch(args: string[]): Promise<void> {
@@ -703,6 +965,12 @@ async function dispatch(args: string[]): Promise<void> {
       return embedListCommand(options)
     case 'embed-status':
       return embedStatusCommand(options)
+    case 'embed-keyring':
+      return embedKeyringCommand(options)
+    case 'embed-rekey':
+      return embedRekeyCommand(options)
+    case 'embed-rotate':
+      return embedRotateCommand(options)
     default:
       return fail(`Unknown vault subcommand: ${subcommand}\n\n${USAGE}`)
   }

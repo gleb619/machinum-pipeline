@@ -60,11 +60,11 @@ describe('router vlt', () => {
   it('readVaultEntries resolves vlt: refs in apiKey/apiKeys', async () => {
     mockShowSuccess()
     await writeVault({
-      a: { provider: 'openrouter', apiKey: 'vlt:one', apiKeys: ['vlt:two', 'plain'] },
+      a: { provider: 'openrouter', apiKey: 'vlt:one', apiKeys: ['vlt:two', 'vlt:three'] },
     })
     const merged = readVaultEntries([vaultFile])
     expect(merged.a?.apiKey).toBe('sk-resolved-one')
-    expect(merged.a?.apiKeys).toEqual(['sk-resolved-two', 'plain'])
+    expect(merged.a?.apiKeys).toEqual(['sk-resolved-two', 'sk-resolved-three'])
     // The file on disk keeps the refs.
     const raw = await readFile(vaultFile, 'utf-8')
     expect(raw).toContain('vlt:one')

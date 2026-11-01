@@ -54,17 +54,39 @@ describe('vault write helpers', () => {
   })
 
   it('removes entries and rejects unknown names', () => {
-    const vault = addEntry(emptyVault(), 'local', { provider: 'ollama', apiKey: SECRET })
+    const vault = addEntry(emptyVault(), 'local', { provider: 'ollama', apiKey: 'embed:local' })
     const next = removeEntry(vault, 'local')
     expect(next.entries).toEqual({})
-    expect(vault.entries.local?.apiKey).toBe(SECRET)
+    expect(vault.entries.local?.apiKey).toBe('embed:local')
     expect(() => removeEntry(vault, 'nope')).toThrow(/Unknown vault entry "nope"/)
   })
 
   it('saves atomically with mode 0600', async () => {
     const path = join(dir, 'nested', 'vault.json')
-    await saveVault(path, addEntry(emptyVault(), 'local', { provider: 'ollama', apiKey: SECRET }))
+    await saveVault(
+      path,
+      addEntry(emptyVault(), 'local', { provider: 'ollama', apiKey: 'embed:local' }),
+    )
     expect((await stat(path)).mode & 0o777).toBe(0o600)
     expect(await readdir(join(dir, 'nested'))).toEqual(['vault.json'])
+  })
+
+  it('rejects plaintext keys in addEntry and saveVault without echoing them', async () => {
+    const add = () => addEntry(emptyVault(), 'local', { provider: 'ollama', apiKey: SECRET })
+    expect(add).toThrow(/entry "local": plaintext apiKey is not allowed/)
+    expect(add).toThrow(/embed:<name>/)
+    expect(add).not.toThrow(SECRET)
+    const pool = () =>
+      addEntry(emptyVault(), 'p', { provider: 'openai', apiKeys: ['embed:a', SECRET] })
+    expect(pool).toThrow(/plaintext apiKeys\[1\]/)
+
+    const path = join(dir, 'plain', 'vault.json')
+    const err = await saveVault(path, {
+      version: 1,
+      entries: { x: { provider: 'ollama', apiKey: SECRET } },
+    }).catch((e: Error) => e)
+    expect((err as Error).message).toContain('entry "x"')
+    expect((err as Error).message).not.toContain(SECRET)
+    await expect(stat(path)).rejects.toThrow()
   })
 })

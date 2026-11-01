@@ -57,6 +57,13 @@ export function vaultSignature(paths: string[]): string {
     .join('|')}|kp:${keepassSignature()}|emb:${embedSignature()}`
 }
 
+const SECRET_REF_PREFIXES = ['vlt:', 'keepass:', 'embed:']
+
+/** Key values must be secret refs; plaintext is rejected (same rule as core). */
+function isSecretRef(value: string): boolean {
+  return SECRET_REF_PREFIXES.some((prefix) => value.startsWith(prefix))
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
@@ -116,6 +123,16 @@ function parseEntry(name: string, value: unknown, path: string): VaultEntry {
   if (apiKey !== undefined) entry.apiKey = apiKey
   const apiKeys = list('apiKeys')
   if (apiKeys !== undefined) entry.apiKeys = apiKeys
+  const plain: string[] = []
+  if (entry.apiKey !== undefined && !isSecretRef(entry.apiKey)) plain.push('apiKey')
+  entry.apiKeys?.forEach((key, i) => {
+    if (!isSecretRef(key)) plain.push(`apiKeys[${i}]`)
+  })
+  if (plain.length > 0) {
+    fail(
+      `plaintext ${plain.join(', ')} is not allowed (value not shown). Use "embed:<name>" (or "vlt:<name>" / "keepass:<title>") refs`,
+    )
+  }
   const models = list('models')
   if (models !== undefined) entry.models = models
   const defaultModel = str('defaultModel')

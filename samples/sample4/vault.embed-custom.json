@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "entries": {
+    "demo-embed-custom": {
+      "provider": "openrouter",
+      "apiKey": "embed:demo-embed-custom",
+      "notes": "Demo only. Same store type, protected by MT_EMBED_PASSWORD_FILE."
+    }
+  }
+}
