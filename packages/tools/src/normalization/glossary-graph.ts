@@ -1,3 +1,4 @@
+import { REF_GRAPH_MAX_HOPS } from '../constants.js'
 import type { Glossary, GlossaryTermType } from './term-tagger.js'
 
 /**
@@ -106,7 +107,7 @@ export function findReferences(graph: GlossaryGraph, term: string, hops = 1): st
     (n) => n.id.toLowerCase() === wanted || n.term.trim().toLowerCase() === wanted,
   )
   if (!node) return []
-  const maxHops = Math.min(3, Math.max(1, Math.trunc(hops)))
+  const maxHops = Math.min(REF_GRAPH_MAX_HOPS, Math.max(1, Math.trunc(hops)))
   const adjacency = new Map<string, string[]>()
   for (const edge of graph.edges) {
     adjacency.set(edge.from, [...(adjacency.get(edge.from) ?? []), edge.to])

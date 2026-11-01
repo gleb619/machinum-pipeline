@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange } from '@mt/core'
+import { STAT_DICT_MIN_COUNT, STAT_DICT_TOP_K } from '../constants.js'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
 import { exField } from './fields.js'
 import {
@@ -79,8 +80,8 @@ export function selectStatDictCandidates(
   report: StatFreqReport,
   options: StatDictSelectOptions = {},
 ): StatDictCandidate[] {
-  const minCount = Math.max(1, options.minCount ?? 3)
-  const topK = Math.max(1, options.topK ?? 100)
+  const minCount = Math.max(1, options.minCount ?? STAT_DICT_MIN_COUNT)
+  const topK = Math.max(1, options.topK ?? STAT_DICT_TOP_K)
   const byTerm = new Map<string, StatDictCandidate>()
 
   const add = (term: string, count: number, kind: StatFreqKind): void => {

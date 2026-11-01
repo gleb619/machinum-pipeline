@@ -1,6 +1,7 @@
 import { defineTool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import { VOCABULARY_DEFAULT_LIMIT, VOCABULARY_MAX_LIMIT } from '../../constants.js'
 import {
   type ChunkModeOptions,
   resolvePromptBudget,
@@ -22,8 +23,9 @@ export const VOCABULARY_USER_PROMPT =
   'List up to {{limit}} key terms from this chapter, most important first, in descending order.\n\n' +
   '# {{title}}\n\n{{body}}'
 
-const DEFAULT_LIMIT = 40
-const MAX_LIMIT = 300
+/** Back-compat local aliases of the shared vocabulary limits. */
+const DEFAULT_LIMIT = VOCABULARY_DEFAULT_LIMIT
+const MAX_LIMIT = VOCABULARY_MAX_LIMIT
 
 function validateVocabulary(
   content: string,

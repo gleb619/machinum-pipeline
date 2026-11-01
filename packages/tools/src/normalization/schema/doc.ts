@@ -1,4 +1,5 @@
 import type { Exchange } from '@mt/core'
+import { FREQUENT_TERMS_LIMIT, WORDLIST_CELL_MAX_CHARS } from '../../constants.js'
 import { parseCsvRows, readDoc, writeDoc } from '../../modification/schema-doc.js'
 import type { SchemaDocEnvelope, SchemaDocMetadata } from '../../modification/schema-doc.js'
 import { exField } from '../fields.js'
@@ -99,7 +100,7 @@ export function parseWordList(code: string): string[] {
         .replace(/^["'`]+|["'`]+$/g, '')
         .trim(),
     )
-    .filter((cell) => cell.length > 0 && cell.length <= 64)
+    .filter((cell) => cell.length > 0 && cell.length <= WORDLIST_CELL_MAX_CHARS)
 
   const header = cells[0]?.toLowerCase()
   const body = header === 'word' || header === 'words' ? cells.slice(1) : cells
@@ -212,7 +213,7 @@ export function countWords(text: string): number {
  * The most frequent substantive words of a text, used to check that an LLM answer
  * actually covers the chapter instead of paraphrasing something unrelated.
  */
-export function frequentTerms(text: string, limit = 20): string[] {
+export function frequentTerms(text: string, limit = FREQUENT_TERMS_LIMIT): string[] {
   const counts = new Map<string, number>()
   for (const word of text.toLowerCase().split(/[^a-z0-9']+/)) {
     if (word.length < 4) continue

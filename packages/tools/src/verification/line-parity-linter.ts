@@ -1,5 +1,13 @@
 import { defineTool, setVariable } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import {
+  MAX_ISSUES_IN_ERROR,
+  MAX_ISSUES_IN_FEEDBACK,
+  MIN_CYRILLIC_RATIO,
+  PARITY_ABS_TOLERANCE,
+  PARITY_REL_TOLERANCE,
+  UNTRANSLATED_MIN_LETTERS,
+} from '../constants.js'
 
 /** Severity of a parity issue: `error` fails the check, `warn` is informational. */
 export type ParitySeverity = 'error' | 'warn'
@@ -87,9 +95,9 @@ export function lintLineParity(
   ru: string,
   options: LineParityOptions = {},
 ): LineParityReport {
-  const minRatio = options.minCyrillicRatio ?? 0.3
+  const minRatio = options.minCyrillicRatio ?? MIN_CYRILLIC_RATIO
   const ratioSeverity = options.cyrillicSeverity ?? 'error'
-  const minLetters = options.untranslatedMinLetters ?? 20
+  const minLetters = options.untranslatedMinLetters ?? UNTRANSLATED_MIN_LETTERS
   const enLines = en.split('\n')
   const ruLines = ru.split('\n')
   const issues: ParityIssue[] = []
@@ -191,7 +199,7 @@ export class LineParityError extends Error {
   ) {
     const first = report.issues.filter((i) => i.severity === 'error').map((i) => i.message)
     super(
-      `line parity check failed${where ? ` at ${where}` : ''} (${report.errors} error(s)): ${first.slice(0, 3).join('; ')}`,
+      `line parity check failed${where ? ` at ${where}` : ''} (${report.errors} error(s)): ${first.slice(0, MAX_ISSUES_IN_ERROR).join('; ')}`,
     )
     this.name = 'LineParityError'
     this.feedback = parityFeedback(report)
@@ -212,7 +220,7 @@ export function parityFeedback(report: LineParityReport): string {
   parts.push(`Cyrillic ratio ${report.cyrillicRatio}`)
   if (report.escapeHatch) parts.push('accepted by stability escape hatch')
   const errors = report.issues.filter((i) => i.severity === 'error').map((i) => i.message)
-  if (errors.length > 0) parts.push(errors.slice(0, 5).join('; '))
+  if (errors.length > 0) parts.push(errors.slice(0, MAX_ISSUES_IN_FEEDBACK).join('; '))
   return parts.join('; ')
 }
 
@@ -235,11 +243,11 @@ function normalizeTolerance(v: boolean | LineParityEscapeHatchOptions | undefine
   relative: number
 } {
   if (typeof v === 'boolean' || v === undefined) {
-    return { absolute: 0.005, relative: 0.15 }
+    return { absolute: PARITY_ABS_TOLERANCE, relative: PARITY_REL_TOLERANCE }
   }
   return {
-    absolute: v.absoluteTolerance ?? 0.005,
-    relative: v.relativeTolerance ?? 0.15,
+    absolute: v.absoluteTolerance ?? PARITY_ABS_TOLERANCE,
+    relative: v.relativeTolerance ?? PARITY_REL_TOLERANCE,
   }
 }
 

@@ -1,5 +1,11 @@
 import { defineTool, getVariable, setVariable, withItem } from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
+import {
+  DEFAULT_CHUNK_CONCURRENCY,
+  PROMPT_OVERHEAD_SLACK_TOKENS,
+  TRANSLATE_PREFIX_FALLBACK_TOKENS,
+  TRANSLATE_SYSTEM_FALLBACK_TOKENS,
+} from '../constants.js'
 import { countTextTokens } from '../normalization/token-counter.js'
 import { cleanTranslation } from '../normalization/translation-prompt.js'
 import {
@@ -224,7 +230,7 @@ function translateBudget(
     const systemText = resolvePrompt('translate.system', {}, ps.sources, ps.env)
     systemTokens = countTextTokens(systemText)
   } catch {
-    systemTokens = 200
+    systemTokens = TRANSLATE_SYSTEM_FALLBACK_TOKENS
   }
   try {
     const userPrefix = resolvePrompt(
@@ -239,9 +245,9 @@ function translateBudget(
     )
     userPrefixTokens = countTextTokens(userPrefix)
   } catch {
-    userPrefixTokens = 100
+    userPrefixTokens = TRANSLATE_PREFIX_FALLBACK_TOKENS
   }
-  const overhead = systemTokens + userPrefixTokens + 8
+  const overhead = systemTokens + userPrefixTokens + PROMPT_OVERHEAD_SLACK_TOKENS
   return resolveChunkBudget({
     ctx,
     input: {
@@ -334,7 +340,7 @@ export function createChunkedTranslateText(
             return out.item.translatedText
           },
           merge: (parts) => parts.join('\n\n'),
-          concurrency: options.chunkConcurrency ?? 2,
+          concurrency: options.chunkConcurrency ?? DEFAULT_CHUNK_CONCURRENCY,
         })
 
         outputs.push({

@@ -1,5 +1,6 @@
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange } from '@mt/core'
+import { WORD_CHAR_CLASS } from '../constants.js'
 import { exField } from './fields.js'
 import type { RuGender, RuGrammar } from './ru-grammar.js'
 
@@ -79,7 +80,6 @@ export interface Glossary {
 }
 
 const TAG_RE = /<term id="[^"]*">([\s\S]*?)<\/term>/g
-const WORD_CHAR = '\\p{L}\\p{N}_'
 
 /** Inverse of {@link tagTerms}: drops every `<term id="..">..</term>` wrapper, keeping the text. */
 export function stripTerms(text: string): string {
@@ -109,8 +109,8 @@ export function compileTermMatcher(glossary: Glossary): TermMatcher {
   if (forms.length === 0) return { regex: null, idOf }
   const body = forms
     .map((f) => {
-      const first = /^[\p{L}\p{N}_]/u.test(f) ? `(?<![${WORD_CHAR}])` : ''
-      const last = /[\p{L}\p{N}_]$/u.test(f) ? `(?![${WORD_CHAR}])` : ''
+      const first = /^[\p{L}\p{N}_]/u.test(f) ? `(?<![${WORD_CHAR_CLASS}])` : ''
+      const last = /[\p{L}\p{N}_]$/u.test(f) ? `(?![${WORD_CHAR_CLASS}])` : ''
       return `${first}${escapeRegExp(f)}${last}`
     })
     .join('|')

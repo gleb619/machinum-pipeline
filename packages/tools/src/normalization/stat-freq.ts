@@ -1,6 +1,12 @@
 import { dirname } from 'node:path'
 import { defineTool, setVariable } from '@mt/core'
 import type { Exchange } from '@mt/core'
+import {
+  REPEATED_SENTENCE_MIN_COUNT,
+  STAT_FREQ_MAX_NGRAM,
+  STAT_FREQ_MIN_WORD_LENGTH,
+  STAT_FREQ_TOP_K,
+} from '../constants.js'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
 
 /**
@@ -205,9 +211,9 @@ export function buildStatFreqReport(
 ): StatFreqReport {
   const stopwords = new Set(DEFAULT_STOPWORDS)
   for (const word of options.stopwords ?? []) stopwords.add(word.toLowerCase())
-  const minWordLen = Math.max(1, options.minWordLen ?? 1)
-  const maxNgram = Math.max(2, options.maxNgram ?? 3)
-  const topK = Math.max(1, options.topK ?? 500)
+  const minWordLen = Math.max(1, options.minWordLen ?? STAT_FREQ_MIN_WORD_LENGTH)
+  const maxNgram = Math.max(2, options.maxNgram ?? STAT_FREQ_MAX_NGRAM)
+  const topK = Math.max(1, options.topK ?? STAT_FREQ_TOP_K)
 
   const wordCounts = new Map<string, number>()
   const ngramCounts = new Map<string, number>()
@@ -248,7 +254,7 @@ export function buildStatFreqReport(
     .sort(rankEntry)
   const rankedNgrams = [...ngramCounts.entries()].sort(rankEntry)
   const rankedSentences = [...sentenceCounts.entries()]
-    .filter(([, count]) => count >= 2)
+    .filter(([, count]) => count >= REPEATED_SENTENCE_MIN_COUNT)
     .sort(rankEntry)
 
   const words: StatFreqWord[] = rankedWords

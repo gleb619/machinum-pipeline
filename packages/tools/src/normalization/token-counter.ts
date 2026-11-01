@@ -1,12 +1,13 @@
 import { defineTool, setVariable, setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { get_encoding } from 'tiktoken'
+import { TOKEN_ENCODING } from '../constants.js'
 
 /** Variables written by the token counters. */
 export const VAR_TOKEN_COUNT = 'tokenCount'
 export const VAR_TOKEN_COUNTS = 'tokenCounts'
 
-const ENCODING = 'cl100k_base'
+const ENCODING = TOKEN_ENCODING
 
 type Encoder = ReturnType<typeof get_encoding>
 

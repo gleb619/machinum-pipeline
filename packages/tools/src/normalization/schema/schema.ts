@@ -1,6 +1,7 @@
 import { defineTool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import { MAX_SCHEMA_LINES } from '../../constants.js'
 import { chapterVars, readChapter, renderPrompt, roundTripIssue, stripCodeFence } from './doc.js'
 import type { ChapterSource } from './doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
@@ -18,7 +19,8 @@ export const SCHEMA_USER_PROMPT =
 const DIAGRAM_KEYWORD_RE =
   /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|mindmap)\b/
 const EDGE_RE = /-->|-\.->|==>|---/
-const MAX_LINES = 80
+/** Back-compat alias of the shared schema line cap. */
+const MAX_LINES = MAX_SCHEMA_LINES
 
 /** Strips a stray mermaid fence and rejects answers that are not a diagram. */
 function validateSchema(content: string, source: ChapterSource): PromptValidation<string> {

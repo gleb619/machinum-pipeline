@@ -1,14 +1,23 @@
 import { defineTool, setVariables, withItem } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
+import {
+  BALANCE_ALLOWED_DEVIATION,
+  CHARS_PER_TOKEN_HEURISTIC,
+  DEFAULT_CHUNK_TARGET,
+  DEFAULT_LINE_MAX_TOKENS,
+  DEFAULT_MAX_TOKENS,
+  DEFAULT_OVERLAP_CHARS,
+  DEFAULT_SENTENCE_MAX_CHARS,
+  SENTENCE_END_RE,
+} from '../constants.js'
 
-export const DEFAULT_MAX_TOKENS = 12000
-export const DEFAULT_CHUNK_TARGET = 6000
+export { DEFAULT_CHUNK_TARGET, DEFAULT_MAX_TOKENS }
 
 /**
  * Heuristic fallback: ~4 characters per token.
  */
 export function heuristicTokenCount(text: string): number {
-  return Math.ceil(text.length / 4)
+  return Math.ceil(text.length / CHARS_PER_TOKEN_HEURISTIC)
 }
 
 /**
@@ -99,7 +108,7 @@ export function balanceText(text: string, numChunks: number): string[] {
   const lines = splitLines(text)
   const totalLength = lines.reduce((sum, line) => sum + line.length + 1, 0)
   const targetChunkSize = Math.max(1, Math.floor(totalLength / numChunks))
-  const allowedDeviation = targetChunkSize * 0.05
+  const allowedDeviation = targetChunkSize * BALANCE_ALLOWED_DEVIATION
 
   const chunks: TextChunk[] = Array.from({ length: numChunks }, () => ({
     lines: [],
@@ -276,7 +285,7 @@ export interface LineStrategyOptions {
 }
 
 export function lineStrategy(options?: LineStrategyOptions): TokenSplitStrategy {
-  const { maxTokens = 2000, count = heuristicTokenCount } = options ?? {}
+  const { maxTokens = DEFAULT_LINE_MAX_TOKENS, count = heuristicTokenCount } = options ?? {}
 
   return {
     name: 'line',
@@ -298,7 +307,7 @@ export interface WhitespaceStrategyOptions {
 }
 
 export function whitespaceStrategy(options?: WhitespaceStrategyOptions): TokenSplitStrategy {
-  const { maxTokens = 2000, count = heuristicTokenCount } = options ?? {}
+  const { maxTokens = DEFAULT_LINE_MAX_TOKENS, count = heuristicTokenCount } = options ?? {}
 
   return {
     name: 'whitespace',
@@ -312,14 +321,12 @@ export function whitespaceStrategy(options?: WhitespaceStrategyOptions): TokenSp
   }
 }
 
-const SENTENCE_END = /[.!?](?:\s|$)/g
-
 export interface SentenceStrategyOptions {
   maxChars?: number
 }
 
 export function sentenceStrategy(options?: SentenceStrategyOptions): TokenSplitStrategy {
-  const { maxChars = 4000 } = options ?? {}
+  const { maxChars = DEFAULT_SENTENCE_MAX_CHARS } = options ?? {}
 
   return {
     name: 'sentence',
@@ -328,7 +335,7 @@ export function sentenceStrategy(options?: SentenceStrategyOptions): TokenSplitS
 
       const sentences: string[] = []
       let cursor = 0
-      for (const match of text.matchAll(SENTENCE_END)) {
+      for (const match of text.matchAll(SENTENCE_END_RE)) {
         const end = (match.index ?? 0) + match[0].length
         sentences.push(text.slice(cursor, end))
         cursor = end
@@ -373,7 +380,7 @@ export interface BalancedStrategyOptions {
 export function balancedStrategy(options?: BalancedStrategyOptions): TokenSplitStrategy {
   const {
     targetTokens = DEFAULT_CHUNK_TARGET,
-    overlapChars = 0,
+    overlapChars = DEFAULT_OVERLAP_CHARS,
     count = heuristicTokenCount,
   } = options ?? {}
 
@@ -404,7 +411,11 @@ export interface BalancedLineStrategyOptions {
 }
 
 export function balancedLineStrategy(options?: BalancedLineStrategyOptions): TokenSplitStrategy {
-  const { maxTokens = 2000, overlapChars = 0, count = heuristicTokenCount } = options ?? {}
+  const {
+    maxTokens = DEFAULT_LINE_MAX_TOKENS,
+    overlapChars = DEFAULT_OVERLAP_CHARS,
+    count = heuristicTokenCount,
+  } = options ?? {}
 
   return {
     name: 'balanced-line',

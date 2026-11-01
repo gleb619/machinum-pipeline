@@ -1,4 +1,5 @@
 import type { ToolContext } from '@mt/core'
+import { GLOSSARY_CORPUS_MAX_CHARS } from '../constants.js'
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
 import {
   type ChunkModeOptions,
@@ -166,7 +167,10 @@ export interface GlossaryLlmOptions {
 }
 
 /** Renders the corpus text for a prompt (truncated to `maxChars`). */
-export function corpusText(chapters: GlossaryChapter[], maxChars = 12_000): string {
+export function corpusText(
+  chapters: GlossaryChapter[],
+  maxChars = GLOSSARY_CORPUS_MAX_CHARS,
+): string {
   const text = chapters.map((c) => c.text).join('\n\n')
   return text.length <= maxChars ? text : `${text.slice(0, maxChars)}\n[...truncated]`
 }

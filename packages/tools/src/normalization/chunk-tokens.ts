@@ -1,5 +1,6 @@
 import { defineTool, setVariables, withMeta } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import { CHARS_PER_TOKEN_HEURISTIC } from '../constants.js'
 
 /** Variable with the number of BPE tokens in the tokenized chunk. */
 export const VAR_TOKEN_COUNT = 'tokenCount'
@@ -8,9 +9,6 @@ export const VAR_TOKEN_HEURISTIC = 'tokenHeuristic'
 
 /** BPE encodings supported by {@link tokenizeChunk}. */
 export type TokenEncoding = 'o200k_base' | 'cl100k_base' | 'p50k_base' | 'r50k_base'
-
-/** Average characters per token used by the fallback. */
-const HEURISTIC_CHARS_PER_TOKEN = 4
 
 /** One BPE token of a chunk. */
 export interface ChunkToken {
@@ -58,10 +56,10 @@ async function loadCodec(encoding?: TokenEncoding): Promise<BpeCodec | undefined
 function heuristicPieces(text: string): ChunkToken[] {
   const pieces: ChunkToken[] = []
   const chars = Array.from(text)
-  for (let i = 0; i < chars.length; i += HEURISTIC_CHARS_PER_TOKEN) {
+  for (let i = 0; i < chars.length; i += CHARS_PER_TOKEN_HEURISTIC) {
     pieces.push({
       tokenId: pieces.length,
-      text: chars.slice(i, i + HEURISTIC_CHARS_PER_TOKEN).join(''),
+      text: chars.slice(i, i + CHARS_PER_TOKEN_HEURISTIC).join(''),
     })
   }
   return pieces

@@ -1,6 +1,7 @@
 import { defineTool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import { MAX_ENTITIES } from '../../constants.js'
 import {
   type ChunkModeOptions,
   resolvePromptBudget,
@@ -20,8 +21,6 @@ export const ENTITIES_SYSTEM_PROMPT =
 export const ENTITIES_USER_PROMPT =
   'List the named entities that appear in this chapter, most important first, at most 40 rows.\n\n' +
   '# {{title}}\n\n{{body}}'
-
-const MAX_ENTITIES = 200
 
 export interface SchemaEntity {
   index: number

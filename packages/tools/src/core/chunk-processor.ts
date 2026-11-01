@@ -1,5 +1,14 @@
 import { mapConcurrent, setVariable, withItem } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
+import {
+  CHUNK_SAFETY_RESERVE_TOKENS,
+  DEFAULT_CHUNK_CONCURRENCY,
+  DEFAULT_OUTPUT_RESERVE,
+  PROMPT_OVERHEAD_SLACK_TOKENS,
+  REASONING_RESERVE_HIGH_TOKENS,
+  REASONING_RESERVE_LOW_TOKENS,
+  SENTENCE_END_RE,
+} from '../constants.js'
 import { countTextTokens } from '../normalization/token-counter.js'
 import { type LlmConfigLayer, readCtx, resolveLlmConfigFromCtx } from './llm-config.js'
 import { modelContextLimit, resolveContextConfig } from './llm-context.js'
@@ -13,12 +22,13 @@ import { modelContextLimit, resolveContextConfig } from './llm-context.js'
 // chunks; this module is a budget-aware library used inside LLM tools (no Tool I/O).
 // ---------------------------------------------------------------------------
 
-/** Default per-call output reserve (tokens) when a tool does not state one. */
-export const DEFAULT_OUTPUT_RESERVE = 2048
+export { DEFAULT_OUTPUT_RESERVE }
 
 /** Prompt overhead = token cost of the prompt text that surrounds the chunk, plus framing slack. */
 export function estimateOverhead(...promptParts: readonly string[]): number {
-  return promptParts.reduce((sum, part) => sum + countTextTokens(part), 0) + 8
+  return (
+    promptParts.reduce((sum, part) => sum + countTextTokens(part), 0) + PROMPT_OVERHEAD_SLACK_TOKENS
+  )
 }
 
 export interface ChunkBudgetInput {
@@ -53,10 +63,14 @@ export function estimateReasoningReserve(model: string | undefined): number {
   if (!model) return 0
   const m = model.toLowerCase()
   const id = m.split('/').pop() ?? m
-  if (id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4')) return 8000
-  if (m.includes('deepseek-reasoner') || m.includes('deepseek-r1')) return 4000
-  if (m.includes('qwq')) return 4000
-  if (m.includes('claude-4')) return 4000
+  if (id.startsWith('o1') || id.startsWith('o3') || id.startsWith('o4')) {
+    return REASONING_RESERVE_HIGH_TOKENS
+  }
+  if (m.includes('deepseek-reasoner') || m.includes('deepseek-r1')) {
+    return REASONING_RESERVE_LOW_TOKENS
+  }
+  if (m.includes('qwq')) return REASONING_RESERVE_LOW_TOKENS
+  if (m.includes('claude-4')) return REASONING_RESERVE_LOW_TOKENS
   return 0
 }
 
@@ -96,7 +110,7 @@ export function resolveChunkBudget(args: {
 
   const outputReserve = args.input?.outputReserve ?? 0
   const thinkReserve = args.input?.thinkReserve ?? estimateReasoningReserve(model)
-  const reserve = args.input?.reserve ?? 64
+  const reserve = args.input?.reserve ?? CHUNK_SAFETY_RESERVE_TOKENS
   const overhead = args.input?.overhead ?? 0
   const inputBudget = Math.max(1, contextLimit - outputReserve - thinkReserve - overhead - reserve)
 
@@ -127,8 +141,6 @@ export interface SemanticChunkOptions {
   overlapChars?: number
 }
 
-const SENTENCE_END = /[.!?](?:\s|$)/g
-
 function splitUnits(text: string, unit: SemanticUnit): string[] {
   switch (unit) {
     case 'paragraph':
@@ -139,7 +151,7 @@ function splitUnits(text: string, unit: SemanticUnit): string[] {
     case 'sentence': {
       const sentences: string[] = []
       let cursor = 0
-      for (const match of text.matchAll(SENTENCE_END)) {
+      for (const match of text.matchAll(SENTENCE_END_RE)) {
         const end = (match.index ?? 0) + match[0].length
         sentences.push(text.slice(cursor, end).trim())
         cursor = end
@@ -545,7 +557,7 @@ export async function runChunkedText<T>(args: ChunkedRunArgs<T>): Promise<Chunke
     chunks,
     process: args.chunk,
     merge: args.merge,
-    concurrency: args.concurrency ?? 2,
+    concurrency: args.concurrency ?? DEFAULT_CHUNK_CONCURRENCY,
   })
   return { value, chunks: chunks.length, budget }
 }

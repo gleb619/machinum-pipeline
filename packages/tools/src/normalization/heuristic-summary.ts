@@ -1,5 +1,6 @@
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange } from '@mt/core'
+import { MIN_SENTENCE_WORDS, SUMMARY_SENTENCE_COUNT } from '../constants.js'
 
 /** Variable holding the heuristic summaries (fallback for the LLM summary). */
 export const VAR_HEURISTIC_SUMMARY_BY_ITEM = 'heuristicSummaryByItem'
@@ -31,7 +32,7 @@ export function splitSentences(text: string): string[] {
     if (t === '' || /^#{1,6}\s/.test(t) || /^(```|~~~)/.test(t)) continue
     for (const m of t.matchAll(/[^.!?]+(?:[.!?]+["')\]]*|$)/g)) {
       const s = m[0].trim()
-      if (s.split(/\s+/).length >= 4) out.push(s)
+      if (s.split(/\s+/).length >= MIN_SENTENCE_WORDS) out.push(s)
     }
   }
   return out
@@ -42,7 +43,7 @@ export function splitSentences(text: string): string[] {
  * term frequencies of non-stopwords, length-damped), emitted in original order.
  */
 export function summarizeHeuristic(md: string, options: HeuristicSummaryOptions = {}): string {
-  const limit = options.sentences ?? 4
+  const limit = options.sentences ?? SUMMARY_SENTENCE_COUNT
   const sentences = splitSentences(md)
   if (sentences.length <= limit) return sentences.join(' ')
   const freq = new Map<string, number>()

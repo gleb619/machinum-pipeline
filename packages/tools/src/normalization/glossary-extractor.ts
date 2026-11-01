@@ -1,6 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import {
+  BRACKET_TERM_MAX_WORDS,
+  GLOSSARY_ALWAYS_CAP_MIN_COUNT,
+  GLOSSARY_MAX_REFS_PER_TERM,
+  GLOSSARY_MIN_COUNT,
+} from '../constants.js'
 import type { ChunkModeOptions } from '../core/chunk-processor.js'
 import { buildGlossaryGraph, serializeGlossaryGraph } from './glossary-graph.js'
 import type { GlossaryGraph } from './glossary-graph.js'
@@ -96,7 +102,13 @@ function bump(
 /** Short `[Name]` labels; system sentences (`[System: ...]`, `[You gained...!]`) are not terms. */
 function bracketTerm(inner: string): string | null {
   const t = inner.trim()
-  if (/[:!?.,;]/.test(t) || t.split(/\s+/).length > 5 || !/^[A-Za-z]/.test(t)) return null
+  if (
+    /[:!?.,;]/.test(t) ||
+    t.split(/\s+/).length > BRACKET_TERM_MAX_WORDS ||
+    !/^[A-Za-z]/.test(t)
+  ) {
+    return null
+  }
   return `[${t}]`
 }
 
@@ -105,7 +117,7 @@ export function extractCandidates(
   chapters: GlossaryChapter[],
   options: GlossaryExtractOptions = {},
 ): GlossaryCandidate[] {
-  const minCount = options.minCount ?? 2
+  const minCount = options.minCount ?? GLOSSARY_MIN_COUNT
   const ignored = new Set(options.ignored ?? [])
   const multi = new Map<string, GlossaryCandidate>()
   const bracketed = new Map<string, GlossaryCandidate>()
@@ -162,7 +174,7 @@ export function extractCandidates(
     const midCount = mid.get(c.term)?.count ?? 0
     const low = lower.get(c.term.toLowerCase()) ?? 0
     const repeatedMid = midCount >= 2 && midCount >= low
-    const alwaysCap = c.count >= Math.max(3, minCount) && low === 0
+    const alwaysCap = c.count >= Math.max(GLOSSARY_ALWAYS_CAP_MIN_COUNT, minCount) && low === 0
     if (repeatedMid || alwaysCap) out.push(c)
   }
   return out.filter((c) => !ignored.has(c.term))
@@ -363,7 +375,7 @@ export type GlossaryRelations = Map<string, string[]>
 export function coOccurrenceRelations(
   chapters: GlossaryChapter[],
   glossary: Glossary,
-  maxPerTerm = 12,
+  maxPerTerm = GLOSSARY_MAX_REFS_PER_TERM,
 ): GlossaryRelations {
   const matcher = compileTermMatcher(glossary)
   const byId = new Map(glossary.terms.map((t) => [t.id, t.term]))

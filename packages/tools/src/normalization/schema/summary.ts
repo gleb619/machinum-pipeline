@@ -1,5 +1,13 @@
 import { defineTool, setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import {
+  DEFAULT_CHUNK_CONCURRENCY,
+  DEFAULT_NOTE_COUNT,
+  MIN_TERMS_FOR_COVERAGE,
+  MIN_TERM_COVERAGE,
+  SUMMARY_MIN_BODY_WORDS,
+  SUMMARY_OUTPUT_RESERVE,
+} from '../../constants.js'
 import { loadBundledPrompt } from '../../core/bundled-prompts.js'
 import {
   type ChunkBudget,
@@ -44,9 +52,7 @@ export function defaultSummarySystemPrompt(): string {
   return composed.complete ? composed.systemPrompt : SUMMARY_SYSTEM_PROMPT
 }
 
-/** Share of the chapter's key terms a summary must mention to count as covering the chapter. */
-const MIN_TERM_COVERAGE = 0.15
-const MIN_TERMS_FOR_COVERAGE = 5
+export { DEFAULT_NOTE_COUNT, MIN_TERM_COVERAGE, MIN_TERMS_FOR_COVERAGE }
 
 function validateSummary(content: string, source: ChapterSource): PromptValidation<string> {
   const parseIssue = roundTripIssue(
@@ -74,7 +80,7 @@ function validateSummary(content: string, source: ChapterSource): PromptValidati
   }
 
   const bodyWords = countWords(source.body)
-  if (bodyWords >= 40 && countWords(content) > bodyWords) {
+  if (bodyWords >= SUMMARY_MIN_BODY_WORDS && countWords(content) > bodyWords) {
     return { ok: false, reason: 'the summary is longer than the chapter it summarises' }
   }
 
@@ -120,7 +126,7 @@ function summaryBudget(
     ctx,
     input: {
       model: resolved.model,
-      outputReserve: options.outputReserve ?? resolved.maxTokens ?? 1024,
+      outputReserve: options.outputReserve ?? resolved.maxTokens ?? SUMMARY_OUTPUT_RESERVE,
       overhead,
       reserve: options.reserve,
     },
@@ -167,7 +173,7 @@ async function runChunkedSummary(
       return outcome.ok && outcome.value !== undefined ? outcome.value : chunk
     },
     merge: mergeSummaries,
-    concurrency: options.chunkConcurrency ?? 2,
+    concurrency: options.chunkConcurrency ?? DEFAULT_CHUNK_CONCURRENCY,
   })
   return { summary, chunks: chunks.length, outcomes: outcomes.filter(Boolean) }
 }
@@ -260,9 +266,6 @@ export const summaryTool = createSummaryTool()
 // ---------------------------------------------------------------------------
 // Summary notes (bundled prompts)
 // ---------------------------------------------------------------------------
-
-/** Default number of `- ` notes the notes mode asks the model for. */
-export const DEFAULT_NOTE_COUNT = 10
 
 export interface NotesSummaryOptions extends SchemaDocLlmOptions {
   /** Number of summary notes to ask for (and to keep at most). Default: 10. */
@@ -395,7 +398,7 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions & SummaryCh
                 return once.notes
               },
               merge: (outs) => mergeNotes(outs, noteCount),
-              concurrency: chunkConcurrency ?? 2,
+              concurrency: chunkConcurrency ?? DEFAULT_CHUNK_CONCURRENCY,
             })
             chunkRecords.push({ chunks: chunks.length, budget })
           }

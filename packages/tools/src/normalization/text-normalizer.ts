@@ -1,5 +1,6 @@
 import { defineTool, setVariable, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import { DECORATIVE_LINE_RE, MAX_TITLE_LINE_LENGTH } from '../constants.js'
 
 export interface TextNormalizerOptions {
   /** Drop lines made only of decorative symbols (`***`, `~~~`, `---`, ...). Default: true. */
@@ -25,8 +26,6 @@ const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g
 const ODD_SPACES = /[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\t]/g
 /** Stray symbols with no place in prose. */
 const USELESS = /[*~^■-◿★☆※♦❖✽✦✧]+/g
-/** A line made only of decorative characters. */
-const DECORATIVE_LINE = /^[\s*~=_\-#+•·■-◿★☆※♦—–.]{3,}$/
 /** Common Cloudflare email-obfuscation placeholder. */
 const CLOUDFLARE_EMAIL = /\[\s*email\s+protected\s*\]/i
 
@@ -109,7 +108,7 @@ function removeMatchingLines(
 /** Heuristic: is this line a chapter title / heading candidate? */
 function isTitleLine(line: string): boolean {
   const trimmed = line.trim()
-  if (trimmed.length === 0 || trimmed.length > 120) return false
+  if (trimmed.length === 0 || trimmed.length > MAX_TITLE_LINE_LENGTH) return false
   if (!/[\p{L}\p{N}]/u.test(trimmed)) return false
   if (/^[-*•·]\s/.test(trimmed)) return false
   return /^#/.test(trimmed) || !/[.!?]$/.test(trimmed)
@@ -182,7 +181,7 @@ export function normalizeText(text: string, options: TextNormalizerOptions = {})
   const cleaned = hasCleaningOptions(options) ? cleanSource(text, options) : text
   const out: string[] = []
   for (const raw of cleaned.replace(/\r\n?/g, '\n').split('\n')) {
-    if (dropDecorative && DECORATIVE_LINE.test(raw.replace(INVISIBLE, ''))) continue
+    if (dropDecorative && DECORATIVE_LINE_RE.test(raw.replace(INVISIBLE, ''))) continue
     const line = normalizeLine(raw)
     if (line === '' && (out.length === 0 || out[out.length - 1] === '')) continue
     out.push(line)

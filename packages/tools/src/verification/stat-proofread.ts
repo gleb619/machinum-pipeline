@@ -1,6 +1,13 @@
 import { defineTool } from '@mt/core'
 import { setVariable } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
+import {
+  MAX_ISSUES_IN_ERROR,
+  MAX_ISSUES_IN_FEEDBACK,
+  MAX_UNTRANSLATED_SHARE,
+  MIN_CYRILLIC_RATIO,
+  WORD_CHAR_CLASS,
+} from '../constants.js'
 import type { Glossary, TermMatcher } from '../normalization/term-tagger.js'
 import { compileTermMatcher } from '../normalization/term-tagger.js'
 
@@ -59,7 +66,6 @@ export interface StatProofreadOptions {
 const CYRILLIC = /[\u0400-\u04FF]/g
 const LATIN = /[a-zA-Z]/g
 const LETTER = /\p{L}/gu
-const WORD_CHAR = '\\p{L}\\p{N}_'
 
 function count(re: RegExp, s: string): number {
   return s.match(re)?.length ?? 0
@@ -98,8 +104,8 @@ function compileSourceMatcher(glossary: Glossary): TermMatcher {
   if (forms.length === 0) return { regex: null, idOf }
   const body = forms
     .map((f) => {
-      const first = /^[\p{L}\p{N}_]/u.test(f) ? `(?<![${WORD_CHAR}])` : ''
-      const last = /[\p{L}\p{N}_]$/u.test(f) ? `(?![${WORD_CHAR}])` : ''
+      const first = /^[\p{L}\p{N}_]/u.test(f) ? `(?<![${WORD_CHAR_CLASS}])` : ''
+      const last = /[\p{L}\p{N}_]$/u.test(f) ? `(?![${WORD_CHAR_CLASS}])` : ''
       return `${first}${escapeRegExp(f)}${last}`
     })
     .join('|')
@@ -157,8 +163,8 @@ export function checkTranslatedShare(
   text: string,
   options: Pick<StatProofreadOptions, 'minCyrillicShare' | 'maxUntranslatedShare' | 'strict'> = {},
 ): { cyrillicShare: number; untranslatedShare: number; issues: ProofreadIssue[] } {
-  const minCyrillic = options.minCyrillicShare ?? 0.3
-  const maxUntranslated = options.maxUntranslatedShare ?? 0.3
+  const minCyrillic = options.minCyrillicShare ?? MIN_CYRILLIC_RATIO
+  const maxUntranslated = options.maxUntranslatedShare ?? MAX_UNTRANSLATED_SHARE
   const letters = count(LETTER, text)
   const cyrillic = count(CYRILLIC, text)
   const latin = count(LATIN, text)
@@ -211,7 +217,7 @@ export function proofreadFeedback(report: ProofreadReport): string {
     `untranslated share ${report.untranslatedShare}`,
     `${report.issues.length} issue(s)`,
   ]
-  for (const issue of report.issues.slice(0, 5)) {
+  for (const issue of report.issues.slice(0, MAX_ISSUES_IN_FEEDBACK)) {
     parts.push(issue.detail)
   }
   return parts.join('; ')
@@ -224,7 +230,7 @@ export class StatProofreadError extends Error {
   readonly feedback: string
 
   constructor(readonly report: ProofreadReport) {
-    const first = report.issues.slice(0, 3).map((i) => i.detail)
+    const first = report.issues.slice(0, MAX_ISSUES_IN_ERROR).map((i) => i.detail)
     super(`proofread failed (${report.issues.length} issue(s)): ${first.join('; ')}`)
     this.name = 'StatProofreadError'
     this.feedback = proofreadFeedback(report)

@@ -1,12 +1,13 @@
 import { defineTool, setVariables, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import { SERIES_SPLIT_PARTS } from '../constants.js'
 import { balanceText } from '../normalization/token-splitter.js'
 
 export interface SeriesSplitOptions {
   parts: number
 }
 
-export function createSeriesSplitTool(options: SeriesSplitOptions = { parts: 4 }) {
+export function createSeriesSplitTool(options: SeriesSplitOptions = { parts: SERIES_SPLIT_PARTS }) {
   return defineTool<string, string[]>({
     name: 'series-split',
     version: '1.0.0',

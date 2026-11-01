@@ -1,19 +1,16 @@
 import { defineTool, setVariables, withItem, withMeta } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
+import { DECORATIVE_LINE_RE, DEFAULT_CHUNK_SEPARATOR } from '../constants.js'
 import { readCtx } from '../core/llm-config.js'
 import { cleanSource } from './text-normalizer.js'
 import { DEFAULT_CHUNK_TARGET, type TokenCountFn, heuristicTokenCount } from './token-splitter.js'
 
-/** Default separator line placed between fixated chunks. */
-export const DEFAULT_CHUNK_SEPARATOR = '---'
+export { DEFAULT_CHUNK_SEPARATOR }
 
 /** Variable with the number of separator-delimited chunks in the result text. */
 export const VAR_CHUNK_COUNT = 'chunkCount'
 /** Variable with the separator line used between chunks. */
 export const VAR_CHUNK_SEPARATOR = 'chunkSeparator'
-
-/** A line made only of decorative characters (mirrors text-normalizer `DECORATIVE_LINE`). */
-const DECORATIVE_LINE = /^[\s*~=_\-#+•·■-◿★☆※♦—–.]{3,}$/
 
 /** True when the line is exactly the separator (surrounding whitespace ignored). */
 function isSeparatorLine(line: string, separator: string): boolean {
@@ -36,7 +33,7 @@ export function stripSeparators(text: string, separator = DEFAULT_CHUNK_SEPARATO
   const lines = text
     .replace(/\r\n?/g, '\n')
     .split('\n')
-    .filter((line) => !isSeparatorLine(line, separator) && !DECORATIVE_LINE.test(line))
+    .filter((line) => !isSeparatorLine(line, separator) && !DECORATIVE_LINE_RE.test(line))
 
   const out: string[] = []
   for (const line of lines) {
