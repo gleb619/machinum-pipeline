@@ -16,7 +16,7 @@ demand with `--pipeline <name>`.
 - How to use `.tap()` for side-effect logging, reading the variables the tools actually write
   (`chapterValidator` sets the `errors` variable, not `warnings`).
 - How to write source/target URIs as `'@name'` shortcuts, resolved from `mt.json` → `"uris"`
-  (`en` → `md://./chapters/en`, `ru` → `chapter-output://./chapters`), so the pipeline writes
+  (`en` → `md://./chapters/en`, `ru` → `my-target://./chapters`), so the pipeline writes
   `.to('@en')` instead of the full URI.
 - How to swap the LLM backend (and the model) of every LLM-backed tool with one env var.
 - How to install a process-wide mock LLM provider with `defineProcess().install(mockLlm(...))`
@@ -131,7 +131,7 @@ verifyFlow:     jsonl://./jsonl/input.jsonl
                   → forbiddenCharDetector → tokenCounter → @en
 translateFlow:  @en
                   → wordCounter → chapterIndexer → stubTranslator (placeholder, no LLM)
-                  → @ru (chapter-output://./chapters → chapters/ru)
+                  → @ru (my-target://./chapters → chapters/ru)
 ```
 
 `@en` and `@ru` are the `mt.json` URI shortcuts. Run it with `pnpm run runner:simple`.
@@ -178,10 +178,10 @@ Run with `--pipeline schemaDocMockPipeline`.
 ONE pipeline replaces the old producer / translator / applier split plus `batches://` hop:
 
 ```
-chapter-output:// (lang=en) → .batch(titleScope)         ← packages of 5 (default), scope runs per package
+my-target:// (lang=en) → .batch(titleScope)         ← packages of 5 (default), scope runs per package
   scope: batch://group   → schemaTitles → dictionary translator → packet parser → batch://return
          batch://members → applyTranslatedTitle (per chapter)                   → batch://return
-→ chapter-output://./chapters   (original chapters, patched: ru title + meta.lang=ru → chapters/ru/)
+→ my-target://./chapters   (original chapters, patched: ru title + meta.lang=ru → chapters/ru/)
 ```
 
 `batch://group` shows the package as one item; `batch://members` as N singles; `batch://return`

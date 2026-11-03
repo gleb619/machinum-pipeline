@@ -12,8 +12,8 @@ import { resolveWaypointPath } from './settings.js'
 /**
  * Chapter Output Target — writes chapters to chapters/{lang}/chapter{N}.md.
  *
- * URI scheme: chapter-output://<base-dir>
- * Example: chapter-output://./chapters
+ * URI scheme: my-target://<base-dir>
+ * Example: my-target://./chapters
  *
  * Envelope meta:
  *   - lang: language code (e.g. 'ru', 'en'); used as subdirectory

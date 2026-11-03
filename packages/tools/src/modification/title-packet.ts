@@ -245,7 +245,7 @@ function replaceHeading(text: string, title: string): string {
 }
 
 export interface ApplyTranslatedTitleOptions {
-  /** `meta.lang` stamped on the output, e.g. `ru` → `chapter-output://` writes `chapters/ru/`. */
+  /** `meta.lang` stamped on the output, e.g. `ru` → `my-target://` writes `chapters/ru/`. */
   lang?: string
   /** Variable holding the parsed `ChapterTitle[]`. Default `translatedTitles`. */
   entriesVariable?: string
@@ -254,7 +254,7 @@ export interface ApplyTranslatedTitleOptions {
 /**
  * Per-item step (run on the `batch://members` view): replaces the chapter's H1 with its translated title,
  * picked from the batch-level `translatedTitles` variable by `meta.chapterNum` (falling back to
- * `meta.batchIndex`), and stamps `meta.lang` so a `chapter-output://` target writes the
+ * `meta.batchIndex`), and stamps `meta.lang` so a `my-target://` target writes the
  * translated chapter into its language folder.
  */
 export function createApplyTranslatedTitle(options: ApplyTranslatedTitleOptions = {}) {
@@ -278,7 +278,7 @@ export function createApplyTranslatedTitle(options: ApplyTranslatedTitleOptions 
     version: '1.0.0',
     mdDescription:
       'Per-item: replaces the H1 with the translated title from `translatedTitles` (matched by ' +
-      '`meta.chapterNum`) and sets `meta.lang` for `chapter-output://`.',
+      '`meta.chapterNum`) and sets `meta.lang` for `my-target://`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       // Members in the `batch://members` view may carry either the parsed `ChapterTitle[]` (from
       // `titlePacketParser`) or the collected `titles`; normalize either into generic entries.

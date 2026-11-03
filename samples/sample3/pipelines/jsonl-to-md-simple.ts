@@ -15,7 +15,7 @@ import '@mt/waypoint'
 // === URI shortcuts (aliases) ===
 // Source/target URIs can be written as '@name' shortcuts instead of full URIs.
 // Shortcuts are defined in this sample's mt.json under "uris", e.g.:
-//   "uris": { "en": "md://./chapters/en", "ru": "chapter-output://./chapters" }
+//   "uris": { "en": "md://./chapters/en", "ru": "my-target://./chapters" }
 // They are resolved at pipeline run time; full URIs still work unchanged.
 
 // === Flow 1: JSONL → Verified MD ===
@@ -38,10 +38,10 @@ const verifyFlow = definePipeline()
 // Just basic placeholder translation for demonstration.
 const translateFlow = definePipeline()
   .from('@en')
-  .use(wordCounter)
-  .use(chapterIndexer)
   .use(stubTranslator)
   .to('@ru')
 
 // === Default: orchestration pipeline ===
-export default definePipeline().subflow(verifyFlow).subflow(translateFlow)
+export default definePipeline()
+  .subflow(verifyFlow)
+  .subflow(translateFlow)

@@ -234,7 +234,7 @@ describe('waypoint targets — atomic writes', () => {
       const dir = join(tempDir, 'chapters')
       const target = createChapterOutputTarget<string>({
         scheme: 'chapter-output',
-        raw: `chapter-output://${dir}`,
+        raw: `my-target://${dir}`,
         host: dir,
         path: dir,
         fragment: '',
@@ -253,7 +253,7 @@ describe('waypoint targets — atomic writes', () => {
       const dir = join(tempDir, 'chapters')
       const target = createChapterOutputTarget<string>({
         scheme: 'chapter-output',
-        raw: `chapter-output://${dir}`,
+        raw: `my-target://${dir}`,
         host: dir,
         path: dir,
         fragment: '',

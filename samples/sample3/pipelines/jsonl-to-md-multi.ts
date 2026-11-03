@@ -36,7 +36,7 @@ import '@mt/waypoint'
 // === URI shortcuts (aliases) ===
 // Source/target URIs can be written as '@name' shortcuts instead of full URIs.
 // Shortcuts are defined in this sample's mt.json under "uris", e.g.:
-//   "uris": { "en": "md://./chapters/en", "ru": "chapter-output://./chapters" }
+//   "uris": { "en": "md://./chapters/en", "ru": "my-target://./chapters" }
 // They are resolved at pipeline run time; full URIs still work unchanged.
 
 // === Flow 1: JSONL → Verified MD (.from / .use / .tap / .to) ===
@@ -69,24 +69,6 @@ export const schemaDocPipeline = definePipeline()
   .use(schemaDocWriter)
   .to('md://./chapters')
 
-// === Slot override demo: `.with({ ... })` swaps one slot of a composable tool ===
-// Same chain as schemaDocPipeline, but schemaDocWriter's `emit` slot is replaced by
-// a stub that tags the markdown and redirects it to the schema-mock/ subfolder.
-// The `build` slot (markdown assembly) is reused untouched. Run with:
-//   mt run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocMockPipeline
-export const schemaDocMockPipeline = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .use(toMarkdown)
-  .use(wordCounter)
-  .use(tokenCounter)
-  .use(chapterIndexer)
-  .use(summaryTool)
-  .use(entitiesTool)
-  .use(schemaTool)
-  .use(mdFormatter)
-  .use(schemaDocWriter.with({ emit: stubSchemaEmit }))
-  .to('md://./chapters')
-
 // === Flow 3: title translation (.batch → mock-LLM tool → .flatMap) ===
 // ephemeral:// sources carry no items at runtime; they exist to show the DSL grammar.
 export const translateTitlesPipeline = definePipeline()
@@ -113,10 +95,10 @@ export const translateChapterPipeline = definePipeline()
 //   batch://group    → the package as ONE item  (titles of all chapters → one text → parsed back)
 //   batch://members  → every member as its own item, with its own meta (patch each chapter)
 //   batch://return   → hands the result back; the outer stream continues with the ORIGINAL
-//                      chapters (own id/meta/variables), patched, and `chapter-output://` writes them
+//                      chapters (own id/meta/variables), patched, and `my-target://` writes them
 // The group stage ends with `batch://return` so its variables (`translatedTitles`, ...) reach every
 // member; the members stage then patches each chapter from them.
-const enChapters = defineWaypoint<unknown>('chapter-output://./chapters', {
+const enChapters = defineWaypoint<unknown>('my-target://./chapters', {
   filter: (env) => env.meta.lang === 'en',
 })
 
@@ -152,7 +134,7 @@ const titleScope = definePipeline({ id: 'title-scope' })
 export const titlePacketPipeline = definePipeline()
   .from(enChapters)
   .batch(titleScope)
-  .to('chapter-output://./chapters')
+  .to('my-target://./chapters')
 
 // === Default: orchestration pipeline (subflow-only, no source/target of its own) ===
 // defineProcess().install(mockLlm(...)) registers the mock LLM provider process-wide
