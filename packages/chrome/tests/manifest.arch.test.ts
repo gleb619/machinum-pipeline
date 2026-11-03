@@ -15,6 +15,21 @@ async function fileExists(relativePath: string): Promise<boolean> {
   }
 }
 
+/**
+ * Does a Chrome match pattern cover the given URL? http(s) only: a host without a
+ * port in the pattern matches every port of that host.
+ */
+function patternCovers(pattern: string, url: string): boolean {
+  const patternParts = /^(\w+):\/\/([^/]+)(\/.*)$/.exec(pattern)
+  const urlParts = /^(\w+):\/\/([^/:]+)(?::\d+)?(\/.*)$/.exec(url)
+  if (!patternParts || !urlParts) return false
+  const [, patternScheme, patternHost, patternPath] = patternParts
+  const [, urlScheme, urlHost, urlPath] = urlParts
+  if (patternScheme !== urlScheme) return false
+  if (patternHost !== urlHost) return false
+  return urlPath.startsWith(patternPath.replace(/\*$/, ''))
+}
+
 describe('UC-42,43 - Chrome Extension (architectural)', () => {
   it('manifest.json exists', async () => {
     expect(await fileExists('../manifest.json')).toBe(true)
@@ -55,7 +70,43 @@ describe('UC-42,43 - Chrome Extension (architectural)', () => {
   it('manifest has host_permissions', async () => {
     const raw = await readFile(join(__dirname, '../manifest.json'), 'utf-8')
     const manifest = JSON.parse(raw)
-    expect(manifest.host_permissions).toContain('http://localhost:7777/*')
+    expect(manifest.host_permissions).toContain('http://localhost/*')
+  })
+
+  it('manifest host_permissions cover the backend on any local port', async () => {
+    const raw = await readFile(join(__dirname, '../manifest.json'), 'utf-8')
+    const manifest = JSON.parse(raw)
+    const patterns: string[] = manifest.host_permissions
+
+    // A Chrome match pattern without a port covers every port of that host, so the
+    // popup can point at a custom `mt serve --port` without a manifest change.
+    expect(patterns.some((p) => patternCovers(p, 'http://localhost:3000/api/runs/x/items'))).toBe(
+      true,
+    )
+    expect(patterns.some((p) => patternCovers(p, 'http://127.0.0.1:3000/api/runs/x/items'))).toBe(
+      true,
+    )
+  })
+
+  it('defaults to the mt serve backend port, not the router port', async () => {
+    const background = await readFile(join(__dirname, '../src/background/background.ts'), 'utf-8')
+    const chromePort = /DEFAULT_BACKEND_URL = 'http:\/\/localhost:(\d+)'/.exec(background)?.[1]
+    expect(chromePort).toBeDefined()
+
+    // `mt serve` owns the runs API; its default port is the one the extension must use.
+    const serve = await readFile(join(__dirname, '../../cli/src/commands/serve.ts'), 'utf-8')
+    const servePort = /port: (\d+), host: 'localhost'/.exec(serve)?.[1]
+    expect(servePort).toBeDefined()
+
+    expect(Number(chromePort)).toBe(Number(servePort))
+  })
+
+  it('popup placeholder shows the backend port', async () => {
+    const popup = await readFile(join(__dirname, '../src/popup/popup.html'), 'utf-8')
+    const background = await readFile(join(__dirname, '../src/background/background.ts'), 'utf-8')
+    const chromePort = /DEFAULT_BACKEND_URL = 'http:\/\/localhost:(\d+)'/.exec(background)?.[1]
+
+    expect(popup).toContain(`placeholder="http://localhost:${chromePort}"`)
   })
 
   it('manifest declares background service_worker', async () => {

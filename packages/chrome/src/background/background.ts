@@ -1,6 +1,11 @@
 import type { TypeContentRequest, UploadRequest } from '../messages'
 
-const DEFAULT_BACKEND_URL = 'http://localhost:7777'
+/**
+ * Default backend: the admin API (`mt serve`) that serves
+ * `POST /api/runs/:id/items`. Port 3000 is `mt serve`'s default — 7777 is the
+ * *router* (LLM gateway) port and has no runs API.
+ */
+const DEFAULT_BACKEND_URL = 'http://localhost:3000'
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ backendUrl: DEFAULT_BACKEND_URL })

@@ -34,6 +34,11 @@ Typed message shapes for cross-context messaging. Always use these types — nev
 - MV3: service worker (no persistent background page)
 - Content scripts can only access DOM — no Node.js APIs
 - Upload target: `mt` backend `/api/runs` or a configurable HTTP endpoint
+- Backend URL defaults to `http://localhost:3000` — the `mt serve` admin API that serves
+  `POST /api/runs/:id/items`. Port 7777 is the **router** (LLM gateway) port and has no runs API.
+  The popup lets the user change the URL; `host_permissions` covers `http://localhost/*` and
+  `http://127.0.0.1/*` (a portless Chrome match pattern covers every port), so a custom
+  `mt serve --port <p>` works without touching the manifest.
 - Does **not** import from any `@mt/*` package (browser environment)
 
 ### Tests
