@@ -14,7 +14,7 @@
  *  2. `prepare-input` runs first when the sample defines it, so the fixtures the
  *     pipelines read (`jsonl/*.jsonl`) always exist.
  *  3. The sibling runners run one by one. Several runners in sample2 share
- *     output paths and entity buffers, and `chunk-normalization.ts` writes
+ *     output paths and entity buffers, and `advanced.ts` writes
  *     `chapters/ladder-chapters/` from two of its pipelines. A sample whose
  *     runners write to disjoint paths can raise `CONCURRENCY` and let them run
  *     side by side.
@@ -39,11 +39,11 @@ const CONCURRENCY = 1
 const IGNORED_DIRS = new Set(['node_modules', '.mt', '.turbo'])
 
 interface ScriptEntry {
-  /** Script name in package.json, e.g. `runner:basic`. */
+  /** Script name in package.json, e.g. `runner:beginner`. */
   name: string
   /** The shell command of the script. */
   command: string
-  /** Pipeline file the script runs, e.g. `basic-md-processing.ts`. */
+  /** Pipeline file the script runs, e.g. `beginner.ts`. */
   pipelineFile: string | null
   /** Named pipeline of that file, when the script passes `--pipeline`. */
   pipelineName: string | null

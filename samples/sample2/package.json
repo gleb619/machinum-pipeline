@@ -1,32 +1,30 @@
 {
   "name": "sample2",
   "version": "1.0.0",
-  "description": "Machinum Pipeline sample \u2014 markdown processing with shipped tools, parallel forks and chunk normalization",
+  "description": "Machinum Pipeline sample — beginner, intermediate and advanced markdown processing with shipped tools, parallel forks and chunk normalization",
   "type": "module",
   "scripts": {
     "runner": "tsx run-all.ts",
-    "runner:basic": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
-    "runner:parallel": "NODE_OPTIONS='--import tsx' mt run ./pipelines/parallel-forks-md-processing.ts",
-    "runner:stats": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline",
-    "runner:preview": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline consolePreviewPipeline",
+    "runner:beginner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/beginner.ts",
+    "runner:intermediate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/intermediate.ts",
+    "runner:advanced": "NODE_OPTIONS='--import tsx' mt run ./pipelines/advanced.ts",
     "prepare-input": "tsx prepare-input.ts",
+    "prepare-input:force": "tsx prepare-input.ts --force",
     "example": "pnpm run prepare-input && pnpm run runner",
     "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl jsonl/ladder.jsonl chapters-out entities out .mt chapters/glossary.graph.json && find chapters -maxdepth 1 -type f -name '*.md' ! -name 'chapter1.md' -delete",
     "lint": "biome check .",
     "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.jsonc out/runner-report.md",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "runner:chunks": "NODE_OPTIONS='--import tsx' mt run ./pipelines/chunk-normalization.ts",
-    "runner:ladder": "NODE_OPTIONS='--import tsx' mt run ./pipelines/chunk-normalization.ts --pipeline ladderPipeline",
-    "runner:tokens": "NODE_OPTIONS='--import tsx' mt run ./pipelines/chunk-normalization.ts --pipeline tokenLadderPipeline"
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "@mt/core": "workspace:*",
     "@mt/cli": "workspace:*",
+    "@mt/core": "workspace:*",
     "@mt/tools": "workspace:*",
     "@mt/waypoint": "workspace:*"
   },
   "devDependencies": {
+    "lorem-ipsum": "^3.0.0",
     "tsx": "^4.19.0",
     "vitest": "^3.0.0"
   },

@@ -4,10 +4,10 @@ import { chapterDocBuild, readChapterDoc, statFreq, toMarkdownTool, wordCounter 
 import '@mt/waypoint'
 
 // ---------------------------------------------------------------------------
-// The basics: one source, one shipped tool, one target.
+// BEGINNER — one source, one shipped tool, one target.
 //
-// This is the short version of the sample. The parallel-branch demo lives next
-// door in `pipelines/parallel-forks-md-processing.ts`: each JSONL item is a
+// This is the short version of the sample. The intermediate demo lives next
+// door in `pipelines/intermediate.ts`: each JSONL item is a
 // markdown chapter, and three tool-based branch pipelines run concurrently
 // through core `.fork('chapter-views', [...])`, all writing to one markdown target.
 //
@@ -42,7 +42,7 @@ function toLineText(record: unknown): string {
 // - `md://` is a shipped target: one markdown document per envelope.
 // ---------------------------------------------------------------------------
 
-const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
+const defaultPipeline = definePipeline({ id: 'sample2-beginner' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => [toLineText(record)])
   .use(wordCounter)
@@ -50,7 +50,7 @@ const defaultPipeline = definePipeline({ id: 'basic-md-processing' })
   .tap((env) => {
     console.log(
       JSON.stringify({
-        stage: 'basic',
+        stage: 'beginner',
         id: env.id,
         wordCount: getVariable<number>(env, 'wordCount') ?? 0,
       }),
@@ -123,7 +123,7 @@ const chapterDomainPipeline = definePipeline({ id: 'chapter-domain-content' })
     const { id } = record as LineRecord
     const chapter: Chapter = {
       id: String(id),
-      bookId: 'basic-md',
+      bookId: 'sample2-beginner',
       title: `Line ${id}`,
       body: toLineText(record),
     }
@@ -138,7 +138,7 @@ const chapterDomainPipeline = definePipeline({ id: 'chapter-domain-content' })
 // `statFreq` variable, which the log line below prints.
 // ---------------------------------------------------------------------------
 
-const statsPipeline = definePipeline({ id: 'basic-md-stats' })
+const statsPipeline = definePipeline({ id: 'sample2-beginner-stats' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => [toLineText(record)])
   .batch(100)
@@ -163,7 +163,7 @@ const statsPipeline = definePipeline({ id: 'basic-md-stats' })
 // creating an output file.
 // ---------------------------------------------------------------------------
 
-const consolePreviewPipeline = definePipeline({ id: 'basic-md-console-preview' })
+const consolePreviewPipeline = definePipeline({ id: 'sample2-beginner-console-preview' })
   .from('jsonl://./jsonl/input.jsonl')
   .flatMap(async (record: unknown) => [toLineText(record)])
   .to('console://?prefix=[preview] ')
@@ -189,20 +189,20 @@ export default defineProcess([
 
 // sync shorthand (default mode is sync)
 // export default defineProcess([defaultPipeline, typedContentPipeline, statsPipeline], {
-//   id: 'basic-md-all',
+//   id: 'sample2-beginner-all',
 // })
 
 // ---------------------------------------------------------------------------
 // What runs:
-//   no default export  -> implicit suite `basic-md-processing-suite`: all exported
+//   no default export  -> implicit suite `beginner-suite`: all exported
 //                         pipelines, alphabetical, sync
 //   default pipeline   -> only that one
 //   default suite      -> exactly that suite (order + mode)
 //   --pipeline <name>  -> that export, always wins (pipeline or suite)
 //
-//   mt run ./pipelines/basic-md-processing.ts
-//   mt run ./pipelines/basic-md-processing.ts --pipeline defaultPipeline
-//   mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline
-//   mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline
-//   mt run ./pipelines/basic-md-processing.ts --pipeline consolePreviewPipeline
+//   mt run ./pipelines/beginner.ts
+//   mt run ./pipelines/beginner.ts --pipeline defaultPipeline
+//   mt run ./pipelines/beginner.ts --pipeline typedContentPipeline
+//   mt run ./pipelines/beginner.ts --pipeline statsPipeline
+//   mt run ./pipelines/beginner.ts --pipeline consolePreviewPipeline
 // ---------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const MT_BIN = join(SAMPLE_DIR, 'node_modules', '.bin', 'mt')
+const TSX_BIN = join(SAMPLE_DIR, 'node_modules', '.bin', 'tsx')
 const CHAPTER = join(SAMPLE_DIR, 'chapters', 'chapter1.md')
 const CHUNKED = join(SAMPLE_DIR, 'chapters', 'chunked.md')
 const CHUNKED_REUSED = join(SAMPLE_DIR, 'chapters', 'chunked-reused.md')
@@ -79,6 +80,13 @@ async function cleanup(): Promise<void> {
 beforeAll(async () => {
   await cleanup()
   await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
+  // The advanced suite reads the generated series chapter; make the big
+  // fixtures exist even when the test runs on a fresh checkout.
+  execSync(`"${TSX_BIN}" prepare-input.ts`, {
+    cwd: SAMPLE_DIR,
+    stdio: 'pipe',
+    timeout: 20_000,
+  })
   const content = `${LADDER_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
   await writeFile(join(SAMPLE_DIR, 'jsonl', 'ladder.jsonl'), content, 'utf-8')
 })
@@ -97,7 +105,7 @@ afterAll(async () => {
 
 function run(pipelineName?: string): string {
   const pipelineArg = pipelineName ? ` --pipeline ${pipelineName}` : ''
-  return execSync(`"${MT_BIN}" run ./pipelines/chunk-normalization.ts${pipelineArg}`, {
+  return execSync(`"${MT_BIN}" run ./pipelines/advanced.ts${pipelineArg}`, {
     cwd: SAMPLE_DIR,
     stdio: 'pipe',
     // The demo chunk size of the sample, pinned so the run does not depend on

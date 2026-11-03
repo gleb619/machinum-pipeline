@@ -8,7 +8,7 @@ import {
 import '@mt/waypoint'
 
 // ---------------------------------------------------------------------------
-// One chapter, three views, one markdown file.
+// INTERMEDIATE — one chapter, three views, one markdown file.
 //
 // Every JSONL item is one markdown chapter. The parent pipeline does not fan
 // out or run the views itself; it hands the same chapter to three steps-only
@@ -82,11 +82,13 @@ const replaceDots = defineTool<string, string>({
 
 // Steps-only pipelines: each branch consumes the parent envelope. The runner
 // supplies the isolated chapter copy and the checkpoint node.
-const countBranch = definePipeline({ id: 'chapter-counts' }).use(markdownStatsTool).use(renderStats)
-const reorderBranch = definePipeline({ id: 'chapter-line-order' }).use(reorderLines)
-const commasBranch = definePipeline({ id: 'chapter-commas' }).use(replaceDots)
+const countBranch = definePipeline({ id: 'sample2-intermediate-counts' })
+  .use(markdownStatsTool)
+  .use(renderStats)
+const reorderBranch = definePipeline({ id: 'sample2-intermediate-line-order' }).use(reorderLines)
+const commasBranch = definePipeline({ id: 'sample2-intermediate-commas' }).use(replaceDots)
 
-const parallelForksPipeline = definePipeline({ id: 'sample2-parallel-forks' })
+const parallelForksPipeline = definePipeline({ id: 'sample2-intermediate' })
   .from('jsonl://./jsonl/entities.jsonl')
   .fork('chapter-views', [countBranch, reorderBranch, commasBranch])
   .to('md://./chapters/parallel-forks.md')

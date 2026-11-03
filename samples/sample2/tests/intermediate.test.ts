@@ -42,7 +42,7 @@ afterAll(async () => {
 })
 
 function run(): string {
-  return execSync(`"${MT_BIN}" run ./pipelines/parallel-forks-md-processing.ts`, {
+  return execSync(`"${MT_BIN}" run ./pipelines/intermediate.ts`, {
     cwd: SAMPLE_DIR,
     stdio: 'pipe',
     env: { ...process.env, NODE_OPTIONS: '--import tsx' },

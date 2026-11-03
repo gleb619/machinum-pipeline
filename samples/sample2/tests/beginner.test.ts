@@ -54,7 +54,7 @@ afterAll(async () => {
 
 function run(pipelineName?: string): string {
   const pipelineArg = pipelineName ? ` --pipeline ${pipelineName}` : ''
-  return execSync(`"${MT_BIN}" run ./pipelines/basic-md-processing.ts${pipelineArg}`, {
+  return execSync(`"${MT_BIN}" run ./pipelines/beginner.ts${pipelineArg}`, {
     cwd: SAMPLE_DIR,
     stdio: 'pipe',
     env: { ...process.env, NODE_OPTIONS: '--import tsx' },
@@ -76,7 +76,7 @@ describe('default pipeline', () => {
 
   it('counts the words of every line with the shipped wordCounter', () => {
     const stdout = run()
-    const lines = stdout.match(/"stage":"basic"[^}]*}/g) ?? []
+    const lines = stdout.match(/"stage":"beginner"[^}]*}/g) ?? []
     expect(lines).toHaveLength(RECORDS.length)
     for (const line of lines) {
       expect(line).toMatch(/"wordCount":5/)

@@ -18,19 +18,24 @@ import {
 } from '@mt/tools'
 import '@mt/waypoint'
 
+// ---------------------------------------------------------------------------
+// ADVANCED — chunk splitting, separator reuse, the Structure Ladder and
+// the alternative chunks → tokens rung.
+// ---------------------------------------------------------------------------
+
 // Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
 // A stage writes to the matching temp://<rung>/<namespace> buffer; the next stage
 // reads it back through the typed rung (temp://chunks/ladder -> chunks://ladder).
 
 // Series split runs first: the demo chapter-series.md is partitioned by the
 // registered `series` splitter. The process pins the demo target characters.
-const seriesSplitFirstStage = definePipeline({ id: 'sample2-series-split-first' })
+const seriesSplitFirstStage = definePipeline({ id: 'sample2-advanced-series-first' })
   .from('md://./chapters/chapter-series.md')
   .subflow('#series')
   .to('md://./chapters/series-first-output.md')
 
 // Clean chapter1.md, split into chunks, write chunked.md.
-const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
+const cleanSplitStage = definePipeline({ id: 'sample2-advanced-clean-split' })
   .from('md://./chapters/chapter1.md')
   .use(chunkSplit)
   .tap(async (env) => {
@@ -45,7 +50,7 @@ const cleanSplitStage = definePipeline({ id: 'sample2-chunk-clean-split' })
   .to('md://./chapters/chunked.md')
 
 // Read chunked.md back in and split again — chunk reuse via plain files.
-const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
+const reuseStage = definePipeline({ id: 'sample2-advanced-chunk-reuse' })
   .from('md://./chapters/chunked.md')
   .use(chunkSplit)
   .tap(async (env) => {
@@ -60,7 +65,7 @@ const reuseStage = definePipeline({ id: 'sample2-chunk-reuse' })
   .to('md://./chapters/chunked-reused.md')
 
 // Round-trip: split, persist, reload, split again.
-export const cleanSplitPipeline = definePipeline({ id: 'sample2-chunk-normalization' })
+export const cleanSplitPipeline = definePipeline({ id: 'sample2-advanced' })
   .subflow(seriesSplitFirstStage)
   .subflow(cleanSplitStage)
   .subflow(reuseStage)
@@ -117,7 +122,7 @@ function renderLadderSummary(words: number): string {
 }
 
 // Rung 0→1: ladder.jsonl records → chapter docs (md://).
-const documentStage = definePipeline({ id: 'sample2-ladder-documents' })
+const documentStage = definePipeline({ id: 'sample2-advanced-documents' })
   .from('jsonl://./jsonl/ladder.jsonl')
   .tap(countRung('records'))
   .flatMap(async (record: unknown) => {
@@ -131,7 +136,7 @@ const documentStage = definePipeline({ id: 'sample2-ladder-documents' })
   .to('md://./chapters/ladder-chapters')
 
 // Rung 2: chapter docs → Chunks (core domain type) with the registered `chunks` splitter.
-const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
+const chunkStage = definePipeline({ id: 'sample2-advanced-chunks' })
   .from('md://./chapters/ladder-chapters')
   .subflow('#chunks')
   .tap(countRung('chunks'))
@@ -139,7 +144,7 @@ const chunkStage = definePipeline({ id: 'sample2-ladder-chunks' })
 
 // Rung 3: Chunk → Paragraphs, one per blank-line block. `.subflow('#paragraphs')`
 // is the shortcut for `.subflow('paragraphs://')`; bare `'paragraphs'` is rejected.
-const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
+const paragraphStage = definePipeline({ id: 'sample2-advanced-paragraphs' })
   .from('chunks://ladder')
   .subflow('#paragraphs')
   .tap(countRung('paragraphs'))
@@ -147,21 +152,21 @@ const paragraphStage = definePipeline({ id: 'sample2-ladder-paragraphs' })
 
 // Rung 4: Paragraph → Lines (non-empty only) with the registered line splitter.
 // The explicit URI form resolves the same splitter as `.subflow('#lines')`.
-const lineStage = definePipeline({ id: 'sample2-ladder-lines' })
+const lineStage = definePipeline({ id: 'sample2-advanced-lines' })
   .from('paragraphs://ladder')
   .subflow('lines://')
   .tap(countRung('lines'))
   .to('temp://lines/ladder')
 
 // Rung 5: Line → Words (core Word entities with parent ids).
-const wordStage = definePipeline({ id: 'sample2-ladder-words' })
+const wordStage = definePipeline({ id: 'sample2-advanced-words' })
   .from('lines://ladder')
   .subflow('#words')
   .tap(countRung('words'))
   .to('temp://words/ladder')
 
 // Collect all words, print rung counts, render summary table.
-const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
+const summaryStage = definePipeline({ id: 'sample2-advanced-summary' })
   .from('words://ladder')
   // Group words into batches so the tail runs once per batch, not once per word:
   // the count log prints once, flatMap gets Word[] (reads .length), and the
@@ -173,7 +178,7 @@ const summaryStage = definePipeline({ id: 'sample2-ladder-summary' })
   .to('md://./chapters')
 
 // The Structure Ladder: records → docs → chunks → paragraphs → lines → words.
-export const ladderPipeline = definePipeline({ id: 'sample2-ladder' })
+export const ladderPipeline = definePipeline({ id: 'sample2-advanced-ladder' })
   .subflow(documentStage)
   .subflow(chunkStage)
   .subflow(paragraphStage)
@@ -207,13 +212,13 @@ function renderTokenSummary(tokens: number): string {
 }
 
 // Token rung: reuse ladder chunks, tokenize each into core Tokens.
-const tokenStage = definePipeline({ id: 'sample2-ladder-tokens' })
+const tokenStage = definePipeline({ id: 'sample2-advanced-tokens' })
   .from('chunks://ladder')
   .flatMap(async (chunk: unknown) => toTokens(chunk as Chunk))
   .tap(countRung('tokens'))
   .to('temp://tokens/ladder')
 
-const tokenSummaryStage = definePipeline({ id: 'sample2-ladder-token-summary' })
+const tokenSummaryStage = definePipeline({ id: 'sample2-advanced-token-summary' })
   .from('tokens://ladder')
   .batch(100_000)
   .tap(async () => logLadderCounts())
@@ -222,14 +227,14 @@ const tokenSummaryStage = definePipeline({ id: 'sample2-ladder-token-summary' })
   .to('md://./chapters')
 
 // Same ladder but chunks → tokens instead of the paragraph/line/word rungs.
-export const tokenLadderPipeline = definePipeline({ id: 'sample2-token-ladder' })
+export const tokenLadderPipeline = definePipeline({ id: 'sample2-advanced-token-ladder' })
   .subflow(documentStage)
   .subflow(chunkStage)
   .subflow(tokenStage)
   .subflow(tokenSummaryStage)
 
 // All lessons in one process: clean/split, ladder, token ladder.
-const allPipelines = definePipeline({ id: 'sample2-chunk-normalization-suite' })
+const allPipelines = definePipeline({ id: 'sample2-advanced-suite' })
   .subflow(cleanSplitPipeline)
   .subflow(ladderPipeline)
   .subflow(tokenLadderPipeline)

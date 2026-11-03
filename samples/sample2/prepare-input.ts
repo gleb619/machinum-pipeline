@@ -1,77 +1,173 @@
+import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { LoremIpsum } from 'lorem-ipsum'
+
+// ---------------------------------------------------------------------------
+// Fixture writer for the three sample levels.
+//
+//   Beginner     jsonl/input.jsonl        one lorem paragraph per record
+//   Intermediate jsonl/entities.jsonl     one large lorem markdown chapter per record
+//   Advanced     jsonl/ladder.jsonl       chapter records for the Structure Ladder
+//                chapters/chapter1.md     large chapter with decorative `---` lines
+//                chapters/chapter-series.md large chapter for the series splitter
+//
+// The files are written **once**: a second `pnpm run prepare-input` leaves an
+// existing fixture untouched, so a run always sees the same big text. Pass
+// `--force` (or `pnpm run prepare-input:force`) to regenerate everything.
+// ---------------------------------------------------------------------------
 
 const SAMPLE_DIR = import.meta.dirname
-const RECORDS = [
-  { id: 1, text: 'First line of the document.\n\nSecond paragraph here.' },
-  { id: 2, text: 'Second line of the document.\n\nAnother paragraph.' },
-  { id: 3, text: 'Third line of the document.\n\nFinal paragraph.' },
+const FORCE = process.argv.includes('--force')
+
+/** Deterministic PRNG, so a forced regeneration produces the same fixtures. */
+function seededRandom(seed: number): () => number {
+  let state = seed >>> 0
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0
+    let t = state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
+  }
+}
+
+function makeLorem(seed: number, sentencesPerParagraph = { min: 3, max: 5 }): LoremIpsum {
+  return new LoremIpsum({
+    random: seededRandom(seed),
+    sentencesPerParagraph,
+    wordsPerSentence: { min: 8, max: 18 },
+  })
+}
+
+/** Lorem paragraphs are joined with a single newline by the generator. */
+function paragraphs(lorem: LoremIpsum, count: number): string[] {
+  return lorem.generateParagraphs(count).split('\n')
+}
+
+function markdownChapter(lorem: LoremIpsum, title: string, paragraphCount: number): string {
+  return [`# ${title}`, '', ...paragraphs(lorem, paragraphCount).flatMap((p) => [p, ''])].join('\n')
+}
+
+// --- Beginner --------------------------------------------------------------
+
+function beginnerRecords(): { item: unknown }[] {
+  const lorem = makeLorem(101, { min: 2, max: 3 })
+  return Array.from({ length: 10 }, (_, index) => ({
+    item: {
+      id: index + 1,
+      text: paragraphs(lorem, 2).join('\n\n'),
+    },
+  }))
+}
+
+// --- Intermediate ----------------------------------------------------------
+
+const INTERMEDIATE_TITLES = [
+  'The Quiet Harbour',
+  'A Map of Small Roads',
+  'The Orchard at Dusk',
+  'Letters from the North',
 ]
 
-// One markdown chapter per JSONL item for the parallel-fork pipeline.
-const CHAPTER_MARKDOWN = [
-  '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
-  '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
-]
+function intermediateChapters(): { item: unknown }[] {
+  const lorem = makeLorem(202)
+  return INTERMEDIATE_TITLES.map((title) => ({
+    item: markdownChapter(lorem, title, 4),
+  }))
+}
 
-// Chapter fixture for the Structure Ladder demo. The long paragraph of the
-// first chapter is longer than the chunk budget, so it splits into several
-// chunks on the way down the ladder.
-const LADDER_RECORDS = [
-  {
-    number: 1,
-    title: 'Ladder Chapter One',
-    paragraphs: [
-      ['The ladder starts with one markdown document.'],
-      [
-        'Every rung below the document is one envelope per unit of the level above it. Chunks become paragraphs, paragraphs become lines, and lines become words.',
-        'A chunk never crosses a paragraph boundary, so the text of a paragraph always stays readable on its own.',
-      ],
-    ],
-  },
-  {
-    number: 2,
-    title: 'Ladder Chapter Two',
-    paragraphs: [
-      [
-        'A second document shows that the ladder handles more than one chapter.',
-        'Each chapter brings its own chunks, paragraphs, lines and words.',
-      ],
-    ],
-  },
-]
+// --- Advanced: Structure Ladder -------------------------------------------
 
-// Bigger chapter fixture for the series-split demo: several long paragraphs so
-// the splitter has enough body text to partition into numbered series parts.
-const SERIES_CHAPTER = `# The Long Road
+interface LadderRecord {
+  number: number
+  title: string
+  paragraphs: string[][]
+}
 
-The first part of the chapter introduces the road. It winds through hills and
-valleys, and every mile brings a new view of the country ahead.
+function ladderRecords(): { item: unknown }[] {
+  const lorem = makeLorem(303)
+  const titles = ['Ladder Chapter One', 'Ladder Chapter Two', 'Ladder Chapter Three']
+  return titles.map((title, index) => {
+    const record: LadderRecord = {
+      number: index + 1,
+      title,
+      // Three paragraphs, three lines each. A line is one sentence, so the
+      // paragraph/line rungs have real units to count.
+      paragraphs: Array.from({ length: 3 }, () =>
+        Array.from({ length: 3 }, () => lorem.generateSentences(1)),
+      ),
+    }
+    return { item: record }
+  })
+}
 
-The second part follows the traveler. She walks at dawn, rests at noon, and
-writes down what she saw before the light is gone.
+// --- Advanced: chunk cleanup ----------------------------------------------
 
-The third part reaches the mountains. The air is thin, the path is steep, and
-every paragraph here is longer so the series split has real work to do.
+function chunkChapter(): string {
+  const lorem = makeLorem(404)
+  const sections = Array.from({ length: 6 }, (_, index) => {
+    const heading = `## Section ${index + 1}`
+    const body = paragraphs(lorem, 2).flatMap((paragraph) => [paragraph, ''])
+    return [heading, '', ...body].join('\n')
+  })
+  // The decorative `---` lines between sections are what `chunkSplit` removes
+  // before it writes its own separators around the chunks.
+  return [
+    '# The Structure Ladder',
+    '',
+    'This generated chapter is deliberately long: the chunk splitter cuts it into several',
+    'chunks, and the Structure Ladder walks those chunks down to paragraphs, lines and words.',
+    '',
+    sections.join('\n---\n'),
+    '',
+  ].join('\n')
+}
 
-The last part comes home again. The road behind is longer than the road ahead,
-and the chapter closes where it began, at the same quiet door.
-`
+// --- Advanced: series splitter --------------------------------------------
+
+function seriesChapter(): string {
+  const lorem = makeLorem(505)
+  return markdownChapter(lorem, 'The Long Road', 12)
+}
+
+// --- Write-once plumbing ---------------------------------------------------
+
+const written: string[] = []
+const skipped: string[] = []
+
+async function writeOnce(relativePath: string, content: string): Promise<void> {
+  const path = join(SAMPLE_DIR, relativePath)
+  if (!FORCE && existsSync(path)) {
+    skipped.push(relativePath)
+    return
+  }
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, content, 'utf-8')
+  written.push(relativePath)
+}
+
+function toJsonl(items: { item: unknown }[]): string {
+  return `${items.map((item) => JSON.stringify(item)).join('\n')}\n`
+}
 
 async function main(): Promise<void> {
   await mkdir(join(SAMPLE_DIR, 'jsonl'), { recursive: true })
-  await mkdir(join(SAMPLE_DIR, 'entities'), { recursive: true })
-  await mkdir(join(SAMPLE_DIR, 'chapters'), { recursive: true })
-  const jsonlContent = `${RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
-  await writeFile(join(SAMPLE_DIR, 'jsonl', 'input.jsonl'), jsonlContent, 'utf-8')
-  const entityContent = `${CHAPTER_MARKDOWN.map((markdown) => JSON.stringify({ item: markdown })).join('\n')}\n`
-  await writeFile(join(SAMPLE_DIR, 'jsonl', 'entities.jsonl'), entityContent, 'utf-8')
-  const ladderContent = `${LADDER_RECORDS.map((record) => JSON.stringify({ item: record })).join('\n')}\n`
-  await writeFile(join(SAMPLE_DIR, 'jsonl', 'ladder.jsonl'), ladderContent, 'utf-8')
-  await writeFile(join(SAMPLE_DIR, 'chapters', 'chapter-series.md'), SERIES_CHAPTER, 'utf-8')
-  console.log(
-    'Wrote jsonl/input.jsonl, jsonl/entities.jsonl, jsonl/ladder.jsonl and chapters/chapter-series.md',
-  )
+
+  await writeOnce('jsonl/input.jsonl', toJsonl(beginnerRecords()))
+  await writeOnce('jsonl/entities.jsonl', toJsonl(intermediateChapters()))
+  await writeOnce('jsonl/ladder.jsonl', toJsonl(ladderRecords()))
+  await writeOnce('chapters/chapter1.md', chunkChapter())
+  await writeOnce('chapters/chapter-series.md', seriesChapter())
+
+  for (const file of written) console.log(`wrote   ${file}`)
+  for (const file of skipped) console.log(`kept    ${file} (already exists; --force rewrites)`)
+  if (written.length === 0 && skipped.length > 0) {
+    console.log('All fixtures already exist. Use `pnpm run prepare-input:force` to regenerate.')
+  }
 }
 
-main()
+main().catch((error: unknown) => {
+  console.error(`prepare-input failed: ${error instanceof Error ? error.message : String(error)}`)
+  process.exit(1)
+})
