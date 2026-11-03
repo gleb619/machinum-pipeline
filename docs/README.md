@@ -16,6 +16,7 @@ Also here: [install.sh](install.sh) — installer (binary / `--docker` / `--from
 Everything else in this directory:
 
 - Flow docs (repo root): [kanban.md](kanban.md) (task board), [kanban-loop.md](kanban-loop.md), [kanban-compose.md](kanban-compose.md), [kanban-feeder-loop.md](kanban-feeder-loop.md) (automated loops), [change-workflow.md](change-workflow.md) (worktree → branch → gates → FF-merge lifecycle).
+- Remote browser translation: [guiding/remote-browser-translate.md](guiding/remote-browser-translate.md) — run one Chrome worker on a remote PC and call it from `browserTranslate` (bin, SSH tunnel, systemd, cache/concurrency, security).
 - [plans/](plans/) — design/plan documents per task.
 - [features/](features/), [ideas/](ideas/), [locks/](locks/), [superpowers/](superpowers/) — incubation and scratch space.
 

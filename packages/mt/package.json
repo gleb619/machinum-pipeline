@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "bin": {
-    "mt": "./dist/bin.js"
+    "mt": "./dist/bin.js",
+    "mt-browser-translate": "./dist/browser-translate-server.js"
   },
   "exports": {
     ".": {

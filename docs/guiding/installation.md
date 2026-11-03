@@ -114,6 +114,14 @@ pnpm --filter=mt exec tsx src/bin.ts run ./pipelines/p.ts
 Needs Node + `tsx` (root devDependency) and the workspace installed. Slower per start than the binary,
 but no compile step — use while hacking on the CLI.
 
+### Remote browser-translate worker (optional)
+
+The `mt-browser-translate` bin is a Node entry point for the remote browser-translation worker; it is
+**not** part of the single-file `mt` binary. Install the `mt` npm package (pre-release; build from source
+until it is published), `playwright-core`, and Chrome on the worker, then run
+`mt-browser-translate --host 127.0.0.1 --port 8787 --token-file <file>`. Full setup:
+[remote-browser-translate.md](remote-browser-translate.md).
+
 ## Path C — npm package (pre-release)
 
 Not published to npm yet ([steering/product.md](../steering/product.md)). `packages/mt/package.json`

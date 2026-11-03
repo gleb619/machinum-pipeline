@@ -138,6 +138,7 @@ export {
   browserTranslate,
   createBrowserTranslate,
   createHeadlessGoogleEngine,
+  createRemoteGoogleEngine,
   resolveChromePath,
   buildTranslatePage,
   splitTranslationChunks,
@@ -145,8 +146,19 @@ export {
   type BrowserTranslateInput,
   type BrowserTranslateOptions,
   type BrowserTranslateOutput,
+  type RemoteBrowserTranslateEngineOptions,
   type TranslationChunk,
 } from './modification/browser-translate.js'
+
+export {
+  startBrowserTranslateServer,
+  parseBrowserTranslateServerArgs,
+  runBrowserTranslateServerCli,
+  type BrowserTranslateServer,
+  type BrowserTranslateServerArgs,
+  type BrowserTranslateServerOptions,
+  type BrowserTranslateServerStats,
+} from './modification/browser-translate-server.js'
 
 export {
   OpenRouterPool,

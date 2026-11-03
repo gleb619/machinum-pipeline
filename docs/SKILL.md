@@ -2,8 +2,8 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.14.0 | 2026-11-03 -->
-<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
+<!-- skill-version: 1.15.0 | 2026-11-03 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
 
@@ -309,6 +309,18 @@ export default defineProcess()
 
 `MT_LLM_TOOL=ollama mt run ...` runs the same file against a real backend. Run offline smoke tests with
 `mt router --mock` (no keys, no network). An explicit `call`/`translate` argument on a tool beats everything.
+
+## Remote browser translation
+
+`browserTranslate` can use a long-lived Chrome worker on another machine. The worker is the Node
+`mt-browser-translate` bin (needs `playwright-core` + Chrome; not the single-file binary):
+`mt-browser-translate --host 127.0.0.1 --port 8787 --token-file <file>`.
+On the main machine: `ssh -N -L 8787:127.0.0.1:8787 user@remote`, then set
+`MT_BROWSER_TRANSLATE_URL=http://127.0.0.1:8787` and `MT_BROWSER_TRANSLATE_TOKEN=<token>` (or pass
+`remoteUrl` / `remoteToken` / `remoteRetries`). `browserTranslate` picks remote lazily and records
+`transport: 'remote'` in its variable. Prefer env or `--token-file`; never put a real token on the CLI.
+`hs://` is ingest-only (`POST` -> `{ received: true }`) and cannot return translations; router
+`/api/translate` is an LLM-paid backend, not Chrome. Guide: `docs/guiding/remote-browser-translate.md`.
 
 ## Tunable constants (`constants` overrides)
 

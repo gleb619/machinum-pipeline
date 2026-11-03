@@ -33,9 +33,26 @@ export interface BrowserTranslateOptions {
   concurrency?: number
   /** Test/custom injection; bypasses Chrome entirely. */
   engine?: BrowserTranslateEngine
+  /** Remote worker URL; falls back to `MT_BROWSER_TRANSLATE_URL`. */
+  remoteUrl?: string
+  /** Remote bearer token; falls back to `MT_BROWSER_TRANSLATE_TOKEN`. */
+  remoteToken?: string
+  /** Extra attempts for retryable remote failures (default 2). */
+  remoteRetries?: number
+}
+
+export interface RemoteBrowserTranslateEngineOptions {
+  url: string
+  token?: string
+  timeoutMs?: number
+  retries?: number
+  cache?: boolean
+  fetch?: typeof fetch
 }
 
 export interface BrowserTranslateEngine {
+  transport?: 'local' | 'remote'
+  endpoint?: string
   translate(
     input: Required<Pick<BrowserTranslateInput, 'text'>> & {
       sourceLang?: string
@@ -51,6 +68,8 @@ interface BrowserTranslateVariable {
   ms: number
   targetLang: string
   sourceLang: string
+  transport: 'local' | 'remote'
+  endpoint?: string
 }
 
 export interface TranslationChunk {
@@ -95,6 +114,12 @@ interface PageServer {
   url: string
 }
 
+interface EngineSelection {
+  engine: BrowserTranslateEngine
+  transport: 'local' | 'remote'
+  endpoint?: string
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -102,6 +127,8 @@ interface PageServer {
 const PAGE_ENDPOINT = 'https://translate.googleapis.com/translate_a/single'
 const DEFAULT_TIMEOUT_MS = 60_000
 const DEFAULT_CONCURRENCY = 3
+const DEFAULT_REMOTE_RETRIES = 2
+const REMOTE_RETRY_BASE_MS = 250
 const MAX_CHUNK_CHARS = 4000
 
 const PAGE_SCRIPT = `
@@ -315,6 +342,66 @@ function positiveInteger(value: number | undefined, fallback: number): number {
   return Math.max(1, Math.floor(value))
 }
 
+function nonNegativeInteger(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback
+  return Math.max(0, Math.floor(value))
+}
+
+function normalizeRemoteTranslateUrl(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) throw new Error('browser-translate: remote URL is empty')
+
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    throw new Error(`browser-translate: invalid remote URL ${redactUrlUserInfo(trimmed)}`)
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error(
+      `browser-translate: remote URL must use http or https (${redactUrlUserInfo(trimmed)})`,
+    )
+  }
+  if (parsed.username || parsed.password) {
+    throw new Error(
+      `browser-translate: remote URL must not include credentials (${redactUrlUserInfo(trimmed)})`,
+    )
+  }
+
+  parsed.search = ''
+  parsed.hash = ''
+  const path = parsed.pathname.replace(/\/+$/, '')
+  parsed.pathname = path.endsWith('/translate') ? path : `${path}/translate`
+  return parsed.toString()
+}
+
+function redactUrlUserInfo(value: string): string {
+  return value.replace(/\/\/[^/\s@]*@/g, '//[redacted]@').replace(/^[^/\s@]+@/, '[redacted]@')
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function retryDelayMs(response: Response | undefined, attempt: number): number {
+  const retryAfter = response?.headers.get('retry-after')?.trim()
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+    const date = Date.parse(retryAfter)
+    if (!Number.isNaN(date)) return Math.max(0, date - Date.now())
+  }
+  return REMOTE_RETRY_BASE_MS * 2 ** attempt
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status === 502 || status === 503 || status === 504
+}
+
 function chromeCandidates(): string[] {
   const candidates: string[] = []
 
@@ -455,10 +542,12 @@ function resolveTargetLang(input: BrowserTranslateInput, options: BrowserTransla
 async function translateOne(
   input: TranslateInput,
   options: BrowserTranslateOptions,
-  engine: BrowserTranslateEngine,
+  selection: EngineSelection,
 ): Promise<TranslateResult> {
   const targetLang = resolveTargetLang(input, options)
   const sourceLang = input.sourceLang?.trim() || 'auto'
+  const transport = selection.transport
+  const endpoint = selection.endpoint
 
   if (!input.text.trim()) {
     return {
@@ -469,12 +558,14 @@ async function translateOne(
         ms: 0,
         targetLang,
         sourceLang,
+        transport,
+        ...(endpoint ? { endpoint } : {}),
       },
     }
   }
 
   const started = performance.now()
-  const translatedText = await engine.translate({
+  const translatedText = await selection.engine.translate({
     text: input.text,
     sourceLang,
     targetLang,
@@ -494,6 +585,8 @@ async function translateOne(
       ms,
       targetLang,
       sourceLang,
+      transport,
+      ...(endpoint ? { endpoint } : {}),
     },
   }
 }
@@ -558,6 +651,100 @@ export function resolveChromePath(configured?: string): string {
   )
 }
 
+/** Remote engine that POSTs translations to an `mt-browser-translate` worker. */
+export function createRemoteGoogleEngine(
+  options: RemoteBrowserTranslateEngineOptions,
+): BrowserTranslateEngine {
+  const endpoint = normalizeRemoteTranslateUrl(options.url)
+  const timeoutMs = positiveInteger(options.timeoutMs, DEFAULT_TIMEOUT_MS)
+  const retries = nonNegativeInteger(options.retries, DEFAULT_REMOTE_RETRIES)
+  const fetchImpl = options.fetch ?? globalThis.fetch
+  const token = options.token?.trim()
+
+  return {
+    transport: 'remote',
+    endpoint,
+    async translate(input): Promise<string> {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (token) headers.Authorization = `Bearer ${token}`
+      const payload = JSON.stringify({
+        text: input.text,
+        sourceLang: input.sourceLang ?? 'auto',
+        targetLang: input.targetLang,
+        ...(options.cache !== undefined ? { cache: options.cache } : {}),
+      })
+
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        let response: Response
+        try {
+          response = await fetchImpl(endpoint, {
+            method: 'POST',
+            headers,
+            body: payload,
+            signal: AbortSignal.timeout(timeoutMs),
+          })
+        } catch (error) {
+          if (attempt < retries) {
+            await sleep(retryDelayMs(undefined, attempt))
+            continue
+          }
+          throw new Error(
+            `browser-translate: remote request failed after ${attempt + 1} attempts: ${errorMessage(error)}`,
+          )
+        }
+
+        if (isRetryableStatus(response.status)) {
+          if (attempt < retries) {
+            const delay = retryDelayMs(response, attempt)
+            try {
+              await response.body?.cancel()
+            } catch {
+              // The retry decision does not depend on draining this response.
+            }
+            await sleep(delay)
+            continue
+          }
+          throw new Error(
+            `browser-translate: remote translate failed after ${attempt + 1} attempts: HTTP ${response.status}`,
+          )
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            `browser-translate: remote translate failed: HTTP ${response.status} ${response.statusText}`.trim(),
+          )
+        }
+
+        let raw: string
+        try {
+          raw = await response.text()
+        } catch (error) {
+          throw new Error(`browser-translate: remote response read failed: ${errorMessage(error)}`)
+        }
+
+        let data: unknown
+        try {
+          data = JSON.parse(raw) as unknown
+        } catch {
+          throw new Error('browser-translate: remote response is not valid JSON')
+        }
+        if (
+          typeof data !== 'object' ||
+          data === null ||
+          !('translatedText' in data) ||
+          typeof data.translatedText !== 'string' ||
+          !data.translatedText
+        ) {
+          throw new Error('browser-translate: remote response missing translatedText')
+        }
+        return data.translatedText
+      }
+
+      throw new Error('browser-translate: remote translate failed')
+    },
+  }
+}
+
 /** Headless Chrome engine backed by a local page and the Google Translate web endpoint. */
 export function createHeadlessGoogleEngine(
   options: BrowserTranslateOptions = {},
@@ -596,6 +783,7 @@ export function createHeadlessGoogleEngine(
   }
 
   return {
+    transport: 'local',
     async translate(input): Promise<string> {
       let page: PlaywrightPage | undefined
       let server: Server | undefined
@@ -677,8 +865,43 @@ export function createHeadlessGoogleEngine(
 export function createBrowserTranslate(
   options: BrowserTranslateOptions = {},
 ): Tool<TranslateInput, TranslateOutput> {
-  const engine = options.engine ?? createHeadlessGoogleEngine(options)
   const concurrency = positiveInteger(options.concurrency, DEFAULT_CONCURRENCY)
+  let selection: EngineSelection | undefined
+
+  const selectEngine = (): EngineSelection => {
+    if (selection) return selection
+
+    if (options.engine) {
+      selection = {
+        engine: options.engine,
+        transport: options.engine.transport ?? 'local',
+        ...(options.engine.endpoint ? { endpoint: options.engine.endpoint } : {}),
+      }
+      return selection
+    }
+
+    const remoteUrl =
+      options.remoteUrl?.trim() || process.env.MT_BROWSER_TRANSLATE_URL?.trim() || undefined
+    if (remoteUrl) {
+      const endpoint = normalizeRemoteTranslateUrl(remoteUrl)
+      const remoteToken =
+        options.remoteToken?.trim() || process.env.MT_BROWSER_TRANSLATE_TOKEN?.trim() || undefined
+      selection = {
+        engine: createRemoteGoogleEngine({
+          url: endpoint,
+          token: remoteToken,
+          timeoutMs: options.timeoutMs,
+          retries: options.remoteRetries,
+        }),
+        transport: 'remote',
+        endpoint,
+      }
+      return selection
+    }
+
+    selection = { engine: createHeadlessGoogleEngine(options), transport: 'local' }
+    return selection
+  }
 
   return defineTool<TranslateInput, TranslateOutput>({
     name: 'browser-translate',
@@ -698,12 +921,13 @@ export function createBrowserTranslate(
       env: Exchange<TranslateInput>,
       _ctx: ToolContext,
     ): Promise<Exchange<TranslateOutput>> {
+      const selected = selectEngine()
       const inputs = env.items ?? [env.item]
       const outputs: TranslateOutput[] = []
       const infos: BrowserTranslateVariable[] = []
 
       for await (const result of mapConcurrent(iterate(inputs), concurrency, async (input) =>
-        translateOne(input, options, engine),
+        translateOne(input, options, selected),
       )) {
         outputs.push(result.output)
         infos.push(result.info)

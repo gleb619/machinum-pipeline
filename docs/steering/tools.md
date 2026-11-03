@@ -386,28 +386,92 @@ option (any `Tool<TranslateInput, TranslateOutput>`) or per-slot via `.with({ tr
 - `browserTranslate` / `createBrowserTranslate(options?)` — browser-backed translator (TL247, category
   `translator`). Exchange types are `TranslateInput` / `TranslateOutput` from `core/translate-text.ts`, so it
   is a drop-in translator slot (e.g. `chapter-translator`). Options (`BrowserTranslateOptions`): `targetLang`,
-  `chromePath`, `headless`, `timeoutMs` (default `60000`), `concurrency` (default `3`), and `engine`
-  (`BrowserTranslateEngine` injection; bypasses Chrome, for tests). `targetLang` resolves from the input first,
-  then the option; missing both throws.
+  `chromePath`, `headless`, `timeoutMs` (default `60000`), `concurrency` (default `3`), `engine`
+  (`BrowserTranslateEngine` injection; bypasses Chrome, for tests), `remoteUrl` (default
+  `MT_BROWSER_TRANSLATE_URL`), `remoteToken` (default `MT_BROWSER_TRANSLATE_TOKEN`), and `remoteRetries`
+  (default `2`). Engine selection happens lazily on first invoke: explicit `engine` > `remoteUrl` / env >
+  local headless engine. `targetLang` resolves from the input first, then the option; missing both throws.
 - `BrowserTranslateInput` / `BrowserTranslateOutput` describe the browser call: `{ text, sourceLang?,
   targetLang? }` -> `{ translatedText, engine: 'google-endpoint', model: 'google-translate-web', ms }`.
   Batched `env.items` are translated in order with bounded `concurrency`; empty/whitespace text returns `''`
   without launching Chrome. Output derives with `withItem`; the `browserTranslate` variable holds
-  `{ engine, model, ms, targetLang, sourceLang }` for a single item; for batch input it holds an array of the
-  same objects.
-- Engine: `createHeadlessGoogleEngine(options?)` lazily loads `playwright-core` (optional peer dependency in
-  both `@mt/tools` and the consumer-facing `packages/mt` package; devDependency for typecheck/tests), resolves
-  Chrome via `options.chromePath` -> `MT_CHROME_PATH` -> common system paths, and launches one headless Chrome
-  per engine instance. The returned tool has no `close`; use the engine directly when deterministic shutdown
-  is needed. `resolveChromePath(configured?)` / `buildTranslatePage(...)` are exported helpers. Chrome is
-  required; missing Chrome or `playwright-core` throws a clear error. The standalone Bun binary cannot load
-  `playwright-core` unless it is resolvable at runtime.
+  `{ engine, model, ms, targetLang, sourceLang, transport: 'local' | 'remote', endpoint? }` for a single
+  item; for batch input it holds an array of the same objects. `transport` reports which engine served the
+  call; `endpoint` is the resolved remote `/translate` URL when applicable. `TranslateInput` /
+  `TranslateOutput` stay unchanged.
+- Local engine: `createHeadlessGoogleEngine(options?)` lazily loads `playwright-core` (optional peer
+  dependency in both `@mt/tools` and the consumer-facing `packages/mt` package; devDependency for
+  typecheck/tests), resolves Chrome via `options.chromePath` -> `MT_CHROME_PATH` -> common system paths, and
+  launches one headless Chrome per engine instance. The returned tool has no `close`; use the engine directly
+  when deterministic shutdown is needed. `resolveChromePath(configured?)` / `buildTranslatePage(...)` are
+  exported helpers. Chrome is required; missing Chrome or `playwright-core` throws a clear error. The
+  standalone Bun binary cannot load `playwright-core` unless it is resolvable at runtime.
+- Remote engine: `createRemoteGoogleEngine(options)` returns a `BrowserTranslateEngine` backed by the worker
+  HTTP API. `RemoteBrowserTranslateEngineOptions` is `{ url, token?, timeoutMs?, retries?, cache?, fetch? }`
+  (`fetch` is a test injection); a defined `cache` is sent in each request payload. A URL ending in
+  `/translate` is used as-is; otherwise `/translate` is appended
+  (trailing `/` stripped). Requests are JSON `POST`s with `Authorization: Bearer <token>` when a token is set
+  and `AbortSignal.timeout(timeoutMs ?? 60000)`. Network errors and `429` / `502` / `503` / `504` retry with
+  exponential backoff (`250ms`, `500ms`, ...), honoring `Retry-After` seconds when present; other `4xx`
+  responses fail immediately. The response must contain a non-empty `translatedText`, otherwise the error
+  names `browser-translate: remote ...`.
+- `BrowserTranslateEngine` may carry optional `transport: 'local' | 'remote'` and `endpoint` metadata. An
+  explicit `options.engine` is reported with those values; a custom engine without them defaults to
+  `transport: 'local'`. `createRemoteGoogleEngine` sets `transport: 'remote'` and the normalized
+  `/translate` endpoint.
+- `browserTranslate` is deliberately **not** `cacheable`: the remote worker cache is authoritative and the
+  output carries `ms`.
 - Architecture/limitation: each call serves the page from an ephemeral `127.0.0.1:0` HTTP server and loads it
   in Chrome. Verified on Chrome 156: native Chrome auto-translate works in headless mode on public pages, but
   **never fires for localhost, loopback, LAN, or proxied local pages**. The page script therefore POSTs to the
   Google Translate endpoint (`https://translate.googleapis.com/translate_a/single`) itself, writes the result
   into the DOM, and Playwright reads it back. The page chunker preserves leading/trailing whitespace at chunk
   boundaries. Native auto-translate is not used.
+
+**Remote worker (`browser-translate-server.ts`).** `startBrowserTranslateServer(options?)` starts one
+long-lived server with one shared Chrome engine. It returns `{ url, host, port, stats, close }`;
+`close()` stops accepting, waits for active/queued work, then closes only the engine it created; an injected
+engine is left open (the caller owns it).
+`BrowserTranslateServerOptions`: `host` (default `127.0.0.1`), `port` (default `8787`), `token` (default
+`MT_BROWSER_TRANSLATE_TOKEN`), `chromePath`, `headless`, `timeoutMs`, `concurrency` (default `4`),
+`queueLimit` (default `32`), `cacheEntries` (default `1000`; `0` disables), `cacheMaxBytes` (default
+64 MiB; `0` disables), `engine` (test/embedding injection), `log`.
+
+| Endpoint | Auth | Behaviour |
+|---|---|---|
+| `GET /health` | none | `{ status: 'ok', engine: 'google-endpoint', cache: { entries, bytes, hits, misses }, active, queued }` |
+| `POST /translate` | Bearer when a token is set | request `{ text, sourceLang?, targetLang, cache? }` -> `{ translatedText, engine: 'google-endpoint', model: 'google-translate-web', ms, cached }` |
+
+`POST /translate` errors: `400` invalid body, `401` bad token, `413` body over 10 MiB (early on
+`Content-Length`, with `Connection: close`), `429` queue/upload full, `502` engine failure or empty
+translation (`Translation returned empty text`), `503` shutting down, `504` timeout; errors are
+`{ error: string }`. Empty results are never cached. Auth uses constant-time comparison.
+The server allows tokenless binds only on loopback (`127.0.0.1` / `::1` / `localhost`); any other host requires a token.
+The server-side LRU cache key is `JSON.stringify([sourceLang ?? 'auto', targetLang, text])` (insertion-order `Map`).
+It evicts least-recently-used entries when either `cacheEntries` or `cacheMaxBytes` is exceeded;
+`cache: false` bypasses lookup but still stores a successful result. Concurrency is bounded: `concurrency`
+active plus `queueLimit` waiting; at most that many uploads/translations are in flight, then `429` with
+`Retry-After: 1`.
+
+**Worker CLI (`mt-browser-translate`).** A Node entry point from the `mt` npm package (not the single-file
+Bun binary); the worker host needs Node, `playwright-core`, and Chrome. Flags: `--host`, `--port`, `--token`,
+`--token-file`, `--chrome-path`, `--headless` / `--headed`, `--concurrency`, `--queue-limit`,
+`--cache-entries`, `--cache-max-bytes`, `--help`, `--version`. A token comes from
+`MT_BROWSER_TRANSLATE_TOKEN` or `--token-file`; `--token` exists but real tokens must never appear in shell
+history. The CLI logs only startup by default; per-request failures are not logged unless an embedder wires
+`log`. It handles `SIGINT` / `SIGTERM` with a graceful `close()`.
+
+**Cost and transport choice.**
+
+| Path | Cost | Chrome | When |
+|---|---|---|---|
+| Local `browserTranslate` | no LLM tokens | yes, one launch per engine instance | dev / single machine with Chrome |
+| Remote worker | no LLM tokens; worker CPU/network only | yes, one shared long-lived Chrome | main machine has no Chrome, or many runs share one worker |
+| `translateText` / `llmTranslate` (`router` or `llm` backend) | paid LLM tokens (`/api/translate` or provider) | no | LLM quality is acceptable |
+
+Reuse one worker, keep the cache enabled, and bound concurrency instead of launching Chrome per paragraph
+or per run. `hs://` is **ingest-only**: `POST /<path>` returns `{ received: true }`, so it cannot return a
+translation. `mt router` `/api/translate` is an LLM-paid endpoint, not Chrome; it is not a worker transport.
 
 ### `openrouter-tool.ts`
 LLM gates built on the LLM toolkit (see [LLM toolkit](#llm-toolkit)); I/O unchanged:
