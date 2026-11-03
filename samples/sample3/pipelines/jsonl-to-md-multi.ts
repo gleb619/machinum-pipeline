@@ -5,7 +5,9 @@ import {
   chapterIndexer,
   chapterValidator,
   createApplyTranslatedTitle,
+  createChapterBodyTranslator,
   createDictionaryTitleTranslator,
+  createLlmTypoFix,
   createSchemaTitles,
   createTitlePacketParser,
   entitiesTool,
@@ -107,7 +109,24 @@ export const translateChapterPipeline = definePipeline()
   .use(paragraphTranslator)
   .to('ephemeral://translate-output')
 
-// === Flow 5: packaged titles — ONE pipeline, a nested batch scope ===
+// === Flow 5: chapter body translation ===
+// Pipeline that translates chapter bodies using glossary + summary injection.
+// The `chapters` variable is consumed by `createChapterBodyTranslator` and the
+// result is written through the `my-target://` waypoint as MD.
+export const translateChapterBodyPipeline = definePipeline()
+  .from('ephemeral://chapter-body-input')
+  .use(createChapterBodyTranslator({ chaptersDir: 'chapters', mode: 'plain' }))
+  .to('my-target://./chapters')
+
+// === Flow 6: post-translation typo fix (LLM-backed, runs after the main flow)
+// `createLlmTypoFix` runs the `typo-fix` prompt on the translated text with
+// retry logic and a fallback to the original when the LLM call fails.
+export const fixTyposPipeline = definePipeline()
+  .from('ephemeral://typo-input')
+  .use(createLlmTypoFix({ maxAttempts: 2 }))
+  .to('ephemeral://typo-output')
+
+// === Flow 7: packaged titles — ONE pipeline, a nested batch scope ===
 //
 // `.batch(scope)` folds the stream into packages of 5 (default) and runs `scope` once per package.
 // Inside the scope the package is seen through waypoints:
@@ -171,5 +190,7 @@ export default defineProcess()
       .subflow(schemaDocPipeline)
       .subflow(titlePacketPipeline)
       .subflow(translateTitlesPipeline)
-      .subflow(translateChapterPipeline),
+      .subflow(translateChapterPipeline)
+      .subflow(translateChapterBodyPipeline)
+      .subflow(fixTyposPipeline),
   )
