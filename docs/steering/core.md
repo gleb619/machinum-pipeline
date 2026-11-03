@@ -422,7 +422,7 @@ const scope = definePipeline({ id: 'titles' })
   .use(applyTitle)
   .to('batch://return')             // commit: the patched member replaces the original (by id)
 
-definePipeline().from('md://./chapters/en').batch(scope).to('chapter-output://./chapters')
+definePipeline().from('md://./chapters/en').batch(scope).to('my-target://./chapters')
 ```
 
 - The nested pipeline runs once per package (own checkpoint node `<stepId>/batch-<n>`); afterwards

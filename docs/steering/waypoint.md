@@ -61,7 +61,7 @@ the runner double-count and the next resume silently skips unprocessed work. A n
 means "skip nothing" (`sourceStart = 0`). All waypoint resumable orderings are deterministic
 (sorted file walks, buffer insertion order), so a plain skip is exact. Shared helper:
 `src/resume.ts` (`resumeFrom(startFn, cursor)` / `skipEnvelopes(stream, n)`), used by `md://`,
-`chapter-output://`, `ephemeral://`, `chapters://`/`paragraphs://`/`chunks://`/`tokens://`/`lines://`/`words://`, `schema-doc://` and `range://`.
+`my-target://`, `ephemeral://`, `chapters://`/`paragraphs://`/`chunks://`/`tokens://`/`lines://`/`words://`, `schema-doc://` and `range://`.
 
 ## Atomicity Contract (hard rule)
 
@@ -77,7 +77,7 @@ Every waypoint target writes through the helpers in `@mt/core`:
 
 Target shapes:
 
-- **Per-file targets** (`chapter-output://`, `schema-doc://`, `md://<dir>`) call `atomicWriteFile`
+- **Per-file targets** (`my-target://`, `schema-doc://`, `md://<dir>`) call `atomicWriteFile`
   per envelope. A crash keeps every chapter written so far intact — never a truncated one.
 - **Single-file targets** (`jsonl://<file>`, `md://<file>`) accumulate into
   `<path>.tmp.<runId>` and rename in `close()`. Consequences:
@@ -284,7 +284,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 | WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
 | WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4, sample5        |
 | WP003 | hs:// / http://  | ✓      | —      | long-lived    | sample1, sample2                          |
-| WP004 | chapter-output://| ✓      | ✓      | resumable     | sample3                                   |
+| WP004 | my-target://| ✓      | ✓      | resumable     | sample3                                   |
 | WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (sample3 writes schema docs via `md://` write intents, not this scheme) |
 | WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
 | WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample2, sample3                          |
@@ -302,7 +302,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 | 1     | WP001 | `jsonl://`          | ✓      | ✓      | resumable  | `unknown` | `unknown` | JSONL file source/target; supports glob patterns for source; position cursor for resume; atomic write with temp file.                     |
 | 2     | WP002 | `md://`             | ✓      | ✓      | resumable  | `string`  | `string`  | Markdown directory source/target; dir mode supports `mdOutputs` variable write intents (subdir + filename); single-file mode ignores intents. |
 | 3     | WP003 | `hs://` / `http://` | ✓      | —      | long-lived | `unknown` | —         | Long-lived HTTP server source; POST ingest, GET /health, GET /events (SSE fan-out); no resume support.                                    |
-| 4     | WP004 | `chapter-output://` | ✓      | ✓      | resumable  | `string`  | `string`  | Chapter-specific layout: `<base-dir>/<lang>/chapter<num>.md`; validates `meta.lang` and `meta.chapterNum`; atomic per-file writes.        |
+| 4     | WP004 | `my-target://` | ✓      | ✓      | resumable  | `string`  | `string`  | Chapter-specific layout: `<base-dir>/<lang>/chapter<num>.md`; validates `meta.lang` and `meta.chapterNum`; atomic per-file writes.        |
 | 5     | WP005 | `schema-doc://`     | ✓      | ✓      | resumable  | `string`  | `string`  | Schema document source/target; custom YAML + CSV format; per-chapter `<dir>/chapter<num>.schema.md`.                                      |
 | 6     | WP006 | `git://`            | ✓      | ✓      | resumable  | varies    | varies    | Git worktree isolation wrapper; composites with inner scheme via `git+`; auto-commit on close with `commit=on-close`.                     |
 | 7     | WP007 | `ephemeral://`      | ✓      | ✓      | resumable  | `T`       | `T`       | In-memory buffer keyed by URI path; for testing and in-memory pipelines; process-local, no persistence.                                   |
