@@ -1,4 +1,4 @@
-import { definePipeline, defineProcess, defineWaypoint, getVariable } from '@mt/core'
+import { definePipeline, defineProcess, defineWaypoint } from '@mt/core'
 import {
   type LlmRequest,
   chapterDoc,
@@ -49,10 +49,9 @@ const verifyFlow = definePipeline()
   .use(chapterIndexer)
   .use(chapterValidator)
   .use(forbiddenCharDetector)
+  .log('[forbidden]')
   .use(tokenCounter)
-  .tap(async (ex) => {
-    console.log('[verify] errors:', getVariable(ex, 'errors'))
-  })
+  .log('[verify]')
   .to('@en')
 
 // === Flow 2: JSONL → schema docs (mock-LLM summary / entities / schema) ===

@@ -29,10 +29,7 @@ const verifyFlow = definePipeline()
   .use(chapterValidator)
   .use(forbiddenCharDetector)
   .use(tokenCounter)
-  .tap(async (item: unknown) => {
-    const meta = (item as { meta?: { errors?: unknown } }).meta
-    console.log('[verify] errors:', meta?.errors)
-  })
+  .log('[verify]')
   .to('@en')
 
 // === Flow 2: MD(EN) → MD(RU) simple translation ===
