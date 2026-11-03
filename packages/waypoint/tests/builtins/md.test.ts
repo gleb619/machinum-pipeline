@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Exchange, SourceContext, TargetContext } from '@mt/core'
@@ -424,6 +424,38 @@ describe('md target — mdOutputs intents', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("'first' and 'second'"))
     warn.mockRestore()
     expect(readFileSync(join(tempDir, 'chapters', 'dup', 'a.md'), 'utf-8')).toBe('two')
+  })
+
+  it('rejects non-empty mdOutputs intents in file mode', async () => {
+    const filePath = join(tempDir, 'out.md')
+    const parsed = uri(filePath)
+    const target = createMdTarget<string>(parsed)
+    await target.open(ctx)
+
+    await expect(
+      target.write(
+        {
+          item: '# Chapter',
+          meta: {
+            mdOutputs: [{ name: 'intro', filename: 'intro.md', content: '# Intro' }],
+          },
+        },
+        ctx,
+      ),
+    ).rejects.toThrow(
+      new RegExp(
+        [
+          `md target '${parsed.raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}': `,
+          'file mode cannot be combined with mdOutputs intents \\(intro\\)',
+        ].join(''),
+      ),
+    )
+
+    // Nothing was written: the rejected envelope contributed no content, and the
+    // intent content was not silently dropped into some other file.
+    await target.close(ctx)
+    expect(readFileSync(filePath, 'utf-8')).toBe('')
+    expect(existsSync(join(tempDir, 'intro.md'))).toBe(false)
   })
 })
 

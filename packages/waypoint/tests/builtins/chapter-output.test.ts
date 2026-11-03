@@ -54,6 +54,24 @@ describe('chapter-output target — path validation', () => {
     expect(readFileSync(join(baseDir, 'chapter1.md'), 'utf-8')).toBe('# One')
   })
 
+  it('rejects mdOutputs intents instead of dropping them silently', async () => {
+    const target = createChapterOutputTarget<string>(uri())
+    await target.open(ctx)
+
+    await expect(
+      target.write(
+        {
+          item: '# One',
+          meta: { mdOutputs: [{ name: 'intro', filename: 'intro.md', content: '# Intro' }] },
+        },
+        ctx,
+      ),
+    ).rejects.toThrow(/mdOutputs intents \(intro\) are not supported/)
+
+    await target.close(ctx)
+    expect(existsSync(join(baseDir, 'intro.md'))).toBe(false)
+  })
+
   it('rejects lang that escapes the target root', async () => {
     const target = createChapterOutputTarget<string>(uri())
     await target.open(ctx)

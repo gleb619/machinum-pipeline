@@ -3,9 +3,10 @@ import type { Stats } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { basename, extname, isAbsolute, join, relative } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
-import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
+import type { Exchange, ExchangeInput, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { atomicWriteFile, registry } from '@mt/core'
+import { MD_OUTPUTS_VARIABLE, atomicWriteFile, registry } from '@mt/core'
+import { exchangeField } from './fields.js'
 import { resumeFrom } from './resume.js'
 import { resolveWaypointPath } from './settings.js'
 
@@ -74,6 +75,19 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
       mkdirSync(baseDir, { recursive: true })
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
+      const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
+      if (mdOutputs && mdOutputs.length > 0) {
+        // This target writes `env.item` as one chapter file per envelope — the
+        // per-file intents have nowhere to go, so reject instead of dropping their
+        // content silently.
+        throw new Error(
+          [
+            `chapter-output target '${uri.raw}': mdOutputs intents `,
+            `(${mdOutputs.map((output) => output.name).join(', ')}) are not supported — `,
+            'write them to an md:// target',
+          ].join(''),
+        )
+      }
       const meta = (env.meta || {}) as Record<string, unknown>
       assertSafeLang(meta.lang)
       const lang = meta.lang as string | undefined

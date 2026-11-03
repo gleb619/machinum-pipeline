@@ -181,9 +181,20 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
       if (!filePath) {
         throw new Error('Target not opened. Call open() before write().')
       }
+      const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
+      if (isFileMode && mdOutputs && mdOutputs.length > 0) {
+        // File mode appends `env.item` to a single file — the per-file intents have
+        // nowhere to go, so honouring them is impossible: reject instead of dropping
+        // their content silently.
+        throw new Error(
+          [
+            `md target '${uri.raw}': file mode cannot be combined with mdOutputs `,
+            `intents (${mdOutputs.map((output) => output.name).join(', ')})`,
+          ].join(''),
+        )
+      }
       if (seriesSplitter) {
         if (!isFileMode) {
-          const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
           if (mdOutputs && mdOutputs.length > 0) {
             throw new Error(
               [
@@ -206,7 +217,6 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
       if (isFileMode) {
         await appendFileValue(env.item)
       } else {
-        const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
         if (mdOutputs && mdOutputs.length > 0) {
           const claimed = new Map<string, string>()
           for (const output of mdOutputs) {
