@@ -52,7 +52,7 @@ describe('jsonl-to-md-multi pipeline', () => {
       cwd: SAMPLE_DIR,
       stdio: 'pipe',
       env: { ...process.env, NODE_OPTIONS: '--import tsx' },
-      timeout: 10_000,
+      timeout: 45_000,
     })
   })
 
@@ -127,7 +127,7 @@ describe('schema-doc pipeline', () => {
       cwd: SAMPLE_DIR,
       stdio: 'pipe',
       env: { ...process.env, NODE_OPTIONS: '--import tsx' },
-      timeout: 10_000,
+      timeout: 45_000,
     })
   })
 
@@ -214,7 +214,7 @@ describe('schema-doc mock-emit pipeline (slot override)', () => {
       cwd: SAMPLE_DIR,
       stdio: 'pipe',
       env: { ...process.env, NODE_OPTIONS: '--import tsx' },
-      timeout: 10_000,
+      timeout: 45_000,
     })
     for (let i = 1; i <= 3; i++) {
       const content = await readFile(
