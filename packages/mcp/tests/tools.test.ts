@@ -4,16 +4,49 @@ import { join } from 'node:path'
 import type { RunStateData } from '@mt/core'
 import { Store } from '@mt/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { handleToolsCall, handleToolsList } from '../src/handlers.js'
+import { activeRuns, handleToolsCall, handleToolsList } from '../src/handlers.js'
 
 const PIPELINE_FILE = './pipelines/noop.ts'
 
 const created: string[] = []
 
+/** How long cleanup waits for a background run before deleting its project anyway. */
+const DRAIN_TIMEOUT_MS = 10_000
+/** Retries left before a recursive rm gives up on a directory that keeps refilling. */
+const REMOVE_RETRIES = 10
+
+/**
+ * Remove a project root, retrying when a background run recreates files between
+ * the recursive readdir and the final rmdir (ENOTEMPTY).
+ */
+async function removeDir(dir: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await rm(dir, { recursive: true, force: true })
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code !== 'ENOTEMPTY' || attempt >= REMOVE_RETRIES) throw error
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)))
+    }
+  }
+}
+
 afterEach(async () => {
+  // A `pipelines.run` call leaves a background run writing into its project root.
+  // Deleting the root under it fails with ENOTEMPTY, so drain first — bounded, so
+  // a wedged run cannot hang the suite.
+  const runs = [...activeRuns]
+  if (runs.length > 0) {
+    await Promise.race([
+      Promise.allSettled(runs),
+      new Promise((resolve) => setTimeout(resolve, DRAIN_TIMEOUT_MS)),
+    ])
+  }
+
   while (created.length > 0) {
     const dir = created.pop()
-    if (dir) await rm(dir, { recursive: true, force: true })
+    if (dir) await removeDir(dir)
   }
 })
 
