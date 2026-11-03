@@ -5,6 +5,17 @@ import type { AnnotationKind, AnnotationRecord } from '@mt/core'
 // Ensure built-in URI schemes (and their annotations) are registered before listing.
 import '@mt/waypoint'
 
+const USAGE = `Usage: mt annotations [pipeline.ts ...] [options]
+
+Lists runtime annotations registered by the loaded modules. Pipeline files are imported
+first so their tool/waypoint/useCase annotations are present.
+
+Options:
+  --kind <kind>   Filter by kind: tool | waypoint | useCase
+  --json          Print a JSON array instead of a table
+  -h, --help      Show this help
+`
+
 interface AnnotationRow {
   kind: AnnotationKind
   id: string
@@ -27,6 +38,11 @@ export async function annotationsCommand(args: string[]): Promise<void> {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] as string
+
+    if (arg === '-h' || arg === '--help') {
+      console.log(USAGE)
+      return
+    }
 
     if (arg === '--json') {
       json = true

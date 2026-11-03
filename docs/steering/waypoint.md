@@ -36,12 +36,10 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 Every scheme factory carries one sealed runtime `waypoint` annotation. The ID is the `ID`
 column above; source and target factories for the same scheme share it. `meta.schemes`
 lists the URI schemes the factory serves and `meta.direction` is `source`, `target` or
-`both`.
+`both`. Each module annotates its factory right next to the registry call:
 
 ```typescript
-import { annotate, annotationsOf, waypoint } from '@mt/core'
-import { createJsonlSource } from '@mt/waypoint'
-
+// packages/waypoint/src/jsonl.ts
 annotate(
   createJsonlSource,
   waypoint('WT001', {
@@ -50,7 +48,9 @@ annotate(
     meta: { schemes: ['jsonl'], direction: 'source' },
   }),
 )
+registry.registerSource('jsonl', createJsonlSource)
 
+// consumer
 annotationsOf(createJsonlSource) // [{ kind: 'waypoint', id: 'WT001', … }]
 ```
 

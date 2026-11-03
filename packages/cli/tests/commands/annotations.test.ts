@@ -149,6 +149,14 @@ describe('annotations command', () => {
     expect(stderr).toBe('')
   })
 
+  it('prints usage for --help', async () => {
+    await annotationsCommand(['--help'])
+
+    expect(stdout).toContain('Usage: mt annotations')
+    expect(stdout).toContain('--kind <kind>')
+    expect(stderr).toBe('')
+  })
+
   it('emits an empty JSON array when nothing is registered', async () => {
     await annotationsCommand(['--json'])
 
