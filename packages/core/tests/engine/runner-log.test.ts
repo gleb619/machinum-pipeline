@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -136,6 +136,28 @@ describe('runner log writes', () => {
     expect(rejections).toEqual([])
     expect(events).toContain('done')
     expect(events).not.toContain('failed')
+  })
+
+  it('persists a tool log line in the step log file', async () => {
+    sourceItems.push({ id: 'ex-log', variables: [], item: 'a', meta: {} })
+
+    const runner = new Runner(pipeline(), context())
+    await runner.start()
+
+    const runId = runner.getRunId()
+    expect(runId).not.toBeNull()
+    const logsDir = join(projectRoot, '.mt', 'runs', runId as string, 'logs')
+
+    // The tool's `ctx.run.logger` line is attributed to the tool's step, so it
+    // lands in that step's log file. The write is fire-and-forget, so the file
+    // can appear a tick after the run ended.
+    await vi.waitFor(async () => {
+      const files = await readdir(logsDir)
+      const stepLog = files.find((f) => /^tool-logger-\d+\.log$/.test(f))
+      expect(stepLog).toBeDefined()
+      const content = await readFile(join(logsDir, stepLog as string), 'utf8')
+      expect(content).toContain('tool logged a line')
+    })
   })
 
   it('finishes the run when the per-step log write fails', async () => {

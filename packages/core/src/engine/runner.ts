@@ -237,6 +237,7 @@ export class Runner {
     target: Target<unknown>
     node: CheckpointNode
     baseCursor: number
+    stepId: string
   }> = []
   /** Single in-flight mid-run persist; re-armed by the dirty flag while writes continue. */
   private persistInFlight: Promise<void> | null = null
@@ -461,11 +462,14 @@ export class Runner {
             (step.config.instance as Source<unknown> | undefined) ?? registry.resolveSource(uri)
           const cursor = typeof cursorNode.cursor === 'number' ? cursorNode.cursor : undefined
           envelopesWritten = 0
+          // The source logs through `ctx.run.logger` — bind it to this step so those
+          // lines land in the step's log file next to the engine's own lines.
+          const stepRun = this.stepRunContext(runContext, stepId)
           if (cursor !== undefined && source.resume) {
             this.logger(stepId).debug(`Resuming source '${uri}' from cursor ${cursor}`)
             sourceStart = cursor
             stream = normalizeStream(
-              source.resume({ run: runContext, events: this.eventsFacade }, cursor),
+              source.resume({ run: stepRun, events: this.eventsFacade }, cursor),
             )
           } else {
             if (cursor !== undefined) {
@@ -475,7 +479,7 @@ export class Runner {
             }
             // A replay from item 0 re-derives every position, so the old cursor is dropped.
             sourceStart = 0
-            stream = normalizeStream(source.start({ run: runContext, events: this.eventsFacade }))
+            stream = normalizeStream(source.start({ run: stepRun, events: this.eventsFacade }))
           }
           break
         }
@@ -534,9 +538,10 @@ export class Runner {
             throw new Error('Split step requires a preceding stream or source step')
           }
           const sourceStream = stream
+          const stepRun = this.stepRunContext(runContext, stepId)
           stream = (async function* () {
             for await (const env of sourceStream) {
-              const items = await splitter.split(env, { run: runContext })
+              const items = await splitter.split(env, { run: stepRun })
               yield* fanOut(env, items)
             }
           })()
@@ -952,12 +957,15 @@ export class Runner {
       pipeline.onError ??
       this.globalContext.defaults.onError
     const toolContext = step.config.context as Record<string, unknown> | undefined
+    // The tool logs through `ctx.run.logger` — bind it to this step so those lines
+    // land in the step's log file next to the engine's own lines.
+    const stepRun = this.stepRunContext(runContext, stepId)
 
     return mapConcurrent(
       sourceStream,
       concurrency,
       async (env) =>
-        this.runToolItem(tool, env, stepId, runContext, toolContext, retryPolicy, onError),
+        this.runToolItem(tool, env, stepId, stepRun, toolContext, retryPolicy, onError),
       { ordered: true },
     )
   }
@@ -986,12 +994,16 @@ export class Runner {
       target,
       node: cursorNode,
       baseCursor: typeof cursorNode.cursor === 'number' ? cursorNode.cursor : 0,
+      stepId,
     }
     this.openTargets.push(entry)
-    await target.open({ run: runContext, events: this.eventsFacade })
+    // The target logs through `ctx.run.logger` — bind it to this step so those lines
+    // land in the step's log file next to the engine's own lines.
+    const stepRun = this.stepRunContext(runContext, stepId)
+    await target.open({ run: stepRun, events: this.eventsFacade })
     try {
       for await (const env of stream) {
-        await target.write(env, { run: runContext, events: this.eventsFacade })
+        await target.write(env, { run: stepRun, events: this.eventsFacade })
         onEnvelopeWritten()
         // Mid-run persist (UC015/UC016): throttled to every `persistEvery` target writes.
         if (++this.writesSincePersist >= this.persistEvery) {
@@ -1004,7 +1016,7 @@ export class Runner {
       // point either still sees the open target and clamps to the committed count,
       // or runs after the commit and may persist the full cursor — never a cursor
       // ahead of durable output.
-      await target.close({ run: runContext, events: this.eventsFacade })
+      await target.close({ run: stepRun, events: this.eventsFacade })
       const idx = this.openTargets.indexOf(entry)
       if (idx >= 0) this.openTargets.splice(idx, 1)
     }
@@ -1257,10 +1269,14 @@ export class Runner {
   private async clampCursorsToCommitted(): Promise<void> {
     const runContext = this.runContext
     if (!runContext) return
-    for (const { target, node, baseCursor } of this.openTargets) {
+    for (const { target, node, baseCursor, stepId } of this.openTargets) {
       let committed = 0
       try {
-        committed = (await target.checkpoint?.({ run: runContext, events: this.eventsFacade })) ?? 0
+        committed =
+          (await target.checkpoint?.({
+            run: this.stepRunContext(runContext, stepId),
+            events: this.eventsFacade,
+          })) ?? 0
       } catch (error) {
         this.logger().warn(`Target checkpoint() failed, cursor not advanced: ${error}`)
         committed = 0
@@ -1318,6 +1334,10 @@ export class Runner {
 
   /**
    * Create a run context for this execution.
+   *
+   * Its logger is run-scoped: run-level lines (event-listener failures, persist
+   * warnings) reach the console only. Steps get their own copy from
+   * {@link stepRunContext}, whose logger persists to that step's log file.
    */
   private createRunContext(): RunContext {
     const runId = this.runId ?? randomUUID()
@@ -1370,6 +1390,20 @@ export class Runner {
     void this.logStep(stepId, level, message, meta).catch((error: unknown) => {
       if (process.env.MT_DEBUG) console.debug(`Failed to write run log: ${error}`)
     })
+  }
+
+  /**
+   * Run context scoped to one step.
+   *
+   * Attribution rule: `ctx.run.logger` lines belong to the step that produced
+   * them — a tool, source or target logs into its own step log file
+   * (`runs/<id>/logs/<step>.log`), next to the engine's lines for that step,
+   * instead of only reaching the console. Everything else (run id, checkpoint,
+   * globals, artifacts dir) stays the shared run context, so a step sees one
+   * run, not a copy of it.
+   */
+  private stepRunContext(runContext: RunContext, stepId: string): RunContext {
+    return { ...runContext, logger: this.logger(stepId) }
   }
 
   /**
