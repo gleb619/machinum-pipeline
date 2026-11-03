@@ -5,12 +5,12 @@ import {
   chapterIndexer,
   chapterValidator,
   forbiddenCharDetector,
+  mdFormatter,
   mdOutputEmitter,
   stubTranslator,
   textNormalizer,
   tokenCounter,
   wordCounter,
-  mdFormatter,
 } from '@mt/tools'
 import '@mt/waypoint'
 // Sample-defined scheme used by the `@ru` alias (`my-target://./chapters`).
