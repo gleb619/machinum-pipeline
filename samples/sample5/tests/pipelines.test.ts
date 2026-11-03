@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const SAMPLE_DIR = resolve(import.meta.dirname, '..')
 const MT_BIN = join(SAMPLE_DIR, 'node_modules', '.bin', 'mt')
-const OUT_DIR = join(SAMPLE_DIR, 'out')
+const OUT_DIR = join(SAMPLE_DIR, 'chapters')
 
 // pipeline file -> [output dir under chapters/, files it must write]
 const CHAPTERS = ['chapter1.md', 'chapter2.md']
