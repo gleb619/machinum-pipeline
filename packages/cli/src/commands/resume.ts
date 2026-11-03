@@ -78,13 +78,11 @@ export async function resumeCommand(args: string[]): Promise<void> {
 
   try {
     const runContext = await runner.resume(runId)
-    logger.info(`Pipeline resumed and completed successfully (runId: ${runContext.runId})`)
-    console.log(`\n✅ Pipeline resumed and complete. Run ID: ${runContext.runId}`)
+    logger.info(`Pipeline resumed and complete. Run ID: ${runContext.runId}`)
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
-    logger.error(`Pipeline resume failed: ${errorMessage}`)
-    console.error(`\n❌ Pipeline resume failed: ${errorMessage}${hint}`)
+    logger.error(`Pipeline resume failed: ${errorMessage}${hint}`)
     await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
     // Make sure the per-run log file is fully written before the process exits
     await logger.flush()
@@ -116,7 +114,6 @@ async function runSwallowingHookErrors(
   } catch (hookError) {
     const hookMessage = hookError instanceof Error ? hookError.message : String(hookError)
     options.logger.warn(`${name} hook failed: ${hookMessage}`)
-    console.error(`\n⚠️ ${name} hook failed: ${hookMessage}`)
   }
 }
 

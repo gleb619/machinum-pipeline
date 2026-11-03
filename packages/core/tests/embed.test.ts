@@ -242,7 +242,7 @@ describe('embed backend', () => {
         expect(await resolveEmbedValue('embed:Key', defEnv())).toBe(SECRET)
         expect(warn).toHaveBeenCalledTimes(1)
         const text = String(warn.mock.calls[0]?.[0])
-        expect(text).toBe(DEFAULT_EMBED_WARNING)
+        expect(text).toContain(DEFAULT_EMBED_WARNING)
         expect(text).toContain('MT_EMBED_PASSWORD')
         expect(text).toContain('obfuscated')
         expect(text).not.toContain(SECRET)

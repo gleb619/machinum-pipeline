@@ -349,6 +349,20 @@ and never thrown — a bad listener can never fail a run.
 EACCES, a run dir removed mid-run) is swallowed, never surfaces as an unhandled rejection and
 never affects the run. The console copy of the message is unaffected.
 
+**Log line format (`src/logging.ts`)** — every human-readable runtime log line (console,
+`run.log`, `logs/<stepId>.log`) is built by `formatLogLine()`:
+
+```
+<ISO-8601 UTC timestamp with ms> [<LEVEL>] <message>[ <compact-json-meta>]
+2026-11-03T11:23:29.471Z [INFO] md target 'md://./chapters' wrote 1 file(s)
+```
+
+`escapeLogNewlines()` folds CR/LF into the literal `\n` and TAB into `\t`, so one log call is
+always one physical line. `createConsoleLogger()` emits this format with a single console
+argument. JSON/JSONL (`events.jsonl`, `--json`) is excluded and keeps real newlines inside JSON
+strings. The Runner, `DuplexLogger`, tools, sources/targets and CLI lifecycle lines all share this
+formatter; do not hand-build `[timestamp] [LEVEL]` strings.
+
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
 

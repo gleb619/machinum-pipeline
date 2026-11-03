@@ -155,8 +155,14 @@ describe('resume command', () => {
 
     expect(mockResume).toHaveBeenCalledWith('test-run-id')
     expect(console.log).toHaveBeenCalledWith(
-      expect.stringContaining('Pipeline resumed and complete. Run ID: test-run-id'),
+      expect.stringMatching(/\[INFO\] Pipeline resumed and complete\. Run ID: test-run-id$/),
     )
+    // One success banner only — no duplicate "completed successfully" line.
+    const successLines = vi
+      .mocked(console.log)
+      .mock.calls.flat()
+      .filter((line) => String(line).includes('Pipeline resumed and complete'))
+    expect(successLines).toHaveLength(1)
   })
 
   it('writes the CLI log to .mt/runs/<runId>/run.log', async () => {
@@ -171,6 +177,8 @@ describe('resume command', () => {
 
     const runLog = await readFile(join(testDir, '.mt', 'runs', 'test-run-id', 'run.log'), 'utf-8')
     expect(runLog).toContain('Resuming pipeline: test-pipeline, runId: test-run-id')
+    expect(runLog).toContain('Pipeline resumed and complete. Run ID: test-run-id')
+    expect(runLog).not.toContain('Pipeline resumed and completed successfully')
     await expect(readFile(join(testDir, '.mt', 'runs', 'run.log'), 'utf-8')).rejects.toThrow()
   })
 

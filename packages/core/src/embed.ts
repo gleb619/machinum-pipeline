@@ -3,6 +3,9 @@ import { chmod, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { tmpPathFor } from './atomic.js'
+import { createConsoleLogger } from './logging.js'
+
+const logger = createConsoleLogger()
 
 /**
  * Embedded encrypted store backend for vault secrets.
@@ -58,7 +61,7 @@ export function resetEmbedDefaultWarning(): void {
 function warnDefaultPassword(): void {
   if (defaultWarned) return
   defaultWarned = true
-  console.warn(DEFAULT_EMBED_WARNING)
+  logger.warn(DEFAULT_EMBED_WARNING)
 }
 
 const warnedKeyFiles = new Set<string>()
@@ -252,7 +255,7 @@ async function readKeyFile(path: string): Promise<string | undefined> {
   if (await masterKeyFileTooOpen(path)) {
     if (!warnedKeyFiles.has(path)) {
       warnedKeyFiles.add(path)
-      console.warn(
+      logger.warn(
         `mt: master key file ${path} is readable by other users: run \`chmod 600 ${path}\``,
       )
     }

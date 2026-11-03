@@ -117,7 +117,7 @@ describe('master key', () => {
   it('default fallback warning suggests master-key generate', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     await createEmbedStore({ path: env.MT_EMBED_PATH }, env)
-    expect(warn).toHaveBeenCalledWith(DEFAULT_EMBED_WARNING)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(DEFAULT_EMBED_WARNING))
     expect(DEFAULT_EMBED_WARNING).toContain('mt vault master-key generate')
     expect(DEFAULT_EMBED_PASSWORD).toBeTruthy()
   })

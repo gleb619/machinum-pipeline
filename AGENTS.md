@@ -160,6 +160,32 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
   changes are load-bearing, do not discard them.
 - **NEVER** add `Co-Authored-By` (or any AI-attribution trailer) to commits or PR descriptions.
 
+## Logging format (hard rule)
+
+All runtime log lines — engine (`Runner`), CLI lifecycle, tools, sources and targets — MUST emit
+exactly one line through the shared formatter in `@mt/core` (`formatLogLine`):
+
+```
+<ISO-8601 UTC timestamp> [<LEVEL>] <message>[ <compact-json-meta>]
+```
+
+- **time** — `new Date().toISOString()`, full UTC with milliseconds: `2026-11-03T11:23:29.471Z`.
+  Never a bare `HH:MM:SS.mmm`.
+- **level** — one of `[DEBUG]`, `[INFO]`, `[WARN]`, `[ERROR]` (uppercase, square brackets).
+- **message** — human-readable, single line. Main/human log formats (console, `run.log`,
+  `logs/<step>.log`) MUST escape CR/LF as the literal two characters `\n` and TAB as `\t`
+  (`escapeLogNewlines`). One log call = one physical line, always.
+- **meta** — optional compact `JSON.stringify` object after the message; omit when empty.
+- JSON/JSONL formats (`events.jsonl`, `--json` command output) are excluded: real newlines stay
+  inside JSON strings.
+- Runtime code MUST NOT call `console.log`/`console.info`/`console.warn`/`console.error` directly.
+  Use `ctx.run.logger` (tools, sources, targets) or the CLI `DuplexLogger`; outside a context use
+  `createConsoleLogger()` from `@mt/core`.
+  Plain command output (help text, tables, prompts, machine-readable JSON) is not a log line and
+  stays as-is. Exceptions: the `.log()` DSL op is deliberate untimestamped debug output, sample
+  pipelines may print data/markers for tests, and the `console://` target is a data sink.
+- Tests must assert this single format; no per-sink variants.
+
 ## Communication rules
 
 - You are not alone - other agents may work in this repo concurrently. Focus on your task; ignore unrelated errors.

@@ -281,7 +281,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
             const outPath = resolveOutputPath(filePath, output)
             const previous = claimed.get(outPath)
             if (previous !== undefined && previous !== output.name) {
-              console.warn(
+              ctx.run.logger?.warn(
                 `[md] outputs '${previous}' and '${output.name}' both target ${outPath}; last write wins`,
               )
             }

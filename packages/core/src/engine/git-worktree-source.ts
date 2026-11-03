@@ -1,11 +1,14 @@
 import { basename, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '../contexts.js'
 import type { Exchange, ExchangeInput } from '../exchange.js'
+import { createConsoleLogger } from '../logging.js'
 import type { Lifecycle, Source, Target } from '../types.js'
 import type { ParsedUri } from '../uri.js'
 import { registry } from '../uri.js'
 import { createWorktree, mergeWorktreeToMain, removeWorktree } from './git-worktree.js'
 import { autoCommit } from './git.js'
+
+const logger = createConsoleLogger()
 
 /**
  * Resolve a relative inner URI path against a Git worktree directory.
@@ -123,7 +126,7 @@ export class GitWorktreeTarget<T> implements Target<T> {
     try {
       await removeWorktree(worktreePath)
     } catch (err) {
-      console.warn(`[git-worktree] Failed to remove worktree: ${err}`)
+      logger.warn(`[git-worktree] Failed to remove worktree: ${err}`)
     }
 
     this.opened = false

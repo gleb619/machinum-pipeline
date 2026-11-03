@@ -6,6 +6,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { gunzipSync, inflateRawSync } from 'node:zlib'
 import { tmpPathFor } from './atomic.js'
+import { createConsoleLogger } from './logging.js'
+
+const logger = createConsoleLogger()
 
 /**
  * vlt (https://github.com/ladzaretti/vlt-cli) backend for vault secrets.
@@ -199,7 +202,7 @@ export async function installVlt(env: Env = process.env): Promise<string> {
   }
   const archive = await downloadAsset(asset.browser_download_url)
   if (env.MT_VLT_SKIP_VERIFY === 'true') {
-    console.warn('vlt install: MT_VLT_SKIP_VERIFY=true — skipping sha256 checksum verification')
+    logger.warn('vlt install: MT_VLT_SKIP_VERIFY=true — skipping sha256 checksum verification')
   } else {
     await verifyChecksum(asset.name, archive, release.assets ?? [])
   }

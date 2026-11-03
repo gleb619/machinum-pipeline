@@ -290,7 +290,9 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
           mode: options.mode,
           ask: (system, user) => ask(options.call, system, user, ctx, options.mode),
         })
-        if (options.log !== false) console.log(`[translate] chapter ${n}: ${Date.now() - t0} ms`)
+        if (options.log !== false) {
+          ctx.run.logger.info(`[translate] chapter ${n}: ${Date.now() - t0} ms`)
+        }
         pairs.push({ en: stripTerms(tagged), ru })
         nums.push(n)
       }

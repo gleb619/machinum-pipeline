@@ -1,5 +1,8 @@
 import { execFile } from 'node:child_process'
 import { join } from 'node:path'
+import { createConsoleLogger } from '../logging.js'
+
+const logger = createConsoleLogger()
 
 /**
  * Git command execution result.
@@ -49,21 +52,21 @@ export async function autoCommit(cwd: string, message?: string, paths?: string[]
   // Check if git is available
   const gitCheck = await execGit(cwd, ['--version'])
   if (gitCheck.exitCode !== 0) {
-    console.warn('[git] git not found, skipping auto-commit')
+    logger.warn('[git] git not found, skipping auto-commit')
     return
   }
 
   // Stage changes (scoped to paths when given)
   const addResult = await execGit(cwd, scoped ? ['add', ...pathArgs] : ['add', '-A'])
   if (addResult.exitCode !== 0) {
-    console.warn('[git] git add failed:', addResult.stderr)
+    logger.warn(`[git] git add failed: ${addResult.stderr}`)
     return
   }
 
   // Check if there are changes to commit
   const statusResult = await execGit(cwd, ['status', '--porcelain', ...pathArgs])
   if (statusResult.stdout.trim() === '') {
-    console.log('[git] nothing to commit')
+    logger.info('[git] nothing to commit')
     return
   }
 
@@ -74,12 +77,12 @@ export async function autoCommit(cwd: string, message?: string, paths?: string[]
   )
   if (commitResult.exitCode !== 0) {
     if (commitResult.stderr.includes('nothing to commit')) {
-      console.log('[git] nothing to commit')
+      logger.info('[git] nothing to commit')
       return
     }
-    console.warn('[git] git commit failed:', commitResult.stderr)
+    logger.warn(`[git] git commit failed: ${commitResult.stderr}`)
     return
   }
 
-  console.log('[git] auto-committed successfully')
+  logger.info('[git] auto-committed successfully')
 }

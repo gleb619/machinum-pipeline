@@ -15,6 +15,7 @@ import {
   toExchange,
   withBatchMembers,
 } from '../exchange.js'
+import { formatLogLine } from '../logging.js'
 import { getSetting } from '../settings.js'
 import { Store } from '../store.js'
 import type {
@@ -1223,7 +1224,7 @@ export class Runner {
       await this.emitEvent('failed', undefined, message)
     } catch (persistError) {
       // A storage failure must not mask the error that actually failed the run.
-      console.error(`Failed to persist failed run state: ${persistError}`)
+      console.error(formatLogLine('error', `Failed to persist failed run state: ${persistError}`))
     }
   }
 
@@ -1379,8 +1380,7 @@ export class Runner {
     meta?: Record<string, unknown>,
   ): Promise<void> {
     if (!this.runId) return
-    const ts = new Date().toISOString()
-    const line = `[${ts}] [${level.toUpperCase()}] ${message}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`
+    const line = `${formatLogLine(level, message, meta)}\n`
     // Nested checkpoint ids carry path separators — keep log file names flat.
     const file = `${stepId.replace(/[^a-zA-Z0-9._-]/g, '_')}.log`
     await this.store.ensureDir('runs', this.runId, 'logs')
@@ -1401,7 +1401,9 @@ export class Runner {
     meta?: Record<string, unknown>,
   ): void {
     void this.logStep(stepId, level, message, meta).catch((error: unknown) => {
-      if (process.env.MT_DEBUG) console.debug(`Failed to write run log: ${error}`)
+      if (process.env.MT_DEBUG) {
+        console.debug(formatLogLine('debug', `Failed to write run log: ${error}`))
+      }
     })
   }
 
@@ -1426,20 +1428,20 @@ export class Runner {
     // Default console logger
     return {
       info: (message: string, meta?: Record<string, unknown>) => {
-        console.log(`[${new Date().toISOString()}] [INFO] ${message}`, meta ?? '')
+        console.log(formatLogLine('info', message, meta))
         if (stepId) this.writeLog(stepId, 'info', message, meta)
       },
       warn: (message: string, meta?: Record<string, unknown>) => {
-        console.warn(`[${new Date().toISOString()}] [WARN] ${message}`, meta ?? '')
+        console.warn(formatLogLine('warn', message, meta))
         if (stepId) this.writeLog(stepId, 'warn', message, meta)
       },
       error: (message: string, meta?: Record<string, unknown>) => {
-        console.error(`[${new Date().toISOString()}] [ERROR] ${message}`, meta ?? '')
+        console.error(formatLogLine('error', message, meta))
         if (stepId) this.writeLog(stepId, 'error', message, meta)
       },
       debug: (message: string, meta?: Record<string, unknown>) => {
         if (process.env.MT_DEBUG) {
-          console.debug(`[${new Date().toISOString()}] [DEBUG] ${message}`, meta ?? '')
+          console.debug(formatLogLine('debug', message, meta))
         }
         if (stepId) this.writeLog(stepId, 'debug', message, meta)
       },

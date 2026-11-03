@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@mt/core'
 import type { ParsedUri, RunEvent } from '@mt/core'
 import { describe, expect, it, vi } from 'vitest'
 import { createEventsSource, createEventsTarget } from '../../src/events.js'
@@ -36,6 +37,7 @@ describe('events scheme', () => {
 
   it('target logs terminal event after close and ignores non-terminal events after close', async () => {
     let emit: ((e: RunEvent) => void) | undefined
+    const info = vi.fn()
     const ctx = {
       events: {
         subscribe: (listener: (e: RunEvent) => void) => {
@@ -43,9 +45,8 @@ describe('events scheme', () => {
           return () => {}
         },
       },
-      run: { logger: { info: () => {} } },
+      run: { logger: { info } },
     }
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
     const target = createEventsTarget(makeUri('events://lifecycle?only=done,failed'))
     await target.open(ctx)
@@ -54,8 +55,34 @@ describe('events scheme', () => {
     emit?.({ type: 'done', ts: '2', runId: 'r1' })
     emit?.({ type: 'failed', ts: '3', runId: 'r1' })
 
+    expect(info).toHaveBeenCalledTimes(1)
+    expect(info).toHaveBeenLastCalledWith('[events:lifecycle] [lifecycle] done')
+  })
+
+  it('target logs through the shared line format when wired to createConsoleLogger', async () => {
+    let emit: ((e: RunEvent) => void) | undefined
+    const ctx = {
+      events: {
+        subscribe: (listener: (e: RunEvent) => void) => {
+          emit = listener
+          return () => {}
+        },
+      },
+      run: { logger: createConsoleLogger() },
+    }
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    const target = createEventsTarget(makeUri('events://lifecycle?only=done,failed'))
+    await target.open(ctx)
+    await target.close(ctx)
+    emit?.({ type: 'done', ts: '2', runId: 'r1' })
+
     expect(logSpy).toHaveBeenCalledTimes(1)
-    expect(logSpy).toHaveBeenLastCalledWith('[events:lifecycle] [lifecycle] done')
+    expect(logSpy).toHaveBeenLastCalledWith(
+      expect.stringMatching(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO\] \[events:lifecycle\] \[lifecycle\] done$/,
+      ),
+    )
     logSpy.mockRestore()
   })
 

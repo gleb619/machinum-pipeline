@@ -1,6 +1,9 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readMtConfig } from './config.js'
+import { createConsoleLogger } from './logging.js'
+
+const logger = createConsoleLogger()
 
 export interface DiscoveredPipeline {
   path: string
@@ -25,7 +28,7 @@ export async function discoverPipelines(projectRoot: string): Promise<Discovered
       await stat(absPath)
       result.push({ path: absPath, declared })
     } catch {
-      console.error(`[discovery] Pipeline not found, skipping: ${declared}`)
+      logger.error(`[discovery] Pipeline not found, skipping: ${declared}`)
     }
   }
   return result

@@ -109,9 +109,9 @@ async function runPipeline(
     await runner.pause()
     await runSwallowingHookErrors(globalContext, 'stop', { pipelineName, logger })
     await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
+    logger.info(`Pipeline paused. Run ID: ${runner.getRunId()}`)
+    logger.info(`Resume with: mt resume ${runner.getRunId()}`)
     await logger.flush()
-    console.log(`\n⏸ Pipeline paused. Run ID: ${runner.getRunId()}`)
-    console.log(`  Resume with: mt resume ${runner.getRunId()}`)
     process.exit(0)
   })
 
@@ -122,14 +122,12 @@ async function runPipeline(
     const runId = runner.getRunId()
     if (runId) logger.setRunId(runId)
     const runContext = await startPromise
-    logger.info(`Pipeline completed successfully (runId: ${runContext.runId})`)
-    console.log(`\n✅ Pipeline complete. Run ID: ${runContext.runId}`)
+    logger.info(`Pipeline complete. Run ID: ${runContext.runId}`)
     return undefined
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
-    logger.error(`Pipeline failed: ${errorMessage}`)
-    console.error(`\n❌ Pipeline failed: ${errorMessage}${hint}`)
+    logger.error(`Pipeline failed: ${errorMessage}${hint}`)
     await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
     return error
   }
@@ -156,11 +154,11 @@ async function runSuite(
     for (const { runner } of running) await runner.pause()
     await runSwallowingHookErrors(globalContext, 'stop', { pipelineName, logger })
     await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
-    await logger.flush()
-    console.log('\n⏸ Suite paused.')
+    logger.info('Suite paused.')
     for (const { runner, pipeline } of running) {
-      console.log(`  ${pipeline.id} -> ${runner.getRunId()}`)
+      logger.info(`${pipeline.id} -> ${runner.getRunId()}`)
     }
+    await logger.flush()
     process.exit(0)
   })
 
@@ -175,17 +173,15 @@ async function runSuite(
         if (runId) logger.setRunId(runId)
       },
     })
-    logger.info(`Suite completed successfully: ${suite.id}`)
-    console.log('\n✅ Suite complete.')
+    logger.info(`Suite complete: ${suite.id}`)
     for (const { runner, pipeline } of running) {
-      console.log(`  ${pipeline.id} -> ${runner.getRunId()}`)
+      logger.info(`${pipeline.id} -> ${runner.getRunId()}`)
     }
     return undefined
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
-    logger.error(`Suite failed: ${errorMessage}`)
-    console.error(`\n❌ Suite failed: ${errorMessage}${hint}`)
+    logger.error(`Suite failed: ${errorMessage}${hint}`)
     await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
     return error
   }
@@ -205,7 +201,6 @@ async function runSwallowingHookErrors(
   } catch (hookError) {
     const hookMessage = hookError instanceof Error ? hookError.message : String(hookError)
     options.logger.warn(`${name} hook failed: ${hookMessage}`)
-    console.error(`\n⚠️ ${name} hook failed: ${hookMessage}`)
   }
 }
 

@@ -10,6 +10,7 @@ import type {
 } from './contexts.js'
 import { Runner } from './engine/runner.js'
 import { type Exchange, type ExchangeInput, toExchange } from './exchange.js'
+import { createConsoleLogger } from './logging.js'
 import type { PipelineSuite, PipelineSuiteMode, ProcessRunOptions } from './suite.js'
 import { isPipeline } from './suite.js'
 import type { Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
@@ -65,7 +66,7 @@ let warnedAboutPipelineId = false
 function warnUnresolvablePipelineId(): void {
   if (warnedAboutPipelineId) return
   warnedAboutPipelineId = true
-  console.warn(
+  createConsoleLogger().warn(
     '[mt] Cannot infer pipeline id from the call stack on this runtime — pass an explicit ' +
       "`id` to definePipeline({ id: '...' }).",
   )

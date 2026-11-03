@@ -36,7 +36,7 @@ export function createTranslateOutputs(options: TranslateOutputsOptions) {
     name: 'translate-outputs',
     version: '1.0.0',
     mdDescription: `Emits ${ruDir}/chapter<N>.md and ${titlesFile}.`,
-    async invoke(env) {
+    async invoke(env, ctx) {
       const pairs = env.items ?? [env.item]
       const nums = getVariable<number[]>(env, 'chapterNums') ?? []
       const titlesRu = getVariable<string[]>(env, 'titlesRu') ?? []
@@ -62,7 +62,7 @@ export function createTranslateOutputs(options: TranslateOutputsOptions) {
         content: `${JSON.stringify(titles, null, 2)}\n`,
       })
       if (options.log !== false) {
-        console.log(`[translate] wrote ${pairs.length} chapter(s) [${nums.join(', ')}]`)
+        ctx.run.logger.info(`[translate] wrote ${pairs.length} chapter(s) [${nums.join(', ')}]`)
       }
       return out
     },

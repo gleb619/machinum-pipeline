@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { annotate, loadGlobalContext, toExchange, useCase } from '@mt/core'
+import { annotate, formatLogLine, loadGlobalContext, toExchange, useCase } from '@mt/core'
 import type { Exchange, ExchangeInput, Logger, RunContext, ToolContext } from '@mt/core'
 import { findTool, listToolNames } from '../utils/find-tool.js'
 import type { ToolMatch } from '../utils/find-tool.js'
@@ -80,11 +80,14 @@ export async function toolCommand(args: string[]): Promise<void> {
 
   const globalContext = await loadGlobalContext(projectRoot)
   const runId = `tool-${randomUUID()}`
+  // stderr keeps stdout reserved for the machine-readable result document
   const logger: Logger = {
-    info: (message) => console.error(`[info] ${message}`),
-    warn: (message) => console.error(`[warn] ${message}`),
-    error: (message) => console.error(`[error] ${message}`),
-    debug: () => {},
+    info: (message, meta) => console.error(formatLogLine('info', message, meta)),
+    warn: (message, meta) => console.error(formatLogLine('warn', message, meta)),
+    error: (message, meta) => console.error(formatLogLine('error', message, meta)),
+    debug: (message, meta) => {
+      if (process.env.MT_DEBUG) console.error(formatLogLine('debug', message, meta))
+    },
   }
   const runContext: RunContext = {
     runId,

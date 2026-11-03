@@ -186,7 +186,10 @@ pipeline's `id` differs from the recorded run.
 - `parseArgs()` handles `--port`, `--host`, `--detach`
 
 ### `src/utils/logger.ts` — `DuplexLogger`
-Writes to both console (with ANSI colour) and a log file under `.mt/runs/<runId>/`. Implements `Logger` from `@mt/core/types`.
+Writes to both console and `<logDir>/<runId>/run.log`; implements `Logger` from `@mt/core`. Both
+sinks use `formatLogLine()` from `@mt/core` (`<ISO-ms> [<LEVEL>] <message>`, CR/LF escaped as
+`\n`), so console and file lines are byte-identical apart from the trailing newline. Lines
+logged before `setRunId()` are buffered and flushed to the run log.
 
 ### `src/commands/router.ts`
 - `routerCommand()` lazy-imports `@mt/router/standalone` and calls `startRouter()`; keys come from

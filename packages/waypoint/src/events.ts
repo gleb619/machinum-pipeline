@@ -65,11 +65,11 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
   let closing = false
   let finished = false
 
-  const logEvent = (event: RunEvent) => {
+  const logEvent = (logger: TargetContext['run']['logger'] | undefined, event: RunEvent) => {
     const step = event.stepId ? ` step=${event.stepId}` : ''
     const error = event.error ? ` error=${event.error}` : ''
     const line = `[lifecycle] ${event.type}${step}${error}`
-    console.log(`[events:${name}] ${line}`)
+    logger?.info(`[events:${name}] ${line}`)
   }
 
   return {
@@ -79,7 +79,7 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
         if (finished) return
         if (closing && !isTerminal(event)) return
         if (!matches(event, filter)) return
-        logEvent(event)
+        logEvent(ctx.run.logger, event)
         if (closing && isTerminal(event)) {
           finished = true
           unsubscribe?.()
@@ -111,7 +111,7 @@ annotate(
   createEventsTarget,
   waypoint('WT010', {
     name: 'events target',
-    description: 'Logs run lifecycle events to the console via a subscription.',
+    description: 'Logs run lifecycle events through the run logger via a subscription.',
     meta: { schemes: ['events'], direction: 'target' },
   }),
 )

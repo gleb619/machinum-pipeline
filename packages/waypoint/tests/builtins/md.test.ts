@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Exchange, SourceContext, TargetContext } from '@mt/core'
-import { registry } from '@mt/core'
+import { createConsoleLogger, registry } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMdSource, createMdTarget } from '../../src/md.js'
 import type { ParsedUri } from '../../src/uri.js'
@@ -479,7 +479,6 @@ describe('md target — mdOutputs intents', () => {
   })
 
   it('still accepts the deprecated dir field as a subdir', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const target = createMdTarget<string>(uri())
     await target.open(ctx)
     await target.write(
@@ -490,15 +489,21 @@ describe('md target — mdOutputs intents', () => {
       ctx,
     )
     await target.close(ctx)
-    warn.mockRestore()
 
     expect(readFileSync(join(tempDir, 'chapters', 'legacy', 'a.md'), 'utf-8')).toBe('A')
   })
 
   it('warns when two intents in one envelope claim the same path', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warnCtx = {
+      run: {
+        runId: 'run-1',
+        global: { project: { name: 'test', root: tempDir }, settings: {} },
+        logger: createConsoleLogger(),
+      },
+    } as unknown as TargetContext
     const target = createMdTarget<string>(uri())
-    await target.open(ctx)
+    await target.open(warnCtx)
     await target.write(
       {
         item: 'x',
@@ -509,11 +514,15 @@ describe('md target — mdOutputs intents', () => {
           ],
         },
       },
-      ctx,
+      warnCtx,
     )
-    await target.close(ctx)
+    await target.close(warnCtx)
 
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("'first' and 'second'"))
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[WARN\] \[md\] outputs 'first' and 'second'/,
+      ),
+    )
     warn.mockRestore()
     expect(readFileSync(join(tempDir, 'chapters', 'dup', 'a.md'), 'utf-8')).toBe('two')
   })

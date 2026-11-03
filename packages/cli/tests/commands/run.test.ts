@@ -99,7 +99,10 @@ describe('run command', () => {
       readFile(join(testDir, '.mt', 'runs', 'test-run-id', 'run.log'), 'utf-8'),
     )
     expect(runLog).toContain('Starting pipeline: test-pipeline')
-    expect(runLog).toContain('Pipeline completed successfully (runId: test-run-id)')
+    expect(runLog).toContain('Pipeline complete. Run ID: test-run-id')
+    // One success banner only — no duplicate "completed successfully" line.
+    expect(runLog.split('Pipeline complete. Run ID:')).toHaveLength(2)
+    expect(runLog).not.toContain('Pipeline completed successfully')
     await expect(readFile(join(testDir, '.mt', 'runs', 'run.log'), 'utf-8')).rejects.toThrow()
   })
 
@@ -214,7 +217,7 @@ describe('run command', () => {
 
       const output = logText()
       expect(output).toContain('Starting suite: declared-suite (2 pipelines, mode: sync)')
-      expect(output).toContain('✅ Suite complete.')
+      expect(output).toContain('Suite complete: declared-suite')
       expect(output).toContain('one -> ')
       expect(output).toContain('two -> ')
     })
@@ -229,7 +232,7 @@ describe('run command', () => {
 
       const output = logText()
       expect(output).toContain('Starting suite: pipeline-suite (2 pipelines, mode: sync)')
-      expect(output).toContain('✅ Suite complete.')
+      expect(output).toContain('Suite complete: pipeline-suite')
       expect(output).toContain('one -> ')
       expect(output).toContain('two -> ')
     })
@@ -443,6 +446,14 @@ describe('run command', () => {
       if (!sigintListener) throw new Error('SIGINT listener missing')
       await expect(sigintListener('SIGINT')).rejects.toThrow('EXIT 0')
       expect(order).toEqual(['test-pipeline', 'stop-hook'])
+
+      const output = vi
+        .mocked(console.log)
+        .mock.calls.flat()
+        .map((line) => String(line))
+        .join('\n')
+      expect(output).toContain('Pipeline paused. Run ID: test-run-id')
+      expect(output).toContain('Resume with: mt resume test-run-id')
 
       process.removeAllListeners('SIGINT')
     })

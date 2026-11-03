@@ -44,7 +44,7 @@ export function createAnalyzeOutputs(options: AnalyzeOutputsOptions = {}) {
       }),
       category(['analyzer']),
     ],
-    async invoke(env) {
+    async invoke(env, ctx) {
       const inputs = (env.items ?? [env.item]).flat()
       const summaries = getVariable<string[]>(env, 'summaryByItem') ?? []
       const tagged = getVariable<string[]>(env, 'taggedItems') ?? []
@@ -82,7 +82,7 @@ export function createAnalyzeOutputs(options: AnalyzeOutputsOptions = {}) {
       }
       if (options.log !== false) {
         const glossary = getVariable<{ terms: unknown[] }>(env, 'glossary')
-        console.log(
+        ctx.run.logger.info(
           `[analyze] ${inputs.length} chapters, ${glossary?.terms.length ?? 0} glossary terms`,
         )
       }

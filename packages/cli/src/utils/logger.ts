@@ -1,5 +1,6 @@
 import { appendFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { createConsoleLogger, formatLogLine } from '@mt/core'
 import type { Logger } from '@mt/core'
 
 /**
@@ -42,26 +43,26 @@ export class DuplexLogger implements Logger {
 
   info(message: string, meta?: Record<string, unknown>): void {
     this.consoleLogger.info(message, meta)
-    this.write('INFO', message, meta)
+    this.write('info', message, meta)
   }
 
   warn(message: string, meta?: Record<string, unknown>): void {
     this.consoleLogger.warn(message, meta)
-    this.write('WARN', message, meta)
+    this.write('warn', message, meta)
   }
 
   error(message: string, meta?: Record<string, unknown>): void {
     this.consoleLogger.error(message, meta)
-    this.write('ERROR', message, meta)
+    this.write('error', message, meta)
   }
 
   debug(message: string, meta?: Record<string, unknown>): void {
     this.consoleLogger.debug(message, meta)
-    this.write('DEBUG', message, meta)
+    this.write('debug', message, meta)
   }
 
   private write(level: string, message: string, meta?: Record<string, unknown>): void {
-    const line = formatFileLine(level, message, meta)
+    const line = `${formatLogLine(level, message, meta)}\n`
     if (!this.runId) {
       this.buffered.push(line)
       return
@@ -83,37 +84,4 @@ export class DuplexLogger implements Logger {
       }
     })
   }
-}
-
-function formatFileLine(level: string, message: string, meta?: Record<string, unknown>): string {
-  const timestamp = new Date().toISOString()
-  return `[${timestamp}] [${level}] ${message}${meta ? ` ${JSON.stringify(meta)}` : ''}\n`
-}
-
-/**
- * Create a console-only logger.
- */
-export function createConsoleLogger(): Logger {
-  return {
-    info: (message: string, meta?: Record<string, unknown>) => {
-      console.log(formatMessage('INFO', message, meta))
-    },
-    warn: (message: string, meta?: Record<string, unknown>) => {
-      console.warn(formatMessage('WARN', message, meta))
-    },
-    error: (message: string, meta?: Record<string, unknown>) => {
-      console.error(formatMessage('ERROR', message, meta))
-    },
-    debug: (message: string, meta?: Record<string, unknown>) => {
-      if (process.env.MT_DEBUG) {
-        console.debug(formatMessage('DEBUG', message, meta))
-      }
-    },
-  }
-}
-
-function formatMessage(level: string, message: string, meta?: Record<string, unknown>): string {
-  const timestamp = new Date().toISOString().slice(11, 23)
-  const metaStr = meta && Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : ''
-  return `${timestamp} [${level}] ${message}${metaStr}`
 }
