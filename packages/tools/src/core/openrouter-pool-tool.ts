@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { annotate, defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
+import { annotate, category, defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, Tool } from '@mt/core'
 import { type LlmClient, createLlmClient } from './llm-client.js'
 import {
@@ -239,4 +239,5 @@ export const openrouterPool = annotate(
     refs: ['UC061', 'UC062'],
   }),
   useCase('UC061'),
+  category(['llm']),
 )

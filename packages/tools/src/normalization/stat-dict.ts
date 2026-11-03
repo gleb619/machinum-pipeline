@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { defineTool, setVariables, tool } from '@mt/core'
+import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { STAT_DICT_MIN_COUNT, STAT_DICT_TOP_K } from '../constants.js'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
@@ -228,6 +228,7 @@ export function defineStatDict(options: StatDictOptions = {}) {
         description: 'Builds a ranked translation dictionary from frequency data.',
         refs: [],
       }),
+      category(['statistics', 'extractor']),
     ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const report = await loadStatFreqReport(env, options)

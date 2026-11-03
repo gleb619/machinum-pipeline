@@ -1,4 +1,4 @@
-import { defineTool, getVariable, tool, withItem } from '@mt/core'
+import { category, defineTool, getVariable, tool, withItem } from '@mt/core'
 import { appendMdOutput } from '../core/md-outputs.js'
 import { chapterNumberOf } from '../normalization/glossary-extractor.js'
 import { chapterTitle } from '../normalization/heuristic-summary.js'
@@ -42,6 +42,7 @@ export function createAnalyzeOutputs(options: AnalyzeOutputsOptions = {}) {
           'Emits mdOutputs intents for summaries, tagged chapters, glossary and graph artifacts.',
         refs: [],
       }),
+      category(['analyzer']),
     ],
     async invoke(env) {
       const inputs = (env.items ?? [env.item]).flat()

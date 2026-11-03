@@ -1,4 +1,4 @@
-import { defineTool, tool, withMeta } from '@mt/core'
+import { category, defineTool, tool, withMeta } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { readChapterDoc } from '../modification/chapter-doc.js'
 
@@ -17,6 +17,7 @@ export const chapterIndexer = defineTool<string, string>({
       description: 'Extracts the chapter number from frontmatter or heading.',
       refs: [],
     }),
+    category(['extractor']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     let chapterNum: number | undefined

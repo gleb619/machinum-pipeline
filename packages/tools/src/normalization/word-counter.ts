@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool } from '@mt/core'
+import { category, defineTool, setVariable, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 
 /** Variable holding the word count. */
@@ -18,6 +18,7 @@ export const wordCounter = defineTool<string, string>({
       description: 'Counts words and stores the wordCount variable.',
       refs: [],
     }),
+    category(['statistics']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const wordCount = env.item.split(/\s+/).filter(Boolean).length

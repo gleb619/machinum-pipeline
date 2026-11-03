@@ -1,4 +1,4 @@
-import { defineTool, getVariable, setVariable, tool, useCase, withItem } from '@mt/core'
+import { category, defineTool, getVariable, setVariable, tool, useCase, withItem } from '@mt/core'
 import { lineParityLinter } from './line-parity-linter.js'
 import type { LineParityInput, LineParityReport } from './line-parity-linter.js'
 
@@ -19,6 +19,7 @@ export const chapterPairsLinter = defineTool<LineParityInput, LineParityInput>({
       refs: ['UC057'],
     }),
     useCase('UC057'),
+    category(['validator']),
   ],
   async invoke(env, ctx) {
     const pairs = env.items ?? [env.item]

@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
+import { category, defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { DECORATIVE_LINE_RE, MAX_TITLE_LINE_LENGTH } from '../constants.js'
 
@@ -208,6 +208,7 @@ export function createTextNormalizer(options: TextNormalizerOptions = {}) {
         meta: { alsoCovers: ['TL002', 'TL016', 'TL062'] },
       }),
       useCase('UC058'),
+      category(['normalizer']),
     ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const input = env.item

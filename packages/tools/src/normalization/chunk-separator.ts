@@ -1,4 +1,4 @@
-import { defineTool, setVariables, tool, useCase, withItem, withMeta } from '@mt/core'
+import { category, defineTool, setVariables, tool, useCase, withItem, withMeta } from '@mt/core'
 import type { Exchange, ToolContext, Variable } from '@mt/core'
 import { DECORATIVE_LINE_RE, DEFAULT_CHUNK_SEPARATOR } from '../constants.js'
 import { readCtx } from '../core/llm-config.js'
@@ -225,6 +225,7 @@ export function createChunkClean(options: ChunkCleanOptions = {}) {
         refs: ['UC058'],
       }),
       useCase('UC058'),
+      category(['normalizer']),
     ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const output = stripSeparators(env.item, separator)
@@ -270,6 +271,7 @@ export function createChunkSplit(options: ChunkSplitOptions = {}) {
         meta: { alsoCovers: ['TL106'] },
       }),
       useCase('UC056'),
+      category(['splitter']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const input = env.item

@@ -1,4 +1,4 @@
-import { defineTool, tool, useCase } from '@mt/core'
+import { category, defineTool, tool, useCase } from '@mt/core'
 import { getVariable, setVariables, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { Options as StringifyOptions } from 'remark-stringify'
@@ -164,6 +164,7 @@ function makeMdFormatter(defaults?: FormatOptions) {
         refs: ['UC058'],
       }),
       useCase('UC058'),
+      category(['formatter']),
     ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const input = env.item

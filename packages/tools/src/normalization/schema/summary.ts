@@ -1,4 +1,4 @@
-import { defineTool, setVariables, tool } from '@mt/core'
+import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import {
   DEFAULT_CHUNK_CONCURRENCY,
@@ -215,6 +215,7 @@ export function createSummaryTool(options?: SchemaDocLlmOptions & SummaryChunkOp
         description: 'Summarizes a chapter with loop-guarded LLM retries.',
         refs: [],
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'summary')
@@ -370,6 +371,7 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions & SummaryCh
         refs: [],
         meta: { alsoCovers: ['TL034'] },
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...NOTES_DEFAULTS, ...llmOptions }, env, 'summaryNotes')

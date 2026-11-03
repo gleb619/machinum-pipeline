@@ -225,37 +225,46 @@ installed providers at invoke time, so load-time install covers the whole run. S
 
 ### `annotation.ts` — runtime annotations
 
-One mechanism, three sealed kinds. Tools, waypoints and use cases are plain runtime values
+One mechanism, four sealed kinds. Tools, waypoints, use cases and categories are plain runtime values
 (objects/functions), not classes, so annotations are ordinary frozen records attached with
 `annotate()` — a `WeakMap` plus a non-enumerable `Symbol.for('mt.annotation')` property. The
 annotated value keeps its shape (no enumerable keys, no serialization drift) and `annotate()`
 returns the same value, so it composes inside a definition:
 
 ```typescript
-import { tool, useCase } from '@mt/core'
+import { category, tool, useCase } from '@mt/core'
 
 export const chapterValidator = defineTool({
   name: 'chapter-validator',
-  // ...
-  annotations: [tool('TL200', { refs: ['UC055'] }), useCase('UC055')],
+  // 'annotations' is optional — user-defined tools may omit it entirely.
+  annotations: [
+    tool('TL200', { refs: ['UC055'] }),
+    useCase('UC055'),
+    category(['validator', 'markdown']),
+  ],
 })
 ```
 
-- **Closed kind set** — `tool`, `waypoint`, `useCase` (`ANNOTATION_KINDS`, frozen). Each kind is a
-  frozen factory with its own ID namespace: `TL###`, `WT###`, `UC###` (`^PREFIX\d{3,}$`).
-  There is no public factory for new kinds; adding one is a core API change.
-- **Sealed records** — annotations, `refs`, `meta` and the factory functions are frozen. One
-  annotation per kind per target; re-attaching the same kind/id is idempotent, replacing it with a
-  different id throws.
+- **Closed kind set** — `tool`, `waypoint`, `useCase`, `category` (`ANNOTATION_KINDS`, frozen).
+  The ID kinds are frozen factories with their own namespace: `TL###`, `WT###`, `UC###`
+  (`^PREFIX\d{3,}$`). `category` instead takes a non-empty list of lowercase kebab-case names
+  (`category(['validator', 'markdown'])`), stores a frozen, deduped `categories: readonly string[]`,
+  and carries no `id`. There is no public factory for new kinds; adding one is a core API change.
+- **Sealed records** — annotations, `categories`, `refs`, `meta` and the factory functions are
+  frozen. One annotation per kind per target; re-attaching the same kind/label is idempotent,
+  replacing it with a different id (or category list) throws. `annotationOf(target, 'category')`
+  narrows to `CategoryAnnotation`.
 - **Registry** — every `annotate()` call also records `{ annotation, target, targetName }` in the
   process-wide registry. `listAnnotations(kind?)`, `findAnnotation(id)` and `annotationsOf(target)`
   read it. `resetAnnotationRegistry()` is a test/scan helper; it does not detach metadata from values.
 - **Decorator adapter** — `decorate(annotation)` returns a standard ECMAScript decorator for classes
   and methods. It deliberately avoids `context.metadata`, so the project does not need the `ESNext`
   lib or `experimentalDecorators`.
+- **Optional on user code** — `annotations` is optional on `defineTool`: user-defined tools need no
+  annotation at all. It exists so coding agents can grep an ID and jump to the implementation.
 - **Coverage** — `@mt/tools` annotates every exported tool, `@mt/waypoint` every scheme factory, and
-  CLI/engine entry points carry their `UC###`. `pnpm annotations` lists the registry; package tests
-  enforce coverage and ID uniqueness.
+  CLI/engine entry points carry their `UC###`. `pnpm annotations` (repo-dev only, not part of the
+  `mt` binary) lists the registry; package tests enforce coverage and ID uniqueness.
 
 ### `uri.ts` — `UriRegistry`
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.

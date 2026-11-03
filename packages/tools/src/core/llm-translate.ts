@@ -1,4 +1,4 @@
-import { annotate, tool, useCase } from '@mt/core'
+import { annotate, category, tool, useCase } from '@mt/core'
 import type { TranslateInput, TranslateOutput, TranslateTextOptions } from './translate-text.js'
 import {
   type TranslateToolLike,
@@ -37,6 +37,7 @@ export function createLlmTranslate(options: TranslateTextOptions = {}): Translat
       meta: { alsoCovers: ['TL026'] },
     }),
     useCase('UC060'),
+    category(['translator', 'llm']),
   )
 }
 

@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool, useCase } from '@mt/core'
+import { category, defineTool, setVariable, tool, useCase } from '@mt/core'
 import type { Envelope, Tool, ToolContext } from '@mt/core'
 
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
@@ -344,6 +344,7 @@ export function createProofreadTool(
         refs: ['UC058'],
       }),
       useCase('UC058'),
+      category(['validator', 'llm']),
     ],
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const text = env.item
@@ -442,6 +443,7 @@ export function createProofreadXmlTool(
         refs: ['UC058'],
       }),
       useCase('UC058'),
+      category(['validator', 'llm']),
     ],
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const inputXml = env.item
@@ -624,6 +626,7 @@ export function createProofreadPropertiesTool(
         refs: ['UC058'],
       }),
       useCase('UC058'),
+      category(['validator', 'llm']),
     ],
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const input = env.item

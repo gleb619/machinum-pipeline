@@ -1,4 +1,13 @@
-import { annotate, defineTool, getVariable, setVariable, tool, useCase, withItem } from '@mt/core'
+import {
+  annotate,
+  category,
+  defineTool,
+  getVariable,
+  setVariable,
+  tool,
+  useCase,
+  withItem,
+} from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import {
   DEFAULT_CHUNK_CONCURRENCY,
@@ -422,6 +431,7 @@ export function createTranslateText(options: TranslateTextOptions = {}): Transla
       meta: { alsoCovers: ['TL051'] },
     }),
     useCase('UC060'),
+    category(['translator', 'llm']),
   )
 }
 

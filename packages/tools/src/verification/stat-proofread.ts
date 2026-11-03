@@ -1,4 +1,4 @@
-import { defineTool, tool, useCase } from '@mt/core'
+import { category, defineTool, tool, useCase } from '@mt/core'
 import { setVariable } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
 import {
@@ -264,6 +264,7 @@ export function createStatProofread(options: StatProofreadOptions = {}): Tool<st
         refs: ['UC057'],
       }),
       useCase('UC057'),
+      category(['statistics', 'validator']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const text = env.item

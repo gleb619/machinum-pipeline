@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool, useCase } from '@mt/core'
+import { category, defineTool, setVariable, tool, useCase } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { exField } from './fields.js'
 
@@ -369,6 +369,7 @@ export function createRuGrammarTool(options: RuGrammarToolOptions = {}) {
         refs: ['UC057'],
       }),
       useCase('UC057'),
+      category(['extractor', 'validator']),
     ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()

@@ -1,4 +1,4 @@
-import { defineTool, tool } from '@mt/core'
+import { category, defineTool, tool } from '@mt/core'
 import { setVariable, withItem } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
 import { countTextTokens } from '../normalization/token-counter.js'
@@ -948,6 +948,7 @@ export function createContextWindow(
         description: 'Shrinks chat messages to a token budget.',
         refs: [],
       }),
+      category(['llm']),
     ],
     async invoke(
       env: Exchange<ContextWindowItem>,

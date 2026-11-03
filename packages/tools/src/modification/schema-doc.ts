@@ -1,6 +1,14 @@
 import { md } from '@markschema/mdshape'
 import type { TypeMdIssue } from '@markschema/mdshape'
-import { annotate, defineComposableTool, defineTool, getVariable, tool, withItem } from '@mt/core'
+import {
+  annotate,
+  category,
+  defineComposableTool,
+  defineTool,
+  getVariable,
+  tool,
+  withItem,
+} from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
@@ -290,6 +298,7 @@ export const schemaDocBuild = defineTool<unknown, string>({
       description: 'Builds schema-doc markdown from envelope metadata.',
       refs: [],
     }),
+    category(['serializer']),
   ],
   async invoke(env: Exchange<unknown>, _ctx: ToolContext): Promise<Exchange<string>> {
     const meta = (env.meta || {}) as Record<string, unknown>
@@ -333,6 +342,7 @@ export const schemaDocEmit = annotate(
     description: 'Appends schema-doc markdown to the mdOutputs variable.',
     refs: [],
   }),
+  category(['serializer']),
 )
 
 /**
@@ -352,4 +362,5 @@ export const schemaDocWriter = annotate(
     description: 'Builds and emits schema-doc markdown.',
     refs: [],
   }),
+  category(['serializer']),
 )

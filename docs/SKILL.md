@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.11.1 | 2026-11-03 -->
+<!-- skill-version: 1.11.2 | 2026-11-03 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -97,14 +97,17 @@ for content-hash memoization in `.mt/cache/`. Use `defineWaypoint` for custom So
 
 ### Runtime annotations
 
-One mechanism, three sealed kinds with their own ID namespace: `tool` (`TL###`), `waypoint`
-(`WT###`), `useCase` (`UC###`). Annotations are frozen records attached to runtime values; the
-annotated value's shape does not change.
+One mechanism, four sealed kinds: `tool` (`TL###`), `waypoint` (`WT###`), `useCase` (`UC###`)
+carry an ID; `category([...])` carries a non-empty list of lowercase kebab-case names
+(e.g. `category(['validator', 'markdown'])`). Annotations are frozen records attached to runtime
+values; the annotated value's shape does not change. `annotations` is **optional** on `defineTool` —
+user-defined tools may omit it entirely.
 
 ```ts
 import {
   annotate,
   annotationsOf,
+  category,
   defineTool,
   listAnnotations,
   tool,
@@ -117,7 +120,12 @@ const myTool = defineTool({
   version: '1.0.0',
   mdDescription: '…',
   invoke: async (ex) => ex,
-  annotations: [tool('TL200', { refs: ['UC055'] }), useCase('UC055')],
+  // optional: user tools may omit `annotations` entirely
+  annotations: [
+    tool('TL200', { refs: ['UC055'] }),
+    useCase('UC055'),
+    category(['validator', 'markdown']),
+  ],
 })
 
 annotate(myWaypointFactory, waypoint('WT900', { meta: { schemes: ['mine'], direction: 'source' } }))
@@ -128,10 +136,11 @@ listAnnotations('useCase')       // process-wide registry, optionally filtered b
 
 - `annotate(target, ...annotations)` returns the same value; at most one annotation per kind.
 - `tool(id, spec?)`, `waypoint(id, spec?)`, `useCase(id, spec?)` validate the ID (`^PREFIX\d{3,}$`)
-  and freeze the record. `spec` accepts `name`, `description`, `refs` and `meta`.
+  and freeze the record. `category([...], spec?)` takes a non-empty list of lowercase kebab-case
+  names (deduped, frozen) and has no `id`. `spec` accepts `name`, `description`, `refs` and `meta`.
 - `annotationsOf(target)` reads the annotations on one value; `listAnnotations(kind?)` reads the
   process-wide registry. Use-case IDs may repeat across implementations; tool/waypoint IDs should
-  be unique.
+  be unique. `annotationOf(target, 'category')` narrows to the category record.
 
 ## CLI
 

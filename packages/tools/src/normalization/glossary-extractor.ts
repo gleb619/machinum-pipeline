@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { defineTool, setVariables, tool } from '@mt/core'
+import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import {
   BRACKET_TERM_MAX_WORDS,
@@ -605,6 +605,7 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
         description: 'Extracts and enriches a glossary with heuristic and LLM stages.',
         refs: [],
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(
       env: Exchange<string | string[]>,

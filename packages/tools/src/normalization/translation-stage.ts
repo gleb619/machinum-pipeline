@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  category,
   defineTool,
   mapConcurrent,
   setVariable,
@@ -150,6 +151,7 @@ export const chaptersToTitleInputs = defineTool<
       refs: ['UC059'],
     }),
     useCase('UC059'),
+    category(['pipeline']),
   ],
   async invoke(env) {
     const chapters = env.items ?? [env.item as unknown as string]

@@ -1,4 +1,4 @@
-import { defineTool, tool, useCase } from '@mt/core'
+import { category, defineTool, tool, useCase } from '@mt/core'
 import { setVariable, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { Heading, Paragraph, Root, RootContent, Text } from 'mdast'
@@ -72,6 +72,7 @@ export const toMarkdown = defineTool<ToMarkdownInput, string>({
       refs: ['UC058'],
     }),
     useCase('UC058'),
+    category(['formatter']),
   ],
   async invoke(env: Exchange<ToMarkdownInput>, _ctx: ToolContext): Promise<Exchange<string>> {
     const item = env.item

@@ -1,4 +1,4 @@
-import { annotate, tool, useCase } from '@mt/core'
+import { annotate, category, tool, useCase } from '@mt/core'
 import type { LlmConfigLayer } from './llm-config.js'
 import { type GateInput, type GateOutput, createLlmGate } from './llm-gate.js'
 
@@ -52,6 +52,7 @@ export const ollamaTool = annotate(
     refs: ['UC063'],
   }),
   useCase('UC063'),
+  category(['llm']),
 )
 
 // ---------------------------------------------------------------------------

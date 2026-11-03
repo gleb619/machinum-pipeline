@@ -1,4 +1,4 @@
-import { defineTool, setVariables, tool } from '@mt/core'
+import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { MIN_SENTENCE_WORDS, SUMMARY_SENTENCE_COUNT } from '../constants.js'
 
@@ -90,6 +90,7 @@ export function createHeuristicSummaryTool(options: HeuristicSummaryOptions = {}
         refs: [],
         meta: { alsoCovers: ['TL034'] },
       }),
+      category(['extractor', 'analyzer']),
     ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()

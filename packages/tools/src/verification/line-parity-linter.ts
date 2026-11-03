@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool, useCase } from '@mt/core'
+import { category, defineTool, setVariable, tool, useCase } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import {
   MAX_ISSUES_IN_ERROR,
@@ -330,6 +330,7 @@ export function createLineParityLinter(options: LineParityLinterOptions = {}) {
         refs: ['UC057'],
       }),
       useCase('UC057'),
+      category(['validator']),
     ],
     async invoke(env, ctx: ToolContext) {
       const previous = history.get(env)

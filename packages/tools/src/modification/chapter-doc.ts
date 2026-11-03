@@ -1,5 +1,6 @@
 import {
   annotate,
+  category,
   defineComposableTool,
   defineTool,
   getVariable,
@@ -276,6 +277,7 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
       description: 'Serializes chapter metadata into YAML-frontmatter markdown.',
       refs: [],
     }),
+    category(['serializer']),
   ],
   async invoke(env: Exchange<ChapterDocToolInput>, _ctx: ToolContext): Promise<Exchange<string>> {
     const input = env.item
@@ -320,6 +322,7 @@ export const chapterDocEmit = defineTool<string, string>({
       description: 'Appends chapter markdown to the mdOutputs variable.',
       refs: [],
     }),
+    category(['serializer']),
   ],
   async invoke(ex: Exchange<string>) {
     if (ex.meta?.chapterNum === undefined && ex.meta?.chapter === undefined) return ex
@@ -357,4 +360,5 @@ export const chapterDoc = annotate(
     description: 'Serializes chapter metadata into YAML-frontmatter markdown.',
     refs: [],
   }),
+  category(['serializer']),
 )

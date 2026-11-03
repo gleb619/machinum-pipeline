@@ -1,4 +1,4 @@
-import { annotate, defineTool, tool } from '@mt/core'
+import { annotate, category, defineTool, tool } from '@mt/core'
 import type { ComposableTool, Envelope, Tool } from '@mt/core'
 import { z } from 'zod'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
@@ -218,6 +218,7 @@ export function createStatTranslateDict(
       description: 'Translates untranslated glossary entries in batches.',
       refs: [],
     }),
+    category(['statistics', 'translator']),
   )
 }
 

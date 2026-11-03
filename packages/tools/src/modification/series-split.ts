@@ -1,4 +1,4 @@
-import { defineTool, registry, setVariables, tool, useCase, withItem } from '@mt/core'
+import { category, defineTool, registry, setVariables, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, Splitter, SplitterContext, ToolContext } from '@mt/core'
 import { SERIES_SPLIT_TARGET_CHARS } from '../constants.js'
 import { splitParagraphUnits, splitReadableParts } from '../normalization/token-splitter.js'
@@ -181,6 +181,7 @@ export function createSeriesSplitTool(options: SeriesSplitOptions = {}) {
         refs: ['UC056'],
       }),
       useCase('UC056'),
+      category(['splitter']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
       const result = await splitSeriesMarkdown(textItem(env), options, env, ctx)

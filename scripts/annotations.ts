@@ -13,7 +13,7 @@ Lists annotations registered by built @mt/core, @mt/waypoint and @mt/tools outpu
 Run \`pnpm build\` first.
 
 Options:
-  --kind <kind>   Filter by kind: tool | waypoint | useCase
+  --kind <kind>   Filter by kind: tool | waypoint | useCase | category
   --json          Print a JSON array instead of a table
   -h, --help      Show this help
 `
@@ -21,6 +21,7 @@ Options:
 interface AnnotationRow {
   kind: AnnotationKind
   id: string
+  categories: string[]
   name: string
   description: string
   refs: string[]
@@ -30,23 +31,37 @@ interface AnnotationRow {
 function buildRows(records: readonly AnnotationRecord[]): AnnotationRow[] {
   const rows = new Map<string, AnnotationRow>()
   for (const { annotation, targetName } of records) {
-    const key = `${annotation.kind}\u0000${annotation.id}\u0000${targetName}`
+    const id = 'id' in annotation ? annotation.id : ''
+    const categories = 'categories' in annotation ? [...annotation.categories] : []
+    const label = id || categories.join(',')
+    const key = `${annotation.kind}\u0000${label}\u0000${targetName}`
     if (rows.has(key)) continue
     rows.set(key, {
       kind: annotation.kind,
-      id: annotation.id,
+      id,
+      categories,
       name: annotation.name ?? targetName,
       description: annotation.description ?? '',
       refs: [...annotation.refs],
       targetName,
     })
   }
-  return [...rows.values()].sort((a, b) => a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id))
+  return [...rows.values()].sort(
+    (a, b) =>
+      a.kind.localeCompare(b.kind) ||
+      (a.id || a.categories.join(',')).localeCompare(b.id || b.categories.join(',')),
+  )
 }
 
 function printTable(rows: readonly AnnotationRow[]): void {
   const headers = ['KIND', 'ID', 'NAME', 'REFS', 'TARGET']
-  const cells = rows.map((row) => [row.kind, row.id, row.name, row.refs.join(', '), row.targetName])
+  const cells = rows.map((row) => [
+    row.kind,
+    row.id || row.categories.join(','),
+    row.name,
+    row.refs.join(', '),
+    row.targetName,
+  ])
   const widths = headers.map((header, index) =>
     cells.reduce((width, row) => Math.max(width, (row[index] ?? '').length), header.length),
   )

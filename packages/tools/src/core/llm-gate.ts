@@ -1,5 +1,6 @@
 import {
   annotate,
+  category,
   defineComposableTool,
   defineTool,
   setVariables,
@@ -559,6 +560,7 @@ export const llmGate = annotate(
     refs: ['UC033'],
   }),
   useCase('UC033'),
+  category(['llm', 'pipeline']),
 )
 
 // ---------------------------------------------------------------------------

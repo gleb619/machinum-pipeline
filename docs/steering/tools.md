@@ -25,6 +25,29 @@ tools (built from slots) are wrapped with `annotate(...)` instead. `tool` IDs ar
 `annotationOf(value, 'tool')` / `annotationsOf(value)`, or list the registry with
 `pnpm annotations --kind tool`. UC refs index [../guiding/uc.md](../guiding/uc.md).
 
+**Categories.** Every exported tool also carries exactly one
+`category(['...'])` annotation (multiple names allowed) next to `tool(...)`. The canonical
+names live in `packages/tools/src/annotation-categories.ts` (`TOOL_CATEGORIES`):
+
+| Category | Meaning |
+|---|---|
+| `validator` | Checks structure/content and reports issues (lint, proofread, typo, parity) |
+| `normalizer` | Cleans/normalizes text without changing its meaning |
+| `formatter` | Renders or converts text/markdown shape (format, unwrap, strip frontmatter) |
+| `translator` | Translates chapters, titles, paragraphs, or dictionaries |
+| `extractor` | Extracts structured data (schema, entities, glossary, summary, outline) |
+| `statistics` | Counts tokens/words and builds frequency/dictionary reports |
+| `splitter` | Splits text/chapters/chunks/series into smaller units |
+| `serializer` | Builds and emits documents (chapter docs, schema docs) |
+| `llm` | Talks to an LLM backend or gates/picks one (OpenRouter, Ollama, gate) |
+| `analyzer` | Analyses tool output and produces reports/metrics |
+| `stub` | Test/stub implementation of a slot or tool |
+| `pipeline` | Orchestration helper that wires other tools together |
+
+Categories are a dev marker only: grep `category([` or run
+`pnpm annotations --kind category`. They carry no runtime behaviour, and `annotations` is
+optional — user-defined tools can omit it entirely.
+
 ### `chapter-validator.ts`
 - `chapterValidator` — structural markdown validation (heading hierarchy, code block languages, link integrity)
 - `forbiddenCharDetector` — finds zero-width chars, forbidden control chars

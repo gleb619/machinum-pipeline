@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool } from '@mt/core'
+import { category, defineTool, setVariable, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { ORG_WORDS, PLACE_WORDS, isCommonWord } from './glossary-lexicon.js'
 import type { NerBackend as CandidateNerBackend, NerCandidate, NerKind } from './ner-candidates.js'
@@ -355,6 +355,7 @@ export function createNamedEntityTool(options: NamedEntityToolOptions = {}) {
         refs: [],
         meta: { alsoCovers: ['TL107'] },
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()

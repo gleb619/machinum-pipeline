@@ -1,6 +1,7 @@
-import { annotationOf, resetAnnotationRegistry } from '@mt/core'
+import { annotationOf, annotationsOf, resetAnnotationRegistry } from '@mt/core'
 import { beforeEach, describe, expect, it } from 'vitest'
 import * as tools from '../src/index.js'
+import { TOOL_CATEGORIES } from '../src/index.js'
 
 interface ToolShape {
   readonly invoke: (...args: unknown[]) => unknown
@@ -80,6 +81,38 @@ describe('tool annotations', () => {
           annotation.refs,
           `${exportName}: useCase annotation '${useCaseAnnotation.id}' is not included in tool annotation '${annotation.id}' refs [${annotation.refs.join(', ')}]`,
         ).toContain(useCaseAnnotation.id)
+      }
+    }
+  })
+
+  it('annotates every tool-shaped export with exactly one valid category', () => {
+    const categorySet = new Set<string>(TOOL_CATEGORIES)
+    for (const [exportName, value] of collectToolExports()) {
+      const categories = annotationsOf(value).filter((annotation) => annotation.kind === 'category')
+      expect(
+        categories.length,
+        `${exportName}: expected exactly one 'category' annotation, got ${categories.length}`,
+      ).toBe(1)
+
+      const annotation = annotationOf(value, 'category')
+      if (!annotation) {
+        continue
+      }
+
+      expect(
+        annotation.categories.length,
+        `${exportName}: category annotation must list at least one category`,
+      ).toBeGreaterThan(0)
+
+      for (const name of annotation.categories) {
+        expect(
+          name,
+          `${exportName}: category '${name}' does not match /^[a-z][a-z0-9-]*$/`,
+        ).toMatch(/^[a-z][a-z0-9-]*$/)
+        expect(
+          categorySet.has(name),
+          `${exportName}: category '${name}' is not in TOOL_CATEGORIES (${TOOL_CATEGORIES.join(', ')})`,
+        ).toBe(true)
       }
     }
   })

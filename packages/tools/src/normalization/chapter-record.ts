@@ -1,4 +1,4 @@
-import { defineTool, tool, withItem, withMeta } from '@mt/core'
+import { category, defineTool, tool, withItem, withMeta } from '@mt/core'
 import type { FinderOutput, MarkdownFormatterOutput } from '../verification/chapter-validator.js'
 
 /** Raw JSONL line: `key` is the source URL, `value` is `Chapter N: Title\n<body lines>`. */
@@ -37,6 +37,7 @@ export const chapterRecordMapper = defineTool<RawChapter, string>({
       description: 'Maps a raw key/value line to a chapter record.',
       refs: [],
     }),
+    category(['normalizer']),
   ],
   async invoke(env) {
     const rec = toChapterRecord(env.item)
@@ -55,6 +56,7 @@ export const lineTextToMarkdown = defineTool<string, { text: string }>({
       description: 'Turns line text into a markdown title and paragraphs.',
       refs: [],
     }),
+    category(['formatter']),
   ],
   async invoke(env) {
     const [title = '', ...rest] = env.item.split('\n')
@@ -75,6 +77,7 @@ export const unwrapMarkdownText = defineTool<MarkdownFormatterOutput | FinderOut
       description: 'Unwraps markdown text and restores literal brackets.',
       refs: [],
     }),
+    category(['normalizer']),
   ],
   async invoke(env) {
     return withItem(env, env.item.text.replace(/\\([[\]])/g, '$1'))

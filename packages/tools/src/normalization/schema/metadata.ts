@@ -1,4 +1,4 @@
-import { defineTool, tool } from '@mt/core'
+import { category, defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { SchemaDocMetadata } from '../../modification/schema-doc.js'
@@ -102,6 +102,7 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
         refs: [],
         meta: { alsoCovers: ['TL081'] },
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'metadata')

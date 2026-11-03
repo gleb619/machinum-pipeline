@@ -1,4 +1,4 @@
-import { defineTool, setVariable, setVariables, tool } from '@mt/core'
+import { category, defineTool, setVariable, setVariables, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { get_encoding } from 'tiktoken'
 import { TOKEN_ENCODING } from '../constants.js'
@@ -29,6 +29,7 @@ export const tokenCounter = defineTool<string, string>({
       description: 'Counts tokens with a per-call tiktoken encoder.',
       refs: [],
     }),
+    category(['statistics']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const encoder = get_encoding(ENCODING)
@@ -59,6 +60,7 @@ export const tokenCounterBatch = defineTool<string, string>({
       description: 'Counts tokens for a batch with one encoder per invoke.',
       refs: [],
     }),
+    category(['statistics']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const items: string[] = env.items ?? [env.item]
@@ -111,6 +113,7 @@ export const tokenCounterBatchCached = defineTool<string, string>({
       description: 'Counts batch tokens with a process-wide cached encoder.',
       refs: [],
     }),
+    category(['statistics']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const items: string[] = env.items ?? [env.item]

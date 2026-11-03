@@ -1,4 +1,4 @@
-import { annotate, tool, useCase } from '@mt/core'
+import { annotate, category, tool, useCase } from '@mt/core'
 import type { LlmConfigLayer } from './llm-config.js'
 import { type GateInput, type GateOutput, createLlmGate } from './llm-gate.js'
 
@@ -47,4 +47,5 @@ export const openrouterFree = annotate(
     refs: ['UC061'],
   }),
   useCase('UC061'),
+  category(['llm']),
 )

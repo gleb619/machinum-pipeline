@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool, withItem, withMeta } from '@mt/core'
+import { category, defineTool, setVariable, tool, withItem, withMeta } from '@mt/core'
 
 /**
  * Stub translation tool for dry runs.
@@ -15,6 +15,7 @@ export const stubTranslator = defineTool<string, string>({
       description: 'Dry-run translation stub with language markers.',
       refs: [],
     }),
+    category(['stub']),
   ],
   invoke: async (env, _ctx) => {
     const text = env.item as string

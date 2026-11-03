@@ -1,4 +1,4 @@
-import { defineTool, tool, withItem } from '@mt/core'
+import { category, defineTool, tool, withItem } from '@mt/core'
 import { appendMdOutput } from '../core/md-outputs.js'
 
 /**
@@ -16,6 +16,7 @@ export const stubSchemaEmit = defineTool<string, string>({
       description: 'Dry-run schema emit stub that redirects output.',
       refs: [],
     }),
+    category(['stub']),
   ],
   invoke: async (env, _ctx) => {
     const n = (env.meta.chapterNum as number | undefined) ?? 1

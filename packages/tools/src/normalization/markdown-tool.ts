@@ -1,4 +1,4 @@
-import { defineTool, setVariable, tool, withItem } from '@mt/core'
+import { category, defineTool, setVariable, tool, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { Heading, Nodes, Root, RootContent } from 'mdast'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -229,6 +229,7 @@ export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
       description: 'Collects structural markdown statistics.',
       refs: [],
     }),
+    category(['statistics', 'analyzer']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownStatsOutput>> {
     return setVariable(
@@ -251,6 +252,7 @@ export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
       description: 'Extracts a flat heading outline with depth and line numbers.',
       refs: [],
     }),
+    category(['extractor', 'analyzer']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownOutlineOutput>> {
     return setVariable(
@@ -272,6 +274,7 @@ export const markdownStripFrontmatter = defineTool<string, MarkdownStripOutput>(
       description: 'Removes leading YAML frontmatter from markdown.',
       refs: [],
     }),
+    category(['normalizer', 'formatter']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownStripOutput>> {
     const { text, stripped } = stripFrontmatter(env.item)

@@ -1,4 +1,4 @@
-import { defineTool, tool } from '@mt/core'
+import { category, defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { VOCABULARY_DEFAULT_LIMIT, VOCABULARY_MAX_LIMIT } from '../../constants.js'
@@ -113,6 +113,7 @@ export function createVocabularyTool(
         description: 'Extracts key terms and dedupes them against known words.',
         refs: [],
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const {

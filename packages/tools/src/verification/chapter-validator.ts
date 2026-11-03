@@ -1,4 +1,4 @@
-import { defineTool, tool, useCase } from '@mt/core'
+import { category, defineTool, tool, useCase } from '@mt/core'
 import { getVariable, setVariable, setVariables, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { spellCheckDocument } from 'cspell-lib'
@@ -74,6 +74,7 @@ export const forbiddenCharDetector = defineTool<string, string>({
       refs: ['UC057'],
     }),
     useCase('UC057'),
+    category(['validator']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const text = env.item
@@ -239,6 +240,7 @@ export const chapterValidator = defineTool<string, string>({
       meta: { alsoCovers: ['TL011', 'TL071'] },
     }),
     useCase('UC055'),
+    category(['validator']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const text = env.item
@@ -279,6 +281,7 @@ export const typoFinder = defineTool<FinderInput, FinderOutput>({
       refs: ['UC057'],
     }),
     useCase('UC057'),
+    category(['validator', 'extractor']),
   ],
   async invoke(env: Exchange<FinderInput>, _ctx: ToolContext): Promise<Exchange<FinderOutput>> {
     const { text } = env.item
@@ -345,6 +348,7 @@ export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownForm
       meta: { alsoCovers: ['TL062'] },
     }),
     useCase('UC058'),
+    category(['formatter', 'normalizer']),
   ],
   async invoke(
     env: Exchange<MarkdownFormatterInput>,

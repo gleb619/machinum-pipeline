@@ -1,4 +1,4 @@
-import { defineTool, setVariables, tool } from '@mt/core'
+import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { WORD_CHAR_CLASS } from '../constants.js'
 import { exField } from './fields.js'
@@ -198,6 +198,7 @@ export const termTagger = defineTool<string | string[], string | string[]>({
       description: 'Wraps glossary terms as non-nested term tags.',
       refs: [],
     }),
+    category(['extractor']),
   ],
   async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
     const glossary = exField<Glossary>(env, 'glossary') ?? { terms: [] }

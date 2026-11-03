@@ -1,4 +1,4 @@
-import { annotate, tool, useCase } from '@mt/core'
+import { annotate, category, tool, useCase } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { type LlmMessage, OpenAiCompatClient } from './llm-client.js'
 import { DEFAULT_ROUTER_URL, readCtx } from './llm-config.js'
@@ -112,6 +112,7 @@ export const chatCompletion = annotate(
     refs: ['UC033'],
   }),
   useCase('UC033'),
+  category(['llm']),
 )
 
 export const runPrompt = annotate(
@@ -127,4 +128,5 @@ export const runPrompt = annotate(
     refs: ['UC033'],
   }),
   useCase('UC033'),
+  category(['llm']),
 )

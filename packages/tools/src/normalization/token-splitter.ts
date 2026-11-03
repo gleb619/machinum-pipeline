@@ -1,4 +1,4 @@
-import { defineTool, setVariables, tool, useCase, withItem } from '@mt/core'
+import { category, defineTool, setVariables, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
 import {
   BALANCE_ALLOWED_DEVIATION,
@@ -566,6 +566,7 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
         refs: ['UC056'],
       }),
       useCase('UC056'),
+      category(['splitter']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
       const inputs = env.items ?? [env.item]

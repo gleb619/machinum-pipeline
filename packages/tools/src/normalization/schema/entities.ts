@@ -1,4 +1,4 @@
-import { defineTool, tool } from '@mt/core'
+import { category, defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { MAX_ENTITIES } from '../../constants.js'
@@ -100,6 +100,7 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions & ChunkModeOpti
         description: 'Extracts chapter entities as CSV rows with loop-guarded LLM retries.',
         refs: [],
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'entities')

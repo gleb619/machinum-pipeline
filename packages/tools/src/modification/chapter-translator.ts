@@ -1,5 +1,6 @@
 import {
   annotate,
+  category,
   defineComposableTool,
   defineTool,
   mapConcurrent,
@@ -260,6 +261,7 @@ export function createTitleTranslator(
       refs: ['UC059'],
     }),
     useCase('UC059'),
+    category(['translator']),
   )
 }
 
@@ -461,6 +463,7 @@ export function createParagraphTranslator(
       refs: ['UC060'],
     }),
     useCase('UC060'),
+    category(['translator']),
   )
 }
 

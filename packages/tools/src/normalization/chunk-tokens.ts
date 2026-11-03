@@ -1,4 +1,4 @@
-import { defineTool, setVariables, tool, withMeta } from '@mt/core'
+import { category, defineTool, setVariables, tool, withMeta } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { CHARS_PER_TOKEN_HEURISTIC } from '../constants.js'
 
@@ -103,6 +103,7 @@ export function createChunkTokenize(options: TokenizeChunkOptions = {}) {
         description: 'Tokenizes a chunk into tiktoken-style BPE tokens.',
         refs: [],
       }),
+      category(['splitter']),
     ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<ChunkToken[]>> {
       const { tokens, heuristic } = await tokenizeChunkDetailed(env.item, options)

@@ -1,3 +1,5 @@
+export { TOOL_CATEGORIES, type ToolCategory } from './annotation-categories.js'
+
 export {
   readDoc,
   writeDoc,

@@ -1,4 +1,4 @@
-import { defineTool, tool } from '@mt/core'
+import { category, defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { MAX_SCHEMA_LINES } from '../../constants.js'
@@ -88,6 +88,7 @@ export function createSchemaTool(options?: SchemaDocLlmOptions) {
         description: 'Generates a mermaid structure diagram for a chapter.',
         refs: [],
       }),
+      category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'schema')
