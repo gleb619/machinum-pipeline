@@ -290,6 +290,7 @@ export {
 export type { PartialRetryPolicy, RetryableError } from './engine/retry.js'
 export { Cache } from './engine/cache.js'
 export type { CacheEntry, CacheOptions } from './engine/cache.js'
+export type { DeadLetterEntry } from './engine/dead-letter.js'
 export { mapConcurrent } from './engine/stream.js'
 // Built-in source/target registration moved to @mt/waypoint package.
 // Import '@mt/waypoint' to register jsonl, md, http, hs, git+ schemes.
