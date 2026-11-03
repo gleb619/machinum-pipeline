@@ -25,4 +25,4 @@ export default definePipeline()
       }),
     }),
   )
-  .to('md://./out/metadata')
+  .to('md://./chapters/metadata')

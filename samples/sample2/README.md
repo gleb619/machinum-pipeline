@@ -189,11 +189,11 @@ pnpm run runner:advanced -- --pipeline tokenLadderPipeline
 cd samples/sample2
 pnpm run prepare-input   # once; keeps existing fixtures
 pnpm run runner          # beginner, intermediate and advanced runners, one by one
-cat out/runner-report.md # markdown report of the whole sweep
+cat chapters/runner-report.md # markdown report of the whole sweep
 ```
 
 `pnpm run runner` runs `run-all.ts`: it prepares missing fixtures, then launches every
-`runner:<level>` script one after another and writes a markdown report to `out/runner-report.md` —
+`runner:<level>` script one after another and writes a markdown report to `chapters/runner-report.md` —
 one row per runner with its status, duration, run id, the files it touched and the captured output.
 The same text goes to stdout, so `pnpm run runner | less` works too.
 

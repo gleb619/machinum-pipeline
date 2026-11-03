@@ -47,4 +47,4 @@ export default definePipeline()
       },
     }),
   )
-  .to('md://./out/typo-fix')
+  .to('md://./chapters/typo-fix')

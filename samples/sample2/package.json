@@ -13,7 +13,7 @@
     "example": "pnpm run prepare-input && pnpm run runner",
     "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl jsonl/ladder.jsonl chapters-out entities out .mt chapters/glossary.graph.json && find chapters -maxdepth 1 -type f -name '*.md' ! -name 'chapter1.md' -delete",
     "lint": "biome check .",
-    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.jsonc out/runner-report.md",
+    "lint:md": "markdownlint-cli2 --config ../../.markdownlint-cli2.jsonc chapters/runner-report.md",
     "test": "vitest run",
     "test:watch": "vitest"
   },

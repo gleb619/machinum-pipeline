@@ -46,4 +46,4 @@ export default definePipeline({ id: 'translate-title' })
       },
     }),
   )
-  .to('md://./out/translate-title')
+  .to('md://./chapters/translate-title')

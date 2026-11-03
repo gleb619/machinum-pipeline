@@ -2,7 +2,7 @@
  * Aggregate runner for sample2.
  *
  * Launches every sibling runner script of this sample — one after another — and
- * writes one plain-markdown report of the whole sweep to `out/runner-report.md`.
+ * writes one plain-markdown report of the whole sweep to `chapters/runner-report.md`.
  * The same text goes to stdout, so `pnpm run runner | less` works too.
  *
  * How it works:

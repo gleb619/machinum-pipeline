@@ -38,4 +38,4 @@ export default definePipeline({ id: 'statdata' })
       },
     }),
   )
-  .to('md://./out/statdata')
+  .to('md://./chapters/statdata')

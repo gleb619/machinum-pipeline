@@ -22,4 +22,4 @@ export default definePipeline()
       }),
     }),
   )
-  .to('md://./out/vocabulary')
+  .to('md://./chapters/vocabulary')

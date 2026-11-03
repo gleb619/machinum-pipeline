@@ -43,4 +43,4 @@ export default definePipeline({ id: 'glossary' })
       },
     }),
   )
-  .to('md://./out/glossary')
+  .to('md://./chapters/glossary')

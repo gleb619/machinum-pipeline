@@ -27,4 +27,4 @@ export default definePipeline({ id: 'proofread' })
       },
     }),
   )
-  .to('md://./out/proofread')
+  .to('md://./chapters/proofread')

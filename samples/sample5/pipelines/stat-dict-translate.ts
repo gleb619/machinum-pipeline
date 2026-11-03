@@ -60,4 +60,4 @@ export default definePipeline({ id: 'stat-dict-translate' })
       },
     }),
   )
-  .to('md://./out/stat-dict-translate')
+  .to('md://./chapters/stat-dict-translate')

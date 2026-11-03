@@ -22,4 +22,4 @@ export default definePipeline()
       }),
     }),
   )
-  .to('md://./out/schema')
+  .to('md://./chapters/schema')

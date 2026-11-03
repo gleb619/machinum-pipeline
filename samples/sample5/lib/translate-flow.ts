@@ -22,5 +22,5 @@ export function translateFlow(mode: TranslateWorkMode) {
         }),
       }),
     )
-    .to(`md://./out/translate-${mode}`)
+    .to(`md://./chapters/translate-${mode}`)
 }

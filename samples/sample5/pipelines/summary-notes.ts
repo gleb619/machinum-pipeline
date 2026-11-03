@@ -22,4 +22,4 @@ export default definePipeline()
       }),
     }),
   )
-  .to('md://./out/summary-notes')
+  .to('md://./chapters/summary-notes')

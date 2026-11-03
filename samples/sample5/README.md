@@ -3,7 +3,7 @@
 Every LLM-backed tool of `@mt/tools` runs alone in its own tiny pipeline on the same small input
 (`input/en`: two chapters of `books/book1`; `input/typos`: one chapter with planted typos;
 `input/glossary.json`: four names with fixed RU forms). Each run writes
-`out/<tool>/<name>.md` with **Input**, **Output** and **Run info** in one file, so you compare the
+`chapters/<tool>/<name>.md` with **Input**, **Output** and **Run info** in one file, so you compare the
 model answer with the source without opening anything else.
 
 Offline by default (`mock` backend, nothing leaves the machine); point it at a remote ollama with one
@@ -28,7 +28,7 @@ samples/sample5/
 ├── lib/                     # llm.ts (pickFor), report.ts (side-by-side md), translate*.ts
 ├── pipelines/<tool>.ts      # one tool each, ~20 lines
 ├── input/                   # committed fixtures
-├── out/<tool>/              # generated reports (gitignored; `pnpm run cleanup` removes them)
+├── chapters/<tool>/              # generated reports (gitignored; `pnpm run cleanup` removes them)
 └── tests/pipelines.test.ts  # runs every pipeline offline (mock) and asserts the reports
 ```
 
@@ -52,7 +52,7 @@ samples/sample5/
    - `llm.model.<pipeline>`: model for one pipeline, e.g. `llm.model.summary`, `llm.model.glossary`
      (all translate modes and `proofread` share `llm.model.translate`).
 3. `pnpm --filter=sample5 run check-llm` - expect `ok` (server answers, model exists).
-4. Run a tool, e.g. `pnpm --filter=sample5 run summary`, open `out/summary/chapter1.md`.
+4. Run a tool, e.g. `pnpm --filter=sample5 run summary`, open `chapters/summary/chapter1.md`.
 
 `mt.json` lists `"imports": ["./mt.local.json"]`; the file is deep-merged over `mt.json` (local wins) and
 may be absent (then the mock backend runs). It is gitignored, so the real host never reaches the repo.
@@ -93,7 +93,7 @@ translates first and then measures the result.
 
 ## How to clean up
 
-`pnpm --filter=sample5 run cleanup` removes `out/` and `.mt/`.
+`pnpm --filter=sample5 run cleanup` removes `chapters/` and `.mt/`.
 
 ## How the test works
 

@@ -3,7 +3,7 @@ import { defineTool, getVariable, setVariable, withItem } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { appendMdOutput } from '@mt/tools'
 
-// Every pipeline ends with one `report(...)` step: it writes `out/<tool>/<name>.md` with the
+// Every pipeline ends with one `report(...)` step: it writes `chapters/<tool>/<name>.md` with the
 // INPUT and the tool OUTPUT in one file, so the quality can be judged by eye.
 
 /** Remembers the source text in the `input` variable (tools that rewrite `item` would lose it). */

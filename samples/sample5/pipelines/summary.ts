@@ -23,4 +23,4 @@ export default definePipeline()
       }),
     }),
   )
-  .to('md://./out/summary')
+  .to('md://./chapters/summary')
