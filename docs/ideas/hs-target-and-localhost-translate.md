@@ -1,12 +1,27 @@
 # Ideas: `hs://` transport target + reserved local translation domain
 
-Status: idea only — not implemented. Captured 2026-11-03.
+Status: idea only — not implemented. Captured 2026-11-03. Context refreshed 2026-11-03 (evening)
+against the tree after the `@mt/backend`→`@mt/webui` / `@mt/frontend`→`@mt/components` renames and
+the T197 router-embedding work: nothing below changed materially — `hs://`/`http://` are still
+source-only, and the translate worker is now an in-repo tool (see Cost note).
 
 ## 1. `hs://` / `http://` target waypoint
 
 Today `hs://` and `http://` are **source-only**: `createHttpSource` in
-`packages/waypoint/src/http-server.ts` accepts `POST /<path>` and replies `{ "received": true }`.
-There is no target that sends an `Exchange` to another `mt` process.
+`packages/waypoint/src/http-server.ts` (`registry.registerSource('hs', …)`, waypoint WT003) accepts
+`POST /<path>` and replies `{ "received": true }`; it also serves `GET /health` and a long-lived
+`GET /events` SSE fan-out. There is no target that sends an `Exchange` to another `mt` process.
+
+Current-state notes for the design:
+
+- The URI registry keeps sources and targets separate (`registerSource` / `registerTarget`), so a
+  target can claim the same `hs`/`http` names without colliding with the existing source.
+- The existing SSE fan-out (`GET /events`) is a candidate return channel: the caller could watch
+  events filtered by `X-MT-Exchange-Id` instead of running a second `hs://` source for `replyTo`.
+  Open question below should weigh both.
+- T197 (router embedded in `mt serve`) is unrelated to this idea but means a remote `mt` process
+  already runs several HTTP services on one port — a future `hs://` target design should assume
+  multiple endpoints behind one `mt serve`.
 
 Proposed pair:
 
@@ -42,9 +57,11 @@ source side (us)                         remote side
 
 ### Open questions
 
-- Same-scheme source + target registration order; both `hs` and `http` aliases.
+- Same-scheme source + target registration order; both `hs` and `http` aliases (registry allows it —
+  sources and targets are separate maps).
 - Target semantics are terminal; should a response body be surfaced as a variable, or is
-  `replyTo` the only return path?
+  `replyTo` the only return path? And: `replyTo` POST vs. consuming the source's existing
+  `GET /events` SSE stream as the correlation channel.
 - Batch shape: one POST with `items[]` vs N POSTs.
 - TLS / reverse proxy, token storage, replay/idempotency keys.
 
@@ -88,8 +105,9 @@ local/private pages below the URL layer.
 
 - Try HTTPS + a name that resolves to a routable address (public tunnel/reverse proxy), not loopback.
 - Or keep the current implementation: the page calls
-  `https://translate.googleapis.com/translate_a/single` itself; it works on localhost and is already
-  implemented in `browserTranslate`.
+  `https://translate.googleapis.com/translate_a/single` itself (`PAGE_ENDPOINT` in
+  `packages/tools/src/modification/browser-translate.ts`); it works on localhost and is already
+  implemented in `browser-translate` (TL247).
 - Or use Chrome's on-device `Translator` API with a real user gesture (model download required).
 
 Reserve `mt-translate.test` in docs/examples for HTTP fixtures; do not promise native translation
@@ -97,6 +115,10 @@ from it until a real Chrome experiment passes.
 
 ## Cost note
 
-The current remote worker (`mt-browser-translate`) already gives one shared Chrome, LRU cache,
-bounded concurrency, and `/translate`. The `hs://` target work is about making that pattern generic
-for arbitrary tool chains, not about replacing the worker immediately.
+Updated 2026-11-03 (evening): the translate worker is no longer an external project — it lives
+in-repo as `browser-translate` (TL247, `packages/tools/src/modification/browser-translate.ts`,
+category `translator`) plus its headless server (`browser-translate-server.ts`: `--port`,
+`--concurrency`, `--cache-entries` LRU, token auth via `timingSafeEqual`). Same features the old
+`mt-browser-translate` worker provided: one shared headless Chrome, LRU cache, bounded
+concurrency, `/translate`. The `hs://` target work is about making that pattern generic for
+arbitrary tool chains, not about replacing the tool.
