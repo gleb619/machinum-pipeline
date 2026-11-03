@@ -100,4 +100,4 @@ packages/mcp/tests/
 
 ## Dependency Rule
 
-`@mt/mcp` imports from `@mt/core` (and optionally `@mt/cli` for pipeline loading utilities). It does not import from `@mt/backend`, `@mt/router`, or `@mt/waypoint` directly.
+`@mt/mcp` imports from `@mt/core` (and optionally `@mt/cli` for pipeline loading utilities). It does not import from `@mt/webui`, `@mt/router`, or `@mt/waypoint` directly.

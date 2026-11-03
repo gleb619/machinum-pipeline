@@ -24,7 +24,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@mt/backend": "workspace:*",
+    "@mt/webui": "workspace:*",
     "@mt/core": "workspace:*",
     "@mt/router": "workspace:*",
     "@mt/waypoint": "workspace:*"

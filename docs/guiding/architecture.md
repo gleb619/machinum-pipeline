@@ -15,9 +15,9 @@ Primary goals:
 - **Pluggable** — Sources, Tools, Targets are interfaces; tools always run in-process via `tool.invoke()`.
 - **Resumable** — Per-Run state machine with checkpoint tree; crash recovery to the last completed step.
 - **Parallel by design** — Fork-join over Chapters/Paragraphs/Lines; batching and windowing built in.
-- **Hybrid runtime** — CLI (foreground or detached) or h3-based admin server (`backend`, also inside the single-file binary).
+- **Hybrid runtime** — CLI (foreground or detached) or h3-based admin server (`webui`, also inside the single-file binary).
 - **Git-aware (opt-in)** — Source/Target wrap worktree creation/removal so processing never touches master.
-- **Observable** — File-based event log (`events.jsonl`) is the source of truth; backend tails it and streams via SSE.
+- **Observable** — File-based event log (`events.jsonl`) is the source of truth; the webui tails it and streams via SSE.
 
 Non-goals (v1): distributed execution across machines, hot-reloading while a Run is in flight, built-in scheduling daemon (folder reserved in `.mt/schedules/`).
 
@@ -92,17 +92,18 @@ source, tool, target or hook is started.
 | `mt` | Publishable umbrella (`import … from 'mt'`, `mt/tools`, `mt/waypoint`) + single-file Bun binary | [`structure.md`](../steering/structure.md) |
 | `@mt/tools` | Chapter processing tools (validator, splitter, translator, schema-doc, …) | [`tools.md`](../steering/tools.md) |
 | `@mt/waypoint` | Source/Target implementations; URI scheme registrations (side-effect import) | [`waypoint.md`](../steering/waypoint.md) |
-| `@mt/backend` | h3 admin API + SSE event stream + SQLite indicator; serves frontend (Nitro in dev only) | [`backend.md`](../steering/backend.md) |
-| `@mt/frontend` | Vue 3 + Tailwind admin UI (bundled into backend) | [`structure.md`](../steering/structure.md) |
+| `@mt/webui` | h3 admin API + SSE event stream + SQLite indicator; serves the admin UI (Nitro in dev only) | [`webui.md`](../steering/webui.md) |
+| `@mt/components` | Vue 3 + Tailwind admin UI (bundled into webui) | [`structure.md`](../steering/structure.md) |
 | `@mt/router` | Standalone Nuxt: keyless LLM gateway, API-only — OpenRouter proxy, upstream routing, key pool, cost tracking, mock mode; embedded in `mt serve` (T197) | [`router.md`](../steering/router.md) |
+| `@mt/tui` | Terminal UI (skeleton) — HTTP-only client of `mt serve`; layout contract in [`docs/layout.md`](../layout.md) | [`structure.md`](../steering/structure.md) |
 | `@mt/mcp` | MCP server over stdio; wraps core/cli — no HTTP | [`mcp.md`](../steering/mcp.md) |
 | `chrome-extension` | MV3 — scrape chapters, auto-upload to web editors | [`extensions.md`](../steering/extensions.md) |
 | `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens | [`extensions.md`](../steering/extensions.md) |
 
 Import layer rules:
 - `cli/` → `core/` only (never reverse)
-- `backend/`, `mcp/` call `core/` programmatically
-- `frontend/` → `backend/` API only (no direct `core` import)
+- `webui/`, `mcp/` call `core/` programmatically; `webui/` may import `router/` (T197)
+- `components/` → `webui/` API only (no direct `core` import); `tui/` HTTP-only
 - `router/` is standalone (no dependency on other `@mt/*` packages except shared config types)
 - Extensions communicate via HTTP or MCP, never direct imports.
 
@@ -208,7 +209,8 @@ Every topic below links to the steering file that holds the full specification, 
 | CLI commands (`init`, `run`, `explain`, `resume`, `ls`, `inspect`, `serve`, `router`, `mcp`) | [`cli.md`](../steering/cli.md) |
 | Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](../steering/tools.md) |
 | URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`, `range`, `void`) | [`waypoint.md`](../steering/waypoint.md) |
-| Backend (Nuxt): routes, SSE, SQLite, runner registry, frontend integration | [`backend.md`](../steering/backend.md) |
+| Webui (Nuxt): routes, SSE, SQLite, runner registry, UI integration | [`webui.md`](../steering/webui.md) |
+| TUI (skeleton): terminal skin of the admin UI, HTTP-only | [`tui.md`](../steering/tui.md), [`../layout.md`](../layout.md) |
 | Router (standalone Nuxt): keyless gateway, upstream routing, vault-fed keys, pool, cost tracking, mock mode, logs | [`router.md`](../steering/router.md) |
 | Vault: gitignored secret store, refs (`llm.use`), `mt vault` CLI | [`vault.md`](vault.md), [`router.md`](../steering/router.md) |
 | MCP server (stdio): methods, handlers, test shape | [`mcp.md`](../steering/mcp.md) |

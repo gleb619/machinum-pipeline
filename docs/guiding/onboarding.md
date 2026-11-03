@@ -18,7 +18,7 @@ Pluggable, resumable document-processing orchestration engine for long-form text
 | `@mt/waypoint` | Source/Target URI implementations: `jsonl://`, `md://`, `hs://http://`, `chapter://`, `schema-doc://`, `git://` (worktree), `range://` (source), `void://` (target), `console://` (target) |
 | `@mt/cli` | `mt` binary: `init`, `run`, `explain`, `resume`, `ls runs`, `inspect`, `tool`, `serve`, `router`, `vault`, `skill` |
 | `@mt/router` | Standalone keyless LLM gateway: OpenRouter proxy, API-key pool, upstream routing by model prefix, cost/budget tracking, `/api/translate` |
-| `@mt/backend` + `@mt/frontend` | Admin API (h3) + SSE + SQLite; Vue 3 UI |
+| `@mt/webui` + `@mt/components` | Admin API (h3) + SSE + SQLite; Vue 3 UI |
 | `@mt/mcp` | MCP server (stdio) so AI agents drive pipelines |
 | `mt` | Publishable umbrella (`import from 'mt'`, `mt/tools`, `mt/waypoint`) + Bun binary |
 

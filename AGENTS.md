@@ -62,9 +62,11 @@ Steering files live in `docs/steering/` — development docs for coding agents. 
 | [waypoint.md](docs/steering/waypoint.md) | `packages/waypoint/` - URI schemes, Source/Target impls |
 | [cli.md](docs/steering/cli.md) | `packages/cli/` - commands, pipeline loading |
 | [router.md](docs/steering/router.md) | `packages/router/` - OpenRouter proxy, cost tracking |
-| [backend.md](docs/steering/backend.md) | `packages/backend/` - admin API, SSE, SQLite |
+| [webui.md](docs/steering/webui.md) | `packages/webui/` - admin API, SSE, SQLite |
+| [tui.md](docs/steering/tui.md) | `packages/tui/` - terminal UI skeleton (HTTP-only) |
 | [mcp.md](docs/steering/mcp.md) | `packages/mcp/` - MCP server, stdio handlers |
 | [extensions.md](docs/steering/extensions.md) | `packages/chrome/` or `packages/vscode/` |
+| [../layout.md](docs/layout.md) | UI layout contract for `packages/components/` (web) + `packages/tui/` (terminal) |
 
 ## Commands
 
@@ -84,10 +86,10 @@ pnpm build:bin                                  # Rebuild the standalone `mt` bi
 
 ## Quick architecture map
 
-Packages: `@mt/core` (types, DSL, Runner engine) → `@mt/cli` (binary) + `@mt/backend`/`@mt/mcp` (programmatic
+Packages: `@mt/core` (types, DSL, Runner engine) → `@mt/cli` (binary) + `@mt/webui`/`@mt/mcp` (programmatic
 callers); `@mt/tools` (chapter processing tools); `@mt/waypoint` (URI-scheme Sources/Targets, side-effect
-registration via `import '@mt/waypoint'`); `@mt/router` (standalone OpenRouter proxy); `@mt/frontend` (admin UI);
-`chrome/` + `vscode/` extensions.
+registration via `import '@mt/waypoint'`); `@mt/router` (standalone OpenRouter proxy); `@mt/components` (admin UI);
+`@mt/tui` (terminal UI skeleton, HTTP-only); `chrome/` + `vscode/` extensions.
 
 Key types in `packages/core/src/`: `domain.ts` (`Book`, `Chapter`, … - Sources provide stable IDs, the engine never
 mints them), `exchange.ts` (`Exchange`, qualified `Variable`s, helpers), `types.ts` (`Source`/`Tool`/`Target`), `contexts.ts` (layered `GlobalContext → RunContext →
@@ -150,11 +152,11 @@ public API shapes, `type` for unions, `import type` for type-only, no `any` (`un
   needs `wrkflw` + Docker) before any FF-merge and report its one-line result. Failure to run = red, never silent
   skip. `pnpm ci:check` (validate only, seconds) is the fast loop while editing `.github/workflows/`. Scope/limits:
   [docs/change-workflow.md](docs/change-workflow.md).
-- **Import layers** - `cli/`/`backend/`/`mcp/` → `core/` only (never reverse; `cli/` may also import `waypoint/` for URI registration and `backend/standalone` for `mt serve` - lazy, so the CLI starts without h3/SQLite); `frontend/` → backend API only;
-  `router/` standalone; extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
+- **Import layers** - `cli/`/`webui/`/`mcp/` → `core/` only (never reverse; `cli/` may also import `waypoint/` for URI registration and `webui/standalone` for `mt serve` - lazy, so the CLI starts without h3/SQLite; `webui/` may import `router/` — T197 embeds the router API in `mt serve`); `components/` → webui API only;
+  `router/` standalone (zero `@mt/*` deps); `tui/` HTTP-only (no `@mt/*` imports); extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
 - **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
 - **Agent skill stays current** — `docs/SKILL.md` MUST be reviewed and updated in the same change whenever the project gets a big update: a new/changed/removed CLI command or flag, DSL op, URI scheme, tool category, vault/secret handling, config key, lifecycle/run-state change, or install path. Bump its `skill-version` and date, then regenerate the embedded copy (`pnpm --filter=@mt/cli gen:skill`; `pnpm build` does it too) and verify `mt skill` output matches. The drift test `packages/cli/tests/commands/skill.test.ts` fails when the embedded copy differs from `docs/SKILL.md`.
-- **Binary freshness** — after any change to packages embedded in the `mt` binary (`core`/`tools`/`waypoint`/`cli`/`router`/`backend`), rebuild it (`pnpm build:bin`, smoke via `pnpm smoke:bin`). A stale binary silently runs old code.
+- **Binary freshness** — after any change to packages embedded in the `mt` binary (`core`/`tools`/`waypoint`/`cli`/`router`/`webui`), rebuild it (`pnpm build:bin`, smoke via `pnpm smoke:bin`). A stale binary silently runs old code.
 - **Do not run git mutations** (commit/push/reset/rebase) unless explicitly asked.
 - **NEVER** `git stash` or `git reset` (`--hard`/`--mixed`/`--soft`) without explicit user approval - working tree
   changes are load-bearing, do not discard them.

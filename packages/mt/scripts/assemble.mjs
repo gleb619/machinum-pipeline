@@ -1,7 +1,7 @@
 // Assemble the publishable `mt` package: copy built @mt/{core,tools,waypoint,backend,router,cli} into
 // dist/<name>/ (no maps/tests), rewrite `@mt/<name>[/sub]` specifiers to relative paths so the
 // tarball is standalone. Third-party deps are declared in package.json `dependencies`.
-// Also copies the built admin UI (packages/frontend/dist) to dist/ui for `mt serve`, and the router
+// Also copies the built admin UI (packages/components/dist) to dist/ui for `mt serve`, and the router
 // dashboard (packages/router/public) to dist/router-ui for `mt router`.
 import {
   cpSync,
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dist = join(root, 'dist')
-const pkgs = ['core', 'tools', 'waypoint', 'backend', 'router', 'cli']
+const pkgs = ['core', 'tools', 'waypoint', 'webui', 'router', 'cli']
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -43,7 +43,7 @@ rmSync(join(dist, 'ui'), { recursive: true, force: true })
 try {
   cpSync(uiSrc, join(dist, 'ui'), { recursive: true })
 } catch {
-  console.warn('mt: packages/frontend/dist missing; admin UI not included (run pnpm build)')
+  console.warn('mt: packages/components/dist missing; admin UI not included (run pnpm build)')
 }
 
 // The router dashboard ships as plain static files (no build step), so the source dir is the asset dir.
@@ -57,7 +57,7 @@ try {
 
 // Only import/export-from contexts, so plain string literals (e.g. embed.ts keys) stay intact.
 const re =
-  /\b(from\s*|import\s*\(\s*|import\s+)(['"])@mt\/(core|tools|waypoint|backend|router|cli)(\/[^'"]*)?\2/g
+  /\b(from\s*|import\s*\(\s*|import\s+)(['"])@mt\/(core|tools|waypoint|webui|router|cli)(\/[^'"]*)?\2/g
 let rewritten = 0
 for (const file of walk(dist)) {
   if (!/\.(js|d\.ts)$/.test(file)) continue

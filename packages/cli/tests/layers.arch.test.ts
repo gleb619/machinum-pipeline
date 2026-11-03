@@ -9,7 +9,7 @@ const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
 const ALLOWED = new Set([
   '@mt/core',
   '@mt/waypoint',
-  '@mt/backend/standalone',
+  '@mt/webui/standalone',
   '@mt/router/standalone',
 ])
 
@@ -58,7 +58,7 @@ describe('CLI import layers (architectural)', () => {
 
   it('reaches the server packages only through their standalone entry point', async () => {
     const refs = await mtImports()
-    for (const pkg of ['@mt/backend', '@mt/router']) {
+    for (const pkg of ['@mt/webui', '@mt/router']) {
       const serverRefs = refs.filter((ref) => ref.specifier.startsWith(pkg))
       expect(serverRefs.length).toBeGreaterThan(0)
       for (const ref of serverRefs) {
@@ -70,7 +70,7 @@ describe('CLI import layers (architectural)', () => {
   it('imports the server packages lazily, so the CLI starts without h3/SQLite', async () => {
     const refs = await mtImports()
     const serverRefs = refs.filter(
-      (ref) => ref.specifier.startsWith('@mt/backend') || ref.specifier.startsWith('@mt/router'),
+      (ref) => ref.specifier.startsWith('@mt/webui') || ref.specifier.startsWith('@mt/router'),
     )
     for (const ref of serverRefs) {
       expect(ref.dynamic).toBe(true)

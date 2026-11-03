@@ -9,7 +9,7 @@ Two audiences, two doc sets:
 
 Also here: [SKILL.md](SKILL.md) — the agent skill for projects that *use* `mt` (embedded in the binary; `mt skill` prints/installs it). Keep it in sync with big changes (see AGENTS.md hard rules).
 
-Also here: [layout.md](layout.md) — shared UI layout contract for the webui (`packages/frontend/`) and the TUI: screens, names, button locations, state colours, key bindings. Change both skins together.
+Also here: [layout.md](layout.md) — shared UI layout contract for the webui (`packages/components/`) and the TUI: screens, names, button locations, state colours, key bindings. Change both skins together.
 
 Also here: [install.sh](install.sh) — installer (binary / `--docker` / `--from-source`; see [guiding/installation.md](guiding/installation.md)). Repo-root `Dockerfile` + `docker/entrypoint.sh` build the image; `.github/workflows/{ci,release}.yml` run CI and releases.
 

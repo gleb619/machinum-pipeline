@@ -27,34 +27,6 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.17)(terser@5.46.2)
 
-  packages/backend:
-    dependencies:
-      '@mt/core':
-        specifier: workspace:*
-        version: link:../core
-      better-sqlite3:
-        specifier: ^9.6.0
-        version: 9.6.0
-      h3:
-        specifier: ^1.13.0
-        version: 1.15.11
-      nitropack:
-        specifier: ^2.10.0
-        version: 2.13.4(better-sqlite3@9.6.0)
-    devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.0
-        version: 7.6.13
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.19.17
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.0
-        version: 2.1.9(@types/node@22.19.17)(terser@5.46.2)
-
   packages/chrome:
     devDependencies:
       '@types/chrome':
@@ -72,9 +44,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@mt/backend':
-        specifier: workspace:*
-        version: link:../backend
       '@mt/core':
         specifier: workspace:*
         version: link:../core
@@ -84,6 +53,9 @@ importers:
       '@mt/waypoint':
         specifier: workspace:*
         version: link:../waypoint
+      '@mt/webui':
+        specifier: workspace:*
+        version: link:../webui
     devDependencies:
       '@types/node':
         specifier: ^20.14.0
@@ -95,29 +67,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
 
-  packages/core:
-    dependencies:
-      hash-wasm:
-        specifier: ^4.12.0
-        version: 4.12.0
-      kdbxweb:
-        specifier: ^2.1.1
-        version: 2.1.1
-    devDependencies:
-      '@types/node':
-        specifier: ^20.14.0
-        version: 20.19.39
-      '@vitest/coverage-v8':
-        specifier: ^2.1.0
-        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(terser@5.46.2))
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-      vitest:
-        specifier: ^2.1.0
-        version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
-
-  packages/frontend:
+  packages/components:
     dependencies:
       vue:
         specifier: ^3.5.0
@@ -147,6 +97,28 @@ importers:
       vue-tsc:
         specifier: ^3.3.13
         version: 3.3.13(typescript@5.9.3)
+
+  packages/core:
+    dependencies:
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
+      kdbxweb:
+        specifier: ^2.1.1
+        version: 2.1.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.39
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(terser@5.46.2))
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
 
   packages/mcp:
     dependencies:
@@ -240,18 +212,15 @@ importers:
         specifier: ^9.6.0
         version: 9.6.0
     devDependencies:
-      '@mt/backend':
-        specifier: workspace:*
-        version: link:../backend
       '@mt/cli':
         specifier: workspace:*
         version: link:../cli
+      '@mt/components':
+        specifier: workspace:*
+        version: link:../components
       '@mt/core':
         specifier: workspace:*
         version: link:../core
-      '@mt/frontend':
-        specifier: workspace:*
-        version: link:../frontend
       '@mt/router':
         specifier: workspace:*
         version: link:../router
@@ -261,6 +230,9 @@ importers:
       '@mt/waypoint':
         specifier: workspace:*
         version: link:../waypoint
+      '@mt/webui':
+        specifier: workspace:*
+        version: link:../webui
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.39
@@ -372,6 +344,15 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
 
+  packages/tui:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/vscode:
     devDependencies:
       '@types/node':
@@ -417,6 +398,34 @@ importers:
       vitest:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
+
+  packages/webui:
+    dependencies:
+      '@mt/core':
+        specifier: workspace:*
+        version: link:../core
+      better-sqlite3:
+        specifier: ^9.6.0
+        version: 9.6.0
+      h3:
+        specifier: ^1.13.0
+        version: 1.15.11
+      nitropack:
+        specifier: ^2.10.0
+        version: 2.13.4(better-sqlite3@9.6.0)
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.0
+        version: 7.6.13
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.17)(terser@5.46.2)
 
   samples/sample0:
     dependencies:

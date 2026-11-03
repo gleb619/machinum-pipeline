@@ -363,7 +363,7 @@ sequenceDiagram
   participant State as state.json
   participant Log as events.jsonl
   participant L as ctx.events / subscribeEvents listeners
-  participant BE as @mt/backend (tail → SSE)
+  participant BE as @mt/webui (tail → SSE)
 
   Runner->>State: persistState() (atomic)
   Runner->>Log: Store.append(event line)  (append-only)

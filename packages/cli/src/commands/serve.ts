@@ -77,7 +77,7 @@ export async function serveCommand(args: string[]): Promise<void> {
   }
 
   // Lazy: pulls h3 (+ better-sqlite3 under Node / bun:sqlite under Bun) only when serving.
-  const { startBackend } = await import('@mt/backend/standalone')
+  const { startBackend } = await import('@mt/webui/standalone')
   const uiDir = findUiDir()
   const handle = await startBackend({ port: options.port, host: options.host, uiDir })
   console.log(`Backend listening on ${handle.url}`)

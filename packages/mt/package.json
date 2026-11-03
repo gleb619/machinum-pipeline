@@ -70,10 +70,10 @@
     }
   },
   "devDependencies": {
-    "@mt/backend": "workspace:*",
+    "@mt/webui": "workspace:*",
     "@mt/cli": "workspace:*",
     "@mt/core": "workspace:*",
-    "@mt/frontend": "workspace:*",
+    "@mt/components": "workspace:*",
     "@mt/router": "workspace:*",
     "@mt/tools": "workspace:*",
     "@mt/waypoint": "workspace:*",

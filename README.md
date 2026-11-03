@@ -37,7 +37,7 @@ and watch it live.
 | `@mt/tools` | Ready-made book-processing tools (validator, splitter, translator…) |
 | `@mt/waypoint` | Built-in sources & targets (files, HTTP, git worktrees) |
 | `@mt/router` | Optional OpenRouter proxy with API-key pooling and cost tracking |
-| `@mt/backend` + `@mt/frontend` | Admin web UI with live run monitoring |
+| `@mt/webui` + `@mt/components` | Admin web UI with live run monitoring |
 | `@mt/mcp` | MCP server — let AI agents drive pipelines |
 | Chrome / VS Code extensions | Scrape chapters from the browser, run pipelines from the editor |
 

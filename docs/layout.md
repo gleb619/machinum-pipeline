@@ -1,11 +1,11 @@
 # UI layout contract (webui + TUI)
 
-Audience: agents/humans building or changing `packages/frontend/` (Vue webui) or the terminal UI (TUI, not built yet).
+Audience: agents/humans building or changing `packages/components/` (Vue webui) or the terminal UI (`packages/tui/`).
 Rule: both UIs are **two skins over one contract**. Same screens, same names, same button positions, same state
 colours, same data source (`/api/*` of `mt serve`). A change to one skin updates this file and the other skin in the
 same change.
 
-Source of truth today: `packages/frontend/src/App.vue`. Where this file differs from `App.vue`, `App.vue` is a bug
+Source of truth today: `packages/components/src/App.vue`. Where this file differs from `App.vue`, `App.vue` is a bug
 to fix (or this file is stale — fix one of them).
 
 ## 1. Data source
@@ -19,7 +19,7 @@ to fix (or this file is stale — fix one of them).
 | Resume | `POST /api/runs/:id/resume` | `Resume` button |
 | Run detail | `GET /api/runs/:id`, `/items`, `/events` (SSE) | Run detail screen (planned) |
 
-TUI talks to the same HTTP API (via `mt serve`, local or `--detach`) — never imports `@mt/backend` or `@mt/core`
+TUI talks to the same HTTP API (via `mt serve`, local or `--detach`) — never imports `@mt/webui` or `@mt/core`
 directly (import layers: [steering/structure.md](steering/structure.md)). Pause/resume 404 = "not live in this
 process", show it as an error toast, not a crash.
 
@@ -138,9 +138,9 @@ Keys never change meaning between screens: `Esc` always backs out one level.
 
 ## 8. Implementation notes
 
-- Webui: Vue 3 SFC + Tailwind 3 (`packages/frontend/`). Reuse the class strings in §5 verbatim.
-- TUI: build with the OpenTUI skill (`opentui`) in a new package that fetches the API over HTTP only. Add the
-  package to [steering/structure.md](steering/structure.md) and a steering doc when it exists.
+- Webui: Vue 3 SFC + Tailwind 3 (`packages/components/`). Reuse the class strings in §5 verbatim.
+- TUI: `@mt/tui` (`packages/tui/`, skeleton — no screens yet). Build the screens with the OpenTUI skill (`opentui`);
+  the package fetches the API over HTTP only (no `@mt/*` imports).
 - Share, don't copy: pure helpers (state → colour name, labels, toast text) should live in one tiny module both
   skins can import once the TUI exists; until then the tables above are the contract.
 - Add a test per skin that asserts the labels from §4/§6 (button text, empty/error strings) so drift fails CI.

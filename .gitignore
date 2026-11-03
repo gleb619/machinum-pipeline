@@ -46,8 +46,8 @@ build
 /tmp-packs/
 /packages/core/vendor/
 /packages/cli/vendor/
-/packages/backend/.nitro/*
-/packages/backend/.output/*
+/packages/webui/.nitro/*
+/packages/webui/.output/*
 /packages/router/.nitro/*
 /packages/router/.output/*
 /packages/core/tests/*.test.d.ts
