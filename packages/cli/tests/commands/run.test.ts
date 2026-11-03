@@ -23,6 +23,7 @@ vi.mock('@mt/core', async (importOriginal) => {
       resolveTarget: vi.fn(),
       registerSource: vi.fn(),
       registerTarget: vi.fn(),
+      registerBufferWriter: vi.fn(),
       registerComposite: vi.fn(),
       parse: vi.fn(),
       getSourceFactory: vi.fn(),
