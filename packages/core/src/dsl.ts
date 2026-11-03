@@ -401,7 +401,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * (`label` defaults to the pipeline id). Pass a string as shorthand for `{ label }`.
    */
   log(options?: string | LogOptions): PipelineBuilder<I, O> {
-    const { label = this._id, level = 'log', truncate = false } =
+    const { label = this._id, level = 'log', truncate = true } =
       typeof options === 'string' ? { label: options } : (options ?? {})
     return this.tap((ex) => {
       console[level](
