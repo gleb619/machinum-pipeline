@@ -77,6 +77,7 @@ pnpm typecheck      # Type-check all packages
 pnpm test           # All tests (workspace + sample integration tests)
 pnpm test --filter=@mt/tools                    # Tests for one package
 pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts   # One test file
+pnpm annotations [--kind tool|waypoint|useCase|category] [--json]   # dev-only annotation index (run pnpm build first)
 pnpm dev --filter=@mt/core                      # Dev watch mode
 pnpm build:bin                                  # Rebuild the standalone `mt` binary (packages/mt, Bun --compile)
 ```
@@ -110,6 +111,15 @@ export default definePipeline()
 
 **Pipelines are real TS modules** - plain `import`, `console.log`, conditionals all work. The DSL is only the
 orchestration grammar.
+
+## Annotation markers
+
+Dev-only markers for code discovery, not runtime behaviour. `defineTool({ annotations?: [...] })` is optional -
+user-defined tools need none. Sealed kinds: `tool()` -> `TL###`, `waypoint()` -> `WT###`, `useCase()` -> `UC###`,
+and `category([...])` (lowercase kebab-case names, e.g. `category(['validator'])` in
+`packages/tools/src/verification/chapter-validator.ts`; canonical list is `TOOL_CATEGORIES` in `@mt/tools`).
+`pnpm annotations` lists them (repo-dev only, never shipped in the `mt` CLI), or grep directly:
+`rg "TL063|category\(\[" packages/tools/src`.
 
 ## Code style (summary)
 
