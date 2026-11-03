@@ -1,11 +1,4 @@
-import {
-  type Chunk,
-  type Token,
-  type Word,
-  definePipeline,
-  defineProcess,
-  getVariable,
-} from '@mt/core'
+import { type Word, definePipeline, defineProcess, getVariable } from '@mt/core'
 import {
   VAR_CHUNK_COUNT,
   VAR_CHUNK_SEPARATOR,
@@ -14,7 +7,6 @@ import {
   chapterIndexer,
   chunkSplit,
   mdOutputEmitter,
-  tokenizeChunkDetailed,
 } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -24,8 +16,9 @@ import '@mt/waypoint'
 // ---------------------------------------------------------------------------
 
 // Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
-// A stage writes to the matching temp://<rung>/<namespace> buffer; the next stage
-// reads it back through the typed rung (temp://chunks/ladder -> chunks://ladder).
+// A string-form splitter subflow auto-publishes its output into the matching entity
+// buffer; the next stage reads it back through the typed rung
+// (.subflow('#chunks', 'ladder') -> chunks://ladder).
 
 // Series split runs first: the demo chapter-series.md is partitioned by the
 // registered `series` splitter. The process pins the demo target characters.
@@ -138,32 +131,28 @@ const documentStage = definePipeline({ id: 'sample2-advanced-documents' })
 // Rung 2: chapter docs → Chunks (core domain type) with the registered `chunks` splitter.
 const chunkStage = definePipeline({ id: 'sample2-advanced-chunks' })
   .from('md://./chapters/ladder-chapters')
-  .subflow('#chunks')
+  .subflow('#chunks', 'ladder')
   .tap(countRung('chunks'))
-  .to('temp://chunks/ladder')
 
 // Rung 3: Chunk → Paragraphs, one per blank-line block. `.subflow('#paragraphs')`
 // is the shortcut for `.subflow('paragraphs://')`; bare `'paragraphs'` is rejected.
 const paragraphStage = definePipeline({ id: 'sample2-advanced-paragraphs' })
   .from('chunks://ladder')
-  .subflow('#paragraphs')
+  .subflow('#paragraphs', 'ladder')
   .tap(countRung('paragraphs'))
-  .to('temp://paragraphs/ladder')
 
 // Rung 4: Paragraph → Lines (non-empty only) with the registered line splitter.
 // The explicit URI form resolves the same splitter as `.subflow('#lines')`.
 const lineStage = definePipeline({ id: 'sample2-advanced-lines' })
   .from('paragraphs://ladder')
-  .subflow('lines://')
+  .subflow('lines://', 'ladder')
   .tap(countRung('lines'))
-  .to('temp://lines/ladder')
 
 // Rung 5: Line → Words (core Word entities with parent ids).
 const wordStage = definePipeline({ id: 'sample2-advanced-words' })
   .from('lines://ladder')
-  .subflow('#words')
+  .subflow('#words', 'ladder')
   .tap(countRung('words'))
-  .to('temp://words/ladder')
 
 // Collect all words, print rung counts, render summary table.
 const summaryStage = definePipeline({ id: 'sample2-advanced-summary' })
@@ -186,17 +175,6 @@ export const ladderPipeline = definePipeline({ id: 'sample2-advanced-ladder' })
   .subflow(wordStage)
   .subflow(summaryStage)
 
-async function toTokens(chunk: Chunk): Promise<Token[]> {
-  const { tokens } = await tokenizeChunkDetailed(chunk.body)
-  return tokens.map((token, index) => ({
-    id: `${chunk.id}/token-${index + 1}`,
-    chunkId: chunk.id,
-    tokenId: token.tokenId,
-    text: token.text,
-    index,
-  }))
-}
-
 function renderTokenSummary(tokens: number): string {
   return [
     '# Token Ladder',
@@ -214,15 +192,14 @@ function renderTokenSummary(tokens: number): string {
 // Token rung: reuse ladder chunks, tokenize each into core Tokens.
 const tokenStage = definePipeline({ id: 'sample2-advanced-tokens' })
   .from('chunks://ladder')
-  .flatMap(async (chunk: unknown) => toTokens(chunk as Chunk))
+  .subflow('#tokens', 'ladder')
   .tap(countRung('tokens'))
-  .to('temp://tokens/ladder')
 
 const tokenSummaryStage = definePipeline({ id: 'sample2-advanced-token-summary' })
   .from('tokens://ladder')
   .batch(100_000)
   .tap(async () => logLadderCounts())
-  .flatMap(async (tokens: unknown) => [renderTokenSummary((tokens as Token[]).length)])
+  .flatMap(async (tokens: unknown) => [renderTokenSummary((tokens as unknown[]).length)])
   .use(mdOutputEmitter({ name: 'token-ladder-summary', filename: () => 'token-ladder-summary.md' }))
   .to('md://./chapters')
 

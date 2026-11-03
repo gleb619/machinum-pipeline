@@ -18,6 +18,7 @@ import {
 import { getSetting } from '../settings.js'
 import { Store } from '../store.js'
 import type {
+  BufferWriter,
   CheckpointNode,
   Envelope,
   Logger,
@@ -532,6 +533,7 @@ export class Runner {
         }
         case 'split': {
           const splitter = step.config.splitter as Splitter<unknown>
+          const buffer = step.config.buffer as { scheme: string; namespace: string } | undefined
           if (!stream && !hasSourceStep) {
             stream = emptyEnvelope()
           }
@@ -541,9 +543,19 @@ export class Runner {
           const sourceStream = stream
           const stepRun = this.stepRunContext(runContext, stepId)
           stream = (async function* () {
+            // Auto-publish: a splitter bound to an entity buffer fills it for the next
+            // stage. Reset when this stage starts so a re-run replaces the old contents.
+            let writer: BufferWriter | undefined
+            if (buffer) {
+              writer = registry.resolveBufferWriter(buffer.scheme, buffer.namespace)
+              writer.reset()
+            }
             for await (const env of sourceStream) {
               const items = await splitter.split(env, { run: stepRun })
-              yield* fanOut(env, items)
+              for (const child of fanOut(env, items)) {
+                writer?.append(child)
+                yield child
+              }
             }
           })()
           break

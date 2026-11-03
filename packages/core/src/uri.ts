@@ -1,5 +1,5 @@
 import type { Settings } from './settings.js'
-import type { Source, Splitter, Target } from './types.ts'
+import type { BufferWriter, BufferWriterFactory, Source, Splitter, Target } from './types.ts'
 
 /**
  * URI registry — maps URI schemes to Source/Target factories.
@@ -62,6 +62,7 @@ class UriRegistry {
   private targets = new Map<string, TargetFactory<unknown>>()
   private compositeResolvers = new Map<string, CompositeResolver>()
   private splitters = new Map<string, Splitter<unknown>>()
+  private bufferWriters = new Map<string, BufferWriterFactory>()
 
   /**
    * Register a source factory for a URI scheme.
@@ -101,13 +102,10 @@ class UriRegistry {
   }
 
   /**
-   * Resolve a splitter from a buffer URI or the `#scheme` shortcut.
-   *
-   * `'paragraphs://'` / `'paragraphs://ladder'` and `'#paragraphs'` resolve the same
-   * registered splitter. Bare `'paragraphs'` is deliberately rejected: the URI form keeps
-   * buffer/type references visibly distinct from pipeline ids and tool names.
+   * Resolve the scheme named by a splitter reference (`'#paragraphs'`,
+   * `'paragraphs://'` or `'paragraphs://ladder'`). Bare `'paragraphs'` is rejected.
    */
-  resolveSplitter<O>(schemeOrUri: string): Splitter<O> {
+  splitterScheme(schemeOrUri: string): string {
     const shortcut = schemeOrUri.trim().startsWith('#')
     const reference = shortcut ? schemeOrUri.trim().slice(1) : schemeOrUri.trim()
     if (!shortcut && !reference.includes('://')) {
@@ -118,7 +116,18 @@ class UriRegistry {
           `${known.length > 0 ? known.join(', ') : '(none)'}`,
       )
     }
-    const scheme = reference.includes('://') ? this.parse(reference).scheme : reference
+    return reference.includes('://') ? this.parse(reference).scheme : reference
+  }
+
+  /**
+   * Resolve a splitter from a buffer URI or the `#scheme` shortcut.
+   *
+   * `'paragraphs://'` / `'paragraphs://ladder'` and `'#paragraphs'` resolve the same
+   * registered splitter. Bare `'paragraphs'` is deliberately rejected: the URI form keeps
+   * buffer/type references visibly distinct from pipeline ids and tool names.
+   */
+  resolveSplitter<O>(schemeOrUri: string): Splitter<O> {
+    const scheme = this.splitterScheme(schemeOrUri)
     const splitter = this.splitters.get(scheme)
     if (!splitter) {
       const known = this.getSplitterSchemes()
@@ -136,6 +145,35 @@ class UriRegistry {
    */
   getSplitterSchemes(): string[] {
     return Array.from(this.splitters.keys())
+  }
+
+  /**
+   * Register the write side of an entity buffer. `.subflow('<splitter>', '<namespace>')`
+   * publishes into the writer registered for the splitter's scheme.
+   */
+  registerBufferWriter(scheme: string, factory: BufferWriterFactory): void {
+    this.bufferWriters.set(scheme, factory)
+  }
+
+  /** True when `scheme` has an entity buffer writer (a ladder/package rung). */
+  hasBufferWriter(scheme: string): boolean {
+    return this.bufferWriters.has(scheme)
+  }
+
+  /** Resolve the namespace-scoped writer for an entity buffer scheme. */
+  resolveBufferWriter(scheme: string, namespace: string): BufferWriter {
+    const factory = this.bufferWriters.get(scheme)
+    if (!factory) {
+      throw new Error(
+        `No buffer writer registered for scheme: ${scheme}. Import '@mt/waypoint' (which registers the entity buffers).`,
+      )
+    }
+    return factory(namespace)
+  }
+
+  /** Get all registered buffer-writer schemes. */
+  getBufferWriterSchemes(): string[] {
+    return Array.from(this.bufferWriters.keys())
   }
 
   /**

@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.12.0 | 2026-11-03 -->
+<!-- skill-version: 1.13.0 | 2026-11-03 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -46,6 +46,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .from('jsonl://./input/*.jsonl')           // Source: URI string (preferred) or instance
   .flatMap(async (item) => [item])           // 1 -> N
   .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs://' (bare 'paragraphs' is rejected)
+  .subflow('#chunks', 'ladder')              // 1 -> N + auto-publish into chunks://ladder
   .tap(async (ex) => console.log(ex.id))     // observe full Exchange, stream unchanged
   .log('debug')                              // sugar over .tap(): logs '[debug] <id> <item>'
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
@@ -59,11 +60,16 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 ```
 
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
-  `.batch/.flatMap`, or the string form `.subflow('<splitter>')`
+  `.batch/.flatMap`, or the string form `.subflow('<splitter>', '<namespace>?')`
   (`'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`; the same
-  spellings work for `chunks`, `paragraphs`, `lines`, `words` and `series`) which resolves a
-  registered splitter and fans out 1 -> N. Import `mt/tools` (or any `@mt/tools` symbol) to
-  register `chunks`, `paragraphs`, `lines`, `words` and `series`. Bare `'paragraphs'` is rejected.
+  spellings work for `chunks`, `paragraphs`, `lines`, `words`, `tokens` and `series`) which
+  resolves a registered splitter and fans out 1 -> N. When the splitter scheme is an entity
+  buffer (`chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`, `batches`), the
+  produced envelopes are also auto-published into `<scheme>://<namespace>` for the next stage;
+  the namespace is the optional second argument and defaults to `default` (`chunks://` ==
+  `chunks://default`). `series` has no buffer. Import `mt/tools` (or any `@mt/tools` symbol) to
+  register `chunks`, `paragraphs`, `lines`, `words`, `tokens` and `series`. Bare `'paragraphs'`
+  is rejected.
   The `series` splitter parses chapter markdown, emits numbered `ChapterDoc` parts with `series`
   frontmatter only when the chapter is large enough, and otherwise returns the original markdown
   as one unchanged item. Its size threshold is the tunable `SERIES_SPLIT_TARGET_CHARS` (see
@@ -84,12 +90,12 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | URI | Use |
 |---|---|
 | `jsonl://./f.jsonl` | JSON lines; source accepts globs; each line `{ "item": ... }` |
-| `md://./dir` or `md://./f.md` | Markdown files / single file; `?series=true` runs the registered `series` splitter before writing (same as `.subflow('#series')`) |
+| `md://./dir` or `md://./f.md` | Markdown files / single file; source `?split=chunks\|paragraphs\|lines` fans each file out with that registered splitter; target `?series=true` runs the registered `series` splitter before writing (same as `.subflow('#series')`) |
 | `chapter://./en/` | language-folder chapter layout |
 | `hs://http://...` | HTTP source |
 | `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
-| `temp://<entity>/<ns>` | in-memory write side for typed ladder buffers; `temp://chunks/ladder` feeds `chunks://ladder` (ladder schemes are source-only) |
+| `chunks://<ns>` … `words://<ns>` | typed ladder buffers, source-only; fill with `.subflow('#chunks', 'ladder')` and read with `.from('chunks://ladder')` (omitted ns = `default`) |
 | `@name` | alias from `mt.json` `"uris": { "en": "md://./chapters/en" }` -> `.to('@en')` |
 
 Custom steps: a Tool is `{ name, version, invoke(exchange, ctx), cacheable? }`; set `cacheable: true`

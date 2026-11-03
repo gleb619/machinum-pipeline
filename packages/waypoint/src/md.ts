@@ -2,7 +2,12 @@ import { mkdirSync } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
-import { MD_OUTPUTS_VARIABLE } from '@mt/core'
+import {
+  BATCH_MEMBERS_VARIABLE,
+  ITEM_VARIABLE,
+  MD_OUTPUTS_VARIABLE,
+  createExchange,
+} from '@mt/core'
 import type {
   Exchange,
   ExchangeInput,
@@ -65,41 +70,94 @@ async function discoverMarkdownFiles(dir: string): Promise<string[]> {
   return files.sort()
 }
 
-async function* readMdEnvelopes<T>(filePath: string): AsyncIterable<ExchangeInput<T>> {
+/** Values accepted by `md://...?split=<value>`. */
+export const MD_SPLIT_VALUES = ['chunks', 'paragraphs', 'lines'] as const
+export type MdSplitValue = (typeof MD_SPLIT_VALUES)[number]
+
+/** Validate `?split=` at factory time; `undefined` means one envelope per file. */
+function parseSplitValue(uri: ParsedUri): MdSplitValue | undefined {
+  const value = uri.query.split
+  if (value === undefined) return undefined
+  if (!(MD_SPLIT_VALUES as readonly string[]).includes(value)) {
+    throw new Error(
+      `md source '${uri.raw}': unknown ?split value '${value}' ` +
+        `(allowed: ${MD_SPLIT_VALUES.join(', ')})`,
+    )
+  }
+  return value as MdSplitValue
+}
+
+/** Resolve the registered splitter for `?split=`; the check runs when the source starts. */
+function resolveMdSplitter(
+  uri: ParsedUri,
+  split: MdSplitValue | undefined,
+): Splitter<unknown> | null {
+  if (!split) return null
+  if (!registry.hasSplitter(split)) {
+    throw new Error(
+      [
+        `md source '${uri.raw}': ?split=${split} requires a splitter named '${split}'. `,
+        `Import '@mt/tools' (which registers it) or register one with `,
+        `registry.registerSplitter('${split}', ...).`,
+      ].join(''),
+    )
+  }
+  return registry.resolveSplitter<unknown>(`#${split}`)
+}
+
+async function* readMdEnvelopes<T>(
+  ctx: SourceContext,
+  filePath: string,
+  splitter: Splitter<unknown> | null,
+): AsyncIterable<ExchangeInput<T>> {
   const stats = await stat(filePath)
-  if (stats.isFile()) {
-    const content = await readFile(filePath, 'utf-8')
-    yield { id: `md:${filePath}`, item: content as T, meta: { filePath } }
-  } else {
-    const files = await discoverMarkdownFiles(filePath)
-    for (const f of files) {
-      const content = await readFile(f, 'utf-8')
-      yield { id: `md:${f}`, item: content as T, meta: { filePath: f } }
+  const files = stats.isFile() ? [filePath] : await discoverMarkdownFiles(filePath)
+  for (const f of files) {
+    const content = await readFile(f, 'utf-8')
+    const base = createExchange(content, { id: `md:${f}`, meta: { filePath: f } })
+    if (!splitter) {
+      yield base as ExchangeInput<T>
+      continue
+    }
+    const parts = await splitter.split(base, { run: ctx.run })
+    const variables = base.variables.filter(
+      (v) => v.name !== ITEM_VARIABLE && v.name !== BATCH_MEMBERS_VARIABLE,
+    )
+    let index = 0
+    for (const part of parts) {
+      yield createExchange(part as T, {
+        id: `${base.id}.${index++}`,
+        meta: { ...base.meta, parentId: base.id },
+        variables,
+      })
     }
   }
 }
 
 export function createMdSource<T>(uri: ParsedUri): Source<T> {
+  const split = parseSplitValue(uri)
   return {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
+      const splitter = resolveMdSplitter(uri, split)
       const filePath = resolveWaypointPath(
         uri,
         'md',
         ctx.run.global.settings,
         ctx.run.global.project.root,
       )
-      yield* readMdEnvelopes(filePath)
+      yield* readMdEnvelopes<T>(ctx, filePath, splitter)
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
+      const splitter = resolveMdSplitter(uri, split)
       const filePath = resolveWaypointPath(
         uri,
         'md',
         ctx.run.global.settings,
         ctx.run.global.project.root,
       )
-      yield* resumeFrom(() => readMdEnvelopes(filePath), cursor)
+      yield* resumeFrom(() => readMdEnvelopes<T>(ctx, filePath, splitter), cursor)
     },
   }
 }

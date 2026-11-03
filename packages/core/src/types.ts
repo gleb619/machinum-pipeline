@@ -83,6 +83,25 @@ export interface Splitter<O = unknown> {
 }
 
 /**
+ * Write side of a process-local entity buffer.
+ *
+ * A string-form `.subflow('<splitter>', '<namespace>')` resolves the buffer writer for
+ * the splitter's scheme and publishes every child envelope it produces. The writer is a
+ * plain lifecycle pair (`reset` before the stage, `append` per envelope) so `core` stays
+ * independent of any concrete buffer implementation; `@mt/waypoint` registers the
+ * in-memory entity buffers (`chunks://`, `paragraphs://`, ...).
+ */
+export interface BufferWriter {
+  /** Start a fresh buffer: drop everything a previous run left behind. */
+  reset(): void
+  /** Append one published envelope. */
+  append(env: Exchange<unknown>): void
+}
+
+/** Factory for a namespace-scoped {@link BufferWriter}. */
+export type BufferWriterFactory = (namespace: string) => BufferWriter
+
+/**
  * Logger interface — used by the engine to emit log events.
  */
 export interface Logger {

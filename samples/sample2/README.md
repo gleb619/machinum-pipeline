@@ -90,7 +90,7 @@ order.
 The chunk pipelines and the Structure Ladder, all built from shipped pieces. The package tool
 `chunkSplit`, the registered `chunks`/`series` splitters, `tokenizeChunkDetailed`, and the built-in
 entity-buffer waypoints do the work. The only local code is small mapping/rendering glue inside
-`.flatMap()` and logging inside `.tap()`; the chunk descent itself is `.subflow('#chunks')`.
+`.flatMap()` and logging inside `.tap()`; the chunk descent itself is `.subflow('#chunks', 'ladder')`, which auto-publishes the chunks for the next rung.
 
 | Pipeline | Command | Purpose |
 | --- | --- | --- |
@@ -126,17 +126,18 @@ chapters/chapter1.md
 ```
 jsonl://./jsonl/ladder.jsonl      (a chapter record)
   → chapterDocBuild + chapterIndexer + chapterDocEmit   → md://./chapters/ladder-chapters
-  → .subflow('#chunks') (md → chunks)                   → temp://chunks/ladder
-  → chunks://ladder → .subflow('#paragraphs') (chunk → paragraphs) → temp://paragraphs/ladder
-  → paragraphs://ladder → .subflow('lines://') (paragraph → lines) → temp://lines/ladder
-  → lines://ladder → .subflow('#words') (line → words)  → temp://words/ladder
+  → .subflow('#chunks', 'ladder') (md → chunks)          → auto-publish chunks://ladder
+  → chunks://ladder → .subflow('#paragraphs', 'ladder')  → auto-publish paragraphs://ladder
+  → paragraphs://ladder → .subflow('lines://', 'ladder') → auto-publish lines://ladder
+  → lines://ladder → .subflow('#words', 'ladder')        → auto-publish words://ladder
   → words://ladder → batch + summary                    → md://./chapters (chapters/ladder-summary.md)
 ```
 
 `.subflow('#paragraphs')` and `.subflow('paragraphs://')` are two spellings of the same registry
 lookup (bare `'paragraphs'` is rejected). The word rung uses the registered `wordSplitter` via
-`.subflow('#words')`. Each stage is a cardinality op plus one entity buffer: the stage writes
-`temp://<rung>/ladder`, the next reads `<rung>://ladder`.
+`.subflow('#words')`. Each stage is a cardinality op plus one entity buffer: the stage's splitter
+subflow auto-publishes into `<rung>://<namespace>`, and the next stage reads it. The namespace is
+the second argument; omitting it uses `default` (`chunks://` == `chunks://default`).
 
 The entities are the real core types (`Chapter`, `Paragraph`, `Chunk`, `Line`); `Word` is not a
 core type, so the sample declares one. The summary has one row per rung:
@@ -175,9 +176,9 @@ splits. A chapter below the target is returned unchanged as one item.
 ### Alternate route: chunks → tokens
 
 `chunks://` also branches into `tokens://` (tiktoken-style BPE tokens, what the LLM sees).
-`tokenLadderPipeline` runs jsonl → md → `temp://chunks/ladder` → `chunks://ladder` →
-`temp://tokens/ladder` → `tokens://ladder` → summary and writes
-`chapters/token-ladder-summary.md` with the chunk count, the token count and a `Heuristic` flag.
+`tokenLadderPipeline` runs jsonl → md → `chunks://ladder` → `.subflow('#tokens', 'ladder')` →
+`tokens://ladder` → summary and writes `chapters/token-ladder-summary.md` with the chunk count,
+the token count and a `Heuristic` flag.
 
 ```bash
 pnpm run runner:advanced -- --pipeline tokenLadderPipeline

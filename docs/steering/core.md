@@ -116,6 +116,7 @@ Fluent chain. The builder itself implements `Pipeline`, so it can be a `default 
 definePipeline()
   .from('chunks://ladder')
   .subflow('#paragraphs')   // 1→N split; same as 'paragraphs://' (bare 'paragraphs' is rejected)
+  .subflow('#chunks', 'ladder') // 1→N + auto-publish into chunks://ladder
   .flatMap(async (item) => [...])
   .tap((env) => { /* logging: receives the full Exchange incl. meta + variables; async OK */ })
   .log('debug')             // sugar over .tap(): logs '[debug] <id> <item>' to the console
@@ -140,7 +141,7 @@ definePipeline()
 | `.log()` | `.log(label?, { level? }?)` | Console-logging sugar over `.tap()`. Prints `[<label>] <exchange id> <item>` for every envelope; `label` defaults to the pipeline id, `level` to `'log'` (`info`/`warn`/`error`/`debug` select other `console` methods). Stream unchanged. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
 | `.batch()` | `.batch(opts?, nested?)` / `.batch(nested)` | `opts` = `number` \| `{ size?: 5, slide?: false }`. Groups items into `items[]` packages of `size`, flushing the remainder at end of stream; `slide: true` emits overlapping sliding windows instead (one per arrival). `size` must be a positive integer (`RangeError` at definition time). With `nested` (a `definePipeline()` pipeline) each package runs through it - a **batch scope**, see below. |
-| `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `lines`, `words` and `series`; `'paragraphs://ladder'` also resolves by scheme. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope (or one per branch in the parallel form). |
+| `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef, namespace?)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `chunks`, `lines`, `words`, `tokens` and `series`; `'paragraphs://ladder'` also resolves by scheme. When the scheme names an entity buffer, the produced envelopes are ALSO auto-published into `<scheme>://<namespace>` for the next stage; the optional second argument names that namespace and defaults to `default`. `series` has no buffer and only transforms the stream. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope (or one per branch in the parallel form). |
 | `.fork()` | `.fork(pipeline)` / `.fork(name, branches)` | Sequential form: runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. Parallel form: `name` must be a non-empty string and `branches` a non-empty `Pipeline[]` (validated at definition time); every branch runs concurrently per parent envelope via real `Promise.allSettled`, each on its own isolated deep-cloned envelope. One checkpoint node `${stepId}/fork-<n>/branch-<m>` is created per parent/branch in declaration order before work starts. Branch outputs are buffered and merged in declaration order (all of parent 0's branches, then parent 1's, ...); any branch failure fails the run after all branches settle, with the first failure in declaration order. |
 | `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and ends the stage → the builder, which doubles as the `Pipeline`; a further `.from()` starts the next stage (used by batch scopes). Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
 
@@ -279,8 +280,14 @@ The same registry also holds splitters, keyed by entity/buffer URI scheme:
 shortcut; a bare `'paragraphs'` is rejected so buffer references stay visibly distinct from
 pipeline ids and tool names. `'paragraphs://'` / `'paragraphs://ladder'` and `'#paragraphs'`
 resolve the same splitter; a missing splitter error lists the known schemes. A pipeline names the
-scheme in `.subflow(...)`; `@mt/tools` registers `chunks`, `paragraphs`, `lines`, `words` and
-`series` at module load.
+scheme in `.subflow(...)`; `@mt/tools` registers `chunks`, `paragraphs`, `lines`, `words`, `tokens`
+and `series` at module load.
+
+Entity buffers register a write side separately:
+`registerBufferWriter(scheme, factory)`, `hasBufferWriter(scheme)`,
+`resolveBufferWriter(scheme, namespace)` and `getBufferWriterSchemes()`. The string-form
+`.subflow('<splitter>', '<namespace>')` uses this to auto-publish its children into
+`<scheme>://<namespace>`; `@mt/waypoint` registers one writer per entity buffer.
 
 All split implementations share the `Splitter<O>` interface from `types.ts`
 (`{ name, split(env: Exchange<unknown>, ctx?: SplitterContext): O[] | Promise<O[]> }`) but keep
@@ -439,11 +446,14 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
     Subflows therefore run in declaration order, and an orchestration-only parent (no `source` /
     `target` of its own) is valid.
 - **Subflow by entity type** — `.subflow('paragraphs://')` and `.subflow('#paragraphs')` are two
-  spellings of the same registry lookup (likewise `chunks`, `lines`, `words` and `series`); bare
-  `'paragraphs'` is rejected, and a URI with a path like `'paragraphs://ladder'` also resolves by
-  scheme. The call pushes the internal `split` step: inline, same Runner, 1→N. It is deliberately **not** `.fork()`: a split
-  is a transformation of the current stream, while `.fork()` starts a child Runner per envelope
-  (or one per branch in the parallel form).
+  spellings of the same registry lookup (likewise `chunks`, `lines`, `words`, `tokens` and
+  `series`); bare `'paragraphs'` is rejected, and a URI with a path like
+  `'paragraphs://ladder'` also resolves by scheme. The call pushes the internal `split` step:
+  inline, same Runner, 1→N. When the scheme names an entity buffer, the step also
+  auto-publishes every child into `<scheme>://<namespace>` (second argument, default `default`),
+  resetting that buffer when the stage starts so a re-run replaces the old contents. It is
+  deliberately **not** `.fork()`: a split is a transformation of the current stream, while
+  `.fork()` starts a child Runner per envelope (or one per branch in the parallel form).
   The `series` splitter is document-aware: it parses with `readChapterDoc`, emits numbered
   `ChapterDoc` parts via `writeChapterDoc` only when the chapter is large enough (or a custom
   `shouldSplit` allows it), and otherwise returns the original markdown as one item.

@@ -473,10 +473,13 @@ single core `Splitter<O>` interface from `@mt/core` and keep their own logic:
   ids `${paragraphId}/line-N`, `paragraphId` from `meta` or the entity.
 - `wordSplitter` → registered as `words` — `Line`/line-text string → core `Word[]`;
   ids `${lineId}/word-N`, `paragraphId` + `lineId` from `meta` or the entity.
+- `chunkTokenSplitter` → registered as `tokens` — `Chunk`/chunk-body string → core `Token[]`
+  (the alternate rung); ids `${chunkId}/token-N`, via `tokenizeChunkDetailed`.
 
 Use with `.subflow('paragraphs://')` or the `#` shortcut `.subflow('#paragraphs')` (likewise
-`chunks`, `lines` and `words`); both resolve the same registry entry, while bare `'paragraphs'` is
-rejected.
+`chunks`, `lines`, `words` and `tokens`); both resolve the same registry entry, while bare
+`'paragraphs'` is rejected. A splitter subflow whose scheme is an entity buffer also
+auto-publishes its output into `<scheme>://<namespace>` for the next stage.
 All read the full Exchange and use the unit helpers above, so blank units are skipped.
 
 `modification/series-split.ts` registers `seriesSplitter` /

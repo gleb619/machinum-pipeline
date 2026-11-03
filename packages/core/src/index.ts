@@ -155,6 +155,8 @@ export type {
   Splitter,
   Tool,
   Target,
+  BufferWriter,
+  BufferWriterFactory,
   Envelope,
   Lifecycle,
   Logger,

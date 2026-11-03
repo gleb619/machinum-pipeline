@@ -45,6 +45,20 @@ function normalizeBatchOptions(opts: BatchOptions | number | undefined): Require
   return { size, slide: o.slide ?? false }
 }
 
+/** Default namespace of an auto-published entity buffer (`chunks://` == `chunks://default`). */
+const DEFAULT_BUFFER_NAMESPACE = 'default'
+
+/** Validate the optional namespace of `.subflow('<splitter>', '<namespace>')`. */
+function normalizeBufferNamespace(namespace: string | undefined): string {
+  const value = namespace ?? DEFAULT_BUFFER_NAMESPACE
+  if (value.length === 0 || value.includes('/')) {
+    throw new Error(
+      `.subflow(splitter, namespace): namespace must be a single non-empty segment, got '${value}'`,
+    )
+  }
+  return value
+}
+
 let warnedAboutPipelineId = false
 
 /** One-shot warning: pipeline ids cannot be inferred from the stack under bun. */
@@ -368,15 +382,30 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * URI (`'paragraphs://'` / `'paragraphs://ladder'`) or the `#scheme` shortcut; a bare
    * `'paragraphs'` is rejected. The splitter receives the full Exchange.
    *
+   * When the splitter scheme names an entity buffer (`chunks`, `paragraphs`, `lines`,
+   * `words`, `tokens`, `chapters`, `batches`), the produced envelopes are also
+   * auto-published into `<scheme>://<namespace>` for the next stage. The optional second
+   * argument names that namespace; it defaults to `default`. `series` has no buffer, so it
+   * only transforms the stream.
+   *
    * `.fork()` is per-envelope child-Runner nesting (or one child per branch in the parallel
    * form), not a split: it is too heavy for a plain 1 → N transformation.
    */
   subflow(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O>
-  subflow(splitterType: string): PipelineBuilder<unknown, O>
-  subflow(arg: Pipeline<I, unknown> | string): PipelineBuilder<unknown, O> {
+  subflow(splitterType: string, namespace?: string): PipelineBuilder<unknown, O>
+  subflow(arg: Pipeline<I, unknown> | string, namespace?: string): PipelineBuilder<unknown, O> {
     if (typeof arg === 'string') {
+      const scheme = registry.splitterScheme(arg)
       const splitter = registry.resolveSplitter<unknown>(arg)
-      this._steps.push({ type: 'split', config: { splitter, splitterType: arg } })
+      const config: Record<string, unknown> = { splitter, splitterType: arg }
+      if (registry.hasBufferWriter(scheme)) {
+        config.buffer = { scheme, namespace: normalizeBufferNamespace(namespace) }
+      } else if (namespace !== undefined) {
+        throw new Error(
+          `.subflow('${arg}', '${namespace}'): scheme '${scheme}' has no entity buffer to publish into. Known buffer schemes: ${registry.getBufferWriterSchemes().join(', ') || '(none)'}`,
+        )
+      }
+      this._steps.push({ type: 'split', config })
       return this as unknown as PipelineBuilder<unknown, O>
     }
     this._steps.push({ type: 'subflow', config: { pipeline: arg } })

@@ -106,6 +106,98 @@ describe('md source', () => {
   })
 })
 
+describe('md source — ?split=', () => {
+  let tempDir: string
+
+  const splitters = (registry as unknown as { splitters: Map<string, unknown> }).splitters
+  const fakeSplitter = {
+    name: 'md-split-test',
+    split(env: Exchange<unknown>): string[] {
+      return String(env.item).split('\n')
+    },
+  }
+
+  const uri = (path: string, split?: string): ParsedUri => ({
+    raw: `md://${path}${split ? `?split=${split}` : ''}`,
+    host: path,
+    path,
+    query: split ? { split } : {},
+  })
+
+  const sourceCtx = (): SourceContext =>
+    ({
+      run: { global: { project: { name: 'test', root: tempDir }, settings: {} } },
+    }) as unknown as SourceContext
+
+  async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+    const out: T[] = []
+    for await (const env of iterable) out.push(env)
+    return out
+  }
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'md-split-'))
+    for (const scheme of ['chunks', 'paragraphs', 'lines']) {
+      splitters.delete(scheme)
+      registry.registerSplitter(scheme, fakeSplitter)
+    }
+  })
+
+  afterEach(() => {
+    for (const scheme of ['chunks', 'paragraphs', 'lines']) splitters.delete(scheme)
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it.each(['chunks', 'paragraphs', 'lines'] as const)(
+    'emits split entities for ?split=%s instead of one envelope per file',
+    async (split) => {
+      const filePath = join(tempDir, 'chapter.md')
+      writeFileSync(filePath, '# One\n\n# Two', 'utf-8')
+
+      const results = await collect(createMdSource<string>(uri(filePath, split)).start(sourceCtx()))
+
+      expect(results.map((env) => env.item)).toEqual(['# One', '', '# Two'])
+      expect(results.map((env) => env.id)).toEqual([
+        `md:${filePath}.0`,
+        `md:${filePath}.1`,
+        `md:${filePath}.2`,
+      ])
+      expect(results.every((env) => env.meta.filePath === filePath)).toBe(true)
+      expect(results.every((env) => env.meta.parentId === `md:${filePath}`)).toBe(true)
+    },
+  )
+
+  it('keeps resume cursors counting emitted split envelopes', async () => {
+    writeFileSync(join(tempDir, 'a.md'), 'a1\na2', 'utf-8')
+    writeFileSync(join(tempDir, 'b.md'), 'b1', 'utf-8')
+
+    const source = createMdSource<string>(uri(tempDir, 'lines'))
+    if (!source.resume) throw new Error('resume not supported')
+
+    const all = await collect(source.start(sourceCtx()))
+    expect(all.map((env) => env.item)).toEqual(['a1', 'a2', 'b1'])
+
+    const tail = await collect(source.resume(sourceCtx(), 2))
+    expect(tail.map((env) => env.item)).toEqual(['b1'])
+  })
+
+  it('rejects an unknown split value and lists the allowed values', () => {
+    expect(() => createMdSource(uri(join(tempDir, 'a.md'), 'sentences'))).toThrow(
+      "unknown ?split value 'sentences' (allowed: chunks, paragraphs, lines)",
+    )
+  })
+
+  it('throws a clear error when the splitter is not registered', async () => {
+    splitters.delete('lines')
+    const filePath = join(tempDir, 'a.md')
+    writeFileSync(filePath, 'one line', 'utf-8')
+
+    await expect(
+      collect(createMdSource<string>(uri(filePath, 'lines')).start(sourceCtx())),
+    ).rejects.toThrow(/\?split=lines requires a splitter named 'lines'.*@mt\/tools/)
+  })
+})
+
 describe('md target', () => {
   let tempDir: string
   let filePath: string

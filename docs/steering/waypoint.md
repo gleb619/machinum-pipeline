@@ -9,14 +9,14 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`, `review://`, `events://`, `temp://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`, `review://`, `events://`.
 
 ## URI Scheme Reference
 
 | ID | Scheme | File | Source | Target | Notes |
 |---|---|---|---|---|---|
 | WT001 | `jsonl://./file.jsonl` | `jsonl.ts` | ✓ | ✓ | Supports glob patterns for source |
-| WT002 | `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; `?series=true` splits each document with the registered `series` splitter before writing |
+| WT002 | `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; source `?split=chunks\|paragraphs\|lines` fans each file out with the registered splitter; target `?series=true` splits each document with the registered `series` splitter before writing |
 | WT003 | `hs://` / `http://` | `http-server.ts` | ✓ | — | Long-lived HTTP POST endpoint |
 | WT004 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout |
 | WT005 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
@@ -26,7 +26,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | WT009 | `console://` | `console.ts` | — | ✓ | Terminal sink (stdout/stderr), per-envelope, target-only |
 | WT010 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
 | WT011 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
-| WT012 | `temp://<entity>/<namespace>` | `entity-buffers.ts` | — | ✓ | In-memory write side for a typed entity buffer (`temp://chunks/ladder` → `chunks://ladder`) |
+| WT012 | — | — | — | — | Retired write-side scheme: a string-form splitter subflow now auto-publishes into the matching `WT015` buffer |
 | WT013 | `ephemeral://<namespace>` | `ephemeral.ts` | ✓ | ✓ | Process-local in-memory buffer; target clears on open |
 | WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ | Scope-local views of `.batch(opts, nested)` |
 | WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | Typed entity-buffer family: `batches`, `chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`; ladder rungs are source-only |
@@ -56,9 +56,10 @@ annotationsOf(createJsonlSource) // [{ kind: 'waypoint', id: 'WT001', … }]
 
 Scan the process-wide registry with `pnpm annotations --kind waypoint`. The
 `entity-buffers.ts` family keeps one annotation per export with `meta.schemes` covering
-all seven buffers (`WT015`), so `WT012` is only the `temp://` write side.
+all seven buffers (`WT015`). `WT012` is retired: splitter subflows auto-publish their
+children into the `WT015` buffer instead of a separate write-side scheme.
 
-Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [Structure Ladder](#structure-ladder) below. Ladder rungs are **source-only** (creational); write their output through `temp://<entity>/<namespace>`. `batches://` is a non-ladder package buffer and stays bidirectional.
+Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [Structure Ladder](#structure-ladder) below. Ladder rungs are **source-only** (creational); a string-form splitter subflow auto-publishes its output into the matching rung buffer. `batches://` is a non-ladder package buffer and stays bidirectional.
 
 ## Source/Target Shape
 
@@ -241,6 +242,12 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   `baseDir` via `relative()` (no `..` prefix) as defence in depth
 
 ### `md.ts`
+- Source query `?split=chunks|paragraphs|lines` reads each markdown file, resolves the
+  registered splitter (`#chunks`, `#paragraphs`, `#lines`) and emits one envelope per split
+  entity instead of one envelope per file. Without the parameter the source is unchanged.
+  An unknown value throws at factory time listing the allowed values; a missing splitter throws
+  a clear error when the source starts (`@mt/tools` registers `chunks`/`paragraphs`/`lines`).
+  Resume cursors count emitted split envelopes, so `resume(ctx, n)` skips exactly `n` of them.
 - Target query `?series=true` (or `?series=1`) is syntax sugar for `.subflow('#series')` +
   `.to('md://...')`: each incoming markdown item is passed through `registry.resolveSplitter('series')`
   (with `{ run }` as context) and every part is written through the normal file/dir path. File
@@ -299,7 +306,7 @@ packages/waypoint/tests/builtins/
 ├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
 ├── console.test.ts / console.arch.test.ts # terminal sink formatting, prefix/envelope/stream, target-only registration
 ├── review.test.ts / review.arch.test.ts # glossary review queue render + atomic write; target-only registration
-├── entity-buffers.test.ts # entity buffer schemes: source-only rungs, temp:// write side, namespace isolation
+├── entity-buffers.test.ts # entity buffer schemes: source-only rungs, auto-publish, namespace isolation
 └── settings.test.ts
 ```
 
@@ -322,7 +329,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 | WP009 | void://          | —      | ✓      | —             | sample2                                   |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
 | WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | — | resumable | sample2 (`paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
-| WP012 | temp:// | — | ✓ | — | sample2 (write side of the ladder rungs) |
+| WP012 | — (retired) | — | — | — | auto-publish replaces the former write-side scheme |
 | WP013 | console:// | — | ✓ | — | sample2 (`consolePreviewPipeline`) |
 
 ---
@@ -340,7 +347,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 | 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
 | 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
 | 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | — | resumable | — | `T` | Entity-level **source-only** ladder views over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
-| 12    | WP012 | `temp://<entity>/<namespace>` | — | ✓ | — | `T` | — | Target-only in-memory write side for an entity buffer; `temp://chunks/ladder` fills the buffer that `chunks://ladder` reads. |
+| 12    | WP012 | — (retired) | — | — | — | — | — | Splitter subflows auto-publish into the entity buffer; no write-side URI scheme. |
 | 13    | WP013 | `console://` | — | ✓ | — | `T` | — | Target-only terminal sink; prints each envelope to stdout/stderr immediately; `format=auto\|json\|pretty`, optional `prefix`, `envelope`, `stream`; deliberately no `checkpoint()`. |
 
 ## Structure Ladder
@@ -381,8 +388,8 @@ import '@mt/tools'                          // registers chunks/paragraphs/lines
 
 export default definePipeline()
   .from('md://./chapters/')                 // level 1 — one envelope per chapter (string body)
-  .subflow('#chunks')                       // level 2 — chapter markdown → Chunk[] (MT_CHUNK_SIZE)
-  .to('temp://chunks/chapters')             // level 2 — write the chunks into the in-memory buffer
+  .subflow('#chunks', 'chapters')           // level 2 — chapter markdown → Chunk[] (MT_CHUNK_SIZE)
+                                            //           and auto-publish into chunks://chapters
 ```
 
 The `chunks` splitter is the shipped form of the manual `readChapterDoc` + `splitIntoChunks` +
@@ -396,8 +403,10 @@ tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — wh
 
 Rung 0 (`jsonl://`) is the entry point for machine-readable input; rungs 2–5 and `tokens://` are process-local buffers, so
 a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`). These rungs are
-source-only: a stage writes with `.to('temp://<rung>/<namespace>')` and the next stage reads `.from('<rung>://<namespace>')`.
-Use `batches://` when a package must survive the hop between pipelines as one envelope (it is not a ladder rung).
+source-only. A string-form splitter subflow `.subflow('#<rung>', '<namespace>')` publishes its children into
+`<rung>://<namespace>`; the next stage reads `.from('<rung>://<namespace>')`. The namespace defaults to `default`, so
+`.subflow('#chunks')` fills `chunks://` == `chunks://default`. Use `batches://` when a package must survive the hop
+between pipelines as one envelope (it is not a ladder rung).
 
 ### Batch scope waypoints: `batch://group|members|return`
 

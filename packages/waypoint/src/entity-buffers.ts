@@ -1,6 +1,11 @@
-import type { ParsedUri, Source, Target } from '@mt/core'
+import type { BufferWriter, ParsedUri, Source, Target } from '@mt/core'
 import { annotate, registry, waypoint } from '@mt/core'
-import { createNamedEphemeralSource, createNamedEphemeralTarget } from './ephemeral.js'
+import {
+  appendNamedBuffer,
+  createNamedEphemeralSource,
+  createNamedEphemeralTarget,
+  resetNamedBuffer,
+} from './ephemeral.js'
 
 /**
  * Entity-level shortcuts for the in-memory buffer.
@@ -17,9 +22,9 @@ import { createNamedEphemeralSource, createNamedEphemeralTarget } from './epheme
  *   words://<namespace>       Word envelopes
  *
  * Ladder rungs (`chapters://` ... `words://`, `tokens://`) are **creational**, not
- * terminal: they are registered as sources only. A stage hands its output to the
- * write side, `temp://<entity>/<namespace>`, and the next stage reads it back
- * through the typed rung (`chunks://ladder` <- `temp://chunks/ladder`).
+ * terminal: they are registered as sources only. A string-form splitter subflow
+ * auto-publishes its children into the matching buffer, so
+ * `.subflow('#chunks', 'ladder')` fills `chunks://ladder` for the next stage.
  * `batches://` stays a bidirectional package buffer because it is not a ladder rung.
  *
  * Not to be confused with `batch://group|members|return` (`batch-scope.ts`): those are the
@@ -43,19 +48,24 @@ export const LADDER_BUFFER_SCHEMES = [
 /** Package buffers: `batches://` is both a source and a target (not a ladder rung). */
 export const PACKAGE_BUFFER_SCHEMES = ['batches'] as const
 
-/** Every buffer key space understood by `temp://<entity>/<namespace>`. */
+/** Every entity buffer key space understood by the entity-buffer waypoints. */
 export const ENTITY_BUFFER_SCHEMES = [...PACKAGE_BUFFER_SCHEMES, ...LADDER_BUFFER_SCHEMES] as const
 
 export type LadderBufferScheme = (typeof LADDER_BUFFER_SCHEMES)[number]
 export type PackageBufferScheme = (typeof PACKAGE_BUFFER_SCHEMES)[number]
 export type EntityBufferScheme = (typeof ENTITY_BUFFER_SCHEMES)[number]
 
-/** Resolve the concrete buffer key for a scheme + URI. */
-export function entityBufferKey(scheme: EntityBufferScheme, uri: ParsedUri): string {
-  return `${scheme}:${uri.path || uri.host || 'default'}`
+/** Resolve the concrete buffer key for a scheme + namespace. */
+export function entityBufferKeyForNamespace(scheme: EntityBufferScheme, namespace: string): string {
+  return `${scheme}:${namespace || 'default'}`
 }
 
-/** Source for an entity namespace (reads what the matching target wrote). */
+/** Resolve the concrete buffer key for a scheme + URI. */
+export function entityBufferKey(scheme: EntityBufferScheme, uri: ParsedUri): string {
+  return entityBufferKeyForNamespace(scheme, uri.path || uri.host)
+}
+
+/** Source for an entity namespace (reads what auto-publish or a package target wrote). */
 export function createEntityBufferSource<T>(scheme: EntityBufferScheme, uri: ParsedUri): Source<T> {
   return createNamedEphemeralSource<T>(uri, entityBufferKey(scheme, uri))
 }
@@ -66,39 +76,25 @@ export function createEntityBufferTarget<T>(scheme: EntityBufferScheme, uri: Par
 }
 
 /**
- * Write side of an entity buffer: `temp://<entity>/<namespace>`.
- *
- * Target-only. It stores envelopes under the same key the matching typed source
- * (`<entity>://<namespace>`) reads, so a ladder rung never needs a writable scheme
- * of its own.
+ * Write side used by string-form `.subflow('<splitter>', '<namespace>')` auto-publish.
+ * It shares the key space of the typed sources above, so `chunks` + `ladder` fills the
+ * buffer that `chunks://ladder` reads.
  */
-export function createTempBufferTarget<T>(uri: ParsedUri): Target<T> {
-  const scheme = uri.host
-  const namespace = uri.path.replace(/^\/+/, '')
-  if (!scheme) {
-    throw new Error(
-      `temp:// needs an entity scheme: temp://<entity>/<namespace> (Known: ${ENTITY_BUFFER_SCHEMES.join(', ')})`,
-    )
+export function createEntityBufferWriter(
+  scheme: EntityBufferScheme,
+  namespace: string,
+): BufferWriter {
+  const key = entityBufferKeyForNamespace(scheme, namespace)
+  return {
+    reset(): void {
+      resetNamedBuffer(key)
+    },
+    append(env): void {
+      appendNamedBuffer(key, env)
+    },
   }
-  if (!(ENTITY_BUFFER_SCHEMES as readonly string[]).includes(scheme)) {
-    throw new Error(
-      `Unknown entity buffer scheme '${scheme}' in ${uri.raw} (Known: ${ENTITY_BUFFER_SCHEMES.join(', ')})`,
-    )
-  }
-  if (namespace.includes('/')) {
-    throw new Error(`temp:// namespace must be a single segment in ${uri.raw} (got '${namespace}')`)
-  }
-  return createNamedEphemeralTarget<T>(uri, `${scheme}:${namespace || 'default'}`)
 }
 
-annotate(
-  createTempBufferTarget,
-  waypoint('WT012', {
-    name: 'temp buffer target',
-    description: 'Writes into the in-memory buffer read by a typed entity scheme.',
-    meta: { schemes: ['temp'], direction: 'target' },
-  }),
-)
 annotate(
   createEntityBufferSource,
   waypoint('WT015', {
@@ -127,5 +123,7 @@ for (const scheme of PACKAGE_BUFFER_SCHEMES) {
   registry.registerTarget(scheme, (uri: ParsedUri) => createEntityBufferTarget(scheme, uri))
 }
 
-// The single write side for every entity buffer, including source-only ladder rungs.
-registry.registerTarget('temp', createTempBufferTarget)
+// Splitter subflows auto-publish into every entity buffer (ladder rungs included).
+for (const scheme of ENTITY_BUFFER_SCHEMES) {
+  registry.registerBufferWriter(scheme, (namespace) => createEntityBufferWriter(scheme, namespace))
+}

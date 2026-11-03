@@ -10,6 +10,21 @@ import { resumeFrom } from './resume.js'
  */
 const buffers = new Map<string, Exchange[]>()
 
+/** Clear a named buffer (used by both `ephemeral://` targets and auto-publish). */
+export function resetNamedBuffer(name: string): void {
+  buffers.set(name, [])
+}
+
+/** Append one envelope to a named buffer. */
+export function appendNamedBuffer<T>(name: string, env: Exchange<T>): void {
+  const batch = buffers.get(name)
+  if (batch) {
+    batch.push(env as Exchange<unknown>)
+  } else {
+    buffers.set(name, [env as Exchange<unknown>])
+  }
+}
+
 /** Default buffer name for `ephemeral://`: the URI path, else host. */
 function defaultBufferName(uri: ParsedUri): string {
   return uri.path || uri.host
@@ -70,15 +85,10 @@ export function createNamedEphemeralTarget<T>(uri: ParsedUri, bufferName: string
   return {
     uri: uri.raw,
     async open(_ctx: TargetContext): Promise<void> {
-      buffers.set(bufferName, [])
+      resetNamedBuffer(bufferName)
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
-      const batch = buffers.get(bufferName)
-      if (!batch) {
-        buffers.set(bufferName, [env])
-      } else {
-        batch.push(env)
-      }
+      appendNamedBuffer(bufferName, env)
     },
     async close(_ctx: TargetContext): Promise<void> {
       // No-op: buffer stays in memory for downstream sources

@@ -6,11 +6,13 @@ import type {
   Paragraph,
   Splitter,
   SplitterContext,
+  Token,
   ToolContext,
   Word,
 } from '@mt/core'
 import { readChapterDoc } from '../modification/chapter-doc.js'
 import { resolveChunkSize, splitIntoChunks } from './chunk-separator.js'
+import { tokenizeChunkDetailed } from './chunk-tokens.js'
 import { tokenizeWords } from './stat-freq.js'
 import { heuristicTokenCount, splitLineUnits, splitParagraphUnits } from './token-splitter.js'
 
@@ -186,7 +188,41 @@ export const wordSplitter: Splitter<Word> = {
   },
 }
 
+/**
+ * Chunk → Token splitter (the alternate descent, sibling of paragraphs). Accepts a
+ * chunk body string or a `Chunk`-like object with `id` and `body`; ids are
+ * `${chunkId}/token-N`.
+ */
+export const chunkTokenSplitter: Splitter<Token> = {
+  name: 'token-splitter',
+  async split(env) {
+    const item = asRecord(env.item)
+    const body =
+      typeof env.item === 'string'
+        ? env.item
+        : item !== undefined && typeof item.body === 'string'
+          ? item.body
+          : undefined
+    if (body === undefined) {
+      throw new Error('tokenSplitter: item must be a string or a Chunk-like object with body')
+    }
+    const chunkId =
+      item !== undefined && typeof item.id === 'string'
+        ? item.id
+        : (metaString(env, 'chunkId') ?? env.id)
+    const { tokens } = await tokenizeChunkDetailed(body)
+    return tokens.map((token, index) => ({
+      id: `${chunkId}/token-${index + 1}`,
+      chunkId,
+      tokenId: token.tokenId,
+      text: token.text,
+      index,
+    }))
+  },
+}
+
 registry.registerSplitter('chunks', chunkSplitter)
 registry.registerSplitter('paragraphs', paragraphSplitter)
 registry.registerSplitter('lines', lineSplitter)
 registry.registerSplitter('words', wordSplitter)
+registry.registerSplitter('tokens', chunkTokenSplitter)

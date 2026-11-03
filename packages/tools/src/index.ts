@@ -444,6 +444,7 @@ export {
   paragraphSplitter,
   lineSplitter,
   wordSplitter,
+  chunkTokenSplitter,
 } from './normalization/entity-splitters.js'
 
 export {
