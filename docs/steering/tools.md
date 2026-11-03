@@ -22,7 +22,8 @@ Every exported tool carries sealed runtime annotations in its `defineTool({ anno
 config: `tool('TL...', { name, description, refs: ['UC...'] })` plus `useCase('UC...')`. Composable
 tools (built from slots) are wrapped with `annotate(...)` instead. `tool` IDs are unique across
 `@mt/tools`; aliased exports share one annotation. Read them with
-`annotationOf(value, 'tool')` / `annotationsOf(value)`. UC refs index [../guiding/uc.md](../guiding/uc.md).
+`annotationOf(value, 'tool')` / `annotationsOf(value)`, or list the registry with
+`pnpm annotations --kind tool`. UC refs index [../guiding/uc.md](../guiding/uc.md).
 
 ### `chapter-validator.ts`
 - `chapterValidator` — structural markdown validation (heading hierarchy, code block languages, link integrity)

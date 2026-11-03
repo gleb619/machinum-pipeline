@@ -6,6 +6,7 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "annotations": "tsx scripts/annotations.ts",
     "lint": "biome check .",
     "lint:md": "markdownlint-cli2",
     "format": "biome check --write .",

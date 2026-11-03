@@ -54,7 +54,7 @@ registry.registerSource('jsonl', createJsonlSource)
 annotationsOf(createJsonlSource) // [{ kind: 'waypoint', id: 'WT001', … }]
 ```
 
-Scan the process-wide registry with `mt annotations --kind waypoint`. The
+Scan the process-wide registry with `pnpm annotations --kind waypoint`. The
 `entity-buffers.ts` family keeps one annotation per export with `meta.schemes` covering
 all seven buffers (`WT015`), so `WT012` is only the `temp://` write side.
 

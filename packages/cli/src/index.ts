@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { annotationsCommand } from './commands/annotations.js'
 import { explainCommand } from './commands/explain.js'
 import { initCommand } from './commands/init.js'
 import { inspectCommand } from './commands/inspect.js'
@@ -15,9 +14,6 @@ export async function main(): Promise<void> {
   const command = args[0] ?? ''
 
   switch (command) {
-    case 'annotations':
-      await annotationsCommand(args.slice(1))
-      break
     case 'init': {
       const { parseInitArgs } = await import('./utils/args.js')
       const initOptions = parseInitArgs(args.slice(1))
@@ -93,7 +89,6 @@ Commands:
   resume <runId>         Resume a paused/failed run
   ls runs                List all runs
   inspect <runId>        Show run details
-  annotations [files...] List runtime annotations (--kind, --json)
   tool <name>            Invoke a tool standalone [--pipeline <file>] (JSON envelope on stdin/stdout)
   serve [-d|--detach]    Start admin backend
   router [opts]          Start LLM router proxy (--help)

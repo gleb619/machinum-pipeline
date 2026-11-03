@@ -106,8 +106,8 @@ The engine exposes one annotation mechanism with three sealed kinds: `tool` (`TL
 (`WT###`) and `useCase` (`UC###`). Annotate a runtime value with `annotate()` and read it back with
 `annotationsOf()` / `listAnnotations(kind?)`; the IDs are the stable references used by the tables in
 this document and in [tools.md](../steering/tools.md) / [waypoint.md](../steering/waypoint.md).
-Use-case IDs are machine-readable: `mt annotations --kind useCase` (add `--json` for tooling) lists
-every `UC###` registered by the loaded pipelines.
+Use-case IDs are machine-readable: `pnpm annotations --kind useCase` (add `--json` for tooling) lists
+every `UC###` registered by the built `@mt/core`, `@mt/waypoint` and `@mt/tools` modules.
 
 ---
 

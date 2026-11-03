@@ -254,7 +254,7 @@ export const chapterValidator = defineTool({
   and methods. It deliberately avoids `context.metadata`, so the project does not need the `ESNext`
   lib or `experimentalDecorators`.
 - **Coverage** — `@mt/tools` annotates every exported tool, `@mt/waypoint` every scheme factory, and
-  CLI/engine entry points carry their `UC###`. `mt annotations` lists the registry; package tests
+  CLI/engine entry points carry their `UC###`. `pnpm annotations` lists the registry; package tests
   enforce coverage and ID uniqueness.
 
 ### `uri.ts` — `UriRegistry`

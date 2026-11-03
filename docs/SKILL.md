@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.11.0 | 2026-11-03 -->
+<!-- skill-version: 1.11.1 | 2026-11-03 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -147,7 +147,6 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt ls runs` | table of runs (id, pipeline, state, start) |
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
-| `mt annotations [pipeline.ts ...] [--kind tool\|waypoint\|useCase] [--json]` | list runtime annotations; pipeline files are imported first, `--kind` filters, `--json` prints an array |
 | `mt serve [--port N\|0] [--host H] [-d\|--detach]` | admin API + UI + SSE; detached state in `.mt/backend/{pid,server.log}` |
 | `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | keyless LLM gateway + dashboard; token only via `MT_ROUTER_TOKEN` |
 | `mt vault <sub>` | secrets, see below |
@@ -163,7 +162,6 @@ mt explain ./pipelines/example.ts --json      # same, machine-readable
 mt ls runs
 mt resume 8f3a1c2e                      # after a crash or Ctrl-C
 echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
-mt annotations --kind useCase --json   # machine-readable UC### ids registered by loaded pipelines
 ```
 
 ### Explain a pipeline before running it
