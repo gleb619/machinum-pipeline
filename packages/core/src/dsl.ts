@@ -401,10 +401,14 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * (`label` defaults to the pipeline id). Pass a string as shorthand for `{ label }`.
    */
   log(options?: string | LogOptions): PipelineBuilder<I, O> {
-    const { label = this._id, level = 'log' } =
+    const { label = this._id, level = 'log', truncate = false } =
       typeof options === 'string' ? { label: options } : (options ?? {})
     return this.tap((ex) => {
-      console[level](`[${label}]`, ex.id, ex.item)
+      console[level](
+        `[${label}]`,
+        ex.id,
+        truncate ? truncateText(ex.item as string) : ex.item,
+      )
     })
   }
 }
@@ -418,6 +422,23 @@ export interface LogOptions {
   label?: string
   /** Console method to call. Default `'log'`. */
   level?: LogLevel
+  /** If `true`, truncate long text to `LOG_TEXT_MAX_LENGTH` chars (start + "..." + end + length). */
+  truncate?: boolean
+}
+
+/** Max text length (chars) for `.log()` truncation: cut center, concat start + "..." + end, show length. */
+export const LOG_TEXT_MAX_LENGTH = 200
+
+/** Truncate text for logging: cut the center, concat start + "..." + end, and report the original length.
+ * For text longer than `maxLength`, returns `<start>...<end> (length: N chars)`; otherwise returns the text unchanged. */
+export function truncateText(text: string, maxLength: number = LOG_TEXT_MAX_LENGTH): string {
+  if (text.length <= maxLength) return text
+  const ellipsis = '...'
+  const available = maxLength - ellipsis.length
+  const half = Math.floor(available / 2)
+  const start = text.slice(0, half)
+  const end = text.slice(-Math.ceil(available / 2))
+  return `${start}${ellipsis}${end} (length: ${text.length} chars)`
 }
 
 /**

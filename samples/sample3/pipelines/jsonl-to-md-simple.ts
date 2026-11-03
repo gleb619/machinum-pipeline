@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { definePipeline, defineTool } from '@mt/core'
+import { definePipeline, defineTool, getVariable } from '@mt/core'
 import {
   chapterDoc,
   chapterIndexer,
@@ -28,8 +28,9 @@ const verifyFlow = definePipeline()
   .use(chapterIndexer)
   .use(chapterValidator)
   .use(forbiddenCharDetector)
+  .tap((ex) => console.log('[forbidden] findings:', getVariable(ex, 'forbidden')))
   .use(tokenCounter)
-  .log('[verify]')
+  .log('[verify]', { truncate: true })
   .to('@en')
 
 // === Flow 2: MD(EN) → MD(RU) simple translation ===
