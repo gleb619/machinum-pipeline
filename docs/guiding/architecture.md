@@ -60,6 +60,10 @@ Cardinality changes only via DSL ops (`.batch(opts?)`, `.flatMap()`).
 Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [steering/waypoint.md](../steering/waypoint.md#structure-ladder).
 
 A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) and the process/suite factory (`defineProcess` — plain for setup, `defineProcess([...])` for a sync-by-default suite with `.parallel(true)`) are only the orchestration grammar; `mt run <file>` runs the default pipeline/suite, or an implicit suite of all exported pipelines.
+`mt explain <file>` loads the same runnable and prints the declared dataflow, effective policy, nested
+scopes and runtime artifact paths **without** constructing a Runner or writing `.mt` state. The module
+is still imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no
+source, tool, target or hook is started.
 
 ---
 
@@ -74,7 +78,7 @@ A pipeline is a real TypeScript module — `import`, `console.log`, conditionals
 | **Exchange** | `{ id, item, items?, meta, variables }` — `item` mirrors the `item` variable (payload history via `old`); single or batch; `Envelope` = deprecated alias | [`core.md`](../steering/core.md) |
 | **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](../steering/core.md) |
 | **Pipeline DSL** | `defineProcess()` factory + `.from()` `.use()` `.useAll()` `.tap()` `.flatMap()` `.batch()` `.fork()` `.subflow()` `.to()` | [`core.md`](../steering/core.md#dslts--pipelinebuilder) |
-| **Run state** | `pending → running → [checkpoint → paused → resumed →] done/failed` | [`core.md`](../steering/core.md) |
+| **Run state** | `pending → running → done/failed`; pause is `running → paused → resumed → running`. `checkpoint` is allowed but not entered by the current Runner | [`core.md`](../steering/core.md) |
 | **Checkpoint tree** | Persisted depth-first replay graph; resume skips `done` nodes | [`core.md`](../steering/core.md) |
 
 ---
@@ -108,7 +112,7 @@ For full workspace layout, see [`structure.md`](../steering/structure.md).
 
 ## 5. Key Runtime Concepts (Summary)
 
-- **Run lifecycle**: `pending → running → checkpoint → paused → resumed → done | failed`. Every state transition writes atomically to `.mt/runs/<runId>/state.json` (temp + rename), plus mid-run: every `runner.persist.every` target writes (default 50) and at each target-step boundary, throttled via a single in-flight persist + dirty flag. The persisted source cursor is clamped to the target's durably committed count (`Target.checkpoint?()`), so a crash resume never skips items whose output has not reached durable storage; targets that only publish on `close()` (temp+rename) leave the cursor at the pre-run position and resume replays safely.
+- **Run lifecycle**: `pending → running → done | failed`; pause is `running → paused → resumed → running`, and resume re-runs a failed/paused run. `checkpoint` is a legal transition target but the current Runner never enters it. Every persisted state transition writes atomically to `.mt/runs/<runId>/state.json` (temp + rename), plus mid-run: every `runner.persist.every` target writes (default 50) and at each target-step boundary, throttled via a single in-flight persist + dirty flag. The persisted source cursor is clamped to the target's durably committed count (`Target.checkpoint?()`), so a crash resume never skips items whose output has not reached durable storage; targets that only publish on `close()` (temp+rename) leave the cursor at the pre-run position and resume replays safely.
 - **Concurrency**: In-process only (`p-limit`-style limiter from URI/DSL/global); tools always run in-process via `tool.invoke()`; `.fork()` creates nested checkpoint subtrees; `.subflow()` is the lightweight in-process variant.
 - **Retry & error**: `RetryPolicy` (`fixed` | `linear` | `exp`); `ErrorPolicy` (`fail-run` | `skip-item` | `dead-letter`). Merge order: tool step > pipeline > global (`mt.json`). Dead-letter writes to `.mt/runs/<id>/dead-letter.jsonl`.
 - **Caching**: When `cacheable === true`, output is memoised by content hash at `.mt/cache/<hash>.json`. Replay short-circuits the tool; cache is never required for correctness.
@@ -201,7 +205,7 @@ Every topic below links to the steering file that holds the full specification, 
 | Tech stack, Biome, TypeScript rules, naming, import layers | [`tech.md`](../steering/tech.md) |
 | Workspace layout, package map, source trees, key rules | [`structure.md`](../steering/structure.md) |
 | Core: types (`Exchange`, `Source`, `Tool`, `Target`), DSL, URI registry, Runner, checkpoint tree, state machine, retry, cache, store | [`core.md`](../steering/core.md) |
-| CLI commands (`init`, `run`, `resume`, `ls`, `inspect`, `serve`, `router`, `mcp`) | [`cli.md`](../steering/cli.md) |
+| CLI commands (`init`, `run`, `explain`, `resume`, `ls`, `inspect`, `serve`, `router`, `mcp`) | [`cli.md`](../steering/cli.md) |
 | Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](../steering/tools.md) |
 | URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`, `range`, `void`) | [`waypoint.md`](../steering/waypoint.md) |
 | Backend (Nuxt): routes, SSE, SQLite, runner registry, frontend integration | [`backend.md`](../steering/backend.md) |

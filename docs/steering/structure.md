@@ -83,6 +83,7 @@ packages/cli/src/
 ├── index.ts          # main(); arg parsing, command dispatch
 ├── commands/
 │   ├── run.ts        # mt run <pipeline>
+│   ├── explain.ts    # mt explain <pipeline> (declaration view, no execution)
 │   ├── resume.ts     # mt resume <runId>
 │   ├── init.ts       # mt init
 │   ├── list.ts       # mt ls runs
@@ -139,10 +140,13 @@ Created by `mt init` in consumer projects, not part of this repo.
 ```
 .mt/
 ├── runs/<runId>/
-│   ├── state.json        # State machine snapshot
-│   ├── checkpoint.json   # Checkpoint tree (resume source of truth)
+│   ├── state.json        # State machine snapshot + checkpoint tree (resume source of truth)
+│   ├── context.json      # Frozen run context
 │   ├── events.jsonl      # Append-only event log (SSE source)
-│   └── dead-letter.jsonl # Failed envelopes (when onError: 'dead-letter')
+│   ├── run.log           # CLI lifecycle log
+│   ├── logs/<stepId>.log # Per-step engine/tool/source/target logs
+│   ├── dead-letter.jsonl # Failed envelopes (when onError: 'dead-letter')
+│   └── artifacts/        # Tool/target intermediate outputs
 └── cache/                # Tool output memoisation (content-hash keyed)
 ```
 

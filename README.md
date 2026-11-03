@@ -15,7 +15,8 @@ and watch it live.
 ## Key ideas
 
 - **Pipelines as code** — a pipeline is a plain TypeScript module. Use real imports, conditionals, loops. No YAML
-  orchestration language to learn.
+  orchestration language to learn. `mt explain` imports the module to show the declared flow, events and log
+  paths without starting a run.
 - **Everything is resumable** — progress is recorded in a checkpoint tree. A crashed or paused run picks up exactly
   where it stopped; completed work is never redone.
 - **Composable tools** — small single-purpose tools chain together. Fan out with `flatMap`, group with `batch`,
@@ -46,7 +47,8 @@ and watch it live.
 # As a library / CLI from npm
 npm i mt tsx
 # pipeline.ts:  import { definePipeline } from 'mt'; import { chapterDoc } from 'mt/tools'
-NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts
+NODE_OPTIONS='--import tsx' npx mt explain ./pipeline.ts   # inspect the declared flow, no execution
+NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts       # execute
 
 # Or as one self-contained binary (no node needed): build with Bun
 pnpm build:bin && ./packages/mt/dist/bin/mt run ./pipeline.ts

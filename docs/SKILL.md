@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.10.0 | 2026-11-03 -->
+<!-- skill-version: 1.11.0 | 2026-11-03 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -22,7 +22,7 @@ mt.local.json        optional, gitignored; pulled in via "imports": ["./mt.local
 .env                 secrets.envFile (gitignored); process.env always wins over it
 pipelines/*.ts       pipeline modules (default export = the pipeline)
 .mt/                 state dir (gitignored)
-  runs/<runId>/      state.json, checkpoint.json, events.jsonl, dead-letter.jsonl, artifacts/
+  runs/<runId>/      state.json, context.json, events.jsonl, run.log, logs/, dead-letter.jsonl, artifacts/
   cache/             content-hash memo for cacheable tools
   vault.json         vault entries (refs only, never plaintext keys)
   master.key         master key for the embedded secret store (0600, gitignored, back it up)
@@ -141,6 +141,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 |---|---|
 | `mt init [--settings <json>\|-s] [--force] [--no-master-key]` | scaffold project; `--settings` also writes `pipelines/example.ts`; `--force` overwrites |
 | `mt run <pipeline.ts>` | run in foreground; runs `scripts.start/end/error/stop/exit` hooks; Ctrl-C pauses |
+| `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | import the module but describe the declared dataflow without running it; no `GlobalContext`/`.env`/vault, no run id or `.mt` writes |
 | `mt install [--pipeline <name>]` | run the `scripts.install` hook pipeline |
 | `mt resume <runId> [pipeline.ts]` | resume from the first non-done node; file comes from `state.json` unless given |
 | `mt ls runs` | table of runs (id, pipeline, state, start) |
@@ -157,11 +158,33 @@ Examples:
 
 ```bash
 mt init && mt run ./pipelines/example.ts
+mt explain ./pipelines/example.ts             # flow, events and log paths; no execution
+mt explain ./pipelines/example.ts --json      # same, machine-readable
 mt ls runs
 mt resume 8f3a1c2e                      # after a crash or Ctrl-C
 echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
 mt annotations --kind useCase --json   # machine-readable UC### ids registered by loaded pipelines
 ```
+
+### Explain a pipeline before running it
+
+`mt explain <pipeline.ts> [--pipeline <name>] [--json]` imports the same runnable `mt run` would use
+and prints:
+
+- dataflow and per-step cardinality; step-effective retry/`onError` (pipeline/step values win over project fallbacks), tool-step `concurrency` (ordered `mapConcurrent`, output order preserved), cacheable/idempotent flags
+  (cacheable tools later memoize under `.mt/cache/<hash>.json`; explain writes none);
+- declared pipeline `envDefaults` (`defineProcess().config({ env })`; applied only when the key is unset in `process.env`/mt.json env) and the declared `mt.json` LLM pick (env `MT_LLM_TOOL`/`MT_LLM_MODEL` override it);
+- nested `fork`/`subflow`/`batch` scopes and their checkpoint-node patterns;
+- lifecycle hooks, state machine, event order/types and every run artifact path (`state.json`,
+  `context.json`, `events.jsonl`, `run.log`, `logs/<stepId>.log`, `dead-letter.jsonl`, `artifacts/`);
+- warnings for unresolved URI aliases, duplicate/default pipeline ids, and hand-built invalid steps.
+
+It is read-only at the runtime level: the module is imported (top-level code runs), but no
+`GlobalContext`, `.env` or vault is loaded, no Runner/source/tool/target/hook starts, and no run id or
+`.mt/runs/<runId>/` directory is created. Import-time stdout is redirected to stderr, so `--json`
+stdout is always one parseable JSON document. Markdown by default; `--json` is stable
+(`schemaVersion: 1`). Run it from the project root: like `mt run`, it resolves `mt.json` and relative
+URIs from the current working directory.
 
 ### Install `mt`
 
@@ -288,12 +311,16 @@ through. An explicit tool-factory option (e.g. `chunkSize`) still beats the chai
 
 ## Run lifecycle, events, resume
 
-`pending -> running -> [checkpoint -> paused -> resumed ->] done | failed`. `paused -> done` is illegal.
+`pending -> running -> done | failed`; Ctrl-C is `running -> paused -> resumed -> running`, and
+`mt resume` re-runs a failed/paused run. `checkpoint` is a legal transition target but the current
+Runner never enters it. `paused -> done` is illegal.
 
-- Order per event: `state.json` write -> `events.jsonl` append -> in-process listeners.
+- Order per event: run-level events write `state.json` + `context.json`, then append `events.jsonl`,
+  then notify listeners. `step-done` appends `events.jsonl` then notifies listeners; its checkpoint
+  persist is scheduled/coalesced (not before the event).
 - Event types: `started`, `step-done` (with `stepId`), `paused`, `resumed`, `done`, `failed` (with `error`).
-- Checkpoint tree `.mt/runs/<id>/checkpoint.json` is the only resume mechanism; resume skips `done` nodes
-  and continues sources from their cursor. Resume keeps the run id and emits no new `started`.
+- The checkpoint tree lives in `.mt/runs/<id>/state.json`; with the source cursor it is the resume
+  source of truth. Resume keeps the run id and emits no new `started`.
 - File writes are atomic (temp then rename); safe to kill the process.
 - Watch live: `tail -f .mt/runs/<id>/events.jsonl`, `mt inspect <id>`, or `mt serve` (`GET /api/runs`,
   SSE at `/api/runs/<id>/events?stream=true`).
@@ -318,6 +345,7 @@ through. An explicit tool-factory option (e.g. `chunkSize`) still beats the chai
 ## Do / Don't
 
 Do:
+- Use `mt explain <pipeline.ts>` to inspect the declared flow, effective policy and output paths before a real run.
 - Read `mt.json` and an existing pipeline before writing a new one; copy its imports.
 - Keep pipelines deterministic and idempotent; use `cacheable` tools for LLM-heavy steps.
 - Test offline first (`MT_LLM_TOOL=mock` or `mockLlm`), then switch the backend by env.
@@ -325,7 +353,7 @@ Do:
 - After a failure, `mt inspect <id>` then `mt resume <id>`; do not delete `.mt/runs`.
 
 Don't:
-- Don't hand-edit `.mt/runs/*/checkpoint.json` or `state.json`.
+- Don't hand-edit `.mt/runs/*/state.json` (it holds the checkpoint tree).
 - Don't print, log, commit or echo secrets, master keys, `--reveal` output or `.env` contents.
 - Don't add `.batch/.flatMap/.subflow('<entity-type>')` casually: they change cardinality for every later step.
 - Don't run `mt serve`/`mt router` bound to a non-loopback host without `MT_ROUTER_TOKEN`.

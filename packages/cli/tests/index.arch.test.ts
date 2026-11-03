@@ -16,6 +16,12 @@ describe('CLI command registry (architectural)', () => {
     expect(src).toMatch(/runCommand/)
   })
 
+  it('CLI index registers explain command', async () => {
+    const src = await readCliIndex()
+    expect(src).toMatch(/case\s+['"]explain['"]/)
+    expect(src).toMatch(/explainCommand/)
+  })
+
   it('CLI index registers resume command', async () => {
     const src = await readCliIndex()
     expect(src).toMatch(/case\s+['"]resume['"]/)

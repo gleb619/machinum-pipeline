@@ -16,7 +16,7 @@ Pluggable, resumable document-processing orchestration engine for long-form text
 | `@mt/core` | Engine: types, domain, contexts, DSL, URI registry, Runner, checkpoint tree, state machine, retry/cache/dead-letter/store/vault. **Zero runtime deps; may not import other @mt/\* pkgs** (enforced by `*.arch.test.ts`) |
 | `@mt/tools` | Book tools: LLM toolkit (gate/client/prompts/decorators/translates), normalization (glossary, term-tagger, translation-prompt/stage, summaries, typo-fix), verification (chapter-validator, line-parity/pairs linters), modification (chapter-translator, md outputs) |
 | `@mt/waypoint` | Source/Target URI implementations: `jsonl://`, `md://`, `hs://http://`, `chapter://`, `schema-doc://`, `git://` (worktree), `range://` (source), `void://` (target), `console://` (target) |
-| `@mt/cli` | `mt` binary: `init`, `run`, `resume`, `ls runs`, `inspect`, `tool`, `serve`, `router`, `vault`, `skill` |
+| `@mt/cli` | `mt` binary: `init`, `run`, `explain`, `resume`, `ls runs`, `inspect`, `tool`, `serve`, `router`, `vault`, `skill` |
 | `@mt/router` | Standalone keyless LLM gateway: OpenRouter proxy, API-key pool, upstream routing by model prefix, cost/budget tracking, `/api/translate` |
 | `@mt/backend` + `@mt/frontend` | Admin API (h3) + SSE + SQLite; Vue 3 UI |
 | `@mt/mcp` | MCP server (stdio) so AI agents drive pipelines |
@@ -41,7 +41,7 @@ Pluggable, resumable document-processing orchestration engine for long-form text
 
 ## State & resume
 
-Everything under `.mt/`: `runs/<id>/{state.json, checkpoint.json, events.jsonl, dead-letter.jsonl, artifacts/}`, `cache/` (content-hash tool memo), `vault.json`, `worktrees/`. `Tool.cacheable === true` → `.mt/cache/<hash>.json`. Error policies: `fail-run | skip-item | dead-letter`.
+Everything under `.mt/`: `runs/<id>/{state.json, context.json, events.jsonl, run.log, logs/, dead-letter.jsonl, artifacts/}`, `cache/` (content-hash tool memo), `vault.json`, `worktrees/`. The checkpoint tree lives in `state.json`. `Tool.cacheable === true` → `.mt/cache/<hash>.json`. Error policies: `fail-run | skip-item | dead-letter`.
 
 ## Commands
 
@@ -50,7 +50,8 @@ pnpm build        # turbo
 pnpm test         # turbo test + sample integration suites (sample0..3)
 pnpm test:gpu     # GPU-gated IT (real ollama + keyless router)
 pnpm lint / format / typecheck   # biome + tsc
-NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts   # run a pipeline
+NODE_OPTIONS='--import tsx' npx mt explain ./pipeline.ts   # inspect declared flow, no execution
+NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts       # run a pipeline
 ```
 
 Canonical translation sample: `samples/sample4/pipelines/` — `analyze.ts` (summaries + glossary) → `normalize.ts` → `translate.ts` (titles batched by 5, body line-by-line, parity-linted, output via `@chapters` URI alias).

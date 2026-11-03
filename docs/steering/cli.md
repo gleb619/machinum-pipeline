@@ -70,8 +70,9 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
 | `mt run <pipeline.ts> [--pipeline <name>]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit |
+| `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | `explain.ts` | Import the same runnable `mt run` would use, then describe its declared dataflow, per-step effective retry/onError policy (pipeline/step values win over project fallbacks), nested fork/subflow/batch scopes, lifecycle hooks, events, checkpoint nodes and log paths. The module is imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no Runner/source/tool/target/hook starts; writes no `.mt` state. Markdown by default; `--json` for agents/tools |
 | `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup); `--pipeline <name>` for named exports |
-| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load checkpoint.json, resume from first non-done node; pipeline file/id come from state.json (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole |
+| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load `state.json` (checkpoint tree + source cursors) and resume from the first non-done node; pipeline file/id come from `state.json` (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata |
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON exchange on stdin/stdout (`id`/`variables` optional, normalized by `toExchange`)); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
@@ -84,6 +85,8 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/backend/standalone` is imp
 ## Pipeline Loading
 
 `tool.ts` resolves the tool before reading stdin (a bad name must not hang the terminal), then builds a minimal RunContext/ToolContext like the Runner's (`loadGlobalContext` + a `tool-<uuid>` runId, checkpoint id `standalone`).
+
+`explain.ts` reuses the same `loadRunnable()` selector as `run.ts` (named export → default suite → default pipeline → implicit suite), so it explains exactly the export `mt run` would execute. It imports the pipeline module (top-level code runs) but reads `mt.json` (+ `imports`) only: no `loadGlobalContext()`, `.env`, vault or Runner. Import-time stdout (`console.log`/`process.stdout.write`) is captured and replayed on stderr, so the command's own stdout stays a single Markdown/JSON document; JSON masks credential-looking `envDefaults` keys/values as `***`.
 
 Both `run.ts` and `resume.ts` use `@mt/core`'s `loadGlobalContext()` plus a local loader:
 
@@ -143,6 +146,9 @@ Entry point: `main()` function, arg parsing, dispatch to command modules. Handle
 7. `runLifecycleScript(ctx, 'end')` in a finally-style path (runs on success AND failure; an
    end-hook error is logged as a warning and never masks the main outcome)
 8. `runLifecycleScript(ctx, 'exit')` before the process exits
+
+### `src/commands/explain.ts`
+`mt explain` — static declaration view. `loadRunnable()` selects and imports the runnable (top-level module code executes); `readMtConfig()` supplies URI aliases, defaults and `scripts.*`; the command renders Markdown or a stable `schemaVersion: 1` JSON object (`--json`). It never calls `Runner.start()`, `source.start()/resume()`, `tool.invoke()`, `target.open()` or a lifecycle hook, so no run id or `.mt/runs/<runId>/` directory appears. Output covers: per-pipeline dataflow and steps, cardinality, effective retry/onError (same `resolveRetryPolicy` merge as the Runner), tool-step concurrency (same `Number.parseInt` rule as `runTool`; items run through ordered `mapConcurrent`), cacheable/idempotent flags (cacheable tools later memoize under `.mt/cache/<hash>.json`; explain writes none), declared `envDefaults`, the declared `mt.json` LLM pick (env overrides noted), nested fork/subflow/batch pipelines, lifecycle hooks, state machine, event order/types, checkpoint node patterns, and every `run.log`/`logs/<stepId>.log`/`events.jsonl`/`dead-letter.jsonl`/`artifacts/` path. URI-string sources/targets are resolved through the URI registry (construction only, no I/O), so `lifestyle`/`resume()`/`checkpoint()` capabilities are reported for them too; a failed resolution becomes a warning. Warnings also cover unresolved URI aliases, distinct pipelines sharing an id, and hand-built invalid steps.
 
 ### `src/commands/install.ts`
 `mt install` — runs the `scripts.install` pipeline from mt.json via the shared
@@ -241,6 +247,7 @@ packages/cli/tests/
 ├── index.arch.test.ts         # Arch: all commands registered
 ├── commands/
 │   ├── run.test.ts            # run command (mock Runner) + start/end lifecycle hooks
+│   ├── explain.test.ts        # explain Markdown/JSON, aliases, nested forks, suites; no .mt writes
 │   ├── install.test.ts        # install command (mock Runner): missing/absent script, named export
 │   ├── resume.test.ts         # resume command
 │   ├── init.test.ts           # init scaffolding

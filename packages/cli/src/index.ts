@@ -2,6 +2,7 @@
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { annotationsCommand } from './commands/annotations.js'
+import { explainCommand } from './commands/explain.js'
 import { initCommand } from './commands/init.js'
 import { inspectCommand } from './commands/inspect.js'
 import { listRunsCommand } from './commands/list.js'
@@ -25,6 +26,9 @@ export async function main(): Promise<void> {
     }
     case 'run':
       await runCommand(args.slice(1))
+      break
+    case 'explain':
+      await explainCommand(args.slice(1))
       break
     case 'resume':
       await resumeCommand(args.slice(1))
@@ -84,6 +88,7 @@ Usage: mt <command> [options]
 Commands:
   init                    Scaffold a new Mt project
   run <pipeline.ts>      Execute a pipeline (foreground; runs scripts.start/scripts.end hooks)
+  explain <pipeline.ts>  Describe the declared dataflow without executing it [--pipeline <name>] [--json]
   install                Run the scripts.install lifecycle hook from mt.json
   resume <runId>         Resume a paused/failed run
   ls runs                List all runs

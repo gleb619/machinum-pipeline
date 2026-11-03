@@ -59,7 +59,7 @@ mt run ./pipelines/fix-typos.ts
 → Engine mints runId, writes state.json (pending → running)
 → Source begins emitting Exchanges
 → Runner walks DSL ops, executing Tools in order
-→ At each step boundary: append to events.jsonl, update checkpoint.json atomically
+→ At each step boundary: append to events.jsonl, persist state.json (checkpoint tree) atomically
 → On .fork(subPipeline): child Runner registered as checkpoint subtree
 → On SIGINT/error per policy: running → checkpoint → paused/failed
 → On success: running → done, Targets close (e.g. git commit)
@@ -67,7 +67,7 @@ mt run ./pipelines/fix-typos.ts
 
 ```
 mt resume <runId>
-→ Loads state.json, checkpoint.json, context.json
+→ Loads state.json (checkpoint tree + source cursors) and context.json
 → Walks checkpoint tree depth-first
 → Skips done nodes, resumes first non-done node
 → Calls source.resume(ctx, cursor) for resumable Sources, reconnects for long-lived

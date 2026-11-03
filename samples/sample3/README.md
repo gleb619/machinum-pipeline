@@ -283,6 +283,20 @@ npm run cleanup
 This removes `chapters/runner-report.md`, `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`,
 `chapters/schema-mock/*.md`, `jsonl/input.jsonl`, and `.mt/`.
 
+## Inspect without running
+
+`mt explain` loads the pipeline module but starts no source, tool, target or lifecycle hook, so it
+never creates `.mt/runs/<runId>/`:
+
+```bash
+cd samples/sample3
+NODE_OPTIONS='--import tsx' mt explain ./pipelines/jsonl-to-md-multi.ts
+NODE_OPTIONS='--import tsx' mt explain ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocPipeline --json
+```
+
+The Markdown form shows the dataflow, events, checkpoint nodes and log paths. Use `--json` for
+agents and tools.
+
 ## How to run manually
 
 ```bash

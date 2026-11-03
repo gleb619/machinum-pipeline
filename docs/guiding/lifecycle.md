@@ -1,9 +1,10 @@
-# Lifecycle — from `mt run` to shutdown
+# Lifecycle — from `mt run` to shutdown (and `mt explain`)
 
 > **Scope:** What happens, in order, from process start to process exit — and *where* config eval,
 > `.env` loading, vault loading, module import, URI alias/registry lookup, hooks, events and
 > checkpoints each fit in.
-> **Entry points traced:** `mt run`, `mt resume`, `mt install` (`packages/cli/src/commands/`).
+> **Entry points traced:** `mt run`, `mt resume`, `mt install`, `mt explain` (read-only)
+> (`packages/cli/src/commands/`).
 > **Related:** [architecture.md](architecture.md) · [steering/core.md](../steering/core.md) ·
 > [steering/cli.md](../steering/cli.md) · [vault.md](vault.md)
 
@@ -18,6 +19,10 @@ BOOTSTRAP → INITIALIZATION → ENVIRONMENT PREPARED → CONTEXT PREPARED → C
 
 These are documentation phases, not code states. The only *code* state machine is the run state
 machine (§5). Each phase below names the function that does the work.
+
+`mt explain` takes a short path: BOOTSTRAP → INITIALIZATION (pipeline import) → read `mt.json` →
+render. It never enters phases 4–10 and does not build a `GlobalContext`, load `.env`, resolve the
+vault, construct a `Runner` or run a hook (see §3a).
 
 ```mermaid
 flowchart LR
@@ -37,6 +42,7 @@ flowchart LR
 | Concern | Phase | Code |
 |---|---|---|
 | Binary / arg dispatch | 1 Bootstrap | `cli/src/index.ts` `main()` |
+| `mt explain` (import + `mt.json` read + render) | 2 → 3 (read-only) | `loadRunnable()`, `readMtConfig()`, `renderExplanation()` in `explain.ts`; skips phases 4–10 (§3a) |
 | `import '@mt/waypoint'` (URI scheme registration) | 2 Initialization | top of `cli/src/commands/run.ts` — ES import side effect, runs at module load |
 | Pipeline `.ts` import (user code executes here) | 2 Initialization* | `importPipelineModule()` ← `loadPipeline()` in `run.ts` |
 | `mt.json` read + `imports` deep-merge | 3 Environment | `readMtConfig()` in `core/src/config.ts` |
@@ -95,6 +101,44 @@ Two kinds of import happen here, and the order matters.
 > **Gotcha:** in `mt run`, pipeline import precedes `loadGlobalContext`. Don't read `ctx.vault` or
 > `ctx.env` at module top level; read them inside tools/`tap`/`flatMap` callbacks, which receive a
 > context at run time.
+
+---
+
+## 3a. `mt explain` — read-only short path
+
+`mt explain <pipeline.ts> [--pipeline <name>] [--json]` answers "what would this declaration do?"
+without executing it. It is the only lifecycle entry point that stops before context construction.
+
+1. **Bootstrap + initialization.** Same dispatch as `mt run`; `explain.ts` imports `@mt/waypoint`, so
+   URI schemes and aliases can be resolved.
+2. **Pipeline module import.** `loadRunnable(file, name?)` is the *same* selector `mt run` uses
+   (named export → default suite → default pipeline → implicit suite). The module's top-level code
+   **does execute** — imports, `console.log`, `definePipeline()` and any other side effects happen
+   exactly as they would for a run.
+3. **Config read only.** `readMtConfig(projectRoot)` reads `mt.json` (plus its `imports`) for
+   `project.name`, `defaults`, `uris` aliases and `scripts.*`. **No** `GlobalContext` is built: no
+   `loadEnv()`, no `loadVault()`, no secret-ref resolution, no vault or `.env` access.
+4. **Static walk.** The command recursively walks `pipeline.steps`, expands URI aliases through the
+   registry, merges each tool step's retry/`onError` with pipeline and project defaults, and records
+   step-id, checkpoint-node and artifact-path patterns. It then renders Markdown or `--json`.
+
+`mt explain` never starts a `Runner`, source (`start`/`resume`), tool (`invoke`), target
+(`open`/`write`/`close`) or lifecycle hook. It writes no `.mt` state: there is **no run id, no
+`.mt/runs/<runId>/` directory, no `state.json`, `context.json`, `events.jsonl`, `run.log`, `logs/`,
+`dead-letter.jsonl`, `artifacts/` or cache entry**. The output describes the paths a later
+`mt run` would create; it does not create them.
+
+Consequences:
+
+- The view is a declaration, not proof of runtime success: no source file/URI is opened, no tool is
+  validated and no target is touched.
+- Unresolvable aliases become warnings in the output rather than runtime errors.
+- Top-level module code that reads `process.env`, opens files or calls APIs still runs on import.
+  Keep pipeline modules side-effect-free outside `definePipeline()`.
+- Import-time stdout is captured during the import and replayed on stderr, so the explanation itself
+  (Markdown or one JSON document) is never mixed with module `console.log` output.
+- Because no `GlobalContext` exists, `mt explain` cannot report resolved vault refs or actual `.env`
+  values.
 
 ---
 
@@ -214,7 +258,8 @@ stateDiagram-v2
 ```
 
 `paused → done` is illegal; `markRunDone()` first unravels a late pause (`paused → resumed → running`)
-so a finished run is never stranded in `paused`.
+so a finished run is never stranded in `paused`. `checkpoint` is a legal transition target, but the
+current Runner never calls `transition('checkpoint')`; treat it as reserved, not an observed state.
 
 ---
 
@@ -439,3 +484,6 @@ sequenceDiagram
   `mt run` (only `mt serve` / `mt router`).
 - **No `config.evaluated` / `vault.loaded` events exist.** Only the six run events in §8; config and
   vault phases are observable only through logs and thrown errors.
+- **`mt explain` imports the module too.** Its top-level code runs, but the command remains
+  read-only: it stops before `GlobalContext`, Runner, hooks and `.mt` writes, so it cannot detect
+  runtime-only failures.

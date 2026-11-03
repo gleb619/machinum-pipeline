@@ -85,6 +85,7 @@
 | UC077 | Install `mt` without Docker              | —          | — |
 | UC078 | Install `mt` with Docker                 | —          | — |
 | UC079 | Release pipeline and CI gates            | —          | — |
+| UC080 | Explain a pipeline without running it      | —          | [sample3](../../samples/sample3) (nested subflows) |
 
 ## Legacy ID Mapping
 
@@ -205,13 +206,14 @@ every `UC###` registered by the loaded pipelines.
 | UC077 | Install `mt` without Docker | Operator | Put the single-file `mt` binary on a machine (Linux glibc/musl, macOS; x64/arm64) with a verified download, or build it from source | `curl` or `wget`; for `--from-source` also git, node>=20, corepack, bun | `mt` in `~/.local/bin` (or `--prefix`/`--name`); sha256 checked against the release `SHA256SUMS`; optional `~/.mt/master.key` generated, never overwritten, never printed | 1. `sh docs/install.sh --dry-run` shows the plan. 2. `sh docs/install.sh [--version v] [--name mt-cli] [--user-master-key]` (or `curl -fsSL .../install.sh \| sh -s -- --yes`). 3. `mt --help`; `mt vault master-key status`. 4. `--uninstall` removes only the command, never `~/.mt` |
 | UC078 | Install `mt` with Docker | Operator/CI | Run `mt` from the `ghcr.io/gleb619/machinum-pipeline` image without installing anything else | Docker; a persistent `~/.mt` dir or a mounted `MT_EMBED_PASSWORD_FILE` secret | A wrapper `mt` runs the image with `$PWD` at `/work` and `~/.mt` at `/home/mt/.mt`; on first run the entrypoint generates `master.key` (0600) unless a key source exists; no key is baked into the image | 1. `sh docs/install.sh --docker`. 2. `mt run ./pipelines/p.ts` (wrapper). 3. In CI mount the secret and set `MT_EMBED_PASSWORD_FILE`; back up `~/.mt/master.key` |
 | UC079 | Release pipeline and CI gates | Maintainer | Gate every PR (lint, typecheck, test without GPU, binary smoke, shellcheck, hadolint + image build, skill drift) and publish a tagged release | GitHub Actions enabled; tag `vX.Y.Z` equals `packages/mt/package.json` version | Release with `mt-<target>` binaries + `SHA256SUMS`; image `ghcr.io/gleb619/machinum-pipeline:{X.Y.Z,X.Y,latest}` (amd64+arm64) | 1. PR runs `.github/workflows/ci.yml`. 2. Push tag `vX.Y.Z`. 3. `release.yml` builds, smokes, uploads assets, pushes the image. 4. `test:gpu` stays a manual pre-merge gate |
+| UC080 | Explain a pipeline without running it | Author/Operator/Agent | Understand exactly what a declared pipeline will do before spending time or API budget on a run | Pipeline file + `mt.json` (+ `imports`); no run state or `.env`/vault needed | Markdown or JSON explanation of the dataflow, per-step effective retry/onError (project fallbacks shown separately), nested scopes, lifecycle hooks, events, checkpoint node and log paths. The module is imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no Runner/source/tool/target/hook starts; no run id or `.mt/runs/<runId>/` is created | 1. `mt explain ./pipelines/x.ts` 2. CLI loads the same runnable `mt run` would 3. Walks `pipeline.steps` recursively 4. Prints flow + runtime artifact map (per-step concurrency, declared envDefaults/LLM pick, warnings for duplicate ids). Add `--json` for agents/tools (`stdout` is one parseable document; import-time module output goes to stderr), `--pipeline <name>` to select an export |
 
 ---
 
 ## Coverage check vs TDD
 
 - **Goals (§1):** UC002..004 (pluggable), UC006/015/016 (resumable), UC012..014 (parallel/forks), UC026/027/028 (hybrid runtime), UC024/025 (git-aware), UC015/029/053 (observable).
-- **CLI commands (§9.2):** UC001, 005, 006, 008, 009, 010, 026, 027, 076 (`mt skill`), plus UC037..041 (MCP).
+- **CLI commands (§9.2):** UC001, 005, 006, 008, 009, 010, 026, 027, 076 (`mt skill`), 080 (`mt explain`), plus UC037..041 (MCP).
 - **Backend/Frontend (§9.3–9.4):** UC028..032, UC054.
 - **Router (§9.5):** UC032..036, UC063..075 (keyless gateway, vault-fed upstreams, KeePass/embed refs, keyring rotation, token guard).
 - **Extensions (§9.7–9.8):** UC042..046.
