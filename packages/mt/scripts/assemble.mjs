@@ -1,8 +1,7 @@
-// Assemble the publishable `mt` package: copy built @mt/{core,tools,waypoint,backend,router,cli} into
+// Assemble the publishable `mt` package: copy built @mt/{core,tools,waypoint,webui,router,cli} into
 // dist/<name>/ (no maps/tests), rewrite `@mt/<name>[/sub]` specifiers to relative paths so the
 // tarball is standalone. Third-party deps are declared in package.json `dependencies`.
-// Also copies the built admin UI (packages/components/dist) to dist/ui for `mt serve`, and the router
-// dashboard (packages/router/public) to dist/router-ui for `mt router`.
+// Also copies the built admin UI (packages/components/dist) to dist/ui for `mt serve`.
 import {
   cpSync,
   mkdirSync,
@@ -44,15 +43,6 @@ try {
   cpSync(uiSrc, join(dist, 'ui'), { recursive: true })
 } catch {
   console.warn('mt: packages/components/dist missing; admin UI not included (run pnpm build)')
-}
-
-// The router dashboard ships as plain static files (no build step), so the source dir is the asset dir.
-const routerUiSrc = resolve(root, '..', 'router', 'public')
-rmSync(join(dist, 'router-ui'), { recursive: true, force: true })
-try {
-  cpSync(routerUiSrc, join(dist, 'router-ui'), { recursive: true })
-} catch {
-  console.warn('mt: packages/router/public missing; router dashboard not included')
 }
 
 // Only import/export-from contexts, so plain string literals (e.g. embed.ts keys) stay intact.

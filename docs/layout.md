@@ -18,6 +18,9 @@ to fix (or this file is stale — fix one of them).
 | Pause | `POST /api/runs/:id/pause` | `Pause` button |
 | Resume | `POST /api/runs/:id/resume` | `Resume` button |
 | Run detail | `GET /api/runs/:id`, `/items`, `/events` (SSE) | Run detail screen (planned) |
+| Router cost | `GET /api/dashboard` | Router screen |
+| Router pool | `GET /api/pool` | Router screen |
+| Router logs | `GET /api/logs?limit=20` | Router screen |
 
 TUI talks to the same HTTP API (via `mt serve`, local or `--detach`) — never imports `@mt/webui` or `@mt/core`
 directly (import layers: [steering/structure.md](steering/structure.md)). Pause/resume 404 = "not live in this
@@ -31,18 +34,19 @@ Fixed names, fixed order. Same labels in both skins.
 |---|---|---|---|
 | 1 | **Pipelines** | list of discovered pipelines | done |
 | 2 | **Runs** | list of all runs + state | done |
-| 3 | **Run detail** | one run: metadata, steps, live events | planned (UC029) |
+| 3 | **Router** | cost totals, pool status, recent calls (same-origin embedded router) | done |
+| 4 | **Run detail** | one run: metadata, steps, live events | planned (UC029) |
 
 Rules:
 - Title: `Mt — Pipeline Admin` (web `<title>` + h1; TUI header line).
-- Tab order is Pipelines, Runs (then Run detail as a drill-in, not a tab). Default screen on open: **Pipelines**.
+- Tab order is Pipelines, Runs, Router (then Run detail as a drill-in, not a tab). Default screen on open: **Pipelines**.
 - No extra top-level screens without adding a row here first.
 
 ## 3. Page skeleton
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ Mt — Pipeline Admin                    [Pipelines]  [Runs]   │  header: title left, tabs right
+│ Mt — Pipeline Admin         [Pipelines]  [Runs]  [Router]    │  header: title left, tabs right
 ├──────────────────────────────────────────────────────────────┤
 │ ✓ Run started: <runId>                                    ×  │  toast row (only when set)
 ├──────────────────────────────────────────────────────────────┤
@@ -70,6 +74,12 @@ Every list row has the same anatomy: **identity block on the left, actions on th
 **Pipeline row**
 - Left: `declared` (monospace, primary text) over `path` (dim, truncated).
 - Right: `▶ Run` button (green).
+
+**Router panel**
+- Token field: `Router token` (password input); stored in `sessionStorage` under `mt-router-token`, header-only, never in the URL.
+- Cards: `Today`, `Month`, `Daily budget`; each shows USD cost and calls/remaining.
+- Pool block: `Pool`, mock badge `MOCK`, active/total keys, rate-limited/blocked counts, upstream names.
+- Log block: `Recent calls`; rows show model, optional client, time, tokens and cost.
 
 **Run row**
 - Left: `id` (monospace) + `STATE` badge (uppercase, state colour) on one line; `started` (dim) below if present.
@@ -110,6 +120,9 @@ Same text in both skins.
 | Pipelines error | `<message>` + `Retry` link (red) |
 | No pipelines | `No pipelines registered.` |
 | No runs | `No runs yet. Start one from the Pipelines tab.` (`Pipelines` is a link/jump) |
+| Router loading | `Loading router status...` (dim, pulse/spinner) |
+| Router error | `<message>` + `Retry` link (red); 401 => `Router token required or invalid` |
+| No router calls | `No router calls logged today.` |
 | Action OK | `Run started: <runId>` · `Run <id> paused` · `Run <id> resumed` |
 | Action fail | `Error: <message>` |
 
@@ -122,7 +135,7 @@ Web = mouse first. TUI = keyboard first. Every web action has one fixed key.
 
 | Action | Web | TUI key |
 |---|---|---|
-| Switch tab | click tab | `1` Pipelines · `2` Runs · `Tab` cycles |
+| Switch tab | click tab | `1` Pipelines · `2` Runs · `3` Router · `Tab` cycles |
 | Move selection | hover | `↑`/`↓` or `k`/`j` |
 | Run selected pipeline | `▶ Run` | `r` or `Enter` |
 | Pause selected run | `⏸ Pause` | `p` |
@@ -133,7 +146,7 @@ Web = mouse first. TUI = keyboard first. Every web action has one fixed key.
 | Back | browser back / tab | `Esc` / `Backspace` |
 | Quit | close tab | `q` / `Ctrl+C` |
 
-TUI footer shows the keys valid for the current screen, e.g. `1 Pipelines  2 Runs  ↑↓ select  r run  q quit`.
+TUI footer shows the keys valid for the current screen, e.g. `1 Pipelines  2 Runs  3 Router  ↑↓ select  r run  q quit`.
 Keys never change meaning between screens: `Esc` always backs out one level.
 
 ## 8. Implementation notes

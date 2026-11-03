@@ -183,7 +183,7 @@ pipeline's `id` differs from the recorded run.
   at runtime). SIGINT/SIGTERM close the server. UI dir: `$MT_UI_DIR` > `<pkg>/dist/ui` > `packages/components/dist`;
   in the Bun binary the UI is embedded (`globalThis.__MT_UI__`).
 - `detachServe()` re-spawns `process.execPath` (the binary itself when compiled) in the foreground mode, detached
-- `parseArgs()` handles `--port`, `--host`, `--detach`
+- `parseArgs()` handles `--port`, `--host`, `--no-router`, `--detach`
 
 ### `src/utils/logger.ts` — `DuplexLogger`
 Writes to both console and `<logDir>/<runId>/run.log`; implements `Logger` from `@mt/core`. Both
@@ -194,7 +194,7 @@ logged before `setRunId()` are buffered and flushed to the run log.
 ### `src/commands/router.ts`
 - `routerCommand()` lazy-imports `@mt/router/standalone` and calls `startRouter()`; keys come from
   `loadGlobalContext()` (`mt.json → secrets.envFile`, `process.env` wins) as `OPENROUTER_API_KEYS`;
-  API-only since T197 — the UI lives in the admin frontend (`mt serve`)
+  API-only since T197 — the UI lives in the admin components package (`mt serve`)
 - `detachRouter()` re-spawns `process.execPath ... router` detached; PID + logs under `.mt/router/`
 - No `--token` flag: the bearer token is `MT_ROUTER_TOKEN` only, and the router's bind guard refuses a
   non-loopback `MT_ROUTER_HOST` / `--host` without it — see [router.md](router.md#security-model-t119)

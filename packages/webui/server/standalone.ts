@@ -3,6 +3,12 @@ import { type Server, createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { extname, join, normalize, resolve, sep } from 'node:path'
 import {
+  createRouterApp,
+  handleRouterError,
+  isRouterApiPath,
+  prepareRouterRuntime,
+} from '@mt/router/standalone'
+import {
   type H3Event,
   createApp,
   createError,
@@ -38,6 +44,8 @@ export interface StartBackendOptions {
   uiDir?: string
   /** Embedded UI map (single-file binary). Defaults to `globalThis.__MT_UI__`. */
   ui?: EmbeddedUi
+  /** Mount the router API on the same port (default: true). */
+  router?: boolean
 }
 
 export interface BackendHandle {
@@ -107,19 +115,30 @@ function uiHandler(lookup: UiLookup) {
   })
 }
 
-export function createBackendApp(options: Pick<StartBackendOptions, 'uiDir' | 'ui'> = {}) {
-  const app = createApp()
-  const router = createRouter()
-  router.use('/api/health', healthRoute)
-  router.use('/api/pipelines', pipelinesRoute)
-  router.use('/api/runs', runsRoute)
-  router.use('/api/runs/start', startRoute)
-  router.use('/api/runs/:id', runRoute)
-  router.use('/api/runs/:id/events', eventsRoute)
-  router.use('/api/runs/:id/items', itemsRoute)
-  router.use('/api/runs/:id/pause', pauseRoute)
-  router.use('/api/runs/:id/resume', resumeRoute)
-  app.use(router)
+export function createBackendApp(
+  options: Pick<StartBackendOptions, 'uiDir' | 'ui' | 'router'> = {},
+) {
+  const app = createApp({
+    onError(error, event) {
+      if (isRouterApiPath(event.path ?? '')) handleRouterError(error, event)
+    },
+  })
+  const adminRouter = createRouter()
+  adminRouter.use('/api/health', healthRoute)
+  adminRouter.use('/api/pipelines', pipelinesRoute)
+  adminRouter.use('/api/runs', runsRoute)
+  adminRouter.use('/api/runs/start', startRoute)
+  adminRouter.use('/api/runs/:id', runRoute)
+  adminRouter.use('/api/runs/:id/events', eventsRoute)
+  adminRouter.use('/api/runs/:id/items', itemsRoute)
+  adminRouter.use('/api/runs/:id/pause', pauseRoute)
+  adminRouter.use('/api/runs/:id/resume', resumeRoute)
+  app.use(adminRouter)
+
+  if (options.router !== false) {
+    const routerApp = createRouterApp()
+    app.use({ match: (path) => isRouterApiPath(path), handler: routerApp.handler })
+  }
 
   const embedded = options.ui ?? (globalThis as { __MT_UI__?: EmbeddedUi }).__MT_UI__
   if (options.uiDir && !options.ui) app.use(uiHandler(dirLookup(options.uiDir)))
@@ -131,6 +150,7 @@ export function createBackendApp(options: Pick<StartBackendOptions, 'uiDir' | 'u
 
 export async function startBackend(options: StartBackendOptions = {}): Promise<BackendHandle> {
   const host = options.host ?? 'localhost'
+  if (options.router !== false) await prepareRouterRuntime({ host })
   initSqlite(process.env.MT_PROJECT_ROOT || process.cwd())
 
   const server: Server = createServer(toNodeListener(createBackendApp(options)))

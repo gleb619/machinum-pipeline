@@ -105,6 +105,7 @@ describe('keyless gateway security (live, fake upstream)', () => {
 
   it('health is open; other /api routes need the token', async () => {
     expect((await fetch(`${url}/api/health`)).status).toBe(200)
+    expect((await fetch(`${url}/api/router/health`)).status).toBe(200)
     for (const path of ['/api/pool', '/api/dashboard', '/api/logs']) {
       const res = await fetch(`${url}${path}`)
       expect(res.status).toBe(401)

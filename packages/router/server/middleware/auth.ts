@@ -15,7 +15,7 @@ export function tokenMatches(given: string, expected: string): boolean {
 
 /**
  * Optional router access token. Unset: open (loopback only, see bind guard). Set: every /api/*
- * request except GET /api/health needs `Authorization: Bearer <token>`. The header is never
+ * request except GET health needs `Authorization: Bearer <token>`. The header is never
  * forwarded upstream (completions.ts builds upstream headers from scratch).
  */
 export default defineEventHandler((event) => {
@@ -23,7 +23,9 @@ export default defineEventHandler((event) => {
   if (!token) return
   const path = (event.path ?? '').split('?')[0] ?? ''
   if (!path.startsWith('/api/')) return
-  if (path === '/api/health' && event.method === 'GET') return
+  if (event.method === 'GET' && (path === '/api/health' || path === '/api/router/health')) {
+    return
+  }
 
   const header = getHeader(event, 'authorization') ?? ''
   const match = /^Bearer\s+(.+)$/i.exec(header)

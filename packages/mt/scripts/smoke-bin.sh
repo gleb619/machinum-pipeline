@@ -298,7 +298,7 @@ echo "13/16 mt router --help is documented"
 run router --help | grep -q "Usage: mt router"
 run --help | grep -q "Start LLM router proxy"
 
-echo "14/16 mt router --mock: proxy API, dashboard JSON and embedded assets (no network, no keys)"
+echo "14/16 mt router --mock: API-only proxy routes (no network, no keys, no UI)"
 start_router router.log
 curl -sf "$RBASE/api/health" | grep -q '"mockMode":true'
 curl -sf -X POST -H 'content-type: application/json' \
@@ -311,8 +311,8 @@ curl -sf "$RBASE/api/pool" | grep -q '"mockMode":true'
 curl -sf "$RBASE/api/logs" | grep -q '"entries"'
 curl -sf "$RBASE/api/translate/health" | grep -q '"availableClients"'
 curl -sf "$RBASE/api/translate/config" | grep -q '"supportedLanguages"'
-curl -sf "$RBASE/" | grep -q '<div id="app'   # the dashboard div carries a class
-curl -sf "$RBASE/app.js" | grep -q 'useDashboard'
+test "$(curl -s -o /dev/null -w '%{http_code}' "$RBASE/")" = 404
+test "$(curl -s -o /dev/null -w '%{http_code}' "$RBASE/app.js")" = 404
 test "$(curl -s -o /dev/null -w '%{http_code}' "$RBASE/api/nope")" = 404
 kill "$ROUTER_PID"
 for _ in $(seq 1 25); do kill -0 "$ROUTER_PID" 2>/dev/null || break; sleep 0.2; done

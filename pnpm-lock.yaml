@@ -404,6 +404,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@mt/router':
+        specifier: workspace:*
+        version: link:../router
       better-sqlite3:
         specifier: ^9.6.0
         version: 9.6.0

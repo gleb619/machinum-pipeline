@@ -37,6 +37,12 @@ describe('UC-32,34 - LLM Router Proxy (architectural)', () => {
     expect(await fileExists('../server/routes/api/dashboard.ts')).toBe(true)
   })
 
+  it('registers the embedded router health alias', async () => {
+    const content = await readFile(join(__dirname, '../server/standalone.ts'), 'utf-8')
+    expect(content).toContain("'/api/router/health'")
+    expect(content).toContain('export function createRouterApp')
+  })
+
   it('translate route exists', async () => {
     expect(await fileExists('../server/routes/api/translate.ts')).toBe(true)
   })

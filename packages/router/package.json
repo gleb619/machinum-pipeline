@@ -29,5 +29,5 @@
       "import": "./dist/standalone.js"
     }
   },
-  "files": ["dist", "server", "public"]
+  "files": ["dist", "server"]
 }

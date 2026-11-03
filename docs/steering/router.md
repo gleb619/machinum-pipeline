@@ -57,7 +57,7 @@ packages/router/server/routes/api/
 ├── dashboard.ts            # GET /api/dashboard — cost + pool stats for UI
 ├── pool.ts                 # GET /api/pool — pool status
 ├── models.ts               # GET /api/models — OpenAI-style list of routable model ids
-├── health.ts               # GET /api/health
+├── health.ts               # GET /api/health (+ /api/router/health when embedded)
 └── logs.ts                 # GET /api/logs — recent request logs
 ```
 
@@ -138,7 +138,8 @@ Router is a keyless gateway: clients send no upstream key; router holds them (en
 - **Bind guard** (`utils/bind-guard.ts`): default host `localhost`. A non-loopback `MT_ROUTER_HOST` / `--host` without
   `MT_ROUTER_TOKEN` makes `startRouter()` throw (clear fix hint) before listening.
 - **Token** (`middleware/auth.ts`, runs before `rate-limit`): when `MT_ROUTER_TOKEN` is set, every `/api/*` request except
-  `GET /api/health` needs `Authorization: Bearer <token>` (constant-time compare), else 401. Unset: open (loopback only).
+  `GET /api/health` / `GET /api/router/health` needs `Authorization: Bearer <token>` (constant-time compare), else 401.
+  Unset: open (loopback only).
 - **Header strip**: `utils/upstream-call.ts` builds upstream headers from scratch (content-type, optional http-referer/x-title,
   upstream key, registry headers). Client `Authorization`, `x-api-key`, cookies and the router token are never forwarded.
 - **Redaction** (`utils/redact.ts`): all known keys (env, vault, upstream specs, router token) plus `Bearer <x>` / `sk-...`

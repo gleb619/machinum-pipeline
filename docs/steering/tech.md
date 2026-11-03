@@ -61,16 +61,16 @@ Run `pnpm lint` to check, `pnpm format` to auto-fix.
 
 ```
 cli/ → core/, waypoint/ (URI registration side effect),
-       backend/standalone (lazy, only for `mt serve`)
-backend/ → core/       (only)
+       webui/standalone (lazy, only for `mt serve`)
+webui/ → core/, router/standalone (only; router mounted for `mt serve`)
 mcp/ → core/           (only)
-frontend/ → backend API (HTTP only, no direct TS imports)
-router/ → standalone   (no other packages except shared config types)
+components/ → webui API (HTTP only, no direct TS imports)
+router/ → standalone   (no @mt/* imports or deps)
 extensions → HTTP or MCP (never direct imports)
-mt/ → umbrella package (core, tools, waypoint, cli, backend)
+mt/ → umbrella package (core, tools, waypoint, cli, webui, router)
 ```
 
-Enforced by architecture tests: `packages/{cli,backend,mcp}/tests/layers.arch.test.ts`.
+Enforced by architecture tests: `packages/{cli,webui,router,mcp}/tests/layers.arch.test.ts`.
 
 ## Common Commands
 

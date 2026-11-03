@@ -1,8 +1,7 @@
 import { spawn } from 'node:child_process'
-import { createWriteStream, existsSync } from 'node:fs'
+import { createWriteStream } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import { annotate, loadGlobalContext, useCase } from '@mt/core'
 
 interface RouterOptions {
@@ -16,7 +15,7 @@ interface RouterOptions {
 
 const USAGE = `Usage: mt router [options]
 
-Start the OpenRouter proxy and its dashboard.
+Start the API-only OpenRouter-compatible gateway.
 
 Options:
   --port <n>        Listen port (default 7777, or mt.json router.port; 0 picks a free port)
@@ -59,17 +58,6 @@ function forwardArgs(options: RouterOptions): string[] {
   if (options.logDir) args.push('--log-dir', options.logDir)
   if (options.mock) args.push('--mock')
   return args
-}
-
-/** Dashboard assets: npm package `dist/router-ui`, or the monorepo `packages/router/public`. */
-function findDashboardDir(): string | undefined {
-  const here = dirname(fileURLToPath(import.meta.url))
-  const candidates = [
-    process.env.MT_ROUTER_UI_DIR,
-    join(here, '..', '..', 'router-ui'), // mt package: dist/cli/commands -> dist/router-ui
-    join(here, '..', '..', '..', 'router', 'public'), // monorepo: packages/cli/dist/commands
-  ]
-  return candidates.find((c): c is string => !!c && existsSync(join(c, 'index.html')))
 }
 
 async function detachRouter(options: RouterOptions): Promise<void> {
@@ -124,7 +112,6 @@ export async function routerCommand(args: string[]): Promise<void> {
     mock: options.mock,
     logDir: options.logDir,
     apiKeys,
-    dashboardDir: findDashboardDir(),
   })
   console.log(`Router listening on ${handle.url}${handle.mock ? ' (mock mode)' : ''}`)
 

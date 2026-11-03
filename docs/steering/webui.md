@@ -85,7 +85,10 @@ packages/webui/
 ├── vitest.config.ts
 ├── server/
 │   ├── standalone.ts     # createBackendApp / startBackend (h3 + node:http)
+│   ├── middleware/
+│   │   └── router-api.ts # Nitro dev mount for the router API
 │   ├── plugins/
+│   │   ├── router-runtime.ts # router config/vault/rotation in dev
 │   │   └── sqlite.ts
 │   ├── routes/api/…
 │   └── utils/
@@ -93,6 +96,7 @@ packages/webui/
 │       └── runner-registry.ts
 └── tests/
     ├── db.arch.test.ts       # Arch: SQLite schema and migrations
+    ├── router-embed.test.ts  # T197 same-port router, health precedence, token scoping, --no-router
     ├── routes.arch.test.ts   # Arch: expected routes present
     ├── standalone.test.ts    # Real HTTP: health, runs, SSE replay, UI + SPA fallback, pause/resume lifecycle
     └── api/

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -14,15 +14,11 @@ describe('standalone router (h3 + node:http, no Nitro, mock mode)', () => {
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'mt-router-'))
-    await mkdir(join(dir, 'dashboard'), { recursive: true })
-    await writeFile(join(dir, 'dashboard', 'index.html'), '<div id="app">router</div>')
-    await writeFile(join(dir, 'dashboard', 'app.js'), 'console.log("dash")')
     handle = await startRouter({
       port: 0,
       host: '127.0.0.1',
       mock: true,
       logDir: join(dir, 'logs'),
-      dashboardDir: join(dir, 'dashboard'),
       // Empty on purpose: the pool must reflect the passed config, not whatever key the dev machine
       // happens to export.
       apiKeys: [],
@@ -34,13 +30,15 @@ describe('standalone router (h3 + node:http, no Nitro, mock mode)', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('reports mock mode on /api/health', async () => {
-    const body = (await (await fetch(`${handle.url}/api/health`)).json()) as {
-      status: string
-      mockMode: boolean
+  it('reports mock mode on /api/health and /api/router/health', async () => {
+    for (const path of ['/api/health', '/api/router/health']) {
+      const body = (await (await fetch(`${handle.url}${path}`)).json()) as {
+        status: string
+        mockMode: boolean
+      }
+      expect(body.status).toBe('ok')
+      expect(body.mockMode).toBe(true)
     }
-    expect(body.status).toBe('ok')
-    expect(body.mockMode).toBe(true)
   })
 
   it('answers /api/chat/completions from the mock, without an API key', async () => {
@@ -104,34 +102,15 @@ describe('standalone router (h3 + node:http, no Nitro, mock mode)', () => {
     expect(config.defaultModel).toBe('openai/gpt-4o-mini')
   })
 
-  it('serves dashboard assets and 404s the rest', async () => {
-    expect(await (await fetch(`${handle.url}/`)).text()).toContain('id="app"')
-    expect(await (await fetch(`${handle.url}/app.js`)).text()).toContain('console.log')
+  it('serves no static UI and 404s unknown paths', async () => {
+    expect((await fetch(`${handle.url}/`)).status).toBe(404)
+    expect((await fetch(`${handle.url}/app.js`)).status).toBe(404)
     expect((await fetch(`${handle.url}/missing.html`)).status).toBe(404)
     expect((await fetch(`${handle.url}/api/nope`)).status).toBe(404)
   })
 })
 
 describe('standalone router config handling', () => {
-  it('serves embedded assets when no dashboard directory is given', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'mt-router-embedded-'))
-    const asset = join(dir, 'index.html')
-    await writeFile(asset, '<html>embedded</html>')
-    const handle = await startRouter({
-      port: 0,
-      host: '127.0.0.1',
-      mock: true,
-      logDir: join(dir, 'logs'),
-      dashboard: { '/index.html': asset },
-    })
-    try {
-      expect(await (await fetch(`${handle.url}/`)).text()).toContain('embedded')
-    } finally {
-      await handle.close()
-      await rm(dir, { recursive: true, force: true })
-    }
-  })
-
   it('keeps the daily budget out of the mock path and reflects overrides', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'mt-router-budget-'))
     const handle = await startRouter({

@@ -1,4 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises'
+import { access, readFile, readdir } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -55,6 +55,28 @@ describe('router stays standalone (architectural)', () => {
   it('vault-reader.ts imports nothing from core paths', async () => {
     const source = await readFile(join(srcDir, 'utils', 'vault-reader.ts'), 'utf8')
     expect(source).not.toMatch(/from\s+['"][^'"]*(packages\/core|\.\.\/core)/)
+  })
+
+  it('ships no static dashboard UI', async () => {
+    await expect(access(join(pkgDir, 'public'))).rejects.toThrow()
+    const pkg = JSON.parse(await readFile(join(pkgDir, 'package.json'), 'utf8')) as {
+      files?: string[]
+    }
+    expect(pkg.files).not.toContain('public')
+  })
+
+  it('server sources contain no dashboard or embedded UI wiring', async () => {
+    for (const file of await collectFiles(srcDir)) {
+      const source = await readFile(file, 'utf8')
+      expect(source, relative(pkgDir, file)).not.toMatch(
+        /dashboardDir|EmbeddedDashboard|__MT_ROUTER_UI__|dashboardHandler/,
+      )
+    }
+  })
+
+  it('exports the embeddable createRouterApp builder', async () => {
+    const source = await readFile(join(srcDir, 'standalone.ts'), 'utf8')
+    expect(source).toContain('export function createRouterApp')
   })
 
   it('vault-reader.ts imports only node builtins and local files', async () => {

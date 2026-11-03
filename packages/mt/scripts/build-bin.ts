@@ -61,12 +61,8 @@ function embedAssets(dir: string, globalName: string, genFile: string): string {
 }
 
 embedAssets(join(dist, 'ui'), '__MT_UI__', 'ui-embedded.gen.js')
-embedAssets(join(dist, 'router-ui'), '__MT_ROUTER_UI__', 'router-ui-embedded.gen.js')
 const entry = join(dist, 'bin-entry.gen.js')
-writeFileSync(
-  entry,
-  "import './ui-embedded.gen.js'\nimport './router-ui-embedded.gen.js'\nimport './bin.js'\n",
-)
+writeFileSync(entry, "import './ui-embedded.gen.js'\nimport './bin.js'\n")
 
 // Not bundled into the binary:
 // - `openai` / `@anthropic-ai/sdk` — the official SDK transports are optional; the tools fall back

@@ -40,6 +40,11 @@ describe('UC-27 - Admin API Routes & Config (architectural)', () => {
     expect(await fileExists('../server/routes/api/runs/[id]/events.ts')).toBe(true)
   })
 
+  it('mounts the embedded router middleware and runtime plugin', async () => {
+    expect(await fileExists('../server/middleware/router-api.ts')).toBe(true)
+    expect(await fileExists('../server/plugins/router-runtime.ts')).toBe(true)
+  })
+
   it('pipelines route exists', async () => {
     expect(await fileExists('../server/routes/api/pipelines.ts')).toBe(true)
   })

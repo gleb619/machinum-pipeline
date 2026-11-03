@@ -40,6 +40,13 @@ describe('UC-26 - Background Serving CLI (architectural)', () => {
     expect(source).toMatch(/'-d'/)
   })
 
+  it('--no-router flag is plumbed to startBackend', async () => {
+    const servePath = join(__dirname, '..', '..', 'src', 'commands', 'serve.ts')
+    const source = await readFile(servePath, 'utf-8')
+    expect(source).toMatch(/--no-router/)
+    expect(source).toMatch(/router:\s*options\.router/)
+  })
+
   it('detach mode spawns a child process with detached:true', async () => {
     const servePath = join(__dirname, '..', '..', 'src', 'commands', 'serve.ts')
     const source = await readFile(servePath, 'utf-8')
