@@ -135,6 +135,20 @@ export {
 } from './core/translate-text.js'
 
 export {
+  browserTranslate,
+  createBrowserTranslate,
+  createHeadlessGoogleEngine,
+  resolveChromePath,
+  buildTranslatePage,
+  splitTranslationChunks,
+  type BrowserTranslateEngine,
+  type BrowserTranslateInput,
+  type BrowserTranslateOptions,
+  type BrowserTranslateOutput,
+  type TranslationChunk,
+} from './modification/browser-translate.js'
+
+export {
   OpenRouterPool,
   OpenRouterPoolSupplier,
   applyPoolError,

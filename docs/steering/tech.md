@@ -136,6 +136,7 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_CONTEXT_AUTO_LIMIT` | `true` | Derive the budget from the known model context window |
 | `MT_CONTEXT_LIMITS` | — | JSON map `{"glob-or-prefix": tokens}` extending the built-in model context-limit table |
 | `MT_CHUNK_SIZE` | `6000` | Default chunk size in tokens for the `chunkSplit` tool (below mt.json `settings.chunkSize` and per-envelope `meta.chunkSize` / tool option) |
+| `MT_CHROME_PATH` | auto-detected system Chrome | Chrome executable used by the `browser-translate` tool |
 | `MT_CONST_<NAME>` | built-in constant | Tunable-constant override (`NAME` = the `constants.ts` export name, e.g. `MT_CONST_DEFAULT_CHUNK_TARGET`). Chain: per-call `constants` variable > mt.json `settings.constants.<NAME>` > this env var > the constant; invalid values throw citing the source (`resolve-constants.ts`) |
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |

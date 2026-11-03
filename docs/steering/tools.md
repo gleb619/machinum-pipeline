@@ -382,6 +382,33 @@ The `translate` slot defaults to the process-level pick (`resolveProcessLlm`, in
 (`translateVia`, no hand-built envelopes). Swap the translator for the whole tool either via the factory
 option (any `Tool<TranslateInput, TranslateOutput>`) or per-slot via `.with({ translate })`.
 
+### `modification/browser-translate.ts`
+- `browserTranslate` / `createBrowserTranslate(options?)` — browser-backed translator (TL247, category
+  `translator`). Exchange types are `TranslateInput` / `TranslateOutput` from `core/translate-text.ts`, so it
+  is a drop-in translator slot (e.g. `chapter-translator`). Options (`BrowserTranslateOptions`): `targetLang`,
+  `chromePath`, `headless`, `timeoutMs` (default `60000`), `concurrency` (default `3`), and `engine`
+  (`BrowserTranslateEngine` injection; bypasses Chrome, for tests). `targetLang` resolves from the input first,
+  then the option; missing both throws.
+- `BrowserTranslateInput` / `BrowserTranslateOutput` describe the browser call: `{ text, sourceLang?,
+  targetLang? }` -> `{ translatedText, engine: 'google-endpoint', model: 'google-translate-web', ms }`.
+  Batched `env.items` are translated in order with bounded `concurrency`; empty/whitespace text returns `''`
+  without launching Chrome. Output derives with `withItem`; the `browserTranslate` variable holds
+  `{ engine, model, ms, targetLang, sourceLang }` for a single item; for batch input it holds an array of the
+  same objects.
+- Engine: `createHeadlessGoogleEngine(options?)` lazily loads `playwright-core` (optional peer dependency in
+  both `@mt/tools` and the consumer-facing `packages/mt` package; devDependency for typecheck/tests), resolves
+  Chrome via `options.chromePath` -> `MT_CHROME_PATH` -> common system paths, and launches one headless Chrome
+  per engine instance. The returned tool has no `close`; use the engine directly when deterministic shutdown
+  is needed. `resolveChromePath(configured?)` / `buildTranslatePage(...)` are exported helpers. Chrome is
+  required; missing Chrome or `playwright-core` throws a clear error. The standalone Bun binary cannot load
+  `playwright-core` unless it is resolvable at runtime.
+- Architecture/limitation: each call serves the page from an ephemeral `127.0.0.1:0` HTTP server and loads it
+  in Chrome. Verified on Chrome 156: native Chrome auto-translate works in headless mode on public pages, but
+  **never fires for localhost, loopback, LAN, or proxied local pages**. The page script therefore POSTs to the
+  Google Translate endpoint (`https://translate.googleapis.com/translate_a/single`) itself, writes the result
+  into the DOM, and Playwright reads it back. The page chunker preserves leading/trailing whitespace at chunk
+  boundaries. Native auto-translate is not used.
+
 ### `openrouter-tool.ts`
 LLM gates built on the LLM toolkit (see [LLM toolkit](#llm-toolkit)); I/O unchanged:
 - `chatCompletion` — chat completion (composable: `prepare, fit, call, parse, emit`)
@@ -978,7 +1005,7 @@ The TL001–TL116 entries below are the planned-tool spec index — the full cat
 
 ## Implemented tool index (TL201+)
 
-IDs TL201–TL246 are allocated to implemented tools that had no clear match in the
+IDs TL201–TL247 are allocated to implemented tools that had no clear match in the
 TL001–TL116 planned-tool spec. The ID is stable per exported tool value; aliases share one
 annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 
@@ -1030,3 +1057,4 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL244 | `tokenCounterBatchCached` | `token-counter-batch-cached` | — | `normalization/token-counter.ts` |
 | TL245 | `toMarkdown`, `toMarkdownTool` | `to-markdown` | UC058 | `modification/to-markdown.ts` |
 | TL246 | `unwrapMarkdownText` | `unwrap-markdown-text` | — | `normalization/chapter-record.ts` |
+| TL247 | `browserTranslate` | `browser-translate` | — | `modification/browser-translate.ts` |
