@@ -38,7 +38,7 @@ for (const name of pkgs) {
   })
 }
 
-const uiSrc = resolve(root, '..', 'frontend', 'dist')
+const uiSrc = resolve(root, '..', 'components', 'dist')
 rmSync(join(dist, 'ui'), { recursive: true, force: true })
 try {
   cpSync(uiSrc, join(dist, 'ui'), { recursive: true })
