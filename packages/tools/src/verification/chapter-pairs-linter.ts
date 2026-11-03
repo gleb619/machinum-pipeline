@@ -1,4 +1,4 @@
-import { defineTool, getVariable, setVariable, withItem } from '@mt/core'
+import { defineTool, getVariable, setVariable, tool, useCase, withItem } from '@mt/core'
 import { lineParityLinter } from './line-parity-linter.js'
 import type { LineParityInput, LineParityReport } from './line-parity-linter.js'
 
@@ -12,6 +12,14 @@ export const chapterPairsLinter = defineTool<LineParityInput, LineParityInput>({
   version: '1.0.0',
   mdDescription:
     'lineParityLinter over every EN/RU chapter pair; reports in the parityByChapter variable.',
+  annotations: [
+    tool('TL205', {
+      name: 'chapter-pairs-linter',
+      description: 'Runs line parity checks over every EN/RU chapter pair.',
+      refs: ['UC057'],
+    }),
+    useCase('UC057'),
+  ],
   async invoke(env, ctx) {
     const pairs = env.items ?? [env.item]
     const nums = getVariable<number[]>(env, 'chapterNums') ?? []

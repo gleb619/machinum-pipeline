@@ -1,6 +1,6 @@
 import { md } from '@markschema/mdshape'
 import type { TypeMdIssue } from '@markschema/mdshape'
-import { defineComposableTool, defineTool, getVariable, withItem } from '@mt/core'
+import { annotate, defineComposableTool, defineTool, getVariable, tool, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
@@ -284,6 +284,13 @@ export const schemaDocBuild = defineTool<unknown, string>({
   name: 'schema-doc-build',
   version: '1.0.0',
   mdDescription: 'Builds schema-doc markdown from envelope metadata.',
+  annotations: [
+    tool('TL230', {
+      name: 'schema-doc-build',
+      description: 'Builds schema-doc markdown from envelope metadata.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<unknown>, _ctx: ToolContext): Promise<Exchange<string>> {
     const meta = (env.meta || {}) as Record<string, unknown>
     const chapterNum = schemaDocChapterNum(meta)
@@ -314,21 +321,35 @@ function schemaDocChapterNum(meta: Record<string, unknown>): number {
 }
 
 /** Slot `emit`: markdown -> `mdOutputs` intent for `<target-root>/schema`. */
-export const schemaDocEmit = mdOutputEmitter({
-  name: 'schema-doc',
-  subdir: 'schema',
-  filename: (meta) => `chapter${schemaDocChapterNum(meta)}.schema.md`,
-  toolName: 'schema-doc-emit',
-})
+export const schemaDocEmit = annotate(
+  mdOutputEmitter({
+    name: 'schema-doc',
+    subdir: 'schema',
+    filename: (meta) => `chapter${schemaDocChapterNum(meta)}.schema.md`,
+    toolName: 'schema-doc-emit',
+  }),
+  tool('TL231', {
+    name: 'schema-doc-emit',
+    description: 'Appends schema-doc markdown to the mdOutputs variable.',
+    refs: [],
+  }),
+)
 
 /**
  * Tool: builds a schema-doc markdown from meta and sets the mdOutputs variable for schema-doc writes.
  * Slots: `build`, `emit`. Override with `schemaDocWriter.with({ emit: myTool })`.
  */
-export const schemaDocWriter = defineComposableTool<unknown, string, 'build' | 'emit'>({
-  name: 'schema-doc-writer',
-  version: '1.0.0',
-  mdDescription:
-    'Builds schema-doc markdown from envelope metadata. Sets the `mdOutputs` variable for writes.',
-  slots: { build: schemaDocBuild, emit: schemaDocEmit },
-})
+export const schemaDocWriter = annotate(
+  defineComposableTool<unknown, string, 'build' | 'emit'>({
+    name: 'schema-doc-writer',
+    version: '1.0.0',
+    mdDescription:
+      'Builds schema-doc markdown from envelope metadata. Sets the `mdOutputs` variable for writes.',
+    slots: { build: schemaDocBuild, emit: schemaDocEmit },
+  }),
+  tool('TL232', {
+    name: 'schema-doc-writer',
+    description: 'Builds and emits schema-doc markdown.',
+    refs: [],
+  }),
+)

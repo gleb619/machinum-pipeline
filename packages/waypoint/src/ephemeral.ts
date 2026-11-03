@@ -1,7 +1,7 @@
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { annotate, registry, waypoint } from '@mt/core'
 import { resumeFrom } from './resume.js'
 
 /**
@@ -87,5 +87,37 @@ export function createNamedEphemeralTarget<T>(uri: ParsedUri, bufferName: string
 }
 
 // Register built-in ephemeral source and target
+annotate(
+  createEphemeralSource,
+  waypoint('WT013', {
+    name: 'ephemeral source',
+    description: 'Reads envelopes from a process-local in-memory buffer.',
+    meta: { schemes: ['ephemeral'], direction: 'source' },
+  }),
+)
+annotate(
+  createEphemeralTarget,
+  waypoint('WT013', {
+    name: 'ephemeral target',
+    description: 'Writes envelopes to a process-local in-memory buffer.',
+    meta: { schemes: ['ephemeral'], direction: 'target' },
+  }),
+)
+annotate(
+  createNamedEphemeralSource,
+  waypoint('WT013', {
+    name: 'named ephemeral source',
+    description: 'Reads envelopes from a process-local in-memory buffer.',
+    meta: { schemes: ['ephemeral'], direction: 'source' },
+  }),
+)
+annotate(
+  createNamedEphemeralTarget,
+  waypoint('WT013', {
+    name: 'named ephemeral target',
+    description: 'Writes envelopes to a process-local in-memory buffer.',
+    meta: { schemes: ['ephemeral'], direction: 'target' },
+  }),
+)
 registry.registerSource('ephemeral', createEphemeralSource)
 registry.registerTarget('ephemeral', createEphemeralTarget)

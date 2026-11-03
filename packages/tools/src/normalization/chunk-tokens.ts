@@ -1,4 +1,4 @@
-import { defineTool, setVariables, withMeta } from '@mt/core'
+import { defineTool, setVariables, tool, withMeta } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { CHARS_PER_TOKEN_HEURISTIC } from '../constants.js'
 
@@ -97,6 +97,13 @@ export function createChunkTokenize(options: TokenizeChunkOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Tokenize a chunk (string) into tiktoken-style BPE tokens `{ tokenId, text }` via gpt-tokenizer; the alternate descent chunks -> tokens. Sets `tokenCount` (meta + variable) and the `tokenHeuristic` variable (true when the ~4 chars/token fallback was used).',
+    annotations: [
+      tool('TL210', {
+        name: 'chunk-tokenize',
+        description: 'Tokenizes a chunk into tiktoken-style BPE tokens.',
+        refs: [],
+      }),
+    ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<ChunkToken[]>> {
       const { tokens, heuristic } = await tokenizeChunkDetailed(env.item, options)
       const next = setVariables({ ...env, item: tokens } as Exchange<ChunkToken[]>, {

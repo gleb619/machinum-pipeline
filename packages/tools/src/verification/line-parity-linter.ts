@@ -1,4 +1,4 @@
-import { defineTool, setVariable } from '@mt/core'
+import { defineTool, setVariable, tool, useCase } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import {
   MAX_ISSUES_IN_ERROR,
@@ -323,6 +323,14 @@ export function createLineParityLinter(options: LineParityLinterOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Compares EN vs RU: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and think blocks. Report in the parity variable; throws a retryable error on hard errors. Optional stability escape hatch accepts a chunk when only the Cyrillic-ratio check fails and stays stable.',
+    annotations: [
+      tool('TL214', {
+        name: 'line-parity-linter',
+        description: 'Checks EN/RU line parity, scripts and leftover markup.',
+        refs: ['UC057'],
+      }),
+      useCase('UC057'),
+    ],
     async invoke(env, ctx: ToolContext) {
       const previous = history.get(env)
       const report = lintLineParity(env.item.en, env.item.ru, {

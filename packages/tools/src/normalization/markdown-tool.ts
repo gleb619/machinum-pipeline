@@ -1,4 +1,4 @@
-import { defineTool, setVariable, withItem } from '@mt/core'
+import { defineTool, setVariable, tool, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { Heading, Nodes, Root, RootContent } from 'mdast'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -223,6 +223,13 @@ export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
   mdDescription:
     'Collects structural statistics from markdown: headings, paragraphs, code blocks, links, word count.',
 
+  annotations: [
+    tool('TL081', {
+      name: 'markdown-stats',
+      description: 'Collects structural markdown statistics.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownStatsOutput>> {
     return setVariable(
       withItem(env, { text: env.item, stats: markdownStats(env.item) }),
@@ -238,6 +245,13 @@ export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
   mdDescription:
     'Extracts a flat heading outline from markdown, in document order with depth and line numbers.',
 
+  annotations: [
+    tool('TL075', {
+      name: 'markdown-outline',
+      description: 'Extracts a flat heading outline with depth and line numbers.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownOutlineOutput>> {
     return setVariable(
       withItem(env, { text: env.item, outline: markdownOutline(env.item) }),
@@ -252,6 +266,13 @@ export const markdownStripFrontmatter = defineTool<string, MarkdownStripOutput>(
   version: '1.0.0',
   mdDescription: 'Removes leading YAML frontmatter from markdown documents.',
 
+  annotations: [
+    tool('TL008', {
+      name: 'markdown-strip-frontmatter',
+      description: 'Removes leading YAML frontmatter from markdown.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownStripOutput>> {
     const { text, stripped } = stripFrontmatter(env.item)
     return setVariable(withItem(env, { text, stripped }), 'markdownFrontmatterStripped', stripped)

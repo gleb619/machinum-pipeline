@@ -1,3 +1,4 @@
+import { annotate, tool, useCase } from '@mt/core'
 import type { LlmConfigLayer } from './llm-config.js'
 import { type GateInput, type GateOutput, createLlmGate } from './llm-gate.js'
 
@@ -34,16 +35,24 @@ export const OLLAMA_DEFAULTS: LlmConfigLayer = {
  * Endpoint: `MT_OLLAMA_URL` (default {@link OLLAMA_BASE_URL}); model: `MT_OLLAMA_MODEL`
  * (default {@link OLLAMA_MODEL}). A per-call override still wins (`item.model` / `item.llm`).
  */
-export const ollamaTool = createLlmGate<GateInput, GateOutput>({
-  name: 'ollama',
-  version: '1.0.0',
-  mdDescription:
-    'Ollama gate (provider ollama). ' +
-    'Endpoint from MT_OLLAMA_URL (default http://localhost:11434/v1, e.g. a remote GPU server), model from MT_OLLAMA_MODEL (default gemma4:latest).',
-  llm: OLLAMA_LLM,
-  llmDefaults: OLLAMA_DEFAULTS,
-  metaFlags: { ollama: true },
-})
+export const ollamaTool = annotate(
+  createLlmGate<GateInput, GateOutput>({
+    name: 'ollama',
+    version: '1.0.0',
+    mdDescription:
+      'Ollama gate (provider ollama). ' +
+      'Endpoint from MT_OLLAMA_URL (default http://localhost:11434/v1, e.g. a remote GPU server), model from MT_OLLAMA_MODEL (default gemma4:latest).',
+    llm: OLLAMA_LLM,
+    llmDefaults: OLLAMA_DEFAULTS,
+    metaFlags: { ollama: true },
+  }),
+  tool('TL222', {
+    name: 'ollama',
+    description: 'Ollama gate for local or remote GPU models.',
+    refs: ['UC063'],
+  }),
+  useCase('UC063'),
+)
 
 // ---------------------------------------------------------------------------
 // Native API helpers (model list / health)

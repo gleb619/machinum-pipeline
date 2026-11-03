@@ -1,4 +1,4 @@
-import { defineTool, withItem, withMeta } from '@mt/core'
+import { defineTool, tool, withItem, withMeta } from '@mt/core'
 import type { FinderOutput, MarkdownFormatterOutput } from '../verification/chapter-validator.js'
 
 /** Raw JSONL line: `key` is the source URL, `value` is `Chapter N: Title\n<body lines>`. */
@@ -31,6 +31,13 @@ export const chapterRecordMapper = defineTool<RawChapter, string>({
   name: 'chapter-record-mapper',
   version: '1.0.0',
   mdDescription: 'Maps a raw {key,value} line to a chapter record; item becomes "title\\nbody".',
+  annotations: [
+    tool('TL206', {
+      name: 'chapter-record-mapper',
+      description: 'Maps a raw key/value line to a chapter record.',
+      refs: [],
+    }),
+  ],
   async invoke(env) {
     const rec = toChapterRecord(env.item)
     return withMeta(withItem(env, `${rec.title}\n${rec.body}`), { chapterNum: rec.chapterNum })
@@ -42,6 +49,13 @@ export const lineTextToMarkdown = defineTool<string, { text: string }>({
   name: 'line-text-to-markdown',
   version: '1.0.0',
   mdDescription: 'First line becomes "# title"; remaining lines become one paragraph each.',
+  annotations: [
+    tool('TL215', {
+      name: 'line-text-to-markdown',
+      description: 'Turns line text into a markdown title and paragraphs.',
+      refs: [],
+    }),
+  ],
   async invoke(env) {
     const [title = '', ...rest] = env.item.split('\n')
     const paragraphs = rest.filter((l) => l !== '')
@@ -55,6 +69,13 @@ export const unwrapMarkdownText = defineTool<MarkdownFormatterOutput | FinderOut
   version: '1.0.0',
   mdDescription:
     "Unwraps { text } to a markdown string; undoes remark's \\[ escaping so [system messages] stay literal.",
+  annotations: [
+    tool('TL246', {
+      name: 'unwrap-markdown-text',
+      description: 'Unwraps markdown text and restores literal brackets.',
+      refs: [],
+    }),
+  ],
   async invoke(env) {
     return withItem(env, env.item.text.replace(/\\([[\]])/g, '$1'))
   },

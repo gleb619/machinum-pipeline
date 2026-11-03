@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool, useCase } from '@mt/core'
 import { getVariable, setVariables, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { Options as StringifyOptions } from 'remark-stringify'
@@ -157,6 +157,14 @@ function makeMdFormatter(defaults?: FormatOptions) {
     mdDescription:
       'Reformats markdown with configurable line width and wrapping. Uses remark (GFM + frontmatter aware).',
 
+    annotations: [
+      tool('TL218', {
+        name: 'md-formatter',
+        description: 'Reformats markdown with configurable width and wrapping.',
+        refs: ['UC058'],
+      }),
+      useCase('UC058'),
+    ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const input = env.item
       const perEnvOpts = getVariable<FormatOptions>(env, VAR_MD_FORMAT_OPTIONS)

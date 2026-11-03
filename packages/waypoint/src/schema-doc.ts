@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { atomicWriteFile, registry } from '@mt/core'
+import { annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
 import matter from 'gray-matter'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
@@ -304,6 +304,22 @@ function extractTextContent(node: MdastPhrasable): string {
   return ''
 }
 
+annotate(
+  createSchemaDocSource,
+  waypoint('WT005', {
+    name: 'schema-doc source',
+    description: 'Reads a schema document and parses its metadata, summary, entities and schema.',
+    meta: { schemes: ['schema-doc'], direction: 'source' },
+  }),
+)
+annotate(
+  createSchemaDocTarget,
+  waypoint('WT005', {
+    name: 'schema-doc target',
+    description: 'Writes per-chapter schema documents to <dir>/chapter<N>.schema.md.',
+    meta: { schemes: ['schema-doc'], direction: 'target' },
+  }),
+)
 // Register built-in Schema Document source and target
 registry.registerSource('schema-doc', createSchemaDocSource)
 registry.registerTarget('schema-doc', createSchemaDocTarget)

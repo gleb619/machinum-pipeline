@@ -1,5 +1,9 @@
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { annotate, registry, waypoint } from '@mt/core'
+import {
+  createGitWorktreeSource,
+  createGitWorktreeTarget,
+} from '@mt/core/engine/git-worktree-source.js'
 
 /**
  * Git worktree Source/Target implementations live in @mt/core — they are
@@ -7,16 +11,29 @@ import { registry } from '@mt/core'
  * engine. This module re-exports them and owns the `git+` URI scheme
  * registration, which is waypoint's responsibility.
  */
-export {
-  GitWorktreeSource,
-  GitWorktreeTarget,
-  createGitWorktreeSource,
-  createGitWorktreeTarget,
-} from '@mt/core/engine/git-worktree-source.js'
+export { GitWorktreeSource, GitWorktreeTarget } from '@mt/core/engine/git-worktree-source.js'
+export { createGitWorktreeSource, createGitWorktreeTarget }
 
 // ---------------------------------------------------------------------------
 // Module-level side effect: register git+ composite resolver
 // ---------------------------------------------------------------------------
+
+annotate(
+  createGitWorktreeSource,
+  waypoint('WT006', {
+    name: 'git worktree source',
+    description: 'Reads the inner source inside a git worktree (git+<scheme>://…).',
+    meta: { schemes: ['git'], direction: 'source' },
+  }),
+)
+annotate(
+  createGitWorktreeTarget,
+  waypoint('WT006', {
+    name: 'git worktree target',
+    description: 'Writes through the inner target inside a git worktree (git+<scheme>://…).',
+    meta: { schemes: ['git'], direction: 'target' },
+  }),
+)
 
 /**
  * Composite resolver for git+ URIs.

@@ -8,7 +8,7 @@ import type {
   Target,
   TargetContext,
 } from '@mt/core'
-import { registry } from '@mt/core'
+import { annotate, registry, waypoint } from '@mt/core'
 
 /**
  * Batch-scope waypoints: the views of `.batch(opts, nested)`.
@@ -71,5 +71,21 @@ export function createBatchReturnTarget(uri: ParsedUri): Target<unknown> {
   }
 }
 
+annotate(
+  createBatchScopeSource,
+  waypoint('WT014', {
+    name: 'batch scope source',
+    description: 'Reads the enclosing batch scope as one group exchange or as individual members.',
+    meta: { schemes: ['batch'], direction: 'source' },
+  }),
+)
+annotate(
+  createBatchReturnTarget,
+  waypoint('WT014', {
+    name: 'batch return target',
+    description: 'Commits written envelopes back to the enclosing batch scope.',
+    meta: { schemes: ['batch'], direction: 'target' },
+  }),
+)
 registry.registerSource('batch', createBatchScopeSource)
 registry.registerTarget('batch', createBatchReturnTarget)

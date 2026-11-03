@@ -9,6 +9,7 @@ import {
   addEmbedKey,
   addEntry,
   addKeepassSecret,
+  annotate,
   createEmbedStore,
   createKeepassDatabase,
   defaultEmbedPath,
@@ -35,6 +36,7 @@ import {
   rotateEmbedSecret,
   saveVault,
   setEmbedSecret,
+  useCase,
   useEmbedKey,
   vaultPaths,
 } from '@mt/core'
@@ -418,6 +420,8 @@ async function listCommand(): Promise<void> {
   }
 }
 
+annotate(listCommand, useCase('UC073'))
+
 async function showCommand(options: VaultOptions, name: string): Promise<void> {
   if (!name) fail('Usage: mt vault show <name>')
   const vault = await loadVault(process.cwd(), process.env, { resolveRefs: false })
@@ -428,6 +432,8 @@ async function showCommand(options: VaultOptions, name: string): Promise<void> {
     : (maskVault({ version: 1, entries: { [name]: entry } }).entries[name] as VaultEntry)
   console.log(JSON.stringify(shown, null, 2))
 }
+
+annotate(showCommand, useCase('UC073'))
 
 async function addCommand(
   options: VaultOptions,
@@ -454,6 +460,8 @@ async function addCommand(
     console.log(`  ${stored} key${stored === 1 ? '' : 's'} stored in ${defaultEmbedPath(env)}`)
   }
 }
+
+annotate(addCommand, useCase('UC068'))
 
 /**
  * Replace every plaintext key of `entry` with an `embed:<name>` ref, storing the value in the
@@ -491,6 +499,8 @@ async function moveKeysToEmbed(
   return moved
 }
 
+annotate(moveKeysToEmbed, useCase('UC069'))
+
 async function rmCommand(
   options: VaultOptions,
   name: string,
@@ -513,6 +523,8 @@ async function rmCommand(
   fail(unknownEntryMessage(name, merged))
 }
 
+annotate(rmCommand, useCase('UC073'))
+
 async function pathCommand(targets: VaultTargets): Promise<void> {
   const label = (path: string): string => {
     if (path === targets.user) return 'user'
@@ -526,6 +538,8 @@ async function pathCommand(targets: VaultTargets): Promise<void> {
   }
 }
 
+annotate(pathCommand, useCase('UC073'))
+
 async function initCommand(targets: VaultTargets): Promise<void> {
   if (existsSync(targets.write)) {
     console.log(`Vault already exists: ${targets.write}`)
@@ -538,6 +552,8 @@ async function initCommand(targets: VaultTargets): Promise<void> {
     if (ignored.length > 0) console.log(`Added to .gitignore: ${ignored.join(', ')}`)
   }
 }
+
+annotate(initCommand, useCase('UC073'))
 
 /** Probe `vlt --version` (falling back to `vlt version`); undefined when it fails. */
 function vltVersion(binary: string): string | undefined {
@@ -557,12 +573,16 @@ function vltVersion(binary: string): string | undefined {
   return undefined
 }
 
+annotate(vltVersion, useCase('UC073'))
+
 async function vltInstallCommand(): Promise<void> {
   const installed = await installVlt()
   console.log(`Installed vlt to ${installed}`)
   const version = vltVersion(installed)
   console.log(`  version: ${version ?? 'unknown (vlt --version failed)'}`)
 }
+
+annotate(vltInstallCommand, useCase('UC073'))
 
 async function vltStatusCommand(): Promise<void> {
   const binary = await findVlt()
@@ -590,6 +610,8 @@ async function vltStatusCommand(): Promise<void> {
   }
 }
 
+annotate(vltStatusCommand, useCase('UC073'))
+
 /**
  * Environment for the KeePass commands. `--path` / `--key-file` override the
  * environment; when no credentials are configured and a TTY is attached, the
@@ -606,6 +628,8 @@ async function keepassEnv(options: VaultOptions, prompt: boolean): Promise<NodeJ
   }
   return env
 }
+
+annotate(keepassEnv, useCase('UC066'))
 
 async function keepassInitCommand(options: VaultOptions): Promise<void> {
   const path = resolve(options.path ?? defaultKeepassPath(process.env))
@@ -630,6 +654,8 @@ async function keepassInitCommand(options: VaultOptions): Promise<void> {
   console.log(`Created ${created}`)
   console.log('  mode: 0600')
 }
+
+annotate(keepassInitCommand, useCase('UC066'))
 
 async function keepassAddCommand(options: VaultOptions): Promise<void> {
   const title = options.positionals[1]
@@ -656,6 +682,8 @@ async function keepassAddCommand(options: VaultOptions): Promise<void> {
   console.log(`  uuid: ${result.uuid}`)
 }
 
+annotate(keepassAddCommand, useCase('UC066'))
+
 async function keepassListCommand(options: VaultOptions): Promise<void> {
   const env = await keepassEnv(options, true)
   const path = defaultKeepassPath(env)
@@ -677,6 +705,8 @@ async function keepassListCommand(options: VaultOptions): Promise<void> {
   }
 }
 
+annotate(keepassListCommand, useCase('UC066'))
+
 async function keepassStatusCommand(options: VaultOptions): Promise<void> {
   const env = await keepassEnv(options, false)
   const path = defaultKeepassPath(env)
@@ -694,6 +724,8 @@ async function keepassStatusCommand(options: VaultOptions): Promise<void> {
     console.log(`  locked: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
+
+annotate(keepassStatusCommand, useCase('UC066'))
 
 /**
  * Environment for the embedded-store commands. `--path` overrides the environment. Without
@@ -716,6 +748,8 @@ async function embedInitCommand(options: VaultOptions): Promise<void> {
   console.log('  mode: 0600')
 }
 
+annotate(embedInitCommand, useCase('UC067'))
+
 async function embedAddCommand(options: VaultOptions): Promise<void> {
   const name = options.positionals[1]
   if (!name) {
@@ -731,6 +765,8 @@ async function embedAddCommand(options: VaultOptions): Promise<void> {
   )
   console.log(`Saved embedded secret "${name}" in ${result.path} (encryption key: ${result.kid})`)
 }
+
+annotate(embedAddCommand, useCase('UC067'))
 
 async function embedListCommand(options: VaultOptions): Promise<void> {
   const env = embedEnv(options)
@@ -755,6 +791,8 @@ async function embedListCommand(options: VaultOptions): Promise<void> {
   }
 }
 
+annotate(embedListCommand, useCase('UC067'))
+
 async function embedStatusCommand(options: VaultOptions): Promise<void> {
   const env = embedEnv(options)
   const path = defaultEmbedPath(env)
@@ -775,6 +813,8 @@ async function embedStatusCommand(options: VaultOptions): Promise<void> {
     console.log(`  locked: ${err instanceof Error ? err.message : String(err)}`)
   }
 }
+
+annotate(embedStatusCommand, useCase('UC067'))
 
 /** Read a secret from a file, dropping one trailing newline. */
 async function readSecretFile(path: string, label: string): Promise<string> {
@@ -907,6 +947,8 @@ async function embedKeyringCommand(options: VaultOptions): Promise<void> {
   }
 }
 
+annotate(embedKeyringCommand, useCase('UC070'))
+
 async function embedRekeyCommand(options: VaultOptions): Promise<void> {
   const env = embedEnv(options)
   const newPassword = await resolveNewPassword(options, env)
@@ -920,6 +962,8 @@ async function embedRekeyCommand(options: VaultOptions): Promise<void> {
     '  tip: `mt vault embed-keyring rotate --reencrypt` also replaces the encryption keys',
   )
 }
+
+annotate(embedRekeyCommand, useCase('UC072'))
 
 async function embedRotateCommand(options: VaultOptions): Promise<void> {
   const name = options.positionals[1]
@@ -935,6 +979,8 @@ async function embedRotateCommand(options: VaultOptions): Promise<void> {
   console.log(`Rotated embedded secret "${name}" in ${result.path}`)
   console.log(`  rotatedAt: ${result.rotatedAt}`)
 }
+
+annotate(embedRotateCommand, useCase('UC074'))
 
 async function masterKeyCommandDispatch(options: VaultOptions): Promise<void> {
   const action = options.positionals[1]
@@ -1024,3 +1070,5 @@ export async function vaultCommand(args: string[]): Promise<void> {
     process.exit(1)
   }
 }
+
+annotate(vaultCommand, useCase('UC073'))

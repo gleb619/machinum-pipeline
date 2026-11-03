@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool, useCase } from '@mt/core'
 import { setVariable, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { Heading, Paragraph, Root, RootContent, Text } from 'mdast'
@@ -65,6 +65,14 @@ export const toMarkdown = defineTool<ToMarkdownInput, string>({
   mdDescription:
     'Builds markdown from structured input (title + body). Uses remark with GFM and frontmatter support.',
 
+  annotations: [
+    tool('TL245', {
+      name: 'to-markdown',
+      description: 'Builds markdown from structured title and body input.',
+      refs: ['UC058'],
+    }),
+    useCase('UC058'),
+  ],
   async invoke(env: Exchange<ToMarkdownInput>, _ctx: ToolContext): Promise<Exchange<string>> {
     const item = env.item
     const input: ToMarkdownInput =

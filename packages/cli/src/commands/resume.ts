@@ -2,12 +2,14 @@ import { join, relative, resolve } from 'node:path'
 import {
   Runner,
   Store,
+  annotate,
   importPipelineModule,
   isPipeline,
   isPipelineSuite,
   loadGlobalContext,
   nativeAddonHint,
   packageResolutionHint,
+  useCase,
 } from '@mt/core'
 import type { Pipeline, PipelineSuite, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
@@ -91,6 +93,14 @@ export async function resumeCommand(args: string[]): Promise<void> {
 
   await logger.flush()
 }
+
+annotate(
+  resumeCommand,
+  useCase('UC006', {
+    name: 'Resume a paused/failed Run',
+    description: 'Continue a Run from the last completed checkpoint.',
+  }),
+)
 
 /**
  * Run a lifecycle hook and log hook errors without letting them change the

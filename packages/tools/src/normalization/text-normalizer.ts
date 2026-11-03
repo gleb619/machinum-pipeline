@@ -1,4 +1,4 @@
-import { defineTool, setVariable, withItem } from '@mt/core'
+import { defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { DECORATIVE_LINE_RE, MAX_TITLE_LINE_LENGTH } from '../constants.js'
 
@@ -200,6 +200,15 @@ export function createTextNormalizer(options: TextNormalizerOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Offline text normalization: unifies quotes/dashes/ellipsis, strips invisible and stray symbols, collapses spaces and blank lines, fixes punctuation spacing. Optional source cleaning: credit-line patterns, title dedupe, Cloudflare email artifacts. One paragraph per line preserved. Sets variable `normalized`.',
+    annotations: [
+      tool('TL001', {
+        name: 'text-normalizer',
+        description: 'Normalizes quotes, dashes, whitespace and punctuation.',
+        refs: ['UC058'],
+        meta: { alsoCovers: ['TL002', 'TL016', 'TL062'] },
+      }),
+      useCase('UC058'),
+    ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const input = env.item
       const item = normalizeText(input, options)

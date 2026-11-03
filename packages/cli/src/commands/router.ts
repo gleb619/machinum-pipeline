@@ -3,7 +3,7 @@ import { createWriteStream, existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { loadGlobalContext } from '@mt/core'
+import { annotate, loadGlobalContext, useCase } from '@mt/core'
 
 interface RouterOptions {
   port?: number
@@ -134,3 +134,11 @@ export async function routerCommand(args: string[]): Promise<void> {
   process.once('SIGINT', shutdown)
   process.once('SIGTERM', shutdown)
 }
+
+annotate(
+  routerCommand,
+  useCase('UC033', {
+    name: 'Proxy LLM call via Router',
+    description: 'Send LLM requests through the OpenRouter proxy.',
+  }),
+)

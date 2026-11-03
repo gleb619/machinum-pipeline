@@ -18,6 +18,12 @@ only and is not written to dead-letter entries or `jsonl://` targets. Ephemeral 
 
 ## Tool Catalogue
 
+Every exported tool carries sealed runtime annotations in its `defineTool({ annotations: [...] })`
+config: `tool('TL...', { name, description, refs: ['UC...'] })` plus `useCase('UC...')`. Composable
+tools (built from slots) are wrapped with `annotate(...)` instead. `tool` IDs are unique across
+`@mt/tools`; aliased exports share one annotation. Read them with
+`annotationOf(value, 'tool')` / `annotationsOf(value)`. UC refs index [../guiding/uc.md](../guiding/uc.md).
+
 ### `chapter-validator.ts`
 - `chapterValidator` — structural markdown validation (heading hierarchy, code block languages, link integrity)
 - `forbiddenCharDetector` — finds zero-width chars, forbidden control chars
@@ -942,3 +948,58 @@ The TL001–TL116 entries below are the planned-tool spec index — the full cat
 | 114   | TL114 | `indexWithLightRAG`                    | `Chapter`       | `Chapter & { ragDocId: string }`                     | Indexing        | High       | Indexes chapter content in LightRAG vector store for retrieval.                                                      |
 | 115   | TL115 | `synthesizeSpeech`                     | `Text`          | `Audio`                                              | Media           | Medium     | Uses machinum-tts for high-quality speech synthesis.                                                                 |
 | 116   | TL116 | `runAutomataWorkflow`                  | `Chapter`       | `Chapter & { automataResult: unknown }`              | Agent           | High       | Executes automation workflow via machinum-automata.                                                                  |
+
+## Implemented tool index (TL201+)
+
+IDs TL201–TL246 are allocated to implemented tools that had no clear match in the
+TL001–TL116 planned-tool spec. The ID is stable per exported tool value; aliases share one
+annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
+
+| ID | Export | Tool name | UCs | File |
+|---|---|---|---|---|
+| TL201 | `analyzeOutputs` | `analyze-outputs` | — | `modification/analyze-outputs.ts` |
+| TL202 | `chapterDoc` | `chapter-doc` | — | `modification/chapter-doc.ts` |
+| TL203 | `chapterDocEmit` | `chapter-doc-emit` | — | `modification/chapter-doc.ts` |
+| TL204 | `chapterIndexer` | `chapter-indexer` | — | `normalization/chapter-indexer.ts` |
+| TL205 | `chapterPairsLinter` | `chapter-pairs-linter` | UC057 | `verification/chapter-pairs-linter.ts` |
+| TL206 | `chapterRecordMapper` | `chapter-record-mapper` | — | `normalization/chapter-record.ts` |
+| TL207 | `chaptersToTitleInputs` | `chapters-to-title-inputs` | UC059 | `normalization/translation-stage.ts` |
+| TL208 | `chunkClean` | `chunk-clean` | UC058 | `normalization/chunk-separator.ts` |
+| TL209 | `chunkSplit` | `chunk-split` | UC056 | `normalization/chunk-separator.ts` |
+| TL210 | `chunkTokenize` | `chunk-tokenize` | — | `normalization/chunk-tokens.ts` |
+| TL211 | `contextShrink`, `contextWindow` | `context-window` | — | `core/llm-context.ts` |
+| TL212 | `forbiddenCharDetector` | `forbidden-char-detector` | UC057 | `verification/chapter-validator.ts` |
+| TL213 | `heuristicSummaryTool` | `heuristic-summary` | — | `normalization/heuristic-summary.ts` |
+| TL214 | `lineParityLinter` | `line-parity-linter` | UC057 | `verification/line-parity-linter.ts` |
+| TL215 | `lineTextToMarkdown` | `line-text-to-markdown` | — | `normalization/chapter-record.ts` |
+| TL216 | `llmGate` | `llm-gate` | UC033 | `core/llm-gate.ts` |
+| TL217 | `markdownFormatter` | `markdown-formatter` | UC058 | `verification/chapter-validator.ts` |
+| TL218 | `mdFormatter` | `md-formatter` | UC058 | `modification/md-formatter.ts` |
+| TL219 | `metadataTool` | `metadata` | — | `normalization/schema/metadata.ts` |
+| TL220 | `namedEntityTool` | `named-entity-recognizer` | — | `normalization/named-entity-recognizer.ts` |
+| TL221 | `notesSummaryTool` | `summary-notes` | — | `normalization/schema/summary.ts` |
+| TL222 | `ollamaTool` | `ollama` | UC063 | `core/ollama-tool.ts` |
+| TL223 | `openrouterFree` | `openrouter-free` | UC061 | `core/openrouter-free.ts` |
+| TL224 | `openrouterPool` | `openrouter-pool` | UC061, UC062 | `core/openrouter-pool-tool.ts` |
+| TL225 | `paragraphTranslator` | `paragraph-translator` | UC060 | `modification/chapter-translator.ts` |
+| TL226 | `proofreadPropertiesTool` | `proofread-properties` | UC058 | `modification/proofread.ts` |
+| TL227 | `proofreadTool` | `proofread` | UC058 | `modification/proofread.ts` |
+| TL228 | `proofreadXmlTool` | `proofread-xml` | UC058 | `modification/proofread.ts` |
+| TL229 | `runPrompt` | `run-prompt` | UC033 | `core/openrouter-tool.ts` |
+| TL230 | `schemaDocBuild` | `schema-doc-build` | — | `modification/schema-doc.ts` |
+| TL231 | `schemaDocEmit` | `schema-doc-emit` | — | `modification/schema-doc.ts` |
+| TL232 | `schemaDocWriter` | `schema-doc-writer` | — | `modification/schema-doc.ts` |
+| TL233 | `seriesSplitTool` | `series-split` | UC056 | `modification/series-split.ts` |
+| TL234 | `statDict` | `stat-dict` | — | `normalization/stat-dict.ts` |
+| TL235 | `statTranslateDict` | `stat-translate-dict` | — | `modification/stat-translate-dict.ts` |
+| TL236 | `stubParagraphTranslateSlot` | `stub-paragraph-translate-slot` | — | `stubs/paragraph-slot.ts` |
+| TL237 | `stubSchemaEmit` | `stub-schema-emit` | — | `stubs/emit.ts` |
+| TL238 | `stubTitleTranslateSlot` | `stub-title-translate-slot` | — | `stubs/title-slot.ts` |
+| TL239 | `stubTranslator` | `stub-translator` | — | `stubs/translator.ts` |
+| TL240 | `termTagger` | `term-tagger` | — | `normalization/term-tagger.ts` |
+| TL241 | `titleTranslator` | `title-translator` | UC059 | `modification/chapter-translator.ts` |
+| TL242 | `tokenCounter` | `token-counter` | — | `normalization/token-counter.ts` |
+| TL243 | `tokenCounterBatch` | `token-counter-batch` | — | `normalization/token-counter.ts` |
+| TL244 | `tokenCounterBatchCached` | `token-counter-batch-cached` | — | `normalization/token-counter.ts` |
+| TL245 | `toMarkdown`, `toMarkdownTool` | `to-markdown` | UC058 | `modification/to-markdown.ts` |
+| TL246 | `unwrapMarkdownText` | `unwrap-markdown-text` | — | `normalization/chapter-record.ts` |

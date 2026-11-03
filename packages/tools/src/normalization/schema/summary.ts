@@ -1,4 +1,4 @@
-import { defineTool, setVariables } from '@mt/core'
+import { defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import {
   DEFAULT_CHUNK_CONCURRENCY,
@@ -209,6 +209,13 @@ export function createSummaryTool(options?: SchemaDocLlmOptions & SummaryChunkOp
       'loop-guarded retries, deterministic schema-doc parse as fallback). The default system ' +
       'prompt is composed from the bundled summary.* blocks (plain input + bullet-list output). ' +
       'Supports shrink/chunk/auto modes. Stores variable `summary`.',
+    annotations: [
+      tool('TL034', {
+        name: 'summary',
+        description: 'Summarizes a chapter with loop-guarded LLM retries.',
+        refs: [],
+      }),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'summary')
       const inputs = env.items ?? [env.item]
@@ -356,6 +363,14 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions & SummaryCh
       'blocks (plain input + bullet-list output); the user prompt is the bundled `summary.user`. ' +
       'Loop-guarded retries fall back to the chapter lead sentences. Supports chunk modes. Stores ' +
       'variables `summaryNotes` and `summary`.',
+    annotations: [
+      tool('TL221', {
+        name: 'summary-notes',
+        description: 'Extracts bullet summary notes with loop-guarded LLM retries.',
+        refs: [],
+        meta: { alsoCovers: ['TL034'] },
+      }),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...NOTES_DEFAULTS, ...llmOptions }, env, 'summaryNotes')
       const inputs = env.items ?? [env.item]

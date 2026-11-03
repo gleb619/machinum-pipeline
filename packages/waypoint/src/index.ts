@@ -6,6 +6,7 @@
  */
 export { createJsonlSource, createJsonlTarget } from './jsonl.js'
 export { createMdSource, createMdTarget } from './md.js'
+export { createHttpSource } from './http-server.js'
 export { createSchemaDocSource, createSchemaDocTarget } from './schema-doc.js'
 export { createChapterOutputSource, createChapterOutputTarget } from './chapter-output.js'
 export { createEphemeralSource, createEphemeralTarget } from './ephemeral.js'

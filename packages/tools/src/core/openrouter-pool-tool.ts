@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { defineTool, setVariable, withItem } from '@mt/core'
+import { annotate, defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, Tool } from '@mt/core'
 import { type LlmClient, createLlmClient } from './llm-client.js'
 import {
@@ -231,4 +231,12 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
 }
 
 /** Default sticky free-model gate (`openrouter/free`). */
-export const openrouterPool = createOpenrouterPool()
+export const openrouterPool = annotate(
+  createOpenrouterPool(),
+  tool('TL224', {
+    name: 'openrouter-pool',
+    description: 'OpenRouter gate with sticky free-model pinning and key-pool rotation.',
+    refs: ['UC061', 'UC062'],
+  }),
+  useCase('UC061'),
+)

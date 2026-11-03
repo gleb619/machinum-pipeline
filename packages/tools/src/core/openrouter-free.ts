@@ -1,3 +1,4 @@
+import { annotate, tool, useCase } from '@mt/core'
 import type { LlmConfigLayer } from './llm-config.js'
 import { type GateInput, type GateOutput, createLlmGate } from './llm-gate.js'
 
@@ -29,13 +30,21 @@ export const OPENROUTER_FREE_DEFAULTS: LlmConfigLayer = {
  * (call input > tool > `meta.llm` > settings > vault > provider env). The provider pin sits on the
  * tool layer; a vault entry of another provider (`llm.use`) is an error, same provider is fine.
  */
-export const openrouterFree = createLlmGate<GateInput, GateOutput>({
-  name: 'openrouter-free',
-  version: '1.0.0',
-  mdDescription:
-    'OpenRouter free-tier gate (provider openrouter; model openrouter/free as a default, overridable by ' +
-    'per-call / meta / settings / vault). Keys from OPENROUTER_API_KEYS / OPENROUTER_API_KEY.',
-  llm: OPENROUTER_FREE_LLM,
-  llmDefaults: OPENROUTER_FREE_DEFAULTS,
-  metaFlags: { openrouterFree: true },
-})
+export const openrouterFree = annotate(
+  createLlmGate<GateInput, GateOutput>({
+    name: 'openrouter-free',
+    version: '1.0.0',
+    mdDescription:
+      'OpenRouter free-tier gate (provider openrouter; model openrouter/free as a default, overridable by ' +
+      'per-call / meta / settings / vault). Keys from OPENROUTER_API_KEYS / OPENROUTER_API_KEY.',
+    llm: OPENROUTER_FREE_LLM,
+    llmDefaults: OPENROUTER_FREE_DEFAULTS,
+    metaFlags: { openrouterFree: true },
+  }),
+  tool('TL223', {
+    name: 'openrouter-free',
+    description: 'Free-tier OpenRouter gate with an overridable default model.',
+    refs: ['UC061'],
+  }),
+  useCase('UC061'),
+)

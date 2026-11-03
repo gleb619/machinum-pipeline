@@ -1,4 +1,4 @@
-import { defineTool, setVariables } from '@mt/core'
+import { defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { MIN_SENTENCE_WORDS, SUMMARY_SENTENCE_COUNT } from '../constants.js'
 
@@ -83,6 +83,14 @@ export function createHeuristicSummaryTool(options: HeuristicSummaryOptions = {}
     mdDescription:
       'Offline extractive summary: lead sentence + highest term-frequency sentences, original ' +
       'order. Stores variables `summary` / `summaryByItem` / `heuristicSummaryByItem`.',
+    annotations: [
+      tool('TL213', {
+        name: 'heuristic-summary',
+        description: 'Builds an offline extractive summary from term frequencies.',
+        refs: [],
+        meta: { alsoCovers: ['TL034'] },
+      }),
+    ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const summaries = inputs.map((t) => summarizeHeuristic(t, options))

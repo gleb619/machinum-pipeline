@@ -1,4 +1,4 @@
-import { defineTool, setVariables, withItem, withMeta } from '@mt/core'
+import { defineTool, setVariables, tool, useCase, withItem, withMeta } from '@mt/core'
 import type { Exchange, ToolContext, Variable } from '@mt/core'
 import { DECORATIVE_LINE_RE, DEFAULT_CHUNK_SEPARATOR } from '../constants.js'
 import { readCtx } from '../core/llm-config.js'
@@ -218,6 +218,14 @@ export function createChunkClean(options: ChunkCleanOptions = {}) {
     version: '1.0.0',
     mdDescription:
       "Strip chunk separator lines ('---' by default) and other decorative-only lines from fixated text, collapsing the blank runs left behind. Sets `chunkCount` (meta + variable, separator-delimited chunks in the result text) and the `chunkSeparator` variable.",
+    annotations: [
+      tool('TL208', {
+        name: 'chunk-clean',
+        description: 'Strips separator and decorative lines from fixated chunks.',
+        refs: ['UC058'],
+      }),
+      useCase('UC058'),
+    ],
     async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
       const output = stripSeparators(env.item, separator)
       const chunkCount = parseChunks(output, separator).length
@@ -254,6 +262,15 @@ export function createChunkSplit(options: ChunkSplitOptions = {}) {
     version: '1.0.0',
     mdDescription:
       "Clean text and split it into token-bounded chunks fixated by separator lines ('---' by default). Chunk size resolution: `meta.chunkSize` → tool option `chunkSize` → mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000. With `reuse` (default true) text that already contains separator lines is kept as-is, so later runs never re-split fixated chunks. Sets `chunkCount` (meta + variable) and the `chunkSeparator` variable.",
+    annotations: [
+      tool('TL209', {
+        name: 'chunk-split',
+        description: 'Splits text into token-bounded chunks fixated by separators.',
+        refs: ['UC056'],
+        meta: { alsoCovers: ['TL106'] },
+      }),
+      useCase('UC056'),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const input = env.item
       let output: string

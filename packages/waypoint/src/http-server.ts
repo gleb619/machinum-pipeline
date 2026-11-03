@@ -2,7 +2,7 @@ import { type IncomingMessage, type Server, type ServerResponse, createServer } 
 import type { SourceContext } from '@mt/core'
 import type { Exchange, ExchangeInput, RunEvent, Source } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { newExchangeId, registry } from '@mt/core'
+import { annotate, newExchangeId, registry, waypoint } from '@mt/core'
 
 /**
  * Built-in HTTP Source — long-lived HTTP server that receives envelopes via POST.
@@ -275,6 +275,14 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   }
 }
 
+annotate(
+  createHttpSource,
+  waypoint('WT003', {
+    name: 'http source',
+    description: 'Reads envelopes via HTTP POST on a long-lived local server.',
+    meta: { schemes: ['hs', 'http'], direction: 'source' },
+  }),
+)
 // Register built-in HTTP source under both legacy and shorthand schemes
 registry.registerSource('http', createHttpSource)
 registry.registerSource('hs', createHttpSource)

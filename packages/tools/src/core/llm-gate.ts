@@ -1,4 +1,12 @@
-import { defineComposableTool, defineTool, setVariables, withItem } from '@mt/core'
+import {
+  annotate,
+  defineComposableTool,
+  defineTool,
+  setVariables,
+  tool,
+  useCase,
+  withItem,
+} from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import {
   type CacheLike,
@@ -538,12 +546,20 @@ export function createLlmGate<I = GateInput, O = GateOutput>(
 }
 
 /** Generic gate: GateInput in, chat-completion shaped output (+ `json`). */
-export const llmGate = createLlmGate<GateInput, GateOutput>({
-  name: 'llm-gate',
-  mdDescription:
-    'Generic LLM gate with swappable slots prepare/fit/call/parse/emit. Provider, model, prompts and context budget are configurable (see docs/steering/tools.md).',
-  metaFlags: { llmGate: true },
-})
+export const llmGate = annotate(
+  createLlmGate<GateInput, GateOutput>({
+    name: 'llm-gate',
+    mdDescription:
+      'Generic LLM gate with swappable slots prepare/fit/call/parse/emit. Provider, model, prompts and context budget are configurable (see docs/steering/tools.md).',
+    metaFlags: { llmGate: true },
+  }),
+  tool('TL216', {
+    name: 'llm-gate',
+    description: 'Generic LLM gate with swappable prepare/fit/call/parse/emit slots.',
+    refs: ['UC033'],
+  }),
+  useCase('UC033'),
+)
 
 // ---------------------------------------------------------------------------
 // Mocks

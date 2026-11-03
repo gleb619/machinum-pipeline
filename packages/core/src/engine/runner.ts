@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
+import { annotate, useCase } from '../annotation.js'
 import { createBatchScope } from '../batch-scope.js'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
 import {
@@ -1451,3 +1452,77 @@ export class Runner {
     return this.runId
   }
 }
+
+// Use-case annotations — metadata only, no runtime behavior.
+annotate(
+  Runner.prototype.start,
+  useCase('UC005', {
+    name: 'Run a pipeline (foreground)',
+    description: 'Execute a pipeline from the CLI with live logs, writing artifacts and run state.',
+  }),
+)
+annotate(
+  Runner.prototype.resume,
+  useCase('UC006', {
+    name: 'Resume a paused/failed run',
+    description:
+      'Continue a run from the last completed checkpoint by walking the checkpoint tree.',
+  }),
+)
+annotate(
+  Runner.prototype.pause,
+  useCase('UC007', {
+    name: 'Pause a running run',
+    description: 'Stop a run gracefully at the next step boundary and persist its state.',
+  }),
+)
+annotate(
+  Runner.prototype.unpause,
+  useCase('UC031', {
+    name: 'Pause/resume a run from the UI',
+    description: 'Expose in-memory pause and unpause transitions for the admin UI/backend.',
+  }),
+)
+
+const runnerPrivate = Runner.prototype as unknown as {
+  batchScopeStream: object
+  forkStream: object
+  runToolItem: object
+  tryCacheGet: object
+  writeTarget: object
+}
+annotate(
+  runnerPrivate.batchScopeStream,
+  useCase('UC013', {
+    name: 'Batch items (Item[])',
+    description: 'Group envelopes so tools receive items[] for window operations.',
+  }),
+)
+annotate(
+  runnerPrivate.forkStream,
+  useCase('UC014', {
+    name: 'Fork into a nested pipeline',
+    description: 'Run a sub-pipeline in a child Runner with a nested checkpoint subtree.',
+  }),
+)
+annotate(
+  runnerPrivate.runToolItem,
+  useCase('UC017', {
+    name: 'Retry a failing step',
+    description: 'Re-attempt a failing tool item under the configured retry policy.',
+  }),
+)
+annotate(
+  runnerPrivate.tryCacheGet,
+  useCase('UC020', {
+    name: 'Cache tool outputs',
+    description: 'Look up cached output by content hash before invoking a cacheable tool.',
+  }),
+)
+annotate(
+  runnerPrivate.writeTarget,
+  useCase('UC022', {
+    name: 'Write to a Target',
+    description: 'Persist processed envelopes to the pipeline target.',
+  }),
+)

@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { SchemaDocMetadata } from '../../modification/schema-doc.js'
@@ -95,6 +95,14 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
       'Extracts the schema-doc Metadata row (chapter, wordCount, tokenCount, charLength) with an ' +
       'LLM through the OpenRouter proxy, validated against the measured values and falling back to ' +
       'the deterministic row. Stores variable `metadata`.',
+    annotations: [
+      tool('TL219', {
+        name: 'metadata',
+        description: 'Extracts and validates the schema-doc metadata row.',
+        refs: [],
+        meta: { alsoCovers: ['TL081'] },
+      }),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'metadata')
       const inputs = env.items ?? [env.item]

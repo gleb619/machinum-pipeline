@@ -7,11 +7,13 @@ import type { ParsedUri } from '@mt/core'
 import {
   AtomicStreamWriter,
   ITEM_VARIABLE,
+  annotate,
   createExchange,
   mergeVariables,
   registry,
   toExchange,
   toPersisted,
+  waypoint,
 } from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
 
@@ -287,6 +289,22 @@ export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
   }
 }
 
+annotate(
+  createJsonlSource,
+  waypoint('WT001', {
+    name: 'jsonl source',
+    description: 'Reads envelopes from a JSONL file or glob pattern, one envelope per line.',
+    meta: { schemes: ['jsonl'], direction: 'source' },
+  }),
+)
+annotate(
+  createJsonlTarget,
+  waypoint('WT001', {
+    name: 'jsonl target',
+    description: 'Writes envelopes to a JSONL file, one JSON line per envelope.',
+    meta: { schemes: ['jsonl'], direction: 'target' },
+  }),
+)
 // Register built-in JSONL source and target
 registry.registerSource('jsonl', createJsonlSource)
 registry.registerTarget('jsonl', createJsonlTarget)

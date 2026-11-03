@@ -1,3 +1,4 @@
+import { annotate, useCase } from '../annotation.js'
 import type { CheckpointNode } from '../types.js'
 
 /**
@@ -127,3 +128,15 @@ export function walkTree(
     walkTree(child, visitor, depth + 1)
   }
 }
+
+// Use-case annotations — metadata only, no runtime behavior.
+const autoCheckpoint = useCase('UC015', {
+  name: 'Auto-checkpoint at a step boundary',
+  description: 'Create and update checkpoint nodes that track run progress for resume.',
+})
+
+annotate(createRootCheckpoint, autoCheckpoint)
+annotate(addChild, autoCheckpoint)
+annotate(markDone, autoCheckpoint)
+annotate(markFailed, autoCheckpoint)
+annotate(markInProgress, autoCheckpoint)

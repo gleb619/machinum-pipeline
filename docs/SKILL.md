@@ -2,8 +2,8 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.9.1 | 2026-11-03 -->
-<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
+<!-- skill-version: 1.10.0 | 2026-11-03 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
 
@@ -95,6 +95,44 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 Custom steps: a Tool is `{ name, version, invoke(exchange, ctx), cacheable? }`; set `cacheable: true`
 for content-hash memoization in `.mt/cache/`. Use `defineWaypoint` for custom Sources/Targets.
 
+### Runtime annotations
+
+One mechanism, three sealed kinds with their own ID namespace: `tool` (`TL###`), `waypoint`
+(`WT###`), `useCase` (`UC###`). Annotations are frozen records attached to runtime values; the
+annotated value's shape does not change.
+
+```ts
+import {
+  annotate,
+  annotationsOf,
+  defineTool,
+  listAnnotations,
+  tool,
+  useCase,
+  waypoint,
+} from 'mt'
+
+const myTool = defineTool({
+  name: 'chapter-validator',
+  version: '1.0.0',
+  mdDescription: '…',
+  invoke: async (ex) => ex,
+  annotations: [tool('TL200', { refs: ['UC055'] }), useCase('UC055')],
+})
+
+annotate(myWaypointFactory, waypoint('WT900', { meta: { schemes: ['mine'], direction: 'source' } }))
+
+annotationsOf(myTool)            // annotations on one value
+listAnnotations('useCase')       // process-wide registry, optionally filtered by kind
+```
+
+- `annotate(target, ...annotations)` returns the same value; at most one annotation per kind.
+- `tool(id, spec?)`, `waypoint(id, spec?)`, `useCase(id, spec?)` validate the ID (`^PREFIX\d{3,}$`)
+  and freeze the record. `spec` accepts `name`, `description`, `refs` and `meta`.
+- `annotationsOf(target)` reads the annotations on one value; `listAnnotations(kind?)` reads the
+  process-wide registry. Use-case IDs may repeat across implementations; tool/waypoint IDs should
+  be unique.
+
 ## CLI
 
 All commands run from the project root. Exit code 0 ok, 1 error/usage (messages on stderr).
@@ -108,6 +146,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt ls runs` | table of runs (id, pipeline, state, start) |
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
+| `mt annotations [pipeline.ts ...] [--kind tool\|waypoint\|useCase] [--json]` | list runtime annotations; pipeline files are imported first, `--kind` filters, `--json` prints an array |
 | `mt serve [--port N\|0] [--host H] [-d\|--detach]` | admin API + UI + SSE; detached state in `.mt/backend/{pid,server.log}` |
 | `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | keyless LLM gateway + dashboard; token only via `MT_ROUTER_TOKEN` |
 | `mt vault <sub>` | secrets, see below |
@@ -121,6 +160,7 @@ mt init && mt run ./pipelines/example.ts
 mt ls runs
 mt resume 8f3a1c2e                      # after a crash or Ctrl-C
 echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
+mt annotations --kind useCase --json   # machine-readable UC### ids registered by loaded pipelines
 ```
 
 ### Install `mt`

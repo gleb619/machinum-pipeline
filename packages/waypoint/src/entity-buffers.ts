@@ -1,5 +1,5 @@
 import type { ParsedUri, Source, Target } from '@mt/core'
-import { registry } from '@mt/core'
+import { annotate, registry, waypoint } from '@mt/core'
 import { createNamedEphemeralSource, createNamedEphemeralTarget } from './ephemeral.js'
 
 /**
@@ -90,6 +90,33 @@ export function createTempBufferTarget<T>(uri: ParsedUri): Target<T> {
   }
   return createNamedEphemeralTarget<T>(uri, `${scheme}:${namespace || 'default'}`)
 }
+
+annotate(
+  createTempBufferTarget,
+  waypoint('WT012', {
+    name: 'temp buffer target',
+    description: 'Writes into the in-memory buffer read by a typed entity scheme.',
+    meta: { schemes: ['temp'], direction: 'target' },
+  }),
+)
+annotate(
+  createEntityBufferSource,
+  waypoint('WT015', {
+    name: 'entity buffer source',
+    description:
+      'Reads/writes typed in-memory entity buffers (batches and Structure Ladder rungs).',
+    meta: { schemes: [...ENTITY_BUFFER_SCHEMES], direction: 'source' },
+  }),
+)
+annotate(
+  createEntityBufferTarget,
+  waypoint('WT015', {
+    name: 'entity buffer target',
+    description:
+      'Reads/writes typed in-memory entity buffers (batches and Structure Ladder rungs).',
+    meta: { schemes: [...ENTITY_BUFFER_SCHEMES], direction: 'target' },
+  }),
+)
 
 for (const scheme of ENTITY_BUFFER_SCHEMES) {
   registry.registerSource(scheme, (uri: ParsedUri) => createEntityBufferSource(scheme, uri))

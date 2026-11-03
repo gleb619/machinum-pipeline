@@ -13,7 +13,7 @@ import type {
   Target,
 } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { AtomicStreamWriter, atomicWriteFile, registry } from '@mt/core'
+import { AtomicStreamWriter, annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
 import { exchangeField } from './fields.js'
 import { resumeFrom } from './resume.js'
 import { resolveWaypointPath, resolveWaypointRoot } from './settings.js'
@@ -254,5 +254,21 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
   }
 }
 
+annotate(
+  createMdSource,
+  waypoint('WT002', {
+    name: 'md source',
+    description: 'Reads a markdown file or directory of markdown files as envelopes.',
+    meta: { schemes: ['md'], direction: 'source' },
+  }),
+)
+annotate(
+  createMdTarget,
+  waypoint('WT002', {
+    name: 'md target',
+    description: 'Writes markdown to a single file or one atomic chapter file per envelope.',
+    meta: { schemes: ['md'], direction: 'target' },
+  }),
+)
 registry.registerSource('md', createMdSource)
 registry.registerTarget('md', createMdTarget)

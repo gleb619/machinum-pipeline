@@ -223,6 +223,40 @@ immediately; `.pipeline(p)` returns the pipeline unchanged. Shape:
 installed providers at invoke time, so load-time install covers the whole run. See
 [../guiding/mock-tools.md](../guiding/mock-tools.md).
 
+### `annotation.ts` — runtime annotations
+
+One mechanism, three sealed kinds. Tools, waypoints and use cases are plain runtime values
+(objects/functions), not classes, so annotations are ordinary frozen records attached with
+`annotate()` — a `WeakMap` plus a non-enumerable `Symbol.for('mt.annotation')` property. The
+annotated value keeps its shape (no enumerable keys, no serialization drift) and `annotate()`
+returns the same value, so it composes inside a definition:
+
+```typescript
+import { tool, useCase } from '@mt/core'
+
+export const chapterValidator = defineTool({
+  name: 'chapter-validator',
+  // ...
+  annotations: [tool('TL200', { refs: ['UC055'] }), useCase('UC055')],
+})
+```
+
+- **Closed kind set** — `tool`, `waypoint`, `useCase` (`ANNOTATION_KINDS`, frozen). Each kind is a
+  frozen factory with its own ID namespace: `TL###`, `WT###`, `UC###` (`^PREFIX\d{3,}$`).
+  There is no public factory for new kinds; adding one is a core API change.
+- **Sealed records** — annotations, `refs`, `meta` and the factory functions are frozen. One
+  annotation per kind per target; re-attaching the same kind/id is idempotent, replacing it with a
+  different id throws.
+- **Registry** — every `annotate()` call also records `{ annotation, target, targetName }` in the
+  process-wide registry. `listAnnotations(kind?)`, `findAnnotation(id)` and `annotationsOf(target)`
+  read it. `resetAnnotationRegistry()` is a test/scan helper; it does not detach metadata from values.
+- **Decorator adapter** — `decorate(annotation)` returns a standard ECMAScript decorator for classes
+  and methods. It deliberately avoids `context.metadata`, so the project does not need the `ESNext`
+  lib or `experimentalDecorators`.
+- **Coverage** — `@mt/tools` annotates every exported tool, `@mt/waypoint` every scheme factory, and
+  CLI/engine entry points carry their `UC###`. `mt annotations` lists the registry; package tests
+  enforce coverage and ID uniqueness.
+
 ### `uri.ts` — `UriRegistry`
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.
 Composite schemes (e.g. `git://`) wrap another scheme. Named URI aliases from mt.json (`"uris": { "en": "md://./chapters/en" }`)

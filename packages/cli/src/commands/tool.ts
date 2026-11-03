@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { loadGlobalContext } from '@mt/core'
+import { annotate, loadGlobalContext, toExchange, useCase } from '@mt/core'
 import type { Exchange, ExchangeInput, Logger, RunContext, ToolContext } from '@mt/core'
-import { toExchange } from '@mt/core'
 import { findTool, listToolNames } from '../utils/find-tool.js'
 import type { ToolMatch } from '../utils/find-tool.js'
 
@@ -116,6 +115,14 @@ export async function toolCommand(args: string[]): Promise<void> {
     process.exit(1)
   }
 }
+
+annotate(
+  toolCommand,
+  useCase('UC010', {
+    name: 'Invoke a single Tool standalone',
+    description: 'Run one tool over a JSON Exchange without a full pipeline.',
+  }),
+)
 
 function usage(): never {
   console.error('Usage: mt tool <name> [--pipeline <file>]')

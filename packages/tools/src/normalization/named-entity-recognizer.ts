@@ -1,4 +1,4 @@
-import { defineTool, setVariable } from '@mt/core'
+import { defineTool, setVariable, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { ORG_WORDS, PLACE_WORDS, isCommonWord } from './glossary-lexicon.js'
 import type { NerBackend as CandidateNerBackend, NerCandidate, NerKind } from './ner-candidates.js'
@@ -348,6 +348,14 @@ export function createNamedEntityTool(options: NamedEntityToolOptions = {}) {
       'Named-entity recognition (pluggable backends: built-in heuristic, `compromise` NLP, ' +
       'optional OpenNLP models via MT_NER_MODELS + MT_NER_ENDPOINT). The item is untouched; ' +
       'the unique entities (by text, sorted) land in variable `entities`.',
+    annotations: [
+      tool('TL220', {
+        name: 'named-entity-recognizer',
+        description: 'Recognizes named entities with pluggable backends.',
+        refs: [],
+        meta: { alsoCovers: ['TL107'] },
+      }),
+    ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const byText = new Map<string, NerEntity>()

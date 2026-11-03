@@ -5,7 +5,7 @@ import { basename, extname, isAbsolute, join, relative } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { MD_OUTPUTS_VARIABLE, atomicWriteFile, registry } from '@mt/core'
+import { MD_OUTPUTS_VARIABLE, annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
 import { exchangeField } from './fields.js'
 import { resumeFrom } from './resume.js'
 import { resolveWaypointPath } from './settings.js'
@@ -230,6 +230,22 @@ async function discoverChapterFiles(dir: string): Promise<ChapterFile[]> {
   return results
 }
 
+annotate(
+  createChapterOutputSource,
+  waypoint('WT004', {
+    name: 'chapter-output source',
+    description: 'Reads chapter files recursively from a chapter-output directory.',
+    meta: { schemes: ['chapter-output'], direction: 'source' },
+  }),
+)
+annotate(
+  createChapterOutputTarget,
+  waypoint('WT004', {
+    name: 'chapter-output target',
+    description: 'Writes chapters to <base-dir>/<lang>/chapter<N>.md files atomically.',
+    meta: { schemes: ['chapter-output'], direction: 'target' },
+  }),
+)
 // Register built-in Chapter Output source and target
 registry.registerSource('chapter-output', createChapterOutputSource)
 registry.registerTarget('chapter-output', createChapterOutputTarget)

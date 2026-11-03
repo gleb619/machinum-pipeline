@@ -1,6 +1,14 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { defineTool, mapConcurrent, setVariable, setVariables, withItem } from '@mt/core'
+import {
+  defineTool,
+  mapConcurrent,
+  setVariable,
+  setVariables,
+  tool,
+  useCase,
+  withItem,
+} from '@mt/core'
 import type { Tool, ToolContext } from '@mt/core'
 import type { TranslateInput, TranslateOutput } from '../core/translate-text.js'
 import { LineParityError, lintLineParity } from '../verification/line-parity-linter.js'
@@ -135,6 +143,14 @@ export const chaptersToTitleInputs = defineTool<
   version: '1.0.0',
   mdDescription:
     'Stashes the tagged chapters in a variable and emits one "# title" text per chapter.',
+  annotations: [
+    tool('TL207', {
+      name: 'chapters-to-title-inputs',
+      description: 'Emits one title input per chapter for batch translation.',
+      refs: ['UC059'],
+    }),
+    useCase('UC059'),
+  ],
   async invoke(env) {
     const chapters = env.items ?? [env.item as unknown as string]
     const flat = chapters.flat() as string[]

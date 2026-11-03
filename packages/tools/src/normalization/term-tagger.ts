@@ -1,4 +1,4 @@
-import { defineTool, setVariables } from '@mt/core'
+import { defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { WORD_CHAR_CLASS } from '../constants.js'
 import { exField } from './fields.js'
@@ -192,6 +192,13 @@ export const termTagger = defineTool<string | string[], string | string[]>({
   mdDescription:
     'Wraps glossary terms as `<term id="ID">text</term>` (longest first, no nesting, skips code, ' +
     'idempotent, line count preserved). Result in variable `taggedItems`; `stripTerms` reverses it.',
+  annotations: [
+    tool('TL240', {
+      name: 'term-tagger',
+      description: 'Wraps glossary terms as non-nested term tags.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
     const glossary = exField<Glossary>(env, 'glossary') ?? { terms: [] }
     const matcher = compileTermMatcher(glossary)

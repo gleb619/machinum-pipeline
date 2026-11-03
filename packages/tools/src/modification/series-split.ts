@@ -1,4 +1,4 @@
-import { defineTool, registry, setVariables, withItem } from '@mt/core'
+import { defineTool, registry, setVariables, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, Splitter, SplitterContext, ToolContext } from '@mt/core'
 import { SERIES_SPLIT_TARGET_CHARS } from '../constants.js'
 import { splitParagraphUnits, splitReadableParts } from '../normalization/token-splitter.js'
@@ -174,6 +174,14 @@ export function createSeriesSplitTool(options: SeriesSplitOptions = {}) {
     version: '1.0.0',
     mdDescription:
       'Split a large chapter document into numbered series parts with series frontmatter.',
+    annotations: [
+      tool('TL233', {
+        name: 'series-split',
+        description: 'Splits a large chapter document into numbered series parts.',
+        refs: ['UC056'],
+      }),
+      useCase('UC056'),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
       const result = await splitSeriesMarkdown(textItem(env), options, env, ctx)
       const output = withItem(env, result.parts)

@@ -1,4 +1,12 @@
-import { defineComposableTool, defineTool, getVariable, setVariable, withItem } from '@mt/core'
+import {
+  annotate,
+  defineComposableTool,
+  defineTool,
+  getVariable,
+  setVariable,
+  tool,
+  withItem,
+} from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
@@ -262,6 +270,13 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
   version: '1.0.0',
   mdDescription: 'Serializes chapter metadata into YAML-frontmatter markdown.',
 
+  annotations: [
+    tool('TL064', {
+      name: 'chapter-doc-build',
+      description: 'Serializes chapter metadata into YAML-frontmatter markdown.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<ChapterDocToolInput>, _ctx: ToolContext): Promise<Exchange<string>> {
     const input = env.item
 
@@ -299,6 +314,13 @@ export const chapterDocEmit = defineTool<string, string>({
   name: 'chapter-doc-emit',
   version: '1.0.0',
   mdDescription: "Appends item markdown to the mdOutputs variable as 'chapter' in .",
+  annotations: [
+    tool('TL203', {
+      name: 'chapter-doc-emit',
+      description: 'Appends chapter markdown to the mdOutputs variable.',
+      refs: [],
+    }),
+  ],
   async invoke(ex: Exchange<string>) {
     if (ex.meta?.chapterNum === undefined && ex.meta?.chapter === undefined) return ex
     const doc = getVariable<ChapterDoc>(ex, VAR_CHAPTER_DOC)
@@ -322,10 +344,17 @@ export const chapterDocEmit = defineTool<string, string>({
 })
 
 /** Slots: `build`, `emit`. Override with `chapterDoc.with({ emit: myTool })`. */
-export const chapterDoc = defineComposableTool<ChapterDocToolInput, string, 'build' | 'emit'>({
-  name: 'chapter-doc',
-  version: '1.0.0',
-  mdDescription:
-    'Serializes chapter metadata (title, number, warnings, body) into YAML-frontmatter markdown.',
-  slots: { build: chapterDocBuild, emit: chapterDocEmit },
-})
+export const chapterDoc = annotate(
+  defineComposableTool<ChapterDocToolInput, string, 'build' | 'emit'>({
+    name: 'chapter-doc',
+    version: '1.0.0',
+    mdDescription:
+      'Serializes chapter metadata (title, number, warnings, body) into YAML-frontmatter markdown.',
+    slots: { build: chapterDocBuild, emit: chapterDocEmit },
+  }),
+  tool('TL202', {
+    name: 'chapter-doc',
+    description: 'Serializes chapter metadata into YAML-frontmatter markdown.',
+    refs: [],
+  }),
+)

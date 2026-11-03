@@ -1,4 +1,4 @@
-import { loadGlobalContext, readMtConfig } from '@mt/core'
+import { annotate, loadGlobalContext, readMtConfig, useCase } from '@mt/core'
 
 // Ensure built-in sources/targets are registered before resolving URIs
 import '@mt/waypoint'
@@ -59,6 +59,15 @@ export async function installCommand(args: string[]): Promise<void> {
     process.exit(1)
   }
 }
+
+annotate(
+  installCommand,
+  useCase('UC077', {
+    name: 'Install mt without Docker',
+    description:
+      'Put the single-file mt binary on a machine with a verified download or build it from source.',
+  }),
+)
 
 async function dispatch(args: string[]): Promise<void> {
   const options = parseArgs(args)

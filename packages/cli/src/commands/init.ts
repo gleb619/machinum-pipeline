@@ -1,7 +1,7 @@
 import { access } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { MtConfig, Settings } from '@mt/core'
-import { DEFAULT_MT_CONFIG, Store } from '@mt/core'
+import { DEFAULT_MT_CONFIG, Store, annotate, useCase } from '@mt/core'
 import { VAULT_IGNORE_PATTERNS, ensureIgnorePatterns } from '../utils/gitignore.js'
 import { ensureProjectMasterKey } from './master-key.js'
 
@@ -118,3 +118,11 @@ export default definePipeline({
     console.log('  3. Run: mt init --settings <json> to create a sample pipeline')
   }
 }
+
+annotate(
+  initCommand,
+  useCase('UC001', {
+    name: 'Initialize project',
+    description: 'Scaffold mt.json, .mt/, and an optional sample pipeline.',
+  }),
+)

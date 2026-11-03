@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { defineTool, setVariables } from '@mt/core'
+import { defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import {
   BRACKET_TERM_MAX_WORDS,
@@ -599,6 +599,13 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
       'Glossary extraction (heuristic candidates + NER seeding, LLM extraction with the ' +
       'bundled glossary prompts, reuse of the terms of the previous glossary, relation ' +
       'graph). Stores variables `glossary`, `glossaryJson` and `glossaryGraph`.',
+    annotations: [
+      tool('TL086', {
+        name: 'glossary-extractor',
+        description: 'Extracts and enriches a glossary with heuristic and LLM stages.',
+        refs: [],
+      }),
+    ],
     async invoke(
       env: Exchange<string | string[]>,
       ctx: ToolContext,

@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { VOCABULARY_DEFAULT_LIMIT, VOCABULARY_MAX_LIMIT } from '../../constants.js'
@@ -107,6 +107,13 @@ export function createVocabularyTool(
       'Extracts key terms from the chapter with an LLM through the OpenRouter proxy, deduplicates ' +
       'them against variable `knownWords`, and falls back to summary word extraction when the loop guard ' +
       'is exhausted. Supports shrink/chunk/auto modes (terms merged and deduped across chunks). Stores variable `vocabulary` and variable `knownWords`.',
+    annotations: [
+      tool('TL030', {
+        name: 'vocabulary',
+        description: 'Extracts key terms and dedupes them against known words.',
+        refs: [],
+      }),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const {
         limit: optionLimit,

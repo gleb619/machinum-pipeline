@@ -1,3 +1,4 @@
+import { annotate, tool, useCase } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { type LlmMessage, OpenAiCompatClient } from './llm-client.js'
 import { DEFAULT_ROUTER_URL, readCtx } from './llm-config.js'
@@ -97,17 +98,33 @@ export async function chatCompletionSingle(
  * (`chatCompletion.with({ call: mockLlmCall([...]) })`). Provider defaults to the MT router proxy;
  * see llm-config for provider/model/baseUrl/key precedence.
  */
-export const chatCompletion = createLlmGate<ChatCompletionInput, ChatCompletionOutput>({
-  name: 'chat-completion',
-  version: '1.0.0',
-  mdDescription:
-    'LLM chat completion via OpenRouter proxy. Supports system prompts, temperature, and max tokens.',
-  metaFlags: { chatCompletion: true },
-})
+export const chatCompletion = annotate(
+  createLlmGate<ChatCompletionInput, ChatCompletionOutput>({
+    name: 'chat-completion',
+    version: '1.0.0',
+    mdDescription:
+      'LLM chat completion via OpenRouter proxy. Supports system prompts, temperature, and max tokens.',
+    metaFlags: { chatCompletion: true },
+  }),
+  tool('TL028', {
+    name: 'chat-completion',
+    description: 'LLM chat completion through the MT router proxy.',
+    refs: ['UC033'],
+  }),
+  useCase('UC033'),
+)
 
-export const runPrompt = createLlmGate<PromptInput, PromptOutput>({
-  name: 'run-prompt',
-  version: '1.0.0',
-  mdDescription: 'Simplified single-prompt runner. Wraps `chat-completion` with a user message.',
-  metaFlags: { runPrompt: true },
-})
+export const runPrompt = annotate(
+  createLlmGate<PromptInput, PromptOutput>({
+    name: 'run-prompt',
+    version: '1.0.0',
+    mdDescription: 'Simplified single-prompt runner. Wraps `chat-completion` with a user message.',
+    metaFlags: { runPrompt: true },
+  }),
+  tool('TL229', {
+    name: 'run-prompt',
+    description: 'Runs a single user prompt through the LLM gate.',
+    refs: ['UC033'],
+  }),
+  useCase('UC033'),
+)

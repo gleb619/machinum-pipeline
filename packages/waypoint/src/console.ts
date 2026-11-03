@@ -1,5 +1,5 @@
 import type { Exchange, ParsedUri, Target, TargetContext } from '@mt/core'
-import { registry } from '@mt/core'
+import { annotate, registry, waypoint } from '@mt/core'
 
 export type ConsoleFormat = 'auto' | 'json' | 'pretty'
 export type ConsoleStream = 'stdout' | 'stderr'
@@ -121,4 +121,12 @@ export function createConsoleTarget<T>(uri: ParsedUri, options?: ConsoleTargetOp
 }
 
 // Register built-in console target (target-only: no source registration)
+annotate(
+  createConsoleTarget,
+  waypoint('WT009', {
+    name: 'console target',
+    description: 'Renders each envelope to stdout or stderr as it arrives.',
+    meta: { schemes: ['console'], direction: 'target' },
+  }),
+)
 registry.registerTarget('console', createConsoleTarget)

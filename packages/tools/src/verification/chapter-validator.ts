@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool, useCase } from '@mt/core'
 import { getVariable, setVariable, setVariables, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { spellCheckDocument } from 'cspell-lib'
@@ -67,6 +67,14 @@ export const forbiddenCharDetector = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Detects zero-width characters and forbidden control characters. Reports findings in envelope metadata.',
+  annotations: [
+    tool('TL212', {
+      name: 'forbidden-char-detector',
+      description: 'Detects zero-width and forbidden control characters.',
+      refs: ['UC057'],
+    }),
+    useCase('UC057'),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const text = env.item
     const lines = text.split('\n')
@@ -223,6 +231,15 @@ export const chapterValidator = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Validates markdown structure: H1 presence, heading level skips, code block languages, link references.',
+  annotations: [
+    tool('TL063', {
+      name: 'chapter-validator',
+      description: 'Validates markdown structure, heading levels, code fences and links.',
+      refs: ['UC055'],
+      meta: { alsoCovers: ['TL011', 'TL071'] },
+    }),
+    useCase('UC055'),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const text = env.item
     const errors: string[] = []
@@ -255,6 +272,14 @@ export const typoFinder = defineTool<FinderInput, FinderOutput>({
   mdDescription:
     'Detects spelling typos using cspell-lib. Reports suggestions in envelope metadata.',
 
+  annotations: [
+    tool('TL004', {
+      name: 'typo-finder',
+      description: 'Detects spelling typos with cspell-lib.',
+      refs: ['UC057'],
+    }),
+    useCase('UC057'),
+  ],
   async invoke(env: Exchange<FinderInput>, _ctx: ToolContext): Promise<Exchange<FinderOutput>> {
     const { text } = env.item
 
@@ -312,6 +337,15 @@ export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownForm
   mdDescription:
     'Lightweight markdown formatter: fixes list bullets, tabs, and fence spacing. Uses remark.',
 
+  annotations: [
+    tool('TL217', {
+      name: 'markdown-formatter',
+      description: 'Normalizes list bullets, tabs and code-fence spacing in markdown.',
+      refs: ['UC058'],
+      meta: { alsoCovers: ['TL062'] },
+    }),
+    useCase('UC058'),
+  ],
   async invoke(
     env: Exchange<MarkdownFormatterInput>,
     _ctx: ToolContext,

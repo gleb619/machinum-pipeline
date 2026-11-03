@@ -1,6 +1,6 @@
 import { access, mkdir } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import { atomicWriteFile } from '@mt/core'
+import { annotate, atomicWriteFile, useCase } from '@mt/core'
 import { SKILL_MD, SKILL_SOURCE, SKILL_VERSION } from '../generated/skill-content.js'
 
 const FILE_NAME = 'SKILL.md'
@@ -152,3 +152,11 @@ export async function skillCommand(args: string[]): Promise<void> {
     process.exit(1)
   }
 }
+
+annotate(
+  skillCommand,
+  useCase('UC076', {
+    name: 'Install the project skill into an agent folder',
+    description: 'Teach a coding agent how to use mt in a project.',
+  }),
+)

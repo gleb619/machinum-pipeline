@@ -13,20 +13,50 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 
 ## URI Scheme Reference
 
-| Scheme | File | Source | Target | Notes |
-|---|---|---|---|---|
-| `jsonl://./file.jsonl` | `jsonl.ts` | ✓ | ✓ | Supports glob patterns for source |
-| `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; `?series=true` splits each document with the registered `series` splitter before writing |
-| `hs://` / `http://` | `http-server.ts` | ✓ | — | Long-lived HTTP POST endpoint |
-| `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout |
-| `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
-| `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
-| `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
-| `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
-| `console://` | `console.ts` | — | ✓ | Terminal sink (stdout/stderr), per-envelope, target-only |
-| `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
-| `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
-| `temp://<entity>/<namespace>` | `entity-buffers.ts` | — | ✓ | In-memory write side for a typed entity buffer (`temp://chunks/ladder` → `chunks://ladder`) |
+| ID | Scheme | File | Source | Target | Notes |
+|---|---|---|---|---|---|
+| WT001 | `jsonl://./file.jsonl` | `jsonl.ts` | ✓ | ✓ | Supports glob patterns for source |
+| WT002 | `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; `?series=true` splits each document with the registered `series` splitter before writing |
+| WT003 | `hs://` / `http://` | `http-server.ts` | ✓ | — | Long-lived HTTP POST endpoint |
+| WT004 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout |
+| WT005 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
+| WT006 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
+| WT007 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
+| WT008 | `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
+| WT009 | `console://` | `console.ts` | — | ✓ | Terminal sink (stdout/stderr), per-envelope, target-only |
+| WT010 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
+| WT011 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
+| WT012 | `temp://<entity>/<namespace>` | `entity-buffers.ts` | — | ✓ | In-memory write side for a typed entity buffer (`temp://chunks/ladder` → `chunks://ladder`) |
+| WT013 | `ephemeral://<namespace>` | `ephemeral.ts` | ✓ | ✓ | Process-local in-memory buffer; target clears on open |
+| WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ | Scope-local views of `.batch(opts, nested)` |
+| WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | Typed entity-buffer family: `batches`, `chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`; ladder rungs are source-only |
+
+## Annotations
+
+Every scheme factory carries one sealed runtime `waypoint` annotation. The ID is the `ID`
+column above; source and target factories for the same scheme share it. `meta.schemes`
+lists the URI schemes the factory serves and `meta.direction` is `source`, `target` or
+`both`.
+
+```typescript
+import { annotate, annotationsOf, waypoint } from '@mt/core'
+import { createJsonlSource } from '@mt/waypoint'
+
+annotate(
+  createJsonlSource,
+  waypoint('WT001', {
+    name: 'jsonl source',
+    description: 'Streams JSONL envelopes from a file or glob pattern.',
+    meta: { schemes: ['jsonl'], direction: 'source' },
+  }),
+)
+
+annotationsOf(createJsonlSource) // [{ kind: 'waypoint', id: 'WT001', … }]
+```
+
+Scan the process-wide registry with `mt annotations --kind waypoint`. The
+`entity-buffers.ts` family keeps one annotation per export with `meta.schemes` covering
+all seven buffers (`WT015`), so `WT012` is only the `temp://` write side.
 
 Entity schemes descend the **Structure Ladder** (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://` alternate) — see [Structure Ladder](#structure-ladder) below. Ladder rungs are **source-only** (creational); write their output through `temp://<entity>/<namespace>`. `batches://` is a non-ladder package buffer and stays bidirectional.
 

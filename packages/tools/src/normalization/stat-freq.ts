@@ -1,5 +1,5 @@
 import { dirname } from 'node:path'
-import { defineTool, setVariable } from '@mt/core'
+import { defineTool, setVariable, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import {
   REPEATED_SENTENCE_MIN_COUNT,
@@ -301,6 +301,13 @@ export function defineStatFreq(options: StatFreqOptions = {}) {
     mdDescription:
       'Offline statistical frequency analyzer: counts word, sentence and n-gram frequencies ' +
       '(stopwords filtered) of the envelope text; ranked report in variable statFreq.',
+    annotations: [
+      tool('TL070', {
+        name: 'stat-freq',
+        description: 'Computes offline word, sentence and n-gram frequencies.',
+        refs: [],
+      }),
+    ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const items = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])
       const texts = items.filter((text): text is string => typeof text === 'string')

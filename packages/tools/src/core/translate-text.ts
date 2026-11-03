@@ -1,4 +1,4 @@
-import { defineTool, getVariable, setVariable, withItem } from '@mt/core'
+import { annotate, defineTool, getVariable, setVariable, tool, useCase, withItem } from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import {
   DEFAULT_CHUNK_CONCURRENCY,
@@ -409,10 +409,20 @@ export function createTranslateText(options: TranslateTextOptions = {}): Transla
     gate = gate.with({ call: routerTranslateCall(options) })
   }
 
-  if (options.chunkMode && options.chunkMode !== 'shrink') {
-    return createChunkedTranslateText(gate, options)
-  }
-  return gate as TranslateToolLike
+  const result =
+    options.chunkMode && options.chunkMode !== 'shrink'
+      ? createChunkedTranslateText(gate, options)
+      : (gate as TranslateToolLike)
+  return annotate(
+    result,
+    tool('TL026', {
+      name: 'translate-text',
+      description: 'Translates text through the router or LLM backend.',
+      refs: ['UC059', 'UC060', 'UC061'],
+      meta: { alsoCovers: ['TL051'] },
+    }),
+    useCase('UC060'),
+  )
 }
 
 export const translateText = createTranslateText()

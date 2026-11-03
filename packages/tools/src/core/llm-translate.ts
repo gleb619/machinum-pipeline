@@ -1,3 +1,4 @@
+import { annotate, tool, useCase } from '@mt/core'
 import type { TranslateInput, TranslateOutput, TranslateTextOptions } from './translate-text.js'
 import {
   type TranslateToolLike,
@@ -23,10 +24,20 @@ const DESCRIPTION =
  */
 export function createLlmTranslate(options: TranslateTextOptions = {}): TranslateToolLike {
   const gate = createTranslateGate('llm-translate', options, DESCRIPTION)
-  if (options.chunkMode && options.chunkMode !== 'shrink') {
-    return createChunkedTranslateText(gate, options)
-  }
-  return gate as TranslateToolLike
+  const result =
+    options.chunkMode && options.chunkMode !== 'shrink'
+      ? createChunkedTranslateText(gate, options)
+      : (gate as TranslateToolLike)
+  return annotate(
+    result,
+    tool('TL051', {
+      name: 'llm-translate',
+      description: 'Translates text with LLM prompt templates and optional chunking.',
+      refs: ['UC059', 'UC060', 'UC061'],
+      meta: { alsoCovers: ['TL026'] },
+    }),
+    useCase('UC060'),
+  )
 }
 
 export const llmTranslate = createLlmTranslate()

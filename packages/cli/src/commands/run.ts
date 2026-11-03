@@ -1,6 +1,7 @@
 import { basename, extname, join, relative, resolve } from 'node:path'
 import {
   Runner,
+  annotate,
   defineProcess,
   importPipelineModule,
   isPipeline,
@@ -8,6 +9,7 @@ import {
   loadGlobalContext,
   nativeAddonHint,
   packageResolutionHint,
+  useCase,
 } from '@mt/core'
 import type { GlobalContext, Pipeline, PipelineSuite } from '@mt/core'
 
@@ -75,6 +77,14 @@ export async function runCommand(args: string[]): Promise<void> {
 
   if (failure !== undefined) process.exit(1)
 }
+
+annotate(
+  runCommand,
+  useCase('UC005', {
+    name: 'Run a pipeline (foreground)',
+    description: 'Execute a pipeline from the CLI with live console logs.',
+  }),
+)
 
 /** Run one pipeline through its own Runner. Returns the failure, if any. */
 async function runPipeline(

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import { defineTool, setVariables } from '@mt/core'
+import { defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { STAT_DICT_MIN_COUNT, STAT_DICT_TOP_K } from '../constants.js'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
@@ -222,6 +222,13 @@ export function defineStatDict(options: StatDictOptions = {}) {
       'Ranked translation dictionary from a stat-freq report (variable statFreq, a report file or the ' +
       'envelope text): candidates above a frequency threshold, type guess, merged into an existing ' +
       'glossary without touching existing entries. Result in variable statDict.',
+    annotations: [
+      tool('TL234', {
+        name: 'stat-dict',
+        description: 'Builds a ranked translation dictionary from frequency data.',
+        refs: [],
+      }),
+    ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const report = await loadStatFreqReport(env, options)
       const existing = await loadExistingGlossary(options.glossaryFile)

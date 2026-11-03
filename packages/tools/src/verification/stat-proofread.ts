@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool, useCase } from '@mt/core'
 import { setVariable } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
 import {
@@ -257,6 +257,14 @@ export function createStatProofread(options: StatProofreadOptions = {}): Tool<st
       'Offline proofreader for translated text: term consistency vs a glossary and ' +
       'Cyrillic/untranslated-share checks. Report in the proofread variable; with fix: "llm" it throws ' +
       'a retryable StatProofreadError carrying measured feedback.',
+    annotations: [
+      tool('TL038', {
+        name: 'stat-proofread',
+        description: 'Checks translated text for glossary and script consistency.',
+        refs: ['UC057'],
+      }),
+      useCase('UC057'),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const text = env.item
       const report = buildProofreadReport(text, {

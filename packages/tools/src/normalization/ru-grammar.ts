@@ -1,4 +1,4 @@
-import { defineTool, setVariable } from '@mt/core'
+import { defineTool, setVariable, tool, useCase } from '@mt/core'
 import type { Exchange } from '@mt/core'
 import { exField } from './fields.js'
 
@@ -362,6 +362,14 @@ export function createRuGrammarTool(options: RuGrammarToolOptions = {}) {
     mdDescription:
       'Validates Russian inflected forms against glossary `ruGrammar`; reports ' +
       'deviations in variable `ruGrammar` and can infer missing grammar for a glossary file.',
+    annotations: [
+      tool('TL005', {
+        name: 'ru-grammar',
+        description: 'Validates Russian inflected forms against glossary grammar.',
+        refs: ['UC057'],
+      }),
+      useCase('UC057'),
+    ],
     async invoke(env: Exchange<string | string[]>): Promise<Exchange<string | string[]>> {
       const inputs = (env.items ?? [env.item]).flat()
       const text = inputs.join('\n')

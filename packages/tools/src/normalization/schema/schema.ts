@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { MAX_SCHEMA_LINES } from '../../constants.js'
@@ -82,6 +82,13 @@ export function createSchemaTool(options?: SchemaDocLlmOptions) {
       'Generates a mermaid structure diagram for the chapter with an LLM through the OpenRouter ' +
       'proxy. Loop-guarded retries fall back to the schema-doc Schema block, then a generated ' +
       '`graph TD`. Stores variable `schema`.',
+    annotations: [
+      tool('TL109', {
+        name: 'schema',
+        description: 'Generates a mermaid structure diagram for a chapter.',
+        refs: [],
+      }),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'schema')
       const inputs = env.items ?? [env.item]

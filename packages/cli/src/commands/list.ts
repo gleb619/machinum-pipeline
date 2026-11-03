@@ -1,6 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RunStateData } from '@mt/core'
+import { annotate, useCase } from '@mt/core'
 
 /**
  * `mt ls runs` — list all runs.
@@ -48,3 +49,11 @@ export async function listRunsCommand(_args: string[]): Promise<void> {
     }
   }
 }
+
+annotate(
+  listRunsCommand,
+  useCase('UC008', {
+    name: 'List runs',
+    description: 'View all runs and their statuses.',
+  }),
+)

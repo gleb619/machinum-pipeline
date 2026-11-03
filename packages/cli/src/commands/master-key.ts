@@ -3,6 +3,7 @@ import { readFile, stat, unlink } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import {
   DEFAULT_EMBED_PASSWORD,
+  annotate,
   atomicWriteFile,
   defaultEmbedPath,
   generateMasterKey,
@@ -11,6 +12,7 @@ import {
   masterKeyStatus,
   rekeyEmbedStore,
   resolveMasterKey,
+  useCase,
   writeMasterKeyFile,
 } from '@mt/core'
 
@@ -37,6 +39,8 @@ export function masterKeyTarget(options: { path?: string; user?: boolean }, env:
   const paths = masterKeyPaths(env)
   return options.user ? paths.user : paths.project
 }
+
+annotate(masterKeyTarget, useCase('UC075'))
 
 /**
  * Create a master key file. Never prints or returns the key. When an embed store already
@@ -155,11 +159,15 @@ export async function masterKeyStatusCommand(env: Env): Promise<void> {
   }
 }
 
+annotate(masterKeyStatusCommand, useCase('UC075'))
+
 export function masterKeyShowPathCommand(env: Env): void {
   const paths = masterKeyPaths(env)
   console.log(`project: ${paths.project}`)
   console.log(`user:    ${paths.user}`)
 }
+
+annotate(masterKeyShowPathCommand, useCase('UC075'))
 
 export async function masterKeyGenerateCommand(
   options: GenerateMasterKeyOptions,
@@ -180,3 +188,5 @@ export async function masterKeyGenerateCommand(
     `  BACK UP ${result.path}: losing it makes embed secrets unrecoverable. Do not commit it.`,
   )
 }
+
+annotate(masterKeyGenerateCommand, useCase('UC075'))

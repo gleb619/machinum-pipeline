@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { annotate, defineTool, tool } from '@mt/core'
 import type { ComposableTool, Envelope, Tool } from '@mt/core'
 import { z } from 'zod'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
@@ -211,7 +211,14 @@ export function createStatTranslateDict(
     metaFlags: { statTranslateDict: true },
   }
   const gate = createLlmGate<Glossary, Glossary>(gateOptions)
-  return gate.with({ emit: buildEmit(options, gateOptions) })
+  return annotate(
+    gate.with({ emit: buildEmit(options, gateOptions) }),
+    tool('TL235', {
+      name: 'stat-translate-dict',
+      description: 'Translates untranslated glossary entries in batches.',
+      refs: [],
+    }),
+  )
 }
 
 /** Default dictionary translator: English -> Russian, 20 entries per call. */

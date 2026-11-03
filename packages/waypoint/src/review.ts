@@ -1,6 +1,6 @@
 import type { ParsedUri } from '@mt/core'
 import type { Exchange, Target, TargetContext } from '@mt/core'
-import { atomicWriteFile, registry } from '@mt/core'
+import { annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
 import { exchangeField } from './fields.js'
 import { resolveWaypointRoot } from './settings.js'
 
@@ -148,4 +148,12 @@ export function createReviewTarget<T>(uri: ParsedUri): Target<T> {
 }
 
 // Register built-in review target (target-only: no source registration)
+annotate(
+  createReviewTarget,
+  waypoint('WT011', {
+    name: 'review target',
+    description: 'Renders the glossary pending-change review queue as a markdown worksheet.',
+    meta: { schemes: ['review'], direction: 'target' },
+  }),
+)
 registry.registerTarget('review', createReviewTarget)

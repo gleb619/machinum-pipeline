@@ -1,4 +1,4 @@
-import { defineTool, setVariable, setVariables } from '@mt/core'
+import { defineTool, setVariable, setVariables, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { get_encoding } from 'tiktoken'
 import { TOKEN_ENCODING } from '../constants.js'
@@ -23,6 +23,13 @@ export const tokenCounter = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Counts tokens in a string envelope item using tiktoken (cl100k_base). Adds `tokenCount` to the envelope meta. Creates/frees the encoder per call.',
+  annotations: [
+    tool('TL242', {
+      name: 'token-counter',
+      description: 'Counts tokens with a per-call tiktoken encoder.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const encoder = get_encoding(ENCODING)
     try {
@@ -46,6 +53,13 @@ export const tokenCounterBatch = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Counts tokens for a batched envelope (`items` after `.batch(n)`) using tiktoken (cl100k_base). One encoder create/free per batch. Adds `tokenCounts` (per item) and `tokenCount` (batch total) to the envelope meta.',
+  annotations: [
+    tool('TL243', {
+      name: 'token-counter-batch',
+      description: 'Counts tokens for a batch with one encoder per invoke.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const items: string[] = env.items ?? [env.item]
     const encoder = get_encoding(ENCODING)
@@ -91,6 +105,13 @@ export const tokenCounterBatchCached = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Counts tokens for a batched envelope (`items` after `.batch(n)`) using tiktoken (cl100k_base). Reuses one encoder process-wide, freed on process exit. Adds `tokenCounts` (per item) and `tokenCount` (batch total) to the envelope meta.',
+  annotations: [
+    tool('TL244', {
+      name: 'token-counter-batch-cached',
+      description: 'Counts batch tokens with a process-wide cached encoder.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     const items: string[] = env.items ?? [env.item]
     const encoder = getCachedEncoder()

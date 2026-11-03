@@ -1,4 +1,4 @@
-import { defineTool, getVariable, withItem } from '@mt/core'
+import { defineTool, getVariable, tool, withItem } from '@mt/core'
 import { appendMdOutput } from '../core/md-outputs.js'
 import { chapterNumberOf } from '../normalization/glossary-extractor.js'
 import { chapterTitle } from '../normalization/heuristic-summary.js'
@@ -35,6 +35,14 @@ export function createAnalyzeOutputs(options: AnalyzeOutputsOptions = {}) {
     name: 'analyze-outputs',
     version: '1.0.0',
     mdDescription: `Emits ${summaryDir}/chapter<N>.summary.md, ${taggedDir}/chapter<N>.md, ${glossaryFile} and ${graphFile}.`,
+    annotations: [
+      tool('TL201', {
+        name: 'analyze-outputs',
+        description:
+          'Emits mdOutputs intents for summaries, tagged chapters, glossary and graph artifacts.',
+        refs: [],
+      }),
+    ],
     async invoke(env) {
       const inputs = (env.items ?? [env.item]).flat()
       const summaries = getVariable<string[]>(env, 'summaryByItem') ?? []

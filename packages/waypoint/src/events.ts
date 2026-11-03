@@ -1,7 +1,7 @@
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, RunEvent, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { registry } from '@mt/core'
+import { annotate, registry, waypoint } from '@mt/core'
 
 function parseQualifier(query: Record<string, string>): Set<string> | null {
   const raw = query.only ?? query.qualifier ?? query.filter ?? ''
@@ -99,5 +99,21 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
   }
 }
 
+annotate(
+  createEventsSource,
+  waypoint('WT010', {
+    name: 'events source',
+    description: 'Reads run lifecycle events emitted by the current run as envelopes.',
+    meta: { schemes: ['events'], direction: 'source' },
+  }),
+)
+annotate(
+  createEventsTarget,
+  waypoint('WT010', {
+    name: 'events target',
+    description: 'Logs run lifecycle events to the console via a subscription.',
+    meta: { schemes: ['events'], direction: 'target' },
+  }),
+)
 registry.registerSource('events', createEventsSource)
 registry.registerTarget('events', createEventsTarget)

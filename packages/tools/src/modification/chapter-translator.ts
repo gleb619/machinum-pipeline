@@ -1,4 +1,13 @@
-import { defineComposableTool, defineTool, mapConcurrent, setVariables, withItem } from '@mt/core'
+import {
+  annotate,
+  defineComposableTool,
+  defineTool,
+  mapConcurrent,
+  setVariables,
+  tool,
+  useCase,
+  withItem,
+} from '@mt/core'
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import type { ChunkModeOptions } from '../core/chunk-processor.js'
 import { resolveProcessLlm } from '../core/llm-install.js'
@@ -230,20 +239,28 @@ const titleAssemble = defineTool<TitleTranslatorState, TitleTranslatorOutput>({
 export function createTitleTranslator(
   options: TitleTranslatorOptions = {},
 ): ComposableTool<TitleTranslatorInput, TitleTranslatorOutput, TitleTranslatorSlot> {
-  return defineComposableTool<TitleTranslatorInput, TitleTranslatorOutput, TitleTranslatorSlot>({
-    name: 'title-translator',
-    version: '1.0.0',
-    mdDescription:
-      'Translates chapter titles. Reads from frontmatter or H1 heading. ' +
-      'Composable: slots extract/translate/assemble; swap the translator via `.with({ translate })`.',
-    slots: {
-      extract: titleExtract as Tool<never, unknown>,
-      translate: titleTranslateSlot(
-        options.translate ?? processTranslateSlot(translateText),
-      ) as Tool<never, unknown>,
-      assemble: titleAssemble as Tool<never, unknown>,
-    },
-  })
+  return annotate(
+    defineComposableTool<TitleTranslatorInput, TitleTranslatorOutput, TitleTranslatorSlot>({
+      name: 'title-translator',
+      version: '1.0.0',
+      mdDescription:
+        'Translates chapter titles. Reads from frontmatter or H1 heading. ' +
+        'Composable: slots extract/translate/assemble; swap the translator via `.with({ translate })`.',
+      slots: {
+        extract: titleExtract as Tool<never, unknown>,
+        translate: titleTranslateSlot(
+          options.translate ?? processTranslateSlot(translateText),
+        ) as Tool<never, unknown>,
+        assemble: titleAssemble as Tool<never, unknown>,
+      },
+    }),
+    tool('TL241', {
+      name: 'title-translator',
+      description: 'Translates chapter titles through composable slots.',
+      refs: ['UC059'],
+    }),
+    useCase('UC059'),
+  )
 }
 
 export const titleTranslator = createTitleTranslator()
@@ -418,25 +435,33 @@ function defaultParagraphTranslator(
 export function createParagraphTranslator(
   options: ParagraphTranslatorOptions = {},
 ): ComposableTool<ParagraphTranslatorInput, ParagraphTranslatorOutput, ParagraphTranslatorSlot> {
-  return defineComposableTool<
-    ParagraphTranslatorInput,
-    ParagraphTranslatorOutput,
-    ParagraphTranslatorSlot
-  >({
-    name: 'paragraph-translator',
-    version: '1.1.0',
-    mdDescription:
-      'Translates chapter body paragraphs. Preserves paragraph structure. ' +
-      'Composable: slots split/translate/assemble; swap the translator via `.with({ translate })`.',
-    slots: {
-      split: paragraphSplit as Tool<never, unknown>,
-      translate: paragraphTranslateSlot(
-        options.translate ?? processTranslateSlot(defaultParagraphTranslator(options)),
-        { concurrency: options.concurrency },
-      ) as Tool<never, unknown>,
-      assemble: paragraphAssemble as Tool<never, unknown>,
-    },
-  })
+  return annotate(
+    defineComposableTool<
+      ParagraphTranslatorInput,
+      ParagraphTranslatorOutput,
+      ParagraphTranslatorSlot
+    >({
+      name: 'paragraph-translator',
+      version: '1.1.0',
+      mdDescription:
+        'Translates chapter body paragraphs. Preserves paragraph structure. ' +
+        'Composable: slots split/translate/assemble; swap the translator via `.with({ translate })`.',
+      slots: {
+        split: paragraphSplit as Tool<never, unknown>,
+        translate: paragraphTranslateSlot(
+          options.translate ?? processTranslateSlot(defaultParagraphTranslator(options)),
+          { concurrency: options.concurrency },
+        ) as Tool<never, unknown>,
+        assemble: paragraphAssemble as Tool<never, unknown>,
+      },
+    }),
+    tool('TL225', {
+      name: 'paragraph-translator',
+      description: 'Translates chapter paragraphs while preserving structure.',
+      refs: ['UC060'],
+    }),
+    useCase('UC060'),
+  )
 }
 
 export const paragraphTranslator = createParagraphTranslator()

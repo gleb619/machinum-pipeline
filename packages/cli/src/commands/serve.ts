@@ -3,6 +3,7 @@ import { createWriteStream, existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { annotate, useCase } from '@mt/core'
 
 interface ServeOptions {
   port: number
@@ -59,6 +60,14 @@ async function detachServe(options: ServeOptions): Promise<void> {
   console.log(`Backend PID ${child.pid ?? 0}, logs at .mt/backend/server.log`)
 }
 
+annotate(
+  detachServe,
+  useCase('UC027', {
+    name: 'Start backend detached',
+    description: 'Run the backend as a background process with logs under .mt.',
+  }),
+)
+
 export async function serveCommand(args: string[]): Promise<void> {
   const options = parseArgs(args)
 
@@ -79,3 +88,11 @@ export async function serveCommand(args: string[]): Promise<void> {
   process.once('SIGINT', shutdown)
   process.once('SIGTERM', shutdown)
 }
+
+annotate(
+  serveCommand,
+  useCase('UC026', {
+    name: 'Start backend in-process',
+    description: 'Run the CLI with the backend embedded for the live UI.',
+  }),
+)

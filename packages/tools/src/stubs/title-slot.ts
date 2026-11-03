@@ -1,4 +1,4 @@
-import { defineTool, withItem } from '@mt/core'
+import { defineTool, tool, withItem } from '@mt/core'
 import type { TitleTranslatorState } from '../modification/chapter-translator.js'
 
 /**
@@ -10,6 +10,13 @@ export const stubTitleTranslateSlot = defineTool<TitleTranslatorState, TitleTran
   name: 'stub-title-translate-slot',
   version: '1.0.0',
   mdDescription: 'Dry-run title translation slot that wraps output in mock markers',
+  annotations: [
+    tool('TL238', {
+      name: 'stub-title-translate-slot',
+      description: 'Dry-run title translation slot with mock markers.',
+      refs: [],
+    }),
+  ],
   invoke: async (env, _ctx) =>
     withItem(
       env,

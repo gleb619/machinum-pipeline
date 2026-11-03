@@ -1,4 +1,4 @@
-import { defineTool } from '@mt/core'
+import { defineTool, tool } from '@mt/core'
 import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { MAX_ENTITIES } from '../../constants.js'
@@ -94,6 +94,13 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions & ChunkModeOpti
       'rows (`index,name`). Loop-guarded retries fall back to the schema-doc Entities block, then a ' +
       'default entity. Supports shrink/chunk/auto modes (entities merged and deduped across ' +
       'chunks). Stores variable `entities`.',
+    annotations: [
+      tool('TL107', {
+        name: 'entities',
+        description: 'Extracts chapter entities as CSV rows with loop-guarded LLM retries.',
+        refs: [],
+      }),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
       const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'entities')
       const inputs = env.items ?? [env.item]

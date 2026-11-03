@@ -1,4 +1,4 @@
-import { defineTool, withMeta } from '@mt/core'
+import { defineTool, tool, withMeta } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { readChapterDoc } from '../modification/chapter-doc.js'
 
@@ -11,6 +11,13 @@ export const chapterIndexer = defineTool<string, string>({
   version: '1.0.0',
   mdDescription:
     'Extracts chapter number from frontmatter or heading. Stores `chapterNum` in envelope metadata.',
+  annotations: [
+    tool('TL204', {
+      name: 'chapter-indexer',
+      description: 'Extracts the chapter number from frontmatter or heading.',
+      refs: [],
+    }),
+  ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
     let chapterNum: number | undefined
 

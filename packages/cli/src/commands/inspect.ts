@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CheckpointNode, RunStateData } from '@mt/core'
+import { annotate, useCase } from '@mt/core'
 
 /**
  * `mt inspect <runId>` — show detailed information about a run.
@@ -53,6 +54,14 @@ export async function inspectCommand(args: string[]): Promise<void> {
     return
   }
 }
+
+annotate(
+  inspectCommand,
+  useCase('UC009', {
+    name: 'Inspect a Run',
+    description: 'View state, checkpoint tree, and recent log entries for a Run.',
+  }),
+)
 
 function printCheckpointTree(node: CheckpointNode, depth = 0): void {
   const indent = '  '.repeat(depth)

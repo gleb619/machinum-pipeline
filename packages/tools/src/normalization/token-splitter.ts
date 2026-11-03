@@ -1,4 +1,4 @@
-import { defineTool, setVariables, withItem } from '@mt/core'
+import { defineTool, setVariables, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
 import {
   BALANCE_ALLOWED_DEVIATION,
@@ -559,6 +559,14 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
     version: '1.0.0',
     mdDescription:
       'Splits text into chunks using a pluggable TokenSplitStrategy. Default strategy splits at paragraph boundaries respecting a token limit.',
+    annotations: [
+      tool('TL106', {
+        name: 'token-splitter',
+        description: 'Splits text into chunks under a token limit.',
+        refs: ['UC056'],
+      }),
+      useCase('UC056'),
+    ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
       const inputs = env.items ?? [env.item]
       const allChunks: string[] = []

@@ -1,4 +1,4 @@
-import { defineTool, setVariable } from '@mt/core'
+import { defineTool, setVariable, tool, useCase } from '@mt/core'
 import type { Envelope, Tool, ToolContext } from '@mt/core'
 
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
@@ -337,6 +337,14 @@ export function createProofreadTool(
       'Proofreads plain text with an LLM through the OpenRouter proxy. Splits the text into ' +
       'paragraphs, sends XML to the model, and returns the corrected text. English by default; ' +
       'prompts are fully overridable. Supports shrink/chunk/auto modes.',
+    annotations: [
+      tool('TL227', {
+        name: 'proofread',
+        description: 'Proofreads plain text with paragraph-aware LLM prompts.',
+        refs: ['UC058'],
+      }),
+      useCase('UC058'),
+    ],
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const text = env.item
       const paragraphs = splitParagraphs(text)
@@ -427,6 +435,14 @@ export function createProofreadXmlTool(
     mdDescription:
       'Lower-level proofreading sub tool. Accepts the paragraph XML expected by the proofreader ' +
       'and returns the raw `<proofread>` XML from the LLM. Supports chunk modes.',
+    annotations: [
+      tool('TL228', {
+        name: 'proofread-xml',
+        description: 'Proofreads raw paragraph XML and returns corrected XML.',
+        refs: ['UC058'],
+      }),
+      useCase('UC058'),
+    ],
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const inputXml = env.item
       const inputBlocks = parseResultBlocks(inputXml, 'text')
@@ -601,6 +617,14 @@ export function createProofreadPropertiesTool(
       'Lower-level proofreading sub tool using Java properties format. ' +
       'Accepts one key=value per line (key = id/line number, value = original text) ' +
       'and returns the same keys with proofread values.',
+    annotations: [
+      tool('TL226', {
+        name: 'proofread-properties',
+        description: 'Proofreads Java-properties formatted text.',
+        refs: ['UC058'],
+      }),
+      useCase('UC058'),
+    ],
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const input = env.item
       const inputBlocks = parsePropertiesBlock(input)
