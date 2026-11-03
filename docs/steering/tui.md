@@ -18,10 +18,14 @@ contract has a home and the layer rules are pinned before real screens land.
 
 - `src/index.ts` — `pingServer()` health probe (`GET /api/health`) + `TuiOptions`
 - Build/typecheck wired into turbo (`tsc`); no test script until screens exist
-- Screen implementation should use the OpenTUI skill (`opentui`); polling cadence and
-  footer keys follow [docs/layout.md](../layout.md) §6/§7
+- Screen implementation: **OpenTUI + SolidJS** (`@opentui/core` + `@opentui/solid`), loaded via the OpenTUI skill
+  (`opentui`). **Never React** (`@opentui/react`, `react`, `ink`) — signals/`createSignal`/`<For>`/`<Show>` only.
+  Polling cadence and footer keys follow [docs/layout.md](../layout.md) §6/§7
 
 ## Rules
+
+- Framework: SolidJS only. JSX compiles with `jsxImportSource: "@opentui/solid"` (tsconfig) and the OpenTUI Solid
+  Babel/Bun preload; files holding JSX are `*.tsx`. Adding React is a review reject
 
 - HTTP-only client: the import-layer rule in [structure.md](structure.md) forbids `@mt/*`
   imports here; a `layers.arch` test should pin it when the first real screen lands

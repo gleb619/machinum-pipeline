@@ -139,8 +139,8 @@ Keys never change meaning between screens: `Esc` always backs out one level.
 ## 8. Implementation notes
 
 - Webui: Vue 3 SFC + Tailwind 3 (`packages/components/`). Reuse the class strings in §5 verbatim.
-- TUI: `@mt/tui` (`packages/tui/`, skeleton — no screens yet). Build the screens with the OpenTUI skill (`opentui`);
-  the package fetches the API over HTTP only (no `@mt/*` imports).
+- TUI: `@mt/tui` (`packages/tui/`, skeleton — no screens yet). Build the screens with OpenTUI + **SolidJS** (`@opentui/solid`; never React) via the
+  OpenTUI skill (`opentui`); the package fetches the API over HTTP only (no `@mt/*` imports).
 - Share, don't copy: pure helpers (state → colour name, labels, toast text) should live in one tiny module both
   skins can import once the TUI exists; until then the tables above are the contract.
 - Add a test per skin that asserts the labels from §4/§6 (button text, empty/error strings) so drift fails CI.
