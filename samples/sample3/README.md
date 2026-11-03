@@ -123,7 +123,11 @@ default
   → subflow(verifyFlow) → subflow(schemaDocPipeline)
   → subflow(titlePacketPipeline)
   → subflow(translateTitlesPipeline) → subflow(translateChapterPipeline)
+  → subflow(translateChapterBodyPipeline) → subflow(fixTyposPipeline)
 ```
+
+`schemaDocPipeline` and `schemaDocMockPipeline` come from one `schemaDocs(writer)` builder; the mock
+variant only passes `schemaDocWriter.with({ emit: stubSchemaEmit })`.
 
 ### jsonl-to-md-simple.ts — same verify flow, no orchestration
 

@@ -25,25 +25,15 @@ import {
   wordCounter,
 } from '@mt/tools'
 import '@mt/waypoint'
-// Sample-defined scheme used by the `@ru` alias and the `my-target://` target below.
+// Sample-defined scheme behind the `@ru` alias and `my-target://`.
 import '../waypoints/my-target.js'
 
-// === LLM backend (process-level mock install) ===
-// `defineProcess().install(mockLlm(...))` (see the default export at the bottom)
-// installs a process-wide mock LLM provider at module load. Every LLM-backed tool
-// below is built WITHOUT a `call` / `translate` argument and resolves the backend at
-// invoke time: the installed mock when the picked backend is `mock` (default;
-// `MT_LLM_TOOL` / mt.json `settings.llm.tool`), a real backend (`ollama`,
-// `openrouter-free`, ...) when `MT_LLM_TOOL` names one - env wins over the mock.
-// `pickLlmTool` stays exported for pipelines that prefer explicit wiring.
+// LLM-backed tools below get no `call`/`translate`: the backend resolves at invoke time - the
+// mock installed by the default export (`MT_LLM_TOOL` / mt.json `settings.llm.tool`), or a real
+// backend when `MT_LLM_TOOL` names one (env wins).
+// '@en' / '@ru' are URI shortcuts from this sample's mt.json "uris"; full URIs still work.
 
-// === URI shortcuts (aliases) ===
-// Source/target URIs can be written as '@name' shortcuts instead of full URIs.
-// Shortcuts are defined in this sample's mt.json under "uris", e.g.:
-//   "uris": { "en": "md://./chapters/en", "ru": "my-target://./chapters" }
-// They are resolved at pipeline run time; full URIs still work unchanged.
-
-// === Flow 1: JSONL → Verified MD (.from / .use / .tap / .to) ===
+// Flow 1: JSONL → verified MD
 const verifyFlow = definePipeline()
   .from('jsonl://./jsonl/input.jsonl')
   .use(chapterDoc)
@@ -56,42 +46,30 @@ const verifyFlow = definePipeline()
   .log('MyLogMarker')
   .to('@en')
 
-// === Flow 2: JSONL → schema docs (mock-LLM summary / entities / schema) ===
-// Writes <target root>/schema/chapter<N>.schema.md via the write intents the
-// schemaDocWriter appends to the mdOutputs variable.
-export const schemaDocPipeline = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .use(toMarkdown)
-  .use(wordCounter)
-  .use(tokenCounter)
-  .use(chapterIndexer)
-  .use(summaryTool)
-  .use(entitiesTool)
-  .use(schemaTool)
-  .use(mdFormatter)
-  .use(schemaDocWriter)
-  .to('md://./chapters')
+// Flow 2: JSONL → <target>/schema/chapter<N>.schema.md (mock-LLM summary / entities / schema)
+const schemaDocs = (writer: typeof schemaDocWriter) =>
+  definePipeline()
+    .from('jsonl://./jsonl/input.jsonl')
+    .use(toMarkdown)
+    .use(wordCounter)
+    .use(tokenCounter)
+    .use(chapterIndexer)
+    .use(summaryTool)
+    .use(entitiesTool)
+    .use(schemaTool)
+    .use(mdFormatter)
+    .use(writer)
+    .to('md://./chapters')
 
-// === Slot override demo: `.with({ ... })` swaps one slot of a composable tool ===
-// Same chain as schemaDocPipeline, but schemaDocWriter's `emit` slot is replaced by
-// a stub that tags the markdown and redirects it to the schema-mock/ subfolder.
-// The `build` slot (markdown assembly) is reused untouched. Run with:
+export const schemaDocPipeline = schemaDocs(schemaDocWriter)
+
+// Slot override: `.with({ ... })` swaps one slot of a composable tool. Here `emit` becomes a stub
+// that redirects to schema-mock/; the `build` slot is reused untouched.
 //   mt run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocMockPipeline
-export const schemaDocMockPipeline = definePipeline()
-  .from('jsonl://./jsonl/input.jsonl')
-  .use(toMarkdown)
-  .use(wordCounter)
-  .use(tokenCounter)
-  .use(chapterIndexer)
-  .use(summaryTool)
-  .use(entitiesTool)
-  .use(schemaTool)
-  .use(mdFormatter)
-  .use(schemaDocWriter.with({ emit: stubSchemaEmit }))
-  .to('md://./chapters')
+export const schemaDocMockPipeline = schemaDocs(schemaDocWriter.with({ emit: stubSchemaEmit }))
 
-// === Flow 3: title translation (.batch → mock-LLM tool → .flatMap) ===
-// ephemeral:// sources carry no items at runtime; they exist to show the DSL grammar.
+// Flow 3: title translation (.batch → mock-LLM tool → .flatMap)
+// ephemeral:// sources carry no items at runtime; they only show the DSL grammar.
 export const translateTitlesPipeline = definePipeline()
   .from('ephemeral://titles-input')
   .batch(5)
@@ -99,7 +77,7 @@ export const translateTitlesPipeline = definePipeline()
   .flatMap(async (items: unknown) => (items as unknown[]) ?? [])
   .to('ephemeral://titles-output')
 
-// === Flow 4: paragraph translation (.flatMap fan-out → mock-LLM tool) ===
+// Flow 4: paragraph translation (.flatMap fan-out → mock-LLM tool)
 export const translateChapterPipeline = definePipeline()
   .from('ephemeral://translate-input')
   .flatMap(async (item: unknown) => {
@@ -109,40 +87,30 @@ export const translateChapterPipeline = definePipeline()
   .use(paragraphTranslator)
   .to('ephemeral://translate-output')
 
-// === Flow 5: chapter body translation ===
-// Pipeline that translates chapter bodies using glossary + summary injection.
-// The `chapters` variable is consumed by `createChapterBodyTranslator` and the
-// result is written through the `my-target://` waypoint as MD.
+// Flow 5: chapter body translation (glossary + summary injection), written via `my-target://`
 export const translateChapterBodyPipeline = definePipeline()
   .from('ephemeral://chapter-body-input')
   .use(createChapterBodyTranslator({ chaptersDir: 'chapters', mode: 'plain' }))
   .to('my-target://./chapters')
 
-// === Flow 6: post-translation typo fix (LLM-backed, runs after the main flow)
-// `createLlmTypoFix` runs the `typo-fix` prompt on the translated text with
-// retry logic and a fallback to the original when the LLM call fails.
+// Flow 6: post-translation typo fix (LLM retry, falls back to the original on failure)
 export const fixTyposPipeline = definePipeline()
   .from('ephemeral://typo-input')
   .use(createLlmTypoFix({ maxAttempts: 2 }))
   .to('ephemeral://typo-output')
 
-// === Flow 7: packaged titles — ONE pipeline, a nested batch scope ===
-//
-// `.batch(scope)` folds the stream into packages of 5 (default) and runs `scope` once per package.
+// Flow 7: packaged titles - ONE pipeline, a nested `.batch(scope)` (packages of 5 by default).
 // Inside the scope the package is seen through waypoints:
-//   batch://group    → the package as ONE item  (titles of all chapters → one text → parsed back)
-//   batch://members  → every member as its own item, with its own meta (patch each chapter)
+//   batch://group    → the package as ONE item (all titles → one text → parsed back)
+//   batch://members  → each member as its own item, with its own meta
 //   batch://return   → hands the result back; the outer stream continues with the ORIGINAL
-//                      chapters (own id/meta/variables), patched, and `my-target://` writes them
-// The group stage ends with `batch://return` so its variables (`translatedTitles`, ...) reach every
-// member; the members stage then patches each chapter from them.
+//                      chapters, patched. The group stage's variables reach every member.
 const enChapters = defineWaypoint<unknown>('my-target://./chapters', {
   filter: (env) => env.meta.lang === 'en',
 })
 
 const titleScope = definePipeline({ id: 'title-scope' })
-  // stage 1 - package = one item: schema-doc titles → non-LLM dictionary translation → parsed packet
-  // (`schemaTitles` reads `<schemaDir>/chapter<N>.schema.md` with `readDoc`, not the chapter H1)
+  // stage 1 - package = one item: schema-doc titles → dictionary translation (no LLM) → packet
   .from('batch://group')
   .use(createSchemaTitles({ schemaDir: 'chapters/schema' }))
   .use(
@@ -164,7 +132,7 @@ const titleScope = definePipeline({ id: 'title-scope' })
   )
   .use(createTitlePacketParser())
   .to('batch://return')
-  // stage 2 - package = each item: stamp the translated title + `meta.lang=ru` on every chapter
+  // stage 2 - package = each item: stamp the translated title + `meta.lang=ru`
   .from('batch://members')
   .use(createApplyTranslatedTitle({ lang: 'ru' }))
   .to('batch://return')
@@ -174,9 +142,8 @@ export const titlePacketPipeline = definePipeline()
   .batch(titleScope)
   .to('my-target://./chapters')
 
-// === Default: orchestration pipeline (subflow-only, no source/target of its own) ===
-// defineProcess().install(mockLlm(...)) registers the mock LLM provider process-wide
-// at module load (before the Runner starts); .pipeline(...) returns the pipeline.
+// Default: orchestration only. `.install(mockLlm(...))` registers the mock LLM process-wide
+// before the Runner starts.
 export default defineProcess()
   .install(
     mockLlm({
