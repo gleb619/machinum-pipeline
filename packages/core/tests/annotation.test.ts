@@ -5,6 +5,7 @@ import {
   annotate,
   annotationOf,
   annotationsOf,
+  category,
   decorate,
   findAnnotation,
   isAnnotated,
@@ -22,10 +23,10 @@ describe('annotations', () => {
   })
 
   it('exposes exactly three sealed kinds', () => {
-    expect(ANNOTATION_KINDS).toEqual(['tool', 'waypoint', 'useCase'])
+    expect(ANNOTATION_KINDS).toEqual(['tool', 'waypoint', 'useCase', 'category'])
     expect(Object.isFrozen(ANNOTATION_KINDS)).toBe(true)
     expect(Object.isFrozen(ANNOTATION_FACTORIES)).toBe(true)
-    expect(Object.keys(ANNOTATION_FACTORIES)).toEqual(['tool', 'waypoint', 'useCase'])
+    expect(Object.keys(ANNOTATION_FACTORIES)).toEqual(['tool', 'waypoint', 'useCase', 'category'])
   })
 
   it('validates the ID namespace per kind', () => {
@@ -61,7 +62,10 @@ describe('annotations', () => {
     expect(same).toBe(target)
     expect(Object.keys(target)).toEqual(['name'])
     expect(isAnnotated(target)).toBe(true)
-    expect(annotationsOf(target).map((a) => a.id)).toEqual(['TL001', 'UC058'])
+    expect(annotationsOf(target).map((a) => ('id' in a ? a.id : a.categories.join(',')))).toEqual([
+      'TL001',
+      'UC058',
+    ])
     expect(annotationOf(target, 'tool')?.id).toBe('TL001')
     expect(annotationOf(target, 'waypoint')).toBeUndefined()
   })
@@ -108,6 +112,42 @@ describe('annotations', () => {
     expect(annotationOf(RunFlow.prototype.resume, 'useCase')?.id).toBe('UC005')
   })
 
+  it('keeps annotations optional for user-defined tools', () => {
+    const created = defineTool<string, string>({
+      name: 'plain-tool',
+      version: '1.0.0',
+      mdDescription: 'no annotations',
+      async invoke(ex) {
+        return ex
+      },
+    })
+
+    expect(isAnnotated(created)).toBe(false)
+    expect(annotationsOf(created)).toEqual([])
+  })
+
+  it('builds frozen category annotations from a string list', () => {
+    const categories = ['validator', 'markdown']
+    const annotation = category(categories, { description: 'Markdown checks' })
+    categories.push('mutated')
+
+    expect(annotation.kind).toBe('category')
+    expect(annotation.categories).toEqual(['validator', 'markdown'])
+    expect(Object.isFrozen(annotation)).toBe(true)
+    expect(Object.isFrozen(annotation.categories)).toBe(true)
+    expect(category(['validator', 'validator']).categories).toEqual(['validator'])
+    expect(() => category([])).toThrow(/non-empty array/)
+    expect(() => category(['Validator'])).toThrow(/lowercase kebab-case/)
+  })
+
+  it('supports tool and category annotations on the same value', () => {
+    const target = annotate({ name: 'chapter-validator' }, tool('TL063'), category(['validator']))
+
+    expect(annotationOf(target, 'tool')?.id).toBe('TL063')
+    expect(annotationOf(target, 'category')?.categories).toEqual(['validator'])
+    expect(listAnnotations('category')).toHaveLength(1)
+  })
+
   it('defineTool attaches annotations from its config', () => {
     const created = defineTool<string, string>({
       name: 'annotated-tool',
@@ -119,7 +159,10 @@ describe('annotations', () => {
       },
     })
 
-    expect(annotationsOf(created).map((a) => a.id)).toEqual(['TL900', 'UC001'])
+    expect(annotationsOf(created).map((a) => ('id' in a ? a.id : a.categories.join(',')))).toEqual([
+      'TL900',
+      'UC001',
+    ])
     expect(created.name).toBe('annotated-tool')
   })
 })

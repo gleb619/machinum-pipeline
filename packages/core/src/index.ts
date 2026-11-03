@@ -5,6 +5,7 @@ export {
   annotate,
   annotationOf,
   annotationsOf,
+  category,
   decorate,
   findAnnotation,
   isAnnotated,
@@ -16,10 +17,15 @@ export {
 } from './annotation.js'
 export type {
   Annotation,
+  AnnotationFactories,
   AnnotationKind,
   AnnotationKindFactory,
   AnnotationRecord,
   AnnotationSpec,
+  CategoryAnnotation,
+  CategoryFactory,
+  IdAnnotation,
+  IdAnnotationKind,
 } from './annotation.js'
 export { Store } from './store.js'
 export { atomicWriteFile, AtomicStreamWriter, removeStaleTmpFiles, tmpPathFor } from './atomic.js'
