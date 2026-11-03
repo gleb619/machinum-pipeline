@@ -407,7 +407,11 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
       truncate = true,
     } = typeof options === 'string' ? { label: options } : (options ?? {})
     return this.tap((ex) => {
-      console[level](`[${label}]`, ex.id, truncate ? truncateText(ex.item as string) : ex.item)
+      console[level](
+        `[${label}]`,
+        ex.id,
+        truncate && typeof ex.item === 'string' ? truncateText(ex.item) : ex.item,
+      )
     })
   }
 }
