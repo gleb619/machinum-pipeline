@@ -65,10 +65,10 @@ are resolved through.)
 
 ```bash
 # offline (default)
-pnpm run runner
+pnpm run runner:multi
 
 # a real model on the GPU server
-MT_LLM_TOOL=ollama MT_LLM_MODEL=qwen3:8b pnpm run runner
+MT_LLM_TOOL=ollama MT_LLM_MODEL=qwen3:8b pnpm run runner:multi
 ```
 
 Nothing else changes: same pipeline, same tools — only the backend behind them.
@@ -79,11 +79,13 @@ Nothing else changes: same pipeline, same tools — only the backend behind them
 samples/sample3/
 ├── pipelines/jsonl-to-md-multi.ts   # Pipeline definition (subflow orchestration)
 ├── pipelines/jsonl-to-md-simple.ts  # Plain pipeline: verifyFlow + stubTranslator translateFlow
+├── run-all.ts                       # Aggregate runner: launches every runner:<name> script
 ├── prepare-input.ts                 # Script to read books/book1 chapters and create JSONL input
 ├── mt.json                          # Project configuration
 ├── vitest.config.ts                 # Vitest configuration
 ├── jsonl/                           # Created at runtime — holds input.jsonl
 │   └── .gitkeep
+├── out/                             # Created at runtime — runner-report.md
 ├── chapters/                        # Created at runtime — pipeline output
 │   ├── en/                          #   verifyFlow: chapter1.md … chapterN.md
 │   ├── ru/                          #   stubTranslator translateFlow (simple pipeline only)
@@ -213,13 +215,42 @@ cd samples/sample3
 npm run example
 ```
 
-This prepares the JSONL input from `books/book1` and runs the default orchestration pipeline (all subflows).
+This prepares the JSONL input from `books/book1` and runs every pipeline of the sample through
+`npm run runner`. The runner also writes a markdown report of the sweep to `out/runner-report.md`
+(see below).
 
-For the simple pipeline (verify + placeholder translation, no schema docs):
+For only the multi-tool orchestration pipeline:
+
+```bash
+cd samples/sample3
+npm run example:multi
+```
+
+For only the simple pipeline (verify + placeholder translation, no schema docs):
 
 ```bash
 cd samples/sample3
 npm run example:simple
+```
+
+### Aggregate runner
+
+```bash
+pnpm run runner          # every runner:<name> script, one by one
+cat out/runner-report.md # markdown report of the whole sweep
+```
+
+`pnpm run runner` runs `run-all.ts`: it prepares missing fixtures, then launches every
+`runner:<name>` script one after another and writes a markdown report to `out/runner-report.md` —
+one row per runner with its status, duration, run id, the files it touched and the captured output.
+The same text goes to stdout, so `pnpm run runner | less` works too. Discovery is dynamic: a new
+`runner:<name>` script that calls `mt run …` is picked up without touching `run-all.ts`.
+
+The runner scripts stay individually runnable:
+
+```bash
+pnpm run runner:multi   # → chapters/en, chapters/ru, chapters/schema
+pnpm run runner:simple  # → chapters/en, chapters/ru
 ```
 
 ## How to clean up
@@ -229,8 +260,8 @@ cd samples/sample3
 npm run cleanup
 ```
 
-This removes `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`, `chapters/schema-mock/*.md`,
-`jsonl/input.jsonl`, and `.mt/`.
+This removes `out/runner-report.md`, `chapters/en/*.md`, `chapters/ru/*.md`, `chapters/schema/*.md`,
+`chapters/schema-mock/*.md`, `jsonl/input.jsonl`, and `.mt/`.
 
 ## How to run manually
 
@@ -240,8 +271,11 @@ cd samples/sample3
 # 1. Prepare the JSONL input from books/book1
 pnpm run prepare-input
 
-# 2. Run the whole orchestration
+# 2. Run every pipeline of the sample (writes out/runner-report.md)
 pnpm run runner
+
+# 2a. Or run only the multi-tool orchestration pipeline
+pnpm run runner:multi
 
 # 2b. Or run one exported subflow
 NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocPipeline

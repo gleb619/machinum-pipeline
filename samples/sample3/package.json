@@ -4,12 +4,14 @@
   "description": "Machinum Pipeline sample — JSONL to MD with multi-tool pipeline",
   "type": "module",
   "scripts": {
-    "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
+    "runner": "tsx run-all.ts",
+    "runner:multi": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
     "runner:simple": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-simple.ts",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
+    "example:multi": "pnpm run prepare-input && pnpm run runner:multi",
     "example:simple": "pnpm run prepare-input && pnpm run runner:simple",
-    "cleanup": "rm -rf chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/schema-mock/*.md jsonl/input.jsonl .mt",
+    "cleanup": "rm -rf out/runner-report.md chapters/en/*.md chapters/ru/*.md chapters/schema/*.md chapters/schema-mock/*.md jsonl/input.jsonl .mt",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest"
