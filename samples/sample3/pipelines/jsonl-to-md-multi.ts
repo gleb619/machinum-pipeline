@@ -51,7 +51,7 @@ const verifyFlow = definePipeline()
   .use(forbiddenCharDetector)
   .tap((ex) => console.log('[forbidden] findings:', getVariable(ex, 'forbidden')))
   .use(tokenCounter)
-  .log('[verify]')
+  .log('MyLogMarker')
   .to('@en')
 
 // === Flow 2: JSONL → schema docs (mock-LLM summary / entities / schema) ===

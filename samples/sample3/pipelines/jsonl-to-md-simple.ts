@@ -30,7 +30,7 @@ const verifyFlow = definePipeline()
   .use(forbiddenCharDetector)
   .tap((ex) => console.log('[forbidden] findings:', getVariable(ex, 'forbidden')))
   .use(tokenCounter)
-  .log('[verify]', { truncate: true })
+  .log('MyLogMarker', { truncate: true })
   .to('@en')
 
 // === Flow 2: MD(EN) → MD(RU) simple translation ===
