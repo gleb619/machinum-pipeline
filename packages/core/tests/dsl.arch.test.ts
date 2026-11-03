@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool } from '../src/dsl.js'
 import type { Pipeline, RetryPolicy, Tool } from '../src/index.js'
 import { registry } from '../src/uri.js'
@@ -273,6 +273,43 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     const tapStep = p.steps.find((s) => s.type === 'tap')
     expect(typeof tapStep?.config.fn).toBe('function')
     expect(seen).toHaveLength(0)
+  })
+
+  it('.log() wraps tap and logs label, exchange id and item', () => {
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    try {
+      const pipeline = makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .log({ label: 'debug', level: 'info' })
+        .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+      const p = pipeline as Pipeline
+      const tapStep = p.steps.find((s) => s.type === 'tap')
+      expect(typeof tapStep?.config.fn).toBe('function')
+      const log = tapStep?.config.fn as (ex: unknown) => void
+      log({ id: 'ex-1', item: 'hello', meta: {}, variables: [] })
+      expect(spy).toHaveBeenCalledWith('[debug]', 'ex-1', 'hello')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('.log(string) uses the argument as label and console.log by default', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const pipeline = makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .log('stage')
+        .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+      const p = pipeline as Pipeline
+      const tapStep = p.steps.find((s) => s.type === 'tap')
+      const log = tapStep?.config.fn as (ex: unknown) => void
+      log({ id: 'ex-2', item: 42, meta: {}, variables: [] })
+      expect(spy).toHaveBeenCalledWith('[stage]', 'ex-2', 42)
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('PipelineStep.type union includes batch, fork, flatmap, split, tap', () => {

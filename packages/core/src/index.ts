@@ -208,6 +208,8 @@ export type { BatchOptions } from './dsl.js'
 export { createBatchScope } from './batch-scope.js'
 export type {
   ComposableTool,
+  LogLevel,
+  LogOptions,
   ProcessConfig,
   ProcessInstall,
   ToolFn,

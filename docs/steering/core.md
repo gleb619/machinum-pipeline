@@ -118,6 +118,7 @@ definePipeline()
   .subflow('#paragraphs')   // 1→N split; same as 'paragraphs://' (bare 'paragraphs' is rejected)
   .flatMap(async (item) => [...])
   .tap((env) => { /* logging: receives the full Exchange incl. meta + variables; async OK */ })
+  .log('debug')             // sugar over .tap(): logs '[debug] <id> <item>' to the console
   .use(myTool)
   .subflow(otherPipeline)   // inline nested pipeline, same Runner
   .fork(subPipeline)        // sequential: child pipeline per envelope, checkpoint subtree
@@ -136,6 +137,7 @@ definePipeline()
 | `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
 | `.tap()` | `.tap((ex) => void \| Promise<void>)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
+| `.log()` | `.log(label?, { level? }?)` | Console-logging sugar over `.tap()`. Prints `[<label>] <exchange id> <item>` for every envelope; `label` defaults to the pipeline id, `level` to `'log'` (`info`/`warn`/`error`/`debug` select other `console` methods). Stream unchanged. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
 | `.batch()` | `.batch(opts?, nested?)` / `.batch(nested)` | `opts` = `number` \| `{ size?: 5, slide?: false }`. Groups items into `items[]` packages of `size`, flushing the remainder at end of stream; `slide: true` emits overlapping sliding windows instead (one per arrival). `size` must be a positive integer (`RangeError` at definition time). With `nested` (a `definePipeline()` pipeline) each package runs through it - a **batch scope**, see below. |
 | `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `lines`, `words` and `series`; `'paragraphs://ladder'` also resolves by scheme. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope (or one per branch in the parallel form). |

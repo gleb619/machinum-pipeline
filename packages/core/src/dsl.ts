@@ -106,7 +106,7 @@ function getCallerFileId(): string {
 /**
  * DSL builder for defining a pipeline.
  * Chain: .from(source).use(tool).to(target)
- * Also supports .fork(), .subflow(), .flatMap(), .batch(), .tap()
+ * Also supports .fork(), .subflow(), .flatMap(), .batch(), .tap(), .log()
  * for branching, orchestration, and transformation logic.
  *
  * PipelineBuilder implements Pipeline directly — it can be used as a
@@ -392,6 +392,31 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     this._steps.push({ type: 'tap', config: { fn } })
     return this
   }
+
+  /**
+   * Log every envelope to the console; the stream passes through unchanged.
+   *
+   * Sugar over {@link tap} for debugging. Each call prints `[<label>] <exchange id> <item>`
+   * (`label` defaults to the pipeline id). Pass a string as shorthand for `{ label }`.
+   */
+  log(options?: string | LogOptions): PipelineBuilder<I, O> {
+    const { label = this._id, level = 'log' } =
+      typeof options === 'string' ? { label: options } : (options ?? {})
+    return this.tap((ex) => {
+      console[level](`[${label}]`, ex.id, ex.item)
+    })
+  }
+}
+
+/** Console method used by `.log()`. */
+export type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug'
+
+/** Options of `.log()`. */
+export interface LogOptions {
+  /** Prefix for each line. Defaults to the pipeline id. */
+  label?: string
+  /** Console method to call. Default `'log'`. */
+  level?: LogLevel
 }
 
 /**

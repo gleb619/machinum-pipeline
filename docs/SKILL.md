@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.9.0 | 2026-11-03 -->
+<!-- skill-version: 1.9.1 | 2026-11-03 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -47,6 +47,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .flatMap(async (item) => [item])           // 1 -> N
   .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs://' (bare 'paragraphs' is rejected)
   .tap(async (ex) => console.log(ex.id))     // observe full Exchange, stream unchanged
+  .log('debug')                              // sugar over .tap(): logs '[debug] <id> <item>'
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
   .batch(5)                                  // group into items[] (default size 5; flushes remainder)
   .batch({ size: 3, slide: true })           // sliding windows (overlapping)
