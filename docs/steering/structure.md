@@ -88,6 +88,7 @@ packages/cli/src/
 │   ├── init.ts       # mt init
 │   ├── list.ts       # mt ls runs
 │   ├── inspect.ts    # mt inspect <runId>
+│   ├── info.ts       # mt info
 │   ├── tool.ts       # mt tool <name>
 │   └── serve.ts      # mt serve [--detach] (lazy-imports @mt/backend/standalone)
 └── utils/

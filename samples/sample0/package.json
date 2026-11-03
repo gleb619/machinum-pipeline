@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "example": "mt init sample-project",
+    "info": "mt info",
     "cleanup": "rm -rf sample-project .mt mt.json",
     "test": "vitest run",
     "test:watch": "vitest"

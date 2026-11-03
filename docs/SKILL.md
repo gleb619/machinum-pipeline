@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.11.2 | 2026-11-03 -->
+<!-- skill-version: 1.12.0 | 2026-11-03 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -155,6 +155,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt resume <runId> [pipeline.ts]` | resume from the first non-done node; file comes from `state.json` unless given |
 | `mt ls runs` | table of runs (id, pipeline, state, start) |
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
+| `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
 | `mt serve [--port N\|0] [--host H] [-d\|--detach]` | admin API + UI + SSE; detached state in `.mt/backend/{pid,server.log}` |
 | `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | keyless LLM gateway + dashboard; token only via `MT_ROUTER_TOKEN` |
@@ -168,6 +169,9 @@ Examples:
 mt init && mt run ./pipelines/example.ts
 mt explain ./pipelines/example.ts             # flow, events and log paths; no execution
 mt explain ./pipelines/example.ts --json      # same, machine-readable
+mt info                                       # effective config (secrets masked) + .mt state
+mt info --json                                # stable schemaVersion: 1 document
+mt info --runs 0                              # every run in the report
 mt ls runs
 mt resume 8f3a1c2e                      # after a crash or Ctrl-C
 echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
@@ -353,6 +357,7 @@ Runner never enters it. `paused -> done` is illegal.
 
 Do:
 - Use `mt explain <pipeline.ts>` to inspect the declared flow, effective policy and output paths before a real run.
+- Use `mt info` to check the effective config and state-dir size before/after runs.
 - Read `mt.json` and an existing pipeline before writing a new one; copy its imports.
 - Keep pipelines deterministic and idempotent; use `cacheable` tools for LLM-heavy steps.
 - Test offline first (`MT_LLM_TOOL=mock` or `mockLlm`), then switch the backend by env.

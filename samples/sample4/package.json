@@ -8,6 +8,7 @@
     "runner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/normalize.ts",
     "explain": "NODE_OPTIONS='--import tsx' mt explain ./pipelines/normalize.ts",
     "explain:json": "NODE_OPTIONS='--import tsx' mt explain ./pipelines/normalize.ts --json",
+    "info": "mt info",
     "normalize": "pnpm run prepare-input && pnpm run runner",
     "analyze": "NODE_OPTIONS='--import tsx' mt run ./pipelines/analyze.ts",
     "translate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate.ts",

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "runner": "tsx run-all.ts",
+    "info": "mt info",
     "runner:beginner": "NODE_OPTIONS='--import tsx' mt run ./pipelines/beginner.ts",
     "runner:intermediate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/intermediate.ts",
     "runner:advanced": "NODE_OPTIONS='--import tsx' mt run ./pipelines/advanced.ts",

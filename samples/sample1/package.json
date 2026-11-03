@@ -8,6 +8,7 @@
     "runner:md": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md.ts",
     "simulate": "tsx simulation1.ts",
     "example": "tsx run-example.ts",
+    "info": "mt info",
     "cleanup": "rm -rf jsonl/output.jsonl .mt chapters/en/*.md",
     "test": "vitest run",
     "test:watch": "vitest"

@@ -48,6 +48,7 @@ and watch it live.
 npm i mt tsx
 # pipeline.ts:  import { definePipeline } from 'mt'; import { chapterDoc } from 'mt/tools'
 NODE_OPTIONS='--import tsx' npx mt explain ./pipeline.ts   # inspect the declared flow, no execution
+NODE_OPTIONS='--import tsx' npx mt info                     # effective config (secrets masked) + .mt state
 NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts       # execute
 
 # Or as one self-contained binary (no node needed): build with Bun

@@ -86,6 +86,7 @@
 | UC078 | Install `mt` with Docker                 | —          | — |
 | UC079 | Release pipeline and CI gates            | —          | — |
 | UC080 | Explain a pipeline without running it      | —          | [sample3](../../samples/sample3) (nested subflows) |
+| UC081 | Show project info (effective config + state) | —        | — |
 
 ## Legacy ID Mapping
 
@@ -207,6 +208,7 @@ every `UC###` registered by the built `@mt/core`, `@mt/waypoint` and `@mt/tools`
 | UC078 | Install `mt` with Docker | Operator/CI | Run `mt` from the `ghcr.io/gleb619/machinum-pipeline` image without installing anything else | Docker; a persistent `~/.mt` dir or a mounted `MT_EMBED_PASSWORD_FILE` secret | A wrapper `mt` runs the image with `$PWD` at `/work` and `~/.mt` at `/home/mt/.mt`; on first run the entrypoint generates `master.key` (0600) unless a key source exists; no key is baked into the image | 1. `sh docs/install.sh --docker`. 2. `mt run ./pipelines/p.ts` (wrapper). 3. In CI mount the secret and set `MT_EMBED_PASSWORD_FILE`; back up `~/.mt/master.key` |
 | UC079 | Release pipeline and CI gates | Maintainer | Gate every PR (lint, typecheck, test without GPU, binary smoke, shellcheck, hadolint + image build, skill drift) and publish a tagged release | GitHub Actions enabled; tag `vX.Y.Z` equals `packages/mt/package.json` version | Release with `mt-<target>` binaries + `SHA256SUMS`; image `ghcr.io/gleb619/machinum-pipeline:{X.Y.Z,X.Y,latest}` (amd64+arm64) | 1. PR runs `.github/workflows/ci.yml`. 2. Push tag `vX.Y.Z`. 3. `release.yml` builds, smokes, uploads assets, pushes the image. 4. `test:gpu` stays a manual pre-merge gate |
 | UC080 | Explain a pipeline without running it | Author/Operator/Agent | Understand exactly what a declared pipeline will do before spending time or API budget on a run | Pipeline file + `mt.json` (+ `imports`); no run state or `.env`/vault needed | Markdown or JSON explanation of the dataflow, per-step effective retry/onError (project fallbacks shown separately), nested scopes, lifecycle hooks, events, checkpoint node and log paths. The module is imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no Runner/source/tool/target/hook starts; no run id or `.mt/runs/<runId>/` is created | 1. `mt explain ./pipelines/x.ts` 2. CLI loads the same runnable `mt run` would 3. Walks `pipeline.steps` recursively 4. Prints flow + runtime artifact map (per-step concurrency, declared envDefaults/LLM pick, warnings for duplicate ids). Add `--json` for agents/tools (`stdout` is one parseable document; import-time module output goes to stderr), `--pipeline <name>` to select an export |
+| UC081 | Show project info (effective config + state) | Operator/Agent | Check the effective mt.json and .mt state/size/run health in one read-only command | mt.json and/or .mt | Masked effective config + state sizes/run status/timings | 1. `mt info` 2. CLI reads mt.json/imports + DEFAULT_MT_CONFIG and scans .mt/runs 3. Prints masked config + run/size summary; `--json` for agents |
 
 ---
 

@@ -15,6 +15,7 @@ mt init          # scaffold a project (mt.json + .mt/)
 mt run ./p.ts    # execute a pipeline
 mt resume <id>   # resume a paused/failed run
 mt ls runs       # list runs
+mt info          # effective config (secrets masked) + .mt state
 mt inspect <id>  # run details
 mt tool <name>   # invoke a tool standalone (JSON on stdin/stdout)
 mt serve         # admin backend (h3 + bun:sqlite + embedded UI)

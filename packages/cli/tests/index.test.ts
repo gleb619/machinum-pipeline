@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { explainCommand } from '../src/commands/explain.js'
+import { infoCommand } from '../src/commands/info.js'
 import { initCommand } from '../src/commands/init.js'
 import { inspectCommand } from '../src/commands/inspect.js'
 import { installCommand } from '../src/commands/install.js'
@@ -8,6 +9,10 @@ import { runCommand } from '../src/commands/run.js'
 import { skillCommand } from '../src/commands/skill.js'
 import { vaultCommand } from '../src/commands/vault.js'
 import { main } from '../src/index.js'
+
+vi.mock('../src/commands/info.js', () => ({
+  infoCommand: vi.fn(),
+}))
 
 vi.mock('../src/commands/init.js', () => ({
   initCommand: vi.fn(),
@@ -101,6 +106,12 @@ describe('CLI entry point', () => {
     process.argv = ['node', 'mt', 'inspect', 'run-123']
     await main()
     expect(inspectCommand).toHaveBeenCalledWith(['run-123'])
+  })
+
+  it('calls info command', async () => {
+    process.argv = ['node', 'mt', 'info', '--json']
+    await main()
+    expect(infoCommand).toHaveBeenCalledWith(['--json'])
   })
 
   it('calls vault command', async () => {

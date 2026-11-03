@@ -31,6 +31,8 @@ In `sample4` each stage has one further switch of its own, off by default: `MT_L
 and `MT_LLM_SUMMARY=1` (analyze) add the LLM step; the `mock` backend answers with fake Cyrillic so
 `translate` runs end to end offline, and `MT_TRANSLATE_PROMPT_LOG` dumps every prompt for the test.
 
+Every sample exposes `pnpm run info`, which runs `mt info` to print the effective `mt.json` with secrets masked, plus the `.mt` state size, run statuses and timings.
+
 ## Running a sample manually
 
 Requires packing local deps first:
