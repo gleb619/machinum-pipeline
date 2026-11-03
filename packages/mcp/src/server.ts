@@ -1,5 +1,6 @@
 import * as readline from 'node:readline'
 import {
+  activeRuns,
   handleInitialize,
   handleResourcesList,
   handleResourcesRead,
@@ -145,11 +146,52 @@ export async function handleMessage(line: string): Promise<JsonRpcResponse | und
   return handleRequest(request)
 }
 
-export async function startMcpServer(): Promise<void> {
+/**
+ * Wait for the tracked background runs to settle.
+ *
+ * Called after stdin closed (the client disconnected). A run started by
+ * `pipelines.run` may still be in flight; exiting now would kill it mid-step
+ * and leave `state.json` stuck at `running` with no process behind it. So the
+ * server stays alive until every tracked run settles.
+ *
+ * Escape hatch: `SIGINT` (or `SIGHUP` from a closing terminal) during the drain
+ * force-exits with code 1 — the operator asked for it, so the drain is abandoned
+ * and the in-flight run is left orphaned on purpose. A second stdin EOF cannot
+ * be observed: stdin is already ended by the time the drain starts.
+ */
+export async function drainActiveRuns(): Promise<void> {
+  if (activeRuns.size === 0) return
+
+  console.error(`[mcp] stdin closed, waiting for ${activeRuns.size} background run(s) to finish`)
+  const forceExit = (): void => {
+    console.error('[mcp] interrupted while draining background run(s), exiting now')
+    process.exit(1)
+  }
+  process.on('SIGINT', forceExit)
+  process.on('SIGHUP', forceExit)
+  try {
+    // Runs may start while the drain is running — keep going until none are left.
+    while (activeRuns.size > 0) {
+      await Promise.allSettled([...activeRuns])
+    }
+  } finally {
+    process.off('SIGINT', forceExit)
+    process.off('SIGHUP', forceExit)
+  }
+  console.error('[mcp] background run(s) finished')
+}
+
+/**
+ * Serve MCP over stdio until stdin closes.
+ *
+ * `input` defaults to `process.stdin`; tests pass their own stream to simulate
+ * a client that disconnects.
+ */
+export async function startMcpServer(input: NodeJS.ReadableStream = process.stdin): Promise<void> {
   projectRoot = process.env.MT_PROJECT_ROOT || process.cwd()
 
   const rl = readline.createInterface({
-    input: process.stdin,
+    input,
     output: process.stdout,
     terminal: false,
   })
@@ -164,6 +206,10 @@ export async function startMcpServer(): Promise<void> {
       writeResponse(response)
     }
   }
+
+  // The client is gone, but a background run may still be in flight: drain it
+  // before the process exits, or the run dies mid-step.
+  await drainActiveRuns()
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

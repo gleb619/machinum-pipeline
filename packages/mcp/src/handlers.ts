@@ -275,6 +275,16 @@ async function listPipelines(
 }
 
 /**
+ * Background runs started by `pipelines.run` that have not settled yet.
+ *
+ * The MCP server speaks stdio: when the client disconnects, stdin hits EOF and
+ * the server would exit, killing every in-flight run mid-step and leaving
+ * `state.json` stuck at `running` with no process behind it. The server drains
+ * this set before exiting, so a disconnected client never orphans a run.
+ */
+export const activeRuns = new Set<Promise<unknown>>()
+
+/**
  * Start a pipeline run in the background.
  *
  * The run is fire-and-forget: the response carries the run id as soon as the
@@ -302,8 +312,15 @@ async function runPipeline(
   // start() mints the run id before its first await, so it is readable right away.
   const running = runner.start()
   const runId = runner.getRunId()
-  running.catch((error: unknown) => {
+  // Attach the failure handler first: the tracked promise must never reject, or
+  // the drain would turn a failed run into an unhandled rejection.
+  const tracked = running.catch((error: unknown) => {
     console.error(`[mcp] Background run failed (runId: ${runId}):`, error)
+  })
+  // Track the run so the server can drain it when stdin closes.
+  activeRuns.add(tracked)
+  void tracked.finally(() => {
+    activeRuns.delete(tracked)
   })
 
   if (!runId) {
