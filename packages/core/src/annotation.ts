@@ -1,0 +1,242 @@
+/**
+ * Runtime annotations — one common mechanism, three sealed kinds.
+ *
+ * The engine works with plain values, not classes: a Tool is an object produced by
+ * `defineTool()`, a waypoint is a factory function, a use case is a command or a DSL
+ * entry point. ECMAScript decorators cannot target those values, so annotations are
+ * ordinary frozen metadata records attached through `annotate()` (WeakMap + a
+ * non-enumerable symbol, so the annotated value keeps its shape and never leaks into
+ * serialization).
+ *
+ * Kinds are a closed set (`tool`, `waypoint`, `useCase`). Each kind is produced by a
+ * frozen factory with its own ID namespace and pattern; no third-party code can mint a
+ * new kind or a free-form ID. Annotations themselves are frozen too: attach them, do
+ * not mutate them.
+ */
+
+/** Closed set of annotation kinds. Adding a kind is a deliberate core API change. */
+export const ANNOTATION_KINDS = Object.freeze(['tool', 'waypoint', 'useCase'] as const)
+
+export type AnnotationKind = (typeof ANNOTATION_KINDS)[number]
+
+/** Optional human context carried by every annotation. */
+export interface AnnotationSpec {
+  /** Short display name. Falls back to the annotated value's own name. */
+  name?: string
+  /** What the annotated unit does. */
+  description?: string
+  /** Related IDs, e.g. a tool's use cases (`['UC055', 'UC057']`). */
+  refs?: readonly string[]
+  /** Kind-specific extra data (e.g. URI schemes for a waypoint). */
+  meta?: Readonly<Record<string, unknown>>
+}
+
+/** Immutable annotation record attached to a runtime value. */
+export interface Annotation {
+  readonly kind: AnnotationKind
+  readonly id: string
+  readonly name?: string
+  readonly description?: string
+  readonly refs: readonly string[]
+  readonly meta: Readonly<Record<string, unknown>>
+}
+
+/** A sealed annotation kind: callable factory plus its namespace metadata. */
+export interface AnnotationKindFactory {
+  readonly kind: AnnotationKind
+  /** ID namespace, e.g. `TL` for `TL001`. */
+  readonly prefix: string
+  /** Validation pattern every ID of this kind must match. */
+  readonly pattern: RegExp
+  (id: string, spec?: AnnotationSpec): Annotation
+}
+
+/** Record kept by the process-wide registry for every annotated value. */
+export interface AnnotationRecord {
+  readonly annotation: Annotation
+  /** Display name derived from the annotated value (`tool.name`, `uri`, function name). */
+  readonly targetName: string
+  readonly target: object
+}
+
+/** Symbol used for the non-enumerable attachment. */
+export const ANNOTATION_KEY: unique symbol = Symbol.for('mt.annotation')
+
+const attached = new WeakMap<object, readonly Annotation[]>()
+const registry: AnnotationRecord[] = []
+
+function freezeSpec(spec: AnnotationSpec | undefined): {
+  name?: string
+  description?: string
+  refs: readonly string[]
+  meta: Readonly<Record<string, unknown>>
+} {
+  const refs = Object.freeze([...(spec?.refs ?? [])])
+  const meta = Object.freeze({ ...(spec?.meta ?? {}) })
+  // exactOptionalPropertyTypes is off, but keep undefined out of the frozen shape.
+  return {
+    ...(spec?.name === undefined ? {} : { name: spec.name }),
+    ...(spec?.description === undefined ? {} : { description: spec.description }),
+    refs,
+    meta,
+  }
+}
+
+/**
+ * Build one sealed kind. The returned function validates the ID namespace and returns a
+ * frozen annotation; the function itself is frozen and its metadata is read-only.
+ */
+function createAnnotationKind(kind: AnnotationKind, prefix: string): AnnotationKindFactory {
+  const pattern = new RegExp(`^${prefix}\\d{3,}$`)
+  const factory = (id: string, spec?: AnnotationSpec): Annotation => {
+    if (!pattern.test(id)) {
+      throw new Error(
+        `Invalid ${kind} annotation id '${id}' — expected ${prefix} followed by at least 3 digits (e.g. ${prefix}001)`,
+      )
+    }
+    return Object.freeze({ kind, id, ...freezeSpec(spec) })
+  }
+  return Object.freeze(
+    Object.assign(factory, { kind, prefix, pattern: Object.freeze(pattern) }),
+  ) as AnnotationKindFactory
+}
+
+/** Tool annotation — `TL###` (the tool index in docs/steering/tools.md). */
+export const tool = createAnnotationKind('tool', 'TL')
+
+/** Waypoint annotation — `WT###` (the URI-scheme index in docs/steering/waypoint.md). */
+export const waypoint = createAnnotationKind('waypoint', 'WT')
+
+/** Use-case annotation — `UC###` (the use-case index in docs/guiding/uc.md). */
+export const useCase = createAnnotationKind('useCase', 'UC')
+
+/** Every kind factory, keyed by kind. Sealed to the three kinds above. */
+export const ANNOTATION_FACTORIES: Readonly<Record<AnnotationKind, AnnotationKindFactory>> =
+  Object.freeze({ tool, waypoint, useCase })
+
+function assertAnnotation(value: unknown): asserts value is Annotation {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('Annotation must be an object created by tool(), waypoint() or useCase()')
+  }
+  const kind = (value as { kind?: unknown }).kind
+  if (!ANNOTATION_KINDS.includes(kind as AnnotationKind)) {
+    throw new Error(
+      `Unknown annotation kind '${String(kind)}' — allowed: ${ANNOTATION_KINDS.join(', ')}`,
+    )
+  }
+  if (!Object.isFrozen(value)) {
+    throw new Error('Annotation must be frozen — create it with tool(), waypoint() or useCase()')
+  }
+}
+
+function targetNameOf(target: object): string {
+  if ('name' in target && typeof (target as { name?: unknown }).name === 'string') {
+    return (target as { name: string }).name
+  }
+  if ('uri' in target && typeof (target as { uri?: unknown }).uri === 'string') {
+    return (target as { uri: string }).uri
+  }
+  const ctor = (target as { constructor?: { name?: string } }).constructor
+  return ctor?.name ?? 'anonymous'
+}
+
+function mergeAnnotations(
+  target: object,
+  existing: readonly Annotation[],
+  incoming: readonly Annotation[],
+): readonly Annotation[] {
+  const byKind = new Map<AnnotationKind, Annotation>(existing.map((a) => [a.kind, a]))
+  for (const annotation of incoming) {
+    assertAnnotation(annotation)
+    const previous = byKind.get(annotation.kind)
+    if (previous && previous.id !== annotation.id) {
+      throw new Error(
+        `${annotation.kind} '${targetNameOf(target)}' already annotated with ${previous.id}; ` +
+          `refusing to replace it with ${annotation.id}`,
+      )
+    }
+    byKind.set(annotation.kind, annotation)
+  }
+  return Object.freeze([...byKind.values()])
+}
+
+/**
+ * Attach one or more annotations to a runtime value (tool instance, waypoint factory,
+ * command function, class constructor, ...) and return the same value. At most one
+ * annotation per kind; re-attaching the same kind/id is idempotent. Every attachment is
+ * also recorded in the process-wide registry.
+ */
+export function annotate<T extends object>(target: T, ...annotations: Annotation[]): T {
+  if (annotations.length === 0) return target
+  const existing = attached.get(target) ?? []
+  const merged = mergeAnnotations(target, existing, annotations)
+  attached.set(target, merged)
+  Object.defineProperty(target, ANNOTATION_KEY, {
+    value: merged,
+    configurable: true,
+    enumerable: false,
+    writable: false,
+  })
+  for (const annotation of merged) {
+    const record: AnnotationRecord = {
+      annotation,
+      targetName: targetNameOf(target),
+      target,
+    }
+    const index = registry.findIndex(
+      (r) => r.target === target && r.annotation.kind === annotation.kind,
+    )
+    if (index >= 0) registry[index] = record
+    else registry.push(record)
+  }
+  return target
+}
+
+/** Annotations attached to one value (empty when unannotated). */
+export function annotationsOf(target: object): readonly Annotation[] {
+  return attached.get(target) ?? []
+}
+
+/** One annotation of the requested kind, if present. */
+export function annotationOf(target: object, kind: AnnotationKind): Annotation | undefined {
+  return annotationsOf(target).find((a) => a.kind === kind)
+}
+
+/** True when the value carries at least one annotation. */
+export function isAnnotated(target: object): boolean {
+  return annotationsOf(target).length > 0
+}
+
+/** Every annotation registered in this process, in attachment order. */
+export function listAnnotations(kind?: AnnotationKind): readonly AnnotationRecord[] {
+  return kind ? registry.filter((r) => r.annotation.kind === kind) : Object.freeze([...registry])
+}
+
+/**
+ * Look up annotations by ID. Use-case IDs intentionally repeat across implementations,
+ * so this returns every match; tool/waypoint IDs are expected to be unique.
+ */
+export function findAnnotation(id: string): readonly AnnotationRecord[] {
+  return registry.filter((r) => r.annotation.id === id)
+}
+
+/** Drop the registry. Test/scanning helper — attached metadata on values stays intact. */
+export function resetAnnotationRegistry(): void {
+  registry.length = 0
+}
+
+/**
+ * Standard ECMAScript decorator adapter for class declarations and methods.
+ *
+ * ```ts
+ * @decorate(useCase('UC006', { name: 'Resume a run' }))
+ * class ResumeFlow {}
+ * ```
+ *
+ * It stores the annotation in the same WeakMap/symbol as `annotate()`; it deliberately
+ * does not use `context.metadata`, so the project does not need the `ESNext` lib.
+ */
+export function decorate(annotation: Annotation) {
+  assertAnnotation(annotation)
+  return <T extends object>(target: T, _context?: unknown): T => annotate(target, annotation)
+}

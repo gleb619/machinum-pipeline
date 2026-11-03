@@ -1,3 +1,26 @@
+export {
+  ANNOTATION_FACTORIES,
+  ANNOTATION_KEY,
+  ANNOTATION_KINDS,
+  annotate,
+  annotationOf,
+  annotationsOf,
+  decorate,
+  findAnnotation,
+  isAnnotated,
+  listAnnotations,
+  resetAnnotationRegistry,
+  tool,
+  useCase,
+  waypoint,
+} from './annotation.js'
+export type {
+  Annotation,
+  AnnotationKind,
+  AnnotationKindFactory,
+  AnnotationRecord,
+  AnnotationSpec,
+} from './annotation.js'
 export { Store } from './store.js'
 export { atomicWriteFile, AtomicStreamWriter, removeStaleTmpFiles, tmpPathFor } from './atomic.js'
 export type { LifecycleScripts, MtConfig } from './config.js'

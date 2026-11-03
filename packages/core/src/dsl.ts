@@ -1,4 +1,5 @@
 import { basename, dirname } from 'node:path'
+import { type Annotation, annotate } from './annotation.js'
 import { loadGlobalContext } from './config.js'
 import type {
   GlobalContext,
@@ -627,8 +628,10 @@ export function defineTool<I, O>(config: {
   invoke: (ex: Exchange<I>, ctx: ToolContext) => Promise<Exchange<O>>
   cacheable?: boolean
   idempotent?: boolean
+  /** Runtime annotations (`tool(...)`, `useCase(...)`) attached to the returned Tool. */
+  annotations?: readonly Annotation[]
 }): Tool<I, O> {
-  return {
+  const created: Tool<I, O> = {
     name: config.name,
     version: config.version,
     mdDescription: config.mdDescription,
@@ -636,6 +639,7 @@ export function defineTool<I, O>(config: {
     cacheable: config.cacheable,
     idempotent: config.idempotent,
   }
+  return annotate(created, ...(config.annotations ?? []))
 }
 
 /**
