@@ -10,6 +10,9 @@ const ENV = { ...process.env, NODE_OPTIONS: '--import tsx' }
 const PIPELINE = `import { definePipeline } from '@mt/core'
 import '@mt/waypoint'
 
+console.log('explain fixture: module imported')
+process.stdout.write('explain fixture: raw stdout write on import\\n')
+
 const innerFlow = definePipeline()
   .from('ephemeral://explain-input')
   .tap(async () => {})
@@ -34,6 +37,7 @@ interface ExplainedPipeline {
 
 interface Explanation {
   schemaVersion: number
+  command: 'mt explain'
   runnable: {
     kind: 'pipeline' | 'suite'
     pipelines: ExplainedPipeline[]
@@ -46,8 +50,12 @@ interface Explanation {
 let projectDir: string
 
 function explainJson(args: string[]): Explanation {
+  return explainJsonFrom(projectDir, args)
+}
+
+function explainJsonFrom(cwd: string, args: string[]): Explanation {
   const stdout = execFileSync(MT_BIN, ['explain', ...args, '--json'], {
-    cwd: projectDir,
+    cwd,
     encoding: 'utf8',
     env: ENV,
     stdio: 'pipe',
@@ -106,5 +114,32 @@ describe('mt explain', () => {
     const selected = parsed.runnable.pipelines[0]
     expect(selected?.stepCount).toBe(2)
     expect(selected?.steps.map((step) => step.type)).toEqual(['source', 'target'])
+  })
+
+  it('explains a sample named export as a pipeline with tool steps', () => {
+    const parsed = explainJsonFrom(SAMPLE_DIR, [
+      './pipelines/jsonl-to-md-multi.ts',
+      '--pipeline',
+      'schemaDocPipeline',
+    ])
+
+    expect(parsed.runnable.kind).toBe('pipeline')
+    expect(parsed.runnable.pipelineCount).toBe(1)
+    const selected = parsed.runnable.pipelines[0]
+    expect(selected?.steps.some((step) => step.type === 'tool')).toBe(true)
+  })
+
+  it('creates no .mt directory in the explained project', async () => {
+    explainJson(['pipelines/explain.ts'])
+
+    await expect(access(join(projectDir, '.mt'))).rejects.toThrow()
+    await expect(access(join(projectDir, '.mt', 'runs'))).rejects.toThrow()
+  })
+
+  it('keeps stdout parseable when the pipeline module logs on import', () => {
+    const parsed = explainJson(['pipelines/explain.ts'])
+
+    expect(parsed.schemaVersion).toBe(1)
+    expect(parsed.command).toBe('mt explain')
   })
 })

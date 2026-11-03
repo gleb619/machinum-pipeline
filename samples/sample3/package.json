@@ -7,6 +7,8 @@
     "runner": "tsx run-all.ts",
     "runner:multi": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
     "runner:simple": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-simple.ts",
+    "explain": "NODE_OPTIONS='--import tsx' mt explain ./pipelines/jsonl-to-md-multi.ts",
+    "explain:json": "NODE_OPTIONS='--import tsx' mt explain ./pipelines/jsonl-to-md-multi.ts --json",
     "prepare-input": "tsx prepare-input.ts",
     "prepare-input:force": "tsx prepare-input.ts --force",
     "example": "pnpm run prepare-input && pnpm run runner",

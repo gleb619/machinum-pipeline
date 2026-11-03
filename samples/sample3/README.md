@@ -290,12 +290,14 @@ never creates `.mt/runs/<runId>/`:
 
 ```bash
 cd samples/sample3
-NODE_OPTIONS='--import tsx' mt explain ./pipelines/jsonl-to-md-multi.ts
-NODE_OPTIONS='--import tsx' mt explain ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocPipeline --json
+pnpm run explain        # Markdown: flow, effective policies, events, log/artifact paths
+pnpm run explain:json   # same as one JSON document on stdout
+NODE_OPTIONS='--import tsx' mt explain ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocPipeline
 ```
 
-The Markdown form shows the dataflow, events, checkpoint nodes and log paths. Use `--json` for
-agents and tools.
+The Markdown form shows the dataflow, effective retry/onError/concurrency policies, events,
+checkpoint nodes and log/artifact paths. `--pipeline <name>` explains a named export instead of the
+default; `--json` prints exactly one parseable document on stdout (import-time logs go to stderr).
 
 ## How to run manually
 

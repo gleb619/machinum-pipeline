@@ -69,6 +69,21 @@ pnpm run translate                  # stage 3 -> chapters/ru + titles.json (mock
 pnpm run lint-parity                # check chapters/en vs chapters/ru, exit 1 on mismatch
 ```
 
+## Inspect without running
+
+`mt explain` loads the pipeline module but starts no source, tool, target or lifecycle hook, so it
+shows the declared dataflow without executing anything and creates no `.mt/` state (no run id, no
+checkpoint tree):
+
+```bash
+pnpm run explain          # Markdown: dataflow, policies, events, log/artifact paths
+pnpm run explain:json     # the same as JSON, for agents and tools
+```
+
+Use `--pipeline <name>` to explain a named export, e.g. another stage:
+`pnpm run explain --pipeline normalizeFlow` or
+`NODE_OPTIONS='--import tsx' mt explain ./pipelines/analyze.ts --pipeline analyzeFlow`.
+
 ## Stage 1: normalize
 
 ```bash
