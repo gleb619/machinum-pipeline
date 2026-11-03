@@ -14,6 +14,7 @@ Pipelines over JSONL and markdown, without LLM calls:
 - How to read a source (`jsonl://`) and write a target (`md://`).
 - How to use the tools that already ship in `@mt/tools` instead of hand-rolling your own.
 - How to fan data out with `.flatMap()` and group it with `.batch()`.
+- How to inspect pipeline output directly in the terminal with `console://`.
 - How to parse the main entities (`Chapter → Paragraph → Line`) with shipped tools inside each branch.
 - How to run independent branch pipelines concurrently with core `.fork(name, branches)` and
   merge their output deterministically.
@@ -37,10 +38,11 @@ jsonl://./jsonl/input.jsonl
 
 | Pipeline | Command | Purpose |
 |----------|---------|---------|
-| `default` (explicit suite) | `pnpm run runner:basic` | Runs the four exported basics pipelines |
+| `default` (explicit suite) | `pnpm run runner:basic` | Runs the five exported basics pipelines |
 | `defaultPipeline` | `pnpm run runner:basic -- --pipeline defaultPipeline` | JSONL → `wordCounter` → `toMarkdownTool` → `chapters/output.md` |
 | `typedContentPipeline` | `pnpm run runner:basic -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `chapters/output-typed.md` |
 | `statsPipeline` | `pnpm run runner:stats` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
+| `consolePreviewPipeline` | `pnpm run runner:preview` | JSONL → per-line text → `console://` (prefixed terminal preview) |
 
 The end of the file shows the explicit suite and the `.parallel(true)` / sync alternatives.
 

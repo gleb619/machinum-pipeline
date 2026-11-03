@@ -155,8 +155,27 @@ const statsPipeline = definePipeline({ id: 'basic-md-stats' })
   })
   .to('void://')
 
-// all four -> implicit suite (alphabetical, sync)
-export { chapterDomainPipeline, defaultPipeline, statsPipeline, typedContentPipeline }
+// ---------------------------------------------------------------------------
+// Console preview: inspect each record in the terminal as it flows through.
+//
+// `console://` is a target-only waypoint: every envelope is written to stdout
+// immediately, so this pipeline is useful for spotting input problems without
+// creating an output file.
+// ---------------------------------------------------------------------------
+
+const consolePreviewPipeline = definePipeline({ id: 'basic-md-console-preview' })
+  .from('jsonl://./jsonl/input.jsonl')
+  .flatMap(async (record: unknown) => [toLineText(record)])
+  .to('console://?prefix=[preview] ')
+
+// all five -> implicit suite (alphabetical, sync)
+export {
+  chapterDomainPipeline,
+  consolePreviewPipeline,
+  defaultPipeline,
+  statsPipeline,
+  typedContentPipeline,
+}
 
 // explicit suite -> your order + mode (defineProcess([...]).parallel(true))
 import { defineProcess } from '@mt/core'
@@ -165,6 +184,7 @@ export default defineProcess([
   chapterDomainPipeline,
   typedContentPipeline,
   statsPipeline,
+  consolePreviewPipeline,
 ]).parallel(true)
 
 // sync shorthand (default mode is sync)
@@ -184,4 +204,5 @@ export default defineProcess([
 //   mt run ./pipelines/basic-md-processing.ts --pipeline defaultPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline typedContentPipeline
 //   mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline
+//   mt run ./pipelines/basic-md-processing.ts --pipeline consolePreviewPipeline
 // ---------------------------------------------------------------------------

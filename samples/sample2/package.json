@@ -8,6 +8,7 @@
     "runner:basic": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts",
     "runner:parallel": "NODE_OPTIONS='--import tsx' mt run ./pipelines/parallel-forks-md-processing.ts",
     "runner:stats": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline statsPipeline",
+    "runner:preview": "NODE_OPTIONS='--import tsx' mt run ./pipelines/basic-md-processing.ts --pipeline consolePreviewPipeline",
     "prepare-input": "tsx prepare-input.ts",
     "example": "pnpm run prepare-input && pnpm run runner",
     "cleanup": "rm -rf output.md counts.jsonl jsonl/input.jsonl jsonl/entities.jsonl jsonl/ladder.jsonl chapters-out entities out .mt chapters/glossary.graph.json && find chapters -maxdepth 1 -type f -name '*.md' ! -name 'chapter1.md' -delete",

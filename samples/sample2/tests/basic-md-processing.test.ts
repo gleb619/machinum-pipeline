@@ -96,6 +96,22 @@ describe('statsPipeline', () => {
   })
 })
 
+describe('consolePreviewPipeline', () => {
+  it('runs to completion', () => {
+    run('consolePreviewPipeline')
+  })
+
+  it('prints every record as a prefixed terminal line', () => {
+    const stdout = run('consolePreviewPipeline')
+    const lines = stdout.split(/\r?\n/)
+    for (const record of RECORDS) {
+      expect(
+        lines.some((line) => line.startsWith('[preview] ') && line.includes(record.text)),
+      ).toBe(true)
+    }
+  })
+})
+
 describe('typedContentPipeline', () => {
   it('runs to completion', () => {
     run('typedContentPipeline')

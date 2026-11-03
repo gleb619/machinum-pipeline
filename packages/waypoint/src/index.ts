@@ -27,6 +27,13 @@ export { createRangeSource } from './range.js'
 export { createVoidTarget } from './void.js'
 export { createReviewTarget, renderGlossaryReview } from './review.js'
 export {
+  createConsoleTarget,
+  renderConsoleExchange,
+  type ConsoleFormat,
+  type ConsoleStream,
+  type ConsoleTargetOptions,
+} from './console.js'
+export {
   GitWorktreeSource,
   GitWorktreeTarget,
   createGitWorktreeSource,
@@ -47,3 +54,4 @@ import './events.js'
 import './range.js'
 import './void.js'
 import './review.js'
+import './console.js'

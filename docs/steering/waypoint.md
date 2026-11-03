@@ -9,7 +9,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `review://`, `events://`, `temp://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`, `review://`, `events://`, `temp://`.
 
 ## URI Scheme Reference
 
@@ -23,6 +23,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
 | `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
+| `console://` | `console.ts` | — | ✓ | Terminal sink (stdout/stderr), per-envelope, target-only |
 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 | `temp://<entity>/<namespace>` | `entity-buffers.ts` | — | ✓ | In-memory write side for a typed entity buffer (`temp://chunks/ladder` → `chunks://ladder`) |
@@ -121,6 +122,26 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - Target-only sink: `void://` discards every envelope (open/write/close are no-ops)
 - Deliberately **no `checkpoint()`** — nothing is durable mid-run; the runner keeps its cursor
   pre-run and a crash replays the source, which is harmless for a stateless sink
+
+### `console.ts`
+- Target-only terminal sink: `console://[?format=auto|json|pretty][&prefix=<text>][&envelope=true|1][&stream=stdout|stderr]`;
+  registered as a built-in in `packages/waypoint/src/console.ts` (`createConsoleTarget`,
+  `renderConsoleExchange`) with no source registration (`resolveSource` throws)
+- Writes each envelope to stdout (default) or stderr immediately with one trailing newline; no
+  buffering, no atomicity contract
+- `prefix=<text>` is prepended to every output line (multi-line items: every line)
+- `envelope=true|1` prints the full exchange `{ id, item, items?, meta, variables }` instead of just `item`
+- Unknown `format` or `stream` values throw at factory time
+- Deliberately **no `checkpoint()`** — stdout is not durable storage; a crash resume replays safely
+- Used in sample2 by `consolePreviewPipeline` (`pnpm run runner:preview`), which prints each input
+  line prefixed with `[preview]` plus a space
+
+| Query option | Values | Default | Behavior |
+|---|---|---|---|
+| `format` | `auto`, `json`, `pretty` | `auto` | `auto`: strings as-is, everything else compact JSON; `json`: compact JSON always (strings quoted); `pretty`: 2-space indented JSON |
+| `prefix` | text | — | Prepended to every output line |
+| `envelope` | `true`, `1` | `false` | Print the full exchange instead of just `item` |
+| `stream` | `stdout`, `stderr` | `stdout` | Destination stream |
 
 ### `review.ts`
 - Target-only glossary review queue (T140): `review://./glossary.review.md` renders the pending
@@ -246,6 +267,7 @@ packages/waypoint/tests/builtins/
 ├── git-worktree.arch.test.ts
 ├── range.test.ts / range.arch.test.ts   # integer generator: directions, step, validation, resume skip
 ├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
+├── console.test.ts / console.arch.test.ts # terminal sink formatting, prefix/envelope/stream, target-only registration
 ├── review.test.ts / review.arch.test.ts # glossary review queue render + atomic write; target-only registration
 ├── entity-buffers.test.ts # entity buffer schemes: source-only rungs, temp:// write side, namespace isolation
 └── settings.test.ts
@@ -255,7 +277,7 @@ Architecture tests (`.arch.test.ts`) verify the registered schemes and interface
 
 ## WP index (planned-scheme spec)
 
-The WP001–WP012 entries below are the planned-scheme spec index for the waypoint catalogue.
+The WP001–WP013 entries below are the planned-scheme spec index for the waypoint catalogue.
 
 | ID   | Waypoint         | Source | Target | Lifestyle     | Used in Samples                           |
 |------|------------------|--------|--------|---------------|-------------------------------------------|
@@ -271,6 +293,7 @@ The WP001–WP012 entries below are the planned-scheme spec index for the waypoi
 | WP010 | review://        | —      | ✓      | —             | —                                         |
 | WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | — | resumable | sample2 (`paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
 | WP012 | temp:// | — | ✓ | — | sample2 (write side of the ladder rungs) |
+| WP013 | console:// | — | ✓ | — | sample2 (`consolePreviewPipeline`) |
 
 ---
 
@@ -288,6 +311,7 @@ The WP001–WP012 entries below are the planned-scheme spec index for the waypoi
 | 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
 | 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | — | resumable | — | `T` | Entity-level **source-only** ladder views over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
 | 12    | WP012 | `temp://<entity>/<namespace>` | — | ✓ | — | `T` | — | Target-only in-memory write side for an entity buffer; `temp://chunks/ladder` fills the buffer that `chunks://ladder` reads. |
+| 13    | WP013 | `console://` | — | ✓ | — | `T` | — | Target-only terminal sink; prints each envelope to stdout/stderr immediately; `format=auto\|json\|pretty`, optional `prefix`, `envelope`, `stream`; deliberately no `checkpoint()`. |
 
 ## Structure Ladder
 
