@@ -26,6 +26,7 @@ import type {
   RunEventListener,
   RunEventType,
   RunEvents,
+  RunState,
   RunStateData,
   RunnerOptions,
   Source,
@@ -240,6 +241,11 @@ export class Runner {
   /** Single in-flight mid-run persist; re-armed by the dirty flag while writes continue. */
   private persistInFlight: Promise<void> | null = null
   private persistDirty = false
+  /**
+   * Ordered write chain for `state.json`/`context.json` snapshots. Every persist
+   * is queued here, so snapshots reach the disk in call order and never overlap.
+   */
+  private persistChain: Promise<void> = Promise.resolve()
   private writesSincePersist = 0
   /** Target writes between mid-run persists — `runner.persist.every` in mt.json, default 50. */
   private readonly persistEvery: number
@@ -1198,8 +1204,27 @@ export class Runner {
 
   /**
    * Persist the current run state to disk.
+   *
+   * The snapshot is queued behind every earlier persist, so writes reach the disk
+   * in call order and never overlap. Without the queue an in-flight `running`
+   * snapshot could land on top of the terminal `done`/`failed` one and make a
+   * finished run observable as still running.
    */
-  private async persistState(): Promise<void> {
+  private persistState(): Promise<void> {
+    const state = this.stateMachine.current
+    const write = this.persistChain.then(() => this.writeState(state))
+    // The queue must survive a failed write — the next persist still has to run.
+    this.persistChain = write.then(
+      () => undefined,
+      () => undefined,
+    )
+    return write
+  }
+
+  /**
+   * Write one state snapshot to disk. Runs on the persist chain, one at a time.
+   */
+  private async writeState(state: RunState): Promise<void> {
     if (!this.runId) return
 
     await this.clampCursorsToCommitted()
@@ -1209,7 +1234,7 @@ export class Runner {
       pipelineId: this.pipeline.id,
       pipelineFile: this.options.pipelineFile,
       pipelineName: this.options.pipelineName,
-      state: this.stateMachine.current,
+      state,
       startedAt: this.runContext?.startedAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       checkpoint: serializeTree(this.checkpoint),
@@ -1247,8 +1272,9 @@ export class Runner {
 
   /**
    * Schedule a mid-run persist: a single in-flight `persistState()` at a time, with a
-   * dirty flag so a persist triggered while one is running is re-executed afterwards
-   * — an older snapshot can never overwrite a newer one.
+   * dirty flag so a persist triggered while one is running is re-executed afterwards.
+   * Snapshots are written on the ordered persist chain, so an older snapshot can
+   * never overwrite a newer one.
    */
   private schedulePersist(): void {
     this.persistDirty = true
