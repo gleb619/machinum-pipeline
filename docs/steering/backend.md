@@ -41,6 +41,15 @@ Static UI: `uiDir` (vite `dist`) or the embedded map `globalThis.__MT_UI__` (URL
 `tsc -p tsconfig.build.json` -> `dist/standalone.js`, exported as `@mt/backend/standalone`. Route handlers stay the
 single source: adding a route file means also registering it in `createBackendApp()`.
 
+### Embedded router (T197)
+
+`createBackendApp()` mounts `createRouterApp()` from `@mt/router` (T197), so `mt serve` answers the admin API/UI
+**and** the router API on one port: `/api/chat/completions`, `/api/translate*`, `/api/pool`, `/api/models`,
+`/api/dashboard`, `/api/logs`. Router is on by default; `--no-router` opts out. `/api/health` belongs to the backend
+(the router's health+vault info lives at `/api/pool` when embedded). Router token and rate-limit middleware stay
+scoped to the mounted router routes; the admin API never requires `MT_ROUTER_TOKEN`. Allowed import direction:
+`backend → router` only — the router itself still imports no `@mt/*` (`layers.arch.test.ts` pins it).
+
 SQLite driver (`utils/sqlite.ts`): `bun:sqlite` under Bun (built in, embedded in the binary), `better-sqlite3`
 (native addon, optional dependency of `mt`) under Node. Both are used through a minimal `Database` interface
 (`exec`/`prepare().run`/`close`).
@@ -65,7 +74,7 @@ context.
 
 ## Frontend Integration
 
-The Vue 3 frontend (`@mt/frontend`, `vite build` -> `dist/`) is served by the standalone runtime (see above): from disk (`mt` npm package `dist/ui`) or embedded in the Bun binary. In dev, Vite proxy handles frontend requests.
+The Vue 3 frontend (`@mt/frontend`, `vite build` -> `dist/`) is served by the standalone runtime (see above): from disk (`mt` npm package `dist/ui`) or embedded in the Bun binary. In dev, Vite proxy handles frontend requests. The frontend talks to the embedded router same-origin (cost/pool/logs panels); there is no separate router UI to link out to (T197).
 
 ## Key Files
 

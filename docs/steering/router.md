@@ -17,7 +17,8 @@ OpenAI-compatible upstreams (Ollama, vLLM, …). Runs on a configurable port (de
 - Enforces the daily spend budget on chat completions (429 + `X-RateLimit-Remaining`) and — when bound
   beyond loopback — a bearer token
 - Supports mock mode for deterministic tests
-- Provides a dashboard UI (`/public/app.js`) with cost and pool status
+- **API-only** — no UI. Cost/pool/log data is exposed as endpoints (`/api/dashboard`,
+  `/api/pool`, `/api/logs`) consumed by the admin UI, which embeds the router (T197)
 
 ## Gateway Topology
 
@@ -138,7 +139,6 @@ Router is a keyless gateway: clients send no upstream key; router holds them (en
   `MT_ROUTER_TOKEN` makes `startRouter()` throw (clear fix hint) before listening.
 - **Token** (`middleware/auth.ts`, runs before `rate-limit`): when `MT_ROUTER_TOKEN` is set, every `/api/*` request except
   `GET /api/health` needs `Authorization: Bearer <token>` (constant-time compare), else 401. Unset: open (loopback only).
-  Static dashboard files are served without auth but its `/api` calls need the token when set.
 - **Header strip**: `utils/upstream-call.ts` builds upstream headers from scratch (content-type, optional http-referer/x-title,
   upstream key, registry headers). Client `Authorization`, `x-api-key`, cookies and the router token are never forwarded.
 - **Redaction** (`utils/redact.ts`): all known keys (env, vault, upstream specs, router token) plus `Bearer <x>` / `sk-...`
@@ -204,20 +204,28 @@ valid configuration — no build-time injected config.
 - On 402: removes key permanently from pool
 - Appends cost data via `cost-tracker`
 
-## Dashboard UI (`public/app.js`)
+## Embedding in `mt serve` (T197)
 
-Vanilla JS SPA (no framework). Vue-like reactive state (`setup`, `ref`). Sections:
-- `useDashboard()` — cost totals, model breakdown
-- `usePool()` — key pool status, exhausted/active counts
-- `useLogs()` — recent request log with latency and cost
+The router is API-only and embeddable. `@mt/router` exports `createRouterApp()` — the h3
+router holding all `/api/*` routes plus the auth and rate-limit middleware — and the backend
+(`createBackendApp()`) mounts it on the same port as the admin UI. No separate router
+process needed: point `MT_ROUTER_URL` at the `mt serve` port and OpenAI clients work
+unchanged.
 
-Token auth (T127): all three panels fetch through one `apiFetch(path)` helper, so the dashboard works behind
-`MT_ROUTER_TOKEN` instead of showing 401s. It sends `Authorization: Bearer <token>` when a token is known; on 401 it
-clears the stored token and sets a shared `needsToken` ref, which shows a "Router token required" password input plus
-Save (and a **Clear token** control once a token is held). The token lives in `sessionStorage` under
-`mt-router-token` (tab-scoped, every access wrapped in try/catch with an in-memory ref as fallback for private mode).
-Header only: never in the URL, query, hash, or logs. The static page itself stays unauthenticated, so the prompt can
-always load. Pinned by [packages/router/tests/dashboard-auth.test.ts](../../packages/router/tests/dashboard-auth.test.ts).
+- Router is **on by default** in `mt serve`; `--no-router` opts out
+- `/api/health` belongs to the backend; the router's own health+vault info lives at
+  `/api/pool` (and `/api/router/health` when embedded)
+- Token auth and the bind guard still gate the router routes in embedded mode; the
+  middleware is scoped to the mounted router routes, never the admin API
+- `mt router` keeps running standalone (API-only) for a dedicated gateway port
+- The arch test `packages/router/tests/layers.arch.test.ts` still pins zero `@mt/*`
+  imports; the allowed direction is `backend → router`, never reverse
+
+Token auth (T127): dashboard-style panels fetch through one `apiFetch(path)` helper that
+sends `Authorization: Bearer <token>` when a token is known. In the frontend the token
+lives in `sessionStorage` under `mt-router-token` (tab-scoped, every access wrapped in
+try/catch with an in-memory ref as fallback for private mode). Header only: never in the
+URL, query, hash, or logs.
 
 ## Environment Variables
 
@@ -252,7 +260,7 @@ packages/router/tests/
 ├── vault-upstreams.test.ts # vault reader, entry mapping, hot reload, no-leak
 ├── models.test.ts         # GET /api/models — routable ids, live listing, no keys
 ├── security.test.ts       # bind guard, token compare, header strip, redaction (live)
-├── standalone.test.ts     # startRouter()/close(), routes mounted
+├── standalone.test.ts     # startRouter()/close(), routes mounted, no static UI
 ├── gateway.arch.test.ts   # Arch: no credential passthrough, no key literals, redaction util
 ├── layers.arch.test.ts    # Arch: router stays standalone (no @mt/* imports or deps)
 ├── routes.arch.test.ts    # Arch: all expected routes exist

@@ -169,7 +169,7 @@ my-book-project/
 
 - `core/` has zero external runtime dependencies beyond TypeScript stdlib
 - `cli/` imports from `core/` and `waypoint/` only — never the reverse (sole exception: `mt serve` imports `@mt/backend/standalone`, lazily, so the CLI starts without h3/SQLite)
-- `router/` is standalone — zero `@mt/*` imports and zero `@mt/*` deps in its `package.json` (enforced by `packages/router/tests/layers.arch.test.ts`); the OpenRouter key pool is therefore a deliberate copy of `packages/tools/src/core/openrouter-pool.ts`, kept in sync by hand
+- `router/` is standalone — zero `@mt/*` imports and zero `@mt/*` deps in its `package.json` (enforced by `packages/router/tests/layers.arch.test.ts`); the OpenRouter key pool is therefore a deliberate copy of `packages/tools/src/core/openrouter-pool.ts`, kept in sync by hand. The one allowed cross-package direction is `backend/ → router/`: `mt serve` mounts the router API on its port via the `@mt/router` embeddable builder (T197); the router imports nothing back
 - `waypoint/` sources/targets register themselves via URI registry side-effects
 - Sources provide stable IDs — engine never mints domain entity IDs
 - Pipelines loaded at runtime via `tsx`/`jiti` — no consumer build step

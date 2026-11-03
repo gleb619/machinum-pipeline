@@ -7,7 +7,8 @@ name collision), config/secrets, Docker. Arch digest: [onboarding.md](onboarding
 ## What you install
 
 One artifact: the **Bun single-file binary** `mt` (`packages/mt/dist/bin/mt`, ~97 MB). It embeds the
-Bun runtime, the CLI, all `@mt/*` packages, the admin UI and the router dashboard — **no Node, no
+Bun runtime, the CLI, all `@mt/*` packages, and the admin UI with the embedded router gateway
+(the router itself is API-only — its panels live in the admin UI) — **no Node, no
 `node_modules`, no `dist/` on the target machine**.
 
 ```bash

@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.13.0 | 2026-11-03 -->
+<!-- skill-version: 1.14.0 | 2026-11-03 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -163,8 +163,8 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
-| `mt serve [--port N\|0] [--host H] [-d\|--detach]` | admin API + UI + SSE; detached state in `.mt/backend/{pid,server.log}` |
-| `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | keyless LLM gateway + dashboard; token only via `MT_ROUTER_TOKEN` |
+| `mt serve [--port N\|0] [--host H] [--no-router] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); detached state in `.mt/backend/{pid,server.log}` |
+| `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | standalone keyless LLM gateway, API-only (also embedded in `mt serve`); token only via `MT_ROUTER_TOKEN` |
 | `mt vault <sub>` | secrets, see below |
 | `mt skill [...]` | print/install this file, see below |
 | `mt --help`, `mt --version` | |

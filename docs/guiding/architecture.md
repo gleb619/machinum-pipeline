@@ -94,7 +94,7 @@ source, tool, target or hook is started.
 | `@mt/waypoint` | Source/Target implementations; URI scheme registrations (side-effect import) | [`waypoint.md`](../steering/waypoint.md) |
 | `@mt/backend` | h3 admin API + SSE event stream + SQLite indicator; serves frontend (Nitro in dev only) | [`backend.md`](../steering/backend.md) |
 | `@mt/frontend` | Vue 3 + Tailwind admin UI (bundled into backend) | [`structure.md`](../steering/structure.md) |
-| `@mt/router` | Standalone Nuxt: keyless LLM gateway — OpenRouter proxy, upstream routing, key pool, cost tracking, mock mode | [`router.md`](../steering/router.md) |
+| `@mt/router` | Standalone Nuxt: keyless LLM gateway, API-only — OpenRouter proxy, upstream routing, key pool, cost tracking, mock mode; embedded in `mt serve` (T197) | [`router.md`](../steering/router.md) |
 | `@mt/mcp` | MCP server over stdio; wraps core/cli — no HTTP | [`mcp.md`](../steering/mcp.md) |
 | `chrome-extension` | MV3 — scrape chapters, auto-upload to web editors | [`extensions.md`](../steering/extensions.md) |
 | `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens | [`extensions.md`](../steering/extensions.md) |
