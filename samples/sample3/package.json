@@ -8,6 +8,7 @@
     "runner:multi": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-multi.ts",
     "runner:simple": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md-simple.ts",
     "prepare-input": "tsx prepare-input.ts",
+    "prepare-input:force": "tsx prepare-input.ts --force",
     "example": "pnpm run prepare-input && pnpm run runner",
     "example:multi": "pnpm run prepare-input && pnpm run runner:multi",
     "example:simple": "pnpm run prepare-input && pnpm run runner:simple",
@@ -23,6 +24,7 @@
     "@mt/waypoint": "workspace:*"
   },
   "devDependencies": {
+    "lorem-ipsum": "^3.0.0",
     "tsx": "^4.19.0",
     "vitest": "^3.0.0"
   },
