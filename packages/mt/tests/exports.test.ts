@@ -32,6 +32,12 @@ describe('mt umbrella exports', () => {
     expect(root.registry.hasTarget('temp')).toBe(false)
   })
 
+  it('mem:// is a bidirectional alias of ephemeral://', () => {
+    expect(root.registry.hasSource('mem')).toBe(true)
+    expect(root.registry.hasTarget('mem')).toBe(true)
+    expect(root.registry.hasSource('ephemeral')).toBe(true)
+  })
+
   it('embedded-module registration is a no-op outside Bun', () => {
     expect(registerEmbeddedModules()).toBe(
       typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined',

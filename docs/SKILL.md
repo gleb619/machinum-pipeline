@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.21.1 | 2026-11-04 -->
+<!-- skill-version: 1.22.0 | 2026-11-05 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -107,6 +107,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `book://./out/book` | book target — writes `book.md` (the book) + `book.json` (TOC + warnings); feed it the output of the `bookCompiler` tool (`mt/tools`) |
 | `hs://http://...` | HTTP source (`POST <path>` ingest). Shares the `mt serve` listener when run in the same process/port; `/health` and `/events` move under the ingest path when shared; `/api/*` ingest paths are rejected |
 | `http://host/path` / `https://host/path` | HTTP target — one request per exchange; `?method=POST\|PUT\|PATCH\|DELETE`, `?bearer=ENV_NAME` (env/vault ref, never inline), `?timeoutMs=`, `?retries=`, `?batch=true` (body carries `items[]`), `?contentType=json\|item\|text`, `?header.X-Foo=bar`; `hs://` is source-only |
+| `mem://<name>` (alias `ephemeral://<name>`) | process-local in-memory buffer, source + target; both schemes share one key space |
 | `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
 | `chunks://<ns>` … `words://<ns>` | typed ladder buffers, source-only; fill with `.subflow('#chunks', 'ladder')` and read with `.from('chunks://ladder')` (omitted ns = `default`) |

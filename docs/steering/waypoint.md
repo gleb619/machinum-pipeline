@@ -9,7 +9,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`, `review://`, `events://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `mem://` (alias of `ephemeral://`), `console://`, `review://`, `events://`.
 
 ## URI Scheme Reference
 
@@ -27,7 +27,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT010 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
 | WT011 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 | WT012 | — | — | — | — | Retired write-side scheme: a string-form splitter subflow now auto-publishes into the matching `WT015` buffer |
-| WT013 | `ephemeral://<namespace>` | `ephemeral.ts` | ✓ | ✓ | Process-local in-memory buffer; target clears on open |
+| WT013 | `ephemeral://<namespace>` / `mem://<namespace>` | `ephemeral.ts` | ✓ | ✓ | Process-local in-memory buffer; target clears on open |
 | WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ | Scope-local views of `.batch(opts, nested)` |
 | WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | Typed entity-buffer family: `batches`, `chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`; ladder rungs are source-only |
 | WT016 | `book://./out/book` | `book.ts` | — | ✓ | Writes the assembled book: `book.md` (markdown) + `book.json` (TOC + warnings); needs the `book` variable from the `book-compiler` tool |
@@ -377,7 +377,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 | WP004 | my-target://| ✓      | ✓      | resumable     | sample3                                   |
 | WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (sample3 writes schema docs via `md://` write intents, not this scheme) |
 | WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
-| WP007 | ephemeral://     | ✓      | ✓      | resumable     | sample2, sample3                          |
+| WP007 | ephemeral:// / mem:// | ✓      | ✓      | resumable     | sample2, sample3                          |
 | WP008 | range://         | ✓      | —      | resumable     | sample2                                   |
 | WP009 | void://          | —      | ✓      | —             | sample2                                   |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
@@ -395,7 +395,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 | 4     | WP004 | `my-target://` | ✓      | ✓      | resumable  | `string`  | `string`  | Chapter-specific layout: `<base-dir>/<lang>/chapter<num>.md`; validates `meta.lang` and `meta.chapterNum`; atomic per-file writes.        |
 | 5     | WP005 | `schema-doc://`     | ✓      | ✓      | resumable  | `string`  | `string`  | Schema document source/target; custom YAML + CSV format; per-chapter `<dir>/chapter<num>.schema.md`.                                      |
 | 6     | WP006 | `git://`            | ✓      | ✓      | resumable  | varies    | varies    | Git worktree isolation wrapper; composites with inner scheme via `git+`; auto-commit on close with `commit=on-close`.                     |
-| 7     | WP007 | `ephemeral://`      | ✓      | ✓      | resumable  | `T`       | `T`       | In-memory buffer keyed by URI path; for testing and in-memory pipelines; process-local, no persistence.                                   |
+| 7     | WP007 | `ephemeral://` / `mem://` | ✓ | ✓ | resumable | `T` | `T` | In-memory buffer keyed by URI path (`mem://` is a short alias, same key space); for testing and in-memory pipelines; process-local, no persistence.                                   |
 | 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
 | 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
 | 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |

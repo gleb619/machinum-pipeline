@@ -102,7 +102,7 @@ annotate(
   waypoint('WT013', {
     name: 'ephemeral source',
     description: 'Reads envelopes from a process-local in-memory buffer.',
-    meta: { schemes: ['ephemeral'], direction: 'source' },
+    meta: { schemes: ['ephemeral', 'mem'], direction: 'source' },
   }),
 )
 annotate(
@@ -110,7 +110,7 @@ annotate(
   waypoint('WT013', {
     name: 'ephemeral target',
     description: 'Writes envelopes to a process-local in-memory buffer.',
-    meta: { schemes: ['ephemeral'], direction: 'target' },
+    meta: { schemes: ['ephemeral', 'mem'], direction: 'target' },
   }),
 )
 annotate(
@@ -131,3 +131,6 @@ annotate(
 )
 registry.registerSource('ephemeral', createEphemeralSource)
 registry.registerTarget('ephemeral', createEphemeralTarget)
+// Short alias: `mem://x` shares the key space of `ephemeral://x`
+registry.registerSource('mem', createEphemeralSource)
+registry.registerTarget('mem', createEphemeralTarget)
