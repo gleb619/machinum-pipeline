@@ -275,8 +275,8 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(seen).toHaveLength(0)
   })
 
-  it('.log() wraps tap and logs label, exchange id and item', () => {
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => {})
+  it('.log() wraps tap and emits one formatted line with label, exchange id and item', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
     try {
       const pipeline = makePipeline()
         .from({ uri: 'jsonl://./in.jsonl' } as never)
@@ -288,13 +288,80 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
       expect(typeof tapStep?.config.fn).toBe('function')
       const log = tapStep?.config.fn as (ex: unknown) => void
       log({ id: 'ex-1', item: 'hello', meta: {}, variables: [] })
-      expect(spy).toHaveBeenCalledWith('[debug]', 'ex-1', 'hello')
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy.mock.calls[0]?.length).toBe(1)
+      expect(spy.mock.calls[0]?.[0]).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO\] \[debug\] ex-1 hello$/,
+      )
     } finally {
       spy.mockRestore()
     }
   })
 
-  it('.log(string) uses the argument as label and console.log by default', () => {
+  it('.log() escapes newlines inside a string item', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const pipeline = makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .log({ label: 'debug', level: 'info' })
+        .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+      const p = pipeline as Pipeline
+      const tapStep = p.steps.find((s) => s.type === 'tap')
+      const log = tapStep?.config.fn as (ex: unknown) => void
+      log({ id: 'ex-multi', item: 'line1\nline2', meta: {}, variables: [] })
+      expect(spy).toHaveBeenCalledTimes(1)
+      const line = spy.mock.calls[0]?.[0] as string
+      expect(line).not.toContain('\n')
+      expect(line).toContain('line1\\nline2')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('.log({ level: "warn" }) emits a WARN line via console.warn', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const pipeline = makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .log({ label: 'careful', level: 'warn' })
+        .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+      const p = pipeline as Pipeline
+      const tapStep = p.steps.find((s) => s.type === 'tap')
+      const log = tapStep?.config.fn as (ex: unknown) => void
+      log({ id: 'ex-3', item: 'watch out', meta: {}, variables: [] })
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy.mock.calls[0]?.length).toBe(1)
+      expect(spy.mock.calls[0]?.[0]).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[WARN\] \[careful\] ex-3 watch out$/,
+      )
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('.log() renders object items as compact JSON on a single line', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const pipeline = makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .log('stage')
+        .to({ uri: 'jsonl://./out.jsonl' } as never)
+
+      const p = pipeline as Pipeline
+      const tapStep = p.steps.find((s) => s.type === 'tap')
+      const log = tapStep?.config.fn as (ex: unknown) => void
+      log({ id: 'ex-obj', item: { a: 1, b: [2, 3] }, meta: {}, variables: [] })
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy.mock.calls[0]?.length).toBe(1)
+      expect(spy.mock.calls[0]?.[0]).toContain(' {"a":1,"b":[2,3]}')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('.log(string) uses the argument as label and logs INFO by default', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
     try {
       const pipeline = makePipeline()
@@ -306,7 +373,11 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
       const tapStep = p.steps.find((s) => s.type === 'tap')
       const log = tapStep?.config.fn as (ex: unknown) => void
       log({ id: 'ex-2', item: 42, meta: {}, variables: [] })
-      expect(spy).toHaveBeenCalledWith('[stage]', 'ex-2', 42)
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy.mock.calls[0]?.length).toBe(1)
+      expect(spy.mock.calls[0]?.[0]).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO\] \[stage\] ex-2 42$/,
+      )
     } finally {
       spy.mockRestore()
     }

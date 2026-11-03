@@ -27,8 +27,8 @@ export type {
   IdAnnotation,
   IdAnnotationKind,
 } from './annotation.js'
-export { createConsoleLogger, escapeLogNewlines, formatLogLine } from './logging.js'
-export type { LogSeverity } from './logging.js'
+export { createConsoleLogger, escapeLogNewlines, formatLogLine, log } from './logging.js'
+export type { LogFunction, LogSeverity } from './logging.js'
 export { Store } from './store.js'
 export { atomicWriteFile, AtomicStreamWriter, removeStaleTmpFiles, tmpPathFor } from './atomic.js'
 export type { LifecycleScripts, MtConfig } from './config.js'

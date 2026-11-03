@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { definePipeline, defineTool, getVariable } from '@mt/core'
+import { definePipeline, defineTool, getVariable, log } from '@mt/core'
 import {
   chapterDoc,
   chapterIndexer,
@@ -30,7 +30,7 @@ const verifyFlow = definePipeline()
   .use(chapterIndexer)
   .use(chapterValidator)
   .use(forbiddenCharDetector)
-  .tap((ex) => console.log('[forbidden] findings:', getVariable(ex, 'forbidden')))
+  .tap((ex) => log.info('[forbidden] findings:', { findings: getVariable(ex, 'forbidden') }))
   .use(tokenCounter)
   .log('MyLogMarker', { truncate: true })
   .to('@en')

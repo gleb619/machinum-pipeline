@@ -119,7 +119,8 @@ definePipeline()
   .subflow('#chunks', 'ladder') // 1→N + auto-publish into chunks://ladder
   .flatMap(async (item) => [...])
   .tap((env) => { /* logging: receives the full Exchange incl. meta + variables; async OK */ })
-  .log('debug')             // sugar over .tap(): logs '[debug] <id> <item>' to the console
+  .tap((ex) => log.info('msg', { key: value })) // `log` from '@mt/core': standard line, INFO default
+  .log('debug')             // sugar over .tap(): '<ISO-ms> [INFO] [debug] <id> <item>'
   .use(myTool)
   .subflow(otherPipeline)   // inline nested pipeline, same Runner
   .fork(subPipeline)        // sequential: child pipeline per envelope, checkpoint subtree
@@ -138,7 +139,7 @@ definePipeline()
 | `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
 | `.tap()` | `.tap((ex) => void \| Promise<void>)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
-| `.log()` | `.log(label?, { level? }?)` | Console-logging sugar over `.tap()`. Prints `[<label>] <exchange id> <item>` for every envelope; `label` defaults to the pipeline id, `level` to `'log'` (`info`/`warn`/`error`/`debug` select other `console` methods). Stream unchanged. |
+| `.log()` | `.log(label?, { level? }?)` | Console-logging sugar over `.tap()`. Emits one standard log line per envelope: `<ISO-ms> [<LEVEL>] [<label>] <exchange id> <item>`; `label` defaults to the pipeline id. DSL level `'log'` maps to severity `info`; `'info'`/`'warn'`/`'error'`/`'debug'` map to themselves. String items pass through truncation (`truncate: true` default); non-string items render single-line (primitives via `String()`, objects via compact `JSON.stringify` with a `String()` fallback). Stream unchanged. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
 | `.batch()` | `.batch(opts?, nested?)` / `.batch(nested)` | `opts` = `number` \| `{ size?: 5, slide?: false }`. Groups items into `items[]` packages of `size`, flushing the remainder at end of stream; `slide: true` emits overlapping sliding windows instead (one per arrival). `size` must be a positive integer (`RangeError` at definition time). With `nested` (a `definePipeline()` pipeline) each package runs through it - a **batch scope**, see below. |
 | `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef, namespace?)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `chunks`, `lines`, `words`, `tokens` and `series`; `'paragraphs://ladder'` also resolves by scheme. When the scheme names an entity buffer, the produced envelopes are ALSO auto-published into `<scheme>://<namespace>` for the next stage; the optional second argument names that namespace and defaults to `default`. `series` has no buffer and only transforms the stream. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope (or one per branch in the parallel form). |
@@ -359,9 +360,11 @@ never affects the run. The console copy of the message is unaffected.
 
 `escapeLogNewlines()` folds CR/LF into the literal `\n` and TAB into `\t`, so one log call is
 always one physical line. `createConsoleLogger()` emits this format with a single console
-argument. JSON/JSONL (`events.jsonl`, `--json`) is excluded and keeps real newlines inside JSON
-strings. The Runner, `DuplexLogger`, tools, sources/targets and CLI lifecycle lines all share this
-formatter; do not hand-build `[timestamp] [LEVEL]` strings.
+argument; the `log` singleton (same module) is the process-level equivalent for pipeline code —
+`log(message, meta?)` is INFO, plus `log.info/warn/error/debug`. JSON/JSONL (`events.jsonl`,
+`--json`) is excluded and keeps real newlines inside JSON strings. The Runner, `DuplexLogger`,
+tools, sources/targets, `.log()` and the CLI lifecycle lines all share this formatter; do not
+hand-build `[timestamp] [LEVEL]` strings.
 
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.

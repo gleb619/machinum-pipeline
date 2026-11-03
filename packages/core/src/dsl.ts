@@ -10,7 +10,7 @@ import type {
 } from './contexts.js'
 import { Runner } from './engine/runner.js'
 import { type Exchange, type ExchangeInput, toExchange } from './exchange.js'
-import { createConsoleLogger } from './logging.js'
+import { type LogSeverity, createConsoleLogger, log } from './logging.js'
 import type { PipelineSuite, PipelineSuiteMode, ProcessRunOptions } from './suite.js'
 import { isPipeline } from './suite.js'
 import type { Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
@@ -427,8 +427,10 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   /**
    * Log every envelope to the console; the stream passes through unchanged.
    *
-   * Sugar over {@link tap} for debugging. Each call prints `[<label>] <exchange id> <item>`
-   * (`label` defaults to the pipeline id). Pass a string as shorthand for `{ label }`.
+   * Sugar over {@link tap} for debugging. Emits one standard log line per
+   * envelope: `<ISO-ms> [<LEVEL>] [<label>] <exchange id> <item>`
+   * (`label` defaults to the pipeline id; DSL level `log` maps to severity
+   * `info`). Pass a string as shorthand for `{ label }`.
    */
   log(options?: string | LogOptions): PipelineBuilder<I, O> {
     const {
@@ -436,26 +438,42 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
       level = 'log',
       truncate = true,
     } = typeof options === 'string' ? { label: options } : (options ?? {})
+    const severity: LogSeverity = level === 'log' ? 'info' : level
     return this.tap((ex) => {
-      console[level](
-        `[${label}]`,
-        ex.id,
-        truncate && typeof ex.item === 'string' ? truncateText(ex.item) : ex.item,
-      )
+      log[severity](`[${label}] ${ex.id} ${renderLogItem(ex.item, truncate)}`)
     })
   }
 }
 
-/** Console method used by `.log()`. */
+/**
+ * Render an envelope item as a deterministic single-line string: strings pass
+ * through (truncated if `truncate`), primitives via `String()`, objects via
+ * compact `JSON.stringify` with a `String()` fallback. Newlines stay in the
+ * value — `formatLogLine` escapes them.
+ */
+function renderLogItem(item: unknown, truncate: boolean): string {
+  if (typeof item === 'string') return truncate ? truncateText(item) : item
+  if (item === null || item === undefined) return String(item)
+  const type = typeof item
+  if (type !== 'object' && type !== 'function') return String(item)
+  try {
+    const json = JSON.stringify(item)
+    return json ?? String(item)
+  } catch {
+    return String(item)
+  }
+}
+
+/** DSL level used by `.log()`; `'log'` maps to severity `info`. */
 export type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'debug'
 
 /** Options of `.log()`. */
 export interface LogOptions {
   /** Prefix for each line. Defaults to the pipeline id. */
   label?: string
-  /** Console method to call. Default `'log'`. */
+  /** Severity to emit. Default `'log'` (maps to `info`); `'info'`/`'warn'`/`'error'`/`'debug'` map to themselves. */
   level?: LogLevel
-  /** If `true`, truncate long text to `LOG_TEXT_MAX_LENGTH` chars (start + "..." + end + length). */
+  /** If `true`, truncate long text to `LOG_TEXT_MAX_LENGTH` chars (start + "..." + end + length). String items only. */
   truncate?: boolean
 }
 

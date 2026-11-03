@@ -47,8 +47,8 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .flatMap(async (item) => [item])           // 1 -> N
   .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs://' (bare 'paragraphs' is rejected)
   .subflow('#chunks', 'ladder')              // 1 -> N + auto-publish into chunks://ladder
-  .tap(async (ex) => console.log(ex.id))     // observe full Exchange, stream unchanged
-  .log('debug')                              // sugar over .tap(): logs '[debug] <id> <item>'
+  .tap((ex) => log.info('msg', { id: ex.id })) // observe full Exchange, stream unchanged
+  .log('debug')                              // sugar over .tap(): '<ISO-ms> [INFO] [debug] <id> <item>'
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
   .batch(5)                                  // group into items[] (default size 5; flushes remainder)
   .batch({ size: 3, slide: true })           // sliding windows (overlapping)
@@ -59,6 +59,10 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .to('md://./out')                          // Target
 ```
 
+- `log` (import from `'mt'` / `'@mt/core'`) — process-level console logger emitting the standard
+  line (`<ISO-ms> [LEVEL] msg[ {meta}]`). `log(message, meta?)` is INFO; `log.info/warn/error/debug`
+  mirror it (debug gated on `MT_DEBUG`). Prefer it over `console.log` in pipeline code, e.g.
+  `.tap((ex) => log.info('msg', { key: value }))`.
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
   `.batch/.flatMap`, or the string form `.subflow('<splitter>', '<namespace>?')`
   (`'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`; the same

@@ -1,4 +1,4 @@
-import { definePipeline, defineProcess, defineWaypoint, getVariable } from '@mt/core'
+import { definePipeline, defineProcess, defineWaypoint, getVariable, log } from '@mt/core'
 import {
   type LlmRequest,
   chapterDoc,
@@ -51,7 +51,7 @@ const verifyFlow = definePipeline()
   .use(chapterIndexer)
   .use(chapterValidator)
   .use(forbiddenCharDetector)
-  .tap((ex) => console.log('[forbidden] findings:', getVariable(ex, 'forbidden')))
+  .tap((ex) => log.info('[forbidden] findings:', { findings: getVariable(ex, 'forbidden') }))
   .use(tokenCounter)
   .log('MyLogMarker')
   .to('@en')

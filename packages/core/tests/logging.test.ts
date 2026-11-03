@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createConsoleLogger, escapeLogNewlines, formatLogLine } from '../src/logging.js'
+import { createConsoleLogger, escapeLogNewlines, formatLogLine, log } from '../src/logging.js'
 
 const INFO_LINE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO\] hello$/
 
@@ -110,5 +110,48 @@ describe('createConsoleLogger', () => {
     const debug = vi.spyOn(console, 'debug').mockImplementation(() => {})
     createConsoleLogger({ debug: true }).debug('loud')
     expect(debug).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('log', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it('defaults to INFO with a single console argument', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    log('hello')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0]?.length).toBe(1)
+    expect(spy.mock.calls[0]?.[0]).toMatch(INFO_LINE)
+  })
+
+  it('passes meta through as compact JSON', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    log('hello', { a: 1 })
+    expect(spy.mock.calls[0]?.[0]).toMatch(/ \[INFO\] hello \{"a":1\}$/)
+  })
+
+  it('emits a [WARN] line via log.warn', () => {
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    log.warn('careful')
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0]?.length).toBe(1)
+    expect(spy.mock.calls[0]?.[0]).toContain(' [WARN] careful')
+  })
+
+  it('escapes newlines inside the message', () => {
+    const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    log('first\nsecond')
+    const line = spy.mock.calls[0]?.[0] as string
+    expect(line).not.toContain('\n')
+    expect(line).toContain('first\\nsecond')
+  })
+
+  it('exposes info/warn/error/debug like the console logger', () => {
+    for (const method of ['info', 'warn', 'error', 'debug'] as const) {
+      expect(typeof log[method]).toBe('function')
+    }
   })
 })

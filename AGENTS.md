@@ -184,8 +184,10 @@ exactly one line through the shared formatter in `@mt/core` (`formatLogLine`):
   Use `ctx.run.logger` (tools, sources, targets) or the CLI `DuplexLogger`; outside a context use
   `createConsoleLogger()` from `@mt/core`.
   Plain command output (help text, tables, prompts, machine-readable JSON) is not a log line and
-  stays as-is. Exceptions: the `.log()` DSL op is deliberate untimestamped debug output, sample
-  pipelines may print data/markers for tests, and the `console://` target is a data sink.
+  stays as-is. Exceptions: sample pipelines may print data/markers for tests, and the `console://`
+  target is a data sink. In pipeline code use `log()` from `@mt/core` instead of `console.log`:
+  `log(message, meta?)` emits an INFO line and `log.info/warn/error/debug` mirror the console
+  logger; `.tap((ex) => log.info('msg', { key: value }))` is the pattern.
 - Tests must assert this single format; no per-sink variants.
 
 ## Communication rules

@@ -51,6 +51,16 @@ export function formatLogLine(
 }
 
 /**
+ * Callable console-backed logger. The default call is INFO; the named methods
+ * mirror {@link Logger}. Every path emits the shared line format with exactly
+ * one console argument, and `.debug` is gated on `MT_DEBUG` (or `options.debug`
+ * of the underlying console logger).
+ */
+export interface LogFunction extends Logger {
+  (message: string, meta?: Record<string, unknown>): void
+}
+
+/**
  * Console-backed {@link Logger} emitting the shared line format.
  *
  * Every call passes exactly one string to the console method, so the formatted
@@ -74,3 +84,15 @@ export function createConsoleLogger(options?: { debug?: boolean }): Logger {
     },
   }
 }
+
+const consoleLogger = createConsoleLogger()
+
+/**
+ * Process-level singleton for pipeline code — no `ctx` needed. `log(message,
+ * meta?)` emits an INFO line; `log.info/warn/error/debug` behave like the
+ * underlying {@link createConsoleLogger}. Use in place of bare `console.log`.
+ */
+export const log: LogFunction = Object.assign(
+  (message: string, meta?: Record<string, unknown>) => consoleLogger.info(message, meta),
+  consoleLogger,
+)
