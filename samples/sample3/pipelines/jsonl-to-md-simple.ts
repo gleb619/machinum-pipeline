@@ -11,6 +11,8 @@ import {
   wordCounter,
 } from '@mt/tools'
 import '@mt/waypoint'
+// Sample-defined scheme used by the `@ru` alias (`my-target://./chapters`).
+import '../waypoints/my-target.js'
 
 // === URI shortcuts (aliases) ===
 // Source/target URIs can be written as '@name' shortcuts instead of full URIs.
@@ -36,12 +38,7 @@ const verifyFlow = definePipeline()
 // === Flow 2: MD(EN) → MD(RU) simple translation ===
 // Simple translation using stubTranslator (no LLM, no summary/proofreading).
 // Just basic placeholder translation for demonstration.
-const translateFlow = definePipeline()
-  .from('@en')
-  .use(stubTranslator)
-  .to('@ru')
+const translateFlow = definePipeline().from('@en').use(stubTranslator).to('@ru')
 
 // === Default: orchestration pipeline ===
-export default definePipeline()
-  .subflow(verifyFlow)
-  .subflow(translateFlow)
+export default definePipeline().subflow(verifyFlow).subflow(translateFlow)

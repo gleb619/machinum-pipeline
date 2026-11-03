@@ -23,6 +23,8 @@ import {
   wordCounter,
 } from '@mt/tools'
 import '@mt/waypoint'
+// Sample-defined scheme used by the `@ru` alias and the `my-target://` target below.
+import '../waypoints/my-target.js'
 
 // === LLM backend (process-level mock install) ===
 // `defineProcess().install(mockLlm(...))` (see the default export at the bottom)
@@ -67,6 +69,24 @@ export const schemaDocPipeline = definePipeline()
   .use(schemaTool)
   .use(mdFormatter)
   .use(schemaDocWriter)
+  .to('md://./chapters')
+
+// === Slot override demo: `.with({ ... })` swaps one slot of a composable tool ===
+// Same chain as schemaDocPipeline, but schemaDocWriter's `emit` slot is replaced by
+// a stub that tags the markdown and redirects it to the schema-mock/ subfolder.
+// The `build` slot (markdown assembly) is reused untouched. Run with:
+//   mt run ./pipelines/jsonl-to-md-multi.ts --pipeline schemaDocMockPipeline
+export const schemaDocMockPipeline = definePipeline()
+  .from('jsonl://./jsonl/input.jsonl')
+  .use(toMarkdown)
+  .use(wordCounter)
+  .use(tokenCounter)
+  .use(chapterIndexer)
+  .use(summaryTool)
+  .use(entitiesTool)
+  .use(schemaTool)
+  .use(mdFormatter)
+  .use(schemaDocWriter.with({ emit: stubSchemaEmit }))
   .to('md://./chapters')
 
 // === Flow 3: title translation (.batch → mock-LLM tool → .flatMap) ===

@@ -18,6 +18,9 @@ demand with `--pipeline <name>`.
 - How to write source/target URIs as `'@name'` shortcuts, resolved from `mt.json` → `"uris"`
   (`en` → `md://./chapters/en`, `ru` → `my-target://./chapters`), so the pipeline writes
   `.to('@en')` instead of the full URI.
+- How to register a **sample-defined URI scheme** — `my-target://` is not a stock scheme, so
+  `waypoints/my-target.ts` registers it with `registry.registerSource/registerTarget` at module
+  load (imported by every pipeline that names it).
 - How to swap the LLM backend (and the model) of every LLM-backed tool with one env var.
 - How to install a process-wide mock LLM provider with `defineProcess().install(mockLlm(...))`
   so tools need no per-file wiring.
@@ -79,6 +82,7 @@ Nothing else changes: same pipeline, same tools — only the backend behind them
 samples/sample3/
 ├── pipelines/jsonl-to-md-multi.ts   # Pipeline definition (subflow orchestration)
 ├── pipelines/jsonl-to-md-simple.ts  # Plain pipeline: verifyFlow + stubTranslator translateFlow
+├── waypoints/my-target.ts           # Sample-defined `my-target://` scheme registration
 ├── run-all.ts                       # Aggregate runner: launches every runner:<name> script
 ├── prepare-input.ts                 # Generates the lorem ipsum JSONL input
 ├── mt.json                          # Project configuration
@@ -117,6 +121,7 @@ Default export — orchestration only, no `.from()`/`.to()` of its own:
 ```
 default
   → subflow(verifyFlow) → subflow(schemaDocPipeline)
+  → subflow(titlePacketPipeline)
   → subflow(translateTitlesPipeline) → subflow(translateChapterPipeline)
 ```
 
@@ -134,7 +139,8 @@ translateFlow:  @en
                   → @ru (my-target://./chapters → chapters/ru)
 ```
 
-`@en` and `@ru` are the `mt.json` URI shortcuts. Run it with `pnpm run runner:simple`.
+`@en` and `@ru` are the `mt.json` URI shortcuts. `@ru` points at the sample-defined
+`my-target://` scheme (see `waypoints/my-target.ts`). Run it with `pnpm run runner:simple`.
 
 ### verifyFlow — JSONL → verified MD
 
