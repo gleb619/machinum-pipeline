@@ -6,6 +6,7 @@ import { infoCommand } from './commands/info.js'
 import { initCommand } from './commands/init.js'
 import { inspectCommand } from './commands/inspect.js'
 import { listRunsCommand } from './commands/list.js'
+import { remoteCommand } from './commands/remote.js'
 import { resumeCommand } from './commands/resume.js'
 import { runCommand } from './commands/run.js'
 import { toolCommand } from './commands/tool.js'
@@ -29,6 +30,9 @@ export async function main(): Promise<void> {
       break
     case 'resume':
       await resumeCommand(args.slice(1))
+      break
+    case 'remote':
+      await remoteCommand(args.slice(1))
       break
     case 'ls':
       if (args[1] === 'runs') {
@@ -91,6 +95,7 @@ Commands:
   explain <pipeline.ts>  Describe the declared dataflow without executing it [--pipeline <name>] [--json]
   install                Run the scripts.install lifecycle hook from mt.json
   resume <runId>         Resume a paused/failed run
+  remote sync [opts]      Push/pull project files with a remote mt serve (--push|--pull, --dry-run, --prune, --watch)
   ls runs                List all runs
   inspect <runId>        Show run details
   info                   Show effective mt.json (secrets masked) and .mt state/runs [--json] [--runs <n>]

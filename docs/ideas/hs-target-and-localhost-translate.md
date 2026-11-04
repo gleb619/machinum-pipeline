@@ -120,8 +120,18 @@ Behaviour:
 
 ### 1a. Automatic sync between two mt servers
 
-No sync feature exists in `mt` today (only `git://` worktree isolation and `mt.json` `imports`). New
-built-in, symmetric, content-addressed, rsync-style delta over the same HTTP API:
+**Status (T203): implemented for the HTTP mode.** The shipped pieces are the `@mt/core` sync engine
+(manifest/scope/diff/apply), `GET /api/sync/manifest`, `GET|PUT /api/sync/files`, enriched
+`GET /api/health` (`version`, `capabilities`, `syncVersion: 1`), `mt.json -> remote`, and
+`mt remote sync [--push|--pull] [--dry-run] [--prune] [--force] [--watch]`.
+
+Implemented: sha256 delta, length-prefixed framed uploads with atomic temp-then-rename writes,
+server-side `.env`/vault/`.git`/`.mt` rejection plus traversal/symlink guards, per-file 20 MB /
+request 64 MB / project 500 MB caps, source/import/input scope, output+run-dir pull, version guard,
+conflict refusal, `.mt/remote/<projectId>.sync.json`. Deferred: `remote.sync.mode: "git"` and
+`--install` (remote `scripts.install`); T204/T205 build remote-run/worker on this API.
+
+Original design:
 
 - **Manifest**: `GET /api/sync/manifest?projectId=` → `{ path, size, sha256, mtime }[]` for the synced set.
   Sender hashes locally, diffs against the peer manifest, sends only changed/new files, deletes removed

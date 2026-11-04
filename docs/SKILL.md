@@ -2,8 +2,8 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.18.0 | 2026-11-04 -->
-<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate}.md, docs/steering/{cli,core,waypoint,tools}.md -->
+<!-- skill-version: 1.19.0 | 2026-11-04 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
 
@@ -26,6 +26,8 @@ pipelines/*.ts       pipeline modules (default export = the pipeline)
   cache/             content-hash memo for cacheable tools
   vault.json         vault entries (refs only, never plaintext keys)
   master.key         master key for the embedded secret store (0600, gitignored, back it up)
+  remote/<projectId>.sync.json  last-synced SHA-256 map for `mt remote sync`
+                                (the remote side mirrors to .mt/remote/<projectId>/)
 ```
 
 `mt init` scaffolds `mt.json`, `.mt/`, `.gitignore` entries and `.mt/master.key`.
@@ -34,7 +36,9 @@ pipelines/*.ts       pipeline modules (default export = the pipeline)
 `settings.llm.{tool,model,use}`, `settings.constants.<NAME>` (tunable overrides, below), `secrets.envFile`,
 `imports[]`, `defaults.{retry,onError,concurrency}`,
 `scripts.{install,start,end,stop,exit,resume,error}` (paths to hook pipelines), `router.port`,
-`serve.tokenRef` (secret ref for the admin-API bearer token; never plaintext).
+`serve.tokenRef` (secret ref for the admin-API bearer token; never plaintext),
+`remote.{url,tokenRef,projectId,sync.{include,exclude,maxFileBytes,mode}}` (project sync peer;
+tokenRef is a ref, mode `git` is reserved/deferred).
 
 ## Pipeline DSL
 
@@ -170,6 +174,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
 | `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); `hs://` sources on that `host:port` reuse the same listener; `--token-ref` takes an env var name, `env:NAME`, or `vlt:`/`keepass:`/`embed:` ref (no plaintext `--token`); detached state in `.mt/backend/{pid,server.log}` |
+| `mt remote sync [--push\|--pull] [--dry-run] [--prune] [--force] [--watch] [--url <url>] [--token-ref <ENV_OR_REF>] [--run <runId>] [--allow-version-mismatch]` | sync project sources to a remote `mt serve` mirror, or pull a run's outputs + `.mt/runs/<id>/`; `--watch` = push dev loop (300 ms debounce); conflict refuses unless `--force` |
 | `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | standalone keyless LLM gateway, API-only (also embedded in `mt serve`); token only via `MT_ROUTER_TOKEN` |
 | `mt vault <sub>` | secrets, see below |
 | `mt skill [...]` | print/install this file, see below |
@@ -187,7 +192,33 @@ mt info --runs 0                              # every run in the report
 mt ls runs
 mt resume 8f3a1c2e                      # after a crash or Ctrl-C
 echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
+mt remote sync --push --dry-run               # sync plan against remote.url from mt.json
+mt remote sync --push --watch                 # mirror local edits to the remote
+mt remote sync --pull --run <runId>           # pull target outputs + run state locally
 ```
+
+### Project sync with a remote `mt serve` (T203)
+
+`GET /api/sync/manifest` and `GET|PUT /api/sync/files` implement a content-addressed delta; the
+same `mt remote sync` works CLI↔server and server↔server. Default source scope is `pipelines/**`,
+`mt.json`, transitive local imports, and relative `jsonl://`/`md://` `.from(...)` inputs. `.env*`,
+vault/KeePass/embed stores, `.git/`, `node_modules/`, `dist/` and `.mt/` never travel; the remote
+resolves its own secrets. Caps: 20 MB/file, 64 MB/request, 500 MB/project. Writes are atomic.
+
+```jsonc
+// mt.json
+{ "remote": { "url": "http://gpu-box:7777", "tokenRef": "env:MT_SERVE_TOKEN",
+              "projectId": "my-book", "sync": { "include": ["pipelines/**", "chapters/**"],
+              "exclude": ["tmp/**"], "maxFileBytes": 20971520 } } }
+```
+
+- `--push` (default) sends sources; `--pull` sends target outputs + `.mt/runs/<runId>/` (pass
+  `--run` for one run). `--prune` deletes removed files; `--force` overwrites a both-changed file.
+- Last successful hashes live in `.mt/remote/<projectId>.sync.json`; the server mirror is
+  `<serveRoot>/.mt/remote/<projectId>/` (traversal, symlink and protected paths rejected).
+- The CLI checks `/api/health.version` (exact major.minor) and `syncVersion: 1`;
+  `--allow-version-mismatch` overrides only the version check.
+- Deferred: `remote.sync.mode: "git"` and `--install` (remote `scripts.install`).
 
 ### Explain a pipeline before running it
 
@@ -380,6 +411,8 @@ Runner never enters it. `paused -> done` is illegal.
 | port busy | `mt serve` default taken, or `hs://` collides with a foreign process | `--port <p>` / `--port 0`; `hs://` shares `mt serve` on the same `host:port` |
 | `mt serve` refuses a non-loopback host | no admin-API token | `MT_SERVE_TOKEN`, `--token-ref <ENV_OR_REF>`, or bind `127.0.0.1` |
 | `401 {"error":"Unauthorized"}` from `mt serve` | missing/wrong bearer token | send `Authorization: Bearer <secret>`; `GET /api/health` is open |
+| sync conflict / both sides changed | remote diverged from the last-synced hash | inspect the reported paths, reconcile, then `--force` only if the local copy is the intended winner |
+| `Remote mt version ... incompatible` | major.minor differs | install the same `mt` line on both ends, or `--allow-version-mismatch` for a deliberate one-off |
 | behaviour matches old code | stale `mt` binary | rebuild/upgrade the binary |
 
 ## Do / Don't

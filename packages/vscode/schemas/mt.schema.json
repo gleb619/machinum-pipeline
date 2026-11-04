@@ -29,6 +29,54 @@
     "onError": {
       "type": "string",
       "enum": ["stop", "skip", "continue"]
+    },
+    "remote": {
+      "type": "object",
+      "description": "Default remote mt serve peer for project sync.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Base URL of the remote admin API, e.g. http://gpu-box:7777"
+        },
+        "tokenRef": {
+          "type": "string",
+          "description": "Secret reference for the bearer token (env:NAME, vlt:, keepass:, embed:) - never plaintext"
+        },
+        "projectId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+          "description": "Stable mirror id; defaults to <project-slug>-<root-hash8>"
+        },
+        "sync": {
+          "type": "object",
+          "properties": {
+            "include": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Globs that replace the default source scope"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Additional exclude globs; hard secret exclusions always win"
+            },
+            "maxFileBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Per-file transfer cap (default 20 MB)"
+            },
+            "mode": {
+              "type": "string",
+              "enum": ["http", "git"],
+              "description": "http is implemented; git is reserved"
+            }
+          }
+        }
+      }
     }
   }
 }

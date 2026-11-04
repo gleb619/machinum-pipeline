@@ -5,6 +5,31 @@ import type { ErrorPolicy, GlobalContext, RetryPolicy, RetryStrategy } from './c
 import type { Settings } from './settings.js'
 import { loadVault } from './vault.js'
 
+/** Transfer mode for project sync. `git` is reserved/deferred. */
+export type RemoteSyncMode = 'http' | 'git'
+
+/** `mt.json -> remote.sync` scope and transfer limits. */
+export interface RemoteSyncConfig {
+  /** Extra/override globs for the files a push sends. */
+  include?: string[]
+  /** Globs removed from the synced set (hard secret exclusions always win). */
+  exclude?: string[]
+  /** Per-file cap enforced by the server (default 20 MB). */
+  maxFileBytes?: number
+  /** `http` is implemented; `git` is reserved and rejected by the CLI. */
+  mode?: RemoteSyncMode
+}
+
+/** `mt.json -> remote`: default sync peer for `mt remote sync` and future remote runs. */
+export interface RemoteConfig {
+  url?: string
+  /** `env:NAME`, `vlt:`, `keepass:` or `embed:` reference to the bearer token. */
+  tokenRef?: string
+  /** Stable mirror id; defaults to `<project-slug>-<root-hash8>`. */
+  projectId?: string
+  sync?: RemoteSyncConfig
+}
+
 /**
  * Lifecycle hook scripts declared in `mt.json` under `scripts`.
  * Each value is a path to a pipeline module file (relative to the project root)
@@ -53,6 +78,7 @@ export interface MtConfig {
     /** Secret reference (`env:NAME`, `vlt:`, `keepass:`, `embed:`) for the admin API bearer token. */
     tokenRef?: string
   }
+  remote?: RemoteConfig
   model?: {
     default?: string
   }
@@ -74,6 +100,12 @@ export interface MtConfig {
   scripts?: LifecycleScripts
 }
 
+/** Defaults for `remote.sync`, shared by the CLI and the server-side caps. */
+export const DEFAULT_REMOTE_SYNC: Required<Pick<RemoteSyncConfig, 'maxFileBytes' | 'mode'>> = {
+  maxFileBytes: 20 * 1024 * 1024,
+  mode: 'http',
+}
+
 export const DEFAULT_MT_CONFIG = {
   project: {
     name: 'my-book-project',
@@ -89,6 +121,9 @@ export const DEFAULT_MT_CONFIG = {
   },
   router: {
     port: 7777,
+  },
+  remote: {
+    sync: DEFAULT_REMOTE_SYNC,
   },
   defaults: {
     retry: {
@@ -226,7 +261,9 @@ function parseConfig(raw: string, configPath: string): Partial<MtConfig> {
   try {
     const value: unknown = JSON.parse(raw)
     if (!isPlainObject(value)) throw new Error('expected a JSON object')
-    return value as Partial<MtConfig>
+    const config = value as Partial<MtConfig>
+    validateRemoteConfig(config.remote)
+    return config
   } catch (err) {
     throw new Error(`Invalid mt.json at ${configPath}: ${errorMessage(err)}`)
   }
@@ -261,7 +298,9 @@ async function readConfigFile(
     const imported = await readConfigFile(path, false, seen)
     if (imported) merged = deepMerge(merged, imported)
   }
-  return merged as Partial<MtConfig>
+  const config = merged as Partial<MtConfig>
+  validateRemoteConfig(config.remote)
+  return config
 }
 
 function readConfigFileSync(
@@ -282,11 +321,66 @@ function readConfigFileSync(
     const imported = readConfigFileSync(path, false, seen)
     if (imported) merged = deepMerge(merged, imported)
   }
-  return merged as Partial<MtConfig>
+  const config = merged as Partial<MtConfig>
+  validateRemoteConfig(config.remote)
+  return config
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+const SAFE_PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+
+/**
+ * Validate the `remote` section after parsing/merging. A malformed sync scope must fail
+ * early: silently ignoring it would push the wrong set of files or bypass a size cap.
+ */
+export function validateRemoteConfig(remote: unknown): void {
+  if (remote === undefined) return
+  if (!isPlainObject(remote)) throw invalidRemote('must be an object')
+
+  if (remote.url !== undefined && typeof remote.url !== 'string') {
+    throw invalidRemote('url must be a string')
+  }
+  if (remote.tokenRef !== undefined && typeof remote.tokenRef !== 'string') {
+    throw invalidRemote('tokenRef must be a string')
+  }
+  if (remote.projectId !== undefined) {
+    if (typeof remote.projectId !== 'string' || !SAFE_PROJECT_ID.test(remote.projectId)) {
+      throw invalidRemote('projectId must be a safe path segment')
+    }
+  }
+
+  const sync = remote.sync
+  if (sync === undefined) return
+  if (!isPlainObject(sync)) throw invalidRemote('sync must be an object')
+
+  for (const key of ['include', 'exclude'] as const) {
+    const value = sync[key]
+    if (value === undefined) continue
+    if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+      throw invalidRemote(`sync.${key} must be an array of strings`)
+    }
+  }
+
+  if (sync.maxFileBytes !== undefined) {
+    if (
+      typeof sync.maxFileBytes !== 'number' ||
+      !Number.isSafeInteger(sync.maxFileBytes) ||
+      sync.maxFileBytes < 1
+    ) {
+      throw invalidRemote('sync.maxFileBytes must be a positive integer')
+    }
+  }
+
+  if (sync.mode !== undefined && sync.mode !== 'http' && sync.mode !== 'git') {
+    throw invalidRemote('sync.mode must be "http" or "git"')
+  }
+}
+
+function invalidRemote(detail: string): Error {
+  return new Error(`Invalid mt.json: remote.${detail}`)
 }
 
 /** Objects merge key by key, anything else from `over` replaces `base`. Inputs stay untouched. */

@@ -37,14 +37,14 @@ Estimated: 8h
 
 ## Steps
 
-- [ ] Read core.md, webui.md, cli.md, structure.md, `resolve-inside-root.ts`, `atomicWriteFile` in core
-- [ ] Failing tests (core): manifest of fixture tree, scope globs, diff (new/changed/removed), apply atomic + traversal rejection + excluded `.env` rejected
-- [ ] Implement core sync lib
-- [ ] Failing + impl webui routes (needs T202 auth middleware in place; tests with and without token)
-- [ ] Health capabilities + version
-- [ ] CLI `mt remote sync` push/pull/dry-run/prune/watch (watch = fs.watch debounce 300 ms), conflict refusal
-- [ ] Round-trip integration test: two in-process `startBackend` servers (server<->server)
-- [ ] Docs + SKILL.md + gen:skill; gates; `pnpm build:bin && pnpm smoke:bin`
+- [x] Read core.md, webui.md, cli.md, structure.md, `resolve-inside-root.ts`, `atomicWriteFile` in core
+- [x] Failing tests (core): manifest of fixture tree, scope globs, diff (new/changed/removed), apply atomic + traversal rejection + excluded `.env` rejected
+- [x] Implement core sync lib
+- [x] Failing + impl webui routes (needs T202 auth middleware in place; tests with and without token)
+- [x] Health capabilities + version
+- [x] CLI `mt remote sync` push/pull/dry-run/prune/watch (watch = fs.watch debounce 300 ms), conflict refusal
+- [x] Round-trip integration test: two in-process `startBackend` servers (server<->server)
+- [x] Docs + SKILL.md + gen:skill; gates; `pnpm build:bin && pnpm smoke:bin`
 
 ## Done when
 
@@ -55,3 +55,12 @@ Estimated: 8h
 Gates (report all before FF-merge, per docs/change-workflow.md): `pnpm lint`, `pnpm typecheck`, `pnpm test` (scoped first), samples IT, `pnpm test:gpu` (needs `MT_OLLAMA_URL`; unreachable = report failure, never skip), `pnpm ci:local`. `pnpm build:bin && pnpm smoke:bin`. Logging only via logger APIs. Atomic writes. No AI attribution trailers.
 
 Deps: blocked by T202. Blocks T204, T205. Size note: if >8h in practice, split core lib (3h) from CLI command (3h).
+
+## Follow-ups (deferred)
+
+- `remote.sync.mode: "git"` (remote pulls a git ref instead of HTTP frames). Config accepts the
+  value, but `mt remote sync` currently rejects it with a clear message.
+- `mt remote sync --install` (run the remote `scripts.install` hook) — depends on T204's remote-run
+  root/selection path and a trust decision for executing project scripts remotely.
+- TTL/cleanup of idle `.mt/remote/<projectId>/` mirrors; multi-remote state files (the current
+  state path is per project id, as specified).

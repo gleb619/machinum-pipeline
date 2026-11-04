@@ -64,4 +64,9 @@ describe('UC-27 - Admin API Routes & Config (architectural)', () => {
   it('run resume route exists', async () => {
     expect(await fileExists('../server/routes/api/runs/[id]/resume.ts')).toBe(true)
   })
+
+  it('sync manifest and files routes exist', async () => {
+    expect(await fileExists('../server/routes/api/sync/manifest.ts')).toBe(true)
+    expect(await fileExists('../server/routes/api/sync/files.ts')).toBe(true)
+  })
 })

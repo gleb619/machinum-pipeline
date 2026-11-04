@@ -19,7 +19,7 @@ import {
   setResponseStatus,
   toNodeListener,
 } from 'h3'
-import healthRoute from './routes/api/health.js'
+import { createHealthRoute } from './routes/api/health.js'
 import registerIngestRoute from './routes/api/ingest/register.js'
 import pipelinesRoute from './routes/api/pipelines.js'
 import runRoute from './routes/api/runs/[id].js'
@@ -30,6 +30,8 @@ import resumeRoute from './routes/api/runs/[id]/resume.js'
 import runsRoute from './routes/api/runs/index.js'
 import startRoute from './routes/api/runs/start.js'
 import { attachIngestMount, detachIngestMount } from './utils/ingest-forwarder.js'
+import syncFilesRoute from './routes/api/sync/files.js'
+import syncManifestRoute from './routes/api/sync/manifest.js'
 import { assertSafeServeBind, checkBearer, resolveServeToken } from './utils/serve-auth.js'
 import { closeSqlite, initSqlite } from './utils/sqlite.js'
 
@@ -62,6 +64,8 @@ export interface StartBackendOptions {
   token?: string
   /** Optional shared-listener mount (used by `startBackend`; tests can omit it). */
   mount?: BackendMount
+  /** Project root to serve; defaults to `MT_PROJECT_ROOT` or cwd. */
+  projectRoot?: string
 }
 
 export interface BackendHandle {
@@ -145,17 +149,27 @@ function serveAuthHandler(token: string) {
 }
 
 export function createBackendApp(
-  options: Pick<StartBackendOptions, 'uiDir' | 'ui' | 'router' | 'token' | 'mount'> = {},
+  options: Pick<
+    StartBackendOptions,
+    'uiDir' | 'ui' | 'router' | 'token' | 'mount' | 'projectRoot'
+  > = {},
 ) {
   const app = createApp({
     onError(error, event) {
       if (isRouterApiPath(event.path ?? '')) handleRouterError(error, event)
     },
   })
+  const projectRoot = options.projectRoot ?? process.env.MT_PROJECT_ROOT ?? process.cwd()
+  app.use(
+    defineEventHandler((event: H3Event) => {
+      const context = event.context as { mtProjectRoot?: string }
+      context.mtProjectRoot = projectRoot
+    }),
+  )
   // Before any route: one guard covers the admin API and the embedded router on the same port.
   if (options.token) app.use(serveAuthHandler(options.token))
   const adminRouter = createRouter()
-  adminRouter.use('/api/health', healthRoute)
+  adminRouter.use('/api/health', createHealthRoute({ token: options.token }))
   adminRouter.use('/api/pipelines', pipelinesRoute)
   adminRouter.use('/api/ingest/register', registerIngestRoute)
   adminRouter.use('/api/runs', runsRoute)
@@ -165,6 +179,8 @@ export function createBackendApp(
   adminRouter.use('/api/runs/:id/items', itemsRoute)
   adminRouter.use('/api/runs/:id/pause', pauseRoute)
   adminRouter.use('/api/runs/:id/resume', resumeRoute)
+  adminRouter.use('/api/sync/manifest', syncManifestRoute)
+  adminRouter.use('/api/sync/files', syncFilesRoute)
   app.use(adminRouter)
 
   if (options.router !== false) {
@@ -183,7 +199,7 @@ export function createBackendApp(
 
 export async function startBackend(options: StartBackendOptions = {}): Promise<BackendHandle> {
   const host = options.host ?? 'localhost'
-  const projectRoot = process.env.MT_PROJECT_ROOT || process.cwd()
+  const projectRoot = options.projectRoot ?? process.env.MT_PROJECT_ROOT ?? process.cwd()
   const token = await resolveServeToken({ token: options.token, projectRoot })
   // Refuse a non-loopback bind without a token before touching the router or the listener.
   assertSafeServeBind(host, token)
@@ -193,7 +209,7 @@ export async function startBackend(options: StartBackendOptions = {}): Promise<B
   const listener = await acquireListener(host, options.port ?? 3000)
   try {
     attachIngestMount(listener)
-    createBackendApp({ ...options, token, mount: listener })
+    createBackendApp({ ...options, token, projectRoot, mount: listener })
   } catch (error) {
     detachIngestMount()
     await listener.release()

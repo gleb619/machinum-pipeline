@@ -33,13 +33,21 @@ export { acquireListener, hostsShareListener } from './http-listener.js'
 export type { HttpRouteHandler, ListenerFactory, ListenerLease } from './http-listener.js'
 export { Store } from './store.js'
 export { atomicWriteFile, AtomicStreamWriter, removeStaleTmpFiles, tmpPathFor } from './atomic.js'
-export type { LifecycleScripts, MtConfig } from './config.js'
+export type {
+  LifecycleScripts,
+  MtConfig,
+  RemoteConfig,
+  RemoteSyncConfig,
+  RemoteSyncMode,
+} from './config.js'
 export {
   DEFAULT_MT_CONFIG,
+  DEFAULT_REMOTE_SYNC,
   loadGlobalContext,
   parseEnvFile,
   readMtConfig,
   readMtConfigSync,
+  validateRemoteConfig,
 } from './config.js'
 export type {
   GlobalContext,
@@ -306,3 +314,56 @@ export type { DeadLetterEntry } from './engine/dead-letter.js'
 export { mapConcurrent } from './engine/stream.js'
 // Built-in source/target registration moved to @mt/waypoint package.
 // Import '@mt/waypoint' to register jsonl, md, http, hs, git+ schemes.
+
+export {
+  MT_VERSION,
+  SYNC_PROTOCOL_VERSION,
+  majorMinorVersion,
+  versionsCompatible,
+} from './version.js'
+export {
+  DEFAULT_MAX_FILE_BYTES,
+  DEFAULT_SYNC_EXCLUDE,
+  DEFAULT_SYNC_INCLUDE,
+  MAX_PROJECT_BYTES,
+  MAX_REQUEST_BYTES,
+  collectOutputScope,
+  collectPipelineFiles,
+  collectSyncScope,
+  isProtectedSyncPath,
+  isSafeSyncPath,
+  isValidProjectId,
+  matchesAnyGlob,
+  matchesGlob,
+  normalizeSyncPath,
+  projectIdFor,
+  resolveProjectId,
+  walkSyncFiles,
+} from './sync/scope.js'
+export type { SyncOutputScopeOptions, SyncScopeOptions } from './sync/scope.js'
+export {
+  buildManifest,
+  createSyncHashCache,
+  hashFile,
+  manifestTotalBytes,
+} from './sync/manifest.js'
+export type { BuildManifestOptions, SyncHashCache, SyncManifestEntry } from './sync/manifest.js'
+export {
+  diffManifest,
+  diffManifests,
+  hasSyncChanges,
+  manifestHashMap,
+} from './sync/diff.js'
+export type { SyncDiff } from './sync/diff.js'
+export {
+  SyncFileTooLargeError,
+  SyncPathError,
+  SyncProtectedPathError,
+  SyncSymlinkError,
+  deleteSyncFile,
+  pruneSyncFiles,
+  readSyncFile,
+  resolveSyncPath,
+  writeSyncFile,
+} from './sync/apply.js'
+export type { SyncApplyOptions } from './sync/apply.js'

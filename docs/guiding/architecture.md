@@ -182,6 +182,9 @@ other OpenAI-compatible server. Details: [steering/router.md](../steering/router
 ├── vault.json                 # gitignored vault: endpoints + secret REFS (embed:/vlt:/keepass:), never plaintext keys
 ├── schedules/                 # reserved (post-MVP)
 ├── worktrees/                 # git worktree roots when used
+├── remote/                    # project sync (T203)
+│   ├── <projectId>/           # server mirror: pushed source scope (sandboxed)
+│   └── <projectId>.sync.json  # local last-synced SHA-256 map (conflict detection)
 └── backend/
     ├── server.log
     └── mt.sqlite              # indicator/metadata only (v1)
@@ -189,6 +192,12 @@ other OpenAI-compatible server. Details: [steering/router.md](../steering/router
 
 `mt.json` (project root) holds project/book metadata, pipeline paths, secrets env file (`.env`), model defaults, and global retry/concurrency defaults. `imports: ["./mt.local.json"]` deep-merges gitignored local overrides
 (remote LLM endpoint/model) over it; a missing file is skipped.
+
+Project sync keeps the remote side in `<serveRoot>/.mt/remote/<projectId>/` and the client's
+last-synced hash map next to it locally (`<project>/.mt/remote/<projectId>.sync.json`). The source
+scope never contains `.env`, vault/KeePass/embed files, `.git/`, `node_modules/` or `dist/`; pull
+only writes target outputs and `.mt/runs/<runId>/`. The HTTP layer is the same for CLI↔server and
+server↔server sync (`GET /api/sync/manifest`, `GET/PUT /api/sync/files`).
 
 The vault lives outside `mt.json`: `.mt/vault.json` (project scope) and `~/.mt/vault.json` (user scope);
 project entries override user entries by name, and `MT_VAULT` pins a single file. Both are gitignored and

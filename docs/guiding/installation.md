@@ -140,6 +140,53 @@ the embedded/vlt/KeePass vault, or an orchestrator secret. Prefer an SSH tunnel
 `mt serve` does not terminate TLS itself. Detached mode forwards `--token-ref` (never the resolved
 secret) to the child process.
 
+### Project sync between two `mt` machines (T203)
+
+`mt serve` exposes a content-addressed sync API; `mt remote sync` uses it to mirror a project
+without rsync/git. Both ends must run the same `mt` major.minor and have sync protocol `1`
+(`GET /api/health` reports `version` / `syncVersion` when the caller is authenticated).
+
+```jsonc
+// mt.json (committed; token stays a ref)
+{
+  "remote": {
+    "url": "http://gpu-box:7777",
+    "tokenRef": "env:MT_SERVE_TOKEN",       // or vlt:/keepass:/embed:
+    "projectId": "my-book",                    // optional; default <slug>-<root-hash8>
+    "sync": {
+      "include": ["pipelines/**", "chapters/**"], // optional: replaces the default source scope
+      "exclude": ["tmp/**"],
+      "maxFileBytes": 20971520                 // server-enforced per-file cap
+    }
+  }
+}
+```
+
+```bash
+# push the source scope (pipelines, mt.json, local imports, declared jsonl/md inputs)
+mt remote sync --push
+mt remote sync --push --dry-run               # print add/update/delete plan only
+mt remote sync --push --watch                 # dev loop; 300 ms debounce
+mt remote sync --push --prune                 # delete remote files missing locally
+
+# pull a run's outputs and .mt/runs/<id>/ mirror (T204 uses this)
+mt remote sync --pull --run <runId>
+mt remote sync --pull --force                 # overwrite a both-changed local file
+```
+
+- `--url` / `--token-ref` override `mt.json`; the token is resolved from an env var or vault ref,
+  never printed or stored in argv by the tool.
+- `.env*`, vault/KeePass/embed stores, `.git/`, `node_modules/`, `dist/` and `.mt/` are excluded on
+  both ends. Secrets for the remote come from the remote's own vault/env.
+- Writes are atomic; per-file default 20 MB, per-request 64 MB, per-project 500 MB. Delta is by
+  SHA-256; re-running after a crash resumes from the new manifest.
+- Both-changed files refuse to sync unless `--force` (last successful hashes are in
+  `.mt/remote/<projectId>.sync.json`).
+- Deferred: `remote.sync.mode: "git"` and `mt remote sync --install` (remote `scripts.install`).
+
+Remote `mt serve` token setup is the section above; expose it through an SSH tunnel or TLS reverse
+proxy, never plain HTTP on a public interface.
+
 ### Remote browser-translate worker (optional)
 
 The `mt-browser-translate` bin is a Node entry point for the remote browser-translation worker; it is

@@ -48,6 +48,7 @@ packages/core/src/
 ├── settings.ts       # getSetting() helper
 ├── store.ts          # Store: atomic file reads/writes under .mt/
 ├── discovery.ts      # discoverPipelines()
+├── sync/             # manifest, scope, diff, apply (project sync)
 ├── index.ts          # Public re-exports
 └── engine/
     ├── runner.ts         # Runner: start(), pause(), resume(), state management
@@ -150,7 +151,8 @@ Created by `mt init` in consumer projects, not part of this repo.
 │   ├── logs/<stepId>.log # Per-step engine/tool/source/target logs
 │   ├── dead-letter.jsonl # Failed envelopes (when onError: 'dead-letter')
 │   └── artifacts/        # Tool/target intermediate outputs
-└── cache/                # Tool output memoisation (content-hash keyed)
+├── cache/                # Tool output memoisation (content-hash keyed)
+└── remote/               # Project sync mirrors + last-synced hash map (T203)
 ```
 
 All file writes use atomic temp-then-rename to prevent corruption on crash.

@@ -35,9 +35,24 @@ describe('standalone backend (h3 + node:http, no Nitro)', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('serves /api/health', async () => {
+  it('serves /api/health with version, sync protocol and capabilities', async () => {
     const res = await fetch(`${handle.url}/api/health`)
-    expect(await res.json()).toEqual({ status: 'ok' })
+    const body = (await res.json()) as {
+      status: string
+      version: string
+      syncVersion: number
+      capabilities: Record<string, boolean>
+    }
+    expect(body.status).toBe('ok')
+    expect(body.version).toBe('0.1.0')
+    expect(body.syncVersion).toBe(1)
+    expect(Object.keys(body.capabilities).sort()).toEqual([
+      'chrome',
+      'docker',
+      'ollama',
+      'playwright',
+    ])
+    expect(Object.values(body.capabilities).every((value) => typeof value === 'boolean')).toBe(true)
   })
 
   it('lists runs and run detail', async () => {
@@ -151,8 +166,16 @@ describe('serve auth token (T202)', () => {
     expect(await res.json()).toEqual([])
   })
 
-  it('keeps GET /api/health and static UI reads open', async () => {
-    expect((await fetch(`${handle.url}/api/health`)).status).toBe(200)
+  it('keeps GET /api/health open but minimal without auth', async () => {
+    const open = await fetch(`${handle.url}/api/health`)
+    expect(open.status).toBe(200)
+    expect(await open.json()).toEqual({ status: 'ok' })
+
+    const authed = await fetch(`${handle.url}/api/health`, {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    })
+    expect(authed.status).toBe(200)
+    expect(await authed.json()).toMatchObject({ status: 'ok', version: '0.1.0', syncVersion: 1 })
     expect(await (await fetch(`${handle.url}/`)).text()).toContain('id="app"')
   })
 })

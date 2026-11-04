@@ -111,6 +111,32 @@ hook pipelines: paths to pipeline module files (relative to the project root) ru
 main pipeline. The raw config (incl. `scripts`) is read with `readMtConfig(projectRoot)` — no merging
 over defaults, missing file yields `{}`.
 
+### `sync/` — project sync primitives (T203)
+
+The sync engine is in `@mt/core` so both the CLI (`mt remote sync`) and the webui routes use one
+implementation with no cross-package imports:
+
+| File | Contents |
+|---|---|
+| `sync/manifest.ts` | `SyncManifestEntry { path, size, sha256, mtime }`, `buildManifest(root, opts)`, `hashFile`, `createSyncHashCache` (size+mtime keyed, per-run only) |
+| `sync/scope.ts` | dependency-free glob matcher, hard exclusions, `collectSyncScope`, `collectOutputScope`, `projectIdFor`, `resolveProjectId`, caps |
+| `sync/diff.ts` | `diffManifests(source, target)` → `{ added, changed, removed, removedEntries, unchanged }`, SHA-256 only |
+| `sync/apply.ts` | `writeSyncFile` (atomic), `deleteSyncFile`, `pruneSyncFiles`, `readSyncFile`, `resolveSyncPath`; rejects traversal, absolute paths, symlinks and protected files |
+
+Defaults and safety rules:
+
+- Source scope = `pipelines/**`, `mt.json`, transitive relative imports of pipeline modules
+  (best effort, `.js`→`.ts` resolution included), and relative `jsonl://` / `md://` inputs declared by
+  `.from(...)`. A user `remote.sync.include` list replaces that derivation; `exclude` is added on top.
+- Always excluded (and enforced server-side): `.mt/`, `node_modules/`, `.git/`, `dist/`, `.env*`,
+  `vault.json`, `*.vault.json`, `*.kdbx`, `*.embed.json`, `*.key`, `*.pem`.
+  `.mt/runs/<id>/**` is allowed only for explicit output/pull manifests (`allowRunState`).
+- `projectId` defaults to `<slug-of-project-dir>-<first-8-of-sha256(abs-root)>`; `mt.json ->
+  remote.projectId` overrides it. `resolveProjectId` rejects path separators/`..`.
+- Transfer caps: per file 20 MB (`remote.sync.maxFileBytes`), per request 64 MB, per mirrored project
+  500 MB. Every write is temp-then-rename; a crash leaves the previous file intact.
+- `syncVersion` is `1` (`SYNC_PROTOCOL_VERSION`); the CLI refuses a remote `major.minor` mismatch.
+
 ### `dsl.ts` — `PipelineBuilder`
 Fluent chain. The builder itself implements `Pipeline`, so it can be a `default export` without calling `.to()`.
 ```typescript

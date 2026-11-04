@@ -241,7 +241,9 @@ export default definePipeline()
   })
 TS
 start_server serve.log
-test "$(curl -sf "$BASE/api/health")" = '{"status":"ok"}'
+HEALTH="$(curl -sf "$BASE/api/health")"
+printf '%s' "$HEALTH" | grep -q '"status":"ok"'
+printf '%s' "$HEALTH" | grep -q '"syncVersion":1'
 curl -sf "$BASE/api/runs" | grep -q '"id":"smoke-run"'
 curl -sf "$BASE/api/runs/smoke-run" | grep -q '"state":"running"'
 test -f .mt/mt.sqlite   # bun:sqlite opened

@@ -62,9 +62,10 @@ describe('embedded router (T197)', () => {
   it('keeps /api/health owned by the admin API', async () => {
     const health = (await (await fetch(`${handle.url}/api/health`)).json()) as {
       status: string
-      mockMode?: boolean
+      version: string
+      syncVersion: number
     }
-    expect(health).toEqual({ status: 'ok' })
+    expect(health).toMatchObject({ status: 'ok', version: '0.1.0', syncVersion: 1 })
 
     const routerHealth = (await (await fetch(`${handle.url}/api/router/health`)).json()) as {
       status: string
@@ -84,7 +85,11 @@ describe('embedded router (T197)', () => {
   })
 
   it('--no-router leaves admin routes and health intact', async () => {
-    expect(await (await fetch(`${withoutRouter.url}/api/health`)).json()).toEqual({ status: 'ok' })
+    expect(await (await fetch(`${withoutRouter.url}/api/health`)).json()).toMatchObject({
+      status: 'ok',
+      version: '0.1.0',
+      syncVersion: 1,
+    })
     expect((await fetch(`${withoutRouter.url}/api/dashboard`)).status).toBe(404)
     expect((await fetch(`${withoutRouter.url}/api/router/health`)).status).toBe(404)
     expect((await fetch(`${withoutRouter.url}/api/runs`)).status).toBe(200)

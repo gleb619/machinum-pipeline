@@ -22,6 +22,9 @@ packages/webui/server/routes/api/
 │       ├── events.ts                 # GET /api/runs/:id/events — SSE stream
 │       ├── pause.ts                  # POST /api/runs/:id/pause — 404 unless the Runner is live here
 │       └── resume.ts                 # POST /api/runs/:id/resume — same registry lookup
+└── sync/
+    ├── manifest.ts                   # GET /api/sync/manifest?projectId&scope&runId
+    └── files.ts                      # GET/PUT /api/sync/files (length-prefixed frames)
 ```
 
 ## SSE Events (`events.ts`)
@@ -37,7 +40,7 @@ Tails `.mt/runs/<runId>/events.jsonl` using file watching. Sends each appended J
 ## Standalone runtime (`server/standalone.ts`)
 
 `createBackendApp()` mounts the same route handlers as Nitro on a plain h3 router, with the optional bearer
-middleware first; `startBackend({port,host,uiDir,ui,token})` resolves the token, enforces the bind guard, then
+middleware first; `startBackend({port,host,uiDir,ui,token,projectRoot})` resolves the token, enforces the bind guard, then
 acquires a shared listener from `@mt/core`'s registry (`acquireListener`), mounts the h3 app as the
 listener's `'*'` fallback, and returns `{url,port,close}`. The same listener is reused by `hs://`
 sources on that `host:port`, so a pipeline ingest endpoint and the admin UI answer on one port.
@@ -56,10 +59,13 @@ single source: adding a route file means also registering it in `createBackendAp
 
 When a token is configured, every `/api/*` request except `GET /api/health` needs
 `Authorization: Bearer <token>`; a miss returns `401` with `{ "error": "Unauthorized" }` and
-`WWW-Authenticate: Bearer`. Static UI GETs stay open. `GET /api/health` stays minimal
-(`{ "status": "ok" }`) so it is safe unauthenticated. Comparison hashes both sides with SHA-256 and
-uses `timingSafeEqual`, so different token lengths take the same path and nothing leaks. The token is
-never logged.
+`WWW-Authenticate: Bearer`. Static UI GETs stay open. `GET /api/health` is intentionally open but
+returns the minimal shape (`{ "status": "ok" }`) until the caller authenticates; with a valid bearer
+token (or when no token is configured) it returns
+`{ status, version, capabilities: { chrome, docker, playwright, ollama }, syncVersion: 1 }`.
+Capability probes are cached 60 s, use a 2 s timeout and never throw. Comparison hashes both sides
+with SHA-256 and uses `timingSafeEqual`, so different token lengths take the same path and nothing
+leaks. The token is never logged.
 
 No token + loopback host = open (back-compat). No token + non-loopback `--host` = startup error from
 `assertSafeServeBind()` with an `MT_SERVE_TOKEN` / `--token-ref` fix hint; it refuses before listening.
@@ -81,6 +87,27 @@ uses it instead of binding the declared port: it binds an ephemeral loopback por
 deregisters with `DELETE /api/ingest/register {path}` on teardown. The h3 app never becomes an open
 proxy: non-loopback targets are rejected, and `/api/*` paths are reserved. Forwarding state lives in
 `server/utils/ingest-forwarder.ts` and is cleared by `startBackend`'s `close()`.
+
+### Project sync API (T203)
+
+Mirror root: `<serveRoot>/.mt/remote/<projectId>/`, sandboxed with `resolveInsideRoot` plus a
+symlink-component walk. `projectId` comes from the client (`mt.json -> remote.projectId` or the
+computed `<slug>-<root-hash8>`); invalid ids, absolute paths and `..` are `400`.
+
+- `GET /api/sync/manifest?projectId=&scope=sources|outputs&runId=` returns
+  `[{ path, size, sha256, mtime }]`. `sources` lists the mirror; `outputs` adds
+  `.mt/runs/<runId>/**` plus relative pipeline `.to(...)` targets.
+- `GET /api/sync/files?projectId=&path=&scope=&runId=` streams one file (octet-stream,
+  `X-Mt-Sync-Sha256`). `path` must be a safe relative POSIX path; protected paths are rejected.
+- `PUT /api/sync/files?projectId=` accepts a stream of frames:
+  `uint32be headerLength | JSON header | body`. Header = `{ path, op?: "write"|"delete", size, sha256? }`.
+  Writes are atomic; checksums are verified; delete is used by `--prune`.
+  Caps: per-file `remote.sync.maxFileBytes` (20 MB default), 64 MB per request, 500 MB per mirror.
+- `.env*`, vault/KeePass/embed files, `.git/`, `node_modules/` and `.mt/` (except output-scope
+  `.mt/runs/<id>/` reads) are rejected server-side, even if a client asks for them.
+
+`createBackendApp`/`startBackend` accept `projectRoot` (defaults to `MT_PROJECT_ROOT` or cwd); tests and
+embedded servers use it to isolate mirrors and SQLite state.
 
 ### Embedded router (T197)
 
@@ -140,6 +167,7 @@ packages/webui/
 │       ├── sqlite.ts
 │       └── runner-registry.ts
 └── tests/
+    ├── api/sync.test.ts      # Sync manifest/files, auth, caps, traversal, outputs
     ├── db.arch.test.ts       # Arch: SQLite schema and migrations
     ├── router-embed.test.ts  # T197 same-port router, health precedence, token scoping, --no-router
     ├── routes.arch.test.ts   # Arch: expected routes present
