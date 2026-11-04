@@ -84,7 +84,6 @@ async function dispatch(args: string[]): Promise<void> {
 
   const ctx = await loadGlobalContext(projectRoot)
   await runLifecycleScript(ctx, 'install', {
-    pipelineName: options.pipelineName,
     logger: console,
   })
   console.log('Install script completed')

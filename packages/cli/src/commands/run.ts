@@ -197,7 +197,7 @@ export async function runCommand(args: string[]): Promise<void> {
       : undefined
 
   // Lifecycle hook: scripts.start before the main run. A start-hook failure fails the run.
-  await runLifecycleScript(globalContext, 'start', { pipelineName, logger })
+  await runLifecycleScript(globalContext, 'start', { logger })
 
   const failure = isPipelineSuite(runnable)
     ? await runSuite(runnable, pipelineFile, pipelineName, globalContext, projectRoot, logger)
@@ -213,10 +213,10 @@ export async function runCommand(args: string[]): Promise<void> {
       )
 
   // scripts.end runs on success AND failure; an end-hook error must not mask the outcome.
-  await runSwallowingHookErrors(globalContext, 'end', { pipelineName, logger })
+  await runSwallowingHookErrors(globalContext, 'end', { logger })
 
   // scripts.exit runs once as the process is about to leave, after end.
-  await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
+  await runSwallowingHookErrors(globalContext, 'exit', { logger })
 
   // Make sure the per-run log file is fully written before the process exits
   await logger.flush()
@@ -257,8 +257,8 @@ async function runPipeline(
     logger.warn('SIGINT received: pausing pipeline...')
     await runner.pause()
     await reporter?.flush()
-    await runSwallowingHookErrors(globalContext, 'stop', { pipelineName, logger })
-    await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
+    await runSwallowingHookErrors(globalContext, 'stop', { logger })
+    await runSwallowingHookErrors(globalContext, 'exit', { logger })
     logger.info(`Pipeline paused. Run ID: ${runner.getRunId()}`)
     logger.info(`Resume with: mt resume ${runner.getRunId()}`)
     await logger.flush()
@@ -283,7 +283,7 @@ async function runPipeline(
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline failed: ${errorMessage}${hint}`)
-    await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
+    await runSwallowingHookErrors(globalContext, 'error', { logger })
     return error
   }
 }
@@ -307,8 +307,8 @@ async function runSuite(
   process.on('SIGINT', async () => {
     logger.warn('SIGINT received: pausing suite...')
     for (const { runner } of running) await runner.pause()
-    await runSwallowingHookErrors(globalContext, 'stop', { pipelineName, logger })
-    await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
+    await runSwallowingHookErrors(globalContext, 'stop', { logger })
+    await runSwallowingHookErrors(globalContext, 'exit', { logger })
     logger.info('Suite paused.')
     for (const { runner, pipeline } of running) {
       logger.info(`${pipeline.id} -> ${runner.getRunId()}`)
@@ -337,7 +337,7 @@ async function runSuite(
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Suite failed: ${errorMessage}${hint}`)
-    await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
+    await runSwallowingHookErrors(globalContext, 'error', { logger })
     return error
   }
 }
@@ -349,7 +349,7 @@ async function runSuite(
 async function runSwallowingHookErrors(
   ctx: GlobalContext,
   name: import('./utils/lifecycle.js').LifecycleHookName,
-  options: { pipelineName?: string; logger: Pick<import('@mt/core').Logger, 'info' | 'warn'> },
+  options: { logger: Pick<import('@mt/core').Logger, 'info' | 'warn'> },
 ): Promise<void> {
   try {
     await runLifecycleScript(ctx, name, options)

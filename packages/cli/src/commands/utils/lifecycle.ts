@@ -18,8 +18,6 @@ import type { GlobalContext, Logger, Pipeline, PipelineSuite } from '@mt/core'
 export type LifecycleHookName = 'install' | 'start' | 'end' | 'stop' | 'exit' | 'resume' | 'error'
 
 export interface LifecycleRunOptions {
-  /** Named export to pick from the script module (default: `default` ?? `pipeline`). */
-  pipelineName?: string
   /** Logger for progress lines; defaults to the console. */
   logger?: Pick<Logger, 'info' | 'warn'>
 }
@@ -28,7 +26,6 @@ export interface LifecycleRunOptions {
 async function resolveLifecycleScript(
   ctx: GlobalContext,
   name: LifecycleHookName,
-  pipelineName?: string,
 ): Promise<{ runnable: Pipeline | PipelineSuite; pipelineFile: string } | undefined> {
   const config = await readMtConfig(ctx.project.root)
   const script = config.scripts?.[name]
@@ -44,17 +41,13 @@ async function resolveLifecycleScript(
     )
   }
 
-  const runnable = (pipelineName ? mod[pipelineName] : (mod.default ?? mod.pipeline)) as
-    | Pipeline
-    | PipelineSuite
-    | undefined
+  const runnable = (mod.default ?? mod.pipeline) as Pipeline | PipelineSuite | undefined
   if (
     !runnable ||
     !(isPipeline(runnable) || isPipelineSuite(runnable) || isLegacyPipeline(runnable))
   ) {
-    const hint = pipelineName ? ` (named export '${pipelineName}' not found or invalid)` : ''
     throw new Error(
-      `Invalid lifecycle script '${script}' (${name}). Expected ${pipelineName ? `export const ${pipelineName}` : 'default export'} from definePipeline() or defineProcess().${hint}`,
+      `Invalid lifecycle script '${script}' (${name}). Expected default export from definePipeline() or defineProcess().`,
     )
   }
 
@@ -72,19 +65,17 @@ export async function runLifecycleScript(
   options: LifecycleRunOptions = {},
 ): Promise<void> {
   const logger = options.logger ?? console
-  const script = await resolveLifecycleScript(ctx, name, options.pipelineName)
+  const script = await resolveLifecycleScript(ctx, name)
   if (!script) return
 
   logger.info(`Running ${name} hook: ${script.runnable.id} (${script.pipelineFile})`)
   if (isPipelineSuite(script.runnable)) {
     await script.runnable.run(ctx, {
       pipelineFile: script.pipelineFile,
-      pipelineName: options.pipelineName,
     })
   } else {
     const runner = new Runner(script.runnable, ctx, {
       pipelineFile: script.pipelineFile,
-      pipelineName: options.pipelineName,
     })
     await runner.start()
   }

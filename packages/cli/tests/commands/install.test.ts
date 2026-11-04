@@ -96,26 +96,6 @@ describe('install command', () => {
     expect(mockStart).toHaveBeenCalled()
   })
 
-  it('supports --pipeline for named exports', async () => {
-    await writeFile(
-      join(testDir, 'mt.json'),
-      JSON.stringify({
-        project: { name: 'p' },
-        scripts: { install: './scripts/install.ts' },
-      }),
-    )
-    await writeInstallScript('setup', 'setup-pipeline')
-
-    await installCommand(['--pipeline', 'setup'])
-
-    expect(Runner).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'setup-pipeline' }),
-      expect.anything(),
-      expect.objectContaining({ pipelineName: 'setup' }),
-    )
-    expect(mockStart).toHaveBeenCalled()
-  })
-
   it('exits 1 with a clear message when the script file is missing', async () => {
     await writeFile(
       join(testDir, 'mt.json'),

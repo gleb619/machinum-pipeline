@@ -167,7 +167,7 @@ export async function resumeCommand(args: string[]): Promise<void> {
   await reporter?.start()
 
   // Lifecycle hook: scripts.resume before resuming. A resume-hook error is logged but does not stop the resume.
-  await runSwallowingHookErrors(globalContext, 'resume', { pipelineName, logger })
+  await runSwallowingHookErrors(globalContext, 'resume', { logger })
 
   try {
     const runContext = await runner.resume(runId)
@@ -178,7 +178,7 @@ export async function resumeCommand(args: string[]): Promise<void> {
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline resume failed: ${errorMessage}${hint}`)
     await reporter?.flush()
-    await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
+    await runSwallowingHookErrors(globalContext, 'error', { logger })
     // Make sure the per-run log file is fully written before the process exits
     await logger.flush()
     process.exit(1)
@@ -202,7 +202,7 @@ annotate(
 async function runSwallowingHookErrors(
   ctx: Awaited<ReturnType<typeof loadGlobalContext>>,
   name: import('./utils/lifecycle.js').LifecycleHookName,
-  options: { pipelineName?: string; logger: Pick<import('@mt/core').Logger, 'info' | 'warn'> },
+  options: { logger: Pick<import('@mt/core').Logger, 'info' | 'warn'> },
 ): Promise<void> {
   try {
     await runLifecycleScript(ctx, name, options)
