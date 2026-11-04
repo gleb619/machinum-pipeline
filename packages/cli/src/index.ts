@@ -91,10 +91,10 @@ Usage: mt <command> [options]
 
 Commands:
   init                    Scaffold a new Mt project
-  run <pipeline.ts>      Execute a pipeline (foreground; runs scripts.start/scripts.end hooks)
+  run <pipeline.ts>      Execute a pipeline (foreground; --remote [url] runs it on a remote mt serve)
   explain <pipeline.ts>  Describe the declared dataflow without executing it [--pipeline <name>] [--json]
   install                Run the scripts.install lifecycle hook from mt.json
-  resume <runId>         Resume a paused/failed run
+  resume <runId>         Resume a paused/failed run (--remote [url] re-attaches to a remote run)
   remote sync [opts]      Push/pull project files with a remote mt serve (--push|--pull, --dry-run, --prune, --watch)
   ls runs                List all runs
   inspect <runId>        Show run details

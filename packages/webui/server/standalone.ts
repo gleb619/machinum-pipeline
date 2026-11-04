@@ -23,6 +23,7 @@ import { createHealthRoute } from './routes/api/health.js'
 import registerIngestRoute from './routes/api/ingest/register.js'
 import pipelinesRoute from './routes/api/pipelines.js'
 import runRoute from './routes/api/runs/[id].js'
+import artifactsRoute from './routes/api/runs/[id]/artifacts.js'
 import eventsRoute from './routes/api/runs/[id]/events.js'
 import itemsRoute from './routes/api/runs/[id]/items.js'
 import pauseRoute from './routes/api/runs/[id]/pause.js'
@@ -175,6 +176,7 @@ export function createBackendApp(
   adminRouter.use('/api/runs', runsRoute)
   adminRouter.use('/api/runs/start', startRoute)
   adminRouter.use('/api/runs/:id', runRoute)
+  adminRouter.use('/api/runs/:id/artifacts', artifactsRoute)
   adminRouter.use('/api/runs/:id/events', eventsRoute)
   adminRouter.use('/api/runs/:id/items', itemsRoute)
   adminRouter.use('/api/runs/:id/pause', pauseRoute)

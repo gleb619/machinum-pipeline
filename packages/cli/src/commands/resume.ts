@@ -13,7 +13,52 @@ import {
 } from '@mt/core'
 import type { Pipeline, PipelineSuite, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
+import { type RemoteRunFlags, resumeRemotePipeline } from '../utils/remote-run.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
+
+export interface ResumeCommandOptions {
+  runId?: string
+  pipelineFile?: string
+  remote?: RemoteRunFlags
+}
+
+/** Parse `mt resume` flags; `--remote` switches to remote re-attach mode. */
+export function parseResumeArgs(args: readonly string[]): ResumeCommandOptions {
+  const options: ResumeCommandOptions = {}
+  const positional: string[] = []
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    if (arg === undefined) continue
+    if (arg === '--remote' || arg.startsWith('--remote=')) {
+      const remote = options.remote ?? {}
+      options.remote = remote
+      const inline = arg.startsWith('--remote=') ? arg.slice('--remote='.length) : undefined
+      if (inline !== undefined && inline !== '') {
+        remote.url = inline
+      } else {
+        const next = args[index + 1]
+        if (next !== undefined && /^https?:\/\//.test(next)) {
+          remote.url = next
+          index++
+        }
+      }
+    } else if (arg === '--token-ref' || arg.startsWith('--token-ref=')) {
+      const inline = arg.startsWith('--token-ref=') ? arg.slice('--token-ref='.length) : undefined
+      const value = inline ?? args[++index]
+      if (value === undefined || value === '') throw new Error('--token-ref requires a value')
+      options.remote = { ...(options.remote ?? {}), tokenRef: value }
+    } else if (arg === '--allow-version-mismatch') {
+      options.remote = { ...(options.remote ?? {}), allowVersionMismatch: true }
+    } else if (arg.startsWith('--')) {
+      throw new Error(`Unknown resume option: ${arg}`)
+    } else {
+      positional.push(arg)
+    }
+  }
+  options.runId = positional[0]
+  options.pipelineFile = positional[1]
+  return options
+}
 
 /**
  * `mt resume <runId> [pipeline.ts]` — resume a previous run.
@@ -23,13 +68,42 @@ import { runLifecycleScript } from './utils/lifecycle.js'
  * A run always belongs to one pipeline — suites cannot be resumed as a whole.
  */
 export async function resumeCommand(args: string[]): Promise<void> {
-  const [runId, pipelineFileArg] = args
+  const parsed = parseResumeArgs(args)
+  const runId = parsed.runId
+  const pipelineFileArg = parsed.pipelineFile
   if (!runId) {
-    console.error('Usage: mt resume <runId> [pipeline.ts]')
+    console.error(
+      'Usage: mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>]',
+    )
     process.exit(1)
   }
 
   const projectRoot = process.cwd()
+
+  if (parsed.remote !== undefined) {
+    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+    const artifactIntervalMs = Number(process.env.MT_REMOTE_ARTIFACT_INTERVAL_MS)
+    let outcome: Awaited<ReturnType<typeof resumeRemotePipeline>>
+    try {
+      outcome = await resumeRemotePipeline({
+        projectRoot,
+        logger,
+        remote: parsed.remote,
+        runId,
+        ...(Number.isFinite(artifactIntervalMs) && artifactIntervalMs > 0
+          ? { artifactIntervalMs }
+          : {}),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error(`Remote resume failed: ${message}`)
+      await logger.flush()
+      process.exit(1)
+    }
+    await logger.flush()
+    if (outcome.exitCode !== 0) process.exit(outcome.exitCode)
+    return
+  }
 
   // Build global context
   const globalContext = await loadGlobalContext(projectRoot)

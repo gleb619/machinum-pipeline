@@ -81,6 +81,27 @@ describe('SSE events tailing (T132)', () => {
     expect(evt.text).toBe('ж'.repeat(100_000))
   })
 
+  it('resumes after Last-Event-ID without replaying earlier events', async () => {
+    await mkdir(join(dir, '.mt', 'runs', 'resume-run'), { recursive: true })
+    await writeFile(
+      join(dir, '.mt', 'runs', 'resume-run', 'events.jsonl'),
+      '{"type":"first"}\n{"type":"second"}\n',
+    )
+
+    const first = await (await fetch(`${handle.url}/api/runs/resume-run/events`)).text()
+    const firstId = /^id: (\d+)$/m.exec(first)?.[1]
+    expect(firstId).toBeDefined()
+    expect(first).toContain('"type":"first"')
+
+    const resumed = await (
+      await fetch(`${handle.url}/api/runs/resume-run/events`, {
+        headers: { 'Last-Event-ID': firstId ?? '0' },
+      })
+    ).text()
+    expect(resumed).not.toContain('"type":"first"')
+    expect(resumed).toContain('"type":"second"')
+  })
+
   it('rejects run ids with path traversal on events, run detail, and items (400)', async () => {
     const encoded = '..%2F..%2Fescape'
     expect((await fetch(`${handle.url}/api/runs/${encoded}/events`)).status).toBe(400)

@@ -69,10 +69,10 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 | Command | File | Description |
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
-| `mt run <pipeline.ts> [--pipeline <name>]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit |
+| `mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--token-ref <ENV_OR_REF>]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit. `--remote` pushes, starts, streams, and pulls on a remote `mt serve` (URL defaults to `mt.json remote.url`) |
 | `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | `explain.ts` | Import the same runnable `mt run` would use, then describe its declared dataflow, per-step effective retry/onError policy (pipeline/step values win over project fallbacks), nested fork/subflow/batch scopes, lifecycle hooks, events, checkpoint nodes and log paths. The module is imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no Runner/source/tool/target/hook starts; writes no `.mt` state. Markdown by default; `--json` for agents/tools |
 | `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup); `--pipeline <name>` for named exports |
-| `mt resume <runId> [pipeline.ts]` | `resume.ts` | Load `state.json` (checkpoint tree + source cursors) and resume from the first non-done node; pipeline file/id come from `state.json` (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole |
+| `mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>]` | `resume.ts` | Load `state.json` (checkpoint tree + source cursors) and resume from the first non-done node; pipeline file/id come from `state.json` (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole. `--remote` re-attaches to the remote stream (unpauses a live paused run) |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata, and the dead-letter queue (count + last 3 dropped envelopes) — a run that ends DONE after the `dead-letter` policy dropped items must not look fully successful |
 | `mt info [--json] [--runs <n>]` | `info.ts` | Read-only project/state report: effective `mt.json` (`imports` deep-merged, then merged over `DEFAULT_MT_CONFIG`) with credential-looking values masked, `.mt` size/run/slow-step summary, and runtime/secrets-presence booleans. No pipeline import, Runner/source/tool/target/hook, run id or `.mt` write; `--json` for agents, `--runs` limits the run list |
@@ -219,6 +219,15 @@ sinks use `formatLogLine()` from `@mt/core` (`<ISO-ms> [<LEVEL>] <message>`, CR/
 `\n`), so console and file lines are byte-identical apart from the trailing newline. Lines
 logged before `setRunId()` are buffered and flushed to the run log.
 
+### `src/utils/remote-run.ts` — remote run client
+
+`runRemotePipeline()` and `resumeRemotePipeline()` implement the T204 flow on top of
+`remote-client.ts`: compatibility/capability preflight, source push, `POST /api/runs/start` with
+`projectId`, SSE consumption (`Last-Event-ID` reconnect into `DuplexLogger`), incremental artifact
+pulls every 5 s plus a final pull, and Ctrl+C → remote pause. They return `{ runId, state, exitCode }`;
+`run.ts`/`resume.ts` own the process exit. `--token-ref` resolves through the same env/vault helper as
+`mt remote sync`; no secret enters argv.
+
 ### `src/commands/router.ts`
 - `routerCommand()` lazy-imports `@mt/router/standalone` and calls `startRouter()`; keys come from
   `loadGlobalContext()` (`mt.json → secrets.envFile`, `process.env` wins) as `OPENROUTER_API_KEYS`;
@@ -286,6 +295,7 @@ packages/cli/tests/
 │   ├── tool.test.ts           # tool stdin/stdout pipe
 │   ├── vault.test.ts          # vault command (init/add/list/show/rm/path)
 │   ├── remote.test.ts         # remote sync push/pull/dry-run/prune/conflict + two in-process servers
+│   ├── run.remote.test.ts     # remote run e2e: push -> start -> SSE -> pull, failure, pause, resume
 │   ├── router.arch.test.ts    # Arch: router command wiring + lazy @mt/router/standalone import
 │   └── serve.arch.test.ts     # serve command shape
 └── utils/

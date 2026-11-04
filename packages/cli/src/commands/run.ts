@@ -17,10 +17,61 @@ import type { GlobalContext, Pipeline, PipelineSuite } from '@mt/core'
 import '@mt/waypoint'
 
 import { DuplexLogger } from '../utils/logger.js'
+import { type RemoteRunFlags, runRemotePipeline } from '../utils/remote-run.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
 
 /** A module export the CLI can run directly. */
 export type Runnable = Pipeline | PipelineSuite
+
+export interface RunCommandOptions {
+  pipelineFile?: string
+  pipelineName?: string
+  remote?: RemoteRunFlags
+}
+
+/**
+ * Parse `mt run` flags. `--remote` alone uses `mt.json -> remote.url`;
+ * `--remote <url>` overrides it for this invocation only.
+ */
+export function parseRunArgs(args: readonly string[]): RunCommandOptions {
+  const options: RunCommandOptions = {}
+  const positional: string[] = []
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]
+    if (arg === undefined) continue
+    if (arg === '--pipeline') {
+      const value = args[++index]
+      if (value === undefined) throw new Error('--pipeline requires a named export')
+      options.pipelineName = value
+    } else if (arg === '--remote' || arg.startsWith('--remote=')) {
+      const remote = options.remote ?? {}
+      options.remote = remote
+      const inline = arg.startsWith('--remote=') ? arg.slice('--remote='.length) : undefined
+      if (inline !== undefined && inline !== '') {
+        remote.url = inline
+      } else {
+        const next = args[index + 1]
+        if (next !== undefined && /^https?:\/\//.test(next)) {
+          remote.url = next
+          index++
+        }
+      }
+    } else if (arg === '--token-ref' || arg.startsWith('--token-ref=')) {
+      const inline = arg.startsWith('--token-ref=') ? arg.slice('--token-ref='.length) : undefined
+      const value = inline ?? args[++index]
+      if (value === undefined || value === '') throw new Error('--token-ref requires a value')
+      options.remote = { ...(options.remote ?? {}), tokenRef: value }
+    } else if (arg === '--allow-version-mismatch') {
+      options.remote = { ...(options.remote ?? {}), allowVersionMismatch: true }
+    } else if (arg.startsWith('--')) {
+      throw new Error(`Unknown run option: ${arg}`)
+    } else {
+      positional.push(arg)
+    }
+  }
+  options.pipelineFile = positional[0]
+  return options
+}
 
 /**
  * `mt run <pipelineFile>` — execute a pipeline or suite.
@@ -32,22 +83,43 @@ export type Runnable = Pipeline | PipelineSuite
  * Usage: mt run ./pipelines/example.ts [--pipeline <name>]
  */
 export async function runCommand(args: string[]): Promise<void> {
-  if (args.length === 0) {
-    console.error('Usage: mt run <pipeline.ts> [--pipeline <name>]')
+  const parsed = parseRunArgs(args)
+  if (parsed.pipelineFile === undefined) {
+    console.error(
+      'Usage: mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--token-ref <ENV_OR_REF>]',
+    )
     console.error('  Execute a pipeline file (foreground; logs to console + .mt)')
     process.exit(1)
   }
 
-  const pipelineFile = args[0] as string
+  const pipelineFile = parsed.pipelineFile
+  const pipelineName = parsed.pipelineName
   const projectRoot = process.cwd()
 
-  // Parse --pipeline <name> flag
-  let pipelineName: string | undefined
-  for (let i = 1; i < args.length; i++) {
-    if (args[i] === '--pipeline' && args[i + 1]) {
-      pipelineName = args[i + 1]
-      break
+  if (parsed.remote !== undefined) {
+    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+    const artifactIntervalMs = Number(process.env.MT_REMOTE_ARTIFACT_INTERVAL_MS)
+    let outcome: Awaited<ReturnType<typeof runRemotePipeline>>
+    try {
+      outcome = await runRemotePipeline({
+        projectRoot,
+        logger,
+        remote: parsed.remote,
+        pipelineFile,
+        pipelineName,
+        ...(Number.isFinite(artifactIntervalMs) && artifactIntervalMs > 0
+          ? { artifactIntervalMs }
+          : {}),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      logger.error(`Remote run failed: ${message}`)
+      await logger.flush()
+      process.exit(1)
     }
+    await logger.flush()
+    if (outcome.exitCode !== 0) process.exit(outcome.exitCode)
+    return
   }
 
   // Load the runnable export (pipeline or suite)

@@ -199,6 +199,29 @@ scope never contains `.env`, vault/KeePass/embed files, `.git/`, `node_modules/`
 only writes target outputs and `.mt/runs/<runId>/`. The HTTP layer is the same for CLI↔server and
 server↔server sync (`GET /api/sync/manifest`, `GET/PUT /api/sync/files`).
 
+### Remote run (T204)
+
+`mt run --remote` and `mt resume --remote` compose the sync API with the run API:
+
+```
+local CLI                       remote mt serve
+   | GET /api/health  -----------> version, syncVersion, capabilities
+   | PUT /api/sync/files --------> .mt/remote/<projectId>/ (push)
+   | POST /api/runs/start -------> mirror root, one active run per projectId
+   | GET /api/runs/:id/events ---> SSE (Last-Event-ID byte offset on reconnect)
+   | GET /api/sync/manifest ------> outputs + .mt/runs/<id>/ every 5 s + final
+   | GET /api/runs/:id/artifacts -> same output manifest for API callers
+   | POST /api/runs/:id/pause ---> first Ctrl+C; final pull; exit 0
+   v
+local .mt/runs/<id>/ mirror + target outputs
+```
+
+The remote `projectId` root is the sandboxed mirror `<serveRoot>/.mt/remote/<projectId>/`; all
+pipeline paths, `loadGlobalContext`, target outputs and `.mt/runs` resolve there. A duplicate active
+run for the same project is `409`. The CLI streams events into its local `DuplexLogger`, prints the
+re-attach command, and mirrors the remote terminal state to its exit code. See
+[remote-run.md](remote-run.md) for the operator guide and the upload-as-RCE trust warning.
+
 The vault lives outside `mt.json`: `.mt/vault.json` (project scope) and `~/.mt/vault.json` (user scope);
 project entries override user entries by name, and `MT_VAULT` pins a single file. Both are gitignored and
 written atomically with mode 0600. The embedded secret store (v2: keyring + per-secret `kid`) is a separate

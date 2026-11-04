@@ -2,8 +2,8 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.19.0 | 2026-11-04 -->
-<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
+<!-- skill-version: 1.20.0 | 2026-11-04 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
 
@@ -27,7 +27,8 @@ pipelines/*.ts       pipeline modules (default export = the pipeline)
   vault.json         vault entries (refs only, never plaintext keys)
   master.key         master key for the embedded secret store (0600, gitignored, back it up)
   remote/<projectId>.sync.json  last-synced SHA-256 map for `mt remote sync`
-                                (the remote side mirrors to .mt/remote/<projectId>/)
+  remote/<projectId>/           server-side project mirror (source + .mt/runs/<id>/)
+                                (remote run starts here; projectId is mandatory)
 ```
 
 `mt init` scaffolds `mt.json`, `.mt/`, `.gitignore` entries and `.mt/master.key`.
@@ -165,10 +166,10 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | Command | What it does |
 |---|---|
 | `mt init [--settings <json>\|-s] [--force] [--no-master-key]` | scaffold project; `--settings` also writes `pipelines/example.ts`; `--force` overwrites |
-| `mt run <pipeline.ts>` | run in foreground; runs `scripts.start/end/error/stop/exit` hooks; Ctrl-C pauses |
+| `mt run <pipeline.ts>` | run in foreground; runs `scripts.start/end/error/stop/exit` hooks; Ctrl-C pauses. `--remote [url]` pushes, starts, streams, and pulls on a remote `mt serve` |
 | `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | import the module but describe the declared dataflow without running it; no `GlobalContext`/`.env`/vault, no run id or `.mt` writes |
 | `mt install [--pipeline <name>]` | run the `scripts.install` hook pipeline |
-| `mt resume <runId> [pipeline.ts]` | resume from the first non-done node; file comes from `state.json` unless given |
+| `mt resume <runId> [pipeline.ts]` | resume from the first non-done node; file comes from `state.json` unless given. `--remote [url]` re-attaches to a live remote run (unpauses when paused) |
 | `mt ls runs` | table of runs (id, pipeline, state, start) |
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
@@ -219,6 +220,25 @@ resolves its own secrets. Caps: 20 MB/file, 64 MB/request, 500 MB/project. Write
 - The CLI checks `/api/health.version` (exact major.minor) and `syncVersion: 1`;
   `--allow-version-mismatch` overrides only the version check.
 - Deferred: `remote.sync.mode: "git"` and `--install` (remote `scripts.install`).
+
+### Remote run (T204)
+
+`mt run <pipeline.ts> --remote [url]` and `mt resume <runId> --remote [url]` execute on a remote
+`mt serve`. `--remote` without a URL uses `mt.json remote.url`; `--token-ref` takes `env:NAME`,
+`vlt:`/`keepass:`/`embed:` (never plaintext argv). Plain `mt run` stays local.
+
+Lifecycle: health/version/capability preflight → T203 source push → `POST /api/runs/start` with
+`projectId` + relative pipeline path → SSE `/api/runs/:id/events?stream=true` into the local
+`DuplexLogger` (`Last-Event-ID` byte offsets on reconnect) → artifact pull every 5 s and once at the
+terminal state → local `.mt/runs/<runId>/` mirror + target outputs. `done`/`paused` exit 0, `failed`
+exit 1. First Ctrl+C posts `/pause` and exits after acknowledgement; second detaches. The CLI prints
+`Resume: mt resume <id> --remote <url>`.
+
+Server: optional `projectId` resolves the root to `<serveRoot>/.mt/remote/<projectId>/` with
+traversal confinement; one active run per project id (`409` duplicate); `GET
+/api/runs/:id/artifacts` returns the output manifest (target outputs + `.mt/runs/<id>/`). Uploading
+a pipeline is remote code execution as the serve user: token-protect it, use an SSH tunnel/TLS, and
+send only trusted projects. Secrets are never synced; the remote resolves its own vault/env.
 
 ### Explain a pipeline before running it
 

@@ -15,11 +15,12 @@ packages/webui/server/routes/api/
 │   └── register.ts                   # POST/DELETE /api/ingest/register — cross-process hs:// forwarding
 ├── runs/
 │   ├── index.ts                      # GET /api/runs — list all runs
-│   ├── start.ts                      # POST /api/runs — start a new run, registerRunner(runId)
+│   ├── start.ts                      # POST /api/runs/start — start a run; optional projectId mirror root
 │   ├── [id].ts                       # GET /api/runs/:id — run metadata (state.json)
 │   └── [id]/
 │       ├── items.ts                  # GET /api/runs/:id/items — paginated envelope list
 │       ├── events.ts                 # GET /api/runs/:id/events — SSE stream
+│       ├── artifacts.ts              # GET /api/runs/:id/artifacts — T203 output manifest
 │       ├── pause.ts                  # POST /api/runs/:id/pause — 404 unless the Runner is live here
 │       └── resume.ts                 # POST /api/runs/:id/resume — same registry lookup
 └── sync/
@@ -29,7 +30,7 @@ packages/webui/server/routes/api/
 
 ## SSE Events (`events.ts`)
 
-Tails `.mt/runs/<runId>/events.jsonl` using file watching. Sends each appended JSON line as an SSE `data:` message. Client reconnection is handled via `Last-Event-ID` header.
+Tails `.mt/runs/<runId>/events.jsonl` using file watching. Sends each appended JSON line as an SSE `data:` message with an `id:` byte offset. A reconnecting client sends `Last-Event-ID`; the route starts reading at that byte offset, so events are not replayed or duplicated. `?projectId=` resolves the run under the T203 mirror root instead of the serve root.
 
 ## SQLite (`server/plugins/sqlite.ts`, `server/utils/sqlite.ts`)
 
@@ -128,7 +129,7 @@ In-process registry mapping `runId → Runner` for runs started via the API. Met
 
 Used by `/api/runs/:id/pause` and `/api/runs/:id/resume` to reach the live Runner object.
 
-`POST /api/runs` (`start.ts`) is the only writer: it registers the Runner right after `runner.start()` (which mints
+`POST /api/runs/start` (`start.ts`) is the only writer: it registers the Runner right after `runner.start()` (which mints
 the runId before its first await) and calls `removeRunner` when the run settles, done or failed. A run started some
 other way — `mt run`, `mt resume`, another backend process — is never in this registry, so pause/resume answers 404;
 that 404 means "not live in this process", not "run does not exist" (run metadata stays readable via `GET /api/runs/:id`).
@@ -139,6 +140,12 @@ that 404 means "not live in this process", not "run does not exist" (run metadat
 and `mt resume` use. `mt.json` (project name, `defaults`, `settings`, top-level `uris` aliases) and
 `secrets.envFile` therefore apply to admin-UI runs exactly as they do to CLI runs; the route must not hand-roll a
 context.
+
+With `projectId`, the root is the sandboxed sync mirror `<serveRoot>/.mt/remote/<projectId>/` and the
+`pipeline` body field is resolved inside it; traversal or outside-root paths are `400`. One active run
+is allowed per project id (`409` on a duplicate); the slot is released when the run settles. This is
+the server half of T204: the CLI pushes with the sync API, starts by `projectId`, streams SSE with
+`Last-Event-ID` reconnect, and pulls `/api/runs/:id/artifacts` (output scope + `.mt/runs/<id>/`).
 
 ## Frontend Integration
 

@@ -187,6 +187,23 @@ mt remote sync --pull --force                 # overwrite a both-changed local f
 Remote `mt serve` token setup is the section above; expose it through an SSH tunnel or TLS reverse
 proxy, never plain HTTP on a public interface.
 
+### Remote run on a shared `mt serve` (T204)
+
+`mt run --remote` uses the same sync API plus the run API. It checks health/capabilities, pushes the
+source scope, starts the pipeline under `<serveRoot>/.mt/remote/<projectId>/`, streams SSE back into
+the local `DuplexLogger`, and pulls target outputs + `.mt/runs/<runId>/` every 5 seconds and once at
+the end. The local mirror keeps `mt ls runs` / `mt inspect` working.
+
+```bash
+mt run ./pipelines/translate.ts --remote http://127.0.0.1:7777
+mt resume <runId> --remote http://127.0.0.1:7777
+```
+
+`--remote` without a URL uses `mt.json remote.url`; `--token-ref` takes the same env/vault refs as
+`mt remote sync`. First Ctrl+C pauses the remote run, the second detaches. Exit code mirrors the
+remote terminal state (`done`/`paused` = 0, `failed` = 1). One active run per project id is allowed
+(second start = `409`). Full guide and the trust warning: [remote-run.md](remote-run.md).
+
 ### Remote browser-translate worker (optional)
 
 The `mt-browser-translate` bin is a Node entry point for the remote browser-translation worker; it is
