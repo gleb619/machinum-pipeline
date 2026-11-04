@@ -33,6 +33,14 @@ function schemesOf(annotation: Annotation, name: string): readonly string[] {
   return strings
 }
 
+/** Role of the factory — `source`, `target` or `both`. */
+function directionOf(annotation: Annotation, name: string): string {
+  const direction = annotation.meta.direction
+  expect(typeof direction, `${name} meta.direction should be a string`).toBe('string')
+  expect(['source', 'target', 'both']).toContain(direction)
+  return String(direction)
+}
+
 describe('waypoint annotations', () => {
   beforeEach(() => {
     resetAnnotationRegistry()
@@ -49,20 +57,32 @@ describe('waypoint annotations', () => {
     }
   })
 
-  it('keeps each WT id mapped to one scheme set', () => {
+  it('keeps each WT id and direction mapped to one scheme set', () => {
     const schemeSets = new Map<string, string>()
 
     for (const [name, factory] of exportedFactories()) {
       const annotation = waypointAnnotation(factory, name)
       const key = [...schemesOf(annotation, name)].sort().join(',')
-      const existing = schemeSets.get(annotation.id)
+      // One id may carry both roles (e.g. WT003: `hs://`/`http://` source, `http://`/`https://`
+      // target), so the scheme set is pinned per id AND direction.
+      const id = `${annotation.id}:${directionOf(annotation, name)}`
+      const existing = schemeSets.get(id)
       if (existing !== undefined) {
-        expect(existing, `${annotation.id} maps to two different scheme sets`).toBe(key)
+        expect(existing, `${id} maps to two different scheme sets`).toBe(key)
       }
-      schemeSets.set(annotation.id, key)
+      schemeSets.set(id, key)
     }
 
     expect(schemeSets.size).toBeGreaterThan(0)
+  })
+
+  it('annotates WT003 with both a source and a target direction', () => {
+    const directions = new Set(
+      exportedFactories()
+        .filter(([, factory]) => waypointAnnotation(factory, 'WT003').id === 'WT003')
+        .map(([name, factory]) => directionOf(waypointAnnotation(factory, name), name)),
+    )
+    expect([...directions].sort()).toEqual(['source', 'target'])
   })
 
   it('covers every registered source and target scheme', () => {

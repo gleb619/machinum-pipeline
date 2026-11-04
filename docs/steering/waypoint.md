@@ -9,7 +9,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`, `review://`, `events://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`, `review://`, `events://`.
 
 ## URI Scheme Reference
 
@@ -17,7 +17,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 |---|---|---|---|---|---|
 | WT001 | `jsonl://./file.jsonl` | `jsonl.ts` | ✓ | ✓ | Supports glob patterns for source |
 | WT002 | `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; source `?split=chunks\|paragraphs\|lines` fans each file out with the registered splitter; target `?series=true` splits each document with the registered `series` splitter before writing |
-| WT003 | `hs://` / `http://` | `http-server.ts` | ✓ | — | Long-lived HTTP POST endpoint |
+| WT003 | `hs://` / `http://` / `https://` | `http-server.ts` / `http-target.ts` | ✓ | ✓ | Long-lived HTTP POST endpoint (`hs://`/`http://`); outbound HTTP client (`http://`/`https://`) |
 | WT004 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout |
 | WT005 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
 | WT006 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
@@ -34,9 +34,11 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://`, `chapter://`, `schema-
 ## Annotations
 
 Every scheme factory carries one sealed runtime `waypoint` annotation. The ID is the `ID`
-column above; source and target factories for the same scheme share it. `meta.schemes`
+column above; source and target factories share it. `meta.schemes`
 lists the URI schemes the factory serves and `meta.direction` is `source`, `target` or
-`both`. Each module annotates its factory right next to the registry call:
+`both`. One ID may cover different scheme sets per direction — WT003 is the `hs://`/`http://`
+source and the `http://`/`https://` target. Each module annotates its factory right next to
+the registry call:
 
 ```typescript
 // packages/waypoint/src/jsonl.ts
@@ -194,6 +196,35 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - Shutdown ends all subscriber responses and calls `closeAllConnections()` before `close()` — an open
   SSE connection must not block run teardown
 
+### `http-target.ts`
+- Target-only HTTP client: `http://` and `https://` are registered as targets, `hs://` stays
+  source-only — the role is positional, `.from('http://…')` still listens, `.to('http://…')` sends
+- One request per exchange. The response body is discarded (terminal target): 2xx means "accepted"
+- Body: `contentType=json` (default) sends the exchange `{ id, item | items, meta, variables }`;
+  `item` sends the payload alone; `text` sends it as plain text
+- `X-MT-Exchange-Id` carries the exchange id on every request (idempotency key)
+- `bearer=<NAME>` names an environment variable (project env over `process.env`) or a vault entry
+  holding the token; the value is sent as `Authorization: Bearer …`. A reference that looks like a
+  token (contains `.` or is longer than 64 chars) is rejected — a secret never travels in the URI
+- Retries: network errors, 429 and 5xx, with exponential backoff honouring `Retry-After`; every
+  other non-2xx status (and every 3xx) fails the item at once. Redirects are not followed
+  (`redirect: 'manual'`) — a redirect to another origin is a failure, not a hop
+- `checkpoint()` counts the 2xx-acked exchanges, so a crash resume replays the unacked ones
+  (at-least-once delivery)
+- Control parameters (`method`, `bearer`, `timeoutMs`, `retries`, `batch`, `contentType`,
+  `header.*`) are consumed by the target and never forwarded to the server
+- Log lines carry the masked URL (`maskUrl`): credential-looking query values are replaced by `***`
+
+| Query option | Values | Default | Behavior |
+|---|---|---|---|
+| `method` | `POST`, `PUT`, `PATCH`, `DELETE` | `POST` | HTTP verb; `GET`/`HEAD` are rejected at parse time |
+| `bearer` | env-var / vault-entry name | — | `Authorization: Bearer …`; never an inline token |
+| `timeoutMs` | positive integer | `30000` | Per-request timeout (`AbortSignal.timeout`) |
+| `retries` | integer >= 0 | `3` | Retries for network errors, 429 and 5xx |
+| `batch` | `true`, `1` | `false` | `true`: one request per batch exchange, body carries `items[]` |
+| `contentType` | `json`, `item`, `text` | `json` | Body shape |
+| `header.<Name>` | header value | — | Extra static header |
+
 ## Listening to run lifecycle
 
 `SourceContext`/`TargetContext` carry an optional `events?: RunEvents` — a Runner-built facade
@@ -301,6 +332,7 @@ packages/waypoint/tests/builtins/
 ├── md.test.ts             # Markdown source/target
 ├── chapter-output.test.ts # lang/chapterNum path-validation rejections + happy path
 ├── http-server.test.ts    # HTTP source (real Fastify server)
+├── http-target.test.ts    # HTTP target (local node:http server on an ephemeral port)
 ├── git-worktree.arch.test.ts
 ├── range.test.ts / range.arch.test.ts   # integer generator: directions, step, validation, resume skip
 ├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
@@ -320,7 +352,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 |------|------------------|--------|--------|---------------|-------------------------------------------|
 | WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
 | WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4, sample5        |
-| WP003 | hs:// / http://  | ✓      | —      | long-lived    | sample1, sample2                          |
+| WP003 | hs:// / http:// / https:// | ✓      | ✓ (`http://`, `https://`) | long-lived (source) | sample1, sample2                          |
 | WP004 | my-target://| ✓      | ✓      | resumable     | sample3                                   |
 | WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (sample3 writes schema docs via `md://` write intents, not this scheme) |
 | WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
@@ -338,7 +370,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 |:------|-------|---------------------|--------|--------|------------|-----------|-----------|-------------------------------------------------------------------------------------------------------------------------------------------|
 | 1     | WP001 | `jsonl://`          | ✓      | ✓      | resumable  | `unknown` | `unknown` | JSONL file source/target; supports glob patterns for source; position cursor for resume; atomic write with temp file.                     |
 | 2     | WP002 | `md://`             | ✓      | ✓      | resumable  | `string`  | `string`  | Markdown directory source/target; dir mode supports `mdOutputs` variable write intents (subdir + filename); single-file mode ignores intents. |
-| 3     | WP003 | `hs://` / `http://` | ✓      | —      | long-lived | `unknown` | —         | Long-lived HTTP server source; POST ingest, GET /health, GET /events (SSE fan-out); no resume support.                                    |
+| 3     | WP003 | `hs://` / `http://` / `https://` | ✓      | ✓ (`http://`, `https://`) | long-lived (source) | `unknown` | —         | Long-lived HTTP server source (POST ingest, GET /health, GET /events — SSE fan-out; no resume support) plus the outbound HTTP client target (`http://`/`https://`, one request per exchange). |
 | 4     | WP004 | `my-target://` | ✓      | ✓      | resumable  | `string`  | `string`  | Chapter-specific layout: `<base-dir>/<lang>/chapter<num>.md`; validates `meta.lang` and `meta.chapterNum`; atomic per-file writes.        |
 | 5     | WP005 | `schema-doc://`     | ✓      | ✓      | resumable  | `string`  | `string`  | Schema document source/target; custom YAML + CSV format; per-chapter `<dir>/chapter<num>.schema.md`.                                      |
 | 6     | WP006 | `git://`            | ✓      | ✓      | resumable  | varies    | varies    | Git worktree isolation wrapper; composites with inner scheme via `git+`; auto-commit on close with `commit=on-close`.                     |

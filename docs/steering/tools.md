@@ -479,7 +479,9 @@ history. The CLI logs only startup by default; per-request failures are not logg
 
 Reuse one worker, keep the cache enabled, and bound concurrency instead of launching Chrome per paragraph
 or per run. `hs://` is **ingest-only**: `POST /<path>` returns `{ received: true }`, so it cannot return a
-translation. `mt router` `/api/translate` is an LLM-paid endpoint, not Chrome; it is not a worker transport.
+translation. (Outbound HTTP is a different role: `.to('http://…')` is the HTTP client target — see
+[waypoint.md](waypoint.md#http-targetts).) `mt router` `/api/translate` is an LLM-paid endpoint, not
+Chrome; it is not a worker transport.
 
 ### `openrouter-tool.ts`
 LLM gates built on the LLM toolkit (see [LLM toolkit](#llm-toolkit)); I/O unchanged:

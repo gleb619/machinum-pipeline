@@ -117,7 +117,7 @@ For full workspace layout, see [`structure.md`](../steering/structure.md).
 - **Concurrency**: In-process only (`p-limit`-style limiter from URI/DSL/global); tools always run in-process via `tool.invoke()`; `.fork()` creates nested checkpoint subtrees; `.subflow()` is the lightweight in-process variant.
 - **Retry & error**: `RetryPolicy` (`fixed` | `linear` | `exp`); `ErrorPolicy` (`fail-run` | `skip-item` | `dead-letter`). Merge order: tool step > pipeline > global (`mt.json`). Dead-letter writes to `.mt/runs/<id>/dead-letter.jsonl`.
 - **Caching**: When `cacheable === true`, output is memoised by content hash at `.mt/cache/<hash>.json`. Replay short-circuits the tool; cache is never required for correctness.
-- **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://`, `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`.
+- **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://` (source), `http://`/`https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`.
 
 ### Secrets & the Keyless Gateway
 

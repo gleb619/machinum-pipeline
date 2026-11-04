@@ -1,6 +1,7 @@
 # Ideas: remote execution via `mt serve` + reserved local translation domain
 
-Status: idea only — not implemented. Captured 2026-11-03. Context refreshed 2026-11-03 (evening)
+Status: section 1b **Implemented 2026-11-04** (T200 — `http://` / `https://` target, `hs://` stays
+source-only); the rest is idea only. Captured 2026-11-03. Context refreshed 2026-11-03 (evening)
 against the tree after the `@mt/backend`→`@mt/webui` / `@mt/frontend`→`@mt/components` renames and
 the T197 router-embedding work. **Decision: `hs://` stays source-only; `http://` / `https://` become a target too** (client role,
 `?method=` selects the verb), alongside remote execution via `mt serve` (section 1). No `replyTo`
@@ -74,7 +75,7 @@ mt run p.ts --remote URL
 - **UI**: webui/TUI (`docs/layout.md`) show remote runs for free once they list from the remote
   `mt serve`; the TUI/web `baseUrl` already points at any `mt serve`.
 
-### 1b. `http://` / `https://` as target (`?method=`)
+### 1b. `http://` / `https://` as target (`?method=`) — Implemented 2026-11-04 (T200)
 
 Today only a source is registered (`registerSource('http'|'hs', createHttpSource)` in
 `packages/waypoint/src/http-server.ts`, `direction: 'source'`). Add `registerTarget('http', …)` and
@@ -82,6 +83,12 @@ Today only a source is registered (`registerSource('http'|'hs', createHttpSource
 `hs://` is deliberately **not** registered as a target: in `.from()` it means "listen", keep that
 meaning unambiguous. Role is positional: `.from('http://…')` still listens (legacy), `.to('http://…')`
 sends.
+
+**Shipped** in `packages/waypoint/src/http-target.ts` (`createHttpTarget`): one request per
+exchange, `X-MT-Exchange-Id` idempotency key, retry with backoff for network errors / 429 / 5xx
+(`Retry-After` honoured), 4xx and 3xx fail the item, `checkpoint()` counts 2xx-acked exchanges,
+masked URLs in log lines. `?capture=<variable>` stayed out of scope — the response body is
+discarded (terminal target).
 
 ```ts
 .to('http://remote:7777/api/runs/start?method=POST&bearer=MT_REMOTE_TOKEN')
@@ -106,8 +113,9 @@ Behaviour:
   the response body as a qualified variable on the exchange — open question.
 - `checkpoint()` counts 2xx-acked exchanges, so a crash resume replays unacked items (at-least-once).
 - Logging via `ctx.run.logger`; URL query secrets are masked in log lines.
-- Docs to update when it lands: `docs/steering/waypoint.md` (WT003 row, WP003 matrix),
-  `docs/steering/tools.md` ("`hs://` is **ingest-only**" note), `samples/sample1` README.
+- Docs landed with it: `docs/steering/waypoint.md` (WT003 row, WP003 matrix, `http-target.ts`
+  section), `docs/steering/tools.md` ("`hs://` is **ingest-only**" note), `docs/steering/structure.md`,
+  `docs/guiding/architecture.md`, `samples/sample1` README, `docs/SKILL.md` (URI scheme table).
 
 ### 1a. Automatic sync between two mt servers
 

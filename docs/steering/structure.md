@@ -106,6 +106,7 @@ Import `'@mt/waypoint'` as a side-effect to register all URI schemes:
 | `jsonl://` | `jsonl.ts` | JSONL file source/target; supports glob patterns |
 | `md://` | `md.ts` | Markdown file source/target |
 | `hs://` / `http://` | `http-server.ts` | Long-lived HTTP source (POST endpoint) |
+| `http://` / `https://` | `http-target.ts` | Outbound HTTP client target (one request per exchange) |
 | `chapter://` | `chapter-output.ts` | Chapter output (language-folder target) |
 | `schema-doc://` | `schema-doc.ts` | Per-chapter schema-doc output |
 | `git://` | `git-worktree.ts` | Git worktree-aware source/target with optional commit |

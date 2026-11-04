@@ -6,6 +6,7 @@ This sample demonstrates a complete end-to-end pipeline that ingests Markdown ch
 
 - How to define a pipeline using `@mt/core` DSL (`definePipeline`, `source`, `target`).
 - How the HTTP source (`hs://`) receives documents and how the JSONL target (`jsonl://`) persists them.
+- That the same `http://` scheme also works outbound: `.to('http://host:port/path')` sends each exchange as one HTTP request (see [waypoint steering](../../docs/steering/waypoint.md)).
 - How a simulated client (Chrome-extension-style) reads `en.md` files from `books/book1` and POSTs them to the pipeline.
 - How the integration test validates that the output file contains exactly the expected documents.
 
