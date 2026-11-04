@@ -2,7 +2,9 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import type { ParsedUri, SourceContext } from '@mt/core'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { createHttpSource } from '../../waypoint/src/http-server.js'
 import { type BackendHandle, startBackend } from '../server/standalone.js'
 
 describe('standalone backend (h3 + node:http, no Nitro)', () => {
@@ -56,6 +58,45 @@ describe('standalone backend (h3 + node:http, no Nitro)', () => {
     expect(await (await fetch(`${handle.url}/`)).text()).toContain('id="app"')
     expect(await (await fetch(`${handle.url}/some/route`)).text()).toContain('id="app"')
     expect((await fetch(`${handle.url}/api/nope`)).status).toBe(404)
+  })
+
+  it('shares its port with an hs:// source without losing /api/*', async () => {
+    const uri: ParsedUri = {
+      raw: `hs://127.0.0.1:${handle.port}/ingest`,
+      scheme: 'hs',
+      host: `127.0.0.1:${handle.port}`,
+      path: '/ingest',
+      query: { port: String(handle.port) },
+      fragment: '',
+    }
+    const logger = {
+      info: () => undefined,
+      warn: () => undefined,
+      error: () => undefined,
+      debug: () => undefined,
+    }
+    const ctx = {
+      run: { runId: 'shared-run', global: { env: {} }, logger },
+    } as unknown as SourceContext
+    const source = createHttpSource<{ id: number }>(uri)
+    const iterator = source.start(ctx)[Symbol.asyncIterator]()
+    const next = iterator.next()
+
+    await until('the hs:// source to mount its routes', async () => {
+      const health = await fetch(`${handle.url}/ingest/health`).catch(() => null)
+      return health?.status === 200
+    })
+
+    expect((await fetch(`${handle.url}/api/health`)).status).toBe(200)
+    const posted = await fetch(`${handle.url}/ingest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 9 }),
+    })
+    expect(posted.status).toBe(200)
+    expect((await next).value).toMatchObject({ item: { id: 9 } })
+
+    await iterator.return?.()
   })
 })
 

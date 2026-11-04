@@ -401,6 +401,25 @@ describe('http-server — run lifecycle mirror', () => {
       { timeout: 3000, interval: 20 },
     )
 
+    // Pause withdraws the ingest route; resume puts it back.
+    expect(
+      (
+        await fetch(`http://localhost:${port}/ingest`, {
+          method: 'POST',
+          body: JSON.stringify({ id: 0 }),
+        })
+      ).status,
+    ).toBe(404)
+    for (const listener of listeners) {
+      listener({ type: 'resumed', ts: new Date().toISOString(), runId: 'fake-run' })
+    }
+    await vi.waitFor(
+      () => {
+        expect(sse.body).toContain('data: {"type":"lifecycle","event":"resumed"}\n\n')
+      },
+      { timeout: 3000, interval: 20 },
+    )
+
     // …but envelope-free types like step-done are not.
     for (const listener of listeners) {
       listener({ type: 'step-done', ts: new Date().toISOString(), runId: 'fake-run', stepId: 'x' })

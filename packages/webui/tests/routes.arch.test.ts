@@ -49,6 +49,10 @@ describe('UC-27 - Admin API Routes & Config (architectural)', () => {
     expect(await fileExists('../server/routes/api/pipelines.ts')).toBe(true)
   })
 
+  it('cross-process ingest register route exists', async () => {
+    expect(await fileExists('../server/routes/api/ingest/register.ts')).toBe(true)
+  })
+
   it('runs start route exists', async () => {
     expect(await fileExists('../server/routes/api/runs/start.ts')).toBe(true)
   })

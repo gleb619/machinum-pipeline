@@ -15,6 +15,7 @@ Re-exports everything needed by consumers:
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
 - `UriRegistry`, `registry`, `Splitter`, `registerSource`, `registerTarget`, `registerSplitter`, `resolveSource`, `resolveTarget`, `resolveSplitter`, `hasSplitter` (URI + splitter registry)
+- `acquireListener`, `ListenerLease`, `HttpRouteHandler` (refcounted shared HTTP listener registry)
 - `Runner`, `Store`, `Cache`
 
 ## Key Modules
@@ -294,6 +295,21 @@ All split implementations share the `Splitter<O>` interface from `types.ts`
 (`{ name, split(env: Exchange<unknown>, ctx?: SplitterContext): O[] | Promise<O[]> }`) but keep
 their own logic. The Runner passes `{ run }`, so a splitter can resolve run-scoped settings and
 tunable constants (`ctx.run.global.env` / `settings`) the same way a tool does.
+
+### `http-listener.ts` — shared HTTP listener registry
+
+`acquireListener(host, port, factory?) -> Promise<ListenerLease>` returns one `http.Server` per
+compatible `host:port`, refcounted across callers in the process. Its routes dispatch by exact
+pathname; `addRoute('*', handler)` is the fallback (`mt serve` mounts its h3 app there). A lease's
+`release()` removes every route it mounted and closes the server only after the last lease.
+
+- **Host match** — same port and identical hosts share; a listener bound to `0.0.0.0`/`::` also
+  covers a loopback request. Explicit different interfaces on one port stay separate.
+  `localhost` normalizes to `127.0.0.1`; `port: 0` always creates a fresh listener.
+- **Concurrency** — concurrent acquires for one `host:port` share a single in-flight bind.
+- **Errors** — a foreign process on the port rejects with `EADDRINUSE` naming `host:port`.
+- **Layering** — registry lives in `core/` so both `@mt/waypoint` (`hs://` sources) and
+  `@mt/webui` (`mt serve`) use it without either importing the other.
 
 ### `engine/runner.ts` — `Runner`
 Main execution loop. Methods: `start()`, `pause()`, `resume()`, `unpause()`. Manages state machine, checkpoint writes, event log, dead-letter.

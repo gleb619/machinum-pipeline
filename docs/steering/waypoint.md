@@ -187,14 +187,27 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 
 ### `http-server.ts`
 - `Lifecycle: 'long-lived'` — persists across pauses/resumes
-- Plain `node:http` server started on `start()`; no `resume()` support
-- Endpoints: `POST <uri.path>` ingest, `GET /health`, `GET /events` (SSE)
+- Listener comes from `@mt/core`'s refcounted registry (`acquireListener`), so several `hs://`
+  sources and a running `mt serve` share one `http.Server` per `host:port`; the server closes only
+  when the last lease releases. No `resume()` support
+- Default bind stays `127.0.0.1`; an explicit URI host is honoured (`localhost` maps to
+  `127.0.0.1`). A foreign process on the port still fails with an `EADDRINUSE` error naming
+  `host:port`
+- Endpoints: `POST <uri.path>` ingest, `GET /health`, `GET /events` (SSE). When the listener is
+  shared, health/events move under the ingest prefix (`<uri.path>/health`, `<uri.path>/events`) so
+  they cannot shadow admin `/api/*`; ingest paths under `/api/*` are rejected when the source opens
+- Pause withdraws the ingest route; resume re-adds it. Done/failed and shutdown remove every route
+  and release the lease
 - `/events` is a read-only fan-out: each envelope handed to the pipeline is mirrored to every
   subscriber. It never reads or clears the ingest buffer, so subscribing cannot steal items
 - Query options: `port`, `count` (stop after N yielded), `maxBodyBytes` (default 1 MiB, oversize →
   `413`), `maxBuffer` (default 1000 undelivered envelopes, full → `503` + `Retry-After`)
-- Shutdown ends all subscriber responses and calls `closeAllConnections()` before `close()` — an open
-  SSE connection must not block run teardown
+- Shutdown ends all subscriber responses before releasing the lease — an open SSE connection must
+  not block run teardown
+- **Child mode** — when `MT_INGEST_PARENT` is set (spawned processor under `mt serve`), the source
+  binds an ephemeral loopback port and registers `{path, runId, targetUrl}` via
+  `POST /api/ingest/register`; the parent forwards `POST <path>` bodies to it. It deregisters on
+  teardown with `DELETE /api/ingest/register`
 
 ### `http-target.ts`
 - Target-only HTTP client: `http://` and `https://` are registered as targets, `hs://` stays

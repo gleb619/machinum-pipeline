@@ -29,6 +29,8 @@ export type {
 } from './annotation.js'
 export { createConsoleLogger, escapeLogNewlines, formatLogLine, log } from './logging.js'
 export type { LogFunction, LogSeverity } from './logging.js'
+export { acquireListener, hostsShareListener } from './http-listener.js'
+export type { HttpRouteHandler, ListenerFactory, ListenerLease } from './http-listener.js'
 export { Store } from './store.js'
 export { atomicWriteFile, AtomicStreamWriter, removeStaleTmpFiles, tmpPathFor } from './atomic.js'
 export type { LifecycleScripts, MtConfig } from './config.js'

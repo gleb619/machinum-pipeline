@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
-import { type Server, createServer } from 'node:http'
-import type { AddressInfo } from 'node:net'
 import { extname, join, normalize, resolve, sep } from 'node:path'
+import { acquireListener } from '@mt/core'
+import type { HttpRouteHandler } from '@mt/core'
 import {
   createRouterApp,
   handleRouterError,
@@ -20,6 +20,7 @@ import {
   toNodeListener,
 } from 'h3'
 import healthRoute from './routes/api/health.js'
+import registerIngestRoute from './routes/api/ingest/register.js'
 import pipelinesRoute from './routes/api/pipelines.js'
 import runRoute from './routes/api/runs/[id].js'
 import eventsRoute from './routes/api/runs/[id]/events.js'
@@ -29,6 +30,7 @@ import resumeRoute from './routes/api/runs/[id]/resume.js'
 import runsRoute from './routes/api/runs/index.js'
 import startRoute from './routes/api/runs/start.js'
 import { assertSafeServeBind, checkBearer, resolveServeToken } from './utils/serve-auth.js'
+import { attachIngestMount, detachIngestMount } from './utils/ingest-forwarder.js'
 import { closeSqlite, initSqlite } from './utils/sqlite.js'
 
 export { resolveServeTokenRef } from './utils/serve-auth.js'
@@ -42,6 +44,11 @@ export { resolveServeTokenRef } from './utils/serve-auth.js'
 /** Embedded UI: URL path -> file path (set by the Bun binary build as `globalThis.__MT_UI__`). */
 export type EmbeddedUi = Record<string, string>
 
+/** Mount point supplied by `startBackend`; lets `createBackendApp` register its h3 app. */
+export interface BackendMount {
+  addRoute(path: string, handler: HttpRouteHandler): () => void
+}
+
 export interface StartBackendOptions {
   port?: number
   host?: string
@@ -53,6 +60,8 @@ export interface StartBackendOptions {
   router?: boolean
   /** Bearer token for `/api/*`; resolved from CLI/env/config when omitted. Never logged. */
   token?: string
+  /** Optional shared-listener mount (used by `startBackend`; tests can omit it). */
+  mount?: BackendMount
 }
 
 export interface BackendHandle {
@@ -136,7 +145,7 @@ function serveAuthHandler(token: string) {
 }
 
 export function createBackendApp(
-  options: Pick<StartBackendOptions, 'uiDir' | 'ui' | 'router' | 'token'> = {},
+  options: Pick<StartBackendOptions, 'uiDir' | 'ui' | 'router' | 'token' | 'mount'> = {},
 ) {
   const app = createApp({
     onError(error, event) {
@@ -148,6 +157,7 @@ export function createBackendApp(
   const adminRouter = createRouter()
   adminRouter.use('/api/health', healthRoute)
   adminRouter.use('/api/pipelines', pipelinesRoute)
+  adminRouter.use('/api/ingest/register', registerIngestRoute)
   adminRouter.use('/api/runs', runsRoute)
   adminRouter.use('/api/runs/start', startRoute)
   adminRouter.use('/api/runs/:id', runRoute)
@@ -167,6 +177,7 @@ export function createBackendApp(
   else if (embedded && Object.keys(embedded).length > 0) {
     app.use(uiHandler(embeddedLookup(embedded)))
   }
+  options.mount?.addRoute('*', toNodeListener(app))
   return app
 }
 
@@ -179,24 +190,27 @@ export async function startBackend(options: StartBackendOptions = {}): Promise<B
   if (options.router !== false) await prepareRouterRuntime({ host })
   initSqlite(projectRoot)
 
-  const server: Server = createServer(toNodeListener(createBackendApp({ ...options, token })))
-  await new Promise<void>((resolveListen, rejectListen) => {
-    server.once('error', rejectListen)
-    server.listen(options.port ?? 3000, host, () => resolveListen())
-  })
-  const port = (server.address() as AddressInfo).port
+  const listener = await acquireListener(host, options.port ?? 3000)
+  try {
+    attachIngestMount(listener)
+    createBackendApp({ ...options, token, mount: listener })
+  } catch (error) {
+    detachIngestMount()
+    await listener.release()
+    throw error
+  }
 
   return {
     host,
-    port,
-    url: `http://${host}:${port}`,
-    close: () =>
-      new Promise<void>((resolveClose) => {
-        server.closeAllConnections?.()
-        server.close(() => {
-          closeSqlite()
-          resolveClose()
-        })
-      }),
+    port: listener.port,
+    url: `http://${host}:${listener.port}`,
+    close: async () => {
+      detachIngestMount()
+      try {
+        await listener.release()
+      } finally {
+        closeSqlite()
+      }
+    },
   }
 }

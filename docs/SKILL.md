@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.17.0 | 2026-11-04 -->
+<!-- skill-version: 1.18.0 | 2026-11-04 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -97,7 +97,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `jsonl://./f.jsonl` | JSON lines; source accepts globs; each line `{ "item": ... }` |
 | `md://./dir` or `md://./f.md` | Markdown files / single file; source `?split=chunks\|paragraphs\|lines` fans each file out with that registered splitter; target `?series=true` runs the registered `series` splitter before writing (same as `.subflow('#series')`) |
 | `chapter://./en/` | language-folder chapter layout |
-| `hs://http://...` | HTTP source |
+| `hs://http://...` | HTTP source (`POST <path>` ingest). Shares the `mt serve` listener when run in the same process/port; `/health` and `/events` move under the ingest path when shared; `/api/*` ingest paths are rejected |
 | `http://host/path` / `https://host/path` | HTTP target — one request per exchange; `?method=POST\|PUT\|PATCH\|DELETE`, `?bearer=ENV_NAME` (env/vault ref, never inline), `?timeoutMs=`, `?retries=`, `?batch=true` (body carries `items[]`), `?contentType=json\|item\|text`, `?header.X-Foo=bar`; `hs://` is source-only |
 | `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
@@ -169,7 +169,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
-| `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); `--token-ref` takes an env var name, `env:NAME`, or `vlt:`/`keepass:`/`embed:` ref (no plaintext `--token`); detached state in `.mt/backend/{pid,server.log}` |
+| `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); `hs://` sources on that `host:port` reuse the same listener; `--token-ref` takes an env var name, `env:NAME`, or `vlt:`/`keepass:`/`embed:` ref (no plaintext `--token`); detached state in `.mt/backend/{pid,server.log}` |
 | `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | standalone keyless LLM gateway, API-only (also embedded in `mt serve`); token only via `MT_ROUTER_TOKEN` |
 | `mt vault <sub>` | secrets, see below |
 | `mt skill [...]` | print/install this file, see below |
@@ -296,6 +296,8 @@ One pick configures every LLM tool: env `MT_LLM_TOOL` (or `settings.llm.tool`) =
 `MT_LLM_MODEL`, `MT_LLM_PROVIDER`, `MT_LLM_BASE_URL`, `MT_ROUTER_URL` (default `http://localhost:7777`),
 `MT_ROUTER_TOKEN`, `MT_SERVE_TOKEN` (admin API bearer; a non-loopback `mt serve --host` requires it),
 `OPENROUTER_API_KEYS` (comma pool), `MT_OLLAMA_URL` also apply.
+`MT_INGEST_PARENT` (internal) puts a spawned `hs://` source in child mode: it registers its ingest
+path with the parent `mt serve` (`POST /api/ingest/register`) instead of binding the declared port.
 
 Offline pipeline for tests:
 
@@ -375,7 +377,7 @@ Runner never enters it. `paused -> done` is illegal.
 | `vlt` session expired | vlt locked | `vlt login`, retry |
 | 401 / 429 from LLM | keys missing or pool exhausted | check vault refs, `OPENROUTER_API_KEYS`, router status |
 | missing package in the standalone binary | binary has no project `node_modules` | install deps next to the pipeline; native addons (`.node`) are unsupported |
-| port busy | `mt serve` default taken | `--port <p>` or `--port 0` |
+| port busy | `mt serve` default taken, or `hs://` collides with a foreign process | `--port <p>` / `--port 0`; `hs://` shares `mt serve` on the same `host:port` |
 | `mt serve` refuses a non-loopback host | no admin-API token | `MT_SERVE_TOKEN`, `--token-ref <ENV_OR_REF>`, or bind `127.0.0.1` |
 | `401 {"error":"Unauthorized"}` from `mt serve` | missing/wrong bearer token | send `Authorization: Bearer <secret>`; `GET /api/health` is open |
 | behaviour matches old code | stale `mt` binary | rebuild/upgrade the binary |

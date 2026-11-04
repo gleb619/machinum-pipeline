@@ -196,6 +196,8 @@ lists sources/targets) instead of from worker configuration.
 
 ### 1d. Reuse the `mt serve` port instead of a second `hs://` listener
 
+**Status: implemented in T201** (`acquireListener` registry in `@mt/core`; see `docs/steering/core.md`).
+
 Today every `hs://` source calls `createServer().listen(port)` itself
 (`packages/waypoint/src/http-server.ts`), so a pipeline with `hs://0.0.0.0:7777/ingest` collides with a
 running `mt serve --port 7777` (`EADDRINUSE`). Proposal: one **shared HTTP listener registry** per
