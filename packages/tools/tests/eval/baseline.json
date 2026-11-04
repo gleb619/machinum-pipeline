@@ -1,0 +1,48 @@
+{
+  "tolerances": {
+    "parityErrors": { "max": 0 },
+    "parityWarnings": { "max": 0 },
+    "cyrillicRatio": { "min": 0.95 },
+    "termConsistency": { "min": 0.95 },
+    "termConsistencyIssues": { "max": 0 },
+    "untranslatedShare": { "max": 0.02 },
+    "lengthRatioChars": { "min": 0.7, "max": 1.2 },
+    "lengthRatioLines": { "min": 0.95, "max": 1.05 },
+    "parseFailureRate": { "max": 0 }
+  },
+  "recorded": {
+    "chapter1": {
+      "parityErrors": 0,
+      "parityWarnings": 0,
+      "cyrillicRatio": 1,
+      "termConsistency": 1,
+      "termConsistencyIssues": 0,
+      "untranslatedShare": 0,
+      "lengthRatioChars": 0.9335,
+      "lengthRatioLines": 1,
+      "parseFailureRate": 0
+    },
+    "chapter2": {
+      "parityErrors": 0,
+      "parityWarnings": 0,
+      "cyrillicRatio": 1,
+      "termConsistency": 1,
+      "termConsistencyIssues": 0,
+      "untranslatedShare": 0,
+      "lengthRatioChars": 0.9433,
+      "lengthRatioLines": 1,
+      "parseFailureRate": 0
+    },
+    "chapter3": {
+      "parityErrors": 0,
+      "parityWarnings": 0,
+      "cyrillicRatio": 1,
+      "termConsistency": 1,
+      "termConsistencyIssues": 0,
+      "untranslatedShare": 0,
+      "lengthRatioChars": 0.8382,
+      "lengthRatioLines": 1,
+      "parseFailureRate": 0
+    }
+  }
+}

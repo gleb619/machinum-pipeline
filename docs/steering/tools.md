@@ -1143,3 +1143,7 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL249 | `bookCompilerValidate` | `book-compiler-validate` | — | `modification/book-compiler.ts` |
 | TL250 | `bookCompilerEmit` | `book-compiler-emit` | — | `modification/book-compiler.ts` |
 | TL251 | `bookCompiler` | `book-compiler` | — | `modification/book-compiler.ts` |
+
+## Translation eval harness (`tests/eval/`)
+
+Offline regression harness under `tests/eval/`: fixtures (3 chapters + glossary), recordings (canned title/paragraph replies), `score.ts` (pure metrics via existing `lintLineParity` / `checkTermConsistency` / `checkTranslatedShare`, plus length ratio and recording parse-failure rate), `baseline.json` (recorded values + per-metric tolerances), and `eval.test.ts`. Run `pnpm --filter=@mt/tools run eval`; it prints the metric table and exits non-zero when any metric leaves its tolerance. A degraded recording (dropped line, blank slot, or untranslated paragraph) fails with the offending metric named. The opt-in live mode (`pnpm --filter=@mt/tools run eval:live`, the `--live` path) runs the same corpus through `createChapterBodyTranslator` against `MT_OLLAMA_URL`, reports metrics without gating, and is not part of `pnpm test:gpu`.

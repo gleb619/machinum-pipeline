@@ -1,0 +1,94 @@
+{
+  "terms": [
+    {
+      "id": "aelwyn",
+      "term": "Aelwyn",
+      "type": "character",
+      "count": 4,
+      "firstChapter": 1,
+      "ru": "Аэлвин",
+      "aliases": ["Ael"]
+    },
+    {
+      "id": "everspring",
+      "term": "Everspring",
+      "type": "place",
+      "count": 3,
+      "firstChapter": 1,
+      "ru": "Эверспринг",
+      "aliases": []
+    },
+    {
+      "id": "shadowveil",
+      "term": "Shadowveil",
+      "type": "item",
+      "count": 3,
+      "firstChapter": 1,
+      "ru": "Теневейл",
+      "aliases": ["Veil"]
+    },
+    {
+      "id": "grimhold",
+      "term": "Grimhold",
+      "type": "place",
+      "count": 2,
+      "firstChapter": 2,
+      "ru": "Гримхолд",
+      "aliases": []
+    },
+    {
+      "id": "crystal",
+      "term": "Crystal of Dawn",
+      "type": "item",
+      "count": 3,
+      "firstChapter": 2,
+      "ru": "Кристалл Рассвета",
+      "aliases": ["Dawn Crystal"]
+    },
+    {
+      "id": "morwyn",
+      "term": "Morwyn",
+      "type": "character",
+      "count": 1,
+      "firstChapter": 2,
+      "ru": "Морвин",
+      "aliases": []
+    },
+    {
+      "id": "frostbloom",
+      "term": "Frostbloom",
+      "type": "term",
+      "count": 3,
+      "firstChapter": 3,
+      "ru": "Морозоцвет",
+      "aliases": []
+    },
+    {
+      "id": "silverthorn",
+      "term": "Silverthorn",
+      "type": "character",
+      "count": 3,
+      "firstChapter": 3,
+      "ru": "Сереброшип",
+      "aliases": ["Thorn"]
+    },
+    {
+      "id": "oakbridge",
+      "term": "Oakbridge",
+      "type": "place",
+      "count": 1,
+      "firstChapter": 3,
+      "ru": "Дубовый мост",
+      "aliases": []
+    },
+    {
+      "id": "ember",
+      "term": "Ember Key",
+      "type": "item",
+      "count": 2,
+      "firstChapter": 3,
+      "ru": "Ключ Углей",
+      "aliases": ["Ember"]
+    }
+  ]
+}

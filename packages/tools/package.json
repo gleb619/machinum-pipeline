@@ -20,6 +20,8 @@
     "test": "node scripts/gen-prompts.mjs && vitest run",
     "test:coverage": "node scripts/gen-prompts.mjs && vitest run --coverage",
     "test:gpu": "vitest run --config vitest.gpu.config.ts",
+    "eval": "vitest run tests/eval",
+    "eval:live": "MT_EVAL_LIVE=1 vitest run tests/eval/live.test.ts",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
