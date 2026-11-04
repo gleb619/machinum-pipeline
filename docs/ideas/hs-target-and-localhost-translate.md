@@ -1,69 +1,236 @@
-# Ideas: `hs://` transport target + reserved local translation domain
+# Ideas: remote execution via `mt serve` + reserved local translation domain
 
 Status: idea only — not implemented. Captured 2026-11-03. Context refreshed 2026-11-03 (evening)
 against the tree after the `@mt/backend`→`@mt/webui` / `@mt/frontend`→`@mt/components` renames and
-the T197 router-embedding work: nothing below changed materially — `hs://`/`http://` are still
-source-only, and the translate worker is now an in-repo tool (see Cost note).
+the T197 router-embedding work. **Decision: `hs://` stays source-only; `http://` / `https://` become a target too** (client role,
+`?method=` selects the verb), alongside remote execution via `mt serve` (section 1). No `replyTo`
+correlation protocol. WT003 goes `✓ —` → `✓ ✓` for `http`; `hs` remains `✓ —`. The translate worker is
+an in-repo tool (see Cost note).
 
-## 1. `hs://` / `http://` target waypoint
+## 1. Remote run: ship the pipeline, run it remotely, get results locally
 
-Today `hs://` and `http://` are **source-only**: `createHttpSource` in
-`packages/waypoint/src/http-server.ts` (`registry.registerSource('hs', …)`, waypoint WT003) accepts
-`POST /<path>` and replies `{ "received": true }`; it also serves `GET /health` and a long-lived
-`GET /events` SSE fan-out. There is no target that sends an `Exchange` to another `mt` process.
+The `http://` target (1b) moves *data* one exchange at a time; it does not solve "run this pipeline on
+that machine" (Chrome, Docker, Playwright, GPU live there). It also has no request/response story
+(`replyTo`, correlation, idempotency would be bolted on), so remote execution below is the primary path
+and the target is the generic building block (call webhooks, hit the remote admin API, push to
+another `hs://` source).
 
-Current-state notes for the design:
+### User story
 
-- The URI registry keeps sources and targets separate (`registerSource` / `registerTarget`), so a
-  target can claim the same `hs`/`http` names without colliding with the existing source.
-- The existing SSE fan-out (`GET /events`) is a candidate return channel: the caller could watch
-  events filtered by `X-MT-Exchange-Id` instead of running a second `hs://` source for `replyTo`.
-  Open question below should weigh both.
-- T197 (router embedded in `mt serve`) is unrelated to this idea but means a remote `mt` process
-  already runs several HTTP services on one port — a future `hs://` target design should assume
-  multiple endpoints behind one `mt serve`.
-
-Proposed pair:
+1. Author the pipeline locally (`pipelines/translate.ts`, plain TS module).
+2. Remote PC runs `mt serve --host 0.0.0.0 --port 7777` (token-protected; the remote box has the heavy
+   toolchain: headless Chrome / Playwright / Docker / GPU Ollama).
+3. Locally: `mt run translate.ts --remote http://remote:7777` (name TBD: `--remote` / `mt remote run`).
+   **Automatic**: the CLI first syncs the project to the remote (delta only, section 1a), then starts
+   the run remotely and streams progress. No manual copy, rsync or git push.
+4. Everything heavy (browserTranslate's Chrome, container tools, Playwright) launches **on the remote**.
+5. When the run is `done`, the CLI pulls the outputs back; the user only sees results locally
+   (`.mt/runs/<id>/` mirror + target files in their local project).
 
 ```text
-source side (us)                         remote side
-.jsonl / md / tools  --POST-->  hs://0.0.0.0:8787/ingest
-                                   -> tool (browserTranslate, ...)
-                                   -> POST http://us:8788/result
-.from('hs://127.0.0.1:8788/result') <--+
+local                                         remote (mt serve)
+mt run p.ts --remote URL
+  ── sync: manifest diff, push changed ───▶  mirror in .mt/remote/<projectId>/ (sandboxed root)
+  ── POST /api/runs/start {projectId,..} ──▶  Runner (Chrome / Docker / Playwright launch here)
+  ◀─ GET  /api/runs/:id/events (SSE) ──────  progress → local DuplexLogger
+  ◀─ sync back: manifest diff, pull ───────  target outputs + run dir → local project
 ```
 
-### Target sketch
+### What exists today (verified in tree)
 
-- Register a target for `hs` and `http` (same scheme names as the source) that POSTs JSON
-  `Exchange` payloads to `http(s)://host:port/path`.
-- Options: `?timeoutMs`, `?retries`, `?bearer=<env-name>`, `?batch=true|false`,
-  `?replyTo=<hs-url>`, `?contentType=json`.
-- Preserve `id`, `meta`, `variables`, `item`/`items`; one POST per exchange (or one per batch).
-- Retry on network / 429 / 5xx with backoff; fail the run on 4xx unless `onError` handles it.
-- Auth: bearer header from an env/vault ref, never inline plaintext.
-- Correlation: send `X-MT-Exchange-Id` and optional `replyTo`; remote pipeline posts the result
-  back to the caller's `hs://` source. `id` is the stable correlation key.
-- Backpressure: `hs://` source already has `maxBuffer` / 503; target should honor `Retry-After`.
+- `mt serve` (`packages/cli/src/commands/serve.ts` → `@mt/webui/standalone`) already serves
+  `POST /api/runs/start`, `GET /api/runs`, `/api/runs/:id`, `/api/runs/:id/events` (SSE tail of
+  `events.jsonl`), `pause` / `resume`, `GET /api/pipelines`, `GET /api/health`.
+- `start.ts` runs `loadGlobalContext(process.cwd())` + `importPipelineModule` for a path **already on
+  the remote disk**, confined to the project root (`resolveInsideRoot`). So today the pipeline has to
+  be pre-copied by hand (rsync/git) and only a project-relative path is accepted.
+- No auth on the admin API (the router's `MT_ROUTER_TOKEN` middleware is scoped to router routes only),
+  so binding `--host 0.0.0.0` is currently unsafe.
 
-### Why it matters
+### Gaps to design
 
-- Reuses the `mt` binary on both ends; no custom server protocol.
-- Lets a remote PC run a normal pipeline:
-  `mt run remote.ts` with `.from('hs://0.0.0.0:8787/ingest').use(browserTranslate).to('http://us:8788/result')`.
-- Generalizes the current `mt-browser-translate` worker: any tool chain becomes remotely callable.
-- Needs a request/response story: `hs://` alone is one-way, so `replyTo` + correlation is mandatory
-  for tools that must return data.
+- **Auth**: bearer token on the admin API (`MT_SERVE_TOKEN`, vault/`embed:` ref, constant-time compare,
+  mandatory when `--host` is non-loopback). Same pattern as `browser-translate-server`
+  (`timingSafeEqual`). TLS via reverse proxy / SSH tunnel (`ssh -L 7777:localhost:7777 remote`) first.
+- **Sync**: built-in `mt` project sync between two `mt` servers, see 1a. Replaces manual upload; start
+  takes a `projectId` (mirror root) rather than a bare path. Size cap + path-traversal guard (reuse
+  `resolveInsideRoot`).
+- **Code execution trust**: uploading a pipeline = remote arbitrary code execution as the serve user.
+  Acceptable only for the user's own machines behind the token; never expose publicly. Document it.
+- **Secrets**: do not ship `.env`/vault. Remote uses its **own** vault/embed store (`mt.json →
+  secrets`, `vlt:`/`keepass:`/`embed:` refs resolve remotely); bundle carries refs only.
+- **Results back**: new `GET /api/runs/:id/artifacts` (tar/zip stream) or per-file
+  `GET /api/runs/:id/files/*`; CLI materialises targets locally. Alternatively write targets remotely and
+  let the user pull — but the stated goal is results land locally.
+- **Local sources**: a remote pipeline can't read local `jsonl://./in.jsonl`; inputs travel in the bundle
+  (small) or via a local `hs://` the remote posts to (not the primary path; large inputs are an open
+  question).
+- **Lifecycle**: `--remote` run is detached from the CLI process: Ctrl+C = pause (remote
+  `POST /pause`), `mt resume <runId> --remote URL` re-attaches the SSE stream. Remote `Runner` registry
+  already tracks live runs (`runner-registry.ts`).
+- **Where heavy tools run**: nothing special — they run wherever the Runner runs. The remote needs
+  Chrome (`browserTranslate`), Docker, Playwright installed; `mt` could print a capability list at
+  `GET /api/health` so the CLI fails fast if a tool's prerequisite is missing remotely.
+- **UI**: webui/TUI (`docs/layout.md`) show remote runs for free once they list from the remote
+  `mt serve`; the TUI/web `baseUrl` already points at any `mt serve`.
+
+### 1b. `http://` / `https://` as target (`?method=`)
+
+Today only a source is registered (`registerSource('http'|'hs', createHttpSource)` in
+`packages/waypoint/src/http-server.ts`, `direction: 'source'`). Add `registerTarget('http', …)` and
+`('https', …)` (same WT003 id, second annotation with `direction: 'target'`, like `jsonl.ts`/`md.ts`).
+`hs://` is deliberately **not** registered as a target: in `.from()` it means "listen", keep that
+meaning unambiguous. Role is positional: `.from('http://…')` still listens (legacy), `.to('http://…')`
+sends.
+
+```ts
+.to('http://remote:7777/api/runs/start?method=POST&bearer=MT_REMOTE_TOKEN')
+```
+
+Query params (all optional):
+
+| Param | Default | Meaning |
+|---|---|---|
+| `method` | `POST` | HTTP verb: `POST` `PUT` `PATCH` `DELETE` (`GET`/`HEAD` rejected: body-less) |
+| `bearer` | — | *Env/vault ref name* for `Authorization: Bearer …`; never inline plaintext |
+| `timeoutMs` | 30000 | per-request timeout |
+| `retries` | 3 | network / 429 / 5xx with backoff; honour `Retry-After`; 4xx fails the item |
+| `batch` | `false` | `true`: one request with `items[]` per batch exchange; else one per exchange |
+| `contentType` | `json` | `json` (full `Exchange`), `item` (just `item`), `text` |
+| `header.<Name>` | — | extra static header (non-secret) |
+
+Behaviour:
+- Body = JSON `Exchange` (`id`, `item`/`items`, `meta`, `variables`) by default; sends
+  `X-MT-Exchange-Id` as the idempotency key.
+- 2xx = success; response body is discarded (terminal target). Optional `?capture=<variable>` stores
+  the response body as a qualified variable on the exchange — open question.
+- `checkpoint()` counts 2xx-acked exchanges, so a crash resume replays unacked items (at-least-once).
+- Logging via `ctx.run.logger`; URL query secrets are masked in log lines.
+- Docs to update when it lands: `docs/steering/waypoint.md` (WT003 row, WP003 matrix),
+  `docs/steering/tools.md` ("`hs://` is **ingest-only**" note), `samples/sample1` README.
+
+### 1a. Automatic sync between two mt servers
+
+No sync feature exists in `mt` today (only `git://` worktree isolation and `mt.json` `imports`). New
+built-in, symmetric, content-addressed, rsync-style delta over the same HTTP API:
+
+- **Manifest**: `GET /api/sync/manifest?projectId=` → `{ path, size, sha256, mtime }[]` for the synced set.
+  Sender hashes locally, diffs against the peer manifest, sends only changed/new files, deletes removed
+  ones (opt-in `--prune`).
+- **Transfer**: `PUT /api/sync/files` (multipart or tar stream, chunked, atomic temp-then-rename on the
+  receiver per the project atomic-write rule); resumable by re-running the diff.
+- **Scope** (`mt.json → remote.sync`): `include` / `exclude` globs. Defaults: include pipelines, local
+  modules they import, `mt.json`, input files declared by `.from(...)`; exclude `.mt/`, `node_modules/`,
+  `.env`, vault files, `.git/`. Secrets never travel; the remote uses its own vault (`vlt:`/`keepass:`/
+  `embed:` refs resolve there).
+- **Directions**: `push` (local → remote) before the run; `pull` (remote → local) of target outputs and
+  `.mt/runs/<id>/` after (or incrementally while running, so partial results appear locally).
+  Pull scope is only what the run's targets wrote, never the whole mirror.
+- **Triggers**: implicit with `mt run --remote`; explicit `mt remote sync [--push|--pull] [--watch]` for
+  a dev loop (edit locally, remote mirror follows); `--dry-run` prints the diff.
+- **Peers, not only client→server**: the same endpoints work server↔server (`mt serve` A pushes to
+  `mt serve` B), so a remote can mirror results to a third machine.
+- **Version guard**: `/api/health` returns `mt` version + capability list (chrome, docker, playwright,
+  ollama); CLI refuses on mismatch or missing prerequisite before syncing.
+- **Dependencies**: `node_modules` are not synced; remote must have the same `mt` build. Pipelines
+  importing project-local npm deps need `mt remote sync --install` (runs the remote `scripts.install`
+  hook) — open question.
+- **Alternative considered**: git-based (remote pulls a ref via `git://`). Needs a shared remote repo and
+  commits for every tweak; sync is simpler for iteration. Keep git as an opt-in `remote.sync.mode: "git"`.
+
+### 1c. Worker mode: `mt` pulls from a main `mt` and waits for signals
+
+Push-sync (1a) needs the remote to be reachable from the main machine. Invert it: start `mt` on the
+remote in a **worker mode** that dials *out* to the main `mt serve` (works behind NAT/firewall, one
+outbound connection, no inbound port on the worker).
+
+```bash
+# remote PC
+mt worker --main http://main:7777 --token-ref MT_MAIN_TOKEN [--name gpu-box] [--tag chrome,docker]
+```
+
+Two separate concerns — **mode of work** (what the process is) and **pipe logic** (what a pipe does):
+
+| Concern | Owner | Detail |
+|---|---|---|
+| Mode of work | `mt worker` process | pull project, hold a control channel, spawn processors, report status |
+| Pipe logic | the pipeline module | unchanged TS; runs inside a spawned processor, same `Runner` as `mt run` |
+
+Lifecycle of the worker:
+
+1. **Register** — `POST /api/workers {name, tags, mtVersion, capabilities}` on main; main lists workers
+   in the webui/TUI (new "Workers" view in `docs/layout.md` if built).
+2. **Pull** — worker constantly mirrors the project from main using the manifest diff of 1a, in the pull
+   direction (`GET /api/sync/manifest` → fetch changed files). Triggers: on connect, on a `project-changed`
+   signal, and a slow poll as fallback. Mirror lives in `.mt/worker/<mainId>/`; same scope/exclude rules,
+   secrets never pulled (worker has its own vault).
+3. **Await signals** — long-lived control channel from main: SSE (`GET /api/workers/:id/signals`) with
+   long-poll fallback; reconnect with `Last-Event-ID`. Signals: `project-changed`, `run`
+   `{runId, pipeline, params}`, `pause`, `resume`, `cancel`, `drain`.
+4. **Spawn a pipe processor** — on `run`, the worker spawns a child `mt` process (isolation: a crashed
+   Chrome/Docker/Playwright tool cannot kill the worker; one processor per run; concurrency cap
+   `--max-runs`). The child loads the pipeline from the mirror and executes it with the normal `Runner`.
+5. **Report** — processor events stream to main (`POST /api/runs/:id/events` batches, or main tails
+   the worker's `events.jsonl` via SSE); targets written on the worker are pulled back by main (1a pull
+   scope) or, if the pipeline's target is `http://` (1b), posted straight to a main-side `hs://`/endpoint.
+6. **Idle** — back to awaiting signals; `drain` finishes active runs then exits.
+
+Main side: `mt run p.ts --on gpu-box` (or `--remote` = any worker matching tags) creates the run record
+locally, sends the `run` signal, and mirrors state/events as if the run were local, so `mt ls runs`,
+`mt inspect`, webui and TUI work unchanged. Worker↔main auth: bearer token (see Gaps).
+
+**Data ingress is declared by the pipe, not by the mode.** A processor opens no listener by default.
+Only if the pipeline text declares `.from('hs://…')` / `.from('http://…')` does it accept inbound data;
+everything else is outbound-only. Likewise `.to('http://host?method=…')` (1b) is the only way a pipe
+sends data out over HTTP. This keeps "what can reach me" derivable from the pipeline (`mt explain` already
+lists sources/targets) instead of from worker configuration.
+
+### 1d. Reuse the `mt serve` port instead of a second `hs://` listener
+
+Today every `hs://` source calls `createServer().listen(port)` itself
+(`packages/waypoint/src/http-server.ts`), so a pipeline with `hs://0.0.0.0:7777/ingest` collides with a
+running `mt serve --port 7777` (`EADDRINUSE`). Proposal: one **shared HTTP listener registry** per
+process (and cross-process through the worker/serve parent):
+
+- `acquireListener(host, port)` returns the existing `http.Server` when `host:port` already has one
+  (refcounted; closed only when the last user releases), otherwise creates and registers it.
+- `mt serve` (`@mt/webui/standalone`, `startBackend`) registers its server in that registry, and mounts
+  `hs://` ingest routes onto its h3 app as sub-paths (`/ingest`, `/events`, `/health` already exist →
+  namespace ingest under the pipeline's declared path; collision with `/api/*` is rejected at `open()`).
+- Port match rule: same port and compatible host (`0.0.0.0` covers `127.0.0.1`; explicit different
+  interfaces on one port stay separate). Mismatch → own listener as today.
+- Cross-process: a spawned pipe processor under `mt serve`/`mt worker` does not bind; it asks the parent
+  (IPC or `POST /api/ingest/register {path, runId}`) to route `POST <path>` to it. Parent forwards the
+  body (or hands over via a local socket), keeps the 503/`Retry-After` backpressure semantics.
+- Lifecycle: route registered on `open()`, removed on `close()`/pause/failed, with the existing
+  paused/resumed/done/failed mirroring on `/events`.
+- Tests: two `hs://` sources on one port share it; `hs://` + running `mt serve` on the same port both
+  answer; port conflict with a foreign process still fails with a clear message.
+
+### Relationship to other pieces
+
+- `hs://` keeps its job: long-lived ingest endpoint inside a pipeline (WT003,
+  `docs/steering/waypoint.md`); the `http://` target (1b) can feed another process's `hs://` source.
+- T197 (router embedded in `mt serve`) means one remote port already serves admin API + router API.
+- Generalises the old `mt-browser-translate` worker: instead of one purpose-built server, any tool chain
+  that needs a remote toolchain runs via `--remote`. The standalone `browser-translate-server` stays
+  for the narrow "just translate text" case.
 
 ### Open questions
 
-- Same-scheme source + target registration order; both `hs` and `http` aliases (registry allows it —
-  sources and targets are separate maps).
-- Target semantics are terminal; should a response body be surfaced as a variable, or is
-  `replyTo` the only return path? And: `replyTo` POST vs. consuming the source's existing
-  `GET /events` SSE stream as the correlation channel.
-- Batch shape: one POST with `items[]` vs N POSTs.
-- TLS / reverse proxy, token storage, replay/idempotency keys.
+- Pull-only (1c worker) vs. push (1a) as the default; likely: worker/pull is the default, push is the
+  `--watch` dev loop.
+- Worker trust: tokens per worker, allow-listing which pipelines a worker may run, since a pulled pipeline
+  is arbitrary code.
+- Cross-process ingest forwarding (1d): IPC vs. local unix socket vs. reverse-proxy via parent.
+- CLI shape: `mt run --remote <url>` vs. `mt remote run|status|fetch`; default remote from `mt.json`
+  (`remote: { url, tokenRef }`).
+- Sync conflict policy when both sides changed a file (last-writer-wins vs. refuse; likely refuse, since
+  only `push` writes sources and only `pull` writes outputs).
+- Dependency story: remote `node_modules` must match (monorepo `workspace:` deps?); require the same
+  `mt` version on both ends (check via `/api/health`).
+- Streaming results incrementally vs. one artifact at end.
+- Multi-user / concurrent bundles, cleanup TTL for `.mt/remote/<bundleId>/`.
 
 ## 2. Reserved domain for semi-local Chrome translation
 
@@ -120,5 +287,5 @@ in-repo as `browser-translate` (TL247, `packages/tools/src/modification/browser-
 category `translator`) plus its headless server (`browser-translate-server.ts`: `--port`,
 `--concurrency`, `--cache-entries` LRU, token auth via `timingSafeEqual`). Same features the old
 `mt-browser-translate` worker provided: one shared headless Chrome, LRU cache, bounded
-concurrency, `/translate`. The `hs://` target work is about making that pattern generic for
-arbitrary tool chains, not about replacing the tool.
+concurrency, `/translate`. Remote execution (section 1) makes that pattern generic for
+arbitrary tool chains, not a replacement for the tool.
