@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.20.0 | 2026-11-04 -->
+<!-- skill-version: 1.20.1 | 2026-11-04 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -29,6 +29,8 @@ pipelines/*.ts       pipeline modules (default export = the pipeline)
   remote/<projectId>.sync.json  last-synced SHA-256 map for `mt remote sync`
   remote/<projectId>/           server-side project mirror (source + .mt/runs/<id>/)
                                 (remote run starts here; projectId is mandatory)
+  workers/<workerId>.json       main-side mt worker registration (T205)
+  worker/<mainId>/              worker-side project mirror (T205)
 ```
 
 `mt init` scaffolds `mt.json`, `.mt/`, `.gitignore` entries and `.mt/master.key`.
@@ -174,6 +176,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
+| `mt worker --main <url> [--token-ref <ENV_OR_REF>] [--name N] [--tag a,b] [--max-runs N] [--allow-pipeline GLOB]` | dial out to a main `mt serve`: register, mirror the project into `.mt/worker/<mainId>/`, hold the signal stream, spawn child `mt run` per `run`; drain then exit 0 (T205) |
 | `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); `hs://` sources on that `host:port` reuse the same listener; `--token-ref` takes an env var name, `env:NAME`, or `vlt:`/`keepass:`/`embed:` ref (no plaintext `--token`); detached state in `.mt/backend/{pid,server.log}` |
 | `mt remote sync [--push\|--pull] [--dry-run] [--prune] [--force] [--watch] [--url <url>] [--token-ref <ENV_OR_REF>] [--run <runId>] [--allow-version-mismatch]` | sync project sources to a remote `mt serve` mirror, or pull a run's outputs + `.mt/runs/<id>/`; `--watch` = push dev loop (300 ms debounce); conflict refuses unless `--force` |
 | `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | standalone keyless LLM gateway, API-only (also embedded in `mt serve`); token only via `MT_ROUTER_TOKEN` |
@@ -185,6 +188,8 @@ Examples:
 
 ```bash
 mt init && mt run ./pipelines/example.ts
+mt run ./pipelines/example.ts --on gpu-box --remote http://main:7777   # worker routing
+mt worker --main http://main:7777 --token-ref env:MT_MAIN_TOKEN --tag gpu,docker
 mt explain ./pipelines/example.ts             # flow, events and log paths; no execution
 mt explain ./pipelines/example.ts --json      # same, machine-readable
 mt info                                       # effective config (secrets masked) + .mt state
@@ -239,6 +244,26 @@ traversal confinement; one active run per project id (`409` duplicate); `GET
 /api/runs/:id/artifacts` returns the output manifest (target outputs + `.mt/runs/<id>/`). Uploading
 a pipeline is remote code execution as the serve user: token-protect it, use an SSH tunnel/TLS, and
 send only trusted projects. Secrets are never synced; the remote resolves its own vault/env.
+
+### Worker mode (T205)
+
+`mt worker --main <url>` is the dial-out side: no inbound port is needed. It registers with
+`POST /api/workers`, mirrors the main project source scope (`GET /api/sync/manifest|files?scope=project`)
+into `.mt/worker/<mainId>/`, and holds `GET /api/workers/:id/signals` (SSE with `Last-Event-ID` replay;
+`?wait=25` long-poll fallback). Signals: `project-changed`, `run`, `resume`, `pause`, `cancel`, `drain`.
+
+- Main `POST /api/runs/start` with `worker: "<id>"` or `tags: ["gpu"]` mints the run id, creates a
+  main-side `.mt/runs/<id>/` record and sends `run {runId, pipeline}`. `mt run <p> --on <worker>
+  --remote <main>` / `--tags a,b` does this from the CLI and follows the main SSE stream.
+- The worker spawns `mt run <pipeline> --run-id <id> --report-to <mainUrl>` in the mirror, one child
+  per run up to `--max-runs` (default 1); `--allow-pipeline` (default `pipelines/**`) gates paths.
+  The child reports NDJSON batches to `POST /api/runs/:id/events`; main appends to its own
+  `events.jsonl` and mirrors `state.json`, so `mt ls runs`, `mt inspect`, webui and TUI are unchanged.
+- Child crash => run `failed`, worker survives. No heartbeat for 60 s (`MT_WORKER_TTL_MS`) => worker
+  `lost`, its active runs `paused` (resumable, never silently failed). `drain` finishes active runs,
+  then exits 0. The bearer token comes from `--token-ref`; children receive it only via
+  `MT_WORKER_MAIN_TOKEN`, never argv.
+- Worker outputs stay in the worker mirror in phase 1; only run state/events are mirrored to main.
 
 ### Explain a pipeline before running it
 

@@ -65,6 +65,13 @@ describe('UC-27 - Admin API Routes & Config (architectural)', () => {
     expect(await fileExists('../server/routes/api/runs/[id]/resume.ts')).toBe(true)
   })
 
+  it('worker registry and signal routes exist', async () => {
+    expect(await fileExists('../server/routes/api/workers/index.ts')).toBe(true)
+    expect(await fileExists('../server/routes/api/workers/[id]/signals.ts')).toBe(true)
+    expect(await fileExists('../server/routes/api/workers/[id]/heartbeat.ts')).toBe(true)
+    expect(await fileExists('../server/utils/worker-registry.ts')).toBe(true)
+  })
+
   it('sync manifest and files routes exist', async () => {
     expect(await fileExists('../server/routes/api/sync/manifest.ts')).toBe(true)
     expect(await fileExists('../server/routes/api/sync/files.ts')).toBe(true)

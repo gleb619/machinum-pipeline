@@ -19,7 +19,7 @@ Primary goals:
 - **Git-aware (opt-in)** — Source/Target wrap worktree creation/removal so processing never touches master.
 - **Observable** — File-based event log (`events.jsonl`) is the source of truth; the webui tails it and streams via SSE.
 
-Non-goals (v1): distributed execution across machines, hot-reloading while a Run is in flight, built-in scheduling daemon (folder reserved in `.mt/schedules/`).
+Non-goals (v1): a general distributed scheduler (T205 `mt worker` is a single dial-out pull worker per project), hot-reloading while a Run is in flight, built-in scheduling daemon (folder reserved in `.mt/schedules/`).
 
 For full product overview (what it is / is not, core concepts, services), see [`docs/steering/product.md`](../steering/product.md).
 
@@ -182,7 +182,9 @@ other OpenAI-compatible server. Details: [steering/router.md](../steering/router
 ├── vault.json                 # gitignored vault: endpoints + secret REFS (embed:/vlt:/keepass:), never plaintext keys
 ├── schedules/                 # reserved (post-MVP)
 ├── worktrees/                 # git worktree roots when used
-├── remote/                    # project sync (T203)
+├── remote/                    # project sync (T203); also server-side mirrors
+├── workers/<workerId>.json    # main-side worker registry record (T205)
+├── worker/<mainId>/           # worker-side project mirror (T205)
 │   ├── <projectId>/           # server mirror: pushed source scope (sandboxed)
 │   └── <projectId>.sync.json  # local last-synced SHA-256 map (conflict detection)
 └── backend/

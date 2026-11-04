@@ -117,6 +117,9 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_ROUTER_TOKEN` | — | Bearer token for the router `/api/*` routes (except `GET /api/health`); also the only credential of the tools provider `router` |
 | `MT_ROUTER_VAULT` | `true` | Load router upstreams/keys from the vault file(s); `false` disables ([router.md](router.md)) |
 | `MT_SERVE_TOKEN` | — | Bearer token for `mt serve` `/api/*` routes (except `GET /api/health`); a non-loopback `--host` requires it. Plaintext or a secret ref (`env:`/`vlt:`/`keepass:`/`embed:`); `mt.json -> serve.tokenRef` is the ref-only fallback ([webui.md](webui.md#auth-t202)) |
+| `MT_WORKER_MAIN_TOKEN` | — | Worker child: bearer token for posting run events to the main `mt serve`; set by `mt worker` from `--token-ref`, never argv |
+| `MT_WORKER_TTL_MS` | `60000` | Worker registry heartbeat TTL on main; an older worker becomes `lost` and its runs `paused` |
+| `MT_WORKER_SIGNAL_HEARTBEAT_MS` | `25000` | SSE heartbeat-comment interval on `GET /api/workers/:id/signals` |
 | `MT_CLIENT_BUDGET` | — | Router: daily USD budget per `X-MT-Client` id; unset/0 = off (global `MT_DAILY_BUDGET` still applies) |
 | `MT_CLIENT_ID` | — | Tools: sent as `X-MT-Client` on router-provider requests (per-client budget key); not a secret |
 | `MT_LLM_PROVIDER` | `router` | `router` \| `openrouter` \| `openai` \| `ollama` \| `anthropic` \| `custom` |

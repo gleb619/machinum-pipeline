@@ -1,4 +1,4 @@
-import { buildManifest, collectOutputScope, walkSyncFiles } from '@mt/core'
+import { buildManifest, collectOutputScope, collectSyncScope, walkSyncFiles } from '@mt/core'
 import { createError, defineEventHandler, getQuery } from 'h3'
 import {
   isValidRunId,
@@ -10,11 +10,18 @@ import {
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const projectId = queryString(query.projectId)
-  if (!projectId) throw createError({ statusCode: 400, statusMessage: 'Missing projectId' })
   const scope = queryString(query.scope) ?? 'sources'
-  if (scope !== 'sources' && scope !== 'outputs') {
-    throw createError({ statusCode: 400, statusMessage: 'scope must be sources or outputs' })
+  if (scope !== 'sources' && scope !== 'outputs' && scope !== 'project') {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'scope must be sources, outputs or project',
+    })
   }
+  if (scope === 'project') {
+    const root = serveRootOf(event)
+    return buildManifest(root, { files: await collectSyncScope(root) })
+  }
+  if (!projectId) throw createError({ statusCode: 400, statusMessage: 'Missing projectId' })
   const runId = queryString(query.runId)
   if (runId !== undefined && !isValidRunId(runId)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid runId' })

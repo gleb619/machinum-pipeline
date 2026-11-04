@@ -18,6 +18,7 @@ to fix (or this file is stale — fix one of them).
 | Pause | `POST /api/runs/:id/pause` | `Pause` button |
 | Resume | `POST /api/runs/:id/resume` | `Resume` button |
 | Run detail | `GET /api/runs/:id`, `/items`, `/events` (SSE) | Run detail screen (planned) |
+| Workers | `GET /api/workers` → `{ id, name, tags, status, lastSeen, runs }[]` | Workers screen (planned) |
 | Router cost | `GET /api/dashboard` | Router screen |
 | Router pool | `GET /api/pool` | Router screen |
 | Router logs | `GET /api/logs?limit=20` | Router screen |
@@ -36,10 +37,11 @@ Fixed names, fixed order. Same labels in both skins.
 | 2 | **Runs** | list of all runs + state | done |
 | 3 | **Router** | cost totals, pool status, recent calls (same-origin embedded router) | done |
 | 4 | **Run detail** | one run: metadata, steps, live events | planned (UC029) |
+| 5 | **Workers** | registered `mt worker` peers: name, tags, online/lost, mirrored runs | planned (T205 API only) |
 
 Rules:
 - Title: `Mt — Pipeline Admin` (web `<title>` + h1; TUI header line).
-- Tab order is Pipelines, Runs, Router (then Run detail as a drill-in, not a tab). Default screen on open: **Pipelines**.
+- Tab order is Pipelines, Runs, Router, Workers (then Run detail as a drill-in, not a tab). Default screen on open: **Pipelines**.
 - No extra top-level screens without adding a row here first.
 
 ## 3. Page skeleton
@@ -135,7 +137,7 @@ Web = mouse first. TUI = keyboard first. Every web action has one fixed key.
 
 | Action | Web | TUI key |
 |---|---|---|
-| Switch tab | click tab | `1` Pipelines · `2` Runs · `3` Router · `Tab` cycles |
+| Switch tab | click tab | `1` Pipelines · `2` Runs · `3` Router · `4` Workers · `Tab` cycles |
 | Move selection | hover | `↑`/`↓` or `k`/`j` |
 | Run selected pipeline | `▶ Run` | `r` or `Enter` |
 | Pause selected run | `⏸ Pause` | `p` |

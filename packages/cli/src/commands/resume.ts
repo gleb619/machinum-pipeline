@@ -14,12 +14,15 @@ import {
 import type { Pipeline, PipelineSuite, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
 import { type RemoteRunFlags, resumeRemotePipeline } from '../utils/remote-run.js'
+import { RunReporter } from '../utils/run-report.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
 
 export interface ResumeCommandOptions {
   runId?: string
   pipelineFile?: string
   remote?: RemoteRunFlags
+  /** Hidden worker-child mode: post events to this main `mt serve`. */
+  reportTo?: string
 }
 
 /** Parse `mt resume` flags; `--remote` switches to remote re-attach mode. */
@@ -49,6 +52,11 @@ export function parseResumeArgs(args: readonly string[]): ResumeCommandOptions {
       options.remote = { ...(options.remote ?? {}), tokenRef: value }
     } else if (arg === '--allow-version-mismatch') {
       options.remote = { ...(options.remote ?? {}), allowVersionMismatch: true }
+    } else if (arg === '--report-to' || arg.startsWith('--report-to=')) {
+      const inline = arg.startsWith('--report-to=') ? arg.slice('--report-to='.length) : undefined
+      const value = inline ?? args[++index]
+      if (value === undefined || value === '') throw new Error('--report-to requires a value')
+      options.reportTo = value
     } else if (arg.startsWith('--')) {
       throw new Error(`Unknown resume option: ${arg}`)
     } else {
@@ -144,8 +152,19 @@ export async function resumeCommand(args: string[]): Promise<void> {
   // Create logger — the run id is known up front, so logs go straight to the run's log
   const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
   logger.setRunId(runId)
+  const reporter =
+    parsed.reportTo === undefined
+      ? undefined
+      : new RunReporter({
+          mainUrl: parsed.reportTo,
+          token: process.env.MT_WORKER_MAIN_TOKEN,
+          runId,
+          eventsPath: join(projectRoot, '.mt', 'runs', runId, 'events.jsonl'),
+          logger,
+        })
 
   logger.info(`Resuming pipeline: ${pipeline.id}, runId: ${runId}`)
+  await reporter?.start()
 
   // Lifecycle hook: scripts.resume before resuming. A resume-hook error is logged but does not stop the resume.
   await runSwallowingHookErrors(globalContext, 'resume', { pipelineName, logger })
@@ -153,10 +172,12 @@ export async function resumeCommand(args: string[]): Promise<void> {
   try {
     const runContext = await runner.resume(runId)
     logger.info(`Pipeline resumed and complete. Run ID: ${runContext.runId}`)
+    await reporter?.flush()
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
     logger.error(`Pipeline resume failed: ${errorMessage}${hint}`)
+    await reporter?.flush()
     await runSwallowingHookErrors(globalContext, 'error', { pipelineName, logger })
     // Make sure the per-run log file is fully written before the process exits
     await logger.flush()

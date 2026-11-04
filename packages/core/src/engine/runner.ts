@@ -278,7 +278,7 @@ export class Runner {
    * Start executing the pipeline.
    */
   async start(): Promise<RunContext> {
-    this.runId = randomUUID()
+    this.runId = this.options.runId ?? randomUUID()
     this.stateMachine.transition('running')
 
     const runContext = this.createRunContext()

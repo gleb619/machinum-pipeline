@@ -32,6 +32,9 @@ import runsRoute from './routes/api/runs/index.js'
 import startRoute from './routes/api/runs/start.js'
 import syncFilesRoute from './routes/api/sync/files.js'
 import syncManifestRoute from './routes/api/sync/manifest.js'
+import workerHeartbeatRoute from './routes/api/workers/[id]/heartbeat.js'
+import workerSignalsRoute from './routes/api/workers/[id]/signals.js'
+import workersRoute from './routes/api/workers/index.js'
 import { attachIngestMount, detachIngestMount } from './utils/ingest-forwarder.js'
 import { assertSafeServeBind, checkBearer, resolveServeToken } from './utils/serve-auth.js'
 import { closeSqlite, initSqlite } from './utils/sqlite.js'
@@ -183,6 +186,9 @@ export function createBackendApp(
   adminRouter.use('/api/runs/:id/resume', resumeRoute)
   adminRouter.use('/api/sync/manifest', syncManifestRoute)
   adminRouter.use('/api/sync/files', syncFilesRoute)
+  adminRouter.use('/api/workers', workersRoute)
+  adminRouter.use('/api/workers/:id/heartbeat', workerHeartbeatRoute)
+  adminRouter.use('/api/workers/:id/signals', workerSignalsRoute)
   app.use(adminRouter)
 
   if (options.router !== false) {

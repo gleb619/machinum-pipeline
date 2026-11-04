@@ -69,7 +69,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 | Command | File | Description |
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
-| `mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--token-ref <ENV_OR_REF>]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit. `--remote` pushes, starts, streams, and pulls on a remote `mt serve` (URL defaults to `mt.json remote.url`) |
+| `mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--on <worker>] [--tags a,b] [--token-ref <ENV_OR_REF>]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit. `--remote` pushes, starts, streams, and pulls on a remote `mt serve` (URL defaults to `mt.json remote.url`); `--on` / `--tags` route the run to a registered `mt worker` and follow its mirrored events |
 | `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | `explain.ts` | Import the same runnable `mt run` would use, then describe its declared dataflow, per-step effective retry/onError policy (pipeline/step values win over project fallbacks), nested fork/subflow/batch scopes, lifecycle hooks, events, checkpoint nodes and log paths. The module is imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no Runner/source/tool/target/hook starts; writes no `.mt` state. Markdown by default; `--json` for agents/tools |
 | `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup); `--pipeline <name>` for named exports |
 | `mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>]` | `resume.ts` | Load `state.json` (checkpoint tree + source cursors) and resume from the first non-done node; pipeline file/id come from `state.json` (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole. `--remote` re-attaches to the remote stream (unpauses a live paused run) |
@@ -77,6 +77,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata, and the dead-letter queue (count + last 3 dropped envelopes) — a run that ends DONE after the `dead-letter` policy dropped items must not look fully successful |
 | `mt info [--json] [--runs <n>]` | `info.ts` | Read-only project/state report: effective `mt.json` (`imports` deep-merged, then merged over `DEFAULT_MT_CONFIG`) with credential-looking values masked, `.mt` size/run/slow-step summary, and runtime/secrets-presence booleans. No pipeline import, Runner/source/tool/target/hook, run id or `.mt` write; `--json` for agents, `--runs` limits the run list |
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON exchange on stdin/stdout (`id`/`variables` optional, normalized by `toExchange`)); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
+| `mt worker --main <url> [--token-ref <ENV_OR_REF>] [--name N] [--tag a,b] [--max-runs N] [--allow-pipeline GLOB]` | `worker.ts` | Dial out to a main `mt serve`: register, pull the project into `.mt/worker/<mainId>/`, hold the signal SSE channel, spawn one child `mt run` per `run`, report events, drain then exit 0. `--max-runs` default 1; `--allow-pipeline` default `pipelines/**` |
 | `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/webui/standalone`) with the router API embedded on the same port (T197; `--no-router` opts out); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
 | `mt remote sync [--push\|--pull] [--dry-run] [--prune] [--force] [--watch] [--url <url>] [--token-ref <ENV_OR_REF>] [--run <runId>] [--allow-version-mismatch]` | `remote.ts` | Content-addressed project sync with a remote `mt serve`: push the source scope to `<remote>/.mt/remote/<projectId>/`, or pull target outputs + `.mt/runs/<runId>/` back; `--watch` debounces local edits 300 ms; state in `.mt/remote/<projectId>.sync.json`; both-changed refuses unless `--force` |
 | `mt router [--port N\|0] [--host H] [--mock] [--log-dir D] [-d\|--detach]` | `router.ts` | Start the keyless LLM gateway standalone, API-only — no UI (T197; also embedded in `mt serve`) (`@mt/router/standalone`); no `--token` flag — the token is `MT_ROUTER_TOKEN`; `--detach` re-execs self in background (`.mt/router/{pid,server.log}`) |
@@ -135,6 +136,20 @@ the original file.
 ### `src/index.ts`
 Entry point: `main()` function, arg parsing, dispatch to command modules. Handles top-level errors and process exit codes.
 
+### `src/commands/worker.ts`
+`mt worker` is the dial-out side of T205. It registers with `POST /api/workers`, mirrors the main
+project with `GET /api/sync/manifest?scope=project` + `GET /api/sync/files?scope=project` into
+`.mt/worker/<slug>-<hash8>/`, and consumes `GET /api/workers/:id/signals` (SSE, `Last-Event-ID`
+replay, reconnect/backoff; long-poll fallback after repeated SSE failures). Signals:
+`project-changed`, `run`, `resume`, `pause`, `cancel`, `drain`.
+
+Spawn rule matches `detachServe`: `process.execPath` plus `process.argv[1]` unless the compiled Bun
+binary (`argv[1]` starts with `/$bunfs`). The child is `mt run <pipeline> --run-id <id> --report-to
+<mainUrl>` in the mirror root; the resolved bearer token reaches it only via
+`MT_WORKER_MAIN_TOKEN` (never argv). `--max-runs` bounds concurrent children. A non-zero child exit is
+reported as `failed` and the worker survives; `pause` sends SIGINT, `cancel` SIGTERM; `drain` stops
+accepting queued runs, waits for active children, then exits 0.
+
 ### `src/commands/run.ts`
 1. `loadGlobalContext(projectRoot)` → `GlobalContext` (from `@mt/core`; no CLI-local `mt.json` parsing)
 2. `loadRunnable(file, name?)` → `Pipeline | PipelineSuite` (named export → default suite → implicit suite)
@@ -147,6 +162,12 @@ Entry point: `main()` function, arg parsing, dispatch to command modules. Handle
 7. `runLifecycleScript(ctx, 'end')` in a finally-style path (runs on success AND failure; an
    end-hook error is logged as a warning and never masks the main outcome)
 8. `runLifecycleScript(ctx, 'exit')` before the process exits
+
+Hidden worker-child flags: `--run-id <id>` replays the main-minted run id into `RunnerOptions.runId`;
+`--report-to <url>` tails the child's `events.jsonl` and POSTs ≤500-line NDJSON batches to
+`POST /api/runs/:id/events` (offset advances only after a successful POST). `--on <worker>` and
+`--tags a,b` call the main start route with `worker`/`tags` instead of starting locally; the client then
+follows the main SSE stream.
 
 ### `src/commands/explain.ts`
 `mt explain` — static declaration view. `loadRunnable()` selects and imports the runnable (top-level module code executes); `readMtConfig()` supplies URI aliases, defaults and `scripts.*`; the command renders Markdown or a stable `schemaVersion: 1` JSON object (`--json`). It never calls `Runner.start()`, `source.start()/resume()`, `tool.invoke()`, `target.open()` or a lifecycle hook, so no run id or `.mt/runs/<runId>/` directory appears. Output covers: per-pipeline dataflow and steps, cardinality, effective retry/onError (same `resolveRetryPolicy` merge as the Runner), tool-step concurrency (same `Number.parseInt` rule as `runTool`; items run through ordered `mapConcurrent`), cacheable/idempotent flags (cacheable tools later memoize under `.mt/cache/<hash>.json`; explain writes none), declared `envDefaults`, the declared `mt.json` LLM pick (env overrides noted), nested fork/subflow/batch pipelines, lifecycle hooks, state machine, event order/types, checkpoint node patterns, and every `run.log`/`logs/<stepId>.log`/`events.jsonl`/`dead-letter.jsonl`/`artifacts/` path. URI-string sources/targets are resolved through the URI registry (construction only, no I/O), so `lifestyle`/`resume()`/`checkpoint()` capabilities are reported for them too; a failed resolution becomes a warning. Warnings also cover unresolved URI aliases, distinct pipelines sharing an id, and hand-built invalid steps.
@@ -296,6 +317,7 @@ packages/cli/tests/
 │   ├── vault.test.ts          # vault command (init/add/list/show/rm/path)
 │   ├── remote.test.ts         # remote sync push/pull/dry-run/prune/conflict + two in-process servers
 │   ├── run.remote.test.ts     # remote run e2e: push -> start -> SSE -> pull, failure, pause, resume
+│   ├── worker.e2e.test.ts     # worker e2e: register -> mirror -> child -> events -> crash -> drain/lost
 │   ├── router.arch.test.ts    # Arch: router command wiring + lazy @mt/router/standalone import
 │   └── serve.arch.test.ts     # serve command shape
 └── utils/

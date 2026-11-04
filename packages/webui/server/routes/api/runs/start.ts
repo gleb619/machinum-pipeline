@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { access } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 import type { Pipeline } from '@mt/core'
@@ -9,6 +10,7 @@ import {
   isPackageResolutionError,
   loadGlobalContext,
   nativeAddonHint,
+  normalizeSyncPath,
   packageResolutionHint,
 } from '@mt/core'
 import { createError, defineEventHandler, readBody } from 'h3'
@@ -21,11 +23,22 @@ import {
   releaseProjectRun,
   removeRunner,
 } from '../../../utils/runner-registry.js'
+import {
+  attachWorkerRun,
+  dispatchWorkerSignal,
+  findWorkerByTags,
+  getWorker,
+} from '../../../utils/worker-registry.js'
+import { createWorkerRunRecord } from '../../../utils/worker-run-record.js'
 
 interface StartRunBody {
   pipeline: string
   projectId?: string
   pipelineName?: string
+  /** Route to one worker by id. */
+  worker?: string
+  /** Route to the first online worker carrying every tag. */
+  tags?: string[]
 }
 
 export default defineEventHandler(async (event) => {
@@ -36,6 +49,10 @@ export default defineEventHandler(async (event) => {
 
   const projectRoot = projectRootFor(event, body.projectId)
   const declaredPath = body.pipeline
+
+  if (body.worker !== undefined || body.tags !== undefined) {
+    return dispatchToWorker(body, projectRoot)
+  }
 
   const claimed = body.projectId !== undefined && claimProjectRun(body.projectId)
   if (body.projectId !== undefined && !claimed) {
@@ -131,6 +148,60 @@ export default defineEventHandler(async (event) => {
     throw err
   }
 })
+
+/**
+ * Worker routing (T205): main mints the run id, creates the run record, then sends the
+ * `run` signal. The worker child executes the pipeline; events arrive through the
+ * events ingest endpoint, so `mt ls runs` / `mt inspect` / webui work unchanged.
+ */
+async function dispatchToWorker(
+  body: StartRunBody,
+  projectRoot: string,
+): Promise<{ runId: string; workerId: string }> {
+  const worker =
+    body.worker === undefined
+      ? await findWorkerByTags(projectRoot, body.tags ?? [])
+      : await getWorker(projectRoot, body.worker)
+  if (worker === undefined || worker.status === 'lost') {
+    throw createError({
+      statusCode: 409,
+      statusMessage:
+        body.worker === undefined
+          ? `No online worker matches tags: ${(body.tags ?? []).join(',')}`
+          : `Worker is not online: ${body.worker}`,
+    })
+  }
+  if (body.tags?.some((tag) => !worker.tags.includes(tag))) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: `Worker '${worker.id}' does not carry the requested tags`,
+    })
+  }
+
+  const pipeline = normalizeSyncPath(body.pipeline)
+  if (pipeline === undefined) {
+    throw createError({ statusCode: 400, statusMessage: 'Invalid pipeline path' })
+  }
+  try {
+    await access(join(projectRoot, ...pipeline.split('/')))
+  } catch {
+    throw createError({ statusCode: 404, statusMessage: `Pipeline not found: ${body.pipeline}` })
+  }
+
+  const runId = randomUUID()
+  await createWorkerRunRecord(projectRoot, {
+    runId,
+    pipeline,
+    ...(body.pipelineName === undefined ? {} : { pipelineName: body.pipelineName }),
+  })
+  await attachWorkerRun(projectRoot, worker.id, runId)
+  await dispatchWorkerSignal(projectRoot, worker.id, 'run', {
+    runId,
+    pipeline,
+    ...(body.pipelineName === undefined ? {} : { pipelineName: body.pipelineName }),
+  })
+  return { runId, workerId: worker.id }
+}
 
 function isPipelineLike(value: unknown): value is Pipeline {
   return (

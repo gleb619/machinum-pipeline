@@ -83,3 +83,45 @@ longer in the in-process runner registry; start it again or resume it locally fr
 - Large-input streaming and `remote.sync.mode: "git"` are not implemented.
 - The local mirror is a run mirror, not a distributed scheduler: the CLI process can detach, but the
   remote `mt serve` process must stay alive for pause/resume re-attachment.
+
+## Worker mode (T205)
+
+Push mode needs the remote to be reachable. Worker mode reverses the connection: the remote dials out
+to a main `mt serve` and holds no inbound listener unless the pipeline itself declares one.
+
+```bash
+# main host
+export MT_SERVE_TOKEN='<long-random-secret>'
+mt serve --host 127.0.0.1 --port 7777
+
+# worker host (NAT/firewall friendly: outbound only)
+export MT_MAIN_TOKEN='<same-secret>'
+mt worker --main http://main:7777 --token-ref env:MT_MAIN_TOKEN --name gpu-box --tag gpu,docker
+
+# main host routes a run to it
+mt run ./pipelines/translate.ts --on gpu-box --remote http://main:7777
+# or pick the first online worker carrying every tag
+mt run ./pipelines/translate.ts --tags gpu,docker --remote http://main:7777
+```
+
+Lifecycle:
+
+1. `POST /api/workers` registers name, tags, `mt` version and capabilities.
+2. The worker pulls the main source scope with the T203 manifest/file API (`scope=project`) into
+   `.mt/worker/<mainId>/`; secrets never travel.
+3. `GET /api/workers/:id/signals` is the control channel (SSE with 25 s heartbeat comments,
+   `Last-Event-ID` replay, reconnect/backoff; `?wait=25` long-poll fallback). Signals:
+   `project-changed`, `run`, `resume`, `pause`, `cancel`, `drain`.
+4. On `run`, a child `mt` process starts in the mirror (`--run-id` from main, `--report-to` main).
+   `--max-runs` (default 1) bounds concurrency; `--allow-pipeline` (default `pipelines/**`) limits
+   which pipeline paths may execute.
+5. The child posts NDJSON batches to `POST /api/runs/:id/events`; main appends to its own
+   `events.jsonl` and mirrors the state, so `mt ls runs`, `mt inspect`, the webui and TUI work
+   unchanged.
+6. `drain` lets active runs finish, then the worker exits 0. A child crash is reported `failed` and
+   the worker keeps running. A worker with no heartbeat for 60 s is `lost`; its runs become `paused`
+   (resumable), never silently failed.
+
+`--on` / `--tags` require `remote.url` (or `--remote <url>`). The main project files are read from the
+`mt serve` root; start the worker on the machine that must execute the tools. Ctrl+C on the worker
+currently exits it without cancelling children; send `cancel` or stop the child explicitly.

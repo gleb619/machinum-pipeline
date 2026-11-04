@@ -6,6 +6,7 @@ import {
   SyncFileTooLargeError,
   SyncPathError,
   collectOutputScope,
+  collectSyncScope,
   deleteSyncFile,
   isProtectedSyncPath,
   normalizeSyncPath,
@@ -71,11 +72,17 @@ function safePathOrThrow(path: string, allowRunState = false): string {
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
   const projectId = queryString(query.projectId)
-  const mirrorRoot = mirrorFor(event, projectId)
   const scope = queryString(query.scope) ?? 'sources'
-  if (scope !== 'sources' && scope !== 'outputs') {
-    throw createError({ statusCode: 400, statusMessage: 'scope must be sources or outputs' })
+  if (scope !== 'sources' && scope !== 'outputs' && scope !== 'project') {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'scope must be sources, outputs or project',
+    })
   }
+  if (scope === 'project' && event.method !== 'GET') {
+    throw createError({ statusCode: 405, statusMessage: 'Project scope is read-only' })
+  }
+  const mirrorRoot = scope === 'project' ? serveRootOf(event) : mirrorFor(event, projectId)
   const runId = queryString(query.runId)
   if (runId !== undefined && !isValidRunId(runId)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid runId' })
@@ -86,9 +93,11 @@ export default defineEventHandler(async (event) => {
     if (!requested) throw createError({ statusCode: 400, statusMessage: 'Missing path' })
     const path = safePathOrThrow(requested, scope === 'outputs')
     const allowed =
-      scope === 'outputs'
-        ? new Set(await collectOutputScope(mirrorRoot, runId === undefined ? {} : { runId }))
-        : new Set(await walkSyncFiles(mirrorRoot))
+      scope === 'project'
+        ? new Set(await collectSyncScope(mirrorRoot))
+        : scope === 'outputs'
+          ? new Set(await collectOutputScope(mirrorRoot, runId === undefined ? {} : { runId }))
+          : new Set(await walkSyncFiles(mirrorRoot))
     if (!allowed.has(path)) {
       throw createError({ statusCode: 404, statusMessage: 'Synced file not found' })
     }

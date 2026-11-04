@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { RunStateData } from '@mt/core'
 import { defineEventHandler } from 'h3'
+import { serveRootOf } from '../../../utils/sync-root.js'
 
 interface RunInfo {
   id: string
@@ -9,8 +10,8 @@ interface RunInfo {
   started?: string
 }
 
-export default defineEventHandler(async () => {
-  const runsDir = join(process.cwd(), '.mt', 'runs')
+export default defineEventHandler(async (event) => {
+  const runsDir = join(serveRootOf(event), '.mt', 'runs')
   try {
     const entries = await readdir(runsDir, { withFileTypes: true })
     const runs: RunInfo[] = []

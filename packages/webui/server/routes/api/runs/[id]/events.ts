@@ -1,13 +1,47 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { createError, defineEventHandler, getHeader, getQuery, getRouterParam } from 'h3'
+import {
+  createError,
+  defineEventHandler,
+  getHeader,
+  getQuery,
+  getRouterParam,
+  readRawBody,
+} from 'h3'
 import { readNewLines } from '../../../../utils/read-lines.js'
 import { projectRootFor, runDirOf } from '../../../../utils/run-dir.js'
+import { serveRootOf } from '../../../../utils/sync-root.js'
+import { ingestRunEvents } from '../../../../utils/worker-run-record.js'
+
+const MAX_EVENT_BYTES = 5 * 1024 * 1024
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   if (!id) {
     throw createError({ statusCode: 400, statusMessage: 'Missing run id' })
+  }
+
+  if (event.method === 'POST') {
+    const declared = Number(event.node.req.headers['content-length'] ?? 0)
+    if (Number.isFinite(declared) && declared > MAX_EVENT_BYTES) {
+      throw createError({ statusCode: 413, statusMessage: 'Event batch exceeds 5 MB' })
+    }
+    const body = (await readRawBody(event, 'utf8')) ?? ''
+    if (Buffer.byteLength(body, 'utf8') > MAX_EVENT_BYTES) {
+      throw createError({ statusCode: 413, statusMessage: 'Event batch exceeds 5 MB' })
+    }
+    try {
+      return await ingestRunEvents(serveRootOf(event), id, body)
+    } catch (err) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: err instanceof Error ? err.message : 'Invalid event batch',
+      })
+    }
+  }
+
+  if (event.method !== 'GET') {
+    throw createError({ statusCode: 405, statusMessage: 'Method not allowed' })
   }
 
   const query = getQuery(event)

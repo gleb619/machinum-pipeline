@@ -17,7 +17,8 @@ import type { GlobalContext, Pipeline, PipelineSuite } from '@mt/core'
 import '@mt/waypoint'
 
 import { DuplexLogger } from '../utils/logger.js'
-import { type RemoteRunFlags, runRemotePipeline } from '../utils/remote-run.js'
+import { type RemoteRunFlags, runOnWorker, runRemotePipeline } from '../utils/remote-run.js'
+import { RunReporter } from '../utils/run-report.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
 
 /** A module export the CLI can run directly. */
@@ -27,6 +28,14 @@ export interface RunCommandOptions {
   pipelineFile?: string
   pipelineName?: string
   remote?: RemoteRunFlags
+  /** Hidden worker-child mode: replay the main-minted run id. */
+  runId?: string
+  /** Hidden worker-child mode: post events to this main `mt serve`. */
+  reportTo?: string
+  /** Route to one worker (main-side `POST /api/runs/start`). */
+  worker?: string
+  /** Route to the first online worker carrying every tag. */
+  tags?: string[]
 }
 
 /**
@@ -63,6 +72,29 @@ export function parseRunArgs(args: readonly string[]): RunCommandOptions {
       options.remote = { ...(options.remote ?? {}), tokenRef: value }
     } else if (arg === '--allow-version-mismatch') {
       options.remote = { ...(options.remote ?? {}), allowVersionMismatch: true }
+    } else if (arg === '--run-id' || arg.startsWith('--run-id=')) {
+      const inline = arg.startsWith('--run-id=') ? arg.slice('--run-id='.length) : undefined
+      const value = inline ?? args[++index]
+      if (value === undefined || value === '') throw new Error('--run-id requires a value')
+      options.runId = value
+    } else if (arg === '--report-to' || arg.startsWith('--report-to=')) {
+      const inline = arg.startsWith('--report-to=') ? arg.slice('--report-to='.length) : undefined
+      const value = inline ?? args[++index]
+      if (value === undefined || value === '') throw new Error('--report-to requires a value')
+      options.reportTo = value
+    } else if (arg === '--on' || arg.startsWith('--on=')) {
+      const inline = arg.startsWith('--on=') ? arg.slice('--on='.length) : undefined
+      const value = inline ?? args[++index]
+      if (value === undefined || value === '') throw new Error('--on requires a worker name')
+      options.worker = value
+    } else if (arg === '--tags' || arg.startsWith('--tags=')) {
+      const inline = arg.startsWith('--tags=') ? arg.slice('--tags='.length) : undefined
+      const value = inline ?? args[++index]
+      if (value === undefined || value === '') throw new Error('--tags requires a value')
+      options.tags = value
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean)
     } else if (arg.startsWith('--')) {
       throw new Error(`Unknown run option: ${arg}`)
     } else {
@@ -95,6 +127,29 @@ export async function runCommand(args: string[]): Promise<void> {
   const pipelineFile = parsed.pipelineFile
   const pipelineName = parsed.pipelineName
   const projectRoot = process.cwd()
+
+  if (parsed.worker !== undefined || parsed.tags !== undefined) {
+    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+    let outcome: Awaited<ReturnType<typeof runOnWorker>>
+    try {
+      outcome = await runOnWorker({
+        projectRoot,
+        logger,
+        remote: parsed.remote ?? {},
+        pipelineFile,
+        pipelineName,
+        ...(parsed.worker === undefined ? {} : { worker: parsed.worker }),
+        ...(parsed.tags === undefined ? {} : { tags: parsed.tags }),
+      })
+    } catch (error) {
+      logger.error(`Worker run failed: ${error instanceof Error ? error.message : String(error)}`)
+      await logger.flush()
+      process.exit(1)
+    }
+    await logger.flush()
+    if (outcome.exitCode !== 0) process.exit(outcome.exitCode)
+    return
+  }
 
   if (parsed.remote !== undefined) {
     const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
@@ -130,13 +185,32 @@ export async function runCommand(args: string[]): Promise<void> {
 
   // Create logger
   const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+  const reporter =
+    parsed.runId !== undefined && parsed.reportTo !== undefined
+      ? new RunReporter({
+          mainUrl: parsed.reportTo,
+          token: process.env.MT_WORKER_MAIN_TOKEN,
+          runId: parsed.runId,
+          eventsPath: join(projectRoot, '.mt', 'runs', parsed.runId, 'events.jsonl'),
+          logger,
+        })
+      : undefined
 
   // Lifecycle hook: scripts.start before the main run. A start-hook failure fails the run.
   await runLifecycleScript(globalContext, 'start', { pipelineName, logger })
 
   const failure = isPipelineSuite(runnable)
     ? await runSuite(runnable, pipelineFile, pipelineName, globalContext, projectRoot, logger)
-    : await runPipeline(runnable, pipelineFile, pipelineName, globalContext, projectRoot, logger)
+    : await runPipeline(
+        runnable,
+        pipelineFile,
+        pipelineName,
+        globalContext,
+        projectRoot,
+        logger,
+        parsed.runId,
+        reporter,
+      )
 
   // scripts.end runs on success AND failure; an end-hook error must not mask the outcome.
   await runSwallowingHookErrors(globalContext, 'end', { pipelineName, logger })
@@ -166,6 +240,8 @@ async function runPipeline(
   globalContext: GlobalContext,
   projectRoot: string,
   logger: DuplexLogger,
+  runId?: string,
+  reporter?: RunReporter,
 ): Promise<unknown> {
   logger.info(`Starting pipeline: ${pipeline.id}`)
   logger.info(`Pipeline file: ${pipelineFile}`)
@@ -174,11 +250,13 @@ async function runPipeline(
   const runner = new Runner(pipeline, globalContext, {
     pipelineFile: relative(projectRoot, resolve(projectRoot, pipelineFile)),
     pipelineName,
+    ...(runId === undefined ? {} : { runId }),
   })
 
   process.on('SIGINT', async () => {
     logger.warn('SIGINT received: pausing pipeline...')
     await runner.pause()
+    await reporter?.flush()
     await runSwallowingHookErrors(globalContext, 'stop', { pipelineName, logger })
     await runSwallowingHookErrors(globalContext, 'exit', { pipelineName, logger })
     logger.info(`Pipeline paused. Run ID: ${runner.getRunId()}`)
@@ -191,11 +269,16 @@ async function runPipeline(
     // start() mints the run id synchronously — bind the logger before awaiting the run,
     // so every CLI log line lands in .mt/runs/<runId>/run.log
     const startPromise = runner.start()
-    const runId = runner.getRunId()
-    if (runId) logger.setRunId(runId)
-    const runContext = await startPromise
-    logger.info(`Pipeline complete. Run ID: ${runContext.runId}`)
-    return undefined
+    const activeRunId = runner.getRunId()
+    if (activeRunId) logger.setRunId(activeRunId)
+    await reporter?.start()
+    try {
+      const runContext = await startPromise
+      logger.info(`Pipeline complete. Run ID: ${runContext.runId}`)
+      return undefined
+    } finally {
+      await reporter?.flush()
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)

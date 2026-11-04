@@ -227,7 +227,7 @@ async function connectOnce(
   base: string,
   token: string | undefined,
   runId: string,
-  projectId: string,
+  projectId: string | undefined,
   lastEventId: number,
   logger: RemoteRunLogger,
   ignoreInitialPause: boolean,
@@ -339,7 +339,7 @@ async function readRemoteState(
   base: string,
   token: string | undefined,
   runId: string,
-  projectId: string,
+  projectId: string | undefined,
 ): Promise<RemoteRunState | undefined> {
   try {
     return await requestJson<RemoteRunState>(
@@ -365,6 +365,7 @@ async function waitForTerminal(
   initialEventId: number,
   reconnectDelayMs: number,
   ignoreInitialPause: boolean,
+  projectId: string | undefined = config.projectId,
 ): Promise<RemoteTerminal> {
   let lastEventId = initialEventId
   for (;;) {
@@ -373,7 +374,7 @@ async function waitForTerminal(
         config.url,
         config.token,
         runId,
-        config.projectId,
+        projectId,
         lastEventId,
         logger,
         ignoreInitialPause,
@@ -385,7 +386,7 @@ async function waitForTerminal(
       logger.warn('Remote event stream disconnected; reconnecting', {
         error: message,
       })
-      const state = await readRemoteState(config.url, config.token, runId, config.projectId)
+      const state = await readRemoteState(config.url, config.token, runId, projectId)
       const terminal = stateTerminal(state?.state)
       if (terminal !== undefined) return terminal
       if (message.includes('(404)') && state === undefined) {
@@ -653,6 +654,82 @@ export async function resumeRemotePipeline(
     options.reconnectDelayMs ?? DEFAULT_RECONNECT_DELAY_MS,
     true,
   )
+}
+
+export interface RemoteWorkerRunOptions {
+  projectRoot: string
+  logger: RemoteRunLogger
+  remote: RemoteRunFlags
+  pipelineFile: string
+  pipelineName?: string
+  worker?: string
+  tags?: string[]
+  reconnectDelayMs?: number
+}
+
+async function startOnWorker(
+  config: ResolvedRemoteConfig,
+  pipeline: string,
+  pipelineName: string | undefined,
+  worker: string | undefined,
+  tags: string[] | undefined,
+): Promise<string> {
+  const started = await requestJson<{ runId?: unknown }>(
+    endpoint(config.url, '/api/runs/start'),
+    config.token,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pipeline,
+        ...(pipelineName === undefined ? {} : { pipelineName }),
+        ...(worker === undefined ? {} : { worker }),
+        ...(tags === undefined ? {} : { tags }),
+      }),
+    },
+  )
+  if (typeof started.runId !== 'string' || started.runId === '') {
+    throw new Error('Worker start response did not include a runId')
+  }
+  return started.runId
+}
+
+/**
+ * `mt run <pipeline> --on <worker>` / `--tags a,b`: the main backend owns the run
+ * record, sends the `run` signal, and this client just follows the main event stream.
+ */
+export async function runOnWorker(options: RemoteWorkerRunOptions): Promise<RemoteRunOutcome> {
+  const { logger } = options
+  const config = await resolveRemote(options.projectRoot, options.remote)
+  await assertRemoteCompatible(
+    config.url,
+    config.token,
+    options.remote.allowVersionMismatch === true,
+  )
+  const pipeline = relativePipeline(options.projectRoot, options.pipelineFile)
+  const runId = await startOnWorker(
+    config,
+    pipeline,
+    options.pipelineName,
+    options.worker,
+    options.tags,
+  )
+  logger.setRunId(runId)
+  logger.info(`Worker run started: ${runId}`, {
+    url: config.url,
+    ...(options.worker === undefined ? {} : { worker: options.worker }),
+    ...(options.tags === undefined ? {} : { tags: options.tags }),
+  })
+  const terminal = await waitForTerminal(
+    config,
+    runId,
+    logger,
+    0,
+    options.reconnectDelayMs ?? DEFAULT_RECONNECT_DELAY_MS,
+    false,
+    undefined,
+  )
+  return { runId, state: terminal, exitCode: terminal === 'failed' ? 1 : 0 }
 }
 
 async function loadLocalRunnable(

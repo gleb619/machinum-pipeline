@@ -65,6 +65,12 @@ describe('CLI command registry (architectural)', () => {
     expect(src).toMatch(/await import\(['"]\.\/commands\/skill\.js['"]\)/)
   })
 
+  it('CLI index registers worker command', async () => {
+    const src = await readCliIndex()
+    expect(src).toMatch(/case\s+['"]worker['"]/)
+    expect(src).toMatch(/workerCommand/)
+  })
+
   it('CLI index registers remote sync command', async () => {
     const src = await readCliIndex()
     expect(src).toMatch(/case\s+['"]remote['"]/)

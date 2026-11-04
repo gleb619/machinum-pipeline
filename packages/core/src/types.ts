@@ -230,6 +230,8 @@ export interface RunStateData {
 export interface RunnerOptions {
   pipelineFile?: string
   pipelineName?: string
+  /** Explicit run id (worker children replay the id minted by the main backend). */
+  runId?: string
   /** Initial run event listeners, seeded before `start()` (same as `subscribeEvents`). */
   events?: RunEventListener[]
 }

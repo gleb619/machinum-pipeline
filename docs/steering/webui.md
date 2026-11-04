@@ -13,13 +13,18 @@ packages/webui/server/routes/api/
 ├── pipelines.ts                      # GET /api/pipelines — list discovered pipelines
 ├── ingest/
 │   └── register.ts                   # POST/DELETE /api/ingest/register — cross-process hs:// forwarding
+├── workers/
+│   ├── index.ts                      # GET /api/workers — list; POST /api/workers — register
+│   └── [id]/
+│       ├── signals.ts                # GET /api/workers/:id/signals — SSE / long-poll signals
+│       └── heartbeat.ts              # POST /api/workers/:id/heartbeat
 ├── runs/
 │   ├── index.ts                      # GET /api/runs — list all runs
-│   ├── start.ts                      # POST /api/runs/start — start a run; optional projectId mirror root
+│   ├── start.ts                      # POST /api/runs/start — local, projectId mirror, worker or tags routing
 │   ├── [id].ts                       # GET /api/runs/:id — run metadata (state.json)
 │   └── [id]/
 │       ├── items.ts                  # GET /api/runs/:id/items — paginated envelope list
-│       ├── events.ts                 # GET /api/runs/:id/events — SSE stream
+│       ├── events.ts                 # GET SSE stream / POST NDJSON worker event ingest
 │       ├── artifacts.ts              # GET /api/runs/:id/artifacts — T203 output manifest
 │       ├── pause.ts                  # POST /api/runs/:id/pause — 404 unless the Runner is live here
 │       └── resume.ts                 # POST /api/runs/:id/resume — same registry lookup
@@ -31,6 +36,32 @@ packages/webui/server/routes/api/
 ## SSE Events (`events.ts`)
 
 Tails `.mt/runs/<runId>/events.jsonl` using file watching. Sends each appended JSON line as an SSE `data:` message with an `id:` byte offset. A reconnecting client sends `Last-Event-ID`; the route starts reading at that byte offset, so events are not replayed or duplicated. `?projectId=` resolves the run under the T203 mirror root instead of the serve root.
+
+## Worker mode (T205)
+
+`server/utils/worker-registry.ts` holds online workers in memory plus an atomic
+`.mt/workers/<id>.json` record (`name`, `tags`, `lastSeen`, `status`, routed `runs`). A heartbeat older
+than 60 s (`MT_WORKER_TTL_MS` override) marks the worker `lost`; its active runs are written to `paused`
+(never `failed`) with a `paused` event, so they stay resumable. Listing hydrates from disk after a
+server restart.
+
+- `GET /api/workers` — list. `POST /api/workers` `{ name, tags, mtVersion, capabilities }` — register.
+- `GET /api/workers/:id/signals` — SSE (`id:`, `event:`, `data:` JSON), `Last-Event-ID` replay from a
+  200-signal ring, a `: heartbeat` comment every 25 s (`MT_WORKER_SIGNAL_HEARTBEAT_MS` override), and a
+  `?wait=25` JSON long-poll fallback (`{ signals, lastEventId }`).
+- `POST /api/workers/:id/heartbeat` — refresh `lastSeen`.
+- `POST /api/runs/:id/events` — raw NDJSON batch from a worker child, validated before append into the
+  main `.mt/runs/<id>/events.jsonl`; the last lifecycle event updates `state.json` (`started` → running,
+  `done`/`failed`/`paused` terminal) so the existing SSE, `mt ls runs`, `mt inspect`, webui and TUI read
+  the same files. A lost-worker `paused` state is not overwritten by a late `running` event.
+
+`POST /api/runs/start` accepts `worker` (one id) or `tags` (first online worker carrying every tag).
+It mints the run id, creates the main-side run record, attaches the run to the worker, then sends the
+`run` signal; no local Runner is registered. A missing/offline worker is `409`. All worker routes sit
+behind the normal serve bearer token.
+
+The worker pulls the main project with the existing sync client using `scope=project`
+(`GET /api/sync/manifest|files`); that scope reads the serve root's T203 source scope and is read-only.
 
 ## SQLite (`server/plugins/sqlite.ts`, `server/utils/sqlite.ts`)
 
@@ -172,9 +203,13 @@ packages/webui/
 
 │       ├── ingest-forwarder.ts
 │       ├── sqlite.ts
-│       └── runner-registry.ts
+│       ├── runner-registry.ts
+│       ├── worker-registry.ts   # workers, heartbeat TTL, signal ring, lost-worker pause
+│       └── worker-run-record.ts # main-side run record + NDJSON event ingest
 └── tests/
     ├── api/sync.test.ts      # Sync manifest/files, auth, caps, traversal, outputs
+    ├── api/workers-signals.test.ts # Register/list/heartbeat, SSE replay, heartbeat, long-poll, routing
+    ├── utils/worker-registry.test.ts # Ring, atomic persistence, TTL/lost -> paused
     ├── db.arch.test.ts       # Arch: SQLite schema and migrations
     ├── router-embed.test.ts  # T197 same-port router, health precedence, token scoping, --no-router
     ├── routes.arch.test.ts   # Arch: expected routes present
