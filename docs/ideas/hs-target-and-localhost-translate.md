@@ -19,7 +19,7 @@ another `hs://` source).
 ### User story
 
 1. Author the pipeline locally (`pipelines/translate.ts`, plain TS module).
-2. Remote PC runs `mt serve --host 0.0.0.0 --port 7777` (token-protected; the remote box has the heavy
+2. Remote PC runs `mt serve --host 0.0.0.0 --port 7777 --token-ref MT_SERVE_TOKEN` (token-protected; the remote box has the heavy
    toolchain: headless Chrome / Playwright / Docker / GPU Ollama).
 3. Locally: `mt run translate.ts --remote http://remote:7777` (name TBD: `--remote` / `mt remote run`).
    **Automatic**: the CLI first syncs the project to the remote (delta only, section 1a), then starts
@@ -45,14 +45,15 @@ mt run p.ts --remote URL
 - `start.ts` runs `loadGlobalContext(process.cwd())` + `importPipelineModule` for a path **already on
   the remote disk**, confined to the project root (`resolveInsideRoot`). So today the pipeline has to
   be pre-copied by hand (rsync/git) and only a project-relative path is accepted.
-- No auth on the admin API (the router's `MT_ROUTER_TOKEN` middleware is scoped to router routes only),
-  so binding `--host 0.0.0.0` is currently unsafe.
+- Admin API auth landed in T202: `MT_SERVE_TOKEN` (or `mt.json -> serve.tokenRef`) enables
+  `Authorization: Bearer` on `/api/*`, and a non-loopback bind without a token refuses to start.
+  The token resolver accepts `env:` / `vlt:` / `keepass:` / `embed:` refs; health and static UI stay open.
 
 ### Gaps to design
 
-- **Auth**: bearer token on the admin API (`MT_SERVE_TOKEN`, vault/`embed:` ref, constant-time compare,
-  mandatory when `--host` is non-loopback). Same pattern as `browser-translate-server`
-  (`timingSafeEqual`). TLS via reverse proxy / SSH tunnel (`ssh -L 7777:localhost:7777 remote`) first.
+- **Auth** — done (T202): bearer token on the admin API (`MT_SERVE_TOKEN`, vault/`embed:` ref,
+  constant-time SHA-256 compare, mandatory when `--host` is non-loopback). TLS still terminates via
+  reverse proxy / SSH tunnel (`ssh -L 7777:localhost:7777 remote`); follow-ups (T203-T205) build on it.
 - **Sync**: built-in `mt` project sync between two `mt` servers, see 1a. Replaces manual upload; start
   takes a `projectId` (mirror root) rather than a bare path. Size cap + path-traversal guard (reuse
   `resolveInsideRoot`).

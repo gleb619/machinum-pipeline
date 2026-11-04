@@ -9,8 +9,11 @@ describe('standalone backend (h3 + node:http, no Nitro)', () => {
   let dir: string
   let cwd: string
   let handle: BackendHandle
+  let previousToken: string | undefined
 
   beforeAll(async () => {
+    previousToken = process.env.MT_SERVE_TOKEN
+    Reflect.deleteProperty(process.env, 'MT_SERVE_TOKEN')
     cwd = process.cwd()
     dir = await mkdtemp(join(tmpdir(), 'mt-backend-'))
     await mkdir(join(dir, '.mt', 'runs', 'r1'), { recursive: true })
@@ -25,6 +28,8 @@ describe('standalone backend (h3 + node:http, no Nitro)', () => {
   afterAll(async () => {
     await handle.close()
     process.chdir(cwd)
+    if (previousToken === undefined) Reflect.deleteProperty(process.env, 'MT_SERVE_TOKEN')
+    else process.env.MT_SERVE_TOKEN = previousToken
     await rm(dir, { recursive: true, force: true })
   })
 
@@ -51,6 +56,88 @@ describe('standalone backend (h3 + node:http, no Nitro)', () => {
     expect(await (await fetch(`${handle.url}/`)).text()).toContain('id="app"')
     expect(await (await fetch(`${handle.url}/some/route`)).text()).toContain('id="app"')
     expect((await fetch(`${handle.url}/api/nope`)).status).toBe(404)
+  })
+})
+
+describe('serve auth token (T202)', () => {
+  const TOKEN = 'serve-token-secret'
+  let dir: string
+  let cwd: string
+  let handle: BackendHandle
+  let previousToken: string | undefined
+
+  beforeAll(async () => {
+    previousToken = process.env.MT_SERVE_TOKEN
+    Reflect.deleteProperty(process.env, 'MT_SERVE_TOKEN')
+    cwd = process.cwd()
+    dir = await mkdtemp(join(tmpdir(), 'mt-backend-auth-'))
+    await mkdir(join(dir, 'ui'), { recursive: true })
+    await writeFile(join(dir, 'ui', 'index.html'), '<div id="app"></div>')
+    process.chdir(dir)
+    handle = await startBackend({
+      port: 0,
+      host: '127.0.0.1',
+      uiDir: join(dir, 'ui'),
+      token: TOKEN,
+    })
+  })
+
+  afterAll(async () => {
+    await handle.close()
+    process.chdir(cwd)
+    if (previousToken === undefined) Reflect.deleteProperty(process.env, 'MT_SERVE_TOKEN')
+    else process.env.MT_SERVE_TOKEN = previousToken
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('answers 401 without a header and with a wrong token', async () => {
+    const missing = await fetch(`${handle.url}/api/runs`)
+    expect(missing.status).toBe(401)
+    expect(missing.headers.get('www-authenticate')).toBe('Bearer')
+    expect(await missing.json()).toEqual({ error: 'Unauthorized' })
+
+    const wrong = await fetch(`${handle.url}/api/runs`, {
+      headers: { authorization: 'Bearer wrong-token-with-a-different-length' },
+    })
+    expect(wrong.status).toBe(401)
+  })
+
+  it('accepts the right bearer token', async () => {
+    const res = await fetch(`${handle.url}/api/runs`, {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
+  })
+
+  it('keeps GET /api/health and static UI reads open', async () => {
+    expect((await fetch(`${handle.url}/api/health`)).status).toBe(200)
+    expect(await (await fetch(`${handle.url}/`)).text()).toContain('id="app"')
+  })
+})
+
+describe('serve bind guard (T202)', () => {
+  let dir: string
+  let cwd: string
+  let previousToken: string | undefined
+
+  beforeAll(async () => {
+    previousToken = process.env.MT_SERVE_TOKEN
+    Reflect.deleteProperty(process.env, 'MT_SERVE_TOKEN')
+    cwd = process.cwd()
+    dir = await mkdtemp(join(tmpdir(), 'mt-backend-guard-'))
+    process.chdir(dir)
+  })
+
+  afterAll(async () => {
+    process.chdir(cwd)
+    if (previousToken === undefined) Reflect.deleteProperty(process.env, 'MT_SERVE_TOKEN')
+    else process.env.MT_SERVE_TOKEN = previousToken
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('refuses a non-loopback bind without a token', async () => {
+    await expect(startBackend({ port: 0, host: '0.0.0.0' })).rejects.toThrow(/MT_SERVE_TOKEN/)
   })
 })
 

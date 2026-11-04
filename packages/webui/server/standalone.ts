@@ -14,7 +14,9 @@ import {
   createError,
   createRouter,
   defineEventHandler,
+  getHeader,
   setResponseHeader,
+  setResponseStatus,
   toNodeListener,
 } from 'h3'
 import healthRoute from './routes/api/health.js'
@@ -26,7 +28,10 @@ import pauseRoute from './routes/api/runs/[id]/pause.js'
 import resumeRoute from './routes/api/runs/[id]/resume.js'
 import runsRoute from './routes/api/runs/index.js'
 import startRoute from './routes/api/runs/start.js'
+import { assertSafeServeBind, checkBearer, resolveServeToken } from './utils/serve-auth.js'
 import { closeSqlite, initSqlite } from './utils/sqlite.js'
+
+export { resolveServeTokenRef } from './utils/serve-auth.js'
 
 /**
  * Nitro-free runtime for the admin API. Mounts the very same h3 handlers that Nitro file-routing
@@ -46,6 +51,8 @@ export interface StartBackendOptions {
   ui?: EmbeddedUi
   /** Mount the router API on the same port (default: true). */
   router?: boolean
+  /** Bearer token for `/api/*`; resolved from CLI/env/config when omitted. Never logged. */
+  token?: string
 }
 
 export interface BackendHandle {
@@ -115,14 +122,29 @@ function uiHandler(lookup: UiLookup) {
   })
 }
 
+function serveAuthHandler(token: string) {
+  return defineEventHandler((event: H3Event) => {
+    const path = (event.path ?? '').split('?')[0] ?? ''
+    if (!path.startsWith('/api/')) return
+    if (path === '/api/health' && event.method === 'GET') return
+    if (checkBearer(getHeader(event, 'authorization'), token)) return
+
+    setResponseHeader(event, 'WWW-Authenticate', 'Bearer')
+    setResponseStatus(event, 401)
+    return { error: 'Unauthorized' }
+  })
+}
+
 export function createBackendApp(
-  options: Pick<StartBackendOptions, 'uiDir' | 'ui' | 'router'> = {},
+  options: Pick<StartBackendOptions, 'uiDir' | 'ui' | 'router' | 'token'> = {},
 ) {
   const app = createApp({
     onError(error, event) {
       if (isRouterApiPath(event.path ?? '')) handleRouterError(error, event)
     },
   })
+  // Before any route: one guard covers the admin API and the embedded router on the same port.
+  if (options.token) app.use(serveAuthHandler(options.token))
   const adminRouter = createRouter()
   adminRouter.use('/api/health', healthRoute)
   adminRouter.use('/api/pipelines', pipelinesRoute)
@@ -150,10 +172,14 @@ export function createBackendApp(
 
 export async function startBackend(options: StartBackendOptions = {}): Promise<BackendHandle> {
   const host = options.host ?? 'localhost'
+  const projectRoot = process.env.MT_PROJECT_ROOT || process.cwd()
+  const token = await resolveServeToken({ token: options.token, projectRoot })
+  // Refuse a non-loopback bind without a token before touching the router or the listener.
+  assertSafeServeBind(host, token)
   if (options.router !== false) await prepareRouterRuntime({ host })
-  initSqlite(process.env.MT_PROJECT_ROOT || process.cwd())
+  initSqlite(projectRoot)
 
-  const server: Server = createServer(toNodeListener(createBackendApp(options)))
+  const server: Server = createServer(toNodeListener(createBackendApp({ ...options, token })))
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once('error', rejectListen)
     server.listen(options.port ?? 3000, host, () => resolveListen())

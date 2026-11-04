@@ -10,6 +10,8 @@ interface ServeOptions {
   host: string
   detach: boolean
   router: boolean
+  /** Environment variable name or secret ref (`env:`, `vlt:`, `keepass:`, `embed:`), never plaintext. */
+  tokenRef?: string
 }
 
 function parseArgs(args: string[]): ServeOptions {
@@ -20,6 +22,9 @@ function parseArgs(args: string[]): ServeOptions {
       i++
     } else if (args[i] === '--host' && i + 1 < args.length) {
       options.host = args[i + 1] as string
+      i++
+    } else if (args[i] === '--token-ref' && i + 1 < args.length) {
+      options.tokenRef = args[i + 1] as string
       i++
     } else if (args[i] === '-d' || args[i] === '--detach') {
       options.detach = true
@@ -53,6 +58,8 @@ async function detachServe(options: ServeOptions): Promise<void> {
   const entry = compiled ? [] : [process.argv[1] as string]
   const forwarded = ['serve', '--port', String(options.port), '--host', options.host]
   if (!options.router) forwarded.push('--no-router')
+  // Forward the ref, never a resolved token: argv is visible in the process list.
+  if (options.tokenRef) forwarded.push('--token-ref', options.tokenRef)
   const child = spawn(process.execPath, [...entry, ...forwarded], {
     detached: true,
     stdio: ['ignore', logStream, logStream],
@@ -82,13 +89,15 @@ export async function serveCommand(args: string[]): Promise<void> {
   }
 
   // Lazy: pulls h3 (+ better-sqlite3 under Node / bun:sqlite under Bun) only when serving.
-  const { startBackend } = await import('@mt/webui/standalone')
+  const { resolveServeTokenRef, startBackend } = await import('@mt/webui/standalone')
   const uiDir = findUiDir()
+  const token = options.tokenRef ? await resolveServeTokenRef(options.tokenRef) : undefined
   const handle = await startBackend({
     port: options.port,
     host: options.host,
     uiDir,
     router: options.router,
+    token,
   })
   console.log(`Backend listening on ${handle.url}`)
 

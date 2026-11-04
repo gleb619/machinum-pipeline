@@ -114,6 +114,32 @@ pnpm --filter=mt exec tsx src/bin.ts run ./pipelines/p.ts
 Needs Node + `tsx` (root devDependency) and the workspace installed. Slower per start than the binary,
 but no compile step — use while hacking on the CLI.
 
+### Exposing `mt serve` beyond loopback
+
+Default bind is `localhost` with no token (back-compat). A non-loopback `--host`
+(`0.0.0.0`, a LAN IP, a container interface) requires a bearer token; without one `mt serve`
+refuses to start and prints the fix hint. The token guards every `/api/*` route except
+`GET /api/health`; static UI reads stay open.
+
+```bash
+# environment (plaintext value or a secret ref)
+export MT_SERVE_TOKEN='<secret>'
+mt serve --host 0.0.0.0 --port 7777
+
+# or name an env var / vault ref (never put plaintext in the flag)
+mt serve --host 0.0.0.0 --token-ref MY_SERVE_TOKEN
+mt serve --host 0.0.0.0 --token-ref embed:serve-token
+
+curl -H "Authorization: Bearer $MT_SERVE_TOKEN" http://host:7777/api/runs
+```
+
+`mt.json` may hold a ref only: `{ "serve": { "tokenRef": "embed:serve-token" } }`. There is no
+plaintext `--token` flag (shell history / `ps` leak). Keep the secret in `.env` (gitignored),
+the embedded/vlt/KeePass vault, or an orchestrator secret. Prefer an SSH tunnel
+(`ssh -L 7777:127.0.0.1:7777 host`) or a TLS reverse proxy instead of exposing plain HTTP;
+`mt serve` does not terminate TLS itself. Detached mode forwards `--token-ref` (never the resolved
+secret) to the child process.
+
 ### Remote browser-translate worker (optional)
 
 The `mt-browser-translate` bin is a Node entry point for the remote browser-translation worker; it is
@@ -309,5 +335,7 @@ pnpm build:bin && docker build --build-arg MT_SOURCE=local -t mt .     # from pa
 | `docker pull` denied | ghcr package still private | make it public in package settings, or `docker login ghcr.io` |
 | secrets vanish between `docker run`s | `~/.mt` not mounted | mount a volume/dir at `/home/mt/.mt` or use `MT_EMBED_PASSWORD_FILE` |
 | `mt serve` port busy | default port taken | `mt serve --port <p>` |
+| `mt serve` refuses a non-loopback host | no bearer token | set `MT_SERVE_TOKEN`, `--token-ref <ENV_OR_REF>`, or bind `127.0.0.1` |
+| `401 {"error":"Unauthorized"}` from `mt serve` | missing/wrong bearer token | add `Authorization: Bearer <secret>` (health is open) |
 | 401 / 429 from the LLM | keys missing or pool exhausted | `OPENROUTER_API_KEYS`, vault refs |
 | pipeline fails on a missing package | binary has no `node_modules` | project-local deps must be installed next to the pipeline |

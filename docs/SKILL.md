@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.16.0 | 2026-11-04 -->
+<!-- skill-version: 1.17.0 | 2026-11-04 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate}.md, docs/steering/{cli,core,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -33,7 +33,8 @@ pipelines/*.ts       pipeline modules (default export = the pipeline)
 `mt.json` keys you will touch: `project.name`, `pipelines[]`, `uris{}` (named aliases),
 `settings.llm.{tool,model,use}`, `settings.constants.<NAME>` (tunable overrides, below), `secrets.envFile`,
 `imports[]`, `defaults.{retry,onError,concurrency}`,
-`scripts.{install,start,end,stop,exit,resume,error}` (paths to hook pipelines), `router.port`.
+`scripts.{install,start,end,stop,exit,resume,error}` (paths to hook pipelines), `router.port`,
+`serve.tokenRef` (secret ref for the admin-API bearer token; never plaintext).
 
 ## Pipeline DSL
 
@@ -168,7 +169,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
-| `mt serve [--port N\|0] [--host H] [--no-router] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); detached state in `.mt/backend/{pid,server.log}` |
+| `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); `--token-ref` takes an env var name, `env:NAME`, or `vlt:`/`keepass:`/`embed:` ref (no plaintext `--token`); detached state in `.mt/backend/{pid,server.log}` |
 | `mt router [--port N] [--host H] [--mock] [--log-dir D] [-d]` | standalone keyless LLM gateway, API-only (also embedded in `mt serve`); token only via `MT_ROUTER_TOKEN` |
 | `mt vault <sub>` | secrets, see below |
 | `mt skill [...]` | print/install this file, see below |
@@ -293,7 +294,8 @@ call time, in memory only.
 One pick configures every LLM tool: env `MT_LLM_TOOL` (or `settings.llm.tool`) =
 `mock` (default, offline) | `router` | `openrouter-free` | `openrouter-pool` | `ollama`.
 `MT_LLM_MODEL`, `MT_LLM_PROVIDER`, `MT_LLM_BASE_URL`, `MT_ROUTER_URL` (default `http://localhost:7777`),
-`MT_ROUTER_TOKEN`, `OPENROUTER_API_KEYS` (comma pool), `MT_OLLAMA_URL` also apply.
+`MT_ROUTER_TOKEN`, `MT_SERVE_TOKEN` (admin API bearer; a non-loopback `mt serve --host` requires it),
+`OPENROUTER_API_KEYS` (comma pool), `MT_OLLAMA_URL` also apply.
 
 Offline pipeline for tests:
 
@@ -374,6 +376,8 @@ Runner never enters it. `paused -> done` is illegal.
 | 401 / 429 from LLM | keys missing or pool exhausted | check vault refs, `OPENROUTER_API_KEYS`, router status |
 | missing package in the standalone binary | binary has no project `node_modules` | install deps next to the pipeline; native addons (`.node`) are unsupported |
 | port busy | `mt serve` default taken | `--port <p>` or `--port 0` |
+| `mt serve` refuses a non-loopback host | no admin-API token | `MT_SERVE_TOKEN`, `--token-ref <ENV_OR_REF>`, or bind `127.0.0.1` |
+| `401 {"error":"Unauthorized"}` from `mt serve` | missing/wrong bearer token | send `Authorization: Bearer <secret>`; `GET /api/health` is open |
 | behaviour matches old code | stale `mt` binary | rebuild/upgrade the binary |
 
 ## Do / Don't
@@ -391,5 +395,5 @@ Don't:
 - Don't hand-edit `.mt/runs/*/state.json` (it holds the checkpoint tree).
 - Don't print, log, commit or echo secrets, master keys, `--reveal` output or `.env` contents.
 - Don't add `.batch/.flatMap/.subflow('<entity-type>')` casually: they change cardinality for every later step.
-- Don't run `mt serve`/`mt router` bound to a non-loopback host without `MT_ROUTER_TOKEN`.
+- Don't run `mt serve` bound to a non-loopback host without `MT_SERVE_TOKEN`/`--token-ref`, or `mt router` without `MT_ROUTER_TOKEN`.
 - Don't assume a flag exists: run `mt <command> --help` when unsure.

@@ -47,6 +47,20 @@ describe('UC-26 - Background Serving CLI (architectural)', () => {
     expect(source).toMatch(/router:\s*options\.router/)
   })
 
+  it('parses --token-ref and never accepts a plaintext --token flag', async () => {
+    const servePath = join(__dirname, '..', '..', 'src', 'commands', 'serve.ts')
+    const source = await readFile(servePath, 'utf-8')
+    expect(source).toMatch(/--token-ref/)
+    expect(source).not.toMatch(/'--token'(?!-ref)/)
+  })
+
+  it('detach forwards the token ref, not a resolved plaintext token', async () => {
+    const servePath = join(__dirname, '..', '..', 'src', 'commands', 'serve.ts')
+    const source = await readFile(servePath, 'utf-8')
+    expect(source).toMatch(/tokenRef/)
+    expect(source).toMatch(/--token-ref/)
+  })
+
   it('detach mode spawns a child process with detached:true', async () => {
     const servePath = join(__dirname, '..', '..', 'src', 'commands', 'serve.ts')
     const source = await readFile(servePath, 'utf-8')

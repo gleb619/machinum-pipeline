@@ -95,7 +95,7 @@ Commands:
   inspect <runId>        Show run details
   info                   Show effective mt.json (secrets masked) and .mt state/runs [--json] [--runs <n>]
   tool <name>            Invoke a tool standalone [--pipeline <file>] (JSON envelope on stdin/stdout)
-  serve [opts]            Start admin backend + embedded router (--no-router, -d|--detach)
+  serve [opts]            Start admin backend + embedded router (--no-router, --token-ref, -d|--detach)
   router [opts]          Start LLM router proxy (--help)
   vault <sub>            Manage the vault: list|show|add|rm|path|init|vlt-install|vlt-status (--help)
   skill [opts]           Print/install the agent skill (SKILL.md): --out|--install|--target|--path (--help)

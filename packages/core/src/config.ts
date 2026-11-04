@@ -49,6 +49,10 @@ export interface MtConfig {
   router?: {
     port?: number
   }
+  serve?: {
+    /** Secret reference (`env:NAME`, `vlt:`, `keepass:`, `embed:`) for the admin API bearer token. */
+    tokenRef?: string
+  }
   model?: {
     default?: string
   }

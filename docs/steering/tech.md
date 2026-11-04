@@ -116,6 +116,7 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_ROUTER_HOST` | `localhost` | Router bind host; a non-loopback host requires `MT_ROUTER_TOKEN` ([router.md](router.md)) |
 | `MT_ROUTER_TOKEN` | — | Bearer token for the router `/api/*` routes (except `GET /api/health`); also the only credential of the tools provider `router` |
 | `MT_ROUTER_VAULT` | `true` | Load router upstreams/keys from the vault file(s); `false` disables ([router.md](router.md)) |
+| `MT_SERVE_TOKEN` | — | Bearer token for `mt serve` `/api/*` routes (except `GET /api/health`); a non-loopback `--host` requires it. Plaintext or a secret ref (`env:`/`vlt:`/`keepass:`/`embed:`); `mt.json -> serve.tokenRef` is the ref-only fallback ([webui.md](webui.md#auth-t202)) |
 | `MT_CLIENT_BUDGET` | — | Router: daily USD budget per `X-MT-Client` id; unset/0 = off (global `MT_DAILY_BUDGET` still applies) |
 | `MT_CLIENT_ID` | — | Tools: sent as `X-MT-Client` on router-provider requests (per-client budget key); not a secret |
 | `MT_LLM_PROVIDER` | `router` | `router` \| `openrouter` \| `openai` \| `ollama` \| `anthropic` \| `custom` |
