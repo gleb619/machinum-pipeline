@@ -65,7 +65,8 @@ Provides `mt.json` JSON schema validation, DSL hover information, and a "Run pip
 packages/vscode/src/
 ├── extension.ts          # activate()/deactivate() — registers providers
 ├── codelens-provider.ts  # CodeLensProvider — adds "Run pipeline" above definePipeline() calls
-└── hover-provider.ts     # HoverProvider — hover docs for .from(), .use(), .fork(), etc.
+├── dsl-docs.ts           # DSL hover docs (pure module — no vscode import) + docsFor() lookup
+└── hover-provider.ts     # HoverProvider — resolves the hovered word to DSL docs
 ```
 
 ### Features
@@ -74,9 +75,14 @@ packages/vscode/src/
 - `mt.json` schema — validates `mt.json` project config files
 - Registered via `contributes.jsonValidation` in `package.json`
 
-**Hover Provider** (`hover-provider.ts`):
-- `provideHover()` — intercepts hover on DSL method names in `.ts` files
-- Returns markdown documentation for `from`, `use`, `fork`, `subflow`, `batch`, `flatMap`, `tap`, `to`
+**Hover Provider** (`hover-provider.ts` + `dsl-docs.ts`):
+- `provideHover()` — resolves the word under the cursor via `document.getText(wordRange)`
+- `docsFor(word, precedingChar)` (`dsl-docs.ts`) — builder ops resolve only when the word is a
+  method call (preceded by `.`); `definePipeline` resolves as a plain identifier; anything else
+  gets no hover
+- Docs cover `definePipeline` plus the 10 builder ops (`from`, `use`, `useAll`, `to`, `batch`,
+  `flatMap`, `fork`, `subflow`, `tap`, `log`) — kept in sync with `packages/core/src/dsl.ts`
+- `dsl-docs.ts` is a pure module (no `vscode` import) so the lookup is unit-testable
 
 **Code Lens Provider** (`codelens-provider.ts`):
 - `provideCodeLenses()` — scans for `definePipeline()` calls
@@ -93,7 +99,8 @@ packages/vscode/src/
 
 ```
 packages/vscode/tests/
-└── package.arch.test.ts   # Validates extension manifest, activationEvents, contributes
+├── package.arch.test.ts   # Validates extension manifest, activationEvents, contributes
+└── hover-docs.test.ts     # Hover doc lookup — every op documented, unknown words not
 ```
 
 ### Build
