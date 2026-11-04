@@ -22,6 +22,7 @@ Defaults chosen (open questions):
 
 <!-- Planned: the planning agent's commitment (>= 2m per step). Estimated: written by `at kanban estimate` — do not edit. -->
 Planned: 3h
+Estimated: 3h
 
 ## Files to touch
 
