@@ -22,6 +22,7 @@
     "translate:title": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-title.ts",
     "proofread": "NODE_OPTIONS='--import tsx' mt run ./pipelines/proofread.ts",
     "glossary": "NODE_OPTIONS='--import tsx' mt run ./pipelines/glossary.ts",
+    "book": "NODE_OPTIONS='--import tsx' mt run ./pipelines/book.ts",
     "statdata": "NODE_OPTIONS='--import tsx' mt run ./pipelines/statdata.ts",
     "stat-dict-translate": "NODE_OPTIONS='--import tsx' mt run ./pipelines/stat-dict-translate.ts",
     "cleanup": "rm -rf out .mt",

@@ -87,6 +87,7 @@ after its retries and used a deterministic substitute; the report shows it in **
 | `glossary` | `createGlossaryExtractor` (LLM stages on) | real names, right `type`, useful `description`, sensible `references` |
 | `statdata` | `statFreq` + `createStatDict` (offline) | top terms are story terms, candidate types make sense |
 | `stat-dict-translate` | `createStatTranslateDict` | every candidate has a sensible RU form, ids all returned |
+| `book` | `bookCompiler` + `book://` target (offline) | `chapters/book/book.md` holds every chapter in order with a TOC; `book.json` holds TOC + warnings |
 
 `proofread` has no LLM step of its own: the repo only ships the statistical proofreader, so the pipeline
 translates first and then measures the result.

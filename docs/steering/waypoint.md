@@ -30,6 +30,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT013 | `ephemeral://<namespace>` | `ephemeral.ts` | ✓ | ✓ | Process-local in-memory buffer; target clears on open |
 | WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ | Scope-local views of `.batch(opts, nested)` |
 | WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | Typed entity-buffer family: `batches`, `chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`; ladder rungs are source-only |
+| WT016 | `book://./out/book` | `book.ts` | — | ✓ | Writes the assembled book: `book.md` (markdown) + `book.json` (TOC + warnings); needs the `book` variable from the `book-compiler` tool |
 
 ## Annotations
 
@@ -284,6 +285,13 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   non-negative integer; the auto-increment fallback is always safe. Violations throw an error
   naming the key, never silently rewrite. The final path is additionally asserted inside
   `baseDir` via `relative()` (no `..` prefix) as defence in depth
+
+### `book.ts`
+- Target only: `book://<dir>` resolves `<dir>` against `project.root` (bare name -> `project.root/<name>`)
+- Writes `book.md` (the markdown item) and `book.json` (`{ title, toc, warnings }`) with `atomicWriteFile`
+- The `book` variable (published by the `book-compiler` tool) carries the TOC and the warnings; a
+  missing variable or a non-string item throws before anything is written, so a rejected envelope
+  leaves no partial book behind
 
 ### `md.ts`
 - Source query `?split=chunks|paragraphs|lines` reads each markdown file, resolves the

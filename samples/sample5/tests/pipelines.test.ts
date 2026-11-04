@@ -99,3 +99,26 @@ describe('sample5: one pipeline per LLM tool (offline, mock backend)', () => {
     expect(out).toContain('backend: mock')
   })
 })
+
+describe('sample5: book assembly (offline)', () => {
+  it('writes one book with every chapter heading in numeric order', async () => {
+    expect(run('book')).toContain('Pipeline complete')
+
+    const md = await readFile(join(OUT_DIR, 'book', 'book.md'), 'utf-8')
+    const first = md.indexOf('# Chapter 1: The Road from Thornhaven')
+    const second = md.indexOf('# Chapter 2: Ambush in the Darkwood')
+    expect(first).toBeGreaterThan(-1)
+    expect(second).toBeGreaterThan(first)
+    expect(md).toContain(
+      '- [Chapter 1: The Road from Thornhaven](#chapter-1-the-road-from-thornhaven)',
+    )
+    expect(md).toContain('- [Chapter 2: Ambush in the Darkwood](#chapter-2-ambush-in-the-darkwood)')
+
+    const json = JSON.parse(await readFile(join(OUT_DIR, 'book', 'book.json'), 'utf-8'))
+    expect(json.toc.map((entry: { title: string }) => entry.title)).toEqual([
+      'Chapter 1: The Road from Thornhaven',
+      'Chapter 2: Ambush in the Darkwood',
+    ])
+    expect(json.warnings).toEqual([])
+  })
+})

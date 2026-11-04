@@ -56,6 +56,13 @@ optional — user-defined tools can omit it entirely.
 ### `chapter-doc.ts`
 Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`).
 
+### `book-compiler.ts`
+Assembles chapters back into one book. Exports: `bookCompiler` (composable tool: slots `build` -> `validate` -> `emit`), `bookCompilerBuild`, `bookCompilerValidate`, `bookCompilerEmit`, `VAR_BOOK`.
+
+- `build` — chapter inputs (`ChapterDoc`, chapter markdown, domain `Chapter`, or a list of them) -> `BookDoc` (`{ title, chapters, toc, warnings }`); publishes the `book` variable.
+- `validate` — deterministic completeness report (no LLM): `GAP`, `DUPLICATE_NUMBER`, `OUT_OF_ORDER`, `EMPTY_BODY`, `DUPLICATE_TITLE`, `DUPLICATE_PARAGRAPH` (cross-chapter near-duplicates, 64-bit FNV-1a over normalized text). Findings are `{ code, chapterNumber?, message }`, mirroring the `chapter-doc` warning shape.
+- `emit` — pure: renders one markdown book (YAML frontmatter `title`/`chapterCount`/`wordCount`, TOC with anchor links, `---` separators, one `# ` heading per chapter, trailing newline). The `book://` waypoint target (`WT016`) does the writing.
+
 ### `schema-doc.ts` + `schema/`
 LLM-powered schema document generation. The mdshape document format (`SchemaDocEnvelope`, `readDoc`,
 `writeDoc`, `schemaDocWriter`) lives in `schema-doc.ts` and stays pure; the five extraction tools live in
@@ -1079,7 +1086,7 @@ The TL001–TL116 entries below are the planned-tool spec index — the full cat
 
 ## Implemented tool index (TL201+)
 
-IDs TL201–TL247 are allocated to implemented tools that had no clear match in the
+IDs TL201–TL251 are allocated to implemented tools that had no clear match in the
 TL001–TL116 planned-tool spec. The ID is stable per exported tool value; aliases share one
 annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 
@@ -1132,3 +1139,7 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL245 | `toMarkdown`, `toMarkdownTool` | `to-markdown` | UC058 | `modification/to-markdown.ts` |
 | TL246 | `unwrapMarkdownText` | `unwrap-markdown-text` | — | `normalization/chapter-record.ts` |
 | TL247 | `browserTranslate` | `browser-translate` | — | `modification/browser-translate.ts` |
+| TL248 | `bookCompilerBuild` | `book-compiler-build` | — | `modification/book-compiler.ts` |
+| TL249 | `bookCompilerValidate` | `book-compiler-validate` | — | `modification/book-compiler.ts` |
+| TL250 | `bookCompilerEmit` | `book-compiler-emit` | — | `modification/book-compiler.ts` |
+| TL251 | `bookCompiler` | `book-compiler` | — | `modification/book-compiler.ts` |

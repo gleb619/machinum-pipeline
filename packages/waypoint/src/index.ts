@@ -42,6 +42,7 @@ export {
   createGitWorktreeSource,
   createGitWorktreeTarget,
 } from './git-worktree.js'
+export { createBookTarget } from './book.js'
 
 // Side-effect imports — register schemes with the URI registry
 import './jsonl.js'
@@ -59,3 +60,4 @@ import './range.js'
 import './void.js'
 import './review.js'
 import './console.js'
+import './book.js'

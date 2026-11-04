@@ -589,6 +589,21 @@ export {
 } from './modification/chapter-doc.js'
 
 export {
+  VAR_BOOK,
+  bookCompiler,
+  bookCompilerBuild,
+  bookCompilerValidate,
+  bookCompilerEmit,
+  type BookDoc,
+  type BookTocEntry,
+  type BookWarning,
+  type BookWarningCode,
+  type BookCompilerInput,
+  type BookCompilerOptions,
+  type ChapterInput,
+} from './modification/book-compiler.js'
+
+export {
   VAR_MD_OUTPUTS,
   appendMdOutput,
   mdOutputEmitter,

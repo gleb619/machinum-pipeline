@@ -36,13 +36,13 @@ describe('tool annotations', () => {
     resetAnnotationRegistry()
   })
 
-  it('exports exactly 69 tool-shaped values', () => {
+  it('exports exactly 73 tool-shaped values', () => {
     const toolExports = collectToolExports()
     const names = toolExports.map(([exportName]) => exportName).sort()
     expect(
       toolExports.length,
-      `expected 69 tool-shaped exports, got ${toolExports.length}: ${names.join(', ')}`,
-    ).toBe(69)
+      `expected 73 tool-shaped exports, got ${toolExports.length}: ${names.join(', ')}`,
+    ).toBe(73)
   })
 
   it('annotates every tool-shaped export with a valid TL annotation', () => {
