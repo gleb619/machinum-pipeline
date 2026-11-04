@@ -280,6 +280,11 @@ local/private pages below the URL layer.
 Reserve `mt-translate.test` in docs/examples for HTTP fixtures; do not promise native translation
 from it until a real Chrome experiment passes.
 
+**Decision recorded (2026-11-04):** `mt-translate.test` is reserved for HTTP fixtures and examples
+only, and no doc may promise native Chrome translation from it. See the "Reserved hostname" note in
+[docs/steering/tools.md](../steering/tools.md#modificationbrowser-translatets) (`browser-translate`,
+TL247).
+
 ## Cost note
 
 Updated 2026-11-03 (evening): the translate worker is no longer an external project — it lives

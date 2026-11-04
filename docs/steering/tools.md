@@ -427,6 +427,14 @@ option (any `Tool<TranslateInput, TranslateOutput>`) or per-slot via `.with({ tr
   Google Translate endpoint (`https://translate.googleapis.com/translate_a/single`) itself, writes the result
   into the DOM, and Playwright reads it back. The page chunker preserves leading/trailing whitespace at chunk
   boundaries. Native auto-translate is not used.
+- **Reserved hostname.** `mt-translate.test` (RFC 6761 `.test`) is reserved for HTTP fixtures and
+  examples only; resolve it with `/etc/hosts` line `127.0.0.1 mt-translate.test` and serve fixtures at
+  `http://mt-translate.test:<port>`. It is **not** a native-translation trigger: Chrome 156 headless did
+  not natively translate any local/private variant tried (`localhost`, `lvh.me`, `127.0.0.1.nip.io`, a
+  LAN IP, a local proxy serving a public-looking host, `--host-resolver-rules=MAP … 127.0.0.1`), so no doc
+  may promise native translation from it. The working path is `browser-translate` (TL247) calling
+  `https://translate.googleapis.com/translate_a/single` from the page (`PAGE_ENDPOINT` in
+  `packages/tools/src/modification/browser-translate.ts`).
 
 **Remote worker (`browser-translate-server.ts`).** `startBrowserTranslateServer(options?)` starts one
 long-lived server with one shared Chrome engine. It returns `{ url, host, port, stats, close }`;
