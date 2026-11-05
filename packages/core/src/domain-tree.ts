@@ -1,4 +1,4 @@
-import type { Chapter, Chunk, Line, Paragraph, Token, Word } from './domain.js'
+import type { Chapter, Chunk, LineWord, Paragraph, ParagraphLine, Token } from './domain.js'
 import {
   DEFAULT_CHUNK_SEPARATOR,
   parseChunks,
@@ -391,13 +391,13 @@ export class ParagraphNode implements Paragraph {
 }
 
 /** Mutable line view; words are derived on demand from the current text. */
-export class LineNode implements Line {
+export class LineNode implements ParagraphLine {
   id: string
   readonly paragraphId: string
   index?: number
   private _text: string
 
-  constructor(line: Line) {
+  constructor(line: ParagraphLine) {
     this.id = line.id
     this.paragraphId = line.paragraphId
     this.index = line.index
@@ -428,8 +428,8 @@ export class LineNode implements Line {
     this._text = `${this._text.slice(0, span.start)}${value}${this._text.slice(span.end)}`
   }
 
-  toLine(): Line {
-    const line: Line = {
+  toLine(): ParagraphLine {
+    const line: ParagraphLine = {
       id: this.id,
       paragraphId: this.paragraphId,
       text: this.text,
@@ -440,7 +440,7 @@ export class LineNode implements Line {
 }
 
 /** Mutable word view backed by its line; `word` writes through to the line text. */
-export class WordNode implements Word {
+export class WordNode implements LineWord {
   id: string
   paragraphId: string
   lineId: string
@@ -465,8 +465,8 @@ export class WordNode implements Word {
     this._line.replaceWord(this._wordIndex, value)
   }
 
-  toWord(): Word {
-    const word: Word = {
+  toWord(): LineWord {
+    const word: LineWord = {
       id: this.id,
       paragraphId: this.paragraphId,
       lineId: this.lineId,

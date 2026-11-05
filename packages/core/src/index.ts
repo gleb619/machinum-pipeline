@@ -245,7 +245,17 @@ export {
   withoutOldAndEmpty,
   withoutVariable,
 } from './exchange.js'
-export type { Book, Chapter, Paragraph, Chunk, Token, Line, Word } from './domain.js'
+export type {
+  Book,
+  Chapter,
+  ChapterLine,
+  ChapterLineWord,
+  Paragraph,
+  Chunk,
+  Token,
+  ParagraphLine,
+  LineWord,
+} from './domain.js'
 export {
   ChapterNode,
   ChunkNode,

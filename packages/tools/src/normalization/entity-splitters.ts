@@ -2,13 +2,13 @@ import { registry } from '@mt/core'
 import type {
   Chunk,
   Exchange,
-  Line,
+  LineWord,
   Paragraph,
+  ParagraphLine,
   Splitter,
   SplitterContext,
   Token,
   ToolContext,
-  Word,
 } from '@mt/core'
 import { heuristicTokenCount, splitLineUnits, splitParagraphUnits } from '@mt/core'
 import { readChapterDoc } from '../modification/chapter-doc.js'
@@ -105,7 +105,9 @@ function wordSource(env: Exchange<unknown>): WordSource {
     }
   }
 
-  throw new Error('wordSplitter: item must be a string or a Line-like object with id, text')
+  throw new Error(
+    'wordSplitter: item must be a string or a ParagraphLine-like object with id, text',
+  )
 }
 
 /**
@@ -153,10 +155,10 @@ export const paragraphSplitter: Splitter<Paragraph> = {
 }
 
 /**
- * Paragraph → Line splitter. Accepts a paragraph body string (id from `meta.paragraphId`,
+ * Paragraph → ParagraphLine splitter. Accepts a paragraph body string (id from `meta.paragraphId`,
  * falling back to the exchange id) or a `Paragraph`-like object.
  */
-export const lineSplitter: Splitter<Line> = {
+export const lineSplitter: Splitter<ParagraphLine> = {
   name: 'line-splitter',
   split(env) {
     const { paragraphId, body } = lineSource(env)
@@ -170,10 +172,10 @@ export const lineSplitter: Splitter<Line> = {
 }
 
 /**
- * Line → Words splitter. Accepts a line text string (ids from `meta.lineId` /
- * `meta.paragraphId`, falling back to the exchange id) or a `Line`-like object.
+ * ParagraphLine → LineWord splitter. Accepts a line text string (ids from `meta.lineId` /
+ * `meta.paragraphId`, falling back to the exchange id) or a `ParagraphLine`-like object.
  */
-export const wordSplitter: Splitter<Word> = {
+export const wordSplitter: Splitter<LineWord> = {
   name: 'word-splitter',
   split(env) {
     const { paragraphId, lineId, text } = wordSource(env)

@@ -1,5 +1,5 @@
 import { createExchange, registry } from '@mt/core'
-import type { Chunk, Line, Paragraph, SplitterContext } from '@mt/core'
+import type { Chunk, Paragraph, ParagraphLine, SplitterContext } from '@mt/core'
 import { splitLineUnits, splitParagraphUnits } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
@@ -310,8 +310,8 @@ describe('wordSplitter', () => {
     ])
   })
 
-  it('accepts a Line-like entity and uses its ids', () => {
-    const line: Line = {
+  it('accepts a ParagraphLine-like entity and uses its ids', () => {
+    const line: ParagraphLine = {
       id: 'line-9',
       paragraphId: 'paragraph-3',
       text: 'one two',

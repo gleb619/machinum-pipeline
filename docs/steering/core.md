@@ -21,7 +21,7 @@ Re-exports everything needed by consumers:
 ## Key Modules
 
 ### `domain.ts`
-Plain interfaces only: `Book`, `Chapter`, `Chunk`, `Paragraph` (optional `chunkId` — paragraph of a chunk), `Token` (BPE token of a chunk — alternate descent from `Chunk`, sibling of `Paragraph`), `Line`, `Word`. No classes, no methods. Sources provide stable IDs.
+Plain interfaces only: `Book`, `Chapter`, `Chunk`, `Paragraph` (optional `chunkId` — paragraph of a chunk), `Token` (BPE token of a chunk — alternate descent from `Chunk`, sibling of `Paragraph`), `ParagraphLine`, `LineWord`, plus the chapter-direct line path `ChapterLine` / `ChapterLineWord`. No classes, no methods. Sources provide stable IDs.
 
 ### `domain-tree.ts` — fluent domain view
 `chapterTree(chapter, opts?)` / `parseChapterTree(markdown, { id, bookId, title? }, opts?)` wrap the plain domain interfaces in mutable nodes (`ChapterNode`, `ChunkNode`, `ParagraphNode`, `LineNode`, `WordNode`, `TokenNode`) without changing the wire shapes. The pinned descent is `chapter.chunks()[0].paragraphs()[0].lines[0]`; `chapter.paragraphs()`, `chapter.lines()` and `chapter.words()` flatten in document order, and `chunk.tokens()` is the alternate descent when `opts.tokenize` is injected.

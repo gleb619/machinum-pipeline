@@ -28,7 +28,7 @@ Consumers write pipelines as real `.ts` files using a thin DSL, declare project 
 
 ## Domain Model
 
-Books are structured as `Book → Chapter → Paragraph → Line`. All domain entities are plain interfaces. Sources provide stable IDs — the engine never mints domain entity IDs.
+Books are structured as `Book → Chapter → Paragraph → ParagraphLine → LineWord`, with a chapter-direct line path `Chapter → ChapterLine → ChapterLineWord`. All domain entities are plain interfaces. Sources provide stable IDs — the engine never mints domain entity IDs.
 
 ## Data Flow
 

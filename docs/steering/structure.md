@@ -38,7 +38,7 @@ machinum-pipeline/
 
 ```
 packages/core/src/
-├── domain.ts         # Book, Chapter, Paragraph, Line interfaces
+├── domain.ts         # Book, Chapter, Paragraph, ParagraphLine, LineWord + chapter-line interfaces
 ├── types.ts          # Source<T>, Tool<I,O>, Target<T>, Exchange<T> (Envelope alias), Lifecycle, RunState
 ├── contexts.ts       # GlobalContext → RunContext → ToolContext chain (backrefs, no copies)
 ├── dsl.ts            # definePipeline(), defineTool(), defineSource(), defineTarget(), defineWaypoint(), defineProcess()

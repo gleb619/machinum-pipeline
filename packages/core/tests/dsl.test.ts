@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool, source, target } from '../src/dsl.js'
-import type { Book, Chapter, Envelope, Line, Paragraph, RetryPolicy } from '../src/index.js'
+import type {
+  Book,
+  Chapter,
+  Envelope,
+  Paragraph,
+  ParagraphLine,
+  RetryPolicy,
+} from '../src/index.js'
 import { registry } from '../src/uri.js'
 
 // Register jsonl scheme for tests
@@ -208,7 +215,7 @@ describe('DSL', () => {
       chapterId: 'chap-1',
       body: 'Paragraph content',
     }
-    const line: Line = {
+    const line: ParagraphLine = {
       id: 'line-1',
       paragraphId: 'para-1',
       text: 'Line text',

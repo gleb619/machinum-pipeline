@@ -70,9 +70,9 @@ export interface Token {
 }
 
 /**
- * Line — a line within a paragraph.
+ * ParagraphLine — a line within a paragraph.
  */
-export interface Line {
+export interface ParagraphLine {
   id: string
   paragraphId: string
   text: string
@@ -80,13 +80,37 @@ export interface Line {
 }
 
 /**
- * Word — one word within a line (the smallest rung of the Structure Ladder).
- * `Word` is a core entity so splitters can return a stable shape without
+ * LineWord — one word within a line (the smallest rung of the Structure Ladder).
+ * `LineWord` is a core entity so splitters can return a stable shape without
  * importing a sample-local type.
  */
-export interface Word {
+export interface LineWord {
   id: string
   paragraphId: string
+  lineId: string
+  word: string
+  index?: number
+}
+
+/**
+ * ChapterLine — a line addressed directly under a chapter, without the
+ * paragraph rung. This is the flattening path for workflows that treat a
+ * chapter as a stream of lines.
+ */
+export interface ChapterLine {
+  id: string
+  chapterId: string
+  text: string
+  index?: number
+}
+
+/**
+ * ChapterLineWord — one word of a {@link ChapterLine}. Mirrors {@link LineWord}
+ * for the chapter-direct line path, so word tools work without a paragraph id.
+ */
+export interface ChapterLineWord {
+  id: string
+  chapterId: string
   lineId: string
   word: string
   index?: number
