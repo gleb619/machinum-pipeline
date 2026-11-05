@@ -8,8 +8,8 @@ const MT_BIN = join(SAMPLE_DIR, 'node_modules', '.bin', 'mt')
 const OUTPUT = join(SAMPLE_DIR, 'chapters', 'parallel-forks.md')
 
 const RECORDS = [
-  '# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
-  '# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
+  '---\nnumber: 1\nseries: demo-serial\nreviewer: alice\n---\n\n# Chapter One\n\nThe first line has words.\nSecond line follows here.\n\nA short paragraph ends.',
+  '---\nnumber: 2\nseries: demo-serial\nreviewer: bob\n---\n\n# Chapter Two\n\nThird chapter starts now.\n\nFinal line closes the book.',
 ]
 
 const SECTION_HEADINGS = ['counts', 'lines reordered', 'dots replaced with commas']
@@ -88,30 +88,47 @@ describe('parallel forks pipeline', () => {
     expect(content).toContain('2 paragraphs · 2 lines · 9 words')
   })
 
-  it('reorders each paragraph alphabetically', async () => {
+  it('reads frontmatter number/series and keeps the custom reviewer key', async () => {
+    run()
+    const content = await readFile(OUTPUT, 'utf-8')
+    const counts = sectionsUnder(content, 'counts')
+
+    expect(counts).toHaveLength(2)
+    expect(counts[0] ?? '').toContain('number: 1 · series: demo-serial · reviewer: alice')
+    expect(counts[1] ?? '').toContain('number: 2 · series: demo-serial · reviewer: bob')
+  })
+
+  it('reorders each paragraph alphabetically and records lineOrder metadata', async () => {
     run()
     const content = await readFile(OUTPUT, 'utf-8')
     const sections = sectionsUnder(content, 'lines reordered')
 
     expect(sections).toHaveLength(2)
+    expect(sections[0] ?? '').toContain('lineOrder: alphabetical')
     expect(sections[0] ?? '').toContain('- Second line follows here.\n- The first line has words.')
     expect(sections[0] ?? '').toContain('- A short paragraph ends.')
+    expect(sections[1] ?? '').toContain('lineOrder: alphabetical')
     expect(sections[1] ?? '').toContain('- Third chapter starts now.')
     expect(sections[1] ?? '').toContain('- Final line closes the book.')
   })
 
-  it('replaces every dot in the chapter body with a comma', async () => {
+  it('replaces every dot in the chapter body with a comma and records dotsReplaced', async () => {
     run()
     const content = await readFile(OUTPUT, 'utf-8')
     const sections = sectionsUnder(content, 'dots replaced with commas')
 
     expect(sections).toHaveLength(2)
+    expect(sections[0] ?? '').toContain('dotsReplaced: 3')
     expect(sections[0] ?? '').toContain('The first line has words,\nSecond line follows here,')
     expect(sections[0] ?? '').toContain('A short paragraph ends,')
+    expect(sections[1] ?? '').toContain('dotsReplaced: 2')
     expect(sections[1] ?? '').toContain('Third chapter starts now,')
     expect(sections[1] ?? '').toContain('Final line closes the book,')
 
-    for (const section of sections) expect(section).not.toContain('.')
+    for (const section of sections) {
+      const body = section.replace(/^[\s\S]*?dotsReplaced: \d+\s*/, '')
+      expect(body).not.toContain('.')
+    }
   })
 
   it('merges the three branch sections in declaration order for each chapter', async () => {

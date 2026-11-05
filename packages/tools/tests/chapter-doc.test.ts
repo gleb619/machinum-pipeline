@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   type ChapterDoc,
+  ChapterDocNode,
   type ChapterDocParagraph,
   chapterDoc,
   chapterDocEmit,
@@ -512,5 +513,138 @@ describe('chapterDoc tool', () => {
     expect(doc.body[0]?.lines).toEqual(['Paragraph one line one.'])
     expect(doc.body[1]?.lines).toEqual(['Paragraph two line one. Paragraph two line two.'])
     expect(doc.body[2]?.lines).toEqual(['Paragraph three.'])
+  })
+
+  it('merges input.meta into the chapterDoc variable and frontmatter', async () => {
+    const env = createExchange(
+      {
+        title: 'Meta Pass',
+        body: 'Body.',
+        number: 1,
+        meta: { reviewer: 'alice', number: 42 },
+      },
+      { meta: { chapterNum: 1 } },
+    )
+
+    const result = await chapterDoc.invoke(env, {} as ToolContext)
+    const doc = getVariable<ChapterDoc>(result, 'chapterDoc') as ChapterDocNode
+
+    expect(doc.number).toBe(42)
+    expect(doc.meta).toEqual({ reviewer: 'alice' })
+    expect(result.item).toContain('number: 42')
+    expect(result.item).toContain('reviewer: alice')
+    expect(doc.metadata().get('reviewer')).toBe('alice')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Chapter metadata API (T210)
+// ---------------------------------------------------------------------------
+
+describe('ChapterDoc.metadata()', () => {
+  it('exposes typed accessors from frontmatter', () => {
+    const md =
+      '---\nnumber: 3\nseries: demo-serial\nwarnings:\n  - id: w\n    text: note\n---\n\n# Title\n\nBody.'
+    const meta = readChapterDoc(md).metadata()
+
+    expect(meta.number).toBe(3)
+    expect(meta.series).toBe('demo-serial')
+    expect(meta.warnings).toEqual([{ id: 'w', text: 'note' }])
+    expect(meta.keys()).toEqual(['number', 'series', 'warnings'])
+  })
+
+  it('adds a new key, refuses overwrite, and set overwrites', async () => {
+    const doc = readChapterDoc('# Title\n\nBody.')
+    const meta = doc.metadata()
+
+    meta.add('reviewer', 'alice')
+    expect(meta.has('reviewer')).toBe(true)
+    expect(meta.get('reviewer')).toBe('alice')
+    expect(() => meta.add('reviewer', 'bob')).toThrow('Metadata key already exists: reviewer')
+
+    meta.set('reviewer', 'bob')
+    expect(meta.get('reviewer')).toBe('bob')
+
+    const md = await writeChapterDoc(doc)
+    expect(md).toContain('reviewer: bob')
+    expect(readChapterDoc(md).metadata().get('reviewer')).toBe('bob')
+  })
+
+  it('removes keys and treats undefined set as remove', async () => {
+    const doc = readChapterDoc(
+      '---\nnumber: 1\nseries: s\nreviewer: alice\n---\n\n# Title\n\nBody.',
+    )
+    const meta = doc.metadata()
+
+    meta.remove('reviewer')
+    meta.set('series', undefined)
+    expect(meta.has('reviewer')).toBe(false)
+    expect(meta.has('series')).toBe(false)
+    expect(doc.meta).toBeUndefined()
+
+    const md = await writeChapterDoc(doc)
+    expect(md).not.toContain('reviewer:')
+    expect(md).not.toContain('series:')
+    expect(md).toContain('number: 1')
+  })
+
+  it('round-trips unknown keys with alphabetical ordering', async () => {
+    const md = `---
+number: 1
+zebra: last
+alpha: first
+nested:
+  b: 2
+  a: 1
+tags:
+  - y
+  - x
+---
+
+# Title
+
+Body.`
+    const doc = readChapterDoc(md)
+    expect(doc.meta).toEqual({
+      zebra: 'last',
+      alpha: 'first',
+      nested: { b: 2, a: 1 },
+      tags: ['y', 'x'],
+    })
+
+    const out = await writeChapterDoc(doc)
+    const front = out.slice(out.indexOf('---'), out.indexOf('---', 3) + 3)
+    const alphaAt = front.indexOf('alpha:')
+    const nestedAt = front.indexOf('nested:')
+    const tagsAt = front.indexOf('tags:')
+    const zebraAt = front.indexOf('zebra:')
+    expect(alphaAt).toBeGreaterThan(-1)
+    expect(alphaAt).toBeLessThan(nestedAt)
+    expect(nestedAt).toBeLessThan(tagsAt)
+    expect(tagsAt).toBeLessThan(zebraAt)
+    expect(front.indexOf('number:')).toBeLessThan(alphaAt)
+
+    const again = readChapterDoc(out)
+    expect(again.metadata().get('alpha')).toBe('first')
+    expect(again.metadata().get('nested')).toEqual({ a: 1, b: 2 })
+    expect(again.metadata().get('tags')).toEqual(['y', 'x'])
+  })
+
+  it('handles no-frontmatter input and warnings parity via metadata()', () => {
+    const bare = readChapterDoc('# Title\n\nBody.')
+    expect(bare).toBeInstanceOf(ChapterDocNode)
+    expect(bare.metadata().number).toBeUndefined()
+    expect(bare.metadata().keys()).toEqual([])
+
+    const withWarn = readChapterDoc(
+      '---\nwarnings:\n  - id: 1\n    text: hi\n---\n\n# Title\n\nBody.',
+    )
+    expect(withWarn.metadata().warnings).toEqual(withWarn.warnings)
+    expect(withWarn.metadata().has('warnings')).toBe(true)
+  })
+
+  it('toObject mirrors typed + extra keys', () => {
+    const doc = readChapterDoc('---\nnumber: 9\nreviewer: alice\n---\n\n# Title\n\nBody.')
+    expect(doc.metadata().toObject()).toEqual({ number: 9, reviewer: 'alice' })
   })
 })

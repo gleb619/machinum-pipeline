@@ -589,6 +589,8 @@ export {
   chapterDoc,
   chapterDocBuild,
   chapterDocEmit,
+  ChapterDocNode,
+  ChapterMetadata,
   type ChapterDoc,
   type ChapterDocWarning,
   type ChapterDocParagraph,

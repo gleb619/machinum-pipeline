@@ -12,6 +12,7 @@ import type { Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
 import { appendMdOutput } from '../core/md-outputs.js'
+import { ChapterMetadata } from './chapter-metadata.js'
 import { formatString } from './md-formatter.js'
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,37 @@ export interface ChapterDoc {
   series?: string
   warnings: ChapterDocWarning[]
   body: ChapterDocParagraph[]
+  /** Extra frontmatter keys beyond `number` / `series` / `warnings`. */
+  meta?: Record<string, unknown>
+}
+
+/**
+ * `ChapterDoc` with a fluent {@link metadata} handle. Methods live on the prototype so the
+ * enumerable shape stays identical to a plain `ChapterDoc` (existing `toEqual`/spread sites keep working).
+ * T209 owns body-tree navigation (`chapterTree` / `ChapterNode`); this node is frontmatter-only.
+ */
+export class ChapterDocNode implements ChapterDoc {
+  title: string
+  number: number | undefined
+  series?: string
+  warnings: ChapterDocWarning[]
+  body: ChapterDocParagraph[]
+  meta?: Record<string, unknown>
+
+  constructor(init: ChapterDoc) {
+    this.title = init.title
+    this.number = init.number
+    this.series = init.series
+    this.warnings = init.warnings
+    this.body = init.body
+    if (init.meta && Object.keys(init.meta).length > 0) {
+      this.meta = { ...init.meta }
+    }
+  }
+
+  metadata(): ChapterMetadata {
+    return new ChapterMetadata(this)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +88,85 @@ function yamlEscapeString(value: string): string {
   return value
 }
 
+function formatScalar(value: unknown): string {
+  if (value === null) return 'null'
+  if (typeof value === 'boolean' || typeof value === 'number') return String(value)
+  if (typeof value === 'string') return yamlEscapeString(value)
+  // YAML cannot represent functions/symbols/bigint natively — JSON-stringify, never drop.
+  return JSON.stringify(value)
+}
+
+/** Serialize a YAML value as lines under `key` at the given indent. Nested object keys are sorted. */
+function formatYamlEntry(key: string, value: unknown, indent: number): string[] {
+  const pad = ' '.repeat(indent)
+
+  if (value === undefined) return []
+
+  if (
+    value === null ||
+    typeof value === 'boolean' ||
+    typeof value === 'number' ||
+    typeof value === 'string'
+  ) {
+    return [`${pad}${key}: ${formatScalar(value)}`]
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return [`${pad}${key}: []`]
+    const lines = [`${pad}${key}:`]
+    for (const item of value) {
+      if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+        const obj = item as Record<string, unknown>
+        const keys = Object.keys(obj).sort()
+        if (keys.length === 0) {
+          lines.push(`${pad}  - {}`)
+          continue
+        }
+        let first = true
+        for (const k of keys) {
+          const sub = formatYamlEntry(k, obj[k], indent + 4)
+          if (sub.length === 0) continue
+          if (first) {
+            const [head, ...rest] = sub
+            lines.push(`${pad}  - ${head?.trimStart() ?? ''}`)
+            lines.push(...rest)
+            first = false
+          } else {
+            lines.push(...sub)
+          }
+        }
+      } else if (Array.isArray(item)) {
+        lines.push(`${pad}  - ${JSON.stringify(item)}`)
+      } else {
+        lines.push(`${pad}  - ${formatScalar(item)}`)
+      }
+    }
+    return lines
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    const keys = Object.keys(obj).sort()
+    if (keys.length === 0) return [`${pad}${key}: {}`]
+    const lines = [`${pad}${key}:`]
+    for (const k of keys) {
+      lines.push(...formatYamlEntry(k, obj[k], indent + 2))
+    }
+    return lines
+  }
+
+  return [`${pad}${key}: ${JSON.stringify(value)}`]
+}
+
+function serializeWarnings(warnings: ChapterDocWarning[]): string[] {
+  const fields: string[] = ['warnings:']
+  for (const w of warnings) {
+    fields.push(`  - id: ${typeof w.id === 'string' ? yamlEscapeString(w.id) : w.id}`)
+    fields.push(`    text: ${yamlEscapeString(w.text)}`)
+  }
+  return fields
+}
+
 function serializeFrontmatter(doc: ChapterDoc): string {
   const fields: string[] = []
 
@@ -68,10 +179,14 @@ function serializeFrontmatter(doc: ChapterDoc): string {
   }
 
   if (doc.warnings.length > 0) {
-    fields.push('warnings:')
-    for (const w of doc.warnings) {
-      fields.push(`  - id: ${typeof w.id === 'string' ? yamlEscapeString(w.id) : w.id}`)
-      fields.push(`    text: ${yamlEscapeString(w.text)}`)
+    fields.push(...serializeWarnings(doc.warnings))
+  }
+
+  // Extra keys alphabetically — insertion order must never leak into output.
+  if (doc.meta) {
+    for (const key of Object.keys(doc.meta).sort()) {
+      if (key === 'number' || key === 'series' || key === 'warnings') continue
+      fields.push(...formatYamlEntry(key, doc.meta[key], 0))
     }
   }
 
@@ -125,6 +240,15 @@ function normalizeBody(input: unknown): ChapterDocParagraph[] {
   return []
 }
 
+function extractExtraMeta(data: Record<string, unknown>): Record<string, unknown> | undefined {
+  const meta: Record<string, unknown> = {}
+  for (const key of Object.keys(data)) {
+    if (key === 'number' || key === 'series' || key === 'warnings') continue
+    meta[key] = data[key]
+  }
+  return Object.keys(meta).length > 0 ? meta : undefined
+}
+
 // ---------------------------------------------------------------------------
 // Write
 // ---------------------------------------------------------------------------
@@ -153,6 +277,8 @@ function normalizeBody(input: unknown): ChapterDocParagraph[] {
  *
  * Note: frontmatter is kept as raw YAML (not fed to remark) to preserve
  * exact formatting. Only the body + title are run through formatString.
+ * Known keys (`number`, `series`, `warnings`) come first; extra `meta` keys follow
+ * alphabetically. Values YAML cannot represent natively are JSON-stringified.
  */
 export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
   const parts: string[] = []
@@ -234,20 +360,22 @@ function finishParagraph(block: string[]): ChapterDocParagraph {
   return { lines }
 }
 
-export function readChapterDoc(markdown: string): ChapterDoc {
+export function readChapterDoc(markdown: string): ChapterDocNode {
   const { data, content } = matter(markdown)
   const { title, bodyStartLine } = extractTitle(content)
   const body = parseBody(content, bodyStartLine)
 
   const n = Number(data.number)
+  const dataRecord = data as Record<string, unknown>
 
-  return {
+  return new ChapterDocNode({
     title,
     number: Number.isFinite(n) ? n : undefined,
     series: data.series ? String(data.series) : undefined,
     warnings: normalizeWarnings(data.warnings),
     body,
-  }
+    meta: extractExtraMeta(dataRecord),
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +391,44 @@ export interface ChapterDocToolInput {
   number?: number
   series?: string
   warnings?: ChapterDocWarning[]
+  /** Extra frontmatter keys; known keys here override generated `number`/`series`/`warnings`. */
+  meta?: Record<string, unknown>
+}
+
+function buildChapterDocFromInput(
+  input: ChapterDocToolInput,
+  number: number | undefined,
+  series: string | undefined,
+  warnings: ChapterDocWarning[],
+): ChapterDocNode {
+  let resolvedNumber = number
+  let resolvedSeries = series
+  let resolvedWarnings = warnings
+  const extra: Record<string, unknown> = {}
+
+  if (input.meta) {
+    for (const [key, value] of Object.entries(input.meta)) {
+      if (key === 'number') {
+        const n = typeof value === 'number' ? value : Number(value)
+        resolvedNumber = Number.isFinite(n) ? n : undefined
+      } else if (key === 'series') {
+        resolvedSeries = value === undefined || value === '' ? undefined : String(value)
+      } else if (key === 'warnings') {
+        resolvedWarnings = normalizeWarnings(value)
+      } else {
+        extra[key] = value
+      }
+    }
+  }
+
+  return new ChapterDocNode({
+    title: input.title,
+    number: resolvedNumber,
+    series: resolvedSeries,
+    warnings: resolvedWarnings,
+    body: normalizeBody(input.body),
+    meta: Object.keys(extra).length > 0 ? extra : undefined,
+  })
 }
 
 /** Slot `build`: chapter input -> YAML-frontmatter markdown; records the `chapterDoc` variable. */
@@ -298,13 +464,7 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
     const warnings =
       input.warnings ?? normalizeWarnings(getVariable(env, 'warnings') ?? env.meta?.warnings)
 
-    const doc: ChapterDoc = {
-      title: input.title,
-      number,
-      series,
-      warnings,
-      body: normalizeBody(input.body),
-    }
+    const doc = buildChapterDocFromInput(input, number, series, warnings)
 
     const formatted = await writeChapterDoc(doc)
     return setVariable(withItem(env, formatted), VAR_CHAPTER_DOC, doc)
@@ -362,3 +522,5 @@ export const chapterDoc = annotate(
   }),
   category(['serializer']),
 )
+
+export { ChapterMetadata } from './chapter-metadata.js'

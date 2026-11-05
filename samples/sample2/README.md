@@ -85,6 +85,17 @@ For each chapter the file contains `counts`, `lines reordered`, then `dots repla
 followed by the next chapter. The order is deterministic because it follows the branch declaration
 order.
 
+Each branch reads frontmatter through `readChapterDoc(md).metadata()`:
+
+```ts
+const meta = readChapterDoc(text).metadata()
+meta.number                          // typed from YAML `number:`
+meta.add('lineOrder', 'alphabetical') // branch-local key (throws if key already exists)
+```
+
+The counts section prints `number` / `series` / custom keys (e.g. `reviewer`); reorder and dots
+branches `add` `lineOrder` / `dotsReplaced` and render those lines so the output shows the effect.
+
 ## Advanced — `pipelines/advanced.ts`
 
 The chunk pipelines and the Structure Ladder, all built from shipped pieces. The package tool

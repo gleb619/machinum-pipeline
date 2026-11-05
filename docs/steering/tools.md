@@ -54,7 +54,10 @@ optional — user-defined tools can omit it entirely.
 - `typoFinder` — detects common Chinese/English typos, mixed scripts
 
 ### `chapter-doc.ts`
-Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`).
+Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`), `ChapterDocNode`, `ChapterMetadata`.
+
+#### Chapter metadata
+`readChapterDoc` returns a `ChapterDocNode` (implements `ChapterDoc`) with `metadata(): ChapterMetadata`. Typed accessors mirror frontmatter `number` / `series` / `warnings`; `get` / `set` / `add` / `has` / `remove` / `keys` / `toObject` cover arbitrary keys. `add` throws when the key already exists (`set` overwrites; `undefined` removes). Unknown frontmatter keys live on `ChapterDoc.meta` and round-trip through `writeChapterDoc` (known keys first, then extras alphabetically). `chapterDocBuild` accepts optional `meta` and merges it into the `chapterDoc` variable. Body-tree navigation is T209 (`chapterTree`); this API is frontmatter-only.
 
 ### `book-compiler.ts`
 Assembles chapters back into one book. Exports: `bookCompiler` (composable tool: slots `build` -> `validate` -> `emit`), `bookCompilerBuild`, `bookCompilerValidate`, `bookCompilerEmit`, `VAR_BOOK`.

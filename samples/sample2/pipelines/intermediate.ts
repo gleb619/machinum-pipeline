@@ -27,8 +27,9 @@ import '@mt/waypoint'
 //   - a failed branch fails the run after every branch has settled.
 //
 // The branches use the package pieces where they exist: `markdownStatsTool`
-// for structure, `readChapterDoc` for paragraphs/lines, and `tokenizeWords`
-// for the body word count. Only the rendering glue is local.
+// for structure, `readChapterDoc` + `chapter.metadata()` for frontmatter and
+// paragraphs/lines, and `tokenizeWords` for the body word count. Only the
+// rendering glue is local.
 // ---------------------------------------------------------------------------
 
 const renderStats = defineTool<MarkdownStatsOutput, string>({
@@ -38,15 +39,19 @@ const renderStats = defineTool<MarkdownStatsOutput, string>({
   invoke: async (env) => {
     const { text, stats } = env.item
     const doc = readChapterDoc(text)
+    const meta = doc.metadata()
     let lines = 0
     for (const paragraph of doc.body) lines += paragraph.lines.length
     const body = doc.body.map((paragraph) => paragraph.lines.join(' ')).join(' ')
     const words = tokenizeWords(body).length
     const title = stats.title ?? doc.title
+    const reviewer = meta.get<string>('reviewer')
 
     return withItem(
       env,
-      `# ${title}\n\n## counts\n\n${stats.paragraphs} paragraphs · ${lines} lines · ${words} words\n`,
+      `# ${title}\n\n## counts\n\n${stats.paragraphs} paragraphs · ${lines} lines · ${words} words\n` +
+        `number: ${meta.number ?? 'none'} · series: ${meta.series ?? 'none'}` +
+        `${reviewer !== undefined ? ` · reviewer: ${reviewer}` : ''}\n`,
     )
   },
 })
@@ -57,12 +62,17 @@ const reorderLines = defineTool<string, string>({
   mdDescription: 'Parse a markdown chapter and sort every paragraph’s lines alphabetically.',
   invoke: async (env) => {
     const doc = readChapterDoc(env.item)
+    const meta = doc.metadata()
+    meta.add('lineOrder', 'alphabetical')
     const paragraphs = doc.body.map((paragraph, index) => {
       const ordered = [...paragraph.lines].sort((left, right) => left.localeCompare(right))
       return [`### paragraph ${index + 1}`, '', ...ordered.map((line) => `- ${line}`)].join('\n')
     })
 
-    return withItem(env, `## lines reordered\n\n${paragraphs.join('\n\n')}\n`)
+    return withItem(
+      env,
+      `## lines reordered\n\nlineOrder: ${meta.get('lineOrder')}\n\n${paragraphs.join('\n\n')}\n`,
+    )
   },
 })
 
@@ -72,11 +82,25 @@ const replaceDots = defineTool<string, string>({
   mdDescription: 'Parse a markdown chapter and replace every dot in its body with a comma.',
   invoke: async (env) => {
     const doc = readChapterDoc(env.item)
+    const meta = doc.metadata()
+    let dotsReplaced = 0
     const body = doc.body
-      .map((paragraph) => paragraph.lines.join('\n').replaceAll('.', ','))
+      .map((paragraph) =>
+        paragraph.lines
+          .map((line) => {
+            const matches = line.match(/\./g)
+            dotsReplaced += matches?.length ?? 0
+            return line.replaceAll('.', ',')
+          })
+          .join('\n'),
+      )
       .join('\n\n')
+    meta.add('dotsReplaced', dotsReplaced)
 
-    return withItem(env, `## dots replaced with commas\n\n${body}\n`)
+    return withItem(
+      env,
+      `## dots replaced with commas\n\ndotsReplaced: ${meta.get('dotsReplaced')}\n\n${body}\n`,
+    )
   },
 })
 
