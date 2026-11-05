@@ -8,8 +8,9 @@ import '@mt/waypoint'
 //
 // This is the short version of the sample. The intermediate demo lives next
 // door in `pipelines/intermediate.ts`: each JSONL item is a
-// markdown chapter, and three tool-based branch pipelines run concurrently
-// through core `.fork('chapter-views', [...])`, all writing to one markdown target.
+// markdown chapter, and three custom `defineTool` branches run concurrently
+// through core `.fork('chapter-views', [...])`, each stamping `meta.chapter`
+// so the `md://` directory target writes one file per view.
 //
 // Here every processing step is a tool that already ships in `@mt/tools`, so
 // the pipeline body is only the three DSL calls you would write first:

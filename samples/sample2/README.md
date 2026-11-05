@@ -6,7 +6,7 @@ type-driven chunking. No LLM calls are needed.
 | Level | Pipeline | What it teaches |
 | --- | --- | --- |
 | Beginner | [`pipelines/beginner.ts`](pipelines/beginner.ts) | `jsonl://` → shipped tool → `md://`; typed chapter content; `console://` |
-| Intermediate | [`pipelines/intermediate.ts`](pipelines/intermediate.ts) | `.fork(name, [branches])` runs three tool-based branches per chapter |
+| Intermediate | [`pipelines/intermediate.ts`](pipelines/intermediate.ts) | custom `defineTool`s + `.fork(name, [branches])`; the `md://` dir target writes one file per view |
 | Advanced | [`pipelines/advanced.ts`](pipelines/advanced.ts) | `chunkSplit`, separator reuse, the Structure Ladder, `tokens://` |
 
 ## Big input fixtures
@@ -61,34 +61,47 @@ The end of the file shows the explicit suite and the `.parallel(true)` / sync al
 
 ## Intermediate — `pipelines/intermediate.ts`
 
-One JSONL item is one markdown chapter. The parent pipeline forks each chapter into three
-steps-only tool pipelines:
+Two lessons in one file: declaring your own tool, and letting a target waypoint choose the output
+file from a value the tool stamps.
+
+**1. Declare your own tool.** `defineTool({ name, version, mdDescription, invoke })` takes a plain
+object. `invoke(env)` receives the whole envelope and returns a new one — that is all a tool is;
+the shipped `@mt/tools` are built the same way. A tool may rewrite `item` *and* stamp `meta`. This
+file declares three (`renderStats`, `reorderLines`, `replaceDots`) on top of the shipped
+`markdownStatsTool`.
+
+**2. Sink a value through a target waypoint.** Each branch stamps `meta.chapter` with
+`"<number>-<view>"`. The built-in `md://` target has two modes: a URI ending in `.md` appends every
+envelope to one file, while a *directory* URI writes one atomic file per envelope named
+`chapter<meta.chapter>.md`. So the tool decides the filename by setting `meta.chapter` — no
+`mdOutputs` intent emitter and no `?series` splitter are involved. The tool says *what*; the
+waypoint says *where*.
 
 ```
 jsonl://./jsonl/entities.jsonl   (one markdown chapter per item)
   → fork('chapter-views', …)     (three branches per chapter, concurrently)
-       ├─ countBranch           markdownStatsTool + readChapterDoc + tokenizeWords
-       ├─ reorderBranch         readChapterDoc, sort each paragraph's lines
-       └─ commasBranch          readChapterDoc, replace '.' with ','
-  → md://./chapters/parallel-forks.md
+       ├─ countBranch           markdownStatsTool + renderStats   → meta.chapter = "<n>-counts"
+       ├─ reorderBranch         reorderLines                      → meta.chapter = "<n>-reordered"
+       └─ commasBranch          replaceDots                       → meta.chapter = "<n>-commas"
+  → md://./chapters/chapter-views/ (dir mode → chapter<n>-<view>.md)
 ```
 
-`.fork('chapter-views', [countBranch, reorderBranch, commasBranch])` is the demo. The engine, not
+`.fork('chapter-views', [countBranch, reorderBranch, commasBranch])` is unchanged; the engine, not
 the sample, provides the concurrency contract:
 
 - every branch receives an isolated, deep-cloned copy of the parent envelope;
 - the three branches run concurrently for each chapter;
 - each parent/branch gets its own checkpoint node (`<stepId>/fork-<parent>/branch-<branch>`);
-- branch output is buffered and merged in declaration order, independent of completion timing;
-- if any branch fails, the run fails after every branch settles — no partially merged output.
+- branch output is buffered in declaration order, independent of completion timing;
+- if any branch fails, the run fails after every branch settles.
 
 ```bash
-pnpm run runner:intermediate   # three concurrent views per chapter → chapters/parallel-forks.md
+pnpm run runner:intermediate   # three concurrent views per chapter → chapters/chapter-views/chapter<N>-<view>.md
 ```
 
-For each chapter the file contains `counts`, `lines reordered`, then `dots replaced with commas`,
-followed by the next chapter. The order is deterministic because it follows the branch declaration
-order.
+Two chapters produce six files: `chapter1-counts.md`, `chapter1-reordered.md`, `chapter1-commas.md`
+and the `chapter2-*` trio. Keeping chapter number *and* view in `meta.chapter` is what stops the
+three branches from colliding on one filename.
 
 Each branch reads frontmatter through `readChapterDoc(md).metadata()`:
 
@@ -98,8 +111,8 @@ meta.number                          // typed from YAML `number:`
 meta.add('lineOrder', 'alphabetical') // branch-local key (throws if key already exists)
 ```
 
-The counts section prints `number` / `series` / custom keys (e.g. `reviewer`); reorder and dots
-branches `add` `lineOrder` / `dotsReplaced` and render those lines so the output shows the effect.
+The counts section prints `number` / `series` / custom keys (e.g. `reviewer`); the reorder and dots
+branches `add` `lineOrder` / `dotsReplaced` and render those lines so each file shows its own effect.
 
 ## Advanced — `pipelines/advanced.ts`
 
@@ -226,7 +239,7 @@ The runner scripts stay individually runnable:
 
 ```bash
 pnpm run runner:beginner      # → chapters/output.md + terminal preview
-pnpm run runner:intermediate  # → chapters/parallel-forks.md
+pnpm run runner:intermediate  # → chapters/chapter-views/chapter<N>-<view>.md
 pnpm run runner:advanced      # → chapters/chunked*.md + ladder/token summaries
 ```
 
@@ -255,8 +268,9 @@ output content, per-line `wordCount`, corpus statistics, the console preview, th
 `chapterTree()` typed-content edit (edited line present, untouched paragraph survives) and the
 core `Chapter` line edit.
 
-`tests/intermediate.test.ts` writes two markdown chapter records and asserts the three branch
-views (counts, alphabetical lines, dot→comma), their headings and their declaration-order merge.
+`tests/intermediate.test.ts` writes two markdown chapter records and asserts that each of the three
+branch views (counts, alphabetical lines, dot→comma) lands in its own `chapter<N>-<view>.md` file,
+named from the `meta.chapter` value the branch tool stamped.
 
 `tests/advanced.test.ts` runs the chunk pipelines and asserts:
 

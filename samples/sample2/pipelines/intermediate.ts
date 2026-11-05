@@ -1,4 +1,4 @@
-import { definePipeline, defineTool, withItem } from '@mt/core'
+import { definePipeline, defineTool, withItem, withMeta } from '@mt/core'
 import {
   type MarkdownStatsOutput,
   markdownStatsTool,
@@ -8,29 +8,41 @@ import {
 import '@mt/waypoint'
 
 // ---------------------------------------------------------------------------
-// INTERMEDIATE — one chapter, three views, one markdown file.
+// INTERMEDIATE — two lessons in one file.
 //
-// Every JSONL item is one markdown chapter. The parent pipeline does not fan
-// out or run the views itself; it hands the same chapter to three steps-only
-// branch pipelines with one core call:
+// 1. DECLARE YOUR OWN TOOL. `defineTool()` takes a plain object: an id (`name`),
+//    a `version`, an optional `mdDescription`, and `invoke(env)`. `invoke` receives
+//    the whole envelope and returns a new one. That is all a tool is — the shipped
+//    tools in `@mt/tools` are built exactly this way. A tool may rewrite the item
+//    AND stamp `meta`; both are just envelope fields.
 //
-//     .fork('chapter-views', [countBranch, reorderBranch, commasBranch])
+// 2. SINK A VALUE THROUGH A TARGET WAYPOINT. To write to a file chosen by a
+//    variable, the tool stamps `meta.chapter`. The built-in `md://` target has two
+//    modes, and the *directory* form (URI that does not end in `.md`) writes one
+//    atomic file per envelope, named `chapter<meta.chapter>.md`. So the tool decides
+//    the filename by setting `meta.chapter` — no `mdOutputs` intent emitter and no
+//    `?series` splitter are involved. The tool says *what*; the waypoint says *where*.
 //
-// The runner owns the concurrency contract:
+// The `.fork()` demo is unchanged: the parent pipeline hands each chapter to three
+// steps-only branch pipelines with one core call, and the runner owns the contract
+// (isolated clone per branch, concurrent execution, its own checkpoint node per
+// parent/branch, buffered output in declaration order, fail-fast after settle).
 //
-//   - each branch gets an isolated, deep-cloned copy of the chapter envelope;
-//   - the branches run concurrently for every parent envelope;
-//   - each parent/branch gets its own checkpoint node
-//     (`<stepId>/fork-<parent>/branch-<branch>`);
-//   - branch output is buffered and merged in declaration order, so the file
-//     is deterministic even when branches finish at different times;
-//   - a failed branch fails the run after every branch has settled.
+//   jsonl://./jsonl/entities.jsonl
+//     → fork('chapter-views', [countBranch, reorderBranch, commasBranch])
+//          each branch stamps meta.chapter = "<number>-<view>"
+//     → md://./chapters/chapter-views/   (dir mode → chapter<number>-<view>.md)
 //
-// The branches use the package pieces where they exist: `markdownStatsTool`
-// for structure, `readChapterDoc` + `chapter.metadata()` for frontmatter and
-// paragraphs/lines, and `tokenizeWords` for the body word count. Only the
-// rendering glue is local.
 // ---------------------------------------------------------------------------
+
+/**
+ * Routing key for the `md://` dir-mode filename `chapter<meta.chapter>.md`.
+ * Keeping chapter number and view in one value gives every fork branch its own
+ * file — same `chapterNum` across branches would otherwise collide (last write wins).
+ */
+function routeKey(number: number | undefined, view: string): string {
+  return `${number ?? 'x'}-${view}`
+}
 
 const renderStats = defineTool<MarkdownStatsOutput, string>({
   name: 'sample2-render-stats',
@@ -47,12 +59,13 @@ const renderStats = defineTool<MarkdownStatsOutput, string>({
     const title = stats.title ?? doc.title
     const reviewer = meta.get<string>('reviewer')
 
-    return withItem(
-      env,
+    const rendered =
       `# ${title}\n\n## counts\n\n${stats.paragraphs} paragraphs · ${lines} lines · ${words} words\n` +
-        `number: ${meta.number ?? 'none'} · series: ${meta.series ?? 'none'}` +
-        `${reviewer !== undefined ? ` · reviewer: ${reviewer}` : ''}\n`,
-    )
+      `number: ${meta.number ?? 'none'} · series: ${meta.series ?? 'none'}` +
+      `${reviewer !== undefined ? ` · reviewer: ${reviewer}` : ''}\n`
+
+    // Stamp the routing value; the `md://` target turns it into the filename.
+    return withMeta(withItem(env, rendered), { chapter: routeKey(meta.number, 'counts') })
   },
 })
 
@@ -69,10 +82,8 @@ const reorderLines = defineTool<string, string>({
       return [`### paragraph ${index + 1}`, '', ...ordered.map((line) => `- ${line}`)].join('\n')
     })
 
-    return withItem(
-      env,
-      `## lines reordered\n\nlineOrder: ${meta.get('lineOrder')}\n\n${paragraphs.join('\n\n')}\n`,
-    )
+    const rendered = `## lines reordered\n\nlineOrder: ${meta.get('lineOrder')}\n\n${paragraphs.join('\n\n')}\n`
+    return withMeta(withItem(env, rendered), { chapter: routeKey(meta.number, 'reordered') })
   },
 })
 
@@ -97,10 +108,8 @@ const replaceDots = defineTool<string, string>({
       .join('\n\n')
     meta.add('dotsReplaced', dotsReplaced)
 
-    return withItem(
-      env,
-      `## dots replaced with commas\n\ndotsReplaced: ${meta.get('dotsReplaced')}\n\n${body}\n`,
-    )
+    const rendered = `## dots replaced with commas\n\ndotsReplaced: ${meta.get('dotsReplaced')}\n\n${body}\n`
+    return withMeta(withItem(env, rendered), { chapter: routeKey(meta.number, 'commas') })
   },
 })
 
@@ -115,6 +124,6 @@ const commasBranch = definePipeline({ id: 'sample2-intermediate-commas' }).use(r
 const parallelForksPipeline = definePipeline({ id: 'sample2-intermediate' })
   .from('jsonl://./jsonl/entities.jsonl')
   .fork('chapter-views', [countBranch, reorderBranch, commasBranch])
-  .to('md://./chapters/parallel-forks.md')
+  .to('md://./chapters/chapter-views/')
 
 export default parallelForksPipeline
