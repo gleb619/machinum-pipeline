@@ -171,7 +171,7 @@ long chapters). Chunk metadata (`chunks`, `limit`, `inputBudget`, `model`) lives
 (see the coverage table). Merge strategies are per tool (also in the table).
 `estimateOverhead(...promptParts)` and `DEFAULT_OUTPUT_RESERVE` are the single source of overhead/reserve defaults.
 Token counts use tiktoken (`countTextTokens`); providers differ, so budgets are approximate (`reserve` absorbs drift).
-`normalization/token-splitter.ts` is a pipeline Tool that emits chunks; `chunk-processor` is a library used inside
+`normalization/text-splitter.ts` is a pipeline Tool that emits chunks; `chunk-processor` is a library used inside
 LLM tools - kept separate on purpose.
 
 **Shared dispatcher.** `runChunkedText({ mode, text, budget, single, chunk, merge, splitUnit?, concurrency? })`
@@ -207,7 +207,7 @@ the token budget. A fixed `userPrompt` override carries no corpus text, so those
 - `title-translator` - input is a single title line.
 
 Translate-chunk dedupe stays out of scope (deliberate): chunks are joined in order without dedupe. The
-`token-splitter` boundary is unchanged: `normalization/token-splitter.ts` is a pipeline Tool, `chunk-processor` a
+`token-splitter` boundary is unchanged: `normalization/text-splitter.ts` is a pipeline Tool, `chunk-processor` a
 library.
 
 ### `modification/proofread.ts`
@@ -583,7 +583,7 @@ The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readT
   `fs-write.ts`. Returns `{ path, services, include }` as the item and records `dockerCompose` variable.
   The parent directory must already exist (same contract as `atomicWriteFile`).
 
-### `token-splitter.ts`
+### `text-splitter.ts`
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
 Unit helpers: `splitParagraphUnits(text)` (blank-line runs, trimmed, blanks dropped) and
 `splitLineUnits(text)` (CR/LF, trimmed, blanks dropped).
@@ -610,7 +610,7 @@ Use with `.subflow('paragraphs://')` or the `#` shortcut `.subflow('#paragraphs'
 auto-publishes its output into `<scheme>://<namespace>` for the next stage.
 All read the full Exchange and use the unit helpers above, so blank units are skipped.
 
-`normalization/token-splitter.ts` registers `seriesSplitter` /
+`normalization/text-splitter.ts` registers `seriesSplitter` /
 `createSeriesSplitter({ parts?, targetChars?, shouldSplit? })` under `series` (also `.subflow('series://')` and
 `.subflow('#series')`). It is chapter-document aware: the input markdown is parsed with
 `readChapterDoc`, and each output part is a new `ChapterDoc` serialized with `writeChapterDoc`.
@@ -630,7 +630,7 @@ when possible, otherwise whole sentences — never half a sentence or word. Deco
 (`---`, `***`, `___`, …) are dropped so a split part is never separator-only. The legacy `seriesSplitTool` / `createSeriesSplitTool` API remains and reuses this logic,
 setting the `series` and `partCount` variables only when a split actually happened.
 
-### `normalization/chunk-separator.ts`
+### `normalization/token-splitter.ts`
 Fixates source text into stable, token-bounded chunks joined by a `---` separator line; later runs reuse the
 separator instead of re-splitting.
 
@@ -1113,8 +1113,8 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL205 | `chapterPairsLinter` | `chapter-pairs-linter` | UC057 | `verification/chapter-pairs-linter.ts` |
 | TL206 | `chapterRecordMapper` | `chapter-record-mapper` | — | `normalization/chapter-record.ts` |
 | TL207 | `chaptersToTitleInputs` | `chapters-to-title-inputs` | UC059 | `normalization/translation-stage.ts` |
-| TL208 | `chunkClean` | `chunk-clean` | UC058 | `normalization/chunk-separator.ts` |
-| TL209 | `chunkSplit` | `chunk-split` | UC056 | `normalization/chunk-separator.ts` |
+| TL208 | `chunkClean` | `chunk-clean` | UC058 | `normalization/token-splitter.ts` |
+| TL209 | `chunkSplit` | `chunk-split` | UC056 | `normalization/token-splitter.ts` |
 | TL211 | `contextShrink`, `contextWindow` | `context-window` | — | `core/llm-context.ts` |
 | TL212 | `forbiddenCharDetector` | `forbidden-char-detector` | UC057 | `verification/chapter-validator.ts` |
 | TL213 | `heuristicSummaryTool` | `heuristic-summary` | — | `normalization/heuristic-summary.ts` |
@@ -1137,7 +1137,7 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL230 | `schemaDocBuild` | `schema-doc-build` | — | `modification/schema-doc.ts` |
 | TL231 | `schemaDocEmit` | `schema-doc-emit` | — | `modification/schema-doc.ts` |
 | TL232 | `schemaDocWriter` | `schema-doc-writer` | — | `modification/schema-doc.ts` |
-| TL233 | `seriesSplitTool` | `series-split` | UC056 | `normalization/token-splitter.ts` |
+| TL233 | `seriesSplitTool` | `series-split` | UC056 | `normalization/text-splitter.ts` |
 | TL234 | `statDict` | `stat-dict` | — | `normalization/stat-dict.ts` |
 | TL235 | `statTranslateDict` | `stat-translate-dict` | — | `modification/stat-translate-dict.ts` |
 | TL236 | `stubParagraphTranslateSlot` | `stub-paragraph-translate-slot` | — | `stubs/paragraph-slot.ts` |
