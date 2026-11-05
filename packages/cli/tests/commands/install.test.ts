@@ -48,14 +48,11 @@ describe('install command', () => {
     vi.restoreAllMocks()
   })
 
-  async function writeInstallScript(exportName: string | undefined, id: string): Promise<string> {
+  async function writeInstallScript(id: string): Promise<string> {
     await mkdir(join(testDir, 'scripts'), { recursive: true })
     const scriptPath = join(testDir, 'scripts', 'install.ts')
-    const source = exportName
-      ? `export const ${exportName} = { id: "${id}" }`
-      : `export default { id: "${id}" }`
-    await writeFile(scriptPath, source)
-    vi.doMock(scriptPath, () => (exportName ? { [exportName]: { id } } : { default: { id } }))
+    await writeFile(scriptPath, `export default { id: "${id}" }`)
+    vi.doMock(scriptPath, () => ({ default: { id } }))
     return scriptPath
   }
 
@@ -84,7 +81,7 @@ describe('install command', () => {
         scripts: { install: './scripts/install.ts' },
       }),
     )
-    await writeInstallScript(undefined, 'install-pipeline')
+    await writeInstallScript('install-pipeline')
 
     await installCommand([])
 

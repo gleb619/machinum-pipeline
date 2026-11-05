@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.21.0 | 2026-11-04 -->
+<!-- skill-version: 1.21.1 | 2026-11-04 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -171,7 +171,7 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt init [--settings <json>\|-s] [--force] [--no-master-key]` | scaffold project; `--settings` also writes `pipelines/example.ts`; `--force` overwrites |
 | `mt run <pipeline.ts>` | run in foreground; runs `scripts.start/end/error/stop/exit` hooks; Ctrl-C pauses. `--remote [url]` pushes, starts, streams, and pulls on a remote `mt serve` |
 | `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | import the module but describe the declared dataflow without running it; no `GlobalContext`/`.env`/vault, no run id or `.mt` writes |
-| `mt install [--pipeline <name>]` | run the `scripts.install` hook pipeline |
+| `mt install` | run the `scripts.install` hook pipeline |
 | `mt resume <runId> [pipeline.ts]` | resume from the first non-done node; file comes from `state.json` unless given. `--remote [url]` re-attaches to a live remote run (unpauses when paused) |
 | `mt ls runs` | table of runs (id, pipeline, state, start) |
 | `mt inspect <runId>` | checkpoint tree, events, metadata |

@@ -5,19 +5,17 @@ import '@mt/waypoint'
 
 import { runLifecycleScript } from './utils/lifecycle.js'
 
-const USAGE = `Usage: mt install [--pipeline <name>]
+const USAGE = `Usage: mt install
 
 Run the project's install lifecycle script (mt.json scripts.install) — a
 pipeline module executed once for project setup.
 
 Options:
-  --pipeline <name>   Named export to run instead of the default export
   -h, --help          Show this help
 `
 
 interface InstallOptions {
   help: boolean
-  pipelineName?: string
 }
 
 function fail(message: string): never {
@@ -29,13 +27,6 @@ function parseArgs(args: string[]): InstallOptions {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i] as string
     switch (arg) {
-      case '--pipeline': {
-        const value = args[i + 1]
-        if (value === undefined) fail('Option --pipeline requires a value')
-        options.pipelineName = value
-        i++
-        break
-      }
       case '-h':
       case '--help':
         options.help = true

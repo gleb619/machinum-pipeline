@@ -343,6 +343,32 @@ describe('run command', () => {
       expect(order).toEqual(['start-hook', 'test-pipeline', 'end-hook'])
     })
 
+    it('runs hooks by default export when --pipeline selects a named main export', async () => {
+      await writeHook('start-hook')
+      const pipelinePath = join(testDir, 'pipeline.ts')
+      await writeFile(
+        pipelinePath,
+        'export default { id: "test-pipeline" }\nexport const translate = { id: "translate-pipeline" }',
+      )
+      vi.doMock(pipelinePath, () => ({
+        default: { id: 'test-pipeline' },
+        translate: { id: 'translate-pipeline' },
+      }))
+      await writeFile(
+        join(testDir, 'mt.json'),
+        JSON.stringify({
+          project: { name: 'p' },
+          scripts: { start: './start-hook.ts' },
+        }),
+      )
+      const order: string[] = []
+      recordRunOrder(order)
+
+      await runCommand(['pipeline.ts', '--pipeline', 'translate'])
+
+      expect(order).toEqual(['start-hook', 'translate-pipeline'])
+    })
+
     it('skips hooks when scripts are not defined', async () => {
       await writeMainPipeline()
       await writeFile(join(testDir, 'mt.json'), JSON.stringify({ project: { name: 'p' } }))

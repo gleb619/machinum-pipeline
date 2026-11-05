@@ -71,7 +71,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
 | `mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--on <worker>] [--tags a,b] [--token-ref <ENV_OR_REF>]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit. `--remote` pushes, starts, streams, and pulls on a remote `mt serve` (URL defaults to `mt.json remote.url`); `--on` / `--tags` route the run to a registered `mt worker` and follow its mirrored events |
 | `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | `explain.ts` | Import the same runnable `mt run` would use, then describe its declared dataflow, per-step effective retry/onError policy (pipeline/step values win over project fallbacks), nested fork/subflow/batch scopes, lifecycle hooks, events, checkpoint nodes and log paths. The module is imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no Runner/source/tool/target/hook starts; writes no `.mt` state. Markdown by default; `--json` for agents/tools |
-| `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup); `--pipeline <name>` for named exports |
+| `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup) |
 | `mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>]` | `resume.ts` | Load `state.json` (checkpoint tree + source cursors) and resume from the first non-done node; pipeline file/id come from `state.json` (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole. `--remote` re-attaches to the remote stream (unpauses a live paused run) |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata, and the dead-letter queue (count + last 3 dropped envelopes) — a run that ends DONE after the `dead-letter` policy dropped items must not look fully successful |
@@ -184,7 +184,7 @@ follows the main SSE stream.
 ### `src/commands/install.ts`
 `mt install` — runs the `scripts.install` pipeline from mt.json via the shared
 `commands/utils/lifecycle.ts` helper (`runLifecycleScript(ctx, name)`): resolves the script path
-inside the project root, `importPipelineModule`, default/named (`--pipeline <name>`) export,
+inside the project root, `importPipelineModule`, `default ?? pipeline` export,
 `new Runner(...)` → `runner.start()`. Exits 1 with a clear message when `scripts.install` is
 undefined or the script file is invalid.
 
@@ -307,7 +307,7 @@ packages/cli/tests/
 ├── commands/
 │   ├── run.test.ts            # run command (mock Runner) + start/end lifecycle hooks
 │   ├── explain.test.ts        # explain Markdown/JSON, aliases, nested forks, suites; no .mt writes
-│   ├── install.test.ts        # install command (mock Runner): missing/absent script, named export
+│   ├── install.test.ts        # install command (mock Runner): missing/absent script
 │   ├── resume.test.ts         # resume command
 │   ├── init.test.ts           # init scaffolding
 │   ├── list.test.ts           # ls runs output format
