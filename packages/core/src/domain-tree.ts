@@ -14,6 +14,16 @@ export interface TokenPart {
 
 export type ChunkBodySplitter = (body: string) => string[]
 export type ParagraphBodySplitter = (body: string) => string[]
+export type LineBodySplitter = (body: string) => string[]
+
+/** One word within a line: the word text plus its half-open `[start, end)` range. */
+export interface WordSpan {
+  word: string
+  start: number
+  end: number
+}
+
+export type LineWordSplitter = (text: string) => WordSpan[]
 export type DomainTreeTokenizer = (body: string) => TokenPart[]
 
 /** Options for the in-memory domain tree view. Core stays dependency-free. */
@@ -24,6 +34,10 @@ export interface DomainTreeOptions {
   splitChunks?: ChunkBodySplitter
   /** Custom chunk-body -> paragraph-body splitter. */
   splitParagraphs?: ParagraphBodySplitter
+  /** Custom paragraph-body -> line-text splitter. */
+  splitLines?: LineBodySplitter
+  /** Custom line-text -> word-span splitter. */
+  splitWords?: LineWordSplitter
   /** Sync tokenizer for the alternate chunk -> tokens descent. */
   tokenize?: DomainTreeTokenizer
 }
@@ -85,12 +99,6 @@ function normalizeLineText(text: string): string {
     .join(' ')
 }
 
-interface WordSpan {
-  word: string
-  start: number
-  end: number
-}
-
 function wordSpans(text: string): WordSpan[] {
   const spans: WordSpan[] = []
   for (const match of text.matchAll(/\S+/g)) {
@@ -104,6 +112,8 @@ function applyTreeOptions(target: DomainTreeOptions, opts: DomainTreeOptions): v
   if (opts.separator !== undefined) target.separator = opts.separator
   if (opts.splitChunks !== undefined) target.splitChunks = opts.splitChunks
   if (opts.splitParagraphs !== undefined) target.splitParagraphs = opts.splitParagraphs
+  if (opts.splitLines !== undefined) target.splitLines = opts.splitLines
+  if (opts.splitWords !== undefined) target.splitWords = opts.splitWords
   if (opts.tokenize !== undefined) target.tokenize = opts.tokenize
 }
 
@@ -259,13 +269,16 @@ export class ChunkNode implements Omit<Chunk, 'tokens'> {
       const splitParagraphs = this._options.splitParagraphs ?? defaultSplitParagraphs
       this._paragraphs = splitParagraphs(this._sourceBody).map(
         (body, index) =>
-          new ParagraphNode({
-            id: `${this.id}:p${index}`,
-            chapterId: this.chapterId,
-            chunkId: this.id,
-            body,
-            index,
-          }),
+          new ParagraphNode(
+            {
+              id: `${this.id}:p${index}`,
+              chapterId: this.chapterId,
+              chunkId: this.id,
+              body,
+              index,
+            },
+            this._options,
+          ),
       )
     }
     return this._paragraphs
@@ -309,13 +322,15 @@ export class ParagraphNode implements Paragraph {
   index?: number
   private _sourceBody: string
   private _lines: LineNode[] | undefined
+  private readonly _options: DomainTreeOptions
 
-  constructor(paragraph: Paragraph) {
+  constructor(paragraph: Paragraph, options: DomainTreeOptions = {}) {
     this.id = paragraph.id
     this.chapterId = paragraph.chapterId
     this.chunkId = paragraph.chunkId
     this.index = paragraph.index
     this._sourceBody = normalizeBlock(paragraph.body)
+    this._options = options
   }
 
   get body(): string {
@@ -330,9 +345,13 @@ export class ParagraphNode implements Paragraph {
 
   get lines(): LineNode[] {
     if (this._lines === undefined) {
-      this._lines = defaultSplitLines(this._sourceBody).map(
+      const splitLines = this._options.splitLines ?? defaultSplitLines
+      this._lines = splitLines(this._sourceBody).map(
         (text, index) =>
-          new LineNode({ id: `${this.id}:l${index}`, paragraphId: this.id, text, index }),
+          new LineNode(
+            { id: `${this.id}:l${index}`, paragraphId: this.id, text, index },
+            this._options,
+          ),
       )
     }
     return this._lines
@@ -341,7 +360,10 @@ export class ParagraphNode implements Paragraph {
   setText(input: string | string[]): void {
     this._lines = lineTexts(input).map(
       (text, index) =>
-        new LineNode({ id: `${this.id}:l${index}`, paragraphId: this.id, text, index }),
+        new LineNode(
+          { id: `${this.id}:l${index}`, paragraphId: this.id, text, index },
+          this._options,
+        ),
     )
   }
 
@@ -352,11 +374,14 @@ export class ParagraphNode implements Paragraph {
     }
     const inserted = lineTexts(input).map(
       (text, offset) =>
-        new LineNode({
-          id: `${this.id}:l${index + offset}`,
-          paragraphId: this.id,
-          text,
-        }),
+        new LineNode(
+          {
+            id: `${this.id}:l${index + offset}`,
+            paragraphId: this.id,
+            text,
+          },
+          this._options,
+        ),
     )
     lines.splice(index, 0, ...inserted)
     this.renumberLines()
@@ -396,12 +421,14 @@ export class LineNode implements ParagraphLine {
   readonly paragraphId: string
   index?: number
   private _text: string
+  private readonly _options: DomainTreeOptions
 
-  constructor(line: ParagraphLine) {
+  constructor(line: ParagraphLine, options: DomainTreeOptions = {}) {
     this.id = line.id
     this.paragraphId = line.paragraphId
     this.index = line.index
     this._text = normalizeLineText(line.text)
+    this._options = options
   }
 
   get text(): string {
@@ -413,19 +440,24 @@ export class LineNode implements ParagraphLine {
   }
 
   words(): WordNode[] {
-    return wordSpans(this._text).map((_, index) => new WordNode(this, index))
+    return this.spans().map((_, index) => new WordNode(this, index))
   }
 
   wordAt(index: number): string {
-    return wordSpans(this._text)[index]?.word ?? ''
+    return this.spans()[index]?.word ?? ''
   }
 
   replaceWord(index: number, value: string): void {
-    const span = wordSpans(this._text)[index]
+    const span = this.spans()[index]
     if (span === undefined) {
       throw new RangeError(`LineNode.replaceWord: index ${index} out of range`)
     }
     this._text = `${this._text.slice(0, span.start)}${value}${this._text.slice(span.end)}`
+  }
+
+  private spans(): WordSpan[] {
+    const splitWords = this._options.splitWords ?? wordSpans
+    return splitWords(this._text)
   }
 
   toLine(): ParagraphLine {

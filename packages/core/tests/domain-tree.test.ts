@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  type WordSpan,
   chapterBody,
   chapterBodyFromMarkdown,
   chapterTree,
@@ -85,6 +86,47 @@ describe('domain tree', () => {
     expect(chunks).toHaveLength(2)
     expect(chunks[0]?.paragraphs().map((paragraph) => paragraph.body)).toEqual(['A', 'B'])
     expect(chunks[1]?.body).toBe('C')
+  })
+
+  it('uses an injected line splitter for the paragraph descent', () => {
+    const tree = chapterTree(
+      { id: 'line-split', bookId: 'book', title: 'Lines', body: 'ignored' },
+      {
+        splitChunks: () => ['A|B'],
+        splitParagraphs: (body) => [body],
+        splitLines: (body) => body.split('|'),
+      },
+    )
+
+    expect(tree.lines().map((line) => line.text)).toEqual(['A', 'B'])
+    expect(tree.lines().map((line) => line.id)).toEqual([
+      'line-split:c0:p0:l0',
+      'line-split:c0:p0:l1',
+    ])
+  })
+
+  it('uses an injected span-based word splitter for the line descent', () => {
+    const splitWords = (text: string): WordSpan[] => {
+      const spans: WordSpan[] = []
+      let start = 0
+      for (const word of text.split(',')) {
+        spans.push({ word, start, end: start + word.length })
+        start += word.length + 1
+      }
+      return spans
+    }
+    const tree = chapterTree(
+      { id: 'word-split', bookId: 'book', title: 'Words', body: 'a,b,c' },
+      { splitWords },
+    )
+    const line = requireValue(tree.lines()[0], 'line')
+
+    expect(line.words().map((word) => word.word)).toEqual(['a', 'b', 'c'])
+
+    const middle = requireValue(line.words()[1], 'middle word')
+    middle.word = 'B'
+    expect(line.text).toBe('a,B,c')
+    expect(tree.body).toBe('a,B,c')
   })
 
   it('throws for tokens without an injected tokenizer and returns TokenNodes with one', () => {

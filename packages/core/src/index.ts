@@ -274,8 +274,11 @@ export type {
   ChunkBodySplitter,
   DomainTreeOptions,
   DomainTreeTokenizer,
+  LineBodySplitter,
+  LineWordSplitter,
   ParagraphBodySplitter,
   TokenPart,
+  WordSpan,
 } from './domain-tree.js'
 export {
   BALANCE_ALLOWED_DEVIATION,

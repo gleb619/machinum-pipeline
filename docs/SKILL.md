@@ -95,7 +95,8 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   `@mt/core`) wrap a `Chapter` in a mutable fluent view:
   `tree.chunks()[0].paragraphs()[0].lines[0].text = '…'` writes back through `tree.body`,
   `tree.toMarkdown()` and `tree.toChapter()`. `opts.splitChunks` / `opts.splitParagraphs` /
-  `opts.tokenize` plug in tool splitters; `chunk.tokens()` needs `tokenize`.
+  `opts.splitLines` / `opts.splitWords` / `opts.tokenize` plug in tool splitters;
+  `chunk.tokens()` needs `tokenize`.
 - Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline
   transformation of the current stream. `.fork(pipeline)` runs the child sequentially per envelope.
   `.fork(name, [branchA, branchB])` runs every branch concurrently per envelope via real
