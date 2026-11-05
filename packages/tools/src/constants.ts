@@ -4,6 +4,19 @@
  * the same value locally.
  */
 
+// Splitting primitives are shared core constants; re-exported here so tools keep one import surface.
+export {
+  BALANCE_ALLOWED_DEVIATION,
+  CHARS_PER_TOKEN_HEURISTIC,
+  DECORATIVE_LINE_RE,
+  DEFAULT_CHUNK_SEPARATOR,
+  DEFAULT_CHUNK_TARGET,
+  DEFAULT_LINE_MAX_TOKENS,
+  DEFAULT_OVERLAP_CHARS,
+  DEFAULT_SENTENCE_MAX_CHARS,
+  SENTENCE_END_RE,
+} from '@mt/core'
+
 // ---------------------------------------------------------------------------
 // Series splitting
 // ---------------------------------------------------------------------------
@@ -21,9 +34,7 @@ export const SERIES_SPLIT_TARGET_CHARS = 10_000
 // ---------------------------------------------------------------------------
 
 export const TOKEN_ENCODING = 'cl100k_base'
-export const CHARS_PER_TOKEN_HEURISTIC = 4
 export const DEFAULT_MAX_TOKENS = 12_000
-export const DEFAULT_CHUNK_TARGET = 6_000
 export const DEFAULT_OUTPUT_RESERVE = 2_048
 /** Summary-specific fallback; deliberately smaller than DEFAULT_OUTPUT_RESERVE. */
 export const SUMMARY_OUTPUT_RESERVE = 1_024
@@ -38,11 +49,6 @@ export const TRANSLATE_PREFIX_FALLBACK_TOKENS = 100
 // Chunking / splitting
 // ---------------------------------------------------------------------------
 
-export const DEFAULT_LINE_MAX_TOKENS = 2_000
-export const DEFAULT_SENTENCE_MAX_CHARS = 4_000
-export const DEFAULT_OVERLAP_CHARS = 0
-export const BALANCE_ALLOWED_DEVIATION = 0.05
-export const DEFAULT_CHUNK_SEPARATOR = '---'
 export const DEFAULT_CHUNK_CONCURRENCY = 2
 export const GLOSSARY_CORPUS_MAX_CHARS = 12_000
 
@@ -50,7 +56,6 @@ export const GLOSSARY_CORPUS_MAX_CHARS = 12_000
 // Sentences
 // ---------------------------------------------------------------------------
 
-export const SENTENCE_END_RE = /[.!?](?:\s|$)/g
 export const MIN_SENTENCE_WORDS = 4
 export const SUMMARY_SENTENCE_COUNT = 4
 export const REPEATED_SENTENCE_MIN_COUNT = 2
@@ -60,7 +65,6 @@ export const REPEATED_SENTENCE_MIN_COUNT = 2
 // ---------------------------------------------------------------------------
 
 export const WORD_CHAR_CLASS = '\\p{L}\\p{N}_'
-export const DECORATIVE_LINE_RE = /^[\s*~=_\-#+•·■-◿★☆※♦—–.]{3,}$/
 export const MAX_TITLE_LINE_LENGTH = 120
 export const BRACKET_TERM_MIN_CHARS = 2
 export const BRACKET_TERM_MAX_CHARS = 60

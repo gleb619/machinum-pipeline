@@ -10,10 +10,10 @@ import type {
   ToolContext,
   Word,
 } from '@mt/core'
+import { heuristicTokenCount, splitLineUnits, splitParagraphUnits } from '@mt/core'
 import { readChapterDoc } from '../modification/chapter-doc.js'
-import { resolveChunkSize, splitIntoChunks, tokenizeChunkDetailed } from './chunk-separator.js'
 import { tokenizeWords } from './stat-freq.js'
-import { heuristicTokenCount, splitLineUnits, splitParagraphUnits } from './token-splitter.js'
+import { resolveChunkSize, splitIntoChunks, tokenizeChunkDetailed } from './token-splitter.js'
 
 interface ParagraphSource {
   chapterId: string

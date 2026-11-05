@@ -12,8 +12,8 @@ import { namedEntityTool } from '../src/normalization/named-entity-recognizer.js
 import { statFreq } from '../src/normalization/stat-freq.js'
 import { termTagger } from '../src/normalization/term-tagger.js'
 import { textNormalizer } from '../src/normalization/text-normalizer.js'
+import { tokenSplitter } from '../src/normalization/text-splitter.js'
 import { tokenCounter, tokenCounterBatch } from '../src/normalization/token-counter.js'
-import { tokenSplitter } from '../src/normalization/token-splitter.js'
 import { wordCounter } from '../src/normalization/word-counter.js'
 
 const ctx = { run: { global: {} } } as unknown as ToolContext

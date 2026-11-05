@@ -225,7 +225,7 @@ export {
   type TokenEncoding,
   type TokenizeChunkOptions,
   type TokenizeChunkResult,
-} from './normalization/chunk-separator.js'
+} from './normalization/token-splitter.js'
 
 export {
   glossaryExtractor,
@@ -427,7 +427,7 @@ export {
 
 export { chapterIndexer } from './normalization/chapter-indexer.js'
 
-export { tokenSplitter } from './normalization/token-splitter.js'
+export { tokenSplitter } from './normalization/text-splitter.js'
 
 export {
   createTokenSplitter,
@@ -466,7 +466,7 @@ export {
   createSeriesSplitTool,
   seriesSplitTool,
   type SeriesSplitOptions,
-} from './normalization/token-splitter.js'
+} from './normalization/text-splitter.js'
 
 export {
   chunkSplitter,

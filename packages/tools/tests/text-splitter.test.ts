@@ -25,7 +25,7 @@ import {
   tokenSplitter,
   whitespaceStrategy,
   withStrategy,
-} from '../src/normalization/token-splitter.js'
+} from '../src/normalization/text-splitter.js'
 
 const ctx = { run: { global: {} } } as unknown as ToolContext
 

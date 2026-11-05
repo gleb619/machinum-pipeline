@@ -1,812 +1,251 @@
-import { category, defineTool, registry, setVariables, tool, useCase, withItem } from '@mt/core'
-import type { Exchange, Splitter, SplitterContext, Tool, ToolContext } from '@mt/core'
+import { category, defineTool, setVariables, tool, useCase, withItem, withMeta } from '@mt/core'
+import type { Exchange, ToolContext, Variable } from '@mt/core'
 import {
-  BALANCE_ALLOWED_DEVIATION,
-  CHARS_PER_TOKEN_HEURISTIC,
+  DEFAULT_CHUNK_SEPARATOR,
   DEFAULT_CHUNK_TARGET,
-  DEFAULT_LINE_MAX_TOKENS,
-  DEFAULT_MAX_TOKENS,
-  DEFAULT_OVERLAP_CHARS,
-  DEFAULT_SENTENCE_MAX_CHARS,
-  SENTENCE_END_RE,
-  SERIES_SPLIT_TARGET_CHARS,
-} from '../constants.js'
-import {
-  type ChapterDoc,
-  type ChapterDocNode,
-  readChapterDoc,
-  writeChapterDoc,
-} from '../modification/chapter-doc.js'
+  type TokenCountFn,
+  hasSeparators,
+  heuristicTokenCount,
+  joinChunks,
+  parseChunks,
+  splitIntoChunks,
+  stripSeparators,
+} from '@mt/core'
+import { CHARS_PER_TOKEN_HEURISTIC } from '../constants.js'
+import { readCtx } from '../core/llm-config.js'
 import { resolveTunedNum } from '../resolve-constants.js'
 
-export { DEFAULT_CHUNK_TARGET, DEFAULT_MAX_TOKENS }
+export {
+  DEFAULT_CHUNK_SEPARATOR,
+  type SplitIntoChunksOptions,
+  joinChunks,
+  parseChunks,
+  splitIntoChunks,
+  stripSeparators,
+} from '@mt/core'
 
-/**
- * Heuristic fallback: ~4 characters per token.
- */
-export function heuristicTokenCount(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN_HEURISTIC)
-}
+/** Variable with the number of separator-delimited chunks in the result text. */
+export const VAR_CHUNK_COUNT = 'chunkCount'
+/** Variable with the separator line used between chunks. */
+export const VAR_CHUNK_SEPARATOR = 'chunkSeparator'
 
-/**
- * Count tokens using gpt-tokenizer if available, otherwise use heuristic.
- */
-export async function countTokens(text: string): Promise<number> {
-  try {
-    const { encode } = await import('gpt-tokenizer')
-    return encode(text).length
-  } catch {
-    return heuristicTokenCount(text)
+function toPositiveInt(value: unknown): number | undefined {
+  let n: number
+  if (typeof value === 'number') {
+    n = value
+  } else if (typeof value === 'string') {
+    n = Number(value.trim())
+  } else {
+    return undefined
   }
+  if (!Number.isFinite(n) || n <= 0) return undefined
+  return Math.floor(n)
 }
 
-export type TokenCountFn = (text: string) => number
-
-export interface TokenSplitStrategy {
-  readonly name: string
-  split(text: string): string[] | Promise<string[]>
-}
-
-export interface TokenSplitterOptions {
-  strategy: TokenSplitStrategy
-  maxTokens?: number
-}
-
-export interface TokenSplitter extends Tool<string, string[]> {
-  with(overrides: Partial<TokenSplitterOptions>): TokenSplitter
-}
-
-function splitLines(text: string): string[] {
-  const lines: string[] = []
-  let start = 0
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (ch === '\r' || ch === '\n') {
-      lines.push(text.slice(start, i))
-      start = i + 1
-      if (ch === '\r' && text[i + 1] === '\n') i++
-    }
-  }
-  lines.push(text.slice(start))
-  return lines
+export interface ChunkSizeOptions {
+  /** Chunk size in tokens (tool option layer). */
+  chunkSize?: number
 }
 
 /**
- * Paragraph-level units: split on blank-line runs, trim each unit and drop blanks.
+ * Resolve the chunk size in tokens. First defined wins:
+ * `env.meta.chunkSize` → tool option `chunkSize` → mt.json `settings.chunkSize` →
+ * `MT_CHUNK_SIZE` env → `DEFAULT_CHUNK_TARGET` override chain (constants variable →
+ * mt.json `settings.constants.DEFAULT_CHUNK_TARGET` → `MT_CONST_DEFAULT_CHUNK_TARGET` env)
+ * → {@link DEFAULT_CHUNK_TARGET}.
  */
-export function splitParagraphUnits(text: string): string[] {
-  return text
-    .split(/\n\n+/)
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
+export function resolveChunkSize(
+  env: Pick<Exchange, 'meta'> & { variables?: Variable[] },
+  ctx?: ToolContext,
+  opts?: ChunkSizeOptions,
+): number {
+  const fromMeta = toPositiveInt(env.meta.chunkSize)
+  if (fromMeta !== undefined) return fromMeta
+  const fromOption = toPositiveInt(opts?.chunkSize)
+  if (fromOption !== undefined) return fromOption
+  const view = readCtx(ctx)
+  const fromSettings = toPositiveInt(view.settings.chunkSize)
+  if (fromSettings !== undefined) return fromSettings
+  const fromEnv = toPositiveInt(view.env.MT_CHUNK_SIZE)
+  if (fromEnv !== undefined) return fromEnv
+  return resolveTunedNum('DEFAULT_CHUNK_TARGET', DEFAULT_CHUNK_TARGET, env, ctx)
 }
 
-/**
- * Line-level units: split on CR/LF, trim each unit and drop blanks.
- */
-export function splitLineUnits(text: string): string[] {
-  return splitLines(text)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
+export interface ChunkCleanOptions {
+  /** Separator line to strip. Default `---`. */
+  separator?: string
 }
 
-/**
- * Sentence-level units: split after `.` / `!` / `?`, trim each unit and drop blanks.
- * A sentence is never cut: the terminator stays with its text.
- */
-export function splitSentenceUnits(text: string): string[] {
-  if (!text.trim()) return []
-  const sentences: string[] = []
-  let cursor = 0
-  for (const match of text.matchAll(SENTENCE_END_RE)) {
-    const end = (match.index ?? 0) + match[0].length
-    sentences.push(text.slice(cursor, end))
-    cursor = end
-  }
-  if (cursor < text.length) sentences.push(text.slice(cursor))
-  return sentences.map((sentence) => sentence.trim()).filter((sentence) => sentence.length > 0)
-}
-
-interface ReadableUnit {
-  text: string
-  paragraph: number
-}
-
-function joinReadableUnits(units: readonly ReadableUnit[], forcedSeparator?: string): string {
-  let output = ''
-  let previousParagraph: number | undefined
-  for (const unit of units) {
-    if (output.length === 0) {
-      output = unit.text
-    } else {
-      const separator = forcedSeparator ?? (unit.paragraph === previousParagraph ? ' ' : '\n\n')
-      output += `${separator}${unit.text}`
-    }
-    previousParagraph = unit.paragraph
-  }
-  return output.trim()
-}
-
-function partitionReadableUnits(
-  units: readonly ReadableUnit[],
-  count: number,
-  forcedSeparator?: string,
-): string[] {
-  if (units.length === 0) return []
-  const groupCount = Math.min(count, units.length)
-  if (groupCount <= 1) return [joinReadableUnits(units, forcedSeparator)]
-
-  const groups: ReadableUnit[][] = []
-  let index = 0
-  let remainingWeight = units.reduce((sum, unit) => sum + unit.text.length + 1, 0)
-
-  for (let groupIndex = 0; groupIndex < groupCount; groupIndex++) {
-    const groupsLeft = groupCount - groupIndex
-    const maxEnd = units.length - (groupsLeft - 1)
-    const target = remainingWeight / groupsLeft
-    const first = units[index]
-    if (first === undefined) break
-    let end = index + 1
-    let weight = first.text.length + 1
-
-    while (end < maxEnd) {
-      const next = units[end]
-      if (next === undefined || weight >= target) break
-      weight += next.text.length + 1
-      end += 1
-    }
-
-    groups.push(units.slice(index, end))
-    remainingWeight -= weight
-    index = end
-  }
-
-  return groups.map((group) => joinReadableUnits(group, forcedSeparator))
-}
-
-/**
- * Split text into `parts` readable pieces without cutting a sentence.
- *
- * Two or more paragraphs are kept whole and grouped (never split mid-paragraph); a single
- * paragraph falls back to whole sentences. A sentence is never cut, so the result may contain
- * fewer than `parts` pieces when the text is too short.
- */
-export function splitReadableParts(text: string, parts: number): string[] {
-  const count = Number.isFinite(parts) && parts > 1 ? Math.floor(parts) : 0
-  if (count < 2 || !text.trim()) return [text]
-
-  const paragraphs = text
-    .split(/\n\s*\n/)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph.length > 0)
-  if (paragraphs.length === 0) return [text]
-
-  // Multiple paragraphs: never break paragraph logic to hit an exact part count.
-  // The result may contain fewer than `count` pieces when the chapter is short.
-  if (paragraphs.length >= 2) {
-    return partitionReadableUnits(
-      paragraphs.map((paragraph, index) => ({ text: paragraph, paragraph: index })),
-      Math.min(count, paragraphs.length),
-      '\n\n',
-    )
-  }
-
-  // A single paragraph: fall back to whole-sentence boundaries so the text stays readable.
-  const sentences: ReadableUnit[] = []
-  paragraphs.forEach((paragraph, paragraphIndex) => {
-    for (const sentence of splitSentenceUnits(paragraph)) {
-      sentences.push({ text: sentence, paragraph: paragraphIndex })
-    }
-  })
-  if (sentences.length < 2) return [text]
-  return partitionReadableUnits(sentences, count)
-}
-
-function chunkUnits(
-  units: string[],
-  weigh: (unit: string) => number,
-  budget: number,
-  join: string,
-): string[] {
-  const chunks: string[] = []
-  let current = ''
-  let currentWeight = 0
-
-  for (const unit of units) {
-    const unitWeight = weigh(unit)
-    if (currentWeight > 0 && currentWeight + unitWeight > budget) {
-      chunks.push(current.trimEnd())
-      current = unit
-      currentWeight = unitWeight
-    } else {
-      current = current ? `${current}${join}${unit}` : unit
-      currentWeight += unitWeight
-    }
-  }
-
-  if (current.trim()) {
-    chunks.push(current.trimEnd())
-  }
-
-  return chunks.length > 0 ? chunks : ['']
-}
-
-interface TextChunk {
-  lines: string[]
-  totalLength: number
-}
-
-/**
- * Port of machinum.extract.util.TextBalancer.
- * Distributes lines into a fixed number of chunks so each chunk's total
- * length (including newline delimiters) is close to the target size.
- */
-export function balanceText(text: string, numChunks: number): string[] {
-  if (numChunks <= 1) return [text]
-
-  const lines = splitLines(text)
-  const totalLength = lines.reduce((sum, line) => sum + line.length + 1, 0)
-  const targetChunkSize = Math.max(1, Math.floor(totalLength / numChunks))
-  const allowedDeviation = targetChunkSize * BALANCE_ALLOWED_DEVIATION
-
-  const chunks: TextChunk[] = Array.from({ length: numChunks }, () => ({
-    lines: [],
-    totalLength: 0,
-  }))
-
-  let currentIndex = 0
-  for (const line of lines) {
-    const chunk = chunks[currentIndex]
-    if (chunk === undefined) {
-      throw new Error('balanceText: currentIndex out of bounds')
-    }
-    chunk.lines.push(line)
-    chunk.totalLength += line.length + 1
-    if (chunk.totalLength > targetChunkSize && currentIndex < numChunks - 1) {
-      currentIndex++
-    }
-  }
-
-  for (let i = 0; i < chunks.length - 1; i++) {
-    const currentChunk = chunks[i]
-    const nextChunk = chunks[i + 1]
-    if (currentChunk === undefined || nextChunk === undefined) {
-      throw new Error('balanceText: chunk index out of bounds during rebalance')
-    }
-    while (
-      currentChunk.totalLength > targetChunkSize + allowedDeviation &&
-      nextChunk.lines.length > 0
-    ) {
-      const lastLine = currentChunk.lines.pop()
-      if (lastLine === undefined) break
-      currentChunk.totalLength -= lastLine.length + 1
-      nextChunk.lines.unshift(lastLine)
-      nextChunk.totalLength += lastLine.length + 1
-    }
-  }
-
-  const balanced = chunks.map((chunk) => chunk.lines.join('\n')).filter((chunk) => chunk.length > 0)
-  return balanced.length > 0 ? balanced : ['']
-}
-
-/**
- * Adds an overlap of the first `overlapSize` characters from each chunk to
- * the previous chunk (matches machinum.processor.core.SplitStrategy.Balanced).
- */
-export function overlap(input: string[], overlapSize: number): string[] {
-  if (input.length < 2 || overlapSize <= 0) return input
-
-  const result = [...input]
-  for (let i = 1; i < result.length; i++) {
-    const previous = result[i - 1]
-    const current = result[i]
-    if (previous === undefined || current === undefined) {
-      throw new Error('overlap: chunk index out of bounds')
-    }
-    const copyLength = Math.min(overlapSize, current.length)
-    result[i - 1] = previous + current.slice(0, copyLength)
-  }
-  return result
-}
-
-/**
- * Char-level rebalancing across chunks. Order-preserving: takes characters
- * from the tail of an overfull chunk and prepends them (in order) to the
- * following underfull chunk, so `result.join('') === input.join('')`.
- */
-export function rebalance(input: string[]): string[] {
-  if (input.length < 2) return input
-
-  const total = input.reduce((sum, s) => sum + s.length, 0)
-  const target = Math.round(total / input.length)
-  const builders = input.map((s) => ({ text: s }))
-
-  let modified: boolean
-  do {
-    modified = false
-    for (let i = 0; i < builders.length - 1; i++) {
-      const current = builders[i]
-      const next = builders[i + 1]
-      if (current === undefined || next === undefined) continue
-      if (current.text.length <= target || next.text.length >= target) continue
-      next.text = current.text[current.text.length - 1] + next.text
-      current.text = current.text.slice(0, -1)
-      modified = true
-    }
-  } while (modified)
-
-  return builders.map((b) => b.text)
-}
-
-/**
- * Line-level rebalancing across chunks: shifts whole lines between adjacent
- * chunks toward the mean chunk size. Two O(n) passes (forward, then backward).
- * Order-preserving: `result.join('\n') === input.join('\n')` minus any
- * chunks that became empty.
- */
-export function rebalanceLines(chunks: string[]): string[] {
-  if (chunks.length < 2) return chunks
-
-  const target = Math.round(chunks.reduce((sum, c) => sum + c.length, 0) / chunks.length)
-  const lines = chunks.map((chunk) => chunk.split('\n'))
-  const size = (index: number): number => {
-    const chunkLines = lines[index]
-    return chunkLines === undefined ? 0 : chunkLines.join('\n').length
-  }
-
-  for (let i = 0; i < lines.length - 1; i++) {
-    const current = lines[i]
-    const next = lines[i + 1]
-    if (current === undefined || next === undefined) continue
-    while (size(i) > target && current.length > 1) {
-      const lastLine = current.pop()
-      if (lastLine === undefined) break
-      next.unshift(lastLine)
-    }
-  }
-
-  for (let i = lines.length - 1; i > 0; i--) {
-    const current = lines[i]
-    const previous = lines[i - 1]
-    if (current === undefined || previous === undefined) continue
-    while (size(i) < target && previous.length > 1) {
-      const lastLine = previous.pop()
-      if (lastLine === undefined) break
-      current.unshift(lastLine)
-    }
-  }
-
-  return lines.map((chunkLines) => chunkLines.join('\n')).filter((chunk) => chunk.length > 0)
-}
-
-export interface ParagraphStrategyOptions {
-  targetTokens?: number
-  count?: TokenCountFn
-}
-
-export function paragraphStrategy(options?: ParagraphStrategyOptions): TokenSplitStrategy {
-  const { targetTokens = DEFAULT_CHUNK_TARGET, count = heuristicTokenCount } = options ?? {}
-
-  return {
-    name: 'paragraph',
-    split(text: string): string[] {
-      const paragraphs = text.split(/\n\n+/)
-      const chunks: string[] = []
-      let current = ''
-      let currentTokens = 0
-
-      for (const paragraph of paragraphs) {
-        if (!paragraph.trim()) continue
-        const paragraphTokens = count(paragraph)
-
-        if (currentTokens > 0 && currentTokens + paragraphTokens > targetTokens) {
-          chunks.push(current.trimEnd())
-          current = paragraph
-          currentTokens = paragraphTokens
-        } else {
-          current = current ? `${current}\n\n${paragraph}` : paragraph
-          currentTokens += paragraphTokens
-        }
-      }
-
-      if (current.trim()) {
-        chunks.push(current.trimEnd())
-      }
-
-      return chunks.length > 0 ? chunks : [text]
-    },
-  }
-}
-
-export interface LineStrategyOptions {
-  maxTokens?: number
-  count?: TokenCountFn
-}
-
-export function lineStrategy(options?: LineStrategyOptions): TokenSplitStrategy {
-  const { maxTokens = DEFAULT_LINE_MAX_TOKENS, count = heuristicTokenCount } = options ?? {}
-
-  return {
-    name: 'line',
-    split(text: string): string[] {
-      const lines = splitLines(text)
-      return chunkUnits(
-        lines.filter((line) => line.trim().length > 0),
-        count,
-        maxTokens,
-        '\n',
+/** Create a chunk-clean tool with a fixed separator. */
+export function createChunkClean(options: ChunkCleanOptions = {}) {
+  const separator = options.separator ?? DEFAULT_CHUNK_SEPARATOR
+  return defineTool<string, string>({
+    name: 'chunk-clean',
+    version: '1.0.0',
+    mdDescription:
+      "Strip chunk separator lines ('---' by default) and other decorative-only lines from fixated text, collapsing the blank runs left behind. Sets `chunkCount` (meta + variable, separator-delimited chunks in the result text) and the `chunkSeparator` variable.",
+    annotations: [
+      tool('TL208', {
+        name: 'chunk-clean',
+        description: 'Strips separator and decorative lines from fixated chunks.',
+        refs: ['UC058'],
+      }),
+      useCase('UC058'),
+      category(['normalizer']),
+    ],
+    async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<string>> {
+      const output = stripSeparators(env.item, separator)
+      const chunkCount = parseChunks(output, separator).length
+      return withMeta(
+        setVariables(withItem(env, output), {
+          [VAR_CHUNK_COUNT]: chunkCount,
+          [VAR_CHUNK_SEPARATOR]: separator,
+        }),
+        { chunkCount },
       )
     },
-  }
+  })
 }
 
-export interface WhitespaceStrategyOptions {
-  maxTokens?: number
+/** Default chunk-clean tool. */
+export const chunkClean = createChunkClean()
+
+export interface ChunkSplitOptions extends ChunkSizeOptions {
+  /** Separator line written between chunks. Default `---`. */
+  separator?: string
+  /** Reuse existing separator lines instead of re-splitting. Default: true. */
+  reuse?: boolean
+  /** Token counter. Default {@link heuristicTokenCount}. */
   count?: TokenCountFn
 }
 
-export function whitespaceStrategy(options?: WhitespaceStrategyOptions): TokenSplitStrategy {
-  const { maxTokens = DEFAULT_LINE_MAX_TOKENS, count = heuristicTokenCount } = options ?? {}
-
-  return {
-    name: 'whitespace',
-    split(text: string): string[] {
-      const words = text
-        .trim()
-        .split(/\s+/)
-        .filter((word) => word.length > 0)
-      return chunkUnits(words, count, maxTokens, ' ')
-    },
-  }
-}
-
-export interface SentenceStrategyOptions {
-  maxChars?: number
-}
-
-export function sentenceStrategy(options?: SentenceStrategyOptions): TokenSplitStrategy {
-  const { maxChars = DEFAULT_SENTENCE_MAX_CHARS } = options ?? {}
-
-  return {
-    name: 'sentence',
-    split(text: string): string[] {
-      if (!text.trim()) return [text]
-
-      const chunks: string[] = []
-      let current = ''
-      for (const sentence of splitSentenceUnits(text)) {
-        const separator = current ? ' ' : ''
-        if (current.length + separator.length + sentence.length > maxChars) {
-          if (current) chunks.push(current)
-          current = sentence
-        } else {
-          current = current ? `${current}${separator}${sentence}` : sentence
-        }
-      }
-      if (current) chunks.push(current)
-
-      return chunks.length > 0 ? chunks : [text]
-    },
-  }
-}
-
-export function singleStrategy(): TokenSplitStrategy {
-  return {
-    name: 'single',
-    split: (text: string) => [text],
-  }
-}
-
-export interface BalancedStrategyOptions {
-  targetTokens?: number
-  overlapChars?: number
-  count?: TokenCountFn
-}
-
-export function balancedStrategy(options?: BalancedStrategyOptions): TokenSplitStrategy {
-  const {
-    targetTokens = DEFAULT_CHUNK_TARGET,
-    overlapChars = DEFAULT_OVERLAP_CHARS,
-    count = heuristicTokenCount,
-  } = options ?? {}
-
-  return {
-    name: 'balanced',
-    split(text: string): string[] {
-      const tokens = count(text)
-      if (tokens <= targetTokens) return [text]
-
-      const lineCount = splitLines(text).length
-      const desiredChunks = Math.max(2, Math.ceil(tokens / targetTokens))
-      const numChunks = Math.min(desiredChunks, lineCount)
-      if (numChunks <= 1) return [text]
-
-      let chunks = balanceText(text, numChunks)
-      if (overlapChars > 0) {
-        chunks = overlap(chunks, overlapChars)
-      }
-      return chunks
-    },
-  }
-}
-
-export interface BalancedLineStrategyOptions {
-  maxTokens?: number
-  overlapChars?: number
-  count?: TokenCountFn
-}
-
-export function balancedLineStrategy(options?: BalancedLineStrategyOptions): TokenSplitStrategy {
-  const {
-    maxTokens = DEFAULT_LINE_MAX_TOKENS,
-    overlapChars = DEFAULT_OVERLAP_CHARS,
-    count = heuristicTokenCount,
-  } = options ?? {}
-
-  return {
-    name: 'balanced-line',
-    split(text: string): string[] {
-      const lines = splitLines(text).filter((line) => line.trim().length > 0)
-      const raw = chunkUnits(lines, count, maxTokens, '\n')
-      let chunks = rebalanceLines(raw)
-      if (overlapChars > 0) {
-        chunks = overlap(chunks, overlapChars)
-      }
-      return chunks
-    },
-  }
-}
-
-export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {}): TokenSplitter {
-  const maxTokens = options.maxTokens
-  const strategy = options.strategy ?? paragraphStrategy()
-
-  const base = defineTool<string, string[]>({
-    name: 'token-splitter',
+/** Create a chunk-split tool with fixed options. */
+export function createChunkSplit(options: ChunkSplitOptions = {}) {
+  const separator = options.separator ?? DEFAULT_CHUNK_SEPARATOR
+  const reuse = options.reuse ?? true
+  const count = options.count ?? heuristicTokenCount
+  return defineTool<string, string>({
+    name: 'chunk-split',
     version: '1.0.0',
     mdDescription:
-      'Splits text into chunks using a pluggable TokenSplitStrategy. Default strategy splits at paragraph boundaries respecting a token limit.',
+      "Clean text and split it into token-bounded chunks fixated by separator lines ('---' by default). Chunk size resolution: `meta.chunkSize` → tool option `chunkSize` → mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000. With `reuse` (default true) text that already contains separator lines is kept as-is, so later runs never re-split fixated chunks. Sets `chunkCount` (meta + variable) and the `chunkSeparator` variable.",
     annotations: [
-      tool('TL106', {
-        name: 'token-splitter',
-        description: 'Splits text into chunks under a token limit.',
+      tool('TL209', {
+        name: 'chunk-split',
+        description: 'Splits text into token-bounded chunks fixated by separators.',
         refs: ['UC056'],
+        meta: { alsoCovers: ['TL106'] },
       }),
       useCase('UC056'),
       category(['splitter']),
     ],
-    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
-      const inputs = env.items ?? [env.item]
-      const allChunks: string[] = []
-      const limit = maxTokens ?? resolveTunedNum('DEFAULT_MAX_TOKENS', DEFAULT_MAX_TOKENS, env, ctx)
-
-      for (const input of inputs) {
-        const tokenCount = await countTokens(input)
-        if (tokenCount <= limit) {
-          allChunks.push(input)
-        } else {
-          const chunks = await strategy.split(input)
-          for (const chunk of chunks) {
-            allChunks.push(chunk)
-          }
-        }
+    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
+      const input = env.item
+      let output: string
+      if (reuse && hasSeparators(input, separator)) {
+        output = input
+      } else {
+        const targetTokens = resolveChunkSize(env, ctx, options)
+        output = joinChunks(splitIntoChunks(input, { targetTokens, count }), separator)
       }
-
-      return setVariables(withItem(env, allChunks), {
-        split: allChunks.length > inputs.length,
-        chunkCount: allChunks.length,
-        strategy: strategy.name,
-      })
-    },
-  })
-
-  return Object.assign(base, {
-    with(overrides: Partial<TokenSplitterOptions>): TokenSplitter {
-      return createTokenSplitter({ maxTokens, strategy, ...overrides })
+      const chunkCount = parseChunks(output, separator).length
+      return withMeta(
+        setVariables(withItem(env, output), {
+          [VAR_CHUNK_COUNT]: chunkCount,
+          [VAR_CHUNK_SEPARATOR]: separator,
+        }),
+        { chunkCount },
+      )
     },
   })
 }
 
-/**
- * Decorator-style helper: swap the strategy on a token splitter.
- */
-export function withStrategy(tool: TokenSplitter, strategy: TokenSplitStrategy): TokenSplitter {
-  if (typeof tool.with !== 'function') {
-    throw new Error(`Tool '${tool.name}' does not support strategy overrides`)
-  }
-  return tool.with({ strategy })
-}
-
-/**
- * Default token splitter: paragraph strategy, ~12000 token upper bound.
- */
-export const tokenSplitter = createTokenSplitter()
+/** Default chunk-split tool. */
+export const chunkSplit = createChunkSplit()
 
 // ---------------------------------------------------------------------------
-// Series split
+// Tokenization
 // ---------------------------------------------------------------------------
 
-export interface SeriesSplitOptions {
-  /**
-   * Number of parts to produce when the chapter passes the split condition. Omit to use the
-   * balanced strategy (SERIES_SPLIT_STRATEGY 'balanced'): only chapters whose meaningful
-   * body exceeds `targetChars` are split, into parts of approximately `targetChars` each.
-   */
-  parts?: number
-  /**
-   * Balanced-strategy target: meaningful body size in characters per part
-   * (default SERIES_SPLIT_TARGET_CHARS). Chapters at or below the target stay whole.
-   */
-  targetChars?: number
-  /**
-   * Override the default readability gate. Returning false always leaves the original
-   * markdown intact; returning true still cannot cut a sentence, so the result may contain
-   * fewer parts when the chapter is too short.
-   */
-  shouldSplit?: (doc: ChapterDoc) => boolean
+/** BPE encodings supported by {@link tokenizeChunk}. */
+export type TokenEncoding = 'o200k_base' | 'cl100k_base' | 'p50k_base' | 'r50k_base'
+
+/** One BPE token of a chunk. */
+export interface ChunkToken {
+  /** BPE token id (or a running index when the result is heuristic). */
+  tokenId: number
+  /** Decoded text piece. */
+  text: string
 }
 
-interface SeriesSplitResult {
-  parts: string[]
-  split: boolean
-  series?: string
+export interface TokenizeChunkOptions {
+  /** BPE encoding. Default: the `gpt-tokenizer` default (`o200k_base`). */
+  encoding?: TokenEncoding
+}
+
+export interface TokenizeChunkResult {
+  tokens: ChunkToken[]
+  /** True when `gpt-tokenizer` was unavailable and ~4-char pieces were used. */
+  heuristic: boolean
+}
+
+interface BpeCodec {
+  encode(text: string): number[]
+  decode(tokens: Iterable<number>): string
+}
+
+async function loadCodec(encoding?: TokenEncoding): Promise<BpeCodec | undefined> {
+  try {
+    if (!encoding) return (await import('gpt-tokenizer')) as BpeCodec
+    switch (encoding) {
+      case 'o200k_base':
+        return (await import('gpt-tokenizer/encoding/o200k_base')) as BpeCodec
+      case 'cl100k_base':
+        return (await import('gpt-tokenizer/encoding/cl100k_base')) as BpeCodec
+      case 'p50k_base':
+        return (await import('gpt-tokenizer/encoding/p50k_base')) as BpeCodec
+      case 'r50k_base':
+        return (await import('gpt-tokenizer/encoding/r50k_base')) as BpeCodec
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** Fallback: consecutive ~4-character pieces, ids are running indexes. */
+function heuristicPieces(text: string): ChunkToken[] {
+  const pieces: ChunkToken[] = []
+  const chars = Array.from(text)
+  for (let i = 0; i < chars.length; i += CHARS_PER_TOKEN_HEURISTIC) {
+    pieces.push({
+      tokenId: pieces.length,
+      text: chars.slice(i, i + CHARS_PER_TOKEN_HEURISTIC).join(''),
+    })
+  }
+  return pieces
 }
 
 /**
- * Balanced default: split only bodies larger than the target, into
- * ceil(bodyChars / target) parts of approximately equal size. An explicit
- * `parts` option keeps the fixed-part-count behavior.
+ * Tokenize a chunk into BPE tokens (what the LLM actually sees). Each token is
+ * decoded on its own with `decode([id])`; a token that holds only part of a
+ * multi-byte character decodes to the replacement character. Falls back to
+ * ~4-character pieces (flagged `heuristic`) when `gpt-tokenizer` is unavailable.
  */
-function resolveParts(
-  bodyChars: number,
-  options: SeriesSplitOptions,
-  env: Exchange<unknown>,
-  ctx?: SplitterContext,
-): number {
-  if (options.parts !== undefined) {
-    const parts = options.parts
-    return Number.isFinite(parts) && parts > 1 ? Math.floor(parts) : 0
-  }
-  const target =
-    options.targetChars ??
-    resolveTunedNum(
-      'SERIES_SPLIT_TARGET_CHARS',
-      SERIES_SPLIT_TARGET_CHARS,
-      env,
-      ctx as ToolContext | undefined,
-    )
-  if (!Number.isFinite(target) || target < 1 || bodyChars <= target) return 0
-  return Math.max(2, Math.ceil(bodyChars / target))
+export async function tokenizeChunkDetailed(
+  text: string,
+  options: TokenizeChunkOptions = {},
+): Promise<TokenizeChunkResult> {
+  if (text.length === 0) return { tokens: [], heuristic: false }
+  const codec = await loadCodec(options.encoding)
+  if (!codec) return { tokens: heuristicPieces(text), heuristic: true }
+  const tokens = codec.encode(text).map((tokenId) => ({ tokenId, text: codec.decode([tokenId]) }))
+  return { tokens, heuristic: false }
 }
 
-function isDecorativeLine(line: string): boolean {
-  return /^[-*_=~]{3,}$/.test(line.trim())
+/** Tokenize a chunk into `{ tokenId, text }` pairs. See {@link tokenizeChunkDetailed}. */
+export async function tokenizeChunk(
+  text: string,
+  options: TokenizeChunkOptions = {},
+): Promise<ChunkToken[]> {
+  return (await tokenizeChunkDetailed(text, options)).tokens
 }
-
-function meaningfulBody(doc: ChapterDocNode): string[] {
-  return doc
-    .chapterTree()
-    .paragraphs()
-    .map((paragraph) =>
-      paragraph.lines
-        .map((line) => line.text)
-        .filter((line) => line.trim().length > 0 && !isDecorativeLine(line))
-        .join('\n'),
-    )
-    .filter((text) => text.length > 0)
-}
-
-function chapterBody(doc: ChapterDocNode): string {
-  return meaningfulBody(doc).join('\n\n')
-}
-
-async function splitSeriesMarkdown(
-  markdown: string,
-  options: SeriesSplitOptions,
-  env: Exchange<unknown>,
-  ctx?: SplitterContext,
-): Promise<SeriesSplitResult> {
-  const doc = readChapterDoc(markdown)
-  const body = chapterBody(doc)
-  const parts = resolveParts(body.length, options, env, ctx)
-  if (parts < 2 || (options.shouldSplit && !options.shouldSplit(doc))) {
-    return { parts: [markdown], split: false }
-  }
-
-  // Paragraph-first, sentence-safe partition from token-splitter (balanced: each part gets
-  // approximately body.length / parts characters). The last sentence of a piece always
-  // stays whole, and whole paragraphs are preferred when there are enough.
-  const bodyParts = splitReadableParts(body, parts)
-  if (bodyParts.length < 2) {
-    return { parts: [markdown], split: false }
-  }
-
-  const series = doc.series ?? doc.chapter.title
-  const output = await Promise.all(
-    bodyParts.map((body, index) =>
-      writeChapterDoc({
-        number: doc.number,
-        series,
-        warnings: doc.warnings.map((warning) => ({ ...warning })),
-        meta: doc.meta ? { ...doc.meta } : undefined,
-        chapter: {
-          ...doc.chapter,
-          title: `${doc.chapter.title} ${index + 1}`,
-          body,
-        },
-      }),
-    ),
-  )
-
-  return { parts: output, split: true, series }
-}
-
-function textItem(env: Exchange<unknown>): string {
-  if (typeof env.item !== 'string') {
-    throw new Error('seriesSplitter: item must be a string')
-  }
-  return env.item
-}
-
-/**
- * Create the chapter-document → series-parts splitter used by `.subflow('series://')` /
- * `.subflow('#series')`.
- *
- * The source markdown is parsed with `readChapterDoc`; each part is rebuilt as a new
- * `ChapterDoc` with a numbered title and `series` frontmatter, then serialized with
- * `writeChapterDoc`. The partition is paragraph-first and sentence-safe (delegated to
- * `splitReadableParts` in token-splitter), so a sentence is never cut in half. Chapters that
- * do not pass the condition are returned unchanged as a single item.
- *
- * Default condition (balanced strategy): the meaningful body must exceed
- * `targetChars` (default `SERIES_SPLIT_TARGET_CHARS`, tunable via the `constants` chain),
- * and the part count is derived as `ceil(bodyChars / targetChars)` so the parts are
- * approximately equal in size. Pass an explicit `parts` to split into a fixed number of
- * parts instead.
- */
-export function createSeriesSplitter(options: SeriesSplitOptions = {}): Splitter<string> {
-  return {
-    name: 'series-splitter',
-    async split(env, ctx) {
-      const result = await splitSeriesMarkdown(textItem(env), options, env, ctx)
-      return result.parts
-    },
-  }
-}
-
-export const seriesSplitter = createSeriesSplitter()
-
-/**
- * Backward-compatible tool form. Reuses the splitter logic and records `series` +
- * `partCount` variables only when a split actually happened.
- */
-export function createSeriesSplitTool(options: SeriesSplitOptions = {}) {
-  return defineTool<string, string[]>({
-    name: 'series-split',
-    version: '1.0.0',
-    mdDescription:
-      'Split a large chapter document into numbered series parts with series frontmatter.',
-    annotations: [
-      tool('TL233', {
-        name: 'series-split',
-        description: 'Splits a large chapter document into numbered series parts.',
-        refs: ['UC056'],
-      }),
-      useCase('UC056'),
-      category(['splitter']),
-    ],
-    async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
-      const result = await splitSeriesMarkdown(textItem(env), options, env, ctx)
-      const output = withItem(env, result.parts)
-      if (!result.split || result.series === undefined) return output
-      return setVariables(output, {
-        series: result.series,
-        partCount: result.parts.length,
-      })
-    },
-  })
-}
-
-export const seriesSplitTool = createSeriesSplitTool()
-
-registry.registerSplitter('series', seriesSplitter)

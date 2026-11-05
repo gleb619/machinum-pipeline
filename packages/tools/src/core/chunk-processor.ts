@@ -18,7 +18,7 @@ import { modelContextLimit, resolveContextConfig } from './llm-context.js'
 //
 // Token counts use the shared tiktoken-based `countTextTokens`; real providers tokenize
 // differently, so budgets are approximations - `reserve` (default 64) absorbs the drift.
-// Boundary with `normalization/token-splitter.ts`: that file is a pipeline Tool that emits
+// Boundary with `normalization/text-splitter.ts`: that file is a pipeline Tool that emits
 // chunks; this module is a budget-aware library used inside LLM tools (no Tool I/O).
 // ---------------------------------------------------------------------------
 

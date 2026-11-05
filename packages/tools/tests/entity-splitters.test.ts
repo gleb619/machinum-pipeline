@@ -1,5 +1,6 @@
 import { createExchange, registry } from '@mt/core'
 import type { Chunk, Line, Paragraph, SplitterContext } from '@mt/core'
+import { splitLineUnits, splitParagraphUnits } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
   chunkSplitter,
@@ -7,7 +8,6 @@ import {
   paragraphSplitter,
   wordSplitter,
 } from '../src/normalization/entity-splitters.js'
-import { splitLineUnits, splitParagraphUnits } from '../src/normalization/token-splitter.js'
 
 /** Minimal splitter context: the tunable resolver only reads `run.global`. */
 function splitterCtx(env: Record<string, string>): SplitterContext {

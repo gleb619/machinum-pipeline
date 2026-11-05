@@ -1,5 +1,6 @@
 import { createExchange, getVariable, setVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
+import { DEFAULT_CHUNK_TARGET, heuristicTokenCount } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import { VAR_CONSTANTS } from '../resolve-constants.js'
 import {
@@ -16,8 +17,7 @@ import {
   stripSeparators,
   tokenizeChunk,
   tokenizeChunkDetailed,
-} from './chunk-separator.js'
-import { DEFAULT_CHUNK_TARGET, heuristicTokenCount } from './token-splitter.js'
+} from './token-splitter.js'
 
 function ctxStub(settings: Record<string, unknown> = {}, env: Record<string, string> = {}) {
   return { run: { global: { settings, env } } } as unknown as ToolContext

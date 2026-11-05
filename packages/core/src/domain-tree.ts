@@ -1,4 +1,10 @@
 import type { Chapter, Chunk, Line, Paragraph, Token, Word } from './domain.js'
+import {
+  DEFAULT_CHUNK_SEPARATOR,
+  parseChunks,
+  splitLineUnits,
+  splitParagraphUnits,
+} from './text-split.js'
 
 /** One BPE/token piece returned by an injected tokenizer. */
 export interface TokenPart {
@@ -43,8 +49,6 @@ export interface ChapterBody {
   words(): WordNode[]
 }
 
-const DEFAULT_CHUNK_SEPARATOR = '---'
-
 function normalizeNewlines(text: string): string {
   return text.replace(/\r\n?/g, '\n')
 }
@@ -58,27 +62,15 @@ function nonEmptyBlocks(parts: string[]): string[] {
 }
 
 function defaultSplitChunks(body: string, separator: string): string[] {
-  const chunks: string[] = []
-  let current: string[] = []
-  const flush = (): void => {
-    const chunk = current.join('\n').trim()
-    if (chunk.length > 0) chunks.push(chunk)
-    current = []
-  }
-  for (const line of normalizeNewlines(body).split('\n')) {
-    if (line.trim() === separator) flush()
-    else current.push(line)
-  }
-  flush()
-  return chunks
+  return parseChunks(normalizeNewlines(body), separator)
 }
 
 function defaultSplitParagraphs(body: string): string[] {
-  return nonEmptyBlocks(normalizeNewlines(body).split(/\n(?:[ \t]*\n)+/))
+  return splitParagraphUnits(normalizeNewlines(body))
 }
 
 function defaultSplitLines(body: string): string[] {
-  return nonEmptyBlocks(normalizeNewlines(body).split('\n'))
+  return splitLineUnits(body)
 }
 
 function lineTexts(input: string | string[]): string[] {
