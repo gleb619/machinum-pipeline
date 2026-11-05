@@ -1,4 +1,4 @@
-import { type Word, definePipeline, defineProcess, getVariable } from '@mt/core'
+import { type Word, definePipeline, defineProcess, getVariable, parseChapterTree } from '@mt/core'
 import {
   VAR_CHUNK_COUNT,
   VAR_CHUNK_SEPARATOR,
@@ -56,6 +56,21 @@ const reuseStage = definePipeline({ id: 'sample2-advanced-chunk-reuse' })
     )
   })
   .to('md://./chapters/chunked-reused.md')
+
+// Domain-tree demo: edit one line inside the first chunk, then serialise the
+// mutated tree back to chunked markdown. Runs alongside the ladder lessons.
+export const treeMutationPipeline = definePipeline({ id: 'sample2-advanced-tree-mutation' })
+  .from('md://./chapters/chapter1.md')
+  .flatMap(async (markdown: string) => {
+    const tree = parseChapterTree(markdown, {
+      id: 'chapter1-tree',
+      bookId: 'sample2-advanced',
+    })
+    const firstLine = tree.chunks()[0]?.paragraphs()[0]?.lines[0]
+    if (firstLine) firstLine.text = `${firstLine.text} [tree-edit]`
+    return [tree.toMarkdown()]
+  })
+  .to('md://./chapters/tree-mutated.md')
 
 // Round-trip: split, persist, reload, split again.
 export const cleanSplitPipeline = definePipeline({ id: 'sample2-advanced' })
@@ -215,6 +230,7 @@ const allPipelines = definePipeline({ id: 'sample2-advanced-suite' })
   .subflow(cleanSplitPipeline)
   .subflow(ladderPipeline)
   .subflow(tokenLadderPipeline)
+  .subflow(treeMutationPipeline)
 
 // Process entry: pin MT_CHUNK_SIZE and the demo series target so the run is reproducible.
 export default defineProcess()

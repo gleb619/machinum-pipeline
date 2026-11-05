@@ -47,12 +47,17 @@ jsonl://./jsonl/input.jsonl
 | --- | --- | --- |
 | `default` suite | `pnpm run runner:beginner` | Runs the five exported beginner pipelines |
 | `defaultPipeline` | `pnpm run runner:beginner -- --pipeline defaultPipeline` | JSONL → `wordCounter` → `toMarkdownTool` → `chapters/output.md` |
-| `typedContentPipeline` | `pnpm run runner:beginner -- --pipeline typedContentPipeline` | JSONL → typed `ChapterDoc` edit → `chapterDocBuild` → `chapters/output-typed.md` |
-| `chapterDomainPipeline` | `pnpm run runner:beginner -- --pipeline chapterDomainPipeline` | JSONL → core `Chapter` value → `chapters/output-custom-typed.md` |
+| `typedContentPipeline` | `pnpm run runner:beginner -- --pipeline typedContentPipeline` | JSONL → `chapterTree()` edit → `chapterDocBuild` → `chapters/output-typed.md` |
+| `chapterDomainPipeline` | `pnpm run runner:beginner -- --pipeline chapterDomainPipeline` | JSONL → core `Chapter` + `chapterTree()` line edit → `chapters/output-custom-typed.md` |
 | `statsPipeline` | `pnpm run runner:beginner -- --pipeline statsPipeline` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
 | `consolePreviewPipeline` | `pnpm run runner:beginner -- --pipeline consolePreviewPipeline` | JSONL → per-line text → `console://` (prefixed terminal preview) |
 
 The end of the file shows the explicit suite and the `.parallel(true)` / sync alternatives.
+
+`chapterTree()` / `parseChapterTree()` from `@mt/core` wrap a `Chapter` in a mutable view:
+`tree.chunks()[0].paragraphs()[0].lines[0].text = '…'` writes back through `tree.body`,
+`tree.toMarkdown()` and `tree.toChapter()`. `typedContentPipeline` uses that path before
+`chapterDocBuild`; `chapterDomainPipeline` edits a core `Chapter` the same way.
 
 ## Intermediate — `pipelines/intermediate.ts`
 
@@ -109,6 +114,7 @@ entity-buffer waypoints do the work. The only local code is small mapping/render
 | `cleanSplitPipeline` | `pnpm run runner:advanced -- --pipeline cleanSplitPipeline` | Series split, then clean + chunk chapter1 and reuse the separators |
 | `ladderPipeline` | `pnpm run runner:advanced -- --pipeline ladderPipeline` | The Structure Ladder → `chapters/ladder-chapters/*.md` + `chapters/ladder-summary.md` |
 | `tokenLadderPipeline` | `pnpm run runner:advanced -- --pipeline tokenLadderPipeline` | Chunks → tokens → `chapters/token-ladder-summary.md` |
+| `treeMutationPipeline` | `pnpm run runner:advanced -- --pipeline treeMutationPipeline` | `chapterTree()` line edit inside a chunk → `chapters/tree-mutated.md` |
 
 ### Clean + split, and why the second run changes nothing
 
@@ -195,6 +201,13 @@ the token count and a `Heuristic` flag.
 pnpm run runner:advanced -- --pipeline tokenLadderPipeline
 ```
 
+### Domain-tree mutation
+
+`treeMutationPipeline` reads `chapters/chapter1.md`, wraps it with `parseChapterTree()`, edits
+the first line through `tree.chunks()[0].paragraphs()[0].lines[0]`, and writes the serialised
+tree to `chapters/tree-mutated.md`. The `---` chunk separators survive because `tree.body`
+joins chunks with the same separator convention as `chunkSplit`.
+
 ## Run everything
 
 ```bash
@@ -237,8 +250,10 @@ pnpm run cleanup
 
 ## How the tests work
 
-`tests/beginner.test.ts` writes fixed three-line JSONL input, runs the beginner pipelines, and
-asserts output content, per-line `wordCount`, corpus statistics and the console preview.
+`tests/beginner.test.ts` writes fixed JSONL input, runs the beginner pipelines, and asserts
+output content, per-line `wordCount`, corpus statistics, the console preview, the
+`chapterTree()` typed-content edit (edited line present, untouched paragraph survives) and the
+core `Chapter` line edit.
 
 `tests/intermediate.test.ts` writes two markdown chapter records and asserts the three branch
 views (counts, alphabetical lines, dot→comma), their headings and their declaration-order merge.
@@ -252,7 +267,9 @@ views (counts, alphabetical lines, dot→comma), their headings and their declar
   `chapters/chunked.md`;
 - the ladder writes one document per record, one summary row per rung, and the summary agrees with
   the run log;
-- the token route reports more tokens than chunks.
+- the token route reports more tokens than chunks;
+- `treeMutationPipeline` writes `chapters/tree-mutated.md` with the `[tree-edit]` line and the
+  chunk separators intact.
 
 `tests/ladder-visibility.test.ts` checks that `chapters/ladder-chapters/.gitkeep` stays tracked and
 visible while generated chapter files stay ignored.

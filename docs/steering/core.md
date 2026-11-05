@@ -23,6 +23,11 @@ Re-exports everything needed by consumers:
 ### `domain.ts`
 Plain interfaces only: `Book`, `Chapter`, `Chunk`, `Paragraph` (optional `chunkId` — paragraph of a chunk), `Token` (BPE token of a chunk — alternate descent from `Chunk`, sibling of `Paragraph`), `Line`, `Word`. No classes, no methods. Sources provide stable IDs.
 
+### `domain-tree.ts` — fluent domain view
+`chapterTree(chapter, opts?)` / `parseChapterTree(markdown, { id, bookId, title? }, opts?)` wrap the plain domain interfaces in mutable nodes (`ChapterNode`, `ChunkNode`, `ParagraphNode`, `LineNode`, `WordNode`, `TokenNode`) without changing the wire shapes. The pinned descent is `chapter.chunks()[0].paragraphs()[0].lines[0]`; `chapter.paragraphs()`, `chapter.lines()` and `chapter.words()` flatten in document order, and `chunk.tokens()` is the alternate descent when `opts.tokenize` is injected.
+
+Nodes serialize back through getters: chunks join on `\n\n---\n\n` (custom `opts.separator`), paragraphs on `\n\n`, lines on `\n`. Mutation helpers include `line.text`, `paragraph.setText()`, `paragraph.insertLine()`, `paragraph.removeLine()`, `chapter.title`, and `chapter.body`; `chapter.toMarkdown()` adds the `# title` heading and `chapter.toChapter()` returns a plain `Chapter` snapshot. Ids are view-local and deterministic (`<chapterId>:c0:p0:l0:w0`); core does structural splitting only, while token-bounded chunking/BPE stays in `@mt/tools` behind `opts.splitChunks`, `opts.splitParagraphs` and `opts.tokenize`. Round-trip is best-effort: CRLF, leading/trailing whitespace and separator-line style are normalised; frontmatter/`ChapterDoc` metadata stay in `@mt/tools`.
+
 ### `exchange.ts`
 The data unit is a Camel-style **Exchange** (replaces the bare Envelope; `Envelope<T>` stays as a
 deprecated alias of `Exchange<T>`). Modeled on the Java `FlowContext` / `FlowArgument`:

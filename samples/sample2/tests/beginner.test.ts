@@ -15,7 +15,7 @@ const RECORDS = [
 const TYPED_RECORDS = [
   {
     id: 1,
-    text: 'First paragraph of the document.\n\nSecond paragraph of the document.',
+    text: 'First paragraph of the document.\n\nSecond paragraph of the document.\n\nThird paragraph stays untouched.',
   },
 ]
 
@@ -26,6 +26,7 @@ async function cleanup(): Promise<void> {
   await rm(join(SAMPLE_DIR, 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'output.md'), { force: true })
   await rm(join(SAMPLE_DIR, 'chapters', 'output-typed.md'), { force: true })
+  await rm(join(SAMPLE_DIR, 'chapters', 'output-custom-typed.md'), { force: true })
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
 
@@ -122,6 +123,19 @@ describe('typedContentPipeline', () => {
     run('typedContentPipeline')
     const content = await readFile(join(SAMPLE_DIR, 'chapters', 'output-typed.md'), 'utf-8')
     expect(content).toMatch(/^# Edited: Line /m)
+    expect(content).toContain('FIRST PARAGRAPH OF THE DOCUMENT.')
     expect(content).toContain('<REWRITTEN PARAGRAPH>')
+    expect(content).toContain('Third paragraph stays untouched.')
+    expect(content).not.toContain('Second paragraph of the document.')
+  })
+})
+
+describe('chapterDomainPipeline', () => {
+  it('edits the first line through the chapter tree', async () => {
+    await writeInput(RECORDS)
+    run('chapterDomainPipeline')
+    const content = await readFile(join(SAMPLE_DIR, 'chapters', 'output-custom-typed.md'), 'utf-8')
+    expect(content).toContain('# Line 1')
+    expect(content).toContain('Edited: First line of the document.')
   })
 })

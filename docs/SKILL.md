@@ -2,8 +2,8 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.24.0 | 2026-11-05 -->
-<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
+<!-- skill-version: 1.25.0 | 2026-11-05 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
 
@@ -91,6 +91,11 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   as one unchanged item. Its size threshold is the tunable `SERIES_SPLIT_TARGET_CHARS` (see
   below). The `chunks` splitter parses chapter markdown into core `Chunk` entities using the
   chunk-size chain (`MT_CHUNK_SIZE`). Source ids are stable; the engine never mints them.
+- `chapterTree(chapter)` / `parseChapterTree(markdown, { id, bookId, title? })` (`mt` /
+  `@mt/core`) wrap a `Chapter` in a mutable fluent view:
+  `tree.chunks()[0].paragraphs()[0].lines[0].text = '…'` writes back through `tree.body`,
+  `tree.toMarkdown()` and `tree.toChapter()`. `opts.splitChunks` / `opts.splitParagraphs` /
+  `opts.tokenize` plug in tool splitters; `chunk.tokens()` needs `tokenize`.
 - Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline
   transformation of the current stream. `.fork(pipeline)` runs the child sequentially per envelope.
   `.fork(name, [branchA, branchB])` runs every branch concurrently per envelope via real

@@ -71,7 +71,7 @@ source, tool, target or hook is started.
 
 | Concept | Shape / Role | Deep spec |
 |---|---|---|
-| **Domain** | `Book` → `Chapter` → `Chunk` → `Paragraph` → `Line` (plain interfaces) | [`core.md`](../steering/core.md) |
+| **Domain** | `Book` → `Chapter` → `Chunk` → `Paragraph` → `Line` (plain interfaces; `chapterTree()` adds the mutable fluent view) | [`core.md`](../steering/core.md) |
 | **Source** | `start()` / `resume()`; lifestyle `long-lived` or `resumable` | [`core.md`](../steering/core.md), [`waypoint.md`](../steering/waypoint.md) |
 | **Tool** | `invoke(ex, ctx) → Promise<Exchange<O>>` (always in-process) | [`core.md`](../steering/core.md), [`tools.md`](../steering/tools.md) |
 | **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](../steering/core.md), [`waypoint.md`](../steering/waypoint.md) |

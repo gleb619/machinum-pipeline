@@ -247,6 +247,24 @@ export {
 } from './exchange.js'
 export type { Book, Chapter, Paragraph, Chunk, Token, Line, Word } from './domain.js'
 export {
+  ChapterNode,
+  ChunkNode,
+  LineNode,
+  ParagraphNode,
+  TokenNode,
+  WordNode,
+  chapterTree,
+  parseChapterTree,
+} from './domain-tree.js'
+export type {
+  ChapterTreeInput,
+  ChunkBodySplitter,
+  DomainTreeOptions,
+  DomainTreeTokenizer,
+  ParagraphBodySplitter,
+  TokenPart,
+} from './domain-tree.js'
+export {
   definePipeline,
   defineTool,
   chain,

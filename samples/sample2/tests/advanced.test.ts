@@ -14,6 +14,7 @@ const LADDER_CHAPTERS = join(SAMPLE_DIR, 'chapters', 'ladder-chapters')
 const LADDER_SUMMARY = join(SAMPLE_DIR, 'chapters', 'ladder-summary.md')
 const TOKEN_SUMMARY = join(SAMPLE_DIR, 'chapters', 'token-ladder-summary.md')
 const SERIES_FIRST_OUTPUT = join(SAMPLE_DIR, 'chapters', 'series-first-output.md')
+const TREE_MUTATED = join(SAMPLE_DIR, 'chapters', 'tree-mutated.md')
 
 /** Demo series target, pinned in the process config and in the test run env. */
 const SERIES_TARGET_CHARS = 150
@@ -73,6 +74,7 @@ async function cleanup(): Promise<void> {
   await rm(LADDER_SUMMARY, { force: true })
   await rm(TOKEN_SUMMARY, { force: true })
   await rm(SERIES_FIRST_OUTPUT, { force: true })
+  await rm(TREE_MUTATED, { force: true })
   await cleanupLadderChapters()
   await rm(join(SAMPLE_DIR, '.mt'), { recursive: true, force: true })
 }
@@ -245,6 +247,16 @@ describe('ladderPipeline', () => {
     expect(logged.get('lines')).toBe(rows.get('lines://'))
     expect(logged.get('words')).toBe(rows.get('words://'))
     expect(content).toContain(`Words in the last rung: ${LADDER_WORDS}`)
+  })
+})
+
+describe('treeMutationPipeline', () => {
+  it('edits a line inside the first chunk and keeps chunk separators', async () => {
+    run('treeMutationPipeline')
+    const content = await readFile(TREE_MUTATED, 'utf-8')
+    expect(content).toContain('[tree-edit]')
+    expect(content).toContain('---')
+    expect(content).toContain('The Structure Ladder')
   })
 })
 

@@ -1,6 +1,6 @@
-import { definePipeline, getVariable } from '@mt/core'
+import { chapterTree, definePipeline, getVariable, parseChapterTree } from '@mt/core'
 import type { Chapter } from '@mt/core'
-import { chapterDocBuild, readChapterDoc, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
+import { chapterDocBuild, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
 // ---------------------------------------------------------------------------
@@ -61,10 +61,10 @@ const defaultPipeline = definePipeline({ id: 'sample2-beginner' })
 // ---------------------------------------------------------------------------
 // Typed chapter content manipulation example.
 //
-// Demonstrates parsing a markdown chapter into a typed `ChapterDoc`, mutating
-// fields, and serialising back to markdown with the shipped `chapterDocBuild`
-// tool. `readChapterDoc` requires an H1, so the first step mints one from the
-// record id.
+// Demonstrates parsing a markdown chapter into the fluent `chapterTree()` view,
+// mutating fields through chunk/paragraph/line navigation, and serialising back
+// to markdown with the shipped `chapterDocBuild` tool. `parseChapterTree` needs
+// an H1, so the first step mints one from the record id.
 // ---------------------------------------------------------------------------
 
 const typedContentPipeline = definePipeline({ id: 'typed-content' })
@@ -76,26 +76,27 @@ const typedContentPipeline = definePipeline({ id: 'typed-content' })
     return [`# Line ${id}\n\n${toLineText(record)}`]
   })
   .flatMap(async (md: string) => {
-    // Parse markdown into a typed document.
-    const doc = readChapterDoc(md)
+    // Parse markdown into the fluent domain tree.
+    const tree = parseChapterTree(md, { id: 'typed-content', bookId: 'sample2-beginner' })
 
     // 1. Change the title - prepend a tag.
-    const newTitle = `Edited: ${doc.title}`
+    tree.title = `Edited: ${tree.title}`
 
-    // 2. Upper-case the first paragraph's lines.
-    const first = doc.body[0]
-    if (first) first.lines = first.lines.map((ln) => ln.toUpperCase())
+    // 2. Edit the first chunk's first paragraph's first line.
+    const firstChunk = tree.chunks()[0]
+    const firstLine = firstChunk?.paragraphs()[0]?.lines[0]
+    if (firstLine) firstLine.text = firstLine.text.toUpperCase()
 
-    const second = doc.body[1]
-    if (second) second.lines = ['<REWRITTEN PARAGRAPH>']
+    // 3. Replace the second paragraph's text.
+    firstChunk?.paragraphs()[1]?.setText('<REWRITTEN PARAGRAPH>')
 
-    // Return the mutated doc as the shape expected by `chapterDocBuild`.
+    // Return the mutated tree as the shape expected by `chapterDocBuild`.
     const input = {
-      title: newTitle,
-      body: doc.body,
-      number: doc.number,
-      series: doc.series,
-      warnings: doc.warnings,
+      title: tree.title,
+      body: tree
+        .chunks()
+        .flatMap((chunk) => chunk.paragraphs())
+        .map((paragraph) => ({ lines: paragraph.lines.map((line) => line.text) })),
     }
     return [input]
   })
@@ -127,7 +128,10 @@ const chapterDomainPipeline = definePipeline({ id: 'chapter-domain-content' })
       title: `Line ${id}`,
       body: toLineText(record),
     }
-    return [`# ${chapter.title}\n\n${chapter.body}\n`]
+    const tree = chapterTree(chapter)
+    const firstLine = tree.chunks()[0]?.paragraphs()[0]?.lines[0]
+    if (firstLine) firstLine.text = `Edited: ${firstLine.text}`
+    return [tree.toMarkdown()]
   })
   .to('md://./chapters/output-custom-typed.md')
 
