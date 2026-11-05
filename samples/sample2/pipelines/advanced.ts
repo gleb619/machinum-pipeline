@@ -18,13 +18,13 @@ import '@mt/waypoint'
 // Ladder rungs are creational: chunks://, paragraphs://, ... are read-only sources.
 // A string-form splitter subflow auto-publishes its output into the matching entity
 // buffer; the next stage reads it back through the typed rung
-// (.subflow('#chunks', 'ladder') -> chunks://ladder).
+// (.subflow('chunks://', 'ladder') -> chunks://ladder).
 
 // Series split runs first: the demo chapter-series.md is partitioned by the
 // registered `series` splitter. The process pins the demo target characters.
 const seriesSplitFirstStage = definePipeline({ id: 'sample2-advanced-series-first' })
   .from('md://./chapters/chapter-series.md')
-  .subflow('#series')
+  .subflow('series://')
   .to('md://./chapters/series-first-output.md')
 
 // Clean chapter1.md, split into chunks, write chunked.md.
@@ -131,18 +131,18 @@ const documentStage = definePipeline({ id: 'sample2-advanced-documents' })
 // Rung 2: chapter docs → Chunks (core domain type) with the registered `chunks` splitter.
 const chunkStage = definePipeline({ id: 'sample2-advanced-chunks' })
   .from('md://./chapters/ladder-chapters')
-  .subflow('#chunks', 'ladder')
+  .subflow('chunks://', 'ladder')
   .tap(countRung('chunks'))
 
-// Rung 3: Chunk → Paragraphs, one per blank-line block. `.subflow('#paragraphs')`
-// is the shortcut for `.subflow('paragraphs://')`; bare `'paragraphs'` is rejected.
+// Rung 3: Chunk → Paragraphs, one per blank-line block, via the registered
+// `paragraphs` splitter named by the URI scheme; bare `'paragraphs'` is rejected.
 const paragraphStage = definePipeline({ id: 'sample2-advanced-paragraphs' })
   .from('chunks://ladder')
-  .subflow('#paragraphs', 'ladder')
+  .subflow('paragraphs://', 'ladder')
   .tap(countRung('paragraphs'))
 
 // Rung 4: Paragraph → Lines (non-empty only) with the registered line splitter.
-// The explicit URI form resolves the same splitter as `.subflow('#lines')`.
+// The URI scheme names the registered `lines` splitter.
 const lineStage = definePipeline({ id: 'sample2-advanced-lines' })
   .from('paragraphs://ladder')
   .subflow('lines://', 'ladder')
@@ -151,7 +151,7 @@ const lineStage = definePipeline({ id: 'sample2-advanced-lines' })
 // Rung 5: Line → Words (core Word entities with parent ids).
 const wordStage = definePipeline({ id: 'sample2-advanced-words' })
   .from('lines://ladder')
-  .subflow('#words', 'ladder')
+  .subflow('words://', 'ladder')
   .tap(countRung('words'))
 
 // Collect all words, print rung counts, render summary table.
@@ -192,7 +192,7 @@ function renderTokenSummary(tokens: number): string {
 // Token rung: reuse ladder chunks, tokenize each into core Tokens.
 const tokenStage = definePipeline({ id: 'sample2-advanced-tokens' })
   .from('chunks://ladder')
-  .subflow('#tokens', 'ladder')
+  .subflow('tokens://', 'ladder')
   .tap(countRung('tokens'))
 
 const tokenSummaryStage = definePipeline({ id: 'sample2-advanced-token-summary' })
