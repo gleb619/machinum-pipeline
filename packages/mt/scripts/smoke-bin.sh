@@ -154,8 +154,8 @@ MISSING_OUT="$(run run ./pipelines/missing.ts 2>&1)"
 MISSING_RC=$?
 set -e
 test "$MISSING_RC" -ne 0
-printf '%s' "$MISSING_OUT" | grep -q "definitely-not-installed"
-printf '%s' "$MISSING_OUT" | grep -q "not supported by the binary"
+grep -q "definitely-not-installed" <<<"$MISSING_OUT"
+grep -q "not supported by the binary" <<<"$MISSING_OUT"
 
 # A compiled addon (`.node`) is resolvable but not loadable: the raw Bun error ("To load Node-API
 # modules, use require()" / "invalid ELF header") does not say the binary cannot do it.
@@ -177,7 +177,7 @@ ADDON_OUT="$(run run ./pipelines/addon.ts 2>&1)"
 ADDON_RC=$?
 set -e
 test "$ADDON_RC" -ne 0
-printf '%s' "$ADDON_OUT" | grep -q "Native addons are not supported by the \`mt\` binary"
+grep -q "Native addons are not supported by the \`mt\` binary" <<<"$ADDON_OUT"
 
 echo "10/16 token counter runs in the binary (tiktoken wasm -> gpt-tokenizer shim)"
 mkdir -p jsonl-text
@@ -242,8 +242,8 @@ export default definePipeline()
 TS
 start_server serve.log
 HEALTH="$(curl -sf "$BASE/api/health")"
-printf '%s' "$HEALTH" | grep -q '"status":"ok"'
-printf '%s' "$HEALTH" | grep -q '"syncVersion":1'
+grep -q '"status":"ok"' <<<"$HEALTH"
+grep -q '"syncVersion":1' <<<"$HEALTH"
 curl -sf "$BASE/api/runs" | grep -q '"id":"smoke-run"'
 curl -sf "$BASE/api/runs/smoke-run" | grep -q '"state":"running"'
 test -f .mt/mt.sqlite   # bun:sqlite opened
@@ -251,7 +251,7 @@ curl -sf -X POST -H 'content-type: application/json' -d '{"a":1}' "$BASE/api/run
   | grep -q '"received":true'
 # the events endpoint streams, so read it with a timeout instead of piping into grep
 EVENTS="$(curl -sf --max-time 2 "$BASE/api/runs/smoke-run/events" || true)"
-echo "$EVENTS" | grep -q 'event: started'
+grep -q 'event: started' <<<"$EVENTS"
 # SSE stream mode stays open: connect, expect the replayed event, then time out.
 # The timeout exit code differs between curl builds (28 on glibc, 23 on alpine), so only the
 # failure and the replayed event are asserted.
@@ -260,7 +260,7 @@ SSE="$(curl -sN --max-time 2 "$BASE/api/runs/smoke-run/events?stream=true")"
 RC=$?
 set -e
 test "$RC" -ne 0
-echo "$SSE" | grep -q 'event: started'
+grep -q 'event: started' <<<"$SSE"
 curl -sf "$BASE/" | grep -qi '<div id="app">'
 ASSET="$(curl -sf "$BASE/" | grep -o '/assets/[^"]*\.js' | head -1)"
 curl -sfI "$BASE$ASSET" | grep -qi 'text/javascript'
