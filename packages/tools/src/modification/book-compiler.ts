@@ -8,8 +8,8 @@ import {
   withItem,
 } from '@mt/core'
 import type { Chapter, Exchange, ToolContext } from '@mt/core'
-import { readChapterDoc } from './chapter-doc.js'
-import type { ChapterDoc, ChapterDocParagraph } from './chapter-doc.js'
+import { readChapterDoc, toChapterBody } from './chapter-doc.js'
+import type { ChapterBodyInput, ChapterDoc } from './chapter-doc.js'
 
 /** Completeness/ordering findings reported by the validator. */
 export type BookWarningCode =
@@ -90,9 +90,17 @@ function toAnchor(title: string): string {
 
 /** Heading text of a chapter — falls back to the chapter number, then to a placeholder. */
 function headingText(chapter: ChapterDoc): string {
-  const title = chapter.title.trim()
+  const title = chapter.chapter.title.trim()
   if (title) return title
   return chapter.number !== undefined ? `Chapter ${chapter.number}` : 'Untitled Chapter'
+}
+
+/** Body paragraphs of a chapter document (blank-line separated). */
+function bodyParagraphs(chapter: ChapterDoc): string[] {
+  return chapter.chapter.body
+    .split(/\n\s*\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph.length > 0)
 }
 
 /** Chapter number from the heading, mirroring the `chapter-indexer` fallback. */
@@ -118,56 +126,47 @@ function finiteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-/** Paragraph list from a body that is either raw text or a paragraph array. */
-function normalizeBody(body: unknown): ChapterDocParagraph[] {
-  if (typeof body === 'string') {
-    return body
-      .split(/\n\s*\n/)
-      .filter((paragraph) => paragraph.trim().length > 0)
-      .map((paragraph) => ({ lines: [paragraph.trim().replace(/\s+/g, ' ')] }))
-  }
-  if (!Array.isArray(body)) return []
-  const paragraphs: ChapterDocParagraph[] = []
-  for (const entry of body) {
-    if (typeof entry === 'string') {
-      if (entry.trim().length > 0) paragraphs.push({ lines: [entry.trim()] })
-      continue
-    }
-    if (isRecord(entry) && Array.isArray(entry.lines)) {
-      const lines = entry.lines.map((line) => String(line ?? '')).filter((line) => line.length > 0)
-      if (lines.length > 0) paragraphs.push({ lines })
-    }
-  }
-  return paragraphs
+function toWarnings(value: unknown): ChapterDoc['warnings'] {
+  return Array.isArray(value) ? (value as ChapterDoc['warnings']) : []
 }
 
 /** Coerce one input entry into a chapter document. */
 function toChapterDoc(raw: unknown): ChapterDoc | undefined {
   if (typeof raw === 'string') {
     const parsed = readChapterDoc(raw)
-    return { ...parsed, number: parsed.number ?? numberFromTitle(parsed.title) }
+    return { ...parsed, number: parsed.number ?? numberFromTitle(parsed.chapter.title) }
   }
   if (!isRecord(raw)) return undefined
 
-  if (typeof raw.body === 'string') {
-    // Domain chapter: title + body text; `index` is its positional chapter number.
-    const title = String(raw.title ?? '')
+  // Already a ChapterDoc: { chapter: Chapter, number?, series?, warnings?, meta? }.
+  if (isRecord(raw.chapter) && typeof raw.chapter.body === 'string') {
+    const chapter = raw.chapter as unknown as Chapter
     return {
-      title,
-      number: finiteNumber(raw.number) ?? finiteNumber(raw.index) ?? numberFromTitle(title),
-      warnings: [],
-      body: normalizeBody(raw.body),
+      number:
+        finiteNumber(raw.number) ??
+        finiteNumber(raw.index) ??
+        numberFromTitle(String(chapter.title ?? '')),
+      series: typeof raw.series === 'string' ? raw.series : undefined,
+      warnings: toWarnings(raw.warnings),
+      meta: isRecord(raw.meta) ? raw.meta : undefined,
+      chapter,
     }
   }
 
+  // Domain chapter / legacy document-like record: title + body, `index` is its chapter number.
   const title = String(raw.title ?? '')
-  const number = finiteNumber(raw.number) ?? finiteNumber(raw.index)
-  return {
+  const number = finiteNumber(raw.number) ?? finiteNumber(raw.index) ?? numberFromTitle(title)
+  const chapter: Chapter = {
+    id: typeof raw.id === 'string' ? raw.id : `chapter-${number ?? 0}`,
+    bookId: typeof raw.bookId === 'string' ? raw.bookId : 'book',
     title,
-    number: number ?? numberFromTitle(title),
+    body: toChapterBody(raw.body as ChapterBodyInput),
+  }
+  return {
+    number,
     series: typeof raw.series === 'string' ? raw.series : undefined,
-    warnings: Array.isArray(raw.warnings) ? (raw.warnings as ChapterDoc['warnings']) : [],
-    body: normalizeBody(raw.body),
+    warnings: toWarnings(raw.warnings),
+    chapter,
   }
 }
 
@@ -188,10 +187,7 @@ function readInput(env: Exchange<BookCompilerInput>): { chapters: ChapterDoc[]; 
 function countWords(chapters: ChapterDoc[]): number {
   let count = 0
   for (const chapter of chapters) {
-    for (const paragraph of chapter.body) {
-      const text = paragraph.lines.join(' ')
-      count += text.split(/\s+/).filter((word) => word.length > 0).length
-    }
+    count += chapter.chapter.body.split(/\s+/).filter((word) => word.length > 0).length
   }
   return count
 }
@@ -242,28 +238,28 @@ function validateChapters(chapters: ChapterDoc[]): BookWarning[] {
   }
 
   for (const chapter of chapters) {
-    const empty = chapter.body.every((paragraph) => paragraph.lines.join('').trim().length === 0)
+    const empty = chapter.chapter.body.trim().length === 0
     if (empty) {
       warnings.push({
         code: 'EMPTY_BODY',
         chapterNumber: chapter.number,
-        message: `Chapter ${chapter.number ?? '?'} "${chapter.title}" has an empty body`,
+        message: `Chapter ${chapter.number ?? '?'} "${chapter.chapter.title}" has an empty body`,
       })
     }
   }
 
   const titleCounts = new Map<string, number>()
   for (const chapter of chapters) {
-    const key = chapter.title.trim().toLowerCase()
+    const key = chapter.chapter.title.trim().toLowerCase()
     titleCounts.set(key, (titleCounts.get(key) ?? 0) + 1)
   }
   for (const chapter of chapters) {
-    const key = chapter.title.trim().toLowerCase()
+    const key = chapter.chapter.title.trim().toLowerCase()
     if ((titleCounts.get(key) ?? 0) > 1) {
       warnings.push({
         code: 'DUPLICATE_TITLE',
         chapterNumber: chapter.number,
-        message: `Duplicate chapter title "${chapter.title}"`,
+        message: `Duplicate chapter title "${chapter.chapter.title}"`,
       })
     }
   }
@@ -273,15 +269,15 @@ function validateChapters(chapters: ChapterDoc[]): BookWarning[] {
     { chapterIndex: number; chapterNumber: number | undefined; chapterTitle: string }[]
   >()
   chapters.forEach((chapter, chapterIndex) => {
-    for (const paragraph of chapter.body) {
-      const normalized = normalizeText(paragraph.lines.join('\n'))
+    for (const paragraph of bodyParagraphs(chapter)) {
+      const normalized = normalizeText(paragraph)
       if (!normalized) continue
       const hash = fnv1a64(normalized)
       const occurrences = byHash.get(hash) ?? []
       occurrences.push({
         chapterIndex,
         chapterNumber: chapter.number,
-        chapterTitle: chapter.title,
+        chapterTitle: chapter.chapter.title,
       })
       byHash.set(hash, occurrences)
     }
@@ -322,10 +318,9 @@ function renderBook(doc: BookDoc): string {
     lines.push('---')
     lines.push('')
     lines.push(`# ${headingText(chapter)}`)
-    for (const paragraph of chapter.body) {
-      if (paragraph.lines.join('').trim().length === 0) continue
+    for (const paragraph of bodyParagraphs(chapter)) {
       lines.push('')
-      lines.push(paragraph.lines.join('\n'))
+      lines.push(paragraph)
     }
   }
   return `${lines.join('\n')}\n`

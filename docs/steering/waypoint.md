@@ -459,8 +459,8 @@ The `chunks` splitter is the shipped form of the manual `readChapterDoc` + `spli
 
 **Alternate route: `chunks → tokens`.** Instead of descending into paragraphs, a chunk can be tokenized into
 tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — what the LLM actually sees. The
-`chunkTokenize` tool / `tokenizeChunk()` helper (`@mt/tools`, `gpt-tokenizer`; ~4 chars/token fallback flagged
-`heuristic`) does the split. Demonstrated by `tokenLadderPipeline` in sample2.
+`tokenizeChunk()` helper (`@mt/tools` `normalization/chunk-separator.ts`, `gpt-tokenizer`; ~4 chars/token fallback
+flagged `heuristic`) does the split. Demonstrated by `tokenLadderPipeline` in sample2.
 
 Rung 0 (`jsonl://`) is the entry point for machine-readable input; rungs 2–5 and `tokens://` are process-local buffers, so
 a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`). These rungs are

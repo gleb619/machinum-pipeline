@@ -147,7 +147,9 @@ const titleExtract = defineTool<TitleTranslatorInput, TitleTranslatorState>({
       const base: TitleTranslatorState = { input, mode: 'none' }
       try {
         const doc = readChapterDoc(input.text)
-        if (doc.title.trim()) return { ...base, mode: 'doc', doc, title: doc.title }
+        if (doc.chapter.title.trim()) {
+          return { ...base, mode: 'doc', doc, title: doc.chapter.title }
+        }
         return base
       } catch {
         // Legacy fallback: regex-based extraction from raw lines.
@@ -208,7 +210,10 @@ const titleAssemble = defineTool<TitleTranslatorState, TitleTranslatorOutput>({
       const translated = state.translatedTitle?.trim()
       if (state.mode === 'doc' && state.doc && translated) {
         results.push({
-          text: await writeChapterDoc({ ...state.doc, title: translated }),
+          text: await writeChapterDoc({
+            ...state.doc,
+            chapter: { ...state.doc.chapter, title: translated },
+          }),
           titleTranslated: true,
         })
       } else if ((state.mode === 'h1' || state.mode === 'first') && translated) {
@@ -345,7 +350,10 @@ const paragraphSplit = defineTool<ParagraphTranslatorInput, ParagraphTranslatorS
         input,
         legacy: false,
         doc,
-        paragraphs: doc.body.map((p) => p.lines.join(' ')),
+        paragraphs: doc
+          .chapterTree()
+          .paragraphs()
+          .map((paragraph) => paragraph.lines.map((line) => line.text).join(' ')),
       })
     } catch {
       return withItem(env, { input, legacy: true, paragraphs: splitParagraphs(input.text) })
@@ -405,9 +413,7 @@ const paragraphAssemble = defineTool<ParagraphTranslatorState, ParagraphTranslat
       : state.doc
         ? await writeChapterDoc({
             ...state.doc,
-            body: translated.map((t) => ({
-              lines: t.split('\n').filter((l) => l.length > 0),
-            })),
+            chapter: { ...state.doc.chapter, body: translated.join('\n\n') },
           })
         : translated.join('\n\n')
     return setVariables(withItem(env, { text, paragraphsTranslated: translated.length }), {

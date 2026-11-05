@@ -54,13 +54,15 @@ optional — user-defined tools can omit it entirely.
 - `typoFinder` — detects common Chinese/English typos, mixed scripts
 
 ### `chapter-doc.ts`
-Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`), `ChapterDocNode`, `ChapterMetadata`.
+Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `toChapterBody`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`), `ChapterDocNode`, `ChapterMetadata`.
+
+`ChapterDoc` is frontmatter (`number`, `series?`, `warnings`, `meta?`) plus one core domain entity: `chapter: Chapter` (`chapter.title` is the H1, `chapter.body` the markdown body). `ChapterBodyInput = string | Chapter | ChapterNode | ChapterBody | LegacyChapterParagraph[]`; `toChapterBody()` is the single normalization point (raw markdown, legacy `{ lines[] }[]`, domain chapter or tree view -> body text). `writeChapterDoc` emits frontmatter + `# chapter.title` + `chapter.body`; `readChapterDoc` parses frontmatter, extracts the H1 and rebuilds the body through the tree (so `---` stays a plain line).
 
 #### Chapter metadata
 `readChapterDoc` returns a `ChapterDocNode` (implements `ChapterDoc`) with `metadata(): ChapterMetadata`. Typed accessors mirror frontmatter `number` / `series` / `warnings`; `get` / `set` / `add` / `has` / `remove` / `keys` / `toObject` cover arbitrary keys. `add` throws when the key already exists (`set` overwrites; `undefined` removes). Unknown frontmatter keys live on `ChapterDoc.meta` and round-trip through `writeChapterDoc` (known keys first, then extras alphabetically). `chapterDocBuild` accepts optional `meta` and merges it into the `chapterDoc` variable.
 
 #### Chapter body tree
-`ChapterDocNode.chapterTree(opts?)` returns the core `ChapterNode` view over `title` + `body` (frontmatter stays in `metadata()`). `title`/`body` are accessors over that tree: mutations (`line.text`, `paragraph.setText`, `tree.title = ...`) are reflected in `doc.body`/`doc.title` and in `writeChapterDoc` output. The doc has no chunk layer — the whole body is one chunk, so `---` lines stay plain lines; pass `DomainTreeOptions` (e.g. `tokenize`) to `chapterTree(opts)` to rebuild with extras.
+`ChapterDocNode.chapterTree(opts?)` returns the mutable core `ChapterNode`; `ChapterDocNode.chapter` returns its plain `Chapter` snapshot. Mutations (`line.text`, `paragraph.setText`, `tree.title = ...`) are reflected in `doc.chapter` and in `writeChapterDoc` output. The doc has no chunk layer — the whole body is one chunk, so `---` lines stay plain lines; pass `DomainTreeOptions` (e.g. `tokenize`) to `chapterTree(opts)` to rebuild with extras.
 
 `chapter-doc-linter` (`createChapterDocLinter`, TL253) parses `{ en, ru }` chapter documents and runs `lintLineParity` on their normalized content (frontmatter dropped, `# title` + body kept); report lands in the `parity` variable, hard errors throw a retryable `LineParityError` unless `throwOnError: false`.
 
@@ -585,6 +587,7 @@ The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readT
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
 Unit helpers: `splitParagraphUnits(text)` (blank-line runs, trimmed, blanks dropped) and
 `splitLineUnits(text)` (CR/LF, trimmed, blanks dropped).
+Also hosts the series splitter (`seriesSplitter` / `seriesSplitTool`) — see below.
 
 ### `normalization/entity-splitters.ts`
 Reusable splitters for the entity buffers, registered at module load. All of them implement the
@@ -607,7 +610,7 @@ Use with `.subflow('paragraphs://')` or the `#` shortcut `.subflow('#paragraphs'
 auto-publishes its output into `<scheme>://<namespace>` for the next stage.
 All read the full Exchange and use the unit helpers above, so blank units are skipped.
 
-`modification/series-split.ts` registers `seriesSplitter` /
+`normalization/token-splitter.ts` registers `seriesSplitter` /
 `createSeriesSplitter({ parts?, targetChars?, shouldSplit? })` under `series` (also `.subflow('series://')` and
 `.subflow('#series')`). It is chapter-document aware: the input markdown is parsed with
 `readChapterDoc`, and each output part is a new `ChapterDoc` serialized with `writeChapterDoc`.
@@ -640,6 +643,9 @@ separator instead of re-splitting.
   `DEFAULT_CHUNK_TARGET` (6000).
 - Pure helpers: `stripSeparators`, `splitIntoChunks` (paragraph → line → word boundaries, never mid-word,
   never loses/reorders text), `joinChunks`, `parseChunks` (inverse; no re-split).
+- Tokenization (alternate descent `chunks -> tokens`): `tokenizeChunk(text, { encoding? })` → `{ tokenId, text }[]`;
+  `tokenizeChunkDetailed` also returns `heuristic: boolean`. Uses `gpt-tokenizer` (`encode` + `decode([id])` per
+  token); falls back to ~4-char pieces (`heuristic: true`) when the package is unavailable.
 
 ### `resolve-constants.ts` — tunable constant overrides
 `resolveTunedNum(name, fallback, ex?, ctx?)` / `resolveTunedStr(...)` resolve a numeric/string tuning
@@ -656,15 +662,6 @@ Migrated call sites: `resolveChunkSize` (`DEFAULT_CHUNK_TARGET`), `series-split`
 (`DEFAULT_CHUNK_CONCURRENCY`), `token-splitter` maxTokens (`DEFAULT_MAX_TOKENS`), `stat-proofread`
 (`MIN_CYRILLIC_RATIO`, `MAX_UNTRANSLATED_SHARE`), `line-parity-linter` (`MIN_CYRILLIC_RATIO`); the
 remaining constants migrate the same way when needed.
-
-### `normalization/chunk-tokens.ts`
-Alternate descent `chunks -> tokens` (sibling of `chunks -> paragraphs`): tiktoken-style BPE tokens of a chunk.
-
-- `chunkTokenize` / `createChunkTokenize({ encoding })` — `string` chunk in, `{ tokenId, text }[]` out; sets
-  `tokenCount` (meta + variable) and the `tokenHeuristic` variable.
-- `tokenizeChunk(text, { encoding? })` → `{ tokenId, text }[]`; `tokenizeChunkDetailed` also returns
-  `heuristic: boolean`. Uses `gpt-tokenizer` (`encode` + `decode([id])` per token); falls back to ~4-char pieces
-  (`heuristic: true`) when the package is unavailable.
 
 ### `word-counter.ts`
 - `wordCounter` — counts words in an exchange, sets the `wordCount` variable.
@@ -1118,7 +1115,6 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL207 | `chaptersToTitleInputs` | `chapters-to-title-inputs` | UC059 | `normalization/translation-stage.ts` |
 | TL208 | `chunkClean` | `chunk-clean` | UC058 | `normalization/chunk-separator.ts` |
 | TL209 | `chunkSplit` | `chunk-split` | UC056 | `normalization/chunk-separator.ts` |
-| TL210 | `chunkTokenize` | `chunk-tokenize` | — | `normalization/chunk-tokens.ts` |
 | TL211 | `contextShrink`, `contextWindow` | `context-window` | — | `core/llm-context.ts` |
 | TL212 | `forbiddenCharDetector` | `forbidden-char-detector` | UC057 | `verification/chapter-validator.ts` |
 | TL213 | `heuristicSummaryTool` | `heuristic-summary` | — | `normalization/heuristic-summary.ts` |
@@ -1141,7 +1137,7 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL230 | `schemaDocBuild` | `schema-doc-build` | — | `modification/schema-doc.ts` |
 | TL231 | `schemaDocEmit` | `schema-doc-emit` | — | `modification/schema-doc.ts` |
 | TL232 | `schemaDocWriter` | `schema-doc-writer` | — | `modification/schema-doc.ts` |
-| TL233 | `seriesSplitTool` | `series-split` | UC056 | `modification/series-split.ts` |
+| TL233 | `seriesSplitTool` | `series-split` | UC056 | `normalization/token-splitter.ts` |
 | TL234 | `statDict` | `stat-dict` | — | `normalization/stat-dict.ts` |
 | TL235 | `statTranslateDict` | `stat-translate-dict` | — | `modification/stat-translate-dict.ts` |
 | TL236 | `stubParagraphTranslateSlot` | `stub-paragraph-translate-slot` | — | `stubs/paragraph-slot.ts` |

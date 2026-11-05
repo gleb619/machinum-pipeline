@@ -15,10 +15,14 @@ const ctx = {} as ToolContext
 
 function makeChapter(number: number, title: string, bodyText = 'Some paragraph.'): ChapterDoc {
   return {
-    title,
     number,
-    body: [{ lines: [bodyText] }],
     warnings: [],
+    chapter: {
+      id: `chapter-${number}`,
+      bookId: 'book',
+      title,
+      body: bodyText,
+    },
   }
 }
 
@@ -84,7 +88,13 @@ describe('book-compiler', () => {
   })
 
   it('reports an empty chapter body', async () => {
-    const chapters = [makeChapter(1, 'Alpha', 'Text.'), { ...makeChapter(2, 'Beta'), body: [] }]
+    const chapters = [
+      makeChapter(1, 'Alpha', 'Text.'),
+      {
+        ...makeChapter(2, 'Beta'),
+        chapter: { ...makeChapter(2, 'Beta').chapter, body: '' },
+      },
+    ]
 
     const built = await bookCompilerBuild.invoke(createExchange({ chapters }), ctx)
     const validated = await bookCompilerValidate.invoke(built, ctx)

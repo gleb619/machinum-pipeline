@@ -253,10 +253,13 @@ export {
   ParagraphNode,
   TokenNode,
   WordNode,
+  chapterBody,
+  chapterBodyFromMarkdown,
   chapterTree,
   parseChapterTree,
 } from './domain-tree.js'
 export type {
+  ChapterBody,
   ChapterTreeInput,
   ChunkBodySplitter,
   DomainTreeOptions,

@@ -92,24 +92,17 @@ const typedContentPipeline = definePipeline({ id: 'typed-content' })
     firstChunk?.paragraphs()[1]?.setText('<REWRITTEN PARAGRAPH>')
 
     // Return the mutated tree as the shape expected by `chapterDocBuild`.
-    const input = {
-      title: tree.title,
-      body: tree
-        .chunks()
-        .flatMap((chunk) => chunk.paragraphs())
-        .map((paragraph) => ({ lines: paragraph.lines.map((line) => line.text) })),
-    }
-    return [input]
+    return [{ title: tree.title, body: tree.body }]
   })
   .use(chapterDocBuild)
   .tap((env) => {
-    const doc = getVariable<{ title: string; body: { lines: string[] }[] }>(env, 'chapterDoc')
+    const doc = getVariable<{ chapter: { title: string; body: string } }>(env, 'chapterDoc')
     console.log(
       JSON.stringify({
         stage: 'typed',
         id: env.id,
-        title: doc?.title ?? '[unknown]',
-        paragraphs: doc?.body.length ?? 0,
+        title: doc?.chapter.title ?? '[unknown]',
+        paragraphs: doc?.chapter.body.split(/\n\s*\n/).filter((p) => p.length > 0).length ?? 0,
       }),
     )
   })

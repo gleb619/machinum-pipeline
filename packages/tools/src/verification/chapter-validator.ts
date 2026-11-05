@@ -4,7 +4,7 @@ import type { Exchange, ToolContext } from '@mt/core'
 import { spellCheckDocument } from 'cspell-lib'
 import { remark } from 'remark'
 import remarkGfm from 'remark-gfm'
-import { type ChapterDoc, readChapterDoc } from '../modification/chapter-doc.js'
+import { readChapterDoc } from '../modification/chapter-doc.js'
 
 export interface ChapterDocWarning {
   id: string

@@ -11,8 +11,7 @@ import type {
   Word,
 } from '@mt/core'
 import { readChapterDoc } from '../modification/chapter-doc.js'
-import { resolveChunkSize, splitIntoChunks } from './chunk-separator.js'
-import { tokenizeChunkDetailed } from './chunk-tokens.js'
+import { resolveChunkSize, splitIntoChunks, tokenizeChunkDetailed } from './chunk-separator.js'
 import { tokenizeWords } from './stat-freq.js'
 import { heuristicTokenCount, splitLineUnits, splitParagraphUnits } from './token-splitter.js'
 
@@ -123,7 +122,7 @@ export const chunkSplitter = {
     }
     const doc = readChapterDoc(env.item)
     const chapterId = metaString(env, 'chapterId') ?? `chapter-${doc.number ?? 0}`
-    const text = doc.body.map((paragraph) => paragraph.lines.join('\n')).join('\n\n')
+    const text = doc.chapter.body
     const targetTokens = resolveChunkSize(env, ctx as ToolContext | undefined)
     return splitIntoChunks(text, { targetTokens }).map((body, index) => ({
       id: `${chapterId}/chunk-${index + 1}`,

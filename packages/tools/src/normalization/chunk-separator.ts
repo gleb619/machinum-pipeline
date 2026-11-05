@@ -1,6 +1,10 @@
 import { category, defineTool, setVariables, tool, useCase, withItem, withMeta } from '@mt/core'
 import type { Exchange, ToolContext, Variable } from '@mt/core'
-import { DECORATIVE_LINE_RE, DEFAULT_CHUNK_SEPARATOR } from '../constants.js'
+import {
+  CHARS_PER_TOKEN_HEURISTIC,
+  DECORATIVE_LINE_RE,
+  DEFAULT_CHUNK_SEPARATOR,
+} from '../constants.js'
 import { readCtx } from '../core/llm-config.js'
 import { resolveTunedNum } from '../resolve-constants.js'
 import { cleanSource } from './text-normalizer.js'
@@ -296,3 +300,90 @@ export function createChunkSplit(options: ChunkSplitOptions = {}) {
 
 /** Default chunk-split tool. */
 export const chunkSplit = createChunkSplit()
+
+// ---------------------------------------------------------------------------
+// Tokenization
+// ---------------------------------------------------------------------------
+
+/** BPE encodings supported by {@link tokenizeChunk}. */
+export type TokenEncoding = 'o200k_base' | 'cl100k_base' | 'p50k_base' | 'r50k_base'
+
+/** One BPE token of a chunk. */
+export interface ChunkToken {
+  /** BPE token id (or a running index when the result is heuristic). */
+  tokenId: number
+  /** Decoded text piece. */
+  text: string
+}
+
+export interface TokenizeChunkOptions {
+  /** BPE encoding. Default: the `gpt-tokenizer` default (`o200k_base`). */
+  encoding?: TokenEncoding
+}
+
+export interface TokenizeChunkResult {
+  tokens: ChunkToken[]
+  /** True when `gpt-tokenizer` was unavailable and ~4-char pieces were used. */
+  heuristic: boolean
+}
+
+interface BpeCodec {
+  encode(text: string): number[]
+  decode(tokens: Iterable<number>): string
+}
+
+async function loadCodec(encoding?: TokenEncoding): Promise<BpeCodec | undefined> {
+  try {
+    if (!encoding) return (await import('gpt-tokenizer')) as BpeCodec
+    switch (encoding) {
+      case 'o200k_base':
+        return (await import('gpt-tokenizer/encoding/o200k_base')) as BpeCodec
+      case 'cl100k_base':
+        return (await import('gpt-tokenizer/encoding/cl100k_base')) as BpeCodec
+      case 'p50k_base':
+        return (await import('gpt-tokenizer/encoding/p50k_base')) as BpeCodec
+      case 'r50k_base':
+        return (await import('gpt-tokenizer/encoding/r50k_base')) as BpeCodec
+    }
+  } catch {
+    return undefined
+  }
+}
+
+/** Fallback: consecutive ~4-character pieces, ids are running indexes. */
+function heuristicPieces(text: string): ChunkToken[] {
+  const pieces: ChunkToken[] = []
+  const chars = Array.from(text)
+  for (let i = 0; i < chars.length; i += CHARS_PER_TOKEN_HEURISTIC) {
+    pieces.push({
+      tokenId: pieces.length,
+      text: chars.slice(i, i + CHARS_PER_TOKEN_HEURISTIC).join(''),
+    })
+  }
+  return pieces
+}
+
+/**
+ * Tokenize a chunk into BPE tokens (what the LLM actually sees). Each token is
+ * decoded on its own with `decode([id])`; a token that holds only part of a
+ * multi-byte character decodes to the replacement character. Falls back to
+ * ~4-character pieces (flagged `heuristic`) when `gpt-tokenizer` is unavailable.
+ */
+export async function tokenizeChunkDetailed(
+  text: string,
+  options: TokenizeChunkOptions = {},
+): Promise<TokenizeChunkResult> {
+  if (text.length === 0) return { tokens: [], heuristic: false }
+  const codec = await loadCodec(options.encoding)
+  if (!codec) return { tokens: heuristicPieces(text), heuristic: true }
+  const tokens = codec.encode(text).map((tokenId) => ({ tokenId, text: codec.decode([tokenId]) }))
+  return { tokens, heuristic: false }
+}
+
+/** Tokenize a chunk into `{ tokenId, text }` pairs. See {@link tokenizeChunkDetailed}. */
+export async function tokenizeChunk(
+  text: string,
+  options: TokenizeChunkOptions = {},
+): Promise<ChunkToken[]> {
+  return (await tokenizeChunkDetailed(text, options)).tokens
+}

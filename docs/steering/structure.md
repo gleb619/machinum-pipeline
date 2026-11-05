@@ -131,7 +131,7 @@ All tools live in `packages/tools/src/`, each as a `defineTool()` export:
 | `chapter-translator.ts` | (invokes translateText) | Full chapter translation pipeline |
 | `openrouter-tool.ts` | `chatCompletion`, `runPrompt` | Low-level OpenRouter chat completion |
 | `md-formatter.ts` | `mdFormatterTool` | Markdown reformatting with configurable width |
-| `token-splitter.ts` | (internal) | Split chapters at paragraph boundaries respecting token limits |
+| `token-splitter.ts` | (internal) | Split chapters at paragraph boundaries respecting token limits; also hosts the series splitter |
 | `word-counter.ts` | `wordCounter` | Word count per envelope |
 | `stat-freq.ts` | `statFreq`, `defineStatFreq` | Word / sentence / n-gram frequency report per envelope (offline) |
 | `stat-dict.ts` | `statDict`, `defineStatDict` | Ranked translation dictionary from a frequency report, merged into an existing glossary (offline) |

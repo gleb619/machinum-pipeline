@@ -212,27 +212,20 @@ export {
   joinChunks,
   parseChunks,
   resolveChunkSize,
+  tokenizeChunk,
+  tokenizeChunkDetailed,
   DEFAULT_CHUNK_SEPARATOR,
   VAR_CHUNK_COUNT,
   VAR_CHUNK_SEPARATOR,
   type ChunkCleanOptions,
   type ChunkSplitOptions,
   type ChunkSizeOptions,
-  type SplitIntoChunksOptions,
-} from './normalization/chunk-separator.js'
-
-export {
-  chunkTokenize,
-  createChunkTokenize,
-  tokenizeChunk,
-  tokenizeChunkDetailed,
-  VAR_TOKEN_COUNT,
-  VAR_TOKEN_HEURISTIC,
   type ChunkToken,
+  type SplitIntoChunksOptions,
   type TokenEncoding,
   type TokenizeChunkOptions,
   type TokenizeChunkResult,
-} from './normalization/chunk-tokens.js'
+} from './normalization/chunk-separator.js'
 
 export {
   glossaryExtractor,
@@ -468,6 +461,11 @@ export {
   type SentenceStrategyOptions,
   type BalancedStrategyOptions,
   type BalancedLineStrategyOptions,
+  createSeriesSplitter,
+  seriesSplitter,
+  createSeriesSplitTool,
+  seriesSplitTool,
+  type SeriesSplitOptions,
 } from './normalization/token-splitter.js'
 
 export {
@@ -591,14 +589,16 @@ export {
 export {
   readChapterDoc,
   writeChapterDoc,
+  toChapterBody,
   chapterDoc,
   chapterDocBuild,
   chapterDocEmit,
   ChapterDocNode,
   ChapterMetadata,
+  type ChapterBodyInput,
   type ChapterDoc,
   type ChapterDocWarning,
-  type ChapterDocParagraph,
+  type LegacyChapterParagraph,
 } from './modification/chapter-doc.js'
 
 export {
@@ -974,11 +974,3 @@ export {
   resolveTunedStr,
   type ConstantsEnv,
 } from './resolve-constants.js'
-
-export {
-  createSeriesSplitter,
-  seriesSplitter,
-  createSeriesSplitTool,
-  seriesSplitTool,
-  type SeriesSplitOptions,
-} from './modification/series-split.js'

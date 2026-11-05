@@ -24,7 +24,7 @@ export const chapterIndexer = defineTool<string, string>({
 
     try {
       const doc = readChapterDoc(env.item)
-      const titleMatch = doc.title.match(/Chapter\s+(\d+)/i)
+      const titleMatch = doc.chapter.title.match(/Chapter\s+(\d+)/i)
       chapterNum = doc.number ?? (titleMatch?.[1] ? Number.parseInt(titleMatch[1], 10) : undefined)
     } catch {
       const chapterMatch = env.item.match(/^#\s*Chapter\s*(\d+)/im)

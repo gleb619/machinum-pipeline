@@ -29,6 +29,20 @@ export interface ChapterTreeInput extends Pick<Chapter, 'id' | 'bookId'> {
   index?: number
 }
 
+/**
+ * Read-side structural view over chapter body content, scenario-agnostic.
+ * {@link ChapterNode} satisfies it; plain `Chapter`/markdown inputs adapt via
+ * {@link chapterBody} / {@link chapterBodyFromMarkdown}.
+ */
+export interface ChapterBody {
+  /** Canonical serialized markdown body (no `# title`, no frontmatter). */
+  readonly text: string
+  chunks(opts?: DomainTreeOptions): ChunkNode[]
+  paragraphs(): ParagraphNode[]
+  lines(): LineNode[]
+  words(): WordNode[]
+}
+
 const DEFAULT_CHUNK_SEPARATOR = '---'
 
 function normalizeNewlines(text: string): string {
@@ -119,7 +133,7 @@ function serializeChunks(chunks: ChunkNode[], separator: string): string {
  * Mutable chapter view. `body` serializes the current chunk/paragraph/line tree;
  * `toChapter()` returns the plain wire-shape snapshot.
  */
-export class ChapterNode implements Chapter {
+export class ChapterNode implements Chapter, ChapterBody {
   readonly id: string
   readonly bookId: string
   url?: string
@@ -155,6 +169,11 @@ export class ChapterNode implements Chapter {
   set body(value: string) {
     this._sourceBody = normalizeBlock(value)
     this._chunks = undefined
+  }
+
+  /** {@link ChapterBody} alias of {@link body}. */
+  get text(): string {
+    return this.body
   }
 
   chunks(opts: DomainTreeOptions = {}): ChunkNode[] {
@@ -497,6 +516,20 @@ export class TokenNode implements Token {
 /** Wrap a plain {@link Chapter} in the mutable fluent tree view. */
 export function chapterTree(chapter: Chapter, opts: DomainTreeOptions = {}): ChapterNode {
   return new ChapterNode(chapter, opts)
+}
+
+/** Adapt a plain {@link Chapter} into the read-side {@link ChapterBody} view. */
+export function chapterBody(chapter: Chapter, opts: DomainTreeOptions = {}): ChapterBody {
+  return new ChapterNode(chapter, opts)
+}
+
+/** Adapt markdown (`# Title` + body) into the read-side {@link ChapterBody} view. */
+export function chapterBodyFromMarkdown(
+  markdown: string,
+  chapter: ChapterTreeInput,
+  opts: DomainTreeOptions = {},
+): ChapterBody {
+  return parseChapterTree(markdown, chapter, opts)
 }
 
 /** Parse markdown (`# Title` + body) into a {@link ChapterNode}. */

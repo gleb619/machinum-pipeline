@@ -9,7 +9,14 @@ import {
   tool,
   withItem,
 } from '@mt/core'
-import type { ChapterNode, DomainTreeOptions, Exchange, ToolContext } from '@mt/core'
+import type {
+  Chapter,
+  ChapterBody,
+  ChapterNode,
+  DomainTreeOptions,
+  Exchange,
+  ToolContext,
+} from '@mt/core'
 import matter from 'gray-matter'
 
 import { appendMdOutput } from '../core/md-outputs.js'
@@ -25,45 +32,91 @@ export interface ChapterDocWarning {
   text: string
 }
 
-export interface ChapterDocParagraph {
-  lines: string[]
-}
-
+/**
+ * Chapter document: frontmatter (`number` / `series` / `warnings` / `meta`) plus the
+ * domain {@link Chapter} carrying title + markdown body.
+ */
 export interface ChapterDoc {
-  title: string
   /** Chapter number from frontmatter; `undefined` when absent or non-numeric (0 is kept). */
   number: number | undefined
   series?: string
   warnings: ChapterDocWarning[]
-  body: ChapterDocParagraph[]
   /** Extra frontmatter keys beyond `number` / `series` / `warnings`. */
   meta?: Record<string, unknown>
+  /** Content: `chapter.title` is the H1, `chapter.body` the markdown body. */
+  chapter: Chapter
 }
+
+/** Legacy paragraph-array body (`{ lines: string[] }[]`); deprecated adapter input. */
+export interface LegacyChapterParagraph {
+  lines: string[]
+}
+
+/** Body content accepted by tools: markdown, domain chapter, tree/body view, or legacy paragraphs. */
+export type ChapterBodyInput =
+  | string
+  | Chapter
+  | ChapterNode
+  | ChapterBody
+  | LegacyChapterParagraph[]
+
+const DOC_CHAPTER_ID = 'chapter-doc'
+const DOC_BOOK_ID = 'chapter-doc'
 
 /** Chapter docs have no chunk layer: the whole body is a single chunk so `---` lines stay plain lines. */
 function chapterDocChunks(body: string): string[] {
   return body.trim().length > 0 ? [body] : []
 }
 
-function paragraphsToMarkdown(body: ChapterDocParagraph[]): string {
-  return body.map((p) => p.lines.join('\n')).join('\n\n')
+function legacyParagraphsToText(paragraphs: LegacyChapterParagraph[]): string {
+  return paragraphs
+    .map((paragraph) =>
+      (Array.isArray(paragraph.lines) ? paragraph.lines : [])
+        .map((line) => String(line ?? ''))
+        .filter((line) => line.length > 0)
+        .join('\n'),
+    )
+    .filter((text) => text.length > 0)
+    .join('\n\n')
+}
+
+/**
+ * Single body normalization point: raw markdown (leading `# title` stripped), legacy
+ * paragraph array, domain `Chapter`, tree node or {@link ChapterBody} -> markdown body text.
+ */
+export function toChapterBody(input: ChapterBodyInput | null | undefined): string {
+  if (input === null || input === undefined) return ''
+
+  if (typeof input === 'string') {
+    let text = input
+    if (text.startsWith('# ')) {
+      const newlineIdx = text.indexOf('\n')
+      text = newlineIdx >= 0 ? text.slice(newlineIdx + 1) : ''
+    }
+    return text.trim()
+  }
+
+  if (Array.isArray(input)) return legacyParagraphsToText(input)
+
+  if ('body' in input && typeof input.body === 'string') return input.body
+  if ('text' in input && typeof input.text === 'string') return input.text
+  return ''
 }
 
 /**
  * `ChapterDoc` with fluent {@link metadata} (frontmatter) and {@link chapterTree}
- * (title + body) handles. `title`/`body` are accessors over the internal
- * {@link ChapterNode}: tree mutations (`line.text`, `setText`, `insertLine`, ...)
- * are reflected in `body`/`title` and in `writeChapterDoc` output. Methods live on
- * the prototype / `#`-private fields so the enumerable shape stays identical to a
+ * (title + body) handles. Content lives in one internal {@link ChapterNode}: tree
+ * mutations (`line.text`, `setText`, `insertLine`, ...) are reflected in the
+ * {@link chapter} snapshot and in `writeChapterDoc` output. Methods live on the
+ * prototype / `#`-private fields so the enumerable shape stays identical to a
  * plain `ChapterDoc` (existing `toEqual`/spread sites keep working).
  */
 export class ChapterDocNode implements ChapterDoc {
-  declare title: string
   number: number | undefined
   series?: string
   warnings: ChapterDocWarning[]
-  declare body: ChapterDocParagraph[]
   meta?: Record<string, unknown>
+  declare chapter: Chapter
 
   #treeOptions: DomainTreeOptions
   #tree: ChapterNode
@@ -76,31 +129,13 @@ export class ChapterDocNode implements ChapterDoc {
       this.meta = { ...init.meta }
     }
     this.#treeOptions = { splitChunks: chapterDocChunks }
-    this.#tree = createChapterTree(
-      {
-        id: 'chapter-doc',
-        bookId: 'chapter-doc',
-        title: init.title,
-        body: paragraphsToMarkdown(init.body),
-      },
-      this.#treeOptions,
-    )
-    Object.defineProperties(this, {
-      title: {
-        enumerable: true,
-        configurable: true,
-        get: () => this.#tree.title,
-        set: (value: string) => {
-          this.#tree.title = value
-        },
-      },
-      body: {
-        enumerable: true,
-        configurable: true,
-        get: () => this.#paragraphs(),
-        set: (value: ChapterDocParagraph[]) => {
-          this.#tree.body = paragraphsToMarkdown(value)
-        },
+    this.#tree = createChapterTree(init.chapter, this.#treeOptions)
+    Object.defineProperty(this, 'chapter', {
+      enumerable: true,
+      configurable: true,
+      get: () => this.#tree.toChapter(),
+      set: (value: Chapter) => {
+        this.#tree = createChapterTree(value, this.#treeOptions)
       },
     })
   }
@@ -110,33 +145,16 @@ export class ChapterDocNode implements ChapterDoc {
   }
 
   /**
-   * Mutable {@link ChapterNode} view over `title` + `body`. Mutations are written
+   * Mutable {@link ChapterNode} view over title + body. Mutations are written
    * through to this doc. Pass `opts` (e.g. `tokenize`) to rebuild the view with
    * extra {@link DomainTreeOptions}; current content is preserved.
    */
   chapterTree(opts: DomainTreeOptions = {}): ChapterNode {
     if (Object.keys(opts).length > 0) {
       this.#treeOptions = { ...this.#treeOptions, ...opts }
-      this.#tree = createChapterTree(
-        {
-          id: this.#tree.id,
-          bookId: this.#tree.bookId,
-          title: this.#tree.title,
-          body: this.#tree.body,
-        },
-        this.#treeOptions,
-      )
+      this.#tree = createChapterTree(this.#tree.toChapter(), this.#treeOptions)
     }
     return this.#tree
-  }
-
-  #paragraphs(): ChapterDocParagraph[] {
-    const out: ChapterDocParagraph[] = []
-    for (const paragraph of this.#tree.paragraphs()) {
-      const lines = paragraph.lines.map((line) => line.text)
-      if (lines.length > 0) out.push({ lines })
-    }
-    return out
   }
 }
 
@@ -281,37 +299,6 @@ function normalizeWarnings(input: unknown): ChapterDocWarning[] {
   return result
 }
 
-function normalizeBody(input: unknown): ChapterDocParagraph[] {
-  if (typeof input === 'string') {
-    let text = input
-    if (text.startsWith('# ')) {
-      const newlineIdx = text.indexOf('\n')
-      text = newlineIdx >= 0 ? text.slice(newlineIdx + 1) : ''
-    }
-    const paragraphs = text.split(/\n\s*\n/).filter((p) => p.trim().length > 0)
-    return paragraphs.map((p) => ({ lines: [p.trim().replace(/\s+/g, ' ')] }))
-  }
-
-  if (Array.isArray(input)) {
-    return input
-      .map((p) => {
-        if (p && typeof p === 'object' && 'lines' in p) {
-          const lines = Array.isArray(p.lines)
-            ? p.lines.map((l: unknown) => String(l ?? '')).filter((l: string) => l.length > 0)
-            : []
-          return { lines }
-        }
-        if (typeof p === 'string') {
-          return { lines: [p.trim()] }
-        }
-        return null
-      })
-      .filter((p): p is ChapterDocParagraph => p !== null && p.lines.length > 0)
-  }
-
-  return []
-}
-
 function extractExtraMeta(data: Record<string, unknown>): Record<string, unknown> | undefined {
   const meta: Record<string, unknown> = {}
   for (const key of Object.keys(data)) {
@@ -353,22 +340,23 @@ function extractExtraMeta(data: Record<string, unknown>): Record<string, unknown
  * alphabetically. Values YAML cannot represent natively are JSON-stringified.
  */
 export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
+  const title = doc.chapter.title
+  const body = doc.chapter.body
   const parts: string[] = []
 
   const frontmatter = serializeFrontmatter(doc)
   if (frontmatter) parts.push(frontmatter)
   parts.push('')
-  parts.push(`# ${doc.title}`)
+  parts.push(`# ${title}`)
 
-  for (const paragraph of doc.body) {
-    if (paragraph.lines.length === 0) continue
+  if (body.trim().length > 0) {
     parts.push('')
-    parts.push(paragraph.lines.join('\n'))
+    parts.push(body)
   }
 
   parts.push('')
   // Only format the body (not the frontmatter YAML block, which remark would mangle)
-  const bodyStart = parts.indexOf(`# ${doc.title}`)
+  const bodyStart = parts.indexOf(`# ${title}`)
   const frontmatterLines = parts.slice(0, bodyStart)
   const bodyLines = parts.slice(bodyStart)
   const rawFrontmatter = frontmatterLines.join('\n')
@@ -400,53 +388,33 @@ function extractTitle(content: string): { title: string; bodyStartLine: number }
   throw new Error('Failed to parse chapter markdown: no h1 title found')
 }
 
-function parseBody(content: string, bodyStartLine: number): ChapterDocParagraph[] {
-  const allLines = content.split('\n')
-  const bodyLines = allLines.slice(bodyStartLine)
-
-  const paragraphs: ChapterDocParagraph[] = []
-  let currentBlock: string[] = []
-
-  for (const rawLine of bodyLines) {
-    if (rawLine.trim().length === 0) {
-      if (currentBlock.length > 0) {
-        paragraphs.push(finishParagraph(currentBlock))
-        currentBlock = []
-      }
-    } else {
-      currentBlock.push(rawLine)
-    }
-  }
-
-  if (currentBlock.length > 0) {
-    paragraphs.push(finishParagraph(currentBlock))
-  }
-
-  return paragraphs
-}
-
-function finishParagraph(block: string[]): ChapterDocParagraph {
-  const lines = block
-    .map((line) => line.replace(/ {2}$/, '').trim())
-    .filter((line) => line.length > 0)
-  return { lines }
+/** Parse the body after `# title` into normalized paragraph text (tree-faithful, `---` stays a line). */
+function parseBody(content: string, bodyStartLine: number, title: string): string {
+  const bodyText = content.split('\n').slice(bodyStartLine).join('\n')
+  const tree = createChapterTree(
+    { id: DOC_CHAPTER_ID, bookId: DOC_BOOK_ID, title, body: bodyText },
+    { splitChunks: chapterDocChunks },
+  )
+  return tree
+    .paragraphs()
+    .map((paragraph) => paragraph.body)
+    .join('\n\n')
 }
 
 export function readChapterDoc(markdown: string): ChapterDocNode {
   const { data, content } = matter(markdown)
   const { title, bodyStartLine } = extractTitle(content)
-  const body = parseBody(content, bodyStartLine)
+  const body = parseBody(content, bodyStartLine, title)
 
   const n = Number(data.number)
   const dataRecord = data as Record<string, unknown>
 
   return new ChapterDocNode({
-    title,
     number: Number.isFinite(n) ? n : undefined,
     series: data.series ? String(data.series) : undefined,
     warnings: normalizeWarnings(data.warnings),
-    body,
     meta: extractExtraMeta(dataRecord),
+    chapter: { id: DOC_CHAPTER_ID, bookId: DOC_BOOK_ID, title, body },
   })
 }
 
@@ -459,7 +427,8 @@ export const VAR_CHAPTER_DOC = 'chapterDoc'
 
 export interface ChapterDocToolInput {
   title: string
-  body: string | ChapterDocParagraph[]
+  /** Body content: markdown, domain `Chapter`, tree/node view, or legacy paragraph array. */
+  body: ChapterBodyInput
   number?: number
   series?: string
   warnings?: ChapterDocWarning[]
@@ -494,12 +463,16 @@ function buildChapterDocFromInput(
   }
 
   return new ChapterDocNode({
-    title: input.title,
     number: resolvedNumber,
     series: resolvedSeries,
     warnings: resolvedWarnings,
-    body: normalizeBody(input.body),
     meta: Object.keys(extra).length > 0 ? extra : undefined,
+    chapter: {
+      id: DOC_CHAPTER_ID,
+      bookId: DOC_BOOK_ID,
+      title: input.title,
+      body: toChapterBody(input.body),
+    },
   })
 }
 

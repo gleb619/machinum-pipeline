@@ -5,10 +5,11 @@ import { describe, expect, it } from 'vitest'
 import {
   type ChapterDoc,
   ChapterDocNode,
-  type ChapterDocParagraph,
+  type LegacyChapterParagraph,
   chapterDoc,
   chapterDocEmit,
   readChapterDoc,
+  toChapterBody,
   writeChapterDoc,
 } from '../src/modification/chapter-doc.js'
 
@@ -18,37 +19,52 @@ import {
 
 function createFullChapter(): ChapterDoc {
   return {
-    title: 'Chapter 1: The Road from Thornhaven',
     number: 1,
     series: 'chapter09.en.md, chapter10.en.md',
     warnings: [
       { id: 1, text: 'Type on line 2, with `HUIJKL` text' },
       { id: 'lang', text: 'Strong language' },
     ],
-    body: [
-      {
-        lines: [
-          'Sir Aldric tightened the strap of his battered leather satchel.',
-          'The morning sun rose over the hills.',
-        ],
-      },
-      {
-        lines: [
-          'The road from Thornhaven was long and treacherous.',
-          'Bandits lurked in every shadow.',
-        ],
-      },
-    ],
+    chapter: {
+      id: 'chapter-doc',
+      bookId: 'chapter-doc',
+      title: 'Chapter 1: The Road from Thornhaven',
+      body: [
+        'Sir Aldric tightened the strap of his battered leather satchel.',
+        'The morning sun rose over the hills.',
+        '',
+        'The road from Thornhaven was long and treacherous.',
+        'Bandits lurked in every shadow.',
+      ].join('\n'),
+    },
   }
 }
 
 function createSimpleChapter(): ChapterDoc {
   return {
-    title: 'Simple Chapter',
     number: 2,
     warnings: [],
-    body: [{ lines: ['Just a single paragraph with one line.'] }],
+    chapter: {
+      id: 'chapter-doc',
+      bookId: 'chapter-doc',
+      title: 'Simple Chapter',
+      body: 'Just a single paragraph with one line.',
+    },
   }
+}
+
+/** Paragraph lines as plain strings, in document order. */
+function paragraphLines(doc: ChapterDocNode): string[][] {
+  return doc
+    .chapterTree()
+    .paragraphs()
+    .map((paragraph) => paragraph.lines.map((line) => line.text))
+}
+
+function paragraphText(doc: ChapterDocNode): string {
+  return paragraphLines(doc)
+    .map((lines) => lines.join(' '))
+    .join(' ')
 }
 
 // ---------------------------------------------------------------------------
@@ -89,11 +105,15 @@ describe('writeChapterDoc', () => {
 
   it('escapes strings that need quoting in YAML', async () => {
     const doc: ChapterDoc = {
-      title: 'Quoted',
       number: 3,
       series: 'chapter:one.en.md, chapter:two.en.md',
       warnings: [{ id: 'warn:1', text: 'Has "quotes" and: colons' }],
-      body: [{ lines: ['Body text.'] }],
+      chapter: {
+        id: 'chapter-doc',
+        bookId: 'chapter-doc',
+        title: 'Quoted',
+        body: 'Body text.',
+      },
     }
     const md = await writeChapterDoc(doc)
 
@@ -113,22 +133,22 @@ describe('readChapterDoc', () => {
     const md = await writeChapterDoc(doc)
     const parsed = readChapterDoc(md)
 
-    expect(parsed.title).toBe(doc.title)
+    expect(parsed.chapter.title).toBe(doc.chapter.title)
     expect(parsed.number).toBe(doc.number)
     expect(parsed.series).toBe(doc.series)
     expect(parsed.warnings).toEqual(doc.warnings)
-    expect(parsed.body).toEqual(doc.body)
+    expect(parsed.chapter.body).toBe(doc.chapter.body)
   })
 
   it('correctly parses markdown without optional fields', () => {
     const md = '# Simple Title\n\nFirst paragraph.\n\nSecond paragraph.'
     const parsed = readChapterDoc(md)
 
-    expect(parsed.title).toBe('Simple Title')
+    expect(parsed.chapter.title).toBe('Simple Title')
     expect(parsed.number).toBeUndefined()
     expect(parsed.series).toBeUndefined()
     expect(parsed.warnings).toEqual([])
-    expect(parsed.body).toEqual([{ lines: ['First paragraph.'] }, { lines: ['Second paragraph.'] }])
+    expect(parsed.chapter.body).toBe('First paragraph.\n\nSecond paragraph.')
   })
 
   it('reads warnings from frontmatter', () => {
@@ -143,9 +163,9 @@ describe('readChapterDoc', () => {
     const md = '# Poetry\n\nRoses are red  \nViolets are blue\n\nSugar is sweet  \nAnd so are you'
     const parsed = readChapterDoc(md)
 
-    expect(parsed.body).toEqual([
-      { lines: ['Roses are red', 'Violets are blue'] },
-      { lines: ['Sugar is sweet', 'And so are you'] },
+    expect(paragraphLines(parsed)).toEqual([
+      ['Roses are red', 'Violets are blue'],
+      ['Sugar is sweet', 'And so are you'],
     ])
   })
 
@@ -154,11 +174,11 @@ describe('readChapterDoc', () => {
       '# Title\n\nThis is one long paragraph that spans multiple words without any hard line breaks.\n\nSecond paragraph here.'
     const parsed = readChapterDoc(md)
 
-    expect(parsed.body).toHaveLength(2)
-    expect(parsed.body[0]?.lines).toEqual([
+    expect(paragraphLines(parsed)).toHaveLength(2)
+    expect(paragraphLines(parsed)[0]).toEqual([
       'This is one long paragraph that spans multiple words without any hard line breaks.',
     ])
-    expect(parsed.body[1]?.lines).toEqual(['Second paragraph here.'])
+    expect(paragraphLines(parsed)[1]).toEqual(['Second paragraph here.'])
   })
 
   it('keeps a frontmatter number of 0', () => {
@@ -206,11 +226,15 @@ describe('write → read → write → read roundtrip', () => {
 
   it('roundtrips with special characters in strings', async () => {
     const original: ChapterDoc = {
-      title: 'Chapter: "The End"',
       number: 99,
       series: 'chapter:final.en.md',
       warnings: [{ id: 'warn:1', text: 'Text with "quotes"' }],
-      body: [{ lines: ['Line with: colon and "quotes".'] }],
+      chapter: {
+        id: 'chapter-doc',
+        bookId: 'chapter-doc',
+        title: 'Chapter: "The End"',
+        body: 'Line with: colon and "quotes".',
+      },
     }
 
     const md1 = await writeChapterDoc(original)
@@ -269,11 +293,11 @@ describe('md-formatter compatibility', () => {
     const formatted = simulateFormatterPreserve(md)
     const parsed = readChapterDoc(formatted)
 
-    expect(parsed.title).toBe(original.title)
+    expect(parsed.chapter.title).toBe(original.chapter.title)
     expect(parsed.number).toBe(original.number)
     expect(parsed.series).toBe(original.series)
     expect(parsed.warnings).toEqual(original.warnings)
-    expect(parsed.body).toEqual(original.body)
+    expect(parsed.chapter.body).toBe(original.chapter.body)
   })
 
   it('read survives removal of hard breaks', async () => {
@@ -282,16 +306,15 @@ describe('md-formatter compatibility', () => {
     const formatted = simulateFormatterPreserve(md).replace(/ {2}\n/g, ' ')
     const parsed = readChapterDoc(formatted)
 
-    expect(parsed.title).toBe(original.title)
+    expect(parsed.chapter.title).toBe(original.chapter.title)
     expect(parsed.number).toBe(original.number)
     expect(parsed.series).toBe(original.series)
     expect(parsed.warnings).toEqual(original.warnings)
 
-    expect(parsed.body).toHaveLength(original.body.length)
-
-    const originalText = original.body.map((p) => p.lines.join(' ')).join(' ')
-    const parsedText = parsed.body.map((p) => p.lines.join(' ')).join(' ')
-    expect(parsedText).toBe(originalText)
+    expect(paragraphLines(parsed)).toHaveLength(2)
+    expect(paragraphText(parsed)).toBe(
+      'Sir Aldric tightened the strap of his battered leather satchel. The morning sun rose over the hills. The road from Thornhaven was long and treacherous. Bandits lurked in every shadow.',
+    )
   })
 
   it('read survives aggressive rewrapping at 80 chars', async () => {
@@ -300,20 +323,18 @@ describe('md-formatter compatibility', () => {
     const formatted = simulateFormatterRewrapAt80(md)
     const parsed = readChapterDoc(formatted)
 
-    expect(parsed.title).toBe(original.title)
+    expect(parsed.chapter.title).toBe(original.chapter.title)
     expect(parsed.number).toBe(original.number)
     expect(parsed.warnings).toEqual(original.warnings)
 
-    expect(parsed.body).toHaveLength(original.body.length)
-
-    const originalText = original.body.map((p) => p.lines.join(' ')).join(' ')
-    const parsedText = parsed.body.map((p) => p.lines.join(' ')).join(' ')
-    expect(parsedText).toBe(originalText)
+    expect(paragraphLines(parsed)).toHaveLength(2)
+    expect(paragraphText(parsed)).toBe(
+      'Sir Aldric tightened the strap of his battered leather satchel. The morning sun rose over the hills. The road from Thornhaven was long and treacherous. Bandits lurked in every shadow.',
+    )
   })
 
   it('read survives formatter on chapter with many warnings', async () => {
     const original: ChapterDoc = {
-      title: 'Heavily Tagged',
       number: 7,
       series: 'chapter08.en.md, chapter09.en.md',
       warnings: [
@@ -321,32 +342,36 @@ describe('md-formatter compatibility', () => {
         { id: 'spoilers', text: 'Major plot spoilers for Book 2' },
         { id: 'lang', text: 'Frequent profanity' },
       ],
-      body: [
-        { lines: ['First line of first paragraph.', 'Second line of first paragraph.'] },
-        { lines: ['Only line of second paragraph.'] },
-        {
-          lines: [
-            'Third paragraph line one.',
-            'Third paragraph line two.',
-            'Third paragraph line three.',
-          ],
-        },
-      ],
+      chapter: {
+        id: 'chapter-doc',
+        bookId: 'chapter-doc',
+        title: 'Heavily Tagged',
+        body: [
+          'First line of first paragraph.',
+          'Second line of first paragraph.',
+          '',
+          'Only line of second paragraph.',
+          '',
+          'Third paragraph line one.',
+          'Third paragraph line two.',
+          'Third paragraph line three.',
+        ].join('\n'),
+      },
     }
 
     const md = await writeChapterDoc(original)
     const formatted = simulateFormatterRewrapAt80(md)
     const parsed = readChapterDoc(formatted)
 
-    expect(parsed.title).toBe(original.title)
+    expect(parsed.chapter.title).toBe(original.chapter.title)
     expect(parsed.number).toBe(original.number)
     expect(parsed.series).toBe(original.series)
     expect(parsed.warnings).toEqual(original.warnings)
-    expect(parsed.body).toHaveLength(original.body.length)
+    expect(paragraphLines(parsed)).toHaveLength(3)
 
-    const originalText = original.body.map((p) => p.lines.join(' ')).join(' ')
-    const parsedText = parsed.body.map((p) => p.lines.join(' ')).join(' ')
-    expect(parsedText).toBe(originalText)
+    expect(paragraphText(parsed)).toBe(
+      'First line of first paragraph. Second line of first paragraph. Only line of second paragraph. Third paragraph line one. Third paragraph line two. Third paragraph line three.',
+    )
   })
 })
 
@@ -372,15 +397,15 @@ describe('chapterDoc tool', () => {
     expect(getVariable<MdOut[]>(result, 'mdOutputs')).toEqual([
       { name: 'chapter', subdir: '', filename: 'chapter2.md', content: result.item },
     ])
-    expect(getVariable<ChapterDoc>(result, 'chapterDoc')?.title).toBe('Test Chapter')
+    expect(getVariable<ChapterDoc>(result, 'chapterDoc')?.chapter.title).toBe('Test Chapter')
     expect(result.meta.mdOutputs).toBeUndefined()
     // id + pre-existing variables propagate
     expect(result.id).toBe('ch-1')
     expect(getVariable(result, 'keep')).toBe(7)
   })
 
-  it('accepts structured body as Paragraph[]', async () => {
-    const body: ChapterDocParagraph[] = [
+  it('accepts structured body as legacy Paragraph[]', async () => {
+    const body: LegacyChapterParagraph[] = [
       { lines: ['Line one', 'Line two'] },
       { lines: ['Para two'] },
     ]
@@ -507,12 +532,13 @@ describe('chapterDoc tool', () => {
     )
 
     const result = await chapterDoc.invoke(env, {} as ToolContext)
-    const doc = getVariable<ChapterDoc>(result, 'chapterDoc') as ChapterDoc
+    const doc = getVariable<ChapterDoc>(result, 'chapterDoc') as ChapterDocNode
 
-    expect(doc.body).toHaveLength(3)
-    expect(doc.body[0]?.lines).toEqual(['Paragraph one line one.'])
-    expect(doc.body[1]?.lines).toEqual(['Paragraph two line one. Paragraph two line two.'])
-    expect(doc.body[2]?.lines).toEqual(['Paragraph three.'])
+    expect(paragraphLines(doc)).toEqual([
+      ['Paragraph one line one.'],
+      ['Paragraph two line one.', 'Paragraph two line two.'],
+      ['Paragraph three.'],
+    ])
   })
 
   it('merges input.meta into the chapterDoc variable and frontmatter', async () => {
@@ -663,13 +689,14 @@ describe('ChapterDocNode.chapterTree()', () => {
     expect(tree.paragraphs()).toHaveLength(2)
   })
 
-  it('reflects line mutations in doc.body and writeChapterDoc', async () => {
+  it('reflects line mutations in the chapter snapshot and writeChapterDoc', async () => {
     const doc = readChapterDoc('# Title\n\nHello world.\n\nSecond paragraph.')
     const line = doc.chapterTree().paragraphs()[0]?.lines[0]
     expect(line).toBeDefined()
     if (line) line.text = 'Goodbye world.'
 
-    expect(doc.body).toEqual([{ lines: ['Goodbye world.'] }, { lines: ['Second paragraph.'] }])
+    expect(paragraphLines(doc)).toEqual([['Goodbye world.'], ['Second paragraph.']])
+    expect(doc.chapter.body).toBe('Goodbye world.\n\nSecond paragraph.')
 
     const md = await writeChapterDoc(doc)
     expect(md).toContain('Goodbye world.')
@@ -679,9 +706,9 @@ describe('ChapterDocNode.chapterTree()', () => {
   it('reflects title mutations both ways', async () => {
     const doc = readChapterDoc('# Old\n\nBody.')
     doc.chapterTree().title = 'New'
-    expect(doc.title).toBe('New')
+    expect(doc.chapter.title).toBe('New')
 
-    doc.title = 'Newer'
+    doc.chapter = { ...doc.chapter, title: 'Newer' }
     expect(doc.chapterTree().title).toBe('Newer')
 
     const md = await writeChapterDoc(doc)
@@ -696,9 +723,9 @@ describe('ChapterDocNode.chapterTree()', () => {
     expect(tree.lines().map((l) => l.text)).toContain('---')
   })
 
-  it('body setter rebuilds the tree', () => {
+  it('chapter body setter rebuilds the tree', () => {
     const doc = readChapterDoc('# Title\n\nOld body.')
-    doc.body = [{ lines: ['Fresh line one.', 'Fresh line two.'] }]
+    doc.chapterTree().body = 'Fresh line one.\nFresh line two.'
 
     expect(
       doc
@@ -706,7 +733,7 @@ describe('ChapterDocNode.chapterTree()', () => {
         .lines()
         .map((l) => l.text),
     ).toEqual(['Fresh line one.', 'Fresh line two.'])
-    expect(doc.body).toEqual([{ lines: ['Fresh line one.', 'Fresh line two.'] }])
+    expect(paragraphLines(doc)).toEqual([['Fresh line one.', 'Fresh line two.']])
   })
 
   it('rebuilds the tree with extra options (tokenize) preserving content', () => {
@@ -714,6 +741,26 @@ describe('ChapterDocNode.chapterTree()', () => {
     const tree = doc.chapterTree({ tokenize: (body) => [{ tokenId: 0, text: body }] })
 
     expect(tree.chunks()[0]?.tokens()).toHaveLength(1)
-    expect(doc.body).toEqual([{ lines: ['alpha beta'] }])
+    expect(paragraphLines(doc)).toEqual([['alpha beta']])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Body inputs
+// ---------------------------------------------------------------------------
+
+describe('toChapterBody', () => {
+  it('normalizes string, Chapter, node, ChapterBody and legacy paragraph inputs', () => {
+    const chapter = { id: 'c1', bookId: 'b1', title: 'T', body: 'Body text.' }
+    const node = readChapterDoc('# Title\n\nBody text.')
+
+    expect(toChapterBody('# Title\n\nMarkdown body.')).toBe('Markdown body.')
+    expect(toChapterBody('Plain body.')).toBe('Plain body.')
+    expect(toChapterBody(chapter)).toBe('Body text.')
+    expect(toChapterBody(node.chapter)).toBe('Body text.')
+    expect(toChapterBody(node.chapterTree())).toBe('Body text.')
+    expect(toChapterBody([{ lines: ['One.', 'Two.'] }, { lines: ['Three.'] }])).toBe(
+      'One.\nTwo.\n\nThree.',
+    )
   })
 })

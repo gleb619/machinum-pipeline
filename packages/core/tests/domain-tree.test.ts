@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { chapterTree, parseChapterTree } from '../src/domain-tree.js'
+import {
+  chapterBody,
+  chapterBodyFromMarkdown,
+  chapterTree,
+  parseChapterTree,
+} from '../src/domain-tree.js'
 import type { Chapter } from '../src/domain.js'
 
 function requireValue<T>(value: T | undefined, message: string): T {
@@ -153,5 +158,26 @@ describe('domain tree', () => {
     })
     expect(tree.title).toBe('Given')
     expect(tree.body).toBe('Body line')
+  })
+
+  it('adapts a chapter into the ChapterBody view', () => {
+    const body = chapterBody({
+      id: 'ch-3',
+      bookId: 'book-1',
+      title: 'Body',
+      body: 'One.\nTwo.\n\nThree.',
+    })
+
+    expect(body.text).toBe('One.\nTwo.\n\nThree.')
+    expect(body.paragraphs()).toHaveLength(2)
+    expect(body.lines().map((line) => line.text)).toEqual(['One.', 'Two.', 'Three.'])
+    expect(body.words().map((word) => word.word)).toEqual(['One.', 'Two.', 'Three.'])
+  })
+
+  it('adapts markdown into the ChapterBody view', () => {
+    const body = chapterBodyFromMarkdown('# Heading\n\nOne.\n\nTwo.', { id: 'md', bookId: 'book' })
+
+    expect(body.text).toBe('One.\n\nTwo.')
+    expect(body.lines().map((line) => line.text)).toEqual(['One.', 'Two.'])
   })
 })

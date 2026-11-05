@@ -52,11 +52,14 @@ const renderStats = defineTool<MarkdownStatsOutput, string>({
     const { text, stats } = env.item
     const doc = readChapterDoc(text)
     const meta = doc.metadata()
+    const paragraphs = doc.chapterTree().paragraphs()
     let lines = 0
-    for (const paragraph of doc.body) lines += paragraph.lines.length
-    const body = doc.body.map((paragraph) => paragraph.lines.join(' ')).join(' ')
+    for (const paragraph of paragraphs) lines += paragraph.lines.length
+    const body = paragraphs
+      .map((paragraph) => paragraph.lines.map((line) => line.text).join(' '))
+      .join(' ')
     const words = tokenizeWords(body).length
-    const title = stats.title ?? doc.title
+    const title = stats.title ?? doc.chapter.title
     const reviewer = meta.get<string>('reviewer')
 
     const rendered =
@@ -77,10 +80,15 @@ const reorderLines = defineTool<string, string>({
     const doc = readChapterDoc(env.item)
     const meta = doc.metadata()
     meta.add('lineOrder', 'alphabetical')
-    const paragraphs = doc.body.map((paragraph, index) => {
-      const ordered = [...paragraph.lines].sort((left, right) => left.localeCompare(right))
-      return [`### paragraph ${index + 1}`, '', ...ordered.map((line) => `- ${line}`)].join('\n')
-    })
+    const paragraphs = doc
+      .chapterTree()
+      .paragraphs()
+      .map((paragraph, index) => {
+        const ordered = paragraph.lines
+          .map((line) => line.text)
+          .sort((left, right) => left.localeCompare(right))
+        return [`### paragraph ${index + 1}`, '', ...ordered.map((line) => `- ${line}`)].join('\n')
+      })
 
     const rendered = `## lines reordered\n\nlineOrder: ${meta.get('lineOrder')}\n\n${paragraphs.join('\n\n')}\n`
     return withMeta(withItem(env, rendered), { chapter: routeKey(meta.number, 'reordered') })
@@ -95,13 +103,16 @@ const replaceDots = defineTool<string, string>({
     const doc = readChapterDoc(env.item)
     const meta = doc.metadata()
     let dotsReplaced = 0
-    const body = doc.body
+    const body = doc
+      .chapterTree()
+      .paragraphs()
       .map((paragraph) =>
         paragraph.lines
           .map((line) => {
-            const matches = line.match(/\./g)
+            const text = line.text
+            const matches = text.match(/\./g)
             dotsReplaced += matches?.length ?? 0
-            return line.replaceAll('.', ',')
+            return text.replaceAll('.', ',')
           })
           .join('\n'),
       )
