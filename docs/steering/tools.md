@@ -57,7 +57,12 @@ optional — user-defined tools can omit it entirely.
 Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`), `ChapterDocNode`, `ChapterMetadata`.
 
 #### Chapter metadata
-`readChapterDoc` returns a `ChapterDocNode` (implements `ChapterDoc`) with `metadata(): ChapterMetadata`. Typed accessors mirror frontmatter `number` / `series` / `warnings`; `get` / `set` / `add` / `has` / `remove` / `keys` / `toObject` cover arbitrary keys. `add` throws when the key already exists (`set` overwrites; `undefined` removes). Unknown frontmatter keys live on `ChapterDoc.meta` and round-trip through `writeChapterDoc` (known keys first, then extras alphabetically). `chapterDocBuild` accepts optional `meta` and merges it into the `chapterDoc` variable. Body-tree navigation is T209 (`chapterTree`); this API is frontmatter-only.
+`readChapterDoc` returns a `ChapterDocNode` (implements `ChapterDoc`) with `metadata(): ChapterMetadata`. Typed accessors mirror frontmatter `number` / `series` / `warnings`; `get` / `set` / `add` / `has` / `remove` / `keys` / `toObject` cover arbitrary keys. `add` throws when the key already exists (`set` overwrites; `undefined` removes). Unknown frontmatter keys live on `ChapterDoc.meta` and round-trip through `writeChapterDoc` (known keys first, then extras alphabetically). `chapterDocBuild` accepts optional `meta` and merges it into the `chapterDoc` variable.
+
+#### Chapter body tree
+`ChapterDocNode.chapterTree(opts?)` returns the core `ChapterNode` view over `title` + `body` (frontmatter stays in `metadata()`). `title`/`body` are accessors over that tree: mutations (`line.text`, `paragraph.setText`, `tree.title = ...`) are reflected in `doc.body`/`doc.title` and in `writeChapterDoc` output. The doc has no chunk layer — the whole body is one chunk, so `---` lines stay plain lines; pass `DomainTreeOptions` (e.g. `tokenize`) to `chapterTree(opts)` to rebuild with extras.
+
+`chapter-doc-linter` (`createChapterDocLinter`, TL253) parses `{ en, ru }` chapter documents and runs `lintLineParity` on their normalized content (frontmatter dropped, `# title` + body kept); report lands in the `parity` variable, hard errors throw a retryable `LineParityError` unless `throwOnError: false`.
 
 ### `book-compiler.ts`
 Assembles chapters back into one book. Exports: `bookCompiler` (composable tool: slots `build` -> `validate` -> `emit`), `bookCompilerBuild`, `bookCompilerValidate`, `bookCompilerEmit`, `VAR_BOOK`.
@@ -1098,7 +1103,7 @@ The TL001–TL116 entries below are the planned-tool spec index — the full cat
 
 ## Implemented tool index (TL201+)
 
-IDs TL201–TL251 are allocated to implemented tools that had no clear match in the
+IDs TL201–TL253 are allocated to implemented tools that had no clear match in the
 TL001–TL116 planned-tool spec. The ID is stable per exported tool value; aliases share one
 annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 
@@ -1156,6 +1161,7 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL250 | `bookCompilerEmit` | `book-compiler-emit` | — | `modification/book-compiler.ts` |
 | TL251 | `bookCompiler` | `book-compiler` | — | `modification/book-compiler.ts` |
 | TL252 | `waitForFile`, `createWaitForFile` | `wait-for-file` | — | `core/wait-for-file.ts` |
+| TL253 | `chapterDocLinter`, `createChapterDocLinter` | `chapter-doc-linter` | UC057 | `verification/chapter-doc-linter.ts` |
 
 ## Translation eval harness (`tests/eval/`)
 

@@ -648,3 +648,72 @@ Body.`
     expect(doc.metadata().toObject()).toEqual({ number: 9, reviewer: 'alice' })
   })
 })
+
+// ---------------------------------------------------------------------------
+// chapterTree() body view
+// ---------------------------------------------------------------------------
+
+describe('ChapterDocNode.chapterTree()', () => {
+  it('exposes chunks/paragraphs/lines over the doc body', () => {
+    const doc = readChapterDoc('# Title\n\nOne line.\nSecond line.\n\nOther para.')
+    const tree = doc.chapterTree()
+
+    expect(tree.title).toBe('Title')
+    expect(tree.lines().map((l) => l.text)).toEqual(['One line.', 'Second line.', 'Other para.'])
+    expect(tree.paragraphs()).toHaveLength(2)
+  })
+
+  it('reflects line mutations in doc.body and writeChapterDoc', async () => {
+    const doc = readChapterDoc('# Title\n\nHello world.\n\nSecond paragraph.')
+    const line = doc.chapterTree().paragraphs()[0]?.lines[0]
+    expect(line).toBeDefined()
+    if (line) line.text = 'Goodbye world.'
+
+    expect(doc.body).toEqual([{ lines: ['Goodbye world.'] }, { lines: ['Second paragraph.'] }])
+
+    const md = await writeChapterDoc(doc)
+    expect(md).toContain('Goodbye world.')
+    expect(md).not.toContain('Hello world.')
+  })
+
+  it('reflects title mutations both ways', async () => {
+    const doc = readChapterDoc('# Old\n\nBody.')
+    doc.chapterTree().title = 'New'
+    expect(doc.title).toBe('New')
+
+    doc.title = 'Newer'
+    expect(doc.chapterTree().title).toBe('Newer')
+
+    const md = await writeChapterDoc(doc)
+    expect(md).toContain('# Newer')
+  })
+
+  it('keeps --- lines as plain body lines (no chunk split)', () => {
+    const doc = readChapterDoc('# Title\n\nBefore.\n\n---\n\nAfter.')
+    const tree = doc.chapterTree()
+
+    expect(tree.chunks()).toHaveLength(1)
+    expect(tree.lines().map((l) => l.text)).toContain('---')
+  })
+
+  it('body setter rebuilds the tree', () => {
+    const doc = readChapterDoc('# Title\n\nOld body.')
+    doc.body = [{ lines: ['Fresh line one.', 'Fresh line two.'] }]
+
+    expect(
+      doc
+        .chapterTree()
+        .lines()
+        .map((l) => l.text),
+    ).toEqual(['Fresh line one.', 'Fresh line two.'])
+    expect(doc.body).toEqual([{ lines: ['Fresh line one.', 'Fresh line two.'] }])
+  })
+
+  it('rebuilds the tree with extra options (tokenize) preserving content', () => {
+    const doc = readChapterDoc('# Title\n\nalpha beta')
+    const tree = doc.chapterTree({ tokenize: (body) => [{ tokenId: 0, text: body }] })
+
+    expect(tree.chunks()[0]?.tokens()).toHaveLength(1)
+    expect(doc.body).toEqual([{ lines: ['alpha beta'] }])
+  })
+})

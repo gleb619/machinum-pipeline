@@ -1,6 +1,7 @@
 import {
   annotate,
   category,
+  chapterTree as createChapterTree,
   defineComposableTool,
   defineTool,
   getVariable,
@@ -8,7 +9,7 @@ import {
   tool,
   withItem,
 } from '@mt/core'
-import type { Exchange, ToolContext } from '@mt/core'
+import type { ChapterNode, DomainTreeOptions, Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
 import { appendMdOutput } from '../core/md-outputs.js'
@@ -39,32 +40,103 @@ export interface ChapterDoc {
   meta?: Record<string, unknown>
 }
 
+/** Chapter docs have no chunk layer: the whole body is a single chunk so `---` lines stay plain lines. */
+function chapterDocChunks(body: string): string[] {
+  return body.trim().length > 0 ? [body] : []
+}
+
+function paragraphsToMarkdown(body: ChapterDocParagraph[]): string {
+  return body.map((p) => p.lines.join('\n')).join('\n\n')
+}
+
 /**
- * `ChapterDoc` with a fluent {@link metadata} handle. Methods live on the prototype so the
- * enumerable shape stays identical to a plain `ChapterDoc` (existing `toEqual`/spread sites keep working).
- * T209 owns body-tree navigation (`chapterTree` / `ChapterNode`); this node is frontmatter-only.
+ * `ChapterDoc` with fluent {@link metadata} (frontmatter) and {@link chapterTree}
+ * (title + body) handles. `title`/`body` are accessors over the internal
+ * {@link ChapterNode}: tree mutations (`line.text`, `setText`, `insertLine`, ...)
+ * are reflected in `body`/`title` and in `writeChapterDoc` output. Methods live on
+ * the prototype / `#`-private fields so the enumerable shape stays identical to a
+ * plain `ChapterDoc` (existing `toEqual`/spread sites keep working).
  */
 export class ChapterDocNode implements ChapterDoc {
-  title: string
+  declare title: string
   number: number | undefined
   series?: string
   warnings: ChapterDocWarning[]
-  body: ChapterDocParagraph[]
+  declare body: ChapterDocParagraph[]
   meta?: Record<string, unknown>
 
+  #treeOptions: DomainTreeOptions
+  #tree: ChapterNode
+
   constructor(init: ChapterDoc) {
-    this.title = init.title
     this.number = init.number
     this.series = init.series
     this.warnings = init.warnings
-    this.body = init.body
     if (init.meta && Object.keys(init.meta).length > 0) {
       this.meta = { ...init.meta }
     }
+    this.#treeOptions = { splitChunks: chapterDocChunks }
+    this.#tree = createChapterTree(
+      {
+        id: 'chapter-doc',
+        bookId: 'chapter-doc',
+        title: init.title,
+        body: paragraphsToMarkdown(init.body),
+      },
+      this.#treeOptions,
+    )
+    Object.defineProperties(this, {
+      title: {
+        enumerable: true,
+        configurable: true,
+        get: () => this.#tree.title,
+        set: (value: string) => {
+          this.#tree.title = value
+        },
+      },
+      body: {
+        enumerable: true,
+        configurable: true,
+        get: () => this.#paragraphs(),
+        set: (value: ChapterDocParagraph[]) => {
+          this.#tree.body = paragraphsToMarkdown(value)
+        },
+      },
+    })
   }
 
   metadata(): ChapterMetadata {
     return new ChapterMetadata(this)
+  }
+
+  /**
+   * Mutable {@link ChapterNode} view over `title` + `body`. Mutations are written
+   * through to this doc. Pass `opts` (e.g. `tokenize`) to rebuild the view with
+   * extra {@link DomainTreeOptions}; current content is preserved.
+   */
+  chapterTree(opts: DomainTreeOptions = {}): ChapterNode {
+    if (Object.keys(opts).length > 0) {
+      this.#treeOptions = { ...this.#treeOptions, ...opts }
+      this.#tree = createChapterTree(
+        {
+          id: this.#tree.id,
+          bookId: this.#tree.bookId,
+          title: this.#tree.title,
+          body: this.#tree.body,
+        },
+        this.#treeOptions,
+      )
+    }
+    return this.#tree
+  }
+
+  #paragraphs(): ChapterDocParagraph[] {
+    const out: ChapterDocParagraph[] = []
+    for (const paragraph of this.#tree.paragraphs()) {
+      const lines = paragraph.lines.map((line) => line.text)
+      if (lines.length > 0) out.push({ lines })
+    }
+    return out
   }
 }
 

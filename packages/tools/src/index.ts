@@ -398,6 +398,11 @@ export {
   type LineParityReport,
 } from './verification/line-parity-linter.js'
 export {
+  chapterDocLinter,
+  createChapterDocLinter,
+  type ChapterDocLintOptions,
+} from './verification/chapter-doc-linter.js'
+export {
   lintPromptTemplate,
   lintPromptSet,
   lintTranslatePromptSet,
