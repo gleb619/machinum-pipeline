@@ -13,6 +13,7 @@ import {
 } from '@mt/core'
 import type { Pipeline, PipelineSuite, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
+import type { LogFormat } from '../utils/logger.js'
 import { type RemoteRunFlags, resumeRemotePipeline } from '../utils/remote-run.js'
 import { RunReporter } from '../utils/run-report.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
@@ -21,6 +22,8 @@ export interface ResumeCommandOptions {
   runId?: string
   pipelineFile?: string
   remote?: RemoteRunFlags
+  /** Log output format; `--json`/`--jsonl` select JSONL. */
+  format?: LogFormat
   /** Hidden worker-child mode: post events to this main `mt serve`. */
   reportTo?: string
 }
@@ -57,6 +60,8 @@ export function parseResumeArgs(args: readonly string[]): ResumeCommandOptions {
       const value = inline ?? args[++index]
       if (value === undefined || value === '') throw new Error('--report-to requires a value')
       options.reportTo = value
+    } else if (arg === '--json' || arg === '--jsonl') {
+      options.format = 'json'
     } else if (arg.startsWith('--')) {
       throw new Error(`Unknown resume option: ${arg}`)
     } else {
@@ -81,15 +86,16 @@ export async function resumeCommand(args: string[]): Promise<void> {
   const pipelineFileArg = parsed.pipelineFile
   if (!runId) {
     console.error(
-      'Usage: mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>]',
+      'Usage: mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>] [--json|--jsonl]',
     )
+    console.error('  --json|--jsonl  emit one JSON object per log line (console + run.log)')
     process.exit(1)
   }
 
   const projectRoot = process.cwd()
 
   if (parsed.remote !== undefined) {
-    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'), parsed.format)
     const artifactIntervalMs = Number(process.env.MT_REMOTE_ARTIFACT_INTERVAL_MS)
     let outcome: Awaited<ReturnType<typeof resumeRemotePipeline>>
     try {
@@ -150,7 +156,7 @@ export async function resumeCommand(args: string[]): Promise<void> {
   })
 
   // Create logger — the run id is known up front, so logs go straight to the run's log
-  const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+  const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'), parsed.format)
   logger.setRunId(runId)
   const reporter =
     parsed.reportTo === undefined

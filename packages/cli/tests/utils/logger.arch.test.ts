@@ -46,7 +46,7 @@ describe('UC-53 - Duplex Logger (architectural)', () => {
   it('DuplexLogger constructor accepts logDir string', async () => {
     const loggerPath = join(__dirname, '..', '..', 'src', 'utils', 'logger.ts')
     const source = await readFile(loggerPath, 'utf-8')
-    expect(source).toMatch(/constructor\(logDir: string\)/)
+    expect(source).toMatch(/constructor\(logDir: string/)
   })
 
   it('DuplexLogger writes to file using appendFile', async () => {

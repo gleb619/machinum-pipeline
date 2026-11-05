@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createConsoleLogger, escapeLogNewlines, formatLogLine, log } from '../src/logging.js'
+import {
+  createConsoleLogger,
+  escapeLogNewlines,
+  escapeMarkdown,
+  formatJsonLogLine,
+  formatLogLine,
+  log,
+} from '../src/logging.js'
 
 const INFO_LINE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[INFO\] hello$/
 
@@ -61,6 +68,67 @@ describe('formatLogLine', () => {
     const line = formatLogLine('info', 'first\nsecond\r\nthird')
     expect(line).not.toContain('\n')
     expect(line).not.toContain('\r')
+  })
+
+  it('markdown-escapes the message but keeps meta as compact JSON', () => {
+    const line = formatLogLine('info', '# heading with *stars* [x](y)', { a: 'b|c' })
+    expect(line).toContain(' # heading with \\*stars\\* \\[x](y) ')
+    expect(line).toContain(' {"a":"b|c"}')
+  })
+
+  it('escapes markdown before newline escaping so \\n stays literal', () => {
+    const line = formatLogLine('info', 'first\nsecond')
+    expect(line).toContain('first\\nsecond')
+  })
+})
+
+describe('escapeMarkdown', () => {
+  it('escapes emphasis, links and HTML tags', () => {
+    expect(escapeMarkdown('*bold* [x](y) <tag> a|b _em_')).toBe(
+      '\\*bold\\* \\[x](y) \\<tag> a|b _em_',
+    )
+  })
+
+  it('leaves identifiers, arrays and block markers alone', () => {
+    expect(escapeMarkdown('MT_EMBED_PASSWORD {"a":[2,3]}')).toBe('MT_EMBED_PASSWORD {"a":[2,3]}')
+    expect(escapeMarkdown('# heading')).toBe('# heading')
+    expect(escapeMarkdown('- item')).toBe('- item')
+  })
+
+  it('escapes each line independently', () => {
+    expect(escapeMarkdown('plain\n*second* line')).toBe('plain\n\\*second\\* line')
+  })
+
+  it('leaves ordinary text untouched', () => {
+    expect(escapeMarkdown('Pipeline completed successfully (runId: abc)')).toBe(
+      'Pipeline completed successfully (runId: abc)',
+    )
+  })
+})
+
+describe('formatJsonLogLine', () => {
+  it('emits ts/level/message/meta as one JSON object', () => {
+    const record = JSON.parse(
+      formatJsonLogLine('INFO', 'hello', { key: 'value' }, '2026-11-03T11:23:29.471Z'),
+    ) as Record<string, unknown>
+    expect(record).toEqual({
+      ts: '2026-11-03T11:23:29.471Z',
+      level: 'info',
+      message: 'hello',
+      meta: { key: 'value' },
+    })
+  })
+
+  it('omits meta when absent or empty', () => {
+    expect(formatJsonLogLine('info', 'hello')).not.toContain('meta')
+    expect(formatJsonLogLine('info', 'hello', {})).not.toContain('meta')
+  })
+
+  it('does not markdown-escape or newline-escape the message', () => {
+    const record = JSON.parse(formatJsonLogLine('info', '# raw *text*\nsecond')) as {
+      message: string
+    }
+    expect(record.message).toBe('# raw *text*\nsecond')
   })
 })
 

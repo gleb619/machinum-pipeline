@@ -27,8 +27,15 @@ export type {
   IdAnnotation,
   IdAnnotationKind,
 } from './annotation.js'
-export { createConsoleLogger, escapeLogNewlines, formatLogLine, log } from './logging.js'
-export type { LogFunction, LogSeverity } from './logging.js'
+export {
+  createConsoleLogger,
+  escapeLogNewlines,
+  escapeMarkdown,
+  formatJsonLogLine,
+  formatLogLine,
+  log,
+} from './logging.js'
+export type { LogFormat, LogFunction, LogSeverity } from './logging.js'
 export { acquireListener, hostsShareListener } from './http-listener.js'
 export type { HttpRouteHandler, ListenerFactory, ListenerLease } from './http-listener.js'
 export { Store } from './store.js'

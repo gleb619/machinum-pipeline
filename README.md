@@ -74,6 +74,8 @@ export default definePipeline()
 - [docs/guiding/uc.md](docs/guiding/uc.md) — use cases
 - [docs/steering/tools.md](docs/steering/tools.md) — tool catalogue
 - [docs/kanban.md](docs/kanban.md) — roadmap / task board
+- [docs/leaf-log-rendering.md](docs/leaf-log-rendering.md) — render `mt` logs in the terminal with
+  [`leaf`](https://github.com/rivolink/leaf) (native or Docker) — logs are markdown-compatible
 - [AGENTS.md](AGENTS.md) — guidance for AI coding agents working in this repo
 
 ## Status

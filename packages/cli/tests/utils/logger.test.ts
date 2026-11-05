@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createConsoleLogger } from '@mt/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DuplexLogger } from '../../src/utils/logger.js'
+import { DuplexLogger, extractLogFormat } from '../../src/utils/logger.js'
 
 const LOG_PREFIX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z \[(DEBUG|INFO|WARN|ERROR)\] /
 
@@ -173,5 +173,78 @@ describe('createConsoleLogger', () => {
     expect(console.error).toHaveBeenCalledWith(
       expect.stringMatching(/^\S+Z \[ERROR\] error message$/),
     )
+  })
+
+  it('emits JSONL in json format', () => {
+    const logger = createConsoleLogger({ format: 'json' })
+    logger.info('hello', { key: 'value' })
+
+    const line = vi.mocked(console.log).mock.calls[0]?.[0] as string
+    const record = JSON.parse(line) as Record<string, unknown>
+    expect(record.level).toBe('info')
+    expect(record.message).toBe('hello')
+    expect(record.meta).toEqual({ key: 'value' })
+    expect(typeof record.ts).toBe('string')
+  })
+})
+
+describe('extractLogFormat', () => {
+  it('defaults to text and keeps all args', () => {
+    expect(extractLogFormat(['pipe.ts', '--pipeline', 'x'])).toEqual({
+      format: 'text',
+      args: ['pipe.ts', '--pipeline', 'x'],
+    })
+  })
+
+  it('accepts --json and --jsonl anywhere and strips them', () => {
+    expect(extractLogFormat(['run-1', '--json', 'pipe.ts'])).toEqual({
+      format: 'json',
+      args: ['run-1', 'pipe.ts'],
+    })
+    expect(extractLogFormat(['--jsonl', 'pipe.ts'])).toEqual({ format: 'json', args: ['pipe.ts'] })
+  })
+})
+
+describe('DuplexLogger json format', () => {
+  let testDir: string
+
+  beforeEach(async () => {
+    testDir = await mkdtemp(join(tmpdir(), 'mt-logger-json-test-'))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true })
+    vi.restoreAllMocks()
+  })
+
+  it('writes JSONL to run.log, including buffered lines flushed by setRunId', async () => {
+    const logger = new DuplexLogger(testDir, 'json')
+    logger.info('buffered json line')
+    logger.setRunId('run-json')
+    logger.error('after bind', { code: 42 })
+    await logger.flush()
+
+    const lines = (await readFile(join(testDir, 'run-json', 'run.log'), 'utf-8')).trim().split('\n')
+    expect(lines).toHaveLength(2)
+    const first = JSON.parse(lines[0] as string) as Record<string, unknown>
+    expect(first).toMatchObject({ level: 'info', message: 'buffered json line' })
+    const second = JSON.parse(lines[1] as string) as Record<string, unknown>
+    expect(second).toMatchObject({ level: 'error', message: 'after bind', meta: { code: 42 } })
+  })
+
+  it('markdown-escapes text mode in both sinks', async () => {
+    const logger = new DuplexLogger(testDir)
+    logger.setRunId('run-md')
+    logger.info('*bold* [link](url)', { key: 'v_v' })
+    await logger.flush()
+
+    const consoleLine = vi.mocked(console.log).mock.calls[0]?.[0] as string
+    expect(consoleLine).toContain('\\*bold\\* \\[link](url)')
+    const fileLine = await readRunLog(testDir, 'run-md')
+    expect(fileLine).toContain('\\*bold\\* \\[link](url)')
+    expect(fileLine).toContain('{"key":"v_v"}')
   })
 })

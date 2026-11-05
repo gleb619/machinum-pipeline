@@ -17,6 +17,7 @@ import type { GlobalContext, Pipeline, PipelineSuite } from '@mt/core'
 import '@mt/waypoint'
 
 import { DuplexLogger } from '../utils/logger.js'
+import type { LogFormat } from '../utils/logger.js'
 import { type RemoteRunFlags, runOnWorker, runRemotePipeline } from '../utils/remote-run.js'
 import { RunReporter } from '../utils/run-report.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
@@ -28,6 +29,8 @@ export interface RunCommandOptions {
   pipelineFile?: string
   pipelineName?: string
   remote?: RemoteRunFlags
+  /** Log output format; `--json`/`--jsonl` select JSONL. */
+  format?: LogFormat
   /** Hidden worker-child mode: replay the main-minted run id. */
   runId?: string
   /** Hidden worker-child mode: post events to this main `mt serve`. */
@@ -95,6 +98,8 @@ export function parseRunArgs(args: readonly string[]): RunCommandOptions {
         .split(',')
         .map((tag) => tag.trim())
         .filter(Boolean)
+    } else if (arg === '--json' || arg === '--jsonl') {
+      options.format = 'json'
     } else if (arg.startsWith('--')) {
       throw new Error(`Unknown run option: ${arg}`)
     } else {
@@ -118,9 +123,10 @@ export async function runCommand(args: string[]): Promise<void> {
   const parsed = parseRunArgs(args)
   if (parsed.pipelineFile === undefined) {
     console.error(
-      'Usage: mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--token-ref <ENV_OR_REF>]',
+      'Usage: mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--token-ref <ENV_OR_REF>] [--json|--jsonl]',
     )
     console.error('  Execute a pipeline file (foreground; logs to console + .mt)')
+    console.error('  --json|--jsonl  emit one JSON object per log line (console + run.log)')
     process.exit(1)
   }
 
@@ -129,7 +135,7 @@ export async function runCommand(args: string[]): Promise<void> {
   const projectRoot = process.cwd()
 
   if (parsed.worker !== undefined || parsed.tags !== undefined) {
-    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'), parsed.format)
     let outcome: Awaited<ReturnType<typeof runOnWorker>>
     try {
       outcome = await runOnWorker({
@@ -152,7 +158,7 @@ export async function runCommand(args: string[]): Promise<void> {
   }
 
   if (parsed.remote !== undefined) {
-    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+    const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'), parsed.format)
     const artifactIntervalMs = Number(process.env.MT_REMOTE_ARTIFACT_INTERVAL_MS)
     let outcome: Awaited<ReturnType<typeof runRemotePipeline>>
     try {
@@ -184,7 +190,7 @@ export async function runCommand(args: string[]): Promise<void> {
   const globalContext = await loadGlobalContext(projectRoot)
 
   // Create logger
-  const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'))
+  const logger = new DuplexLogger(join(projectRoot, '.mt', 'runs'), parsed.format)
   const reporter =
     parsed.runId !== undefined && parsed.reportTo !== undefined
       ? new RunReporter({
