@@ -68,15 +68,24 @@ export default definePipeline()
   .to('md://./output')            // write markdown files
 ```
 
+## Samples
+
+`samples/sample0` … `sample5` are runnable example projects (JSONL → tools → Markdown, subflows, forks, remote
+runs). See [docs/guiding/samples.md](docs/guiding/samples.md) to run them, and
+[docs/guiding/adding-a-sample.md](docs/guiding/adding-a-sample.md) to add one.
+
 ## Documentation
 
+- [docs/guiding/installation.md](docs/guiding/installation.md) — install paths: source, Bun binary, Docker, config/secrets
 - [docs/guiding/architecture.md](docs/guiding/architecture.md) — how it works under the hood
 - [docs/guiding/uc.md](docs/guiding/uc.md) — use cases
+- [docs/guiding/remote-run.md](docs/guiding/remote-run.md) — run pipelines against a remote `mt serve`
 - [docs/steering/tools.md](docs/steering/tools.md) — tool catalogue
+- [docs/SKILL.md](docs/SKILL.md) — agent skill for projects that *use* `mt` (`mt skill` prints it)
 - [docs/kanban.md](docs/kanban.md) — roadmap / task board
 - [docs/leaf-log-rendering.md](docs/leaf-log-rendering.md) — render `mt` logs in the terminal with
-  [`leaf`](https://github.com/rivolink/leaf) (native or Docker) — logs are markdown-compatible
-- [AGENTS.md](AGENTS.md) — guidance for AI coding agents working in this repo
+  [`leaf`](https://github.com/rivolink/leaf) (native or Docker)
+- [AGENTS.md](AGENTS.md) — rules for AI coding agents working in this repo
 
 ## Status
 

@@ -1,211 +1,150 @@
 # AGENTS.md
 
-This file provides guidance to work with code in this repository.
+Guidance for coding agents in this repo. Humans: see [README.md](README.md).
 
 ## Required skills
 
-The following skills MUST be invoked (via the `skills` tool) before any work on this repository:
+Invoke via `skills` tool at start of every task, never skip:
 
-- `caveman` - ultra-terse communication style
-- `i-have-adhd` - ADHD-friendly planning/output style
-- `codegraph` (optional) - code graph navigation for the codebase, only if mentioned directly for code context
-- `at` (optional) - delegate code changes to a sub-agent via `at` while focusing on reasoning/coordination
+- `caveman` - ultra-terse communication
+- `i-have-adhd` - ADHD-friendly planning/output
+- `codegraph` (optional) - only if mentioned for code context
+- `at` (optional) - delegate code changes to a sub-agent via `at` while you coordinate
 
-Invoke the first two at the start of every task. Do not skip. The optional ones may be invoked when useful.
+**Delegation: one mechanism per task, never both.** Prefer native subagents (architect/coder/qa via Agent tool)
+over `at`. If native subagent handles it, don't also use `at` (and vice versa).
 
-**Delegation mechanisms - pick one per task, never both for the same work:** prefer the host's built-in/native
-subagents (for example architect / coder / qa via the Agent tool) over `at` (`at` agents). If a task is
-already handled by a native subagent, don't double-delegate to `at` (and vice versa).
+**`at` feedback** - on `at` bug/improvement (ignored flag, crash, bad routing, stale kanban provenance, worktree
+traps), register before working around: `at feedback add "<title>" -k bug|improvement|note --context "<repro>"`.
+Dedupe: `at feedback list --status open`.
 
-**`at` feedback** — when you hit an `at` bug or see an improvement (ignored flag, crash, bad routing,
-stale kanban provenance, worktree bootstrap traps), register it before working around it:
-`at feedback add "<title>" -k bug|improvement|note --context "<repro, expected vs actual>"`.
-List open items with `at feedback list --status open` to avoid duplicates.
+**`at` kanban backfill** - bugs/flakes/improvements found during work go on the board, not only in reports:
+`at kanban add --title "<short>" --priority Low|Medium|High --description "<repro + expected vs actual, max 128 chars>"`.
+Check `at kanban list` first (dedupe). `docs/kanban.md` stays uncommitted like other board mutations; run
+`at kanban lint` after edits.
 
----
+## Project
 
-## What this project is
+**machinum-pipeline** (pkg `mt`): TypeScript ETL engine for long-form text (books) through composable,
+checkpointable, partially out-of-process tool chains.
 
-**machinum-pipeline** (package name: `mt`) is a TypeScript ETL engine for processing long-form text (primarily books)
-through composable, checkpointable, partially-out-of-process tool chains.
+Flow: `Source (URI) → [Tool → Tool → …] → Target (URI)`. Data travels in **Exchanges**
+`{ id, item, items?, meta, variables }`; cardinality changes only via DSL ops (`.batch()`, `.flatMap()`).
 
-Core data flow: `Source (URI) → [Tool → Tool → …] → Target (URI)`. All data travels in **Exchanges** (Camel-style `{ id, item, items?, meta, variables }`)
-(`{ item, items?, meta }`); cardinality changes only via DSL ops (`.batch(opts?)`, `.flatMap()`).
+Docs: `docs/steering/` = agent-facing dev docs, `docs/guiding/` = human-facing ([layout](docs/README.md)).
+Read the relevant steering file **before editing**:
 
-Full context lives in docs - read on demand. Docs split by audience: `docs/steering/` = agent-facing
-development docs, `docs/guiding/` = human-facing project explanation (full layout: [docs/README.md](docs/README.md)):
-
-| Doc                                                                | Contents |
-|--------------------------------------------------------------------|---|
-| [docs/guiding/architecture.md](docs/guiding/architecture.md)       | High-level architecture, run lifecycle, `.mt/` state dir |
-| [docs/SKILL.md](docs/SKILL.md)                                     | Agent skill for consumer projects (how to use `mt`); embedded in the binary, printed by `mt skill` |
-| [docs/guiding/installation.md](docs/guiding/installation.md)       | Install paths: source build, Bun binary, `mt-cli` wrapper, config/secrets, Docker |
-| [docs/guiding/uc.md](docs/guiding/uc.md)                           | Use cases |
-| [docs/steering/tools.md](docs/steering/tools.md)                   | Tool catalogue |
-| [docs/guiding/mock-tools.md](docs/guiding/mock-tools.md)           | Mock/stub LLM tooling: `pickLlmTool`, slot overrides, `defineProcess().install(mockLlm(...))` |
-| [docs/kanban.md](docs/kanban.md)                                   | Task board / roadmap (managed via `at kanban`; plans in [docs/plans/](docs/plans/)) |
-| [docs/change-workflow.md](docs/change-workflow.md)                 | Mandatory worktree → branch → gates → FF-merge lifecycle |
-| [docs/guiding/samples.md](docs/guiding/samples.md)                 | Sample projects + how to run them manually |
-| [docs/guiding/adding-a-sample.md](docs/guiding/adding-a-sample.md) | How to add a new sample (layout, scripts, IT pattern, checklist) |
-
-## Steering files
-
-Steering files live in `docs/steering/` — development docs for coding agents. Read the relevant one **before editing**:
-
-| File | When to read |
+| File | When |
 |---|---|
-| [product.md](docs/steering/product.md) | Product concepts, domain model, data flow |
-| [tech.md](docs/steering/tech.md) | Toolchain, code style, Biome, test conventions, env vars |
-| [structure.md](docs/steering/structure.md) | Workspace/package layout, import layer rules, URI schemes |
-| [core.md](docs/steering/core.md) | `packages/core/` - types, DSL, engine, URI registry |
-| [tools.md](docs/steering/tools.md) | `packages/tools/` - adding/modifying processing tools |
-| [waypoint.md](docs/steering/waypoint.md) | `packages/waypoint/` - URI schemes, Source/Target impls |
-| [cli.md](docs/steering/cli.md) | `packages/cli/` - commands, pipeline loading |
-| [router.md](docs/steering/router.md) | `packages/router/` - OpenRouter proxy, cost tracking |
-| [webui.md](docs/steering/webui.md) | `packages/webui/` - admin API, SSE, SQLite |
-| [tui.md](docs/steering/tui.md) | `packages/tui/` - terminal UI skeleton (HTTP-only) |
-| [mcp.md](docs/steering/mcp.md) | `packages/mcp/` - MCP server, stdio handlers |
-| [extensions.md](docs/steering/extensions.md) | `packages/chrome/` or `packages/vscode/` |
-| [../layout.md](docs/layout.md) | UI layout contract for `packages/components/` (web) + `packages/tui/` (terminal) |
+| [product.md](docs/steering/product.md) | Domain model, data flow |
+| [tech.md](docs/steering/tech.md) | Toolchain, style, Biome, tests, env vars |
+| [structure.md](docs/steering/structure.md) | Package layout, import layers, URI schemes |
+| [core.md](docs/steering/core.md) | `packages/core/` types, DSL, engine, URI registry |
+| [tools.md](docs/steering/tools.md) | `packages/tools/` add/modify tools |
+| [waypoint.md](docs/steering/waypoint.md) | `packages/waypoint/` Sources/Targets |
+| [cli.md](docs/steering/cli.md) | `packages/cli/` commands, pipeline loading |
+| [router.md](docs/steering/router.md) | `packages/router/` OpenRouter proxy |
+| [webui.md](docs/steering/webui.md) | `packages/webui/` admin API, SSE, SQLite |
+| [tui.md](docs/steering/tui.md) | `packages/tui/` terminal UI (HTTP-only) |
+| [mcp.md](docs/steering/mcp.md) | `packages/mcp/` MCP server |
+| [extensions.md](docs/steering/extensions.md) | `packages/chrome/`, `packages/vscode/` |
+| [layout.md](docs/layout.md) | UI layout contract (`components/` + `tui/`) |
+
+Other: docs/guiding/{architecture,installation,samples,adding-a-sample,mock-tools}.md, docs/SKILL.md (printed by
+`mt skill`), docs/change-workflow.md, docs/kanban.md (via `at kanban`; plans in `docs/plans/`).
 
 ## Commands
 
 ```bash
-pnpm install        # Install
-pnpm build          # Build all packages (Turborepo)
-pnpm lint           # Lint (Biome - no ESLint/Prettier)
-pnpm format         # Auto-fix lint/format
-pnpm typecheck      # Type-check all packages
-pnpm test           # All tests (workspace + sample integration tests)
-pnpm test --filter=@mt/tools                    # Tests for one package
-pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts   # One test file
-pnpm annotations [--kind tool|waypoint|useCase|category] [--json]   # dev-only annotation index (run pnpm build first)
-pnpm dev --filter=@mt/core                      # Dev watch mode
-pnpm build:bin                                  # Rebuild the standalone `mt` binary (packages/mt, Bun --compile)
+pnpm install | build | lint | format | typecheck   # Biome only
+pnpm test                                          # workspace + sample IT
+pnpm test --filter=@mt/tools                       # one package
+pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts   # one file
+pnpm annotations [--kind tool|waypoint|useCase|category] [--json]  # needs pnpm build first
+pnpm build:bin                                     # standalone `mt` binary (Bun --compile)
 ```
 
-## Quick architecture map
+## Architecture map
 
-Packages: `@mt/core` (types, DSL, Runner engine) → `@mt/cli` (binary) + `@mt/webui`/`@mt/mcp` (programmatic
-callers); `@mt/tools` (chapter processing tools); `@mt/waypoint` (URI-scheme Sources/Targets, side-effect
-registration via `import '@mt/waypoint'`); `@mt/router` (standalone OpenRouter proxy); `@mt/components` (admin UI);
-`@mt/tui` (terminal UI skeleton, HTTP-only); `chrome/` + `vscode/` extensions.
+`@mt/core` (types, DSL, Runner) → `@mt/cli` (binary) + `@mt/webui`/`@mt/mcp`; `@mt/tools` (chapter tools);
+`@mt/waypoint` (URI Sources/Targets, registered by `import '@mt/waypoint'`); `@mt/router` (standalone proxy);
+`@mt/components` (admin UI); `@mt/tui` (HTTP-only); `chrome/` + `vscode/` extensions.
 
-Key types in `packages/core/src/`: `domain.ts` (`Book`, `Chapter`, … - Sources provide stable IDs, the engine never
-mints them), `exchange.ts` (`Exchange`, qualified `Variable`s, helpers), `types.ts` (`Source`/`Tool`/`Target`), `contexts.ts` (layered `GlobalContext → RunContext →
-ToolContext`, backrefs never copies), `dsl.ts` (`definePipeline()` etc.), `uri.ts` (URI registry),
-`engine/runner.ts` + `state-machine.ts` + `checkpoint.ts` (execution, `pending → running → [checkpoint → paused →
-resumed →] done/failed`, crash recovery).
+Key files in `packages/core/src/`: `domain.ts` (Sources give stable IDs, engine never mints), `exchange.ts`,
+`types.ts` (`Source`/`Tool`/`Target`), `contexts.ts` (`GlobalContext → RunContext → ToolContext`, backrefs not
+copies), `dsl.ts` (`definePipeline()`), `uri.ts`, `engine/{runner,state-machine,checkpoint}.ts`
+(`pending → running → [checkpoint → paused → resumed →] done/failed`, crash recovery).
 
-Pipeline DSL shape (full reference in [steering/core.md](docs/steering/core.md)):
+DSL: `definePipeline().from(uri).flatMap().tap().use(tool).subflow().fork().batch(n).to(uri)`. Pipelines are real TS modules; full DSL: steering/core.md.
 
-```typescript
-export default definePipeline()
-  .from('jsonl://./input.jsonl')   // string URI (preferred)
-  .flatMap(async (item) => [...])  // fan-out: one → many
-  .tap(async (env) => { /* logging: receives the full Exchange incl. meta + variables */ })
-  .use(myTool)                     // Tool<I, O>
-  .subflow(otherPipeline)          // inline nested pipeline (same Runner)
-  .fork(subPipeline)               // child Runner + nested checkpoint subtree
-  .batch(5)                        // group into items[]
-  .to('md://./output.md')
-```
+## Annotations
 
-**Pipelines are real TS modules** - plain `import`, `console.log`, conditionals all work. The DSL is only the
-orchestration grammar.
+Dev-only markers (`tool()` TL###, `waypoint()` WT###, `useCase()` UC###, `category([...])`); no runtime effect.
+List: `pnpm annotations`.
 
-## Annotation markers
+## Code style
 
-Dev-only markers for code discovery, not runtime behaviour. `defineTool({ annotations?: [...] })` is optional -
-user-defined tools need none. Sealed kinds: `tool()` -> `TL###`, `waypoint()` -> `WT###`, `useCase()` -> `UC###`,
-and `category([...])` (lowercase kebab-case names, e.g. `category(['validator'])` in
-`packages/tools/src/verification/chapter-validator.ts`; canonical list is `TOOL_CATEGORIES` in `@mt/tools`).
-`pnpm annotations` lists them (repo-dev only, never shipped in the `mt` CLI), or grep directly:
-`rg "TL063|category\(\[" packages/tools/src`.
-
-## Code style (summary)
-
-Biome enforces everything: 2-space indent, single quotes, no semicolons, trailing commas, `printWidth: 100`;
-`noExplicitAny`/`noNonNullAssertion` are errors. TS strict (`strict`, `noUncheckedIndexedAccess`): `interface` for
-public API shapes, `type` for unions, `import type` for type-only, no `any` (`unknown` + narrowing). Files
-`kebab-case.ts`, types `PascalCase`, builders `define*` prefix, conventional commits. Tests: co-located
-`*.test.ts`, `describe`/`it`. Full rules: [steering/tech.md](docs/steering/tech.md).
+Biome: 2-space, single quotes, no semicolons, trailing commas, `printWidth: 100`; `noExplicitAny` /
+`noNonNullAssertion` errors. TS strict + `noUncheckedIndexedAccess`: `interface` for public shapes, `type` for
+unions, `import type`, `unknown` + narrowing. Files `kebab-case.ts`, types `PascalCase`, builders `define*`,
+conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steering/tech.md.
 
 ## Hard rules
 
-- **Change workflow** - default: worktree + branch → code → test/lint gate → commit → samples IT gate →
-  rebase onto `main`, then FF-merge only (`git merge --ff-only`) → cleanup.
-  **Simple tasks: stay put.** For small/simple tasks (tweak, sample edit, doc fix, single-commit change) do
-  NOT create a new worktree or feature branch — work in the current worktree and commit directly on the
-  current branch (usually `main`).
-  **Explicit user override:** when the user says to work in the current worktree / `main` checkout, obey:
-  do not create a new worktree or feature branch; commit directly on `main`. An explicit user instruction
-  wins over the default branch flow.
-  **Regular merge commits are forbidden** — never use `git merge --no-ff` or merge without rebase.
-  Full state machine: [docs/change-workflow.md](docs/change-workflow.md).
-- **Merge acceptance includes the GPU gate** — run `pnpm test:gpu` (`packages/tools/tests/it/`, real ollama
-  server at `MT_OLLAMA_URL`; point it at the remote GPU, e.g. via the `borispc3ai` skill) before any FF-merge, and report its result.
-  Host-specific commands for the `borispc3.ai` remote GPU are kept in the gitignored `.ollama-remote.md`; use the
-  `borispc3ai` skill to read or refresh them. It is excluded from `pnpm test`, so it must be run explicitly.
-  An unreachable server **fails with a clear message** — report that failure; never skip it silently or merge claiming the gate passed.
-- **Merge acceptance includes the wrkflw guard** — run `pnpm ci:local` (wrkflw validate + Docker job subset;
-  needs `wrkflw` + Docker) before any FF-merge and report its one-line result. Failure to run = red, never silent
-  skip. `pnpm ci:check` (validate only, seconds) is the fast loop while editing `.github/workflows/`. Scope/limits:
-  [docs/change-workflow.md](docs/change-workflow.md).
-- **Import layers** - `cli/`/`webui/`/`mcp/` → `core/` only (never reverse; `cli/` may also import `waypoint/` for URI registration and `webui/standalone` for `mt serve` - lazy, so the CLI starts without h3/SQLite; `webui/` may import `router/` — T197 embeds the router API in `mt serve`); `components/` → webui API only;
-  `router/` standalone (zero `@mt/*` deps); `tui/` HTTP-only (no `@mt/*` imports); extensions via HTTP/MCP, never direct imports. ([steering/structure.md](docs/steering/structure.md))
-- **File writes are atomic** (temp-then-rename); the checkpoint tree is the only resume mechanism.
-- **Agent skill stays current** — `docs/SKILL.md` MUST be reviewed and updated in the same change whenever the project gets a big update: a new/changed/removed CLI command or flag, DSL op, URI scheme, tool category, vault/secret handling, config key, lifecycle/run-state change, or install path. Bump its `skill-version` and date, then regenerate the embedded copy (`pnpm --filter=@mt/cli gen:skill`; `pnpm build` does it too) and verify `mt skill` output matches. The drift test `packages/cli/tests/commands/skill.test.ts` fails when the embedded copy differs from `docs/SKILL.md`.
-- **Binary freshness** — after any change to packages embedded in the `mt` binary (`core`/`tools`/`waypoint`/`cli`/`router`/`webui`), rebuild it (`pnpm build:bin`, smoke via `pnpm smoke:bin`). A stale binary silently runs old code.
-- **Do not run git mutations** (commit/push/reset/rebase) unless explicitly asked.
-- **NEVER** `git stash` or `git reset` (`--hard`/`--mixed`/`--soft`) without explicit user approval - working tree
-  changes are load-bearing, do not discard them.
-- **NEVER** add `Co-Authored-By` (or any AI-attribution trailer) to commits or PR descriptions.
+- **Change workflow** - default: worktree + branch → code → test/lint gate → commit → samples IT gate → rebase
+  onto `main` → `git merge --ff-only` → cleanup. **Simple tasks (tweak, sample edit, doc fix, single commit): stay
+  put**, commit on current branch (usually `main`). **Explicit user override** (work in current worktree/`main`)
+  wins. **Merge commits forbidden** (`--no-ff`, merge without rebase). State machine: docs/change-workflow.md.
+- **GPU gate** - before any FF-merge run `pnpm test:gpu` (`packages/tools/tests/it/`, real ollama at
+  `MT_OLLAMA_URL`; use `borispc3ai` skill; host cmds in gitignored `.ollama-remote.md`) and report result.
+  Excluded from `pnpm test`. Unreachable server **fails loudly** - report it, never skip silently or claim pass.
+- **wrkflw guard** - before any FF-merge run `pnpm ci:local` (wrkflw validate + Docker jobs; needs `wrkflw` +
+  Docker), report one-line result. Failure to run = red. `pnpm ci:check` = fast validate-only loop.
+- **Import layers** - `cli/`/`webui/`/`mcp/` → `core/` only, never reverse (`cli/` may also import `waypoint/` and
+  lazy `webui/standalone` for `mt serve`; `webui/` may import `router/`); `components/` → webui API only;
+  `router/` zero `@mt/*` deps; `tui/` HTTP-only; extensions via HTTP/MCP. See steering/structure.md.
+- **Atomic writes** (temp-then-rename); checkpoint tree is the only resume mechanism.
+- **Agent skill current** - update `docs/SKILL.md` in same change for any new/changed/removed CLI command or flag,
+  DSL op, URI scheme, tool category, vault/secret handling, config key, lifecycle change, install path. Bump
+  `skill-version` + date, run `pnpm --filter=@mt/cli gen:skill` (`pnpm build` too), verify `mt skill` matches.
+  Drift test: `packages/cli/tests/commands/skill.test.ts`.
+- **Binary freshness** - after changing `core`/`tools`/`waypoint`/`cli`/`router`/`webui`, run `pnpm build:bin` and
+  `pnpm smoke:bin`. Stale binary runs old code.
+- **No git mutations** (commit/push/reset/rebase) unless asked.
+- **NEVER** `git stash` or `git reset` (any mode) without explicit approval - working tree is load-bearing.
+- **NEVER** add `Co-Authored-By` or AI-attribution trailers to commits/PRs.
 
-## Logging format (hard rule)
+## Logging (hard rule)
 
-All runtime log lines — engine (`Runner`), CLI lifecycle, tools, sources and targets — MUST emit
-exactly one line through the shared formatter in `@mt/core` (`formatLogLine`):
+Every runtime log line (Runner, CLI lifecycle, tools, sources, targets) = exactly one line via `formatLogLine`
+from `@mt/core`:
 
 ```
-<ISO-8601 UTC timestamp> [<LEVEL>] <message>[ <compact-json-meta>]
+<ISO-8601 UTC ms timestamp> [<LEVEL>] <message>[ <compact-json-meta>]
 ```
 
-- **time** — `new Date().toISOString()`, full UTC with milliseconds: `2026-11-03T11:23:29.471Z`.
-  Never a bare `HH:MM:SS.mmm`.
-- **level** — one of `[DEBUG]`, `[INFO]`, `[WARN]`, `[ERROR]` (uppercase, square brackets).
-- **message** — human-readable, single line. Main/human log formats (console, `run.log`,
-  `logs/<step>.log`) MUST escape CR/LF as the literal two characters `\n` and TAB as `\t`
-  (`escapeLogNewlines`). One log call = one physical line, always.
-- **meta** — optional compact `JSON.stringify` object after the message; omit when empty.
-- JSON/JSONL formats (`events.jsonl`, `--json` command output) are excluded: real newlines stay
-  inside JSON strings.
-- Runtime code MUST NOT call `console.log`/`console.info`/`console.warn`/`console.error` directly.
-  Use `ctx.run.logger` (tools, sources, targets) or the CLI `DuplexLogger`; outside a context use
-  `createConsoleLogger()` from `@mt/core`.
-  Plain command output (help text, tables, prompts, machine-readable JSON) is not a log line and
-  stays as-is. Exceptions: sample pipelines may print data/markers for tests, and the `console://`
-  target is a data sink. In pipeline code use `log()` from `@mt/core` instead of `console.log`:
-  `log(message, meta?)` emits an INFO line and `log.info/warn/error/debug` mirror the console
-  logger; `.tap((ex) => log.info('msg', { key: value }))` is the pattern.
-- Tests must assert this single format; no per-sink variants.
+- time: `new Date().toISOString()`, never bare `HH:MM:SS.mmm`.
+- level: `[DEBUG]` `[INFO]` `[WARN]` `[ERROR]`.
+- message: single line; human formats (console, `run.log`, `logs/<step>.log`) escape CR/LF as `\n`, TAB as `\t`
+  (`escapeLogNewlines`).
+- meta: optional compact JSON, omit when empty. JSON/JSONL outputs (`events.jsonl`, `--json`) keep real newlines.
+- Runtime code never calls `console.*`. Use `ctx.run.logger` (tools/sources/targets), CLI `DuplexLogger`, or
+  `createConsoleLogger()` outside context. In pipelines use `log()` / `log.info|warn|error|debug` from `@mt/core`.
+  Plain command output (help, tables, prompts, machine JSON) is not a log line. Exceptions: sample pipelines
+  printing test markers; `console://` target.
+- Tests assert this single format.
 
-## Communication rules
+## Communication
 
-- You are not alone - other agents may work in this repo concurrently. Focus on your task; ignore unrelated errors.
-- Caveman/ultra-brief reports. Minimal texting, save tokens.
-- ADHD-friendly output (from `i-have-adhd` skill): lead with the next action; number multi-step work; restate state
-  across turns; specific time estimates; matter-of-fact tone for errors (state cause + fix, no "uh oh"); cap visible
-  lists at ~5 items; no preamble, no recap, no closing pleasantries - start with the answer, end when it's done.
+- Other agents may work here concurrently; ignore unrelated errors.
+- Caveman/ultra-brief. ADHD-friendly (`i-have-adhd`): lead with next action; number multi-step work; restate state
+  across turns; specific time estimates; matter-of-fact errors (cause + fix); cap lists ~5 items; no preamble,
+  recap, or closing pleasantries.
 
-## Environment variables
+## Env vars
 
-`OPENROUTER_API_KEYS` (comma-separated key pool), `MT_ROUTER_URL` (default `http://localhost:7777`),
-`MT_LOG_LEVEL`, `MT_DEBUG`. Secrets load from `.env` via `mt.json → secrets.envFile`.
-Vault `apiKey`/`apiKeys[]` values of the form `vlt:<name>` resolve through vlt at load time
-(`MT_VLT=false` disables this; `mt vault vlt-install` manages the binary), and
-`keepass:<title|uuid>` refs resolve through a KeePass database (`MT_KEEPASS_PATH`,
-`MT_KEEPASS_PASSWORD`/`_FILE`, `MT_KEEPASS_KEY_FILE`; `MT_KEEPASS=false` disables this), and
-`embed:<name>` refs resolve through an embedded encrypted store (`MT_EMBED_PATH`,
-`MT_EMBED_PASSWORD`/`_FILE`; `MT_EMBED=false` disables this).
-Full table: [steering/tech.md](docs/steering/tech.md#environment-variables).
+`OPENROUTER_API_KEYS` (comma pool), `MT_ROUTER_URL` (default `http://localhost:7777`), `MT_LOG_LEVEL`, `MT_DEBUG`.
+Secrets from `.env` via `mt.json → secrets.envFile`. Vault `apiKey`/`apiKeys[]` refs: `vlt:<name>` (`MT_VLT=false`
+off), `keepass:<title|uuid>` (`MT_KEEPASS_PATH`, `MT_KEEPASS_PASSWORD`/`_FILE`, `MT_KEEPASS_KEY_FILE`;
+`MT_KEEPASS=false` off), `embed:<name>` (`MT_EMBED_PATH`, `MT_EMBED_PASSWORD`/`_FILE`; `MT_EMBED=false` off).
+Full table: steering/tech.md.
