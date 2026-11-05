@@ -7,18 +7,22 @@ import { annotate, registry, waypoint } from '@mt/core'
  *
  * URI scheme: void://
  *
- * open/write/close are all no-ops. There is deliberately NO checkpoint():
- * nothing is durable mid-run, so the runner keeps its cursor pre-run and a
- * crash replays the source — harmless for a sink that keeps no state.
+ * open/close are no-ops. `checkpoint()` counts the envelopes the runner handed over,
+ * so a resume does not replay work whose only effect was discarding it.
  */
 export function createVoidTarget<T>(uri: ParsedUri): Target<T> {
+  let committedEnvelopes = 0
+
   return {
     uri: uri.raw,
     async open(_ctx: TargetContext): Promise<void> {
-      // No-op
+      committedEnvelopes = 0
     },
     async write(_env: Exchange<T>, _ctx: TargetContext): Promise<void> {
-      // No-op: discard the envelope
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
       // No-op

@@ -482,6 +482,7 @@ export class Runner {
             }
             // A replay from item 0 re-derives every position, so the old cursor is dropped.
             sourceStart = 0
+            cursorNode.cursor = undefined
             stream = normalizeStream(source.start({ run: stepRun, events: this.eventsFacade }))
           }
           break
@@ -1014,7 +1015,12 @@ export class Runner {
     // The target logs through `ctx.run.logger` — bind it to this step so those lines
     // land in the step's log file next to the engine's own lines.
     const stepRun = this.stepRunContext(runContext, stepId)
-    await target.open({ run: stepRun, events: this.eventsFacade })
+    const resumeCursor = typeof cursorNode.cursor === 'number' ? cursorNode.cursor : undefined
+    await target.open({
+      run: stepRun,
+      events: this.eventsFacade,
+      ...(resumeCursor === undefined ? {} : { resumeCursor }),
+    })
     try {
       for await (const env of stream) {
         await target.write(env, { run: stepRun, events: this.eventsFacade })
@@ -1276,9 +1282,10 @@ export class Runner {
   /**
    * Clamp every tracked source cursor to the output its target has durably committed
    * (UC015/UC016): a persisted cursor ahead of durable target output would make a
-   * crash resume skip items whose output never reached disk. Targets without a
-   * `checkpoint()` hook commit nothing mid-run, so their cursors stay at the value
-   * they had when the target opened — resume replays from there, safely.
+   * crash resume skip items whose output never reached disk. Append-style targets
+   * checkpoint each flushed write and align their staging to `resumeCursor` on
+   * resume; targets that only publish on `close()` omit `checkpoint()`, so their
+   * cursors stay at the value they had when the target opened and resume replays.
    */
   private async clampCursorsToCommitted(): Promise<void> {
     const runContext = this.runContext

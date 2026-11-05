@@ -29,7 +29,7 @@ vi.mock('node:readline', async (importOriginal) => {
 
 /** Minimal stand-in for the WriteStream AtomicStreamWriter drives. */
 interface MockWriteStream {
-  write: (chunk: string) => void
+  write: (chunk: string, cb?: (error?: Error | null) => void) => boolean
   end: () => void
   destroy: () => void
   on: () => void
@@ -201,7 +201,11 @@ describe('jsonl', () => {
 
   it('applies defaultFolder to jsonl target', async () => {
     const mockWriteStream: MockWriteStream = {
-      write: vi.fn(),
+      // AtomicStreamWriter awaits the write callback: flush synchronously.
+      write: vi.fn((_chunk: string, cb?: (error?: Error | null) => void) => {
+        cb?.()
+        return true
+      }),
       end: vi.fn(),
       destroy: vi.fn(),
       on: vi.fn(),

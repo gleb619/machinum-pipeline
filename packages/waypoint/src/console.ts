@@ -10,7 +10,7 @@ export interface ConsoleTargetOptions {
   envelope?: boolean
   stream?: ConsoleStream
   /** Inject a sink for tests/programmatic use; defaults to process[stream].write */
-  sink?: (chunk: string) => void
+  sink?: (chunk: string) => void | Promise<void>
 }
 
 interface ResolvedConsoleOptions {
@@ -18,7 +18,31 @@ interface ResolvedConsoleOptions {
   prefix: string
   envelope: boolean
   stream: ConsoleStream
-  sink?: (chunk: string) => void
+  sink?: (chunk: string) => void | Promise<void>
+}
+
+/** Resolve once the stream accepted the chunk, waiting for `drain` under backpressure. */
+function writeToStream(stream: NodeJS.WriteStream, chunk: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (stream.write(chunk)) {
+      resolve()
+      return
+    }
+    const cleanup = (): void => {
+      stream.off('drain', onDrain)
+      stream.off('error', onError)
+    }
+    const onDrain = (): void => {
+      cleanup()
+      resolve()
+    }
+    const onError = (error: Error): void => {
+      cleanup()
+      reject(error)
+    }
+    stream.once('drain', onDrain)
+    stream.once('error', onError)
+  })
 }
 
 function parseFormat(value: string | undefined): ConsoleFormat {
@@ -91,28 +115,30 @@ export function renderConsoleExchange<T>(env: Exchange<T>, options?: ConsoleTarg
  *
  * URI scheme: console://[?format=auto|json|pretty][&prefix=<text>][&envelope=true|1][&stream=stdout|stderr]
  *
- * Streaming keeps interactive runs observable without buffering. There is deliberately NO
- * checkpoint(): stdout/stderr are not durable storage, so a crash resume replays safely.
+ * Streaming keeps interactive runs observable without buffering. `write()` resolves once
+ * the sink accepted the chunk (after `drain` under backpressure), and `checkpoint()`
+ * counts those envelopes, so a resume skips only output the terminal has taken. Stdout
+ * and stderr are not durable storage — a crash can still lose buffered output.
  */
 export function createConsoleTarget<T>(uri: ParsedUri, options?: ConsoleTargetOptions): Target<T> {
   const resolved = resolveOptions(uri, options)
+  let committedEnvelopes = 0
   const sink =
     resolved.sink ??
-    ((chunk: string): void => {
-      if (resolved.stream === 'stderr') {
-        process.stderr.write(chunk)
-        return
-      }
-      process.stdout.write(chunk)
-    })
+    ((chunk: string): Promise<void> =>
+      writeToStream(resolved.stream === 'stderr' ? process.stderr : process.stdout, chunk))
 
   return {
     uri: uri.raw,
     async open(_ctx: TargetContext): Promise<void> {
-      // No-op
+      committedEnvelopes = 0
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
-      sink(renderConsoleExchange(env, resolved))
+      await sink(renderConsoleExchange(env, resolved))
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
       // No-op: every envelope is already written by write().

@@ -114,10 +114,13 @@ Target shapes:
 - **Per-file targets** (`my-target://`, `schema-doc://`, `md://<dir>`) call `atomicWriteFile`
   per envelope. A crash keeps every chapter written so far intact — never a truncated one.
 - **Single-file targets** (`jsonl://<file>`, `md://<file>`) accumulate into
-  `<path>.tmp.<runId>` and rename in `close()`. Consequences:
+  `<path>.tmp.<runId>` and rename in `close()`. Their `checkpoint()` flushes the staged bytes and
+  returns the session envelope count; on resume (`TargetContext.resumeCursor`) they truncate the
+  staging file back to the persisted boundary before appending — JSONL by complete-line offset,
+  md file mode via an `<tmp>.offsets.json` sidecar of per-envelope byte offsets. Consequences:
   - a crash mid-run leaves the final file untouched (absent, or its previous content);
-  - `open()` sweeps stale `.tmp.` siblings, so a rerun replaces instead of appending
-    duplicates — do **not** open these targets with `flags: 'a'`;
+  - a fresh `open()` sweeps stale `.tmp.` siblings, so a rerun replaces instead of appending
+    duplicates — do **not** open these targets with `flags: 'a'` yourself;
   - the final file becomes visible only once `close()` resolves, so read a target
     file only after the run reaches its checkpoint.
 
@@ -138,7 +141,10 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - `batchSize` is honored on both `start()` and `resume()` — resumed runs see the same cardinality
 - One shared line reader (`readLines()`/`readFiles()`) backs start, resume and glob paths, so
   numbering is identical everywhere
-- Target: `AtomicStreamWriter` on `open()`, JSON lines on `write()`, `commit()` (rename) on `close()`
+- Target: `AtomicStreamWriter` on `open()`, JSON lines on `write()`, `commit()` (rename) on `close()`.
+  `checkpoint()` fsyncs the staging file and returns the session envelope count; on resume the
+  staged file is truncated to `resumeCursor` complete lines first (falling back to the published
+  file when the staging file is gone).
 - `isGlobPattern()` / `isGlobCursor()` helpers for glob vs direct path detection
 
 ### `range.ts`
@@ -153,9 +159,9 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
   by construction. No `batchSize`: use the engine's `.batch(n)` for cardinality changes
 
 ### `void.ts`
-- Target-only sink: `void://` discards every envelope (open/write/close are no-ops)
-- Deliberately **no `checkpoint()`** — nothing is durable mid-run; the runner keeps its cursor
-  pre-run and a crash replays the source, which is harmless for a stateless sink
+- Target-only sink: `void://` discards every envelope (open/close are no-ops)
+- `checkpoint()` counts the envelopes handed over, so a resume does not replay work whose only
+  effect was discarding it. Nothing is stored, so the count itself is not crash-durable
 
 ### `console.ts`
 - Target-only terminal sink: `console://[?format=auto|json|pretty][&prefix=<text>][&envelope=true|1][&stream=stdout|stderr]`;
@@ -166,7 +172,9 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - `prefix=<text>` is prepended to every output line (multi-line items: every line)
 - `envelope=true|1` prints the full exchange `{ id, item, items?, meta, variables }` instead of just `item`
 - Unknown `format` or `stream` values throw at factory time
-- Deliberately **no `checkpoint()`** — stdout is not durable storage; a crash resume replays safely
+- `checkpoint()` counts accepted envelopes: `write()` resolves once the sink takes the chunk (and
+  waits for `drain` under backpressure). Stdout/stderr are not durable storage — a crash can still
+  lose buffered terminal output
 - Used in sample2 by `consolePreviewPipeline` (`pnpm run runner:preview`), which prints each input
   line prefixed with `[preview]` plus a space
 
@@ -180,11 +188,11 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 ### `review.ts`
 - Target-only glossary review queue (T140): `review://./glossary.review.md` renders the pending
   proposals (`term.pending`) of the glossary envelope as a markdown worksheet, plus a locked-terms
-  section; the last glossary envelope wins and the file is written atomically in `close()`
+  section; the last glossary envelope wins and every write publishes atomically (temp + rename)
 - The glossary is read from the `glossary` variable (legacy `glossary` variable accepted), or parsed from a JSON-string / object `item`
   (structural `ReviewGlossary` mirror of `@mt/tools` `Glossary` — waypoint must not import
   `@mt/tools`, keep the mirror in sync); envelopes without a glossary throw a clear error
-- Deliberately **no `checkpoint()`** — nothing is durable mid-run, so a crash resume replays safely
+- `checkpoint()` counts the rendered worksheets written so far
 
 ### `http-server.ts`
 - `Lifecycle: 'long-lived'` — persists across pauses/resumes
@@ -397,11 +405,11 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 | 6     | WP006 | `git://`            | ✓      | ✓      | resumable  | varies    | varies    | Git worktree isolation wrapper; composites with inner scheme via `git+`; auto-commit on close with `commit=on-close`.                     |
 | 7     | WP007 | `ephemeral://` / `mem://` | ✓ | ✓ | resumable | `T` | `T` | In-memory buffer keyed by URI path (`mem://` is a short alias, same key space); for testing and in-memory pipelines; process-local, no persistence.                                   |
 | 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
-| 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/write/close no-ops; deliberately no `checkpoint()`; target-only.                                       |
-| 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write on close; target-only. |
+| 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/close no-ops; `checkpoint()` counts discarded envelopes; target-only.                                    |
+| 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write per envelope; `checkpoint()` counts renders; target-only. |
 | 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | — | resumable | — | `T` | Entity-level **source-only** ladder views over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
 | 12    | WP012 | — (retired) | — | — | — | — | — | Splitter subflows auto-publish into the entity buffer; no write-side URI scheme. |
-| 13    | WP013 | `console://` | — | ✓ | — | `T` | — | Target-only terminal sink; prints each envelope to stdout/stderr immediately; `format=auto\|json\|pretty`, optional `prefix`, `envelope`, `stream`; deliberately no `checkpoint()`. |
+| 13    | WP013 | `console://` | — | ✓ | — | `T` | — | Target-only terminal sink; prints each envelope to stdout/stderr immediately; `format=auto\|json\|pretty`, optional `prefix`, `envelope`, `stream`; `checkpoint()` counts accepted envelopes (waits for `drain`). |
 
 ## Structure Ladder
 

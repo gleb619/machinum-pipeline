@@ -548,6 +548,12 @@ export {
 export { atomicWriteFile, ensureParentDir } from './core/fs-write.js'
 
 export {
+  createWaitForFile,
+  waitForFile,
+  type WaitForFileOptions,
+} from './core/wait-for-file.js'
+
+export {
   VAR_DOCKER_COMPOSE,
   dockerComposeEmitter,
   type DockerComposeEmitterOptions,

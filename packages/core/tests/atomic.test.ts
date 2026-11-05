@@ -15,11 +15,12 @@ import {
   atomicWriteFile,
   removeStaleTmpFiles,
   tmpPathFor,
+  truncateFileToBytes,
 } from '../src/atomic.js'
 
 /**
- * Put the writer's stream into backpressure: `write()` reports a full buffer
- * until the test emits `drain` itself.
+ * Put the writer's stream into backpressure: `write()` accepts the chunk and its
+ * callback but reports a full buffer until the test emits `drain` itself.
  */
 function forceBackpressure(writer: AtomicStreamWriter): {
   stream: WriteStream
@@ -27,7 +28,17 @@ function forceBackpressure(writer: AtomicStreamWriter): {
 } {
   const stream = (writer as unknown as { stream: WriteStream }).stream
   const original = stream.write.bind(stream)
-  stream.write = (() => false) as unknown as typeof stream.write
+  const pending: Array<(error?: Error | null) => void> = []
+  stream.write = ((_chunk: string, callback?: (error?: Error | null) => void) => {
+    pending.push(callback ?? (() => {}))
+    return false
+  }) as unknown as typeof stream.write
+  stream.once('drain', () => {
+    for (const callback of pending.splice(0)) callback()
+  })
+  stream.once('error', (error: Error) => {
+    for (const callback of pending.splice(0)) callback(error)
+  })
   return {
     stream,
     restore: () => {
@@ -197,5 +208,68 @@ describe('AtomicStreamWriter', () => {
 
     restore()
     await writer.abort()
+  })
+
+  it('append mode preserves content already staged for this run', async () => {
+    const file = join(dir, 'append.jsonl')
+    const first = await AtomicStreamWriter.open(file, 'run-1')
+    await first.write('{"item":1}\n')
+    // No commit: simulate a paused run that left its staging file behind.
+
+    const second = await AtomicStreamWriter.open(file, { tag: 'run-1', append: true })
+    await second.write('{"item":2}\n')
+    await second.commit()
+
+    expect(await readFile(file, 'utf-8')).toBe('{"item":1}\n{"item":2}\n')
+    expect(readdirSync(dir)).toEqual(['append.jsonl'])
+  })
+
+  it('append mode does not sweep temp files left by other runs', async () => {
+    const file = join(dir, 'keep.jsonl')
+    const stale = tmpPathFor(file, 'run-old')
+    writeFileSync(stale, 'staged\n', 'utf-8')
+
+    const writer = await AtomicStreamWriter.open(file, { tag: 'run-1', append: true })
+    expect(existsSync(stale)).toBe(true)
+    await writer.abort()
+    expect(existsSync(stale)).toBe(true)
+  })
+
+  it('write() resolves after the chunk is flushed and reports byte counts', async () => {
+    const file = join(dir, 'counted.jsonl')
+    const writer = await AtomicStreamWriter.open(file, 'run-1')
+    await writer.write('abc')
+    await writer.write('de')
+    expect(writer.chunksWritten).toBe(2)
+    expect(writer.bytesWritten).toBe(5)
+    await writer.sync()
+    await writer.commit()
+    expect(await readFile(file, 'utf-8')).toBe('abcde')
+  })
+
+  it('sync() is a no-op after commit', async () => {
+    const file = join(dir, 'sync.jsonl')
+    const writer = await AtomicStreamWriter.open(file, 'run-1')
+    await writer.write('x')
+    await writer.commit()
+    await expect(writer.sync()).resolves.toBeUndefined()
+  })
+})
+
+describe('truncateFileToBytes', () => {
+  it('cuts the file to the requested byte boundary', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-truncate-'))
+    const file = join(dir, 'staged.jsonl')
+    writeFileSync(file, 'a\nbb\nccc\n', 'utf-8')
+    await truncateFileToBytes(file, 5)
+    expect(await readFile(file, 'utf-8')).toBe('a\nbb\n')
+  })
+
+  it('truncating to zero empties the file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-truncate-'))
+    const file = join(dir, 'staged.jsonl')
+    writeFileSync(file, 'a\n', 'utf-8')
+    await truncateFileToBytes(file, 0)
+    expect(await readFile(file, 'utf-8')).toBe('')
   })
 })

@@ -37,10 +37,12 @@ export interface SchemaDocEnvelope {
  */
 export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
   let baseDir = ''
+  let committedEnvelopes = 0
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
+      committedEnvelopes = 0
       baseDir = resolveWaypointPath(
         uri,
         'schema-doc',
@@ -127,6 +129,10 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
 
       // Write atomically (temp → rename): overwrite if exists, never truncated
       await atomicWriteFile(filePath, fullDoc)
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
       // Nothing to close — each write creates its own file

@@ -39,7 +39,14 @@ export type { LogFormat, LogFunction, LogSeverity } from './logging.js'
 export { acquireListener, hostsShareListener } from './http-listener.js'
 export type { HttpRouteHandler, ListenerFactory, ListenerLease } from './http-listener.js'
 export { Store } from './store.js'
-export { atomicWriteFile, AtomicStreamWriter, removeStaleTmpFiles, tmpPathFor } from './atomic.js'
+export {
+  atomicWriteFile,
+  AtomicStreamWriter,
+  type AtomicStreamWriterOptions,
+  removeStaleTmpFiles,
+  tmpPathFor,
+  truncateFileToBytes,
+} from './atomic.js'
 export type {
   LifecycleScripts,
   MtConfig,

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { type WriteStream, createWriteStream } from 'node:fs'
-import { readdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { type WriteStream, createWriteStream, fsync } from 'node:fs'
+import { access, open, readdir, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 /**
@@ -65,13 +65,37 @@ export async function removeStaleTmpFiles(filePath: string): Promise<void> {
 }
 
 /**
+ * Cut `filePath` down to its first `bytes` bytes. Used by incremental targets to
+ * drop staged envelopes written past the last durable checkpoint on resume.
+ */
+export async function truncateFileToBytes(filePath: string, bytes: number): Promise<void> {
+  const handle = await open(filePath, 'r+')
+  try {
+    await handle.truncate(bytes)
+  } finally {
+    await handle.close()
+  }
+}
+
+/** Options for {@link AtomicStreamWriter.open}. */
+export interface AtomicStreamWriterOptions {
+  /** Temp-file suffix; pass the run id so a resume can find its own staging file. */
+  tag?: string
+  /**
+   * Append to an existing run-scoped temp file instead of starting fresh. No stale-temp
+   * sweep runs in this mode — the caller owns alignment and must truncate first.
+   */
+  append?: boolean
+}
+
+/**
  * Streaming counterpart of {@link atomicWriteFile} for targets that receive
  * envelopes one at a time and only know the full content at `close()`.
  *
  * Writes land in a temp file; `commit()` renames it onto the final path, so the
  * target file stays either untouched or complete — never partially written.
  * An abandoned writer (crash) leaves the final path alone and its temp file is
- * swept by the next `open()`.
+ * swept by the next fresh `open()`.
  */
 export class AtomicStreamWriter {
   /** Final path the content is published to on commit. */
@@ -81,6 +105,8 @@ export class AtomicStreamWriter {
   private readonly stream: WriteStream
   private failure: Error | null = null
   private settled = false
+  private committedChunks = 0
+  private writtenBytes = 0
 
   private constructor(filePath: string, tmpPath: string, stream: WriteStream) {
     this.filePath = filePath
@@ -94,14 +120,30 @@ export class AtomicStreamWriter {
   }
 
   /**
-   * Start a fresh atomic write to `filePath`, sweeping temp files left by any
-   * earlier interrupted run. Resolves once the temp file is actually open, so a
-   * missing directory or bad path fails here rather than mid-stream.
+   * Open a writer for `filePath`. A fresh writer sweeps temp files left by any
+   * earlier interrupted run; an appending writer reuses this run's staging file
+   * so a resumed target can continue where the durable cursor left off.
+   * Resolves once the temp file is actually open, so a missing directory or bad
+   * path fails here rather than mid-stream.
    */
-  static async open(filePath: string, tag?: string): Promise<AtomicStreamWriter> {
-    await removeStaleTmpFiles(filePath)
-    const tmpPath = tmpPathFor(filePath, tag)
-    const stream = createWriteStream(tmpPath, { encoding: 'utf-8', flags: 'w' })
+  static async open(
+    filePath: string,
+    options?: string | AtomicStreamWriterOptions,
+  ): Promise<AtomicStreamWriter> {
+    // Keep the historical `open(filePath, tag)` string form working.
+    const resolved = typeof options === 'string' ? { tag: options } : (options ?? {})
+    if (!resolved.append) await removeStaleTmpFiles(filePath)
+    const tmpPath = tmpPathFor(filePath, resolved.tag)
+    let flags: 'w' | 'a' = 'w'
+    if (resolved.append) {
+      try {
+        await access(tmpPath)
+        flags = 'a'
+      } catch {
+        flags = 'w'
+      }
+    }
+    const stream = createWriteStream(tmpPath, { encoding: 'utf-8', flags })
     const writer = new AtomicStreamWriter(filePath, tmpPath, stream)
     try {
       await writer.whenOpen()
@@ -120,52 +162,58 @@ export class AtomicStreamWriter {
     })
   }
 
-  /**
-   * Wait for the stream to drain after a write signalled backpressure.
-   * Rejects when the stream errors or closes first, so a pending write never
-   * hangs. All listeners are removed again once one of them settles.
-   */
-  private waitForDrain(): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const cleanup = (): void => {
-        this.stream.off('drain', onDrain)
-        this.stream.off('error', onError)
-        this.stream.off('close', onClose)
-      }
-      const onDrain = (): void => {
-        cleanup()
-        resolve()
-      }
-      const onError = (error: Error): void => {
-        cleanup()
-        reject(error)
-      }
-      const onClose = (): void => {
-        cleanup()
-        reject(new Error('Atomic writer stream closed before it drained.'))
-      }
-      this.stream.once('drain', onDrain)
-      this.stream.once('error', onError)
-      this.stream.once('close', onClose)
+  /** Flush the temp file's file descriptor to disk when the stream exposes one. */
+  private async fsyncStream(): Promise<void> {
+    // `fd` is typed on fs.WriteStream but not on the WriteStream interface in older
+    // @types/node; mocked streams in tests do not expose one either.
+    const fd = (this.stream as unknown as { fd?: number }).fd
+    if (typeof fd !== 'number') return
+    await new Promise<void>((resolve, reject) => {
+      fsync(fd, (error) => {
+        if (error) reject(error)
+        else resolve()
+      })
     })
   }
 
   /**
-   * Append a chunk to the temp file. Resolves once the chunk was handed to the
-   * stream; when the stream signals backpressure the call waits for `drain`,
-   * so a fast producer cannot outrun the disk and buffer the output in RAM.
-   * Throws if an earlier write failed.
+   * Append a chunk to the temp file. Resolves once the chunk has been flushed to
+   * the underlying file descriptor (the WriteStream callback), so a resolved
+   * write is safe to count as staged. Throws if an earlier write failed.
    */
   async write(chunk: string): Promise<void> {
     if (this.failure) throw this.failure
     if (this.settled) throw new Error('Atomic writer is already closed.')
-    // Only an explicit `false` means the internal buffer is full — anything else
-    // is not a Node WriteStream contract and must not stall the writer.
-    const accepted = this.stream.write(chunk)
-    if (accepted === false) {
-      await this.waitForDrain()
-      if (this.failure) throw this.failure
-    }
+    await new Promise<void>((resolve, reject) => {
+      this.stream.write(chunk, (error?: Error | null) => {
+        if (error) reject(error)
+        else resolve()
+      })
+    })
+    this.committedChunks += 1
+    this.writtenBytes += Buffer.byteLength(chunk, 'utf-8')
+    if (this.failure) throw this.failure
+  }
+
+  /**
+   * Flush staged writes to disk without publishing. Incremental targets call this
+   * from `Target.checkpoint()` so the runner's persisted cursor never advances past
+   * output that a crash could lose.
+   */
+  async sync(): Promise<void> {
+    if (this.failure) throw this.failure
+    if (this.settled) return
+    await this.fsyncStream()
+  }
+
+  /** Number of chunks flushed through {@link write}. */
+  get chunksWritten(): number {
+    return this.committedChunks
+  }
+
+  /** Number of bytes flushed through {@link write}. */
+  get bytesWritten(): number {
+    return this.writtenBytes
   }
 
   /** Flush, then rename the temp file onto the final path. Idempotent. */
@@ -177,6 +225,7 @@ export class AtomicStreamWriter {
       throw this.failure
     }
     try {
+      await this.fsyncStream()
       await new Promise<void>((resolve, reject) => {
         this.stream.on('error', reject)
         this.stream.on('finish', resolve)

@@ -43,10 +43,14 @@ export interface Target<T> {
    * cursor is clamped to `baseCursor + checkpoint()`, so a resumed run never skips
    * items whose output has not reached durable storage.
    *
-   * Targets that buffer and publish atomically on `close()` (e.g. temp+rename file
-   * targets) must NOT implement this hook: without it the engine treats nothing as
-   * committed mid-run, so the cursor stays at its pre-run position and a crash
-   * resume replays safely instead of losing output.
+   * Implement it only when every resolved `write()` is flushed (and fsynced where the
+   * sink supports it) before the promise settles. Append-style targets that stage into
+   * a run-scoped temp file must also honour {@link TargetContext.resumeCursor} in
+   * `open()`: truncate the staging file to that boundary before appending, so a resume
+   * replays exactly the envelopes the persisted cursor has not yet accounted for.
+   *
+   * Targets that only publish on `close()` and cannot align their staging must omit this
+   * hook — the engine then leaves the cursor at its pre-run position.
    */
   checkpoint?(ctx: TargetContext): Promise<number | undefined>
 }

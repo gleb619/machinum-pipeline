@@ -67,7 +67,10 @@ export function createBatchReturnTarget(uri: ParsedUri): Target<unknown> {
     async write(env: Exchange<unknown>, ctx: TargetContext): Promise<void> {
       scopeOf(ctx.run, uri.raw).commit(env)
     },
-    async close(): Promise<void> {},
+    async close(): Promise<void> {
+      // Batch scope is in-process only: deliberately no checkpoint(), so a resume
+      // replays the enclosing group rather than skipping uncommitted members.
+    },
   }
 }
 

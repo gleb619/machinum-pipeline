@@ -122,3 +122,5 @@ coverage/
 /samples/sample4/chapters/glossary.graph.json
 /samples/sample4/jsonl/*.jsonl
 /samples/sample4/.mt-translate-prompts.jsonl
+/samples/sample1/jsonl/stop-resume.jsonl
+/samples/sample1/jsonl/latches/

@@ -61,11 +61,13 @@ function assertChapterNum(chapterNum: unknown): asserts chapterNum is number {
 export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
   let chapterIndex = 0
   let baseDir = ''
+  let committedEnvelopes = 0
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       chapterIndex = 0
+      committedEnvelopes = 0
       baseDir = resolveWaypointPath(
         uri,
         'chapter-output',
@@ -73,6 +75,11 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
         ctx.run.global.project.root,
       )
       mkdirSync(baseDir, { recursive: true })
+      // Resume replay must continue numbering above what is already on disk.
+      if (ctx.resumeCursor !== undefined && ctx.resumeCursor > 0) {
+        const existing = await discoverChapterFiles(baseDir)
+        chapterIndex = existing.reduce((max, file) => Math.max(max, file.chapterNum), 0)
+      }
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       const mdOutputs = exchangeField<MdOutputEntry[]>(env, MD_OUTPUTS_VARIABLE)
@@ -112,6 +119,10 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
       const text = String(env.item)
       // Atomic: a crash mid-write leaves the previous chapter intact, never a truncated one.
       await atomicWriteFile(filePath, text)
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
       // Nothing to close — each write creates its own file

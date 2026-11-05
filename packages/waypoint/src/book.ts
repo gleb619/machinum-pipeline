@@ -31,10 +31,12 @@ interface BookTargetDoc {
 
 export function createBookTarget<T>(uri: ParsedUri): Target<T> {
   let rootDir = ''
+  let committedEnvelopes = 0
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
+      committedEnvelopes = 0
       rootDir = resolveWaypointRoot(
         uri,
         'book',
@@ -71,6 +73,10 @@ export function createBookTarget<T>(uri: ParsedUri): Target<T> {
 
       await atomicWriteFile(join(rootDir, 'book.md'), markdown)
       await atomicWriteFile(join(rootDir, 'book.json'), json)
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
       // Nothing to close — every write is atomic.

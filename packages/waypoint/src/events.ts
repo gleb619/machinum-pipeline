@@ -64,6 +64,7 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
   let unsubscribe: (() => void) | undefined
   let closing = false
   let finished = false
+  let committedEnvelopes = 0
 
   const logEvent = (logger: TargetContext['run']['logger'] | undefined, event: RunEvent) => {
     const step = event.stepId ? ` step=${event.stepId}` : ''
@@ -75,6 +76,7 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
+      committedEnvelopes = 0
       unsubscribe = ctx.events?.subscribe((event: RunEvent) => {
         if (finished) return
         if (closing && !isTerminal(event)) return
@@ -88,8 +90,12 @@ export function createEventsTarget<T>(uri: ParsedUri): Target<T> {
       })
     },
     async write(_env: Exchange<T>, _ctx: TargetContext): Promise<void> {
-      // No-op: events target is a subscription handle, not storage.
-      // It should never receive pipeline items.
+      // Subscription handle, not storage: delivering an item is a no-op, but count
+      // it so the runner does not replay envelopes this sink has accepted.
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
       // The runner emits terminal events after closing the final target, so

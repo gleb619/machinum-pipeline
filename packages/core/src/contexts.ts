@@ -97,6 +97,12 @@ export interface TargetContext {
   run: RunContext
   /** In-process run lifecycle event subscription (Runner-built facade). Optional. */
   events?: RunEvents
+  /**
+   * The persisted source cursor this pipeline level resumes from; undefined on a fresh run.
+   * Incremental targets use it to align their run-scoped staging file before appending, so
+   * envelopes written past the last durable checkpoint are discarded rather than duplicated.
+   */
+  resumeCursor?: number
 }
 
 /**

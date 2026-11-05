@@ -23,7 +23,7 @@ describe('void (architectural)', () => {
     expect(typeof tgt.open).toBe('function')
     expect(typeof tgt.write).toBe('function')
     expect(typeof tgt.close).toBe('function')
-    expect(tgt.checkpoint).toBeUndefined()
+    expect(typeof tgt.checkpoint).toBe('function')
   })
 
   it('void scheme is registered for target resolution', () => {

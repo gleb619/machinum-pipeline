@@ -108,20 +108,19 @@ export function renderGlossaryReview(glossary: ReviewGlossary, source = 'glossar
  *
  * The glossary is taken from the `glossary` variable (or legacy `meta.glossary`), or parsed from a JSON-string / object `item`
  * (so `.from('md://./chapters/glossary.json')` … `.to('review://…')` also works). The last
- * glossary envelope wins; the file is written atomically in `close()` (temp + rename).
- * There is deliberately NO `checkpoint()`: nothing is durable mid-run, so a crash resume
- * replays the source safely.
+ * glossary envelope wins; every write renders the worksheet atomically (temp + rename),
+ * and `checkpoint()` counts the envelopes written so far.
  */
 export function createReviewTarget<T>(uri: ParsedUri): Target<T> {
   let filePath = ''
-  let pending: { glossary: ReviewGlossary; source: string } | null = null
+  let committedEnvelopes = 0
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
+      committedEnvelopes = 0
       const projectRoot = ctx.run.global.project?.root ?? process.cwd()
       filePath = resolveWaypointRoot(uri, 'review', ctx.run.global.settings, projectRoot)
-      pending = null
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       if (!filePath) {
@@ -133,16 +132,15 @@ export function createReviewTarget<T>(uri: ParsedUri): Target<T> {
           'review:// target expects a glossary envelope (meta.glossary, or item as glossary JSON)',
         )
       }
-      pending = {
-        glossary,
-        source: String((env.meta as Record<string, unknown>).source ?? uri.raw),
-      }
+      const source = String((env.meta as Record<string, unknown>).source ?? uri.raw)
+      await atomicWriteFile(filePath, renderGlossaryReview(glossary, source))
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
-      const doc = pending
-      pending = null
-      if (!doc) return
-      await atomicWriteFile(filePath, renderGlossaryReview(doc.glossary, doc.source))
+      // Nothing to close — every write publishes atomically.
     },
   }
 }

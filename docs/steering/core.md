@@ -414,16 +414,28 @@ Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `
 
 ### Mid-run persist and durable cursors (UC015/UC016)
 `persistState()` runs at start/pause/unpause/done/fail **and** mid-run: after every
-`runner.persist.every` target writes (mt.json, default 50) and at each target-step boundary.
-Mid-run persists are throttled through a single in-flight write plus a dirty flag
+`runner.persist.every` target writes (mt.json, default 50), at each target-step boundary, and on
+pause. Mid-run persists are throttled through a single in-flight write plus a dirty flag
 (`schedulePersist`/`drainPersists`), so an older snapshot can never overwrite a newer one, and a
 failure is warn-logged, never thrown. Before serializing, `clampCursorsToCommitted()` clamps every
 open target's cursor node to `baseCursor + checkpoint()` — the envelopes that target has durably
-committed in its current open session. `Target.checkpoint?()` is optional: temp+rename targets
-(`jsonl://`, `md://`) deliberately omit it, so their mid-run cursor stays at the pre-run position
-and a crash resume replays from the start instead of skipping items whose output died in the temp
-file. Targets with true append semantics (e.g. HTTP sinks) implement it so resume skips exactly
-the committed prefix.
+committed in its current open session. `Target.checkpoint?()` is optional:
+
+- **Append-style file targets** (`jsonl://`, `md://<file>`) stage into `<path>.tmp.<runId>`, flush
+  every write (WriteStream callback, then `fsync` from `checkpoint()`) and return the session
+  envelope count. Final publish stays atomic: rename on `close()`. On resume the Runner passes the
+  persisted cursor as `TargetContext.resumeCursor`; `open()` truncates the staging file back to
+  that boundary (JSONL by line offset, md file mode via an `<tmp>.offsets.json` sidecar of
+  per-envelope byte offsets) before appending.
+- **Per-file targets** (`chapter-output://`, `schema-doc://`, `book://`, `review://`) write every
+  envelope atomically and return a counter. Auto-numbered filenames seed from the highest existing
+  chapter when `resumeCursor > 0`, so replay never overwrites lower chapters.
+- **Terminal/stateful sinks** (`console://`, `void://`, `events://`) count accepted envelopes;
+  console waits for `drain` under backpressure. These counts pace resume, but the sinks themselves
+  are not crash-durable.
+- **Process-local targets** (`ephemeral://`/`mem://`, `batch://return`, entity buffers) and custom
+  targets that only publish on `close()` cannot align durable output across processes. They omit
+  the hook; the engine keeps their cursors at the pre-run position and resume replays.
 
 ### Source cursor (`CheckpointNode.cursor`)
 Each pipeline level keeps its source position on its own checkpoint node (root for the
@@ -435,7 +447,8 @@ tree, so the cursor survives a failure, a pause, or a crash.
 
 On `resume()`, a `source` step reads that cursor and calls `source.resume(ctx, cursor)` when the
 cursor is a number and the source implements `resume`; otherwise it falls back to `source.start()`
-and rebases the cursor at 0 (a full replay re-derives every position). Cursor units are **source
+and clears the node's cursor (a full replay re-derives every position, and a cleared cursor tells
+incremental targets to treat the run as fresh). Cursor units are **source
 envelopes**, so a `resume(cursor)` implementation must treat it as "skip this many envelopes" —
 the ordinal a `jsonl://` source reads as its line offset. Cardinality-changing steps
 (`batch`/`flatMap`/`split`) and dropped items (`skip-item`) can only under-count, which is the

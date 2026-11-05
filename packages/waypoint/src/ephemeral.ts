@@ -91,7 +91,8 @@ export function createNamedEphemeralTarget<T>(uri: ParsedUri, bufferName: string
       appendNamedBuffer(bufferName, env)
     },
     async close(_ctx: TargetContext): Promise<void> {
-      // No-op: buffer stays in memory for downstream sources
+      // No-op: buffer stays in memory for downstream sources. Deliberately no
+      // checkpoint(): in-process state vanishes with the process, so a resume replays.
     },
   }
 }

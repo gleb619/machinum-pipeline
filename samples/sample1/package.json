@@ -6,10 +6,11 @@
   "scripts": {
     "runner:http": "NODE_OPTIONS='--import tsx' mt run ./pipelines/http-to-jsonl.ts",
     "runner:md": "NODE_OPTIONS='--import tsx' mt run ./pipelines/jsonl-to-md.ts",
+    "runner:stop-resume": "NODE_OPTIONS='--import tsx' mt run ./pipelines/stop-resume.ts",
     "simulate": "tsx simulation1.ts",
     "example": "tsx run-example.ts",
     "info": "mt info",
-    "cleanup": "rm -rf jsonl/output.jsonl .mt chapters/en/*.md",
+    "cleanup": "rm -rf jsonl/output.jsonl jsonl/stop-resume.jsonl jsonl/latches .mt chapters/en/*.md",
     "test": "vitest run",
     "test:watch": "vitest"
   },

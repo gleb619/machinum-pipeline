@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.23.0 | 2026-11-05 -->
+<!-- skill-version: 1.24.0 | 2026-11-05 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -71,6 +71,10 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   line (`<ISO-ms> [LEVEL] msg[ {meta}]`). `log(message, meta?)` is INFO; `log.info/warn/error/debug`
   mirror it (debug gated on `MT_DEBUG`). Prefer it over `console.log` in pipeline code, e.g.
   `.tap((ex) => log.info('msg', { key: value }))`.
+- `waitForFile` / `createWaitForFile({ path, pollMs?, timeoutMs?, consume? })` (`mt/tools`) — latch
+  step: polls for a file (default `./latch/{item}.latch`; `{item}`/`{id}` interpolated), optionally
+  deletes it, and passes the item through with `latchFile` set. Handy for deterministic stop/resume
+  demos.
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
   `.batch/.flatMap`, or the string form `.subflow('<splitter>', '<namespace>?')`
   (`'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`; the same
@@ -440,6 +444,13 @@ Runner never enters it. `paused -> done` is illegal.
 - File writes are atomic (temp then rename); safe to kill the process.
 - Logs: text mode is one markdown-safe line (`<ISO-ms> [LEVEL] msg[ {meta}]`); `mt run`/`mt resume`
   accept `--json`/`--jsonl` for `{ ts, level, message, meta? }` JSONL in console and `run.log`.
+- Incremental targets (`jsonl://`, `md://`, `chapter-output://`, `schema-doc://`, `book://`,
+  `review://`, `console://`, `void://`) flush each envelope, fsync where the sink supports it, and report how
+  many envelopes they committed. The runner clamps the persisted source cursor to that count and
+  passes it back as `resumeCursor`; on resume the target truncates its run-scoped staging file back
+  to the cursor (JSONL by whole lines, md file mode via an offsets sidecar) and appends, so pause /
+  crash / `mt resume` neither loses nor duplicates output. Targets that publish only on close
+  (`batch://`, entity buffers, `ephemeral://`) report no count and replay instead.
 - Watch live: `tail -f .mt/runs/<id>/events.jsonl`, `mt inspect <id>`, or `mt serve` (`GET /api/runs`,
   SSE at `/api/runs/<id>/events?stream=true`).
 

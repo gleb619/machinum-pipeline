@@ -336,6 +336,15 @@ Building blocks of the sample4 translate stage (EN->RU, line by line).
   explicit `output` name). Exercised by `tests/prompt-linter.test.ts` against the real bundled translate /
   summary / proofread / `llm.format.*` sets (not called at runtime).
 
+### `core/wait-for-file.ts`
+- `waitForFile` / `createWaitForFile({ path, pollMs?, timeoutMs?, consume? })` — pipeline latch. Polls for the
+  file at `path` (default `./latch/{item}.latch`) and resolves once it appears, then optionally unlinks it
+  (`consume`, default `false`). `{item}` / `{id}` in the path are substituted from the exchange; relative
+  paths resolve against the project root. `pollMs` defaults to 100, `timeoutMs` to 0 (no limit). A timeout
+  throws a non-retryable error naming the path. `idempotent: true`, category `pipeline`. Sets the resolved
+  path in the `latchFile` variable and passes the item through unchanged. Used by `samples/sample1`'s
+  `stop-resume` pipeline to gate each item, so the run can be paused and resumed deterministically.
+
 ### Sample-stage tools (moved from `samples/sample4`, T129)
 Reusable glue so sample pipelines only compose package tools (no bespoke `defineTool`).
 
@@ -1143,6 +1152,7 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL249 | `bookCompilerValidate` | `book-compiler-validate` | — | `modification/book-compiler.ts` |
 | TL250 | `bookCompilerEmit` | `book-compiler-emit` | — | `modification/book-compiler.ts` |
 | TL251 | `bookCompiler` | `book-compiler` | — | `modification/book-compiler.ts` |
+| TL252 | `waitForFile`, `createWaitForFile` | `wait-for-file` | — | `core/wait-for-file.ts` |
 
 ## Translation eval harness (`tests/eval/`)
 

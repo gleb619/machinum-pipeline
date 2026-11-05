@@ -70,7 +70,10 @@ export function createEntityBufferSource<T>(scheme: EntityBufferScheme, uri: Par
   return createNamedEphemeralSource<T>(uri, entityBufferKey(scheme, uri))
 }
 
-/** Target for an entity namespace (clears the buffer on open, then appends). */
+/**
+ * Target for an entity namespace (clears the buffer on open, then appends).
+ * Deliberately no `checkpoint()`: the buffer is process-local, so a resume replays.
+ */
 export function createEntityBufferTarget<T>(scheme: EntityBufferScheme, uri: ParsedUri): Target<T> {
   return createNamedEphemeralTarget<T>(uri, entityBufferKey(scheme, uri))
 }

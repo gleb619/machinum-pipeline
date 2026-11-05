@@ -1,5 +1,6 @@
 // @ts-expect-error globSync is available in Node 22 but @types/node v20 doesn't include it
 import { createReadStream, globSync } from 'node:fs'
+import { access, copyFile, open, writeFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
@@ -11,11 +12,51 @@ import {
   createExchange,
   mergeVariables,
   registry,
+  tmpPathFor,
   toExchange,
   toPersisted,
+  truncateFileToBytes,
   waypoint,
 } from '@mt/core'
 import { resolveWaypointPath } from './settings.js'
+
+/** True when `filePath` exists (any type). */
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Byte offset just past the `lines`-th newline. Cursors are envelope indexes, so
+ * resuming keeps exactly that many complete lines and drops everything a paused run
+ * staged beyond the persisted checkpoint.
+ */
+async function lineBoundaryOffset(filePath: string, lines: number): Promise<number> {
+  if (lines <= 0) return 0
+  const handle = await open(filePath, 'r')
+  try {
+    const buffer = Buffer.alloc(64 * 1024)
+    let seen = 0
+    let offset = 0
+    for (;;) {
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, null)
+      if (bytesRead === 0) return offset
+      for (let index = 0; index < bytesRead; index++) {
+        if (buffer[index] === 0x0a) {
+          seen += 1
+          if (seen === lines) return offset + index + 1
+        }
+      }
+      offset += bytesRead
+    }
+  } finally {
+    await handle.close()
+  }
+}
 
 /**
  * Cursor used when the source resolves a glob pattern.
@@ -255,29 +296,64 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
  * Built-in JSONL Target — writes envelopes to a .jsonl file.
  * Each envelope is serialised as one JSON line.
  *
- * Lines are streamed to a temp file and renamed onto the final path in
- * `close()`, so the .jsonl is never seen half-written and a rerun replaces
- * instead of appending duplicates.
+ * Lines are streamed to a run-scoped temp file and renamed onto the final path in
+ * `close()`, so the .jsonl is never seen half-written and a rerun replaces instead
+ * of appending duplicates. `checkpoint()` flushes staged lines so a pause persists a
+ * cursor that matches them; on resume the staging file is truncated back to
+ * `TargetContext.resumeCursor` before new lines are appended.
  */
 export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
   let writer: AtomicStreamWriter | null = null
+  let committedEnvelopes = 0
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
+      committedEnvelopes = 0
       const filePath = resolveWaypointPath(
         uri,
         'jsonl',
         ctx.run.global.settings,
         ctx.run.global.project.root,
       )
-      writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
+      const resumeCursor = ctx.resumeCursor
+      if (resumeCursor === undefined) {
+        writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
+        return
+      }
+
+      const stagingPath = tmpPathFor(filePath, ctx.run.runId)
+      if (!(await pathExists(stagingPath))) {
+        if (await pathExists(filePath)) {
+          await copyFile(filePath, stagingPath)
+        } else if (resumeCursor > 0) {
+          throw new Error(
+            `jsonl target '${uri.raw}': cannot resume at cursor ${resumeCursor} — ` +
+              `neither staged nor final output exists at ${filePath}`,
+          )
+        }
+      }
+      if (await pathExists(stagingPath)) {
+        const boundary = await lineBoundaryOffset(stagingPath, resumeCursor)
+        await truncateFileToBytes(stagingPath, boundary)
+      } else {
+        await writeFile(stagingPath, '')
+      }
+      writer = await AtomicStreamWriter.open(filePath, {
+        tag: ctx.run.runId,
+        append: true,
+      })
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       if (!writer) {
         throw new Error('Target not opened. Call open() before write().')
       }
       await writer.write(`${JSON.stringify(toPersisted(env))}\n`)
+      committedEnvelopes += 1
+    },
+    async checkpoint(): Promise<number> {
+      if (writer) await writer.sync()
+      return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
       if (writer) {

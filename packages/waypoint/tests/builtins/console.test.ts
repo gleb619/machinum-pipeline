@@ -129,7 +129,7 @@ describe('console target', () => {
     )
   })
 
-  it('has no checkpoint hook', () => {
-    expect(createConsoleTarget(makeUri()).checkpoint).toBeUndefined()
+  it('exposes a checkpoint hook', () => {
+    expect(typeof createConsoleTarget(makeUri()).checkpoint).toBe('function')
   })
 })

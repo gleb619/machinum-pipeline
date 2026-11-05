@@ -41,6 +41,42 @@ npm run cleanup
 This removes `jsonl/output.jsonl`, `.mt/`, `node_modules/`, `package-lock.json`,
 and any temporary `pipelines/http-to-jsonl-example.ts` created by the example.
 
+## Stop / resume demo
+
+`pipelines/stop-resume.ts` gates every item on its own latch file, so a run can be paused and
+resumed deterministically instead of racing a slow source:
+
+```ts
+export default definePipeline({ id: 'sample1-stop-resume' })
+  .from('range://1..5')
+  .use(createWaitForFile({ path: './jsonl/latches/{item}.latch', pollMs: 100, timeoutMs: 600_000 }))
+  .tap((env) => log.info('stop-resume item', { item: env.item }))
+  .to('jsonl://./jsonl/stop-resume.jsonl')
+```
+
+`range://1..5` yields `1, 2, …, 5` and needs no fixtures. Each item waits for
+`jsonl/latches/<n>.latch` to exist, then the JSONL target appends it to the run-scoped staging
+file. Try it:
+
+```bash
+cd samples/sample1
+mkdir -p jsonl/latches && touch jsonl/latches/1.latch
+pnpm run runner:stop-resume        # blocks on item 2
+# press Ctrl-C once item 1 is printed → run pauses, output so far survives
+touch jsonl/latches/2.latch jsonl/latches/3.latch jsonl/latches/4.latch jsonl/latches/5.latch
+pnpm exec mt resume <runId>        # runId is printed by the run and lives in .mt/runs/
+cat jsonl/stop-resume.jsonl        # exactly 1..5, no duplicates
+```
+
+Why it is safe: the JSONL target flushes and fsyncs each envelope, and its `checkpoint()` reports
+the number of envelopes it has taken. When you pause, the runner persists that count as the source
+cursor (clamped to what the target committed). On resume the target truncates its staging file back
+to that cursor — complete lines only — and appends from there, so an item written after the last
+persist is replayed, never duplicated. Without a target checkpoint the cursor would stay at the
+pre-run position and replay everything.
+
+`pnpm cleanup` removes the output and the latch directory.
+
 ## How to run manually
 
 ```bash
