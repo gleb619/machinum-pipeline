@@ -314,6 +314,8 @@ export {
   stripSeparators,
   whitespaceStrategy,
 } from './text-split.js'
+export * from './constants.js'
+
 export type {
   BalancedLineStrategyOptions,
   BalancedStrategyOptions,
