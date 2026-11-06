@@ -7,7 +7,7 @@ import {
   titleTranslator,
 } from '../../../packages/tools/src/modification/chapter-translator.js'
 // Import tools directly from source (sample3 has no workspace resolution for @mt/tools)
-import { tokenSplitter } from '../../../packages/tools/src/normalization/token-splitter.js'
+import { tokenSplitter } from '../../../packages/tools/src/normalization/text-splitter.js'
 import {
   chapterValidator,
   forbiddenCharDetector,
