@@ -5,6 +5,7 @@ import { CHAPTERS, SAMPLE_DIR, clean, logs, run, runScript } from './helpers.js'
 
 const VERIFIED = join(CHAPTERS, 'verified')
 const SUBFLOW = join(CHAPTERS, 'subflow')
+const PACKAGED = join(CHAPTERS, 'packaged')
 
 let hasFailure = false
 
@@ -13,7 +14,7 @@ async function mdFiles(dir: string): Promise<string[]> {
 }
 
 beforeAll(async () => {
-  await clean(VERIFIED, SUBFLOW, join(SAMPLE_DIR, '.mt'))
+  await clean(VERIFIED, SUBFLOW, PACKAGED, join(SAMPLE_DIR, '.mt'))
   runScript('prepare-input.ts')
 })
 
@@ -22,7 +23,7 @@ afterEach(({ task }) => {
 })
 
 afterAll(async () => {
-  if (!hasFailure) await clean(VERIFIED, SUBFLOW)
+  if (!hasFailure) await clean(VERIFIED, SUBFLOW, PACKAGED)
 })
 
 describe('pipe03 multi-tool chain', () => {
@@ -61,5 +62,21 @@ describe('pipe03 multi-tool chain', () => {
       'chapter3.md',
       'chapter4.md',
     ])
+  })
+})
+
+describe('pipe03 batch scope', () => {
+  it('hands a patched package back from batch://return', async () => {
+    run('pipe03-tools-multitool.ts', { pipeline: 'packagedTitlesPipeline' })
+    expect(await mdFiles(PACKAGED)).toEqual([
+      'chapter1.md',
+      'chapter2.md',
+      'chapter3.md',
+      'chapter4.md',
+    ])
+    expect(await readFile(join(PACKAGED, 'chapter1.md'), 'utf-8')).toContain('# THE QUIET HARBOUR')
+    expect(await readFile(join(PACKAGED, 'chapter2.md'), 'utf-8')).toContain(
+      '# A MAP OF SMALL ROADS',
+    )
   })
 })

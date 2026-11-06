@@ -1,4 +1,12 @@
-import { definePipeline, defineProcess, getVariable, log } from '@mt/core'
+import {
+  definePipeline,
+  defineProcess,
+  defineTool,
+  getVariable,
+  log,
+  setVariable,
+  withItem,
+} from '@mt/core'
 import {
   chapterIndexer,
   chapterValidator,
@@ -107,3 +115,48 @@ export const toolSuite = defineProcess([toolChainPipeline, batchPipeline, subflo
 }).parallel(true)
 
 export default toolChainPipeline
+
+/**
+ * Flow D — batch scope (`batch://`).
+ *
+ * `.batch(scope)` turns the whole batch into one scope. Inside it:
+ *   `batch://group`   the package as ONE exchange (`item` = all chapters)
+ *   `batch://members` every member again as its own exchange, with its own id and meta
+ *   `batch://return`  hands a result back; the outer stream continues with the patched chapters
+ *
+ * The group stage records the package size as a variable (it travels to every member); the
+ * member stage uppercases each `# ` heading.
+ */
+const countGroup = defineTool<unknown, unknown>({
+  name: 'pipe03-count-group',
+  version: '1.0.0',
+  mdDescription: 'Records the batch size in a variable (the group payload stays untouched).',
+  async invoke(env) {
+    return setVariable(env, 'batchSize', (env.item as unknown[]).length)
+  },
+})
+
+const uppercaseMemberTitle = defineTool<string, string>({
+  name: 'pipe03-uppercase-member-title',
+  version: '1.0.0',
+  mdDescription: 'Uppercases the H1 of one batch member.',
+  async invoke(env) {
+    return withItem(
+      env,
+      env.item.replace(/^#\s+(.+)$/m, (_line, title: string) => `# ${title.toUpperCase()}`),
+    )
+  },
+})
+
+const titleScope = definePipeline({ id: 'pipe03-title-scope' })
+  .from('batch://group')
+  .use(countGroup)
+  .to('batch://return')
+  .from('batch://members')
+  .use(uppercaseMemberTitle)
+  .to('batch://return')
+
+export const packagedTitlesPipeline = definePipeline({ id: 'pipe03-packaged-titles' })
+  .from('jsonl://./jsonl/entities.jsonl')
+  .batch(titleScope)
+  .to('md://./chapters/packaged')

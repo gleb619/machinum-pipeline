@@ -11,6 +11,7 @@
     "runner:chapters": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-chapters.ts",
     "runner:assemble": "NODE_OPTIONS='--import tsx' mt run ./pipelines/assemble.ts",
     "runner": "pnpm run runner:en && pnpm run runner:glossary && pnpm run runner:summary && pnpm run runner:titles && pnpm run runner:chapters && pnpm run runner:assemble",
+    "check-llm": "tsx check-llm.ts",
     "lint:parity": "tsx lint-parity.ts chapters/en chapters/ru",
     "info": "mt info",
     "example": "pnpm run runner",

@@ -13,6 +13,7 @@ chapters/schema/
 chapters/en-tagged/
 chapters/ladder-chapters/*.md
 chapters/chapter-views/
+chapters/packaged/
 chapters/book/
 chapters/translate-*/
 chapters/glossary.json

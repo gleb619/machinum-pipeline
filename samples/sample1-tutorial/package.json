@@ -20,7 +20,7 @@
     "simulate": "tsx simulate-book1.ts",
     "info": "mt info",
     "example": "pnpm run prepare-input && pnpm run runner",
-    "cleanup": "rm -rf chapters/*.md chapters/en/*.md chapters/ru/*.md chapters/schema chapters/en-tagged chapters/ladder-chapters/*.md chapters/chapter-views chapters/book chapters/translate-* chapters/glossary.json chapters/glossary.graph.json chapters/titles.json chapters/waypoint-log.jsonl chapters/secrets-demo.jsonl fixtures/chapter1.md fixtures/chapter-series.md fixtures/gallery/*.md fixtures/typos/*.md jsonl/*.jsonl jsonl/latches out .mt .mt-translate-prompts.jsonl .demo/result.jsonl .demo/input.jsonl .demo/secrets.embed.json",
+    "cleanup": "rm -rf chapters/*.md chapters/en/*.md chapters/ru/*.md chapters/schema chapters/en-tagged chapters/ladder-chapters/*.md chapters/chapter-views chapters/packaged chapters/book chapters/translate-* chapters/glossary.json chapters/glossary.graph.json chapters/titles.json chapters/waypoint-log.jsonl chapters/secrets-demo.jsonl fixtures/chapter1.md fixtures/chapter-series.md fixtures/gallery/*.md fixtures/typos/*.md jsonl/*.jsonl jsonl/latches out .mt .mt-translate-prompts.jsonl .demo/result.jsonl .demo/input.jsonl .demo/secrets.embed.json",
     "lint": "biome check .",
     "test": "vitest run",
     "test:watch": "vitest",

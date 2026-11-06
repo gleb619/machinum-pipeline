@@ -11,7 +11,7 @@ line-by-line translation, the LLM tool gallery, and the secret-backend demo.
 |---|---|
 | `pipe01-beginning.ts` | Minimal `from → use → to`; shipped tools; typed chapter trees; `statFreq`; `console://` |
 | `pipe02-waypoints.ts` | `hs://` HTTP source, URI aliases (`@en`, `@ru`), a sample-owned `my-target://` scheme |
-| `pipe03-tools-multitool.ts` | Long tool chain, `.batch(n)`, `.subflow(...)` composition |
+| `pipe03-tools-multitool.ts` | Long tool chain, `.batch(n)`, `.subflow(...)` composition, `batch://` scope |
 | `pipe04-forks.ts` | `.fork('chapter-views', [three branches])` with isolated envelopes and per-branch files |
 | `pipe05-chunks-ladder.ts` | `chunkSplit`, separator reuse, structure ladder (`chunks` → `paragraphs` → `lines` → `words` / `tokens`), series split, tree mutation |
 | `pipe06-stop-resume.ts` | Ctrl-C pause, latch files, `mt resume` without duplicate JSONL lines |

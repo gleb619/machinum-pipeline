@@ -16,7 +16,7 @@ Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 |---|---|
 | `pipe01-beginning.ts` | Minimal source → shipped tool → target; typed chapter trees; `statFreq`; `console://` |
 | `pipe02-waypoints.ts` | `hs://` HTTP ingestion, `@en` / `@ru` aliases, sample-owned `my-target://` |
-| `pipe03-tools-multitool.ts` | Six-tool chain, `.batch(n)`, subflow composition |
+| `pipe03-tools-multitool.ts` | Six-tool chain, `.batch(n)`, subflow composition, `batch://` scope |
 | `pipe04-forks.ts` | Parallel `.fork('chapter-views', [...])` branches with isolated envelopes |
 | `pipe05-chunks-ladder.ts` | `chunkSplit`, separator reuse, chunks → paragraphs → lines → words / tokens, series split |
 | `pipe06-stop-resume.ts` | SIGINT pause, latch files, `mt resume` with no duplicate lines |

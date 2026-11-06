@@ -84,6 +84,7 @@ build
 /samples/sample1-tutorial/chapters/en-tagged/
 /samples/sample1-tutorial/chapters/ladder-chapters/*.md
 /samples/sample1-tutorial/chapters/chapter-views/
+/samples/sample1-tutorial/chapters/packaged/
 /samples/sample1-tutorial/chapters/translate-*/
 /samples/sample1-tutorial/chapters/book/
 /samples/sample1-tutorial/chapters/glossary.json

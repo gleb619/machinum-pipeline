@@ -30,6 +30,7 @@ pnpm run example          # all pipes, offline mock backend
 pnpm run runner:summary   # or one pipe
 pnpm run runner:chapters
 pnpm run lint:parity      # standalone EN/RU line-parity table
+pnpm run check-llm        # which backend/model the pipes will use
 ```
 
 Run a subset while iterating:
