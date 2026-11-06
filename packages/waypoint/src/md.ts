@@ -28,6 +28,7 @@ import {
   waypoint,
 } from '@mt/core'
 import { exchangeField } from './fields.js'
+import { walkFiles } from './file-walk.js'
 import { resumeFrom } from './resume.js'
 import { resolveWaypointPath, resolveWaypointRoot } from './settings.js'
 
@@ -136,17 +137,11 @@ function resolveOutputPath(root: string, entry: MdOutputEntry): string {
 }
 
 async function discoverMarkdownFiles(dir: string): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true })
-  const files: string[] = []
-  for (const entry of entries) {
-    const fullPath = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      files.push(...(await discoverMarkdownFiles(fullPath)))
-    } else if (entry.isFile() && entry.name.endsWith('.md')) {
-      files.push(fullPath)
-    }
-  }
-  return files.sort()
+  const files = await walkFiles(dir, (entry) => {
+    if (entry.isDirectory) return 'recurse'
+    return entry.name.endsWith('.md') ? 'collect' : 'skip'
+  })
+  return files.map((file) => file.path).sort()
 }
 
 /** Values accepted by `md://...?split=<value>`. */

@@ -397,7 +397,9 @@ export {
   DEFAULT_MAX_BACKOFF_MS,
   getBackoff,
   isFatalError,
+  parseRetryAfterMs,
   resolveRetryPolicy,
+  wait,
   withRetry,
 } from './engine/retry.js'
 export type { PartialRetryPolicy, RetryableError } from './engine/retry.js'

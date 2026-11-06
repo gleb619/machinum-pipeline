@@ -1,5 +1,5 @@
 import type { Exchange, ParsedUri, RetryPolicy, Target, TargetContext } from '@mt/core'
-import { annotate, registry, waypoint, withRetry } from '@mt/core'
+import { annotate, parseRetryAfterMs, registry, waypoint, withRetry } from '@mt/core'
 
 /**
  * Built-in HTTP Target — sends envelopes to an HTTP endpoint (client role).
@@ -244,15 +244,10 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-/** `Retry-After` is either a delay in seconds or an HTTP date. */
+/** `Retry-After` is either a delay in seconds or an HTTP date (see core `parseRetryAfterMs`). */
 function parseRetryAfter(value: string | null): number | undefined {
-  if (!value) return undefined
-  const seconds = Number(value)
-  if (Number.isFinite(seconds)) return seconds > 0 ? Math.round(seconds * 1000) : undefined
-  const date = Date.parse(value)
-  if (Number.isNaN(date)) return undefined
-  const delta = date - Date.now()
-  return delta > 0 ? delta : undefined
+  const ms = parseRetryAfterMs(value)
+  return ms === undefined ? undefined : Math.round(ms)
 }
 
 /** Render a payload as plain text: strings as-is, everything else as JSON. */

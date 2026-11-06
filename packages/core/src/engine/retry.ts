@@ -45,6 +45,30 @@ export async function wait(ms: number): Promise<void> {
 }
 
 /**
+ * Parse a `Retry-After` header value — either a delay in seconds or an HTTP date —
+ * into milliseconds. Returns `undefined` for missing/unparseable values. A zero
+ * seconds delay (or a past date) yields `0` only when `allowZero` is set, otherwise
+ * `undefined` so the caller falls back to its computed backoff.
+ */
+export function parseRetryAfterMs(
+  value: string | null | undefined,
+  options: { allowZero?: boolean } = {},
+): number | undefined {
+  if (!value) return undefined
+  const seconds = Number(value.trim())
+  if (Number.isFinite(seconds)) {
+    if (seconds < 0) return undefined
+    if (seconds === 0 && options.allowZero !== true) return undefined
+    return seconds * 1000
+  }
+  const date = Date.parse(value)
+  if (Number.isNaN(date)) return undefined
+  const delta = date - Date.now()
+  if (delta <= 0 && options.allowZero !== true) return undefined
+  return Math.max(0, delta)
+}
+
+/**
  * Merge the layered retry configuration into one complete policy.
  *
  * Precedence is per field (step override → pipeline → global defaults), so a partial

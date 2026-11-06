@@ -1,12 +1,12 @@
 import { mkdirSync } from 'node:fs'
-import type { Stats } from 'node:fs'
-import { readFile, readdir, stat } from 'node:fs/promises'
-import { basename, extname, isAbsolute, join, relative } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { basename, isAbsolute, join, relative, sep } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { MD_OUTPUTS_VARIABLE, annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
 import { exchangeField } from './fields.js'
+import { walkFiles } from './file-walk.js'
 import { resumeFrom } from './resume.js'
 import { resolveWaypointPath } from './settings.js'
 
@@ -189,49 +189,38 @@ interface ChapterFile {
   lang: string | undefined
 }
 
+/** Chapter file base names look like `chapter42.md`. */
+const CHAPTER_BASENAME_RE = /^chapter\d+\.md$/i
+
 /**
  * Recursively walk a directory to find chapter{N}.md files.
  * Chapter files are .md files matching /^chapter(\d+)\.md$/i.
  * If a .md file is inside a subdirectory, that subdirectory name is recorded as lang.
  */
 async function discoverChapterFiles(dir: string): Promise<ChapterFile[]> {
+  const walked = await walkFiles(
+    dir,
+    (entry) => {
+      if (entry.isDirectory) return 'recurse'
+      if (entry.name.endsWith('.md') && CHAPTER_BASENAME_RE.test(entry.name)) return 'collect'
+      return 'skip'
+    },
+    { onMissingDir: 'ignore' },
+  )
+
   const results: ChapterFile[] = []
-
-  async function walk(currentDir: string, lang?: string): Promise<void> {
-    let entries: string[]
-    try {
-      entries = await readdir(currentDir)
-    } catch {
-      return // Directory doesn't exist or can't be read
-    }
-
-    for (const entry of entries) {
-      const fullPath = join(currentDir, entry)
-      let fileStat: Stats
-      try {
-        fileStat = await stat(fullPath)
-      } catch {
-        continue
-      }
-
-      if (fileStat.isDirectory()) {
-        // Recurse into subdirectory; its name becomes lang
-        await walk(fullPath, entry)
-      } else if (fileStat.isFile() && extname(entry) === '.md') {
-        const match = basename(entry, '.md').match(/^chapter(\d+)$/i)
-        if (match) {
-          const group = match[1]
-          if (!group) continue
-          const chapterNum = Number.parseInt(group, 10)
-          if (!Number.isNaN(chapterNum)) {
-            results.push({ path: fullPath, chapterNum, lang })
-          }
-        }
-      }
-    }
+  for (const file of walked) {
+    const match = basename(file.name, '.md').match(/^chapter(\d+)$/i)
+    const group = match?.[1]
+    if (!group) continue
+    const chapterNum = Number.parseInt(group, 10)
+    if (Number.isNaN(chapterNum)) continue
+    // The lang is the deepest subdirectory name, mirroring the historical walk.
+    const lang =
+      file.relativeDir === '' ? undefined : (file.relativeDir.split(sep).at(-1) ?? undefined)
+    results.push({ path: file.path, chapterNum, lang })
   }
 
-  await walk(dir)
   // Sort by lang then chapter number for deterministic ordering
   results.sort((a, b) => {
     const langCmp = (a.lang ?? '').localeCompare(b.lang ?? '')

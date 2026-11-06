@@ -4,7 +4,16 @@ import type { Server } from 'node:http'
 import { createRequire } from 'node:module'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
-import { category, defineTool, mapConcurrent, setVariable, tool, withItem } from '@mt/core'
+import {
+  category,
+  defineTool,
+  mapConcurrent,
+  parseRetryAfterMs,
+  setVariable,
+  tool,
+  wait,
+  withItem,
+} from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
 import type { TranslateInput, TranslateOutput } from '../core/translate-text.js'
 
@@ -384,18 +393,9 @@ function errorMessage(error: unknown): string {
 }
 
 function retryDelayMs(response: Response | undefined, attempt: number): number {
-  const retryAfter = response?.headers.get('retry-after')?.trim()
-  if (retryAfter) {
-    const seconds = Number(retryAfter)
-    if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
-    const date = Date.parse(retryAfter)
-    if (!Number.isNaN(date)) return Math.max(0, date - Date.now())
-  }
+  const retryAfter = parseRetryAfterMs(response?.headers.get('retry-after'), { allowZero: true })
+  if (retryAfter !== undefined) return retryAfter
   return REMOTE_RETRY_BASE_MS * 2 ** attempt
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -685,7 +685,7 @@ export function createRemoteGoogleEngine(
           })
         } catch (error) {
           if (attempt < retries) {
-            await sleep(retryDelayMs(undefined, attempt))
+            await wait(retryDelayMs(undefined, attempt))
             continue
           }
           throw new Error(
@@ -701,7 +701,7 @@ export function createRemoteGoogleEngine(
             } catch {
               // The retry decision does not depend on draining this response.
             }
-            await sleep(delay)
+            await wait(delay)
             continue
           }
           throw new Error(
