@@ -5,13 +5,13 @@ import {
   annotate,
   importPipelineModule,
   isPipeline,
-  isPipelineSuite,
+  isProcess,
   loadGlobalContext,
   nativeAddonHint,
   packageResolutionHint,
   useCase,
 } from '@mt/core'
-import type { Pipeline, PipelineSuite, RunStateData } from '@mt/core'
+import type { Pipeline, Process, RunStateData } from '@mt/core'
 import { DuplexLogger } from '../utils/logger.js'
 import type { LogFormat } from '../utils/logger.js'
 import { type RemoteRunFlags, resumeRemotePipeline } from '../utils/remote-run.js'
@@ -78,7 +78,7 @@ export function parseResumeArgs(args: readonly string[]): ResumeCommandOptions {
  *
  * The pipeline file recorded in `.mt/runs/<runId>/state.json` is used when no file
  * argument is given, so the operator does not have to remember what started the run.
- * A run always belongs to one pipeline — suites cannot be resumed as a whole.
+ * A run always belongs to one pipeline — processes cannot be resumed as a whole.
  */
 export async function resumeCommand(args: string[]): Promise<void> {
   const parsed = parseResumeArgs(args)
@@ -145,7 +145,7 @@ export async function resumeCommand(args: string[]): Promise<void> {
   }
   const pipelineName = state.pipelineName
 
-  // Load the pipeline that owns this run (possibly nested in a suite export)
+  // Load the pipeline that owns this run (possibly nested in a process export)
   const pipeline = await loadPipeline(pipelineFile, state.pipelineId, pipelineName)
 
   // Initialize Runner (re-record provenance so later pauses/resumes keep it)
@@ -222,8 +222,8 @@ async function runSwallowingHookErrors(
  * Load the pipeline that owns a run.
  *
  * A named export is resolved first. Otherwise the module exports are searched for
- * a pipeline with `pipelineId`, including pipelines nested in suite exports. A
- * suite itself cannot be resumed — only the individual pipeline run can.
+ * a pipeline with `pipelineId`, including pipelines nested in process exports. A
+ * process itself cannot be resumed — only the individual pipeline run can.
  */
 async function loadPipeline(
   filePath: string,
@@ -235,11 +235,11 @@ async function loadPipeline(
 
   if (name) {
     const selected = mod[name]
-    if (isPipelineSuite(selected)) {
-      const nested = findInSuite(selected, pipelineId)
+    if (isProcess(selected)) {
+      const nested = findInProcess(selected, pipelineId)
       if (nested) return nested
       throw new Error(
-        `Run '${pipelineId}' belongs to a pipeline in suite '${selected.id}', but export '${name}' does not contain it. A suite cannot be resumed as a whole; select the pipeline export that owns this run.`,
+        `Run '${pipelineId}' belongs to a pipeline in process '${selected.id}', but export '${name}' does not contain it. A process cannot be resumed as a whole; select the pipeline export that owns this run.`,
       )
     }
     if (isPipeline(selected) || isLegacyPipeline(selected)) return selected
@@ -253,8 +253,8 @@ async function loadPipeline(
     if (isPipeline(value) && value.id === pipelineId) return value
   }
   for (const value of Object.values(mod)) {
-    if (isPipelineSuite(value)) {
-      const nested = findInSuite(value, pipelineId)
+    if (isProcess(value)) {
+      const nested = findInProcess(value, pipelineId)
       if (nested) return nested
     }
   }
@@ -262,20 +262,20 @@ async function loadPipeline(
     if (isLegacyPipeline(value) && value.id === pipelineId) return value
   }
 
-  const suiteIds = Object.values(mod)
-    .filter(isPipelineSuite)
-    .map((suite) => suite.id)
-  if (suiteIds.length > 0) {
+  const processIds = Object.values(mod)
+    .filter(isProcess)
+    .map((proc) => proc.id)
+  if (processIds.length > 0) {
     throw new Error(
-      `Run '${pipelineId}' belongs to a pipeline in suite ${suiteIds.map((id) => `'${id}'`).join(', ')}, but that pipeline was not found in the module exports. A suite cannot be resumed as a whole; select the pipeline export that owns this run.`,
+      `Run '${pipelineId}' belongs to a pipeline in process ${processIds.map((id) => `'${id}'`).join(', ')}, but that pipeline was not found in the module exports. A process cannot be resumed as a whole; select the pipeline export that owns this run.`,
     )
   }
 
   throw new Error(`Cannot find pipeline '${pipelineId}' among exports of ${filePath}.`)
 }
 
-function findInSuite(suite: PipelineSuite, pipelineId: string): Pipeline | undefined {
-  return suite.pipelines.find((pipeline) => pipeline.id === pipelineId)
+function findInProcess(proc: Process, pipelineId: string): Pipeline | undefined {
+  return proc.pipelines.find((pipeline) => pipeline.id === pipelineId)
 }
 
 function isLegacyPipeline(value: unknown): value is Pipeline {

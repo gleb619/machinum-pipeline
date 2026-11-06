@@ -2,7 +2,7 @@ import type { GlobalContext } from './contexts.js'
 import type { Runner } from './engine/runner.js'
 import type { Pipeline, RunnerOptions } from './types.js'
 
-export type PipelineSuiteMode = 'sync' | 'parallel'
+export type ProcessMode = 'sync' | 'parallel'
 
 export interface ProcessRunOptions extends RunnerOptions {
   /** Called once per pipeline after its Runner has minted a run id, before the run is awaited. */
@@ -17,30 +17,23 @@ export interface ProcessRunOptions extends RunnerOptions {
  * ProcessBuilders created with a pipelines array — `kind` is `undefined` for
  * plain `defineProcess()` setup builders.
  */
-export interface PipelineSuite {
-  readonly kind: 'pipeline-suite' | undefined
+export interface Process {
+  readonly kind: 'process' | undefined
   readonly id: string
   readonly pipelines: readonly Pipeline[]
-  readonly mode: PipelineSuiteMode
-  /** Return a new suite with the same id/pipelines; `flag` (default `true`) selects parallel mode, `false` sync. */
-  parallel(flag?: boolean): PipelineSuite
+  readonly mode: ProcessMode
+  /** Return a new process with the same id/pipelines; `flag` (default `true`) selects parallel mode, `false` sync. */
+  parallel(flag?: boolean): Process
   /** Run every pipeline in this process, sequentially or in parallel depending on `mode`. */
   run(globalContext?: GlobalContext, options?: ProcessRunOptions): Promise<void>
 }
 
-export function isPipeline(value: unknown): value is Pipeline {
+export function isProcess(value: unknown): value is Process {
   if (typeof value !== 'object' || value === null) return false
 
-  const candidate = value as Partial<Pipeline>
-  return typeof candidate.id === 'string' && Array.isArray(candidate.steps)
-}
-
-export function isPipelineSuite(value: unknown): value is PipelineSuite {
-  if (typeof value !== 'object' || value === null) return false
-
-  const candidate = value as Partial<PipelineSuite>
+  const candidate = value as Partial<Process>
   return (
-    candidate.kind === 'pipeline-suite' &&
+    candidate.kind === 'process' &&
     typeof candidate.id === 'string' &&
     Array.isArray(candidate.pipelines) &&
     typeof candidate.run === 'function'

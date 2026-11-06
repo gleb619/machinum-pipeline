@@ -5,13 +5,13 @@ import {
   defineProcess,
   importPipelineModule,
   isPipeline,
-  isPipelineSuite,
+  isProcess,
   loadGlobalContext,
   nativeAddonHint,
   packageResolutionHint,
   useCase,
 } from '@mt/core'
-import type { GlobalContext, Pipeline, PipelineSuite } from '@mt/core'
+import type { GlobalContext, Pipeline, Process } from '@mt/core'
 
 // Ensure built-in sources/targets are registered before resolving URIs
 import '@mt/waypoint'
@@ -23,7 +23,7 @@ import { RunReporter } from '../utils/run-report.js'
 import { runLifecycleScript } from './utils/lifecycle.js'
 
 /** A module export the CLI can run directly. */
-export type Runnable = Pipeline | PipelineSuite
+export type Runnable = Pipeline | Process
 
 export interface RunCommandOptions {
   pipelineFile?: string
@@ -111,11 +111,11 @@ export function parseRunArgs(args: readonly string[]): RunCommandOptions {
 }
 
 /**
- * `mt run <pipelineFile>` — execute a pipeline or suite.
+ * `mt run <pipelineFile>` — execute a pipeline or process.
  *
- * Without `--pipeline` the default export wins: a suite runs as declared, a
- * pipeline runs alone. Only a module with no default pipeline/suite gets an
- * implicit sync suite built from every exported pipeline (alphabetical).
+ * Without `--pipeline` the default export wins: a process runs as declared, a
+ * pipeline runs alone. Only a module with no default pipeline/process gets an
+ * implicit sync process built from every exported pipeline (alphabetical).
  *
  * Usage: mt run ./pipelines/example.ts [--pipeline <name>]
  */
@@ -183,7 +183,7 @@ export async function runCommand(args: string[]): Promise<void> {
     return
   }
 
-  // Load the runnable export (pipeline or suite)
+  // Load the runnable export (pipeline or process)
   const runnable = await loadRunnable(pipelineFile, pipelineName)
 
   // Build global context from mt.json
@@ -205,8 +205,8 @@ export async function runCommand(args: string[]): Promise<void> {
   // Lifecycle hook: scripts.start before the main run. A start-hook failure fails the run.
   await runLifecycleScript(globalContext, 'start', { logger })
 
-  const failure = isPipelineSuite(runnable)
-    ? await runSuite(runnable, pipelineFile, pipelineName, globalContext, projectRoot, logger)
+  const failure = isProcess(runnable)
+    ? await runProcess(runnable, pipelineFile, pipelineName, globalContext, projectRoot, logger)
     : await runPipeline(
         runnable,
         pipelineFile,
@@ -294,9 +294,9 @@ async function runPipeline(
   }
 }
 
-/** Run a suite, collecting each Runner so SIGINT and the final report cover all pipelines. */
-async function runSuite(
-  suite: PipelineSuite,
+/** Run a process, collecting each Runner so SIGINT and the final report cover all pipelines. */
+async function runProcess(
+  proc: Process,
   pipelineFile: string,
   pipelineName: string | undefined,
   globalContext: GlobalContext,
@@ -304,18 +304,18 @@ async function runSuite(
   logger: DuplexLogger,
 ): Promise<unknown> {
   logger.info(
-    `Starting suite: ${suite.id} (${suite.pipelines.length} pipelines, mode: ${suite.mode})`,
+    `Starting process: ${proc.id} (${proc.pipelines.length} pipelines, mode: ${proc.mode})`,
   )
   logger.info(`Pipeline file: ${pipelineFile}`)
 
   const running: Array<{ runner: Runner; pipeline: Pipeline }> = []
 
   process.on('SIGINT', async () => {
-    logger.warn('SIGINT received: pausing suite...')
+    logger.warn('SIGINT received: pausing process...')
     for (const { runner } of running) await runner.pause()
     await runSwallowingHookErrors(globalContext, 'stop', { logger })
     await runSwallowingHookErrors(globalContext, 'exit', { logger })
-    logger.info('Suite paused.')
+    logger.info('Process paused.')
     for (const { runner, pipeline } of running) {
       logger.info(`${pipeline.id} -> ${runner.getRunId()}`)
     }
@@ -324,7 +324,7 @@ async function runSuite(
   })
 
   try {
-    await suite.run(globalContext, {
+    await proc.run(globalContext, {
       pipelineFile: relative(projectRoot, resolve(projectRoot, pipelineFile)),
       pipelineName,
       onRunner: (runner, pipeline) => {
@@ -334,7 +334,7 @@ async function runSuite(
         if (runId) logger.setRunId(runId)
       },
     })
-    logger.info(`Suite complete: ${suite.id}`)
+    logger.info(`Process complete: ${proc.id}`)
     for (const { runner, pipeline } of running) {
       logger.info(`${pipeline.id} -> ${runner.getRunId()}`)
     }
@@ -342,7 +342,7 @@ async function runSuite(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     const hint = nativeAddonHint(error) || packageResolutionHint(error)
-    logger.error(`Suite failed: ${errorMessage}${hint}`)
+    logger.error(`Process failed: ${errorMessage}${hint}`)
     await runSwallowingHookErrors(globalContext, 'error', { logger })
     return error
   }
@@ -392,10 +392,10 @@ export function collectPipelines(mod: Record<string, unknown>): Pipeline[] {
 /**
  * Resolve the runnable export for `mt run`.
  *
- * 1. `--pipeline <name>` selects exactly that export (pipeline or suite).
- * 2. A suite default export is run as-is.
+ * 1. `--pipeline <name>` selects exactly that export (pipeline or process).
+ * 2. A process default export is run as-is.
  * 3. A pipeline default export (`mod.default ?? mod.pipeline`) runs alone.
- * 4. Otherwise every exported pipeline becomes an implicit sync suite.
+ * 4. Otherwise every exported pipeline becomes an implicit sync process.
  */
 export async function loadRunnable(filePath: string, name?: string): Promise<Runnable> {
   const resolvedPath = resolve(process.cwd(), filePath)
@@ -403,7 +403,7 @@ export async function loadRunnable(filePath: string, name?: string): Promise<Run
 
   if (name) {
     const selected = name in mod ? mod[name] : undefined
-    if (isPipelineSuite(selected) || isPipeline(selected)) return selected
+    if (isProcess(selected) || isPipeline(selected)) return selected
     // Legacy modules/tests may expose an id-only pipeline object.
     if (isLegacyPipeline(selected)) return selected
     throw new Error(
@@ -413,17 +413,17 @@ export async function loadRunnable(filePath: string, name?: string): Promise<Run
 
   const primaryKey = 'default' in mod ? 'default' : 'pipeline' in mod ? 'pipeline' : undefined
   const primary = primaryKey ? mod[primaryKey] : undefined
-  if (isPipelineSuite(primary)) return primary
+  if (isProcess(primary)) return primary
   if (isPipeline(primary) || isLegacyPipeline(primary)) return primary
 
   const pipelines = collectPipelines(mod)
   if (pipelines.length > 0) {
-    const suiteId = `${basename(filePath, extname(filePath))}-suite`
-    return defineProcess(pipelines, { id: suiteId })
+    const processId = `${basename(filePath, extname(filePath))}-process`
+    return defineProcess(pipelines, { id: processId })
   }
 
   throw new Error(
-    `Invalid pipeline module: ${filePath}. Expected a default pipeline/suite export or exported pipelines from definePipeline().`,
+    `Invalid pipeline module: ${filePath}. Expected a default pipeline/process export or exported pipelines from definePipeline().`,
   )
 }
 

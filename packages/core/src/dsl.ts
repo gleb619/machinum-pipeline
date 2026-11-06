@@ -11,8 +11,7 @@ import type {
 import { Runner } from './engine/runner.js'
 import { type Exchange, type ExchangeInput, toExchange } from './exchange.js'
 import { type LogSeverity, createConsoleLogger, log } from './logging.js'
-import type { PipelineSuite, PipelineSuiteMode, ProcessRunOptions } from './suite.js'
-import { isPipeline } from './suite.js'
+import type { Process, ProcessMode, ProcessRunOptions } from './process.js'
 import type { Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
 import { registry } from './uri.js'
 
@@ -510,13 +509,13 @@ export interface ProcessConfig {
 }
 
 /**
- * Options for `defineProcess(pipelines, options?)` (suite form).
+ * Options for `defineProcess(pipelines, options?)`.
  */
-export interface ProcessSuiteOptions {
-  /** Suite id used in CLI logs. Default `'pipeline-suite'`. */
+export interface ProcessOptions {
+  /** Process id used in CLI logs. Default `'process'`. */
   id?: string
   /** Run mode. Default `'sync'`; prefer `.parallel(true)` over this. */
-  mode?: PipelineSuiteMode
+  mode?: ProcessMode
 }
 
 /**
@@ -526,11 +525,11 @@ export interface ProcessSuiteOptions {
  * `.pipeline(p)` returns the pipeline (with the config attached) so the chain
  * can be the module's default export.
  *
- * Suite form: `defineProcess(pipelines, { id? })` groups several pipelines
+ * Process form: `defineProcess(pipelines, { id? })` groups several pipelines
  * into one runnable entity. It runs them sync (sequential, declaration order)
  * by default; `.parallel(true)` returns a parallel-mode copy and
  * `await proc.run(ctx?, options?)` executes them (one Runner/run id each,
- * shared GlobalContext). See {@link PipelineSuite}.
+ * shared GlobalContext). See {@link Process}.
  *
  * ```ts
  * export default defineProcess()
@@ -540,34 +539,34 @@ export interface ProcessSuiteOptions {
  * ```
  *
  * @example
- * // Suite: run every pipeline, in parallel
+ * // Process: run every pipeline, in parallel
  * export default defineProcess([pipelineA, pipelineB], { id: 'all' }).parallel(true)
  * ```
  */
 export function defineProcess(): ProcessBuilder
 export function defineProcess(
   pipelines: readonly Pipeline[],
-  options?: ProcessSuiteOptions,
+  options?: ProcessOptions,
 ): ProcessBuilder
 export function defineProcess(
   pipelines?: readonly Pipeline[],
-  options?: ProcessSuiteOptions,
+  options?: ProcessOptions,
 ): ProcessBuilder {
   return new ProcessBuilder(pipelines, options)
 }
 
 /**
  * Process builder: process-level setup (`.install()`, `.config()`, terminal
- * `.pipeline()`) plus, when created with a pipelines array, suite behavior
- * (`.parallel(flag)`, `.run()`) — see {@link PipelineSuite}.
+ * `.pipeline()`) plus, when created with a pipelines array, runnable process
+ * behavior (`.parallel(flag)`, `.run()`) — see {@link Process}.
  */
-export class ProcessBuilder implements PipelineSuite {
+export class ProcessBuilder implements Process {
   private readonly _config: ProcessConfig = {}
   private readonly _pipelines?: Pipeline[]
-  private readonly _mode: PipelineSuiteMode = 'sync'
-  private readonly _suiteId: string = 'pipeline-suite'
+  private readonly _mode: ProcessMode = 'sync'
+  private readonly _processId: string = 'process'
 
-  constructor(pipelines?: readonly Pipeline[], options?: ProcessSuiteOptions) {
+  constructor(pipelines?: readonly Pipeline[], options?: ProcessOptions) {
     if (pipelines !== undefined) {
       if (!Array.isArray(pipelines) || pipelines.length === 0) {
         throw new TypeError('defineProcess: pipelines must be a non-empty array')
@@ -580,26 +579,26 @@ export class ProcessBuilder implements PipelineSuite {
         }
       }
       this._pipelines = [...pipelines]
-      this._suiteId = options?.id ?? 'pipeline-suite'
+      this._processId = options?.id ?? 'process'
       this._mode = options?.mode ?? 'sync'
       this.applyEnvDefaults()
     }
   }
 
-  /** `'pipeline-suite'` for the suite form (`defineProcess([...])`); `undefined` for setup-only builders. */
-  get kind(): 'pipeline-suite' | undefined {
-    return this._pipelines ? 'pipeline-suite' : undefined
+  /** `'process'` for the runnable form (`defineProcess([...])`); `undefined` for setup-only builders. */
+  get kind(): 'process' | undefined {
+    return this._pipelines ? 'process' : undefined
   }
-  /** Suite id (suite form only). */
+  /** Process id (runnable form only). */
   get id(): string {
-    return this._suiteId
+    return this._processId
   }
-  /** Defensive copy of the suite pipelines (empty for setup-only builders). */
+  /** Defensive copy of the process pipelines (empty for setup-only builders). */
   get pipelines(): readonly Pipeline[] {
     return this._pipelines ?? []
   }
   /** Run mode; `'sync'` unless `.parallel(true)` was used. */
-  get mode(): PipelineSuiteMode {
+  get mode(): ProcessMode {
     return this._mode
   }
 
@@ -636,7 +635,7 @@ export class ProcessBuilder implements PipelineSuite {
    */
   parallel(flag = true): ProcessBuilder {
     const next = new ProcessBuilder(this._pipelines, {
-      id: this._suiteId,
+      id: this._processId,
       mode: flag ? 'parallel' : 'sync',
     })
     if (this._config.env) next._config.env = { ...this._config.env }
@@ -644,17 +643,17 @@ export class ProcessBuilder implements PipelineSuite {
   }
 
   /**
-   * Run every pipeline of the suite in this process: one Runner/run id each,
-   * sharing one GlobalContext. Sync mode (default) runs sequentially in
-   * declaration order and stops on the first failure; parallel mode starts
-   * every Runner and awaits `Promise.all` (a failure rejects the run).
-   * Without a context argument the global context is loaded from `process.cwd()`.
+   * Run every pipeline of this process: one Runner/run id each, sharing one
+   * GlobalContext. Sync mode (default) runs sequentially in declaration order
+   * and stops on the first failure; parallel mode starts every Runner and
+   * awaits `Promise.all` (a failure rejects the run). Without a context
+   * argument the global context is loaded from `process.cwd()`.
    */
   async run(globalContext?: GlobalContext, options?: ProcessRunOptions): Promise<void> {
     const pipelines = this._pipelines
     if (!pipelines) {
       throw new Error(
-        'defineProcess().run(): no pipelines to run — use the suite form defineProcess([...])',
+        'defineProcess().run(): no pipelines to run — use the process form defineProcess([...])',
       )
     }
     const ctx = globalContext ?? (await loadGlobalContext(process.cwd()))
@@ -676,7 +675,7 @@ export class ProcessBuilder implements PipelineSuite {
     }
   }
 
-  /** Attach the declared env defaults to one pipeline (or every suite pipeline). */
+  /** Attach the declared env defaults to one pipeline (or every process pipeline). */
   private applyEnvDefaults(only?: Pipeline): void {
     const env = this._config.env
     if (!env) return
@@ -688,6 +687,14 @@ export class ProcessBuilder implements PipelineSuite {
       pipeline.envDefaults = { ...pipeline.envDefaults, ...env }
     }
   }
+}
+
+/** Type guard for a pipeline-shaped object (`id` string + `steps` array). */
+export function isPipeline(value: unknown): value is Pipeline {
+  if (typeof value !== 'object' || value === null) return false
+
+  const candidate = value as Partial<Pipeline>
+  return typeof candidate.id === 'string' && Array.isArray(candidate.steps)
 }
 
 /**

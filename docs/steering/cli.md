@@ -69,10 +69,10 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 | Command | File | Description |
 |---|---|---|
 | `mt init` | `init.ts` | Scaffold `.mt/`, `mt.json` in a consumer project; keeps `.gitignore` covered |
-| `mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--on <worker>] [--tags a,b] [--token-ref <ENV_OR_REF>] [--json\|--jsonl]` | `run.ts` | Execute the default suite, an implicit suite of all exported pipelines, or one named export (pipeline or suite); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit. `--remote` pushes, starts, streams, and pulls on a remote `mt serve` (URL defaults to `mt.json remote.url`); `--on` / `--tags` route the run to a registered `mt worker` and follow its mirrored events. `--json`/`--jsonl` switch console + `run.log` to JSONL |
+| `mt run <pipeline.ts> [--pipeline <name>] [--remote [url]] [--on <worker>] [--tags a,b] [--token-ref <ENV_OR_REF>] [--json\|--jsonl]` | `run.ts` | Execute the default process, an implicit process of all exported pipelines, or one named export (pipeline or process); build GlobalContext, start one Runner per pipeline. Runs the `scripts.start` hook before and `scripts.end` hook after (success or failure); `scripts.error` on failure, `scripts.stop` on SIGINT pause, `scripts.exit` before process exit. `--remote` pushes, starts, streams, and pulls on a remote `mt serve` (URL defaults to `mt.json remote.url`); `--on` / `--tags` route the run to a registered `mt worker` and follow its mirrored events. `--json`/`--jsonl` switch console + `run.log` to JSONL |
 | `mt explain <pipeline.ts> [--pipeline <name>] [--json]` | `explain.ts` | Import the same runnable `mt run` would use, then describe its declared dataflow, per-step effective retry/onError policy (pipeline/step values win over project fallbacks), nested fork/subflow/batch scopes, lifecycle hooks, events, checkpoint nodes and log paths. The module is imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no Runner/source/tool/target/hook starts; writes no `.mt` state. Markdown by default; `--json` for agents/tools |
 | `mt install` | `install.ts` | Run the `scripts.install` lifecycle hook pipeline from mt.json (one-time project setup) |
-| `mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>] [--json\|--jsonl]` | `resume.ts` | Load `state.json` (checkpoint tree + source cursors) and resume from the first non-done node; pipeline file/id come from `state.json` (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a suite as a whole. `--remote` re-attaches to the remote stream (unpauses a live paused run); `--json`/`--jsonl` switch console + `run.log` to JSONL |
+| `mt resume <runId> [pipeline.ts] [--remote [url]] [--token-ref <ENV_OR_REF>] [--json\|--jsonl]` | `resume.ts` | Load `state.json` (checkpoint tree + source cursors) and resume from the first non-done node; pipeline file/id come from `state.json` (file arg overrides the file); runs `scripts.resume` before resuming. Only an individual pipeline can be resumed — never a process as a whole. `--remote` re-attaches to the remote stream (unpauses a live paused run); `--json`/`--jsonl` switch console + `run.log` to JSONL |
 | `mt ls runs` | `list.ts` | List all runs with state/timing summary |
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata, and the dead-letter queue (count + last 3 dropped envelopes) — a run that ends DONE after the `dead-letter` policy dropped items must not look fully successful |
 | `mt info [--json] [--runs <n>]` | `info.ts` | Read-only project/state report: effective `mt.json` (`imports` deep-merged, then merged over `DEFAULT_MT_CONFIG`) with credential-looking values masked, `.mt` size/run/slow-step summary, and runtime/secrets-presence booleans. No pipeline import, Runner/source/tool/target/hook, run id or `.mt` write; `--json` for agents, `--runs` limits the run list |
@@ -88,38 +88,38 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 
 `tool.ts` resolves the tool before reading stdin (a bad name must not hang the terminal), then builds a minimal RunContext/ToolContext like the Runner's (`loadGlobalContext` + a `tool-<uuid>` runId, checkpoint id `standalone`).
 
-`explain.ts` reuses the same `loadRunnable()` selector as `run.ts` (named export → default suite → default pipeline → implicit suite), so it explains exactly the export `mt run` would execute. It imports the pipeline module (top-level code runs) but reads `mt.json` (+ `imports`) only: no `loadGlobalContext()`, `.env`, vault or Runner. Import-time stdout (`console.log`/`process.stdout.write`) is captured and replayed on stderr, so the command's own stdout stays a single Markdown/JSON document; JSON masks credential-looking `envDefaults` keys/values as `***`.
+`explain.ts` reuses the same `loadRunnable()` selector as `run.ts` (named export → default process → default pipeline → implicit process), so it explains exactly the export `mt run` would execute. It imports the pipeline module (top-level code runs) but reads `mt.json` (+ `imports`) only: no `loadGlobalContext()`, `.env`, vault or Runner. Import-time stdout (`console.log`/`process.stdout.write`) is captured and replayed on stderr, so the command's own stdout stays a single Markdown/JSON document; JSON masks credential-looking `envDefaults` keys/values as `***`.
 
 Both `run.ts` and `resume.ts` use `@mt/core`'s `loadGlobalContext()` plus a local loader:
 
 ```typescript
 const ctx = await loadGlobalContext(projectRoot) // mt.json + secrets.envFile — same loader as the backend
-const runnable = await loadRunnable(pipelineFilePath, pipelineName) // run.ts → Pipeline | PipelineSuite
+const runnable = await loadRunnable(pipelineFilePath, pipelineName) // run.ts → Pipeline | Process
 // resume.ts: const pipeline = await loadPipeline(pipelineFilePath, state.pipelineId, state.pipelineName)
 ```
 
 `mt run <file>` resolves the runnable in this order:
 
-1. `--pipeline <name>` — exactly that export, whether it is a `Pipeline` or a `PipelineSuite`.
-2. Default export is a suite (`isPipelineSuite`) — run it as declared (`mode` from the suite).
+1. `--pipeline <name>` — exactly that export, whether it is a `Pipeline` or a `Process`.
+2. Default export is a process (`isProcess`) — run it as declared (`mode` from the process).
 3. Default export (`mod.default ?? mod.pipeline`) is a pipeline — run **only** that pipeline (an
    id-only legacy object is accepted).
-4. Otherwise — no default pipeline/suite, so build an **implicit suite** from every exported `Pipeline`
+4. Otherwise — no default pipeline/process, so build an **implicit process** from every exported `Pipeline`
    (`isPipeline`: object with a string `id` and a `steps` array), alphabetically, deduped by identity.
-   Id: `<file-basename>-suite` (e.g. `basic-md-processing-suite`), mode `'sync'`. The suite is run, not
+   Id: `<file-basename>-process` (e.g. `basic-md-processing-process`), mode `'sync'`. The process is run, not
    awaited from sample code.
 
 A `--pipeline` export that is an id-only legacy object is still accepted. Errors name the missing/invalid
 export.
 
-For suites the CLI logs `Starting suite: <id> (<n> pipelines, mode: <mode>)`, collects each Runner via
+For processes the CLI logs `Starting process: <id> (<n> pipelines, mode: <mode>)`, collects each Runner via
 `onRunner` (binding the DuplexLogger run id), pauses every collected Runner on SIGINT, and on success
-prints `✅ Suite complete.` plus each `pipeline.id -> runId`.
+prints `✅ Process complete.` plus each `pipeline.id -> runId`.
 
 `resume` always reads `.mt/runs/<runId>/state.json` for `pipelineId` (and `pipelineFile`/`pipelineName`
 when the file argument is missing). It resolves a named export first, otherwise finds the `Pipeline` whose
-`id` equals `pipelineId` among the module exports **including `suite.pipelines`**. If the export is a suite
-without that pipeline it fails with a clear message: a suite cannot be resumed as a whole.
+`id` equals `pipelineId` among the module exports **including `process.pipelines`**. If the export is a process
+without that pipeline it fails with a clear message: a process cannot be resumed as a whole.
 
 The loader uses `tsx`/`jiti` dynamic import — the consumer file is **not** compiled ahead of time. Plain
 `import`, `console.log`, and conditionals all work inside pipeline files.
@@ -152,11 +152,11 @@ accepting queued runs, waits for active children, then exits 0.
 
 ### `src/commands/run.ts`
 1. `loadGlobalContext(projectRoot)` → `GlobalContext` (from `@mt/core`; no CLI-local `mt.json` parsing)
-2. `loadRunnable(file, name?)` → `Pipeline | PipelineSuite` (named export → default suite → implicit suite)
+2. `loadRunnable(file, name?)` → `Pipeline | Process` (named export → default process → implicit process)
 3. `runLifecycleScript(ctx, 'start')` → no-op unless `scripts.start` is defined in mt.json
-4. Pipeline: `new Runner(pipeline, ctx)` → `runner.start()`; suite: `suite.run(ctx, { onRunner })`, one
+4. Pipeline: `new Runner(pipeline, ctx)` → `runner.start()`; process: `proc.run(ctx, { onRunner })`, one
    Runner per pipeline (sync sequential, or `Promise.all` in `'parallel'` mode)
-5. Listen for SIGINT → pause the pipeline Runner (or every collected suite Runner) →
+5. Listen for SIGINT → pause the pipeline Runner (or every collected process Runner) →
    `runLifecycleScript(ctx, 'stop')` → `runLifecycleScript(ctx, 'exit')`
 6. On main run failure → `runLifecycleScript(ctx, 'error')`
 7. `runLifecycleScript(ctx, 'end')` in a finally-style path (runs on success AND failure; an
@@ -194,8 +194,8 @@ Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`, a
 `runLifecycleScript(ctx, 'error')`. `state.json` is always read for `pipelineId`; the pipeline file is
 the explicit `[pipeline.ts]` argument when given, otherwise `pipelineFile` recorded in
 `.mt/runs/<runId>/state.json` (written by `mt run` since T096). The pipeline is then found by matching
-`pipelineId` against module exports, including pipelines nested in a suite export. A suite itself cannot
-be resumed: if only a non-matching suite is found, the command explains that the run belongs to one of its
+`pipelineId` against module exports, including pipelines nested in a process export. A process itself cannot
+be resumed: if only a non-matching process is found, the command explains that the run belongs to one of its
 pipelines. Runs started by older versions without a recorded file get an error naming the exact
 `mt resume <runId> <pipeline.ts>` fallback. `Runner.resume()` throws `pipelineId mismatch` when the loaded
 pipeline's `id` differs from the recorded run.
@@ -308,7 +308,7 @@ packages/cli/tests/
 ├── index.arch.test.ts         # Arch: all commands registered
 ├── commands/
 │   ├── run.test.ts            # run command (mock Runner) + start/end lifecycle hooks
-│   ├── explain.test.ts        # explain Markdown/JSON, aliases, nested forks, suites; no .mt writes
+│   ├── explain.test.ts        # explain Markdown/JSON, aliases, nested forks, processes; no .mt writes
 │   ├── install.test.ts        # install command (mock Runner): missing/absent script
 │   ├── resume.test.ts         # resume command
 │   ├── init.test.ts           # init scaffolding

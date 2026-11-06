@@ -251,13 +251,13 @@ describe('resume command', () => {
     )
   })
 
-  it('resolves a pipeline nested in a suite export', async () => {
+  it('resolves a pipeline nested in a process export', async () => {
     const nested = plainPipeline('nested')
-    const suite = defineProcess([nested], { id: 'nested-suite' })
+    const proc = defineProcess([nested], { id: 'nested-process' })
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, '// mocked')
     await writeState('test-run-id', { pipelineId: 'nested' })
-    vi.doMock(pipelinePath, () => ({ default: suite }))
+    vi.doMock(pipelinePath, () => ({ default: proc }))
 
     await resumeCommand(['test-run-id', 'pipeline.ts'])
 
@@ -269,15 +269,15 @@ describe('resume command', () => {
     )
   })
 
-  it('explains that a suite without the recorded pipeline cannot be resumed as a whole', async () => {
-    const suite = defineProcess([plainPipeline('nested')], { id: 'nested-suite' })
+  it('explains that a process without the recorded pipeline cannot be resumed as a whole', async () => {
+    const proc = defineProcess([plainPipeline('nested')], { id: 'nested-process' })
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, '// mocked')
     await writeState('test-run-id', { pipelineId: 'missing' })
-    vi.doMock(pipelinePath, () => ({ default: suite }))
+    vi.doMock(pipelinePath, () => ({ default: proc }))
 
     await expect(resumeCommand(['test-run-id', 'pipeline.ts'])).rejects.toThrow(
-      /suite cannot be resumed as a whole|belongs to a pipeline in suite/,
+      /process cannot be resumed as a whole|belongs to a pipeline in process/,
     )
     expect(mockResume).not.toHaveBeenCalled()
   })

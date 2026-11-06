@@ -338,6 +338,7 @@ export {
   source,
   target,
   defineProcess,
+  isPipeline,
   ProcessBuilder,
   PipelineBuilder,
   DEFAULT_BATCH_SIZE,
@@ -354,9 +355,9 @@ export type {
   WaypointSourceHooks,
   WaypointTargetHooks,
 } from './dsl.js'
-export { isPipeline, isPipelineSuite } from './suite.js'
-export type { PipelineSuite, PipelineSuiteMode, ProcessRunOptions } from './suite.js'
-export type { ProcessSuiteOptions } from './dsl.js'
+export { isProcess } from './process.js'
+export type { Process, ProcessMode, ProcessRunOptions } from './process.js'
+export type { ProcessOptions } from './dsl.js'
 export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
 export type {
   ParsedUri,

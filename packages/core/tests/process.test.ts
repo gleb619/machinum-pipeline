@@ -18,8 +18,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../src/engine/runner.js', () => ({ Runner: mocks.Runner }))
 vi.mock('../src/config.js', () => ({ loadGlobalContext: mocks.loadGlobalContext }))
 
-import { defineProcess } from '../src/dsl.js'
-import { isPipeline, isPipelineSuite } from '../src/suite.js'
+import { defineProcess, isPipeline } from '../src/dsl.js'
+import { isProcess } from '../src/process.js'
 
 function makePipeline(id: string): Pipeline {
   return {
@@ -30,9 +30,9 @@ function makePipeline(id: string): Pipeline {
   }
 }
 
-function makeContext(root = '/tmp/suite-test'): GlobalContext {
+function makeContext(root = '/tmp/process-test'): GlobalContext {
   return {
-    project: { name: 'suite-test', root },
+    project: { name: 'process-test', root },
     defaults: {
       retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
       onError: 'fail-run',
@@ -50,25 +50,25 @@ beforeEach(() => {
   mocks.loadGlobalContext.mockResolvedValue(makeContext())
 })
 
-describe('defineProcess suite form', () => {
+describe('defineProcess process form', () => {
   it('defaults id and keeps a defensive copy of pipelines', () => {
     const first = makePipeline('first')
     const second = makePipeline('second')
     const declared = [first]
-    const suite = defineProcess(declared)
+    const proc = defineProcess(declared)
 
     declared.push(second)
 
-    expect(suite.kind).toBe('pipeline-suite')
-    expect(suite.id).toBe('pipeline-suite')
-    expect(suite.pipelines).toEqual([first])
-    expect(suite.pipelines).not.toBe(declared)
+    expect(proc.kind).toBe('process')
+    expect(proc.id).toBe('process')
+    expect(proc.pipelines).toEqual([first])
+    expect(proc.pipelines).not.toBe(declared)
   })
 
-  it('uses a custom suite id', () => {
-    const suite = defineProcess([makePipeline('one')], { id: 'basic-md-all' })
+  it('uses a custom process id', () => {
+    const proc = defineProcess([makePipeline('one')], { id: 'basic-md-all' })
 
-    expect(suite.id).toBe('basic-md-all')
+    expect(proc.id).toBe('basic-md-all')
   })
 
   it('rejects empty and invalid pipeline lists at definition time', () => {
@@ -82,28 +82,24 @@ describe('defineProcess suite form', () => {
   })
 })
 
-describe('isPipelineSuite', () => {
-  it('accepts a suite created by defineProcess([...])', () => {
-    expect(isPipelineSuite(defineProcess([makePipeline('one')]))).toBe(true)
+describe('isProcess', () => {
+  it('accepts a process created by defineProcess([...])', () => {
+    expect(isProcess(defineProcess([makePipeline('one')]))).toBe(true)
   })
 
   it('rejects a setup-only defineProcess() builder', () => {
-    expect(isPipelineSuite(defineProcess())).toBe(false)
+    expect(isProcess(defineProcess())).toBe(false)
   })
 
-  it('rejects null and objects that do not match the suite shape', () => {
-    expect(isPipelineSuite(null)).toBe(false)
-    expect(isPipelineSuite({})).toBe(false)
-    expect(isPipelineSuite({ kind: 'other', id: 'suite', pipelines: [], run: () => {} })).toBe(
-      false,
-    )
-    expect(
-      isPipelineSuite({ kind: 'pipeline-suite', id: 'suite', pipelines: [], run: 'nope' }),
-    ).toBe(false)
+  it('rejects null and objects that do not match the process shape', () => {
+    expect(isProcess(null)).toBe(false)
+    expect(isProcess({})).toBe(false)
+    expect(isProcess({ kind: 'other', id: 'process', pipelines: [], run: () => {} })).toBe(false)
+    expect(isProcess({ kind: 'process', id: 'process', pipelines: [], run: 'nope' })).toBe(false)
   })
 })
 
-describe('suite run', () => {
+describe('process run', () => {
   it('constructs and starts one Runner per pipeline in order with the supplied context', async () => {
     const ctx = makeContext('/tmp/given')
     const options: RunnerOptions = { pipelineFile: 'pipelines/all.ts' }
@@ -122,8 +118,8 @@ describe('suite run', () => {
       }
     })
 
-    const suite = defineProcess([makePipeline('one'), makePipeline('two')])
-    await suite.run(ctx, options)
+    const proc = defineProcess([makePipeline('one'), makePipeline('two')])
+    await proc.run(ctx, options)
 
     expect(events).toEqual([
       'construct:one',
@@ -139,10 +135,10 @@ describe('suite run', () => {
   it('loads the global context from process.cwd when none is supplied', async () => {
     const ctx = makeContext('/tmp/loaded')
     const pipeline = makePipeline('one')
-    const suite = defineProcess([pipeline])
+    const proc = defineProcess([pipeline])
     mocks.loadGlobalContext.mockResolvedValue(ctx)
 
-    await suite.run()
+    await proc.run()
 
     expect(mocks.loadGlobalContext).toHaveBeenCalledWith(process.cwd())
     expect(mocks.Runner).toHaveBeenCalledWith(pipeline, ctx, undefined)
@@ -162,9 +158,9 @@ describe('suite run', () => {
       }
     })
 
-    const suite = defineProcess([makePipeline('one'), makePipeline('two')])
+    const proc = defineProcess([makePipeline('one'), makePipeline('two')])
 
-    await expect(suite.run(makeContext())).rejects.toBe(failure)
+    await expect(proc.run(makeContext())).rejects.toBe(failure)
     expect(events).toEqual(['construct:one', 'start:one'])
   })
 
@@ -173,7 +169,7 @@ describe('suite run', () => {
   })
 })
 
-describe('suite modes', () => {
+describe('process modes', () => {
   it('defaults to sync', () => {
     expect(defineProcess([makePipeline('one')]).mode).toBe('sync')
   })
@@ -182,7 +178,7 @@ describe('suite modes', () => {
     expect(defineProcess([makePipeline('one')], { mode: 'parallel' }).mode).toBe('parallel')
   })
 
-  it('parallel(true|false) returns new suites without mutating the original', () => {
+  it('parallel(true|false) returns new processes without mutating the original', () => {
     const one = makePipeline('one')
     const two = makePipeline('two')
     const sync = defineProcess([one, two], { id: 'all' })
@@ -195,9 +191,9 @@ describe('suite modes', () => {
     expect(backToSync.mode).toBe('sync')
     expect(parallel).not.toBe(sync)
     expect(backToSync).not.toBe(parallel)
-    for (const suite of [sync, parallel, backToSync]) {
-      expect(suite.id).toBe('all')
-      expect(suite.pipelines).toEqual([one, two])
+    for (const proc of [sync, parallel, backToSync]) {
+      expect(proc.id).toBe('all')
+      expect(proc.pipelines).toEqual([one, two])
     }
   })
 
@@ -213,8 +209,8 @@ describe('suite modes', () => {
         }),
     }))
 
-    const suite = defineProcess([makePipeline('one'), makePipeline('two')]).parallel(true)
-    const running = suite.run(makeContext())
+    const proc = defineProcess([makePipeline('one'), makePipeline('two')]).parallel(true)
+    const running = proc.run(makeContext())
 
     expect(started).toEqual(['one', 'two'])
     resolvers.get('one')?.()
@@ -230,10 +226,10 @@ describe('suite modes', () => {
       return runner
     })
 
-    const suite = defineProcess([makePipeline('one'), makePipeline('two')])
+    const proc = defineProcess([makePipeline('one'), makePipeline('two')])
     const seen: string[] = []
 
-    await suite.run(makeContext(), {
+    await proc.run(makeContext(), {
       onRunner: (runner, pipeline) => {
         seen.push(`${pipeline.id}:${runners.includes(runner)}`)
       },

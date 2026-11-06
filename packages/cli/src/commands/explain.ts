@@ -1,19 +1,13 @@
 import { relative, resolve } from 'node:path'
 import { format } from 'node:util'
-import {
-  DEFAULT_MT_CONFIG,
-  isPipelineSuite,
-  readMtConfig,
-  registry,
-  resolveRetryPolicy,
-} from '@mt/core'
+import { DEFAULT_MT_CONFIG, isProcess, readMtConfig, registry, resolveRetryPolicy } from '@mt/core'
 import type {
   ErrorPolicy,
   MtConfig,
   PartialRetryPolicy,
   Pipeline,
   PipelineStep,
-  PipelineSuite,
+  Process,
   RetryPolicy,
   Settings,
   Source,
@@ -88,7 +82,7 @@ export interface ExplainedPipeline {
 }
 
 export interface ExplainedRunnable {
-  kind: 'pipeline' | 'suite'
+  kind: 'pipeline' | 'process'
   id: string
   pipelineCount: number
   mode?: 'sync' | 'parallel'
@@ -215,7 +209,7 @@ function printExplainHelp(): void {
 Describe how a declared pipeline will flow without executing it.
 
 Options:
-  --pipeline <name>  Select a named export (pipeline or suite)
+  --pipeline <name>  Select a named export (pipeline or process)
   --json             Emit a machine-readable explanation
   -h, --help         Show this help
 
@@ -245,9 +239,9 @@ async function buildExplanationUncaptured(
   const defaults = effectiveDefaults(config)
   const warnings: string[] = []
 
-  const explained: ExplainedRunnable = isPipelineSuite(runnable)
+  const explained: ExplainedRunnable = isProcess(runnable)
     ? {
-        kind: 'suite',
+        kind: 'process',
         id: runnable.id,
         pipelineCount: runnable.pipelines.length,
         mode: runnable.mode,
@@ -287,7 +281,7 @@ async function buildExplanationUncaptured(
         'events.jsonl':
           'append-only run events; one JSON line per event: { type, ts, runId, stepId?, error? }',
         'run.log':
-          'CLI lifecycle lines written by the DuplexLogger; a suite child run may have none (step logs still exist)',
+          'CLI lifecycle lines written by the DuplexLogger; a process child run may have none (step logs still exist)',
         'logs/<stepId>.log':
           'engine, tool, source and target logs per step; every character outside [A-Za-z0-9._-] in the step id becomes "_"',
         'dead-letter.jsonl': 'failed exchanges; only when onError = dead-letter',
@@ -715,8 +709,8 @@ function effectiveBatchSize(step: PipelineStep): number {
  * ladder pattern) is fine — the same object simply gets explained twice. Only separate
  * declarations that end up with the same id make `resume`/`inspect` ambiguous.
  */
-function duplicatePipelineIdWarnings(runnable: Pipeline | PipelineSuite): string[] {
-  const roots = isPipelineSuite(runnable) ? runnable.pipelines : [runnable]
+function duplicatePipelineIdWarnings(runnable: Pipeline | Process): string[] {
+  const roots = isProcess(runnable) ? runnable.pipelines : [runnable]
   const byId = new Map<string, Pipeline[]>()
   const seen = new Set<Pipeline>()
 
@@ -872,20 +866,20 @@ export function renderExplanation(explanation: PipelineExplanation): string {
   renderRuntime(lines, explanation.runtime)
   renderWarnings(lines, explanation.warnings)
 
-  if (explanation.runnable.kind === 'suite') {
-    const suite = explanation.runnable
-    lines.push('## Suite execution')
+  if (explanation.runnable.kind === 'process') {
+    const proc = explanation.runnable
+    lines.push('## Process execution')
     lines.push('')
     lines.push(
-      `Suite \`${suite.id}\` has ${suite.pipelineCount} pipeline(s) in \`${suite.mode ?? 'sync'}\` mode.`,
+      `Process \`${proc.id}\` has ${proc.pipelineCount} pipeline(s) in \`${proc.mode ?? 'sync'}\` mode.`,
     )
     lines.push(
-      suite.mode === 'parallel'
+      proc.mode === 'parallel'
         ? 'Each pipeline gets its own Runner/run id and they run concurrently.'
-        : 'Each pipeline gets its own Runner/run id and they run one after another; the first failure stops the suite.',
+        : 'Each pipeline gets its own Runner/run id and they run one after another; the first failure stops the process.',
     )
     lines.push('')
-    for (const [index, pipeline] of suite.pipelines.entries()) {
+    for (const [index, pipeline] of proc.pipelines.entries()) {
       lines.push(`${index + 1}. \`${pipeline.id}\` (${pipeline.stepCount} steps)`)
     }
     lines.push('')
@@ -893,7 +887,7 @@ export function renderExplanation(explanation: PipelineExplanation): string {
 
   for (const [index, pipeline] of explanation.runnable.pipelines.entries()) {
     const label =
-      explanation.runnable.kind === 'suite'
+      explanation.runnable.kind === 'process'
         ? `Pipeline ${index + 1} of ${explanation.runnable.pipelineCount}`
         : 'Pipeline'
     renderPipeline(lines, pipeline, 2, label, true)
@@ -903,8 +897,8 @@ export function renderExplanation(explanation: PipelineExplanation): string {
 }
 
 function runnableLabel(runnable: ExplainedRunnable): string {
-  if (runnable.kind === 'suite') {
-    return `suite \`${runnable.id}\` (${runnable.pipelineCount} pipelines, mode \`${runnable.mode ?? 'sync'}\`)`
+  if (runnable.kind === 'process') {
+    return `process \`${runnable.id}\` (${runnable.pipelineCount} pipelines, mode \`${runnable.mode ?? 'sync'}\`)`
   }
   return `pipeline \`${runnable.id}\``
 }

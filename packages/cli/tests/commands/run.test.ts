@@ -183,7 +183,7 @@ describe('run command', () => {
     )
   })
 
-  describe('suite loading', () => {
+  describe('process loading', () => {
     function plainPipeline(id: string): Pipeline {
       return {
         id,
@@ -206,23 +206,23 @@ describe('run command', () => {
       vi.doMock(pipelinePath, () => exports)
     }
 
-    it('runs an explicit default suite', async () => {
+    it('runs an explicit default process', async () => {
       const one = plainPipeline('one')
       const two = plainPipeline('two')
-      const suite = defineProcess([one, two], { id: 'declared-suite', mode: 'sync' })
+      const proc = defineProcess([one, two], { id: 'declared-process', mode: 'sync' })
       const pipelinePath = join(testDir, 'pipeline.ts')
-      await mockModule(pipelinePath, { default: suite, one, two })
+      await mockModule(pipelinePath, { default: proc, one, two })
 
       await runCommand(['pipeline.ts'])
 
       const output = logText()
-      expect(output).toContain('Starting suite: declared-suite (2 pipelines, mode: sync)')
-      expect(output).toContain('Suite complete: declared-suite')
+      expect(output).toContain('Starting process: declared-process (2 pipelines, mode: sync)')
+      expect(output).toContain('Process complete: declared-process')
       expect(output).toContain('one -> ')
       expect(output).toContain('two -> ')
     })
 
-    it('builds an implicit suite from every exported pipeline when there is no default', async () => {
+    it('builds an implicit process from every exported pipeline when there is no default', async () => {
       const one = plainPipeline('one')
       const two = plainPipeline('two')
       const pipelinePath = join(testDir, 'pipeline.ts')
@@ -231,8 +231,8 @@ describe('run command', () => {
       await runCommand(['pipeline.ts'])
 
       const output = logText()
-      expect(output).toContain('Starting suite: pipeline-suite (2 pipelines, mode: sync)')
-      expect(output).toContain('Suite complete: pipeline-suite')
+      expect(output).toContain('Starting process: pipeline-process (2 pipelines, mode: sync)')
+      expect(output).toContain('Process complete: pipeline-process')
       expect(output).toContain('one -> ')
       expect(output).toContain('two -> ')
     })
@@ -248,26 +248,26 @@ describe('run command', () => {
       const output = logText()
       expect(output).toContain('Starting pipeline: primary')
       expect(output).toContain('Pipeline complete')
-      expect(output).not.toContain('Starting suite')
-      expect(output).not.toContain('Suite complete')
+      expect(output).not.toContain('Starting process')
+      expect(output).not.toContain('Process complete')
       expect(mockStart).toHaveBeenCalledTimes(1)
     })
 
     it('--pipeline still selects exactly one export', async () => {
-      const suite = defineProcess([plainPipeline('one')], { id: 'declared-suite' })
+      const proc = defineProcess([plainPipeline('one')], { id: 'declared-process' })
       const typed = plainPipeline('typed')
       const pipelinePath = join(testDir, 'pipeline.ts')
-      await mockModule(pipelinePath, { default: suite, typed })
+      await mockModule(pipelinePath, { default: proc, typed })
 
       await runCommand(['pipeline.ts', '--pipeline', 'typed'])
 
       const output = logText()
       expect(output).toContain('Pipeline complete')
-      expect(output).not.toContain('Suite complete')
+      expect(output).not.toContain('Process complete')
       expect(mockStart).toHaveBeenCalled()
     })
 
-    it('runs the error hook and exits when a suite pipeline fails', async () => {
+    it('runs the error hook and exits when a process pipeline fails', async () => {
       const failingTarget = {
         uri: 'mem://fail',
         open: async () => undefined,
@@ -285,13 +285,13 @@ describe('run command', () => {
           { type: 'target', config: { uri: 'mem://fail', instance: failingTarget } },
         ],
       }
-      const suite = defineProcess([failing], { id: 'broken-suite' })
+      const proc = defineProcess([failing], { id: 'broken-process' })
       const pipelinePath = join(testDir, 'pipeline.ts')
-      await mockModule(pipelinePath, { default: suite })
+      await mockModule(pipelinePath, { default: proc })
 
       await expect(runCommand(['pipeline.ts'])).rejects.toThrow('EXIT 1')
 
-      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Suite failed: boom'))
+      expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Process failed: boom'))
     })
   })
 

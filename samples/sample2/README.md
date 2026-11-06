@@ -45,14 +45,14 @@ jsonl://./jsonl/input.jsonl
 
 | Pipeline | Command | Purpose |
 | --- | --- | --- |
-| `default` suite | `pnpm run runner:beginner` | Runs the five exported beginner pipelines |
+| `default` process | `pnpm run runner:beginner` | Runs the five exported beginner pipelines |
 | `defaultPipeline` | `pnpm run runner:beginner -- --pipeline defaultPipeline` | JSONL → `wordCounter` → `toMarkdownTool` → `chapters/output.md` |
 | `typedContentPipeline` | `pnpm run runner:beginner -- --pipeline typedContentPipeline` | JSONL → `chapterTree()` edit → `chapterDocBuild` → `chapters/output-typed.md` |
 | `chapterDomainPipeline` | `pnpm run runner:beginner -- --pipeline chapterDomainPipeline` | JSONL → core `Chapter` + `chapterTree()` line edit → `chapters/output-custom-typed.md` |
 | `statsPipeline` | `pnpm run runner:beginner -- --pipeline statsPipeline` | JSONL → batch → `statFreq` (offline word-frequency report) → `void://` |
 | `consolePreviewPipeline` | `pnpm run runner:beginner -- --pipeline consolePreviewPipeline` | JSONL → per-line text → `console://` (prefixed terminal preview) |
 
-The end of the file shows the explicit suite and the `.parallel(true)` / sync alternatives.
+The end of the file shows the explicit process and the `.parallel(true)` / sync alternatives.
 
 `chapterTree()` / `parseChapterTree()` from `@mt/core` wrap a `Chapter` in a mutable view:
 `tree.chunks()[0].paragraphs()[0].lines[0].text = '…'` writes back through `tree.body`,
@@ -123,7 +123,7 @@ entity-buffer waypoints do the work. The only local code is small mapping/render
 
 | Pipeline | Command | Purpose |
 | --- | --- | --- |
-| `default` (suite) | `pnpm run runner:advanced` | All advanced pipelines in declaration order |
+| `default` (process) | `pnpm run runner:advanced` | All advanced pipelines in declaration order |
 | `cleanSplitPipeline` | `pnpm run runner:advanced -- --pipeline cleanSplitPipeline` | Series split, then clean + chunk chapter1 and reuse the separators |
 | `ladderPipeline` | `pnpm run runner:advanced -- --pipeline ladderPipeline` | The Structure Ladder → `chapters/ladder-chapters/*.md` + `chapters/ladder-summary.md` |
 | `tokenLadderPipeline` | `pnpm run runner:advanced -- --pipeline tokenLadderPipeline` | Chunks → tokens → `chapters/token-ladder-summary.md` |

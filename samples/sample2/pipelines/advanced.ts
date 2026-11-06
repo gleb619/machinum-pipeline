@@ -226,7 +226,7 @@ export const tokenLadderPipeline = definePipeline({ id: 'sample2-advanced-token-
   .subflow(tokenSummaryStage)
 
 // All lessons in one process: clean/split, ladder, token ladder.
-const allPipelines = definePipeline({ id: 'sample2-advanced-suite' })
+const allPipelines = definePipeline({ id: 'sample2-advanced-process' })
   .subflow(cleanSplitPipeline)
   .subflow(ladderPipeline)
   .subflow(tokenLadderPipeline)

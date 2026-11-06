@@ -59,7 +59,7 @@ Cardinality changes only via DSL ops (`.batch(opts?)`, `.flatMap()`).
 
 Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [steering/waypoint.md](../steering/waypoint.md#structure-ladder).
 
-A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) and the process/suite factory (`defineProcess` — plain for setup, `defineProcess([...])` for a sync-by-default suite with `.parallel(true)`) are only the orchestration grammar; `mt run <file>` runs the default pipeline/suite, or an implicit suite of all exported pipelines.
+A pipeline is a real TypeScript module — `import`, `console.log`, conditionals all work. The DSL (`definePipeline`) and the process factory (`defineProcess` — plain for setup, `defineProcess([...])` for a sync-by-default process with `.parallel(true)`) are only the orchestration grammar; `mt run <file>` runs the default pipeline/process, or an implicit process of all exported pipelines.
 `mt explain <file>` loads the same runnable and prints the declared dataflow, effective policy, nested
 scopes and runtime artifact paths **without** constructing a Runner or writing `.mt` state. The module
 is still imported (top-level code runs), but no `GlobalContext`/`.env`/vault is loaded and no

@@ -1,6 +1,6 @@
 import { relative, resolve } from 'node:path'
-import { Runner, importPipelineModule, isPipeline, isPipelineSuite, readMtConfig } from '@mt/core'
-import type { GlobalContext, Logger, Pipeline, PipelineSuite } from '@mt/core'
+import { Runner, importPipelineModule, isPipeline, isProcess, readMtConfig } from '@mt/core'
+import type { GlobalContext, Logger, Pipeline, Process } from '@mt/core'
 
 /**
  * Shared runner for `mt.json` lifecycle hook scripts (`scripts.install` /
@@ -26,7 +26,7 @@ export interface LifecycleRunOptions {
 async function resolveLifecycleScript(
   ctx: GlobalContext,
   name: LifecycleHookName,
-): Promise<{ runnable: Pipeline | PipelineSuite; pipelineFile: string } | undefined> {
+): Promise<{ runnable: Pipeline | Process; pipelineFile: string } | undefined> {
   const config = await readMtConfig(ctx.project.root)
   const script = config.scripts?.[name]
   if (!script) return undefined
@@ -41,11 +41,8 @@ async function resolveLifecycleScript(
     )
   }
 
-  const runnable = (mod.default ?? mod.pipeline) as Pipeline | PipelineSuite | undefined
-  if (
-    !runnable ||
-    !(isPipeline(runnable) || isPipelineSuite(runnable) || isLegacyPipeline(runnable))
-  ) {
+  const runnable = (mod.default ?? mod.pipeline) as Pipeline | Process | undefined
+  if (!runnable || !(isPipeline(runnable) || isProcess(runnable) || isLegacyPipeline(runnable))) {
     throw new Error(
       `Invalid lifecycle script '${script}' (${name}). Expected default export from definePipeline() or defineProcess().`,
     )
@@ -69,7 +66,7 @@ export async function runLifecycleScript(
   if (!script) return
 
   logger.info(`Running ${name} hook: ${script.runnable.id} (${script.pipelineFile})`)
-  if (isPipelineSuite(script.runnable)) {
+  if (isProcess(script.runnable)) {
     await script.runnable.run(ctx, {
       pipelineFile: script.pipelineFile,
     })

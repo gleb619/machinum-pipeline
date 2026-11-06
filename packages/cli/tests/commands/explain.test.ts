@@ -58,7 +58,7 @@ interface JsonExplanation {
   llm?: { tool?: string; model?: string; note: string }
   defaults: { retry: JsonRetry; onError: string; concurrency: number }
   runnable: {
-    kind: 'pipeline' | 'suite'
+    kind: 'pipeline' | 'process'
     id: string
     pipelineCount: number
     mode?: 'sync' | 'parallel'
@@ -430,13 +430,13 @@ describe('explain command', () => {
     expect(fork?.nested?.map((p) => p.id)).toEqual(['branch-a', 'branch-b'])
   })
 
-  it('explains a suite in declaration order', async () => {
+  it('explains a process in declaration order', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default {}')
     vi.doMock(pipelinePath, () => ({
       default: {
-        kind: 'pipeline-suite',
-        id: 'demo-suite',
+        kind: 'process',
+        id: 'demo-process',
         mode: 'sync',
         pipelines: [simplePipeline('first'), simplePipeline('second')],
         parallel: () => {
@@ -452,7 +452,7 @@ describe('explain command', () => {
       .mocked(console.log)
       .mock.calls.map((call) => String(call[0]))
       .join('\n')
-    expect(output).toContain('suite `demo-suite` (2 pipelines, mode `sync`)')
+    expect(output).toContain('process `demo-process` (2 pipelines, mode `sync`)')
     expect(output).toContain('1. `first`')
     expect(output).toContain('2. `second`')
   })
@@ -508,7 +508,7 @@ describe('explain command', () => {
     )
   })
 
-  it('explains the implicit sync suite when no default pipeline is exported', async () => {
+  it('explains the implicit sync process when no default pipeline is exported', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default {}')
     vi.doMock(pipelinePath, () => ({
@@ -520,8 +520,8 @@ describe('explain command', () => {
 
     const parsed = JSON.parse(String(vi.mocked(console.log).mock.calls[0]?.[0])) as JsonExplanation
     expect(parsed.runnable).toMatchObject({
-      kind: 'suite',
-      id: 'pipeline-suite',
+      kind: 'process',
+      id: 'pipeline-process',
       mode: 'sync',
       pipelineCount: 2,
     })

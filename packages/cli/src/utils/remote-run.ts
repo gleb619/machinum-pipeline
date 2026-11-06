@@ -1,7 +1,7 @@
 import { readFile, stat } from 'node:fs/promises'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
-import { isPipeline, isPipelineSuite } from '@mt/core'
-import type { Pipeline, PipelineSuite } from '@mt/core'
+import { isPipeline, isProcess } from '@mt/core'
+import type { Pipeline, Process } from '@mt/core'
 import {
   type RemoteHealth,
   type ResolvedRemoteConfig,
@@ -174,8 +174,8 @@ function assertShippableUri(uri: string): void {
   }
 }
 
-function collectToolNames(runnable: Pipeline | PipelineSuite): string[] {
-  const pipelines = isPipelineSuite(runnable) ? runnable.pipelines : [runnable]
+function collectToolNames(runnable: Pipeline | Process): string[] {
+  const pipelines = isProcess(runnable) ? runnable.pipelines : [runnable]
   const names = new Set<string>()
   const visit = (pipeline: Pipeline): void => {
     for (const step of pipeline.steps) {
@@ -209,7 +209,7 @@ function requiredCapabilities(tool: string): CapabilityName[] {
 }
 
 /** Fail fast when the remote cannot run a declared tool. Unknown tools pass. */
-export function assertCapabilities(runnable: Pipeline | PipelineSuite, health: RemoteHealth): void {
+export function assertCapabilities(runnable: Pipeline | Process, health: RemoteHealth): void {
   const capabilities = health.capabilities
   if (!capabilities) return
   for (const tool of collectToolNames(runnable)) {
@@ -736,7 +736,7 @@ async function loadLocalRunnable(
   projectRoot: string,
   pipelineFile: string,
   pipelineName: string | undefined,
-): Promise<Pipeline | PipelineSuite> {
+): Promise<Pipeline | Process> {
   const { loadRunnable } = await import('../commands/run.js')
   return loadRunnable(resolve(projectRoot, pipelineFile), pipelineName)
 }

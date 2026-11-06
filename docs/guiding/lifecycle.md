@@ -112,7 +112,7 @@ without executing it. It is the only lifecycle entry point that stops before con
 1. **Bootstrap + initialization.** Same dispatch as `mt run`; `explain.ts` imports `@mt/waypoint`, so
    URI schemes and aliases can be resolved.
 2. **Pipeline module import.** `loadRunnable(file, name?)` is the *same* selector `mt run` uses
-   (named export → default suite → default pipeline → implicit suite). The module's top-level code
+   (named export → default process → default pipeline → implicit process). The module's top-level code
    **does execute** — imports, `console.log`, `definePipeline()` and any other side effects happen
    exactly as they would for a run.
 3. **Config read only.** `readMtConfig(projectRoot)` reads `mt.json` (plus its `imports`) for

@@ -166,7 +166,7 @@ const consolePreviewPipeline = definePipeline({ id: 'sample2-beginner-console-pr
   .flatMap(async (record: unknown) => [toLineText(record)])
   .to('console://?prefix=[preview] ')
 
-// all five -> implicit suite (alphabetical, sync)
+// all five -> implicit process (alphabetical, sync)
 export {
   chapterDomainPipeline,
   consolePreviewPipeline,
@@ -175,7 +175,7 @@ export {
   typedContentPipeline,
 }
 
-// explicit suite -> your order + mode (defineProcess([...]).parallel(true))
+// explicit process -> your order + mode (defineProcess([...]).parallel(true))
 import { defineProcess } from '@mt/core'
 export default defineProcess([
   defaultPipeline,
@@ -192,11 +192,11 @@ export default defineProcess([
 
 // ---------------------------------------------------------------------------
 // What runs:
-//   no default export  -> implicit suite `beginner-suite`: all exported
+//   no default export  -> implicit process `beginner-process`: all exported
 //                         pipelines, alphabetical, sync
 //   default pipeline   -> only that one
-//   default suite      -> exactly that suite (order + mode)
-//   --pipeline <name>  -> that export, always wins (pipeline or suite)
+//   default process     -> exactly that process (order + mode)
+//   --pipeline <name>  -> that export, always wins (pipeline or process)
 //
 //   mt run ./pipelines/beginner.ts
 //   mt run ./pipelines/beginner.ts --pipeline defaultPipeline
