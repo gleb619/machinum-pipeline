@@ -41,8 +41,8 @@ it never touches the network and records every request on `.calls`.
 `defineComposableTool` (packages/core/src/dsl.ts) builds tools from named, ordered slots;
 `tool.with({ slot })` returns a NEW tool with one slot replaced. Example:
 `schemaDocWriter.with({ emit: stubSchemaEmit })` in
-`samples/sample3/pipelines/jsonl-to-md-multi.ts` (`schemaDocMockPipeline`) keeps the `build`
-slot and redirects the output to `schema-mock/`.
+`samples/sample1-tutorial/pipelines/pipe09-llm-tools.ts` swaps the `call` slot of
+`statTranslateDict` with `mockLlmCall(...)`, so the offline gallery still exercises the gate.
 
 ## Process-level install: `defineProcess().install(mocks)`
 

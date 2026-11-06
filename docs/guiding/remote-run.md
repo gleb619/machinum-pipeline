@@ -13,10 +13,10 @@ mt serve --host 127.0.0.1 --port 7777
 
 # local host
 ssh -N -L 7777:127.0.0.1:7777 user@remote
-mt run ./pipelines/translate.ts --remote http://127.0.0.1:7777
+mt run ./pipelines/translate-chapters.ts --remote http://127.0.0.1:7777
 
 # if remote.url is set in mt.json, the value is optional
-mt run ./pipelines/translate.ts --remote
+mt run ./pipelines/translate-chapters.ts --remote
 mt resume <runId> --remote http://127.0.0.1:7777
 ```
 
@@ -99,9 +99,9 @@ export MT_MAIN_TOKEN='<same-secret>'
 mt worker --main http://main:7777 --token-ref env:MT_MAIN_TOKEN --name gpu-box --tag gpu,docker
 
 # main host routes a run to it
-mt run ./pipelines/translate.ts --on gpu-box --remote http://main:7777
+mt run ./pipelines/translate-chapters.ts --on gpu-box --remote http://main:7777
 # or pick the first online worker carrying every tag
-mt run ./pipelines/translate.ts --tags gpu,docker --remote http://main:7777
+mt run ./pipelines/translate-chapters.ts --tags gpu,docker --remote http://main:7777
 ```
 
 Lifecycle:

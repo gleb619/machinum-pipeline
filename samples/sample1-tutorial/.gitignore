@@ -1,0 +1,28 @@
+# Generated sample input (lorem-ipsum fixtures + copies of books/book1).
+jsonl/*.jsonl
+jsonl/latches/
+fixtures/*.md
+fixtures/gallery/*.md
+fixtures/typos/*.md
+
+# Generated sample output — the pipes write here, the tests clean it up.
+chapters/*.md
+chapters/en/*.md
+chapters/ru/*.md
+chapters/schema/
+chapters/en-tagged/
+chapters/ladder-chapters/*.md
+chapters/chapter-views/
+chapters/book/
+chapters/translate-*/
+chapters/glossary.json
+chapters/glossary.graph.json
+chapters/titles.json
+chapters/waypoint-log.jsonl
+chapters/secrets-demo.jsonl
+out/
+.mt/
+.mt-translate-prompts.jsonl
+mt.local.json
+.demo/*
+!.demo/.gitkeep

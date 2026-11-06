@@ -6,7 +6,7 @@ Samples = runnable mini-projects showing how to work with `mt`. Each doubles as 
 ## Existing samples (reference)
 
 The live, up-to-date index of existing samples is [samples.md](samples.md) — consult it instead of
-duplicating a table here. Shared sample data: `books/book1/chapter-N.en.md` (repo root).
+duplicating a table here. Shared sample data: `books/book1/chapter-N.en.md` and `books/book2/chapter-N.en.md` (repo root).
 
 ## Layout
 
@@ -14,7 +14,7 @@ duplicating a table here. Shared sample data: `books/book1/chapter-N.en.md` (rep
 samples/sampleN/
 ├── package.json        # scripts + workspace deps
 ├── mt.json             # project config (skip for init-style samples)
-├── vitest.config.ts    # copy from sample1/sample2
+├── vitest.config.ts    # copy from sample1-tutorial/sample2-practical
 ├── README.md           # what you learn, layout, run/cleanup/manual steps, how test works
 ├── pipelines/*.ts      # default-export definePipeline(...)
 ├── tests/*.test.ts     # integration tests (required)
@@ -26,14 +26,14 @@ samples/sampleN/
 
 1. **Pick name + goal.** Next free `sampleN`. One concept per sample (one new URI scheme, DSL op, or tool group).
 2. **Work in a worktree/branch**, never `main` ([change-workflow.md](../change-workflow.md)).
-3. **`package.json`** — copy sample2's. Keep `"type": "module"`, `engines.node >=22`. Deps use
+3. **`package.json`** — copy `sample2-practical`'s. Keep `"type": "module"`, `engines.node >=22`. Deps use
    `workspace:*` (`@mt/core`, `@mt/cli`, `@mt/waypoint`, plus `@mt/tools` if used); dev deps `tsx`, `vitest`.
    Scripts:
    - `runner` — `NODE_OPTIONS='--import tsx' mt run ./pipelines/<file>.ts`
    - `example` — one-command demo (prepare input + run)
    - `cleanup` — `rm -rf` every generated output + `.mt`
    - `test` / `test:watch` — `vitest run` / `vitest`
-4. **`mt.json`** — `{ "project": { "name": "sampleN" }, "defaults": { retry, onError, concurrency } }` (copy sample1).
+4. **`mt.json`** — `{ "project": { "name": "sampleN" }, "defaults": { retry, onError, concurrency } }` (copy `sample1-tutorial`).
 5. **`vitest.config.ts`** — `include: ['tests/**/*.test.ts']`, `fileParallelism: false`, timeouts 15–20s.
 6. **Pipeline** in `pipelines/`: string URIs preferred, `import '@mt/waypoint'` for side-effect scheme registration.
    ```ts
@@ -45,7 +45,7 @@ samples/sampleN/
      .to('md://./chapters/en')
    ```
    Extra pipelines → named exports; run with `mt run <file> --pipeline <name>`.
-7. **Input data** — reuse `books/book1` via a `prepare-input.ts` (sample3) or HTTP client script (sample1).
+7. **Input data** — reuse `books/book1` / `books/book2`, either directly through `md://../../books/book2` (as `sample2-practical` does) or via a `prepare-input.ts` fixture writer (`sample1-tutorial`) / HTTP client script (`simulate-book1.ts`).
    Never commit generated output; commit `.gitkeep` for runtime dirs.
 8. **Integration test** (pattern identical across samples):
    - `SAMPLE_DIR = resolve(import.meta.dirname, '..')`, `MT_BIN = <SAMPLE_DIR>/node_modules/.bin/mt`
@@ -63,7 +63,7 @@ samples/sampleN/
 
 ```bash
 pnpm install
-pnpm --filter=sampleN test          # new sample IT
+pnpm -C samples/sampleN run test    # new sample IT
 pnpm lint && pnpm typecheck
 pnpm test                           # all samples still green
 ```

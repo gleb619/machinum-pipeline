@@ -1,0 +1,43 @@
+{
+  "name": "sample1-tutorial",
+  "version": "1.0.0",
+  "description": "Machinum Pipeline tutorial sample \u2014 ten numbered pipes from a minimal from\u2192use\u2192to run to offline LLM tooling",
+  "type": "module",
+  "scripts": {
+    "prepare-input": "tsx prepare-input.ts",
+    "prepare-input:force": "tsx prepare-input.ts --force",
+    "runner:01": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe01-beginning.ts",
+    "runner:02": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe02-waypoints.ts",
+    "runner:03": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe03-tools-multitool.ts",
+    "runner:04": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe04-forks.ts",
+    "runner:05": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe05-chunks-ladder.ts",
+    "runner:06": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe06-stop-resume.ts",
+    "runner:07": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe07-normalize-analyze.ts",
+    "runner:08": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe08-translate-mock.ts",
+    "runner:09": "NODE_OPTIONS='--import tsx' mt run ./pipelines/pipe09-llm-tools.ts",
+    "runner:10": "bash demo/embed.sh",
+    "runner": "tsx run-all.ts",
+    "simulate": "tsx simulate-book1.ts",
+    "info": "mt info",
+    "example": "pnpm run prepare-input && pnpm run runner",
+    "cleanup": "rm -rf chapters/*.md chapters/en/*.md chapters/ru/*.md chapters/schema chapters/en-tagged chapters/ladder-chapters/*.md chapters/chapter-views chapters/book chapters/translate-* chapters/glossary.json chapters/glossary.graph.json chapters/titles.json chapters/waypoint-log.jsonl chapters/secrets-demo.jsonl fixtures/chapter1.md fixtures/chapter-series.md fixtures/gallery/*.md fixtures/typos/*.md jsonl/*.jsonl jsonl/latches out .mt .mt-translate-prompts.jsonl .demo/result.jsonl .demo/input.jsonl .demo/secrets.embed.json",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint:parity": "tsx lint-parity.ts chapters/en-tagged chapters/ru"
+  },
+  "dependencies": {
+    "@mt/cli": "workspace:*",
+    "@mt/core": "workspace:*",
+    "@mt/tools": "workspace:*",
+    "@mt/waypoint": "workspace:*"
+  },
+  "devDependencies": {
+    "lorem-ipsum": "^3.0.0",
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

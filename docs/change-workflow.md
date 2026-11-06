@@ -29,7 +29,7 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
    ```
 
    Whole bootstrap takes ~10s (pnpm store + turbo cache are shared). Verified green from a cold
-   worktree: `pnpm --filter`/`pnpm -C samples/sampleN run test` for sample2 + sample3.
+   worktree: `pnpm --filter`/`pnpm -C samples/sampleN run test` for `sample1-tutorial` + `sample2-practical`.
 
    **Do NOT `--symlink node_modules`.** `pnpm install` follows the symlink and wants to wipe/reinstall
    the *main* checkout's `node_modules` (it prompts; non-interactive runs may not). Likewise do not
@@ -49,7 +49,7 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
    `@mt/core` + `@mt/tools` with thresholds; paste the report in the merge note).
 4. **Commit** — only when the pre-commit gate is green.
 5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
-   (`samples/sample*/tests/`) **and** the GPU gate `pnpm test:gpu` has been **run**. Red → stay on
+   (`samples/*/tests/`) **and** the GPU gate `pnpm test:gpu` has been **run**. Red → stay on
    branch, fix, re-run. Also run the **wrkflw guard** `pnpm ci:local` (see below) and paste its summary line.
 6. **Rebase + FF-merge + cleanup** — rebase the feature branch onto `main` (`git rebase main`),
    then merge → FF only (`git merge --ff-only`) → delete branch + worktree.
@@ -80,10 +80,9 @@ merge, and the merge report must state the `pnpm test:gpu` result (or why it cou
   `docker` fails (needs `binary`, docker-in-docker). Those stay covered by `pnpm lint`/`typecheck`/`test`/`smoke:bin`.
   No `--dry-run` exists; `validate` is the dry check. `--event` needs `--diff`/`--changed-files`, so the guard omits it.
 
-**Commit hygiene** — tests leave temp artifacts (e.g. `samples/sample3/chapters/en/*.md.tmp.*`,
+**Commit hygiene** — tests leave temp artifacts (e.g. `samples/sample1-tutorial/chapters/*.md.tmp.*`,
 `samples/*/out/`). Never `git add -A` / `git add .`: stage explicit paths and check `git status`
-first. Pre-existing lint errors on `main` (e.g. `samples/sample3/pipelines/jsonl-to-md-multi.ts`
-organizeImports) are not caused by your worktree; do not fix unrelated files.
+first. Pre-existing lint errors on `main` are not caused by your worktree; do not fix unrelated files.
 
 **First-try checklist**
 1. `at worktree-new <id> --copy .ollama-remote.md` -> `cd` into it

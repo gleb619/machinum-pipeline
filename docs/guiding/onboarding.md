@@ -47,18 +47,18 @@ Everything under `.mt/`: `runs/<id>/{state.json, context.json, events.jsonl, run
 
 ```bash
 pnpm build        # turbo
-pnpm test         # turbo test + sample integration suites (sample0..3)
+pnpm test         # turbo test + sample integration suites (sample1-tutorial, sample2-practical)
 pnpm test:gpu     # GPU-gated IT (real ollama + keyless router)
 pnpm lint / format / typecheck   # biome + tsc
 NODE_OPTIONS='--import tsx' npx mt explain ./pipeline.ts   # inspect declared flow, no execution
 NODE_OPTIONS='--import tsx' npx mt run ./pipeline.ts       # run a pipeline
 ```
 
-Canonical translation sample: `samples/sample4/pipelines/` — `analyze.ts` (summaries + glossary) → `normalize.ts` → `translate.ts` (titles batched by 5, body line-by-line, parity-linted, output via `@chapters` URI alias).
+Canonical translation sample: `samples/sample2-practical/pipelines/` — `extract-en.ts` → `translate-titles.ts` / `glossary.ts` / `summary.ts` → `translate-chapters.ts` (titles batched by 5, body line-by-line, parity-linted, output via `@chapters`) → `assemble.ts` (`bookCompiler` → `book://`).
 
 ## Gotchas
 
 - `@mt/core` must stay dependency-free; arch tests enforce import layers.
 - Kanban board (`docs/kanban.md`) is machine-mutated — only via `at kanban`, never hand-edit.
 - Vault files are gitignored secrets; never log key material.
-- `MT_MOCK_FLAKY` in sample4 IT simulates a bad LLM reply to prove parity-lint + retry works offline.
+- `MT_MOCK_FLAKY` in the `sample2-practical` / `pipe08` ITs simulates a bad LLM reply to prove parity-lint + retry works offline.

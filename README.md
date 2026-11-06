@@ -70,7 +70,7 @@ export default definePipeline()
 
 ## Samples
 
-`samples/sample0` … `sample5` are runnable example projects (JSONL → tools → Markdown, subflows, forks, remote
+`samples/sample1-tutorial` and `samples/sample2-practical` are runnable example projects (JSONL → tools → Markdown, subflows, forks, translation, remote
 runs). See [docs/guiding/samples.md](docs/guiding/samples.md) to run them, and
 [docs/guiding/adding-a-sample.md](docs/guiding/adding-a-sample.md) to add one.
 

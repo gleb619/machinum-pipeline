@@ -19,10 +19,8 @@ machinum-pipeline/
 │   ├── chrome/                 — MV3 Chrome extension
 │   └── vscode/                 — VS Code extension (JSON schema + code lens)
 ├── samples/
-│   ├── sample0/    — `mt init` integration test
-│   ├── sample1/    — HTTP → JSONL pipeline (`hs://` source)
-│   ├── sample2/    — Basic Markdown processing: waypoints + package tools, entity buffers, fork/parallel
-│   └── sample3/    — Multi-tool: JSONL → tools → fork → batch → MD
+│   ├── sample1-tutorial/  — ten numbered pipes, simple → complex
+│   └── sample2-practical/ — real book2 EN→RU translation prep
 ├── docs/
 │   ├── guiding/     — Architecture spec, use cases, samples, vault, onboarding
 │   ├── steering/    — Per-package steering docs (incl. canonical tool catalogue)

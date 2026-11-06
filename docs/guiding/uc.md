@@ -7,10 +7,10 @@
 
 | ID    | Use Case                                     | Uses tools | Samples |
 |-------|----------------------------------------------|------------|---------|
-| UC001 | Initialize project                           | —          | [sample0](../../samples/sample0) |
+| UC001 | Initialize project                           | —          | [sample1-tutorial](../../samples/sample1-tutorial/tests/init.test.ts) |
 | UC002 | Author a pipeline in TS                      | —          | all samples ([samples.md](samples.md)) |
-| UC003 | Define a custom Tool                        | —          | [sample2](../../samples/sample2) (entity pipeline defines local tools) |
-| UC004 | Define custom Source/Target                 | —          | [sample4](../../samples/sample4) (`defineWaypoint` in `pipelines/waypoint-log.ts`) |
+| UC003 | Define a custom Tool                        | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) (branch pipelines define local tools) |
+| UC004 | Define custom Source/Target                 | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`waypointLogPipeline`) |
 | UC005 | Run a pipeline (foreground)                 | —          | all samples ([samples.md](samples.md)) |
 | UC006 | Resume a paused/failed Run                  | —          | — |
 | UC007 | Pause a running Run                         | —          | — |
@@ -18,18 +18,18 @@
 | UC009 | Inspect a Run                              | —          | — |
 | UC010 | Invoke a single Tool standalone             | —          | — |
 | UC011 | Invoke a Tool via `npx`                     | —          | — |
-| UC012 | Process items in parallel                   | —          | [sample2](../../samples/sample2) |
-| UC013 | Batch items (`Item[]`)                      | —          | [sample2](../../samples/sample2), [sample3](../../samples/sample3) |
-| UC014 | Fork into nested pipeline                   | —          | [sample2](../../samples/sample2) |
+| UC012 | Process items in parallel                   | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) |
+| UC013 | Batch items (`Item[]`)                      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) |
+| UC014 | Fork into nested pipeline                   | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) |
 | UC015 | Auto-checkpoint at step boundary            | —          | — |
 | UC016 | Recover from crash                          | —          | — |
 | UC017 | Retry failing step                          | —          | — |
 | UC018 | Skip item on error (`skip-item`)            | —          | — |
 | UC019 | Route failures to dead-letter               | —          | — |
 | UC020 | Cache tool outputs                          | —          | — |
-| UC021 | Consume from JSONL Source                   | —          | [sample1](../../samples/sample1), [sample2](../../samples/sample2), [sample3](../../samples/sample3), [sample4](../../samples/sample4) |
-| UC022 | Write to JSONL Target                      | —          | [sample1](../../samples/sample1), [sample2](../../samples/sample2) |
-| UC023 | Long-lived HTTP Source                      | —          | [sample1](../../samples/sample1) |
+| UC021 | Consume from JSONL Source                   | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe02-waypoints.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts), [sample2-practical](../../samples/sample2-practical) |
+| UC022 | Write to JSONL Target                      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe02-waypoints.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) |
+| UC023 | Long-lived HTTP Source                      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe02-waypoints.ts) |
 | UC024 | Use Git worktree isolation                  | —          | — |
 | UC025 | Commit results on Target close              | —          | — |
 | UC026 | Start backend in-process                    | —          | — |
@@ -41,7 +41,7 @@
 | UC032 | Open Router panel                        | —          | — |
 | UC033 | Proxy LLM call via Router                  | —          | — |
 | UC034 | Track cost/usage per Run                    | —          | — |
-| UC035 | Use Router offline/mock mode                | —          | [sample3](../../samples/sample3), [sample4](../../samples/sample4), [sample5](../../samples/sample5) (offline `mock` LLM backend) |
+| UC035 | Use Router offline/mock mode                | —          | [sample1-tutorial](../../samples/sample1-tutorial), [sample2-practical](../../samples/sample2-practical) (offline `mock` LLM backend) |
 | UC036 | Roll router logs                            | —          | — |
 | UC037 | List pipelines via MCP                     | Done       | — |
 | UC038 | Run pipeline via MCP                       | Done       | — |
@@ -62,13 +62,13 @@
 | UC054 | Mirror runs to SQLite (indicator)          | —          | — |
 | UC055 | Validate chapter structure (was UC-55)       | [TL008](../steering/tools.md), [TL010](../steering/tools.md), [TL011](../steering/tools.md), [TL063](../steering/tools.md), [TL071](../steering/tools.md) | — |
 | UC056 | Split large chapters by token count (was UC-56) | [TL106](../steering/tools.md)     | — |
-| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](../steering/tools.md), [TL005](../steering/tools.md), [TL006](../steering/tools.md), [TL014](../steering/tools.md), [TL015](../steering/tools.md), [TL043](../steering/tools.md), [TL059](../steering/tools.md) | [sample3](../../samples/sample3) (`chapterValidator`, `forbiddenCharDetector`), [sample4](../../samples/sample4) (`typoFinder` warnings) |
-| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](../steering/tools.md), [TL002](../steering/tools.md), [TL016](../steering/tools.md), [TL036](../steering/tools.md), [TL041](../steering/tools.md), [TL046](../steering/tools.md), [TL062](../steering/tools.md) | [sample4](../../samples/sample4) (`textNormalizer`, `markdownFormatter`, optional LLM typo fix) |
-| UC059 | Batch translate chapter titles (was UC-59) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample4](../../samples/sample4) (`pipelines/translate.ts`), [sample5](../../samples/sample5) (`pipelines/translate-title.ts`) |
-| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](../steering/tools.md), [TL051](../steering/tools.md), [TL054](../steering/tools.md) | [sample4](../../samples/sample4), [sample5](../../samples/sample5) (`pipelines/translate-paragraphs.ts`) |
-| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample3](../../samples/sample3), [sample4](../../samples/sample4), [sample5](../../samples/sample5) (`openrouter-pool` backend of `pickLlmTool`) |
+| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](../steering/tools.md), [TL005](../steering/tools.md), [TL006](../steering/tools.md), [TL014](../steering/tools.md), [TL015](../steering/tools.md), [TL043](../steering/tools.md), [TL059](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) (`chapterValidator`, `forbiddenCharDetector`), [pipe07](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`typoFinder` warnings) |
+| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](../steering/tools.md), [TL002](../steering/tools.md), [TL016](../steering/tools.md), [TL036](../steering/tools.md), [TL041](../steering/tools.md), [TL046](../steering/tools.md), [TL062](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`textNormalizer`, `markdownFormatter`, optional LLM typo fix) |
+| UC059 | Batch translate chapter titles (was UC-59) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample2-practical](../../samples/sample2-practical/pipelines/translate-titles.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe08-translate-mock.ts) (`titlePipeline`) |
+| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](../steering/tools.md), [TL051](../steering/tools.md), [TL054](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe08-translate-mock.ts) (`paragraphsPipeline`) |
+| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial), [sample2-practical](../../samples/sample2-practical) (`openrouter-pool` backend of `pickLlmTool`) |
 | UC062 | Manage OpenRouter API key pool (was UC-62) | —          | — |
-| UC063 | Use remote GPU Ollama via a vault ref      | —          | [sample5](../../samples/sample5) (remote ollama via gitignored `mt.local.json`) |
+| UC063 | Use remote GPU Ollama via a vault ref      | —          | [sample2-practical](../../samples/sample2-practical) (remote ollama via gitignored `mt.local.json`) |
 | UC064 | Call LLM through a keyless router          | —          | — |
 | UC065 | Share a team router behind a token         | —          | — |
 | UC066 | Provision LLM keys with KeePass            | —          | — |
@@ -80,12 +80,12 @@
 | UC072 | Change the embedded store master password  | —          | — |
 | UC073 | Choose a secret backend (embed / KeePass / vlt) | —          | — |
 | UC074 | Replace one secret value (`embed-rotate`)  | —          | — |
-| UC075 | Generate a master key on new installation  | —          | [sample0](../../samples/sample0) |
+| UC075 | Generate a master key on new installation  | —          | [sample1-tutorial](../../samples/sample1-tutorial/tests/init.test.ts) |
 | UC076 | Install the project skill into an agent folder | —       | — |
 | UC077 | Install `mt` without Docker              | —          | — |
 | UC078 | Install `mt` with Docker                 | —          | — |
 | UC079 | Release pipeline and CI gates            | —          | — |
-| UC080 | Explain a pipeline without running it      | —          | [sample3](../../samples/sample3) (nested subflows) |
+| UC080 | Explain a pipeline without running it      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) (nested subflows) |
 | UC081 | Show project info (effective config + state) | —        | — |
 
 ## Legacy ID Mapping
@@ -200,7 +200,7 @@ every `UC###` registered by the built `@mt/core`, `@mt/waypoint` and `@mt/tools`
 | UC070 | Rotate encryption keys (auto-generated or supplied) | Operator | Replace the 256-bit encryption key sealing secrets, either generated or supplied (64 hex, base64 of 32 bytes, or a 12+ char passphrase) | Embedded store unlocked | New key active; with `--reencrypt` every secret is re-sealed under it; old key can then be retired/removed | 1. `mt vault embed-keyring rotate --reencrypt` (or `generate` / `add --kid … --enc-key-file …` then `use <kid>`) 2. `embed-keyring list` shows kids, status, secret counts - no key material 3. `embed-keyring retire`/`rm <kid>` once unused (`rm` refuses while secrets use it) |
 | UC071 | Keep secrets under different encryption keys | Operator | Limit blast radius by sealing secrets under distinct keys | Two or more keys in the keyring | Each secret decrypts under its own `kid`; retired keys still decrypt | 1. `mt vault embed-keyring generate --kid k2` 2. `mt vault embed-add <name> --kid k2 --secret …` 3. Other secrets stay under `k1` 4. `embed-keyring list` shows per-key secret counts |
 | UC072 | Change the embedded store master password | Operator | Move from the public default password (or an old one) to a private master password | Store exists; current password known (or default) | Keyring re-wrapped under the new password; secret ciphertexts untouched; only the new password opens the store | 1. `MT_EMBED_NEW_PASSWORD_FILE=… mt vault embed-rekey` (current password = `MT_EMBED_PASSWORD(_FILE)` or default) 2. Export the new password as `MT_EMBED_PASSWORD(_FILE)` 3. If the file was exposed under the default password, also run `embed-keyring rotate --reencrypt` |
-| UC073 | Choose a secret backend (embed / KeePass / vlt) | Author/Operator | Pick where vault refs resolve: `embed:<name>` (default, pure `node:crypto`), `keepass:<title|uuid>` (`.kdbx`), `vlt:<name>` (vlt CLI) | Backend set up (see `samples/sample4` `demo:*` scripts) | `loadVault` resolves refs in memory regardless of backend; keys never reach disk, logs or checkpoints | 1. Provision the secret (`embed-add` / `keepass-add` / `vlt` CLI) 2. Reference it as `apiKey` ref in a vault entry 3. Run; unavailable backend (e.g. locked vlt) fails clearly |
+| UC073 | Choose a secret backend (embed / KeePass / vlt) | Author/Operator | Pick where vault refs resolve: `embed:<name>` (default, pure `node:crypto`), `keepass:<title|uuid>` (`.kdbx`), `vlt:<name>` (vlt CLI) | Backend set up (see `samples/sample1-tutorial/demo/embed.sh`) | `loadVault` resolves refs in memory regardless of backend; keys never reach disk, logs or checkpoints | 1. Provision the secret (`embed-add` / `keepass-add` / `vlt` CLI) 2. Reference it as `apiKey` ref in a vault entry 3. Run; unavailable backend (e.g. locked vlt) fails clearly |
 | UC074 | Replace one secret value (`embed-rotate`) | Operator | Swap an upstream key value while keeping every `embed:<name>` ref valid | Secret exists in the store | Secret re-sealed under the active encryption key; `rotatedAt` stamped | 1. `mt vault embed-rotate <name> --value-file …` (or stdin / hidden prompt) 2. Refs unchanged 3. Next run resolves the new value |
 | UC075 | Generate a master key on new installation | Author/Operator | Give every new installation its own random 256-bit master key for the embedded store instead of the public built-in default | Fresh project (`mt init`), or an existing/global install (`mt vault master-key generate [--user] [--rekey]`); no `MT_EMBED_PASSWORD(_FILE)` set | `<root>/.mt/master.key` (or `~/.mt/master.key`) exists with mode 0600, is gitignored, and seals the embedded store; the key is never printed; an existing key file is never overwritten silently | 1. `mt init` writes `.mt/master.key` and adds `.mt/master.key`/`*.key` to `.gitignore` (skip with `--no-master-key`) 2. User backs the file up (losing it makes embed secrets unrecoverable) 3. For an existing store: `mt vault master-key generate --rekey` re-wraps it under the new key 4. `mt vault master-key status` shows the active source (env / env-file / project / user / default) without the key 5. CI/Docker pass the key via `MT_EMBED_PASSWORD_FILE` |
 | UC076 | Install the project skill into an agent folder | Author/Operator | Teach a coding agent (Claude Code, Codex, opencode, ...) how to use `mt` in a project | `mt` installed; target project has (or will have) an agent skills folder | `<dir>/SKILL.md` exists with the skill text embedded in this `mt` version; an existing file is never overwritten without `--force`; stdout of plain `mt skill` carries only the file | 1. `mt skill --install` (default `.agent/skills/mt/SKILL.md`) or `--target claude\|codex\|opencode\|agents`, or `mt skill > path/SKILL.md`. 2. `mt skill --path` shows the embedded skill-version. 3. Re-run with `--force` after upgrading `mt` |

@@ -1,0 +1,11 @@
+chapters/en/*.md
+chapters/ru/*.md
+chapters/schema/*.md
+chapters/book/
+chapters/titles.json
+chapters/glossary.json
+chapters/glossary.graph.json
+.mt/
+.mt-translate-prompts.jsonl
+out/
+mt.local.json

@@ -1,0 +1,35 @@
+{
+  "name": "sample2-practical",
+  "version": "1.0.0",
+  "description": "Machinum Pipeline practical sample \u2014 prepare a real EN\u2192RU book translation (titles, glossary, summaries, chapters, assembled book)",
+  "type": "module",
+  "scripts": {
+    "runner:en": "NODE_OPTIONS='--import tsx' mt run ./pipelines/extract-en.ts",
+    "runner:titles": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-titles.ts",
+    "runner:glossary": "NODE_OPTIONS='--import tsx' mt run ./pipelines/glossary.ts",
+    "runner:summary": "NODE_OPTIONS='--import tsx' mt run ./pipelines/summary.ts",
+    "runner:chapters": "NODE_OPTIONS='--import tsx' mt run ./pipelines/translate-chapters.ts",
+    "runner:assemble": "NODE_OPTIONS='--import tsx' mt run ./pipelines/assemble.ts",
+    "runner": "pnpm run runner:en && pnpm run runner:glossary && pnpm run runner:summary && pnpm run runner:titles && pnpm run runner:chapters && pnpm run runner:assemble",
+    "lint:parity": "tsx lint-parity.ts chapters/en chapters/ru",
+    "info": "mt info",
+    "example": "pnpm run runner",
+    "cleanup": "rm -rf chapters/en chapters/ru chapters/schema chapters/book chapters/titles.json chapters/glossary.json .mt .mt-translate-prompts.jsonl",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@mt/cli": "workspace:*",
+    "@mt/core": "workspace:*",
+    "@mt/tools": "workspace:*",
+    "@mt/waypoint": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

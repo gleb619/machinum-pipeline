@@ -1,0 +1,25 @@
+{
+  "imports": ["./mt.local.json"],
+  "project": {
+    "name": "sample2-practical"
+  },
+  "defaults": {
+    "retry": {
+      "max": 3,
+      "backoffMs": 1000,
+      "strategy": "exp"
+    },
+    "onError": "fail-run",
+    "concurrency": 4
+  },
+  "uris": {
+    "book2": "md://../../books/book2",
+    "chapters": "md://./chapters",
+    "ru": "md://./chapters/ru",
+    "schema": "md://./chapters/schema"
+  },
+  "settings": {
+    "llm.tool": "mock",
+    "llm.model": ""
+  }
+}

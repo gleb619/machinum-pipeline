@@ -305,7 +305,7 @@ cardinality) is returned untouched.
   `isStatFreqReport(value)`.
 
 ### `translation-prompt.ts` / `line-parity-linter.ts`
-Building blocks of the sample4 translate stage (EN->RU, line by line).
+Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, line by line).
 
 - `buildTranslationPrompt({ text, glossary, summary, extraRules, mode })` — `{ systemPrompt, userPrompt, usedTerms,
   untranslatedTerms, lockedTerms }`. `mode` is the `TranslateWorkMode` (`'plain' | 'xml' | 'properties'`,
@@ -335,7 +335,7 @@ Building blocks of the sample4 translate stage (EN->RU, line by line).
   `term-tag-left`, `think-block`, `low-cyrillic`; warn: `untranslated-line`. On a hard error the tool throws
   `LineParityError` (`retryable: true`) so the engine retry kicks in; after the last attempt the run fails with the
   message. `LineParityError.feedback` / `parityFeedback(report)` = measured feedback for retry-prompt injection
-  (line counts + delta, Cyrillic ratio, hard-error messages; T138). Standalone check without `mt`: `samples/sample4/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
+  (line counts + delta, Cyrillic ratio, hard-error messages; T138). Standalone check without `mt`: `samples/sample2-practical/lint-parity.ts <enDir> <ruDir>` (table, exit 1 on mismatch).
 - `lintPromptTemplate(name, text, { allowedVars })` (pure) / `lintPromptSet(family, templates, { modes, allowedVars,
   output })` (pure) / `lintTranslatePromptSet(templates)` (pure, thin wrapper for the `translate` family) — prompt
   template linter (issue objects, never throws): `placeholder-syntax` (unbalanced `{{`/`}}`, invalid names, triple
@@ -352,17 +352,17 @@ Building blocks of the sample4 translate stage (EN->RU, line by line).
   (`consume`, default `false`). `{item}` / `{id}` in the path are substituted from the exchange; relative
   paths resolve against the project root. `pollMs` defaults to 100, `timeoutMs` to 0 (no limit). A timeout
   throws a non-retryable error naming the path. `idempotent: true`, category `pipeline`. Sets the resolved
-  path in the `latchFile` variable and passes the item through unchanged. Used by `samples/sample1`'s
+  path in the `latchFile` variable and passes the item through unchanged. Used by `samples/sample1-tutorial`'s
   `stop-resume` pipeline to gate each item, so the run can be paused and resumed deterministically.
 
-### Sample-stage tools (moved from `samples/sample4`, T129)
+### Sample-stage tools (moved from the old samples, T129)
 Reusable glue so sample pipelines only compose package tools (no bespoke `defineTool`).
 
 - `core/llm-picker.ts` — `pickLlmTool({ env, mockSource, configPath })` / `readLlmConfig` / `LLM_TOOLS`: single LLM
   config point (`MT_LLM_TOOL`, `MT_LLM_MODEL`, `MT_LLM_USE`, mt.json `settings.llm.*`; default offline `mock`).
   Returns `{ tool, model, gate, schemaCall, translate }`. Pass `configPath` = the project's `mt.json`
   (default `./mt.json` of the cwd); its `imports` (e.g. a gitignored `mt.local.json`) are merged in first.
-  Shared by sample3, sample4 and sample5. `mockLlmChoice(source, model)` is the offline mock backend as
+  Used by both samples. `mockLlmChoice(source, model)` is the offline mock backend as
   an `LlmChoice` (building block of `mockLlm`).
 - `core/llm-install.ts` — process-level mock install (`defineProcess().install(mockLlm({ source }))`):
   a module registry holding the installed `LlmChoice` provider. LLM-backed factories
@@ -784,7 +784,7 @@ const gate = createLlmGate({
 .use(gate.with({ fit: myFitTool }))   // any Tool or fn(env, ctx)
 ```
 
-Tests: `tests/llm-*.test.ts`. Samples: `samples/sample3` `schemaDocMockPipeline` (`.with({ emit })` slot
+Tests: `tests/llm-*.test.ts`. Samples: `samples/sample1-tutorial/pipelines/pipe09-llm-tools.ts` (`.with({ call })` slot
 override, offline mock) and `translateTitlesPipeline` / `translateChapterPipeline` (title / paragraph
 translators resolving the process-level LLM pick — `defineProcess().install(mockLlm(...))`, no explicit
 `translate` wiring).

@@ -175,7 +175,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - `checkpoint()` counts accepted envelopes: `write()` resolves once the sink takes the chunk (and
   waits for `drain` under backpressure). Stdout/stderr are not durable storage — a crash can still
   lose buffered terminal output
-- Used in sample2 by `consolePreviewPipeline` (`pnpm run runner:preview`), which prints each input
+- Used in `sample1-tutorial` by `consolePreviewPipeline` (`mt run ./pipelines/pipe01-beginning.ts --pipeline consolePreviewPipeline`), which prints each input
   line prefixed with `[preview]` plus a space
 
 | Query option | Values | Default | Behavior |
@@ -379,19 +379,19 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 
 | ID   | Waypoint         | Source | Target | Lifestyle     | Used in Samples                           |
 |------|------------------|--------|--------|---------------|-------------------------------------------|
-| WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4                 |
-| WP002 | md://            | ✓      | ✓      | resumable     | sample1, sample2, sample3, sample4, sample5        |
-| WP003 | hs:// / http:// / https:// | ✓      | ✓ (`http://`, `https://`) | long-lived (source) | sample1, sample2                          |
-| WP004 | my-target://| ✓      | ✓      | resumable     | sample3                                   |
-| WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (sample3 writes schema docs via `md://` write intents, not this scheme) |
+| WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1-tutorial, sample2-practical                |
+| WP002 | md://            | ✓      | ✓      | resumable     | sample1-tutorial, sample2-practical                |
+| WP003 | hs:// / http:// / https:// | ✓      | ✓ (`http://`, `https://`) | long-lived (source) | sample1-tutorial (`pipe02`)                |
+| WP004 | my-target://| ✓      | ✓      | resumable     | sample1-tutorial (`pipe02`)                |
+| WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (samples write schema docs via `md://` write intents, not this scheme) |
 | WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
-| WP007 | ephemeral:// / mem:// | ✓      | ✓      | resumable     | sample2, sample3                          |
-| WP008 | range://         | ✓      | —      | resumable     | sample2                                   |
-| WP009 | void://          | —      | ✓      | —             | sample2                                   |
+| WP007 | ephemeral:// / mem:// | ✓      | ✓      | resumable     | —                                         |
+| WP008 | range://         | ✓      | —      | resumable     | sample1-tutorial (`pipe06`)                |
+| WP009 | void://          | —      | ✓      | —             | sample1-tutorial (`pipe01`/`pipe03`)       |
 | WP010 | review://        | —      | ✓      | —             | —                                         |
-| WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | — | resumable | sample2 (`paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
+| WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | — | resumable | sample1-tutorial (`pipe05`: `paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
 | WP012 | — (retired) | — | — | — | auto-publish replaces the former write-side scheme |
-| WP013 | console:// | — | ✓ | — | sample2 (`consolePreviewPipeline`) |
+| WP013 | console:// | — | ✓ | — | sample1-tutorial (`consolePreviewPipeline`) |
 
 ---
 
@@ -460,7 +460,7 @@ The `chunks` splitter is the shipped form of the manual `readChapterDoc` + `spli
 **Alternate route: `chunks → tokens`.** Instead of descending into paragraphs, a chunk can be tokenized into
 tiktoken-style BPE tokens (`Token`: `chunkId`, `tokenId`, decoded `text`) — what the LLM actually sees. The
 `tokenizeChunk()` helper (`@mt/tools` `normalization/token-splitter.ts`, `gpt-tokenizer`; ~4 chars/token fallback
-flagged `heuristic`) does the split. Demonstrated by `tokenLadderPipeline` in sample2.
+flagged `heuristic`) does the split. Demonstrated by `tokenLadderPipeline` in `sample1-tutorial/pipelines/pipe05-chunks-ladder.ts`.
 
 Rung 0 (`jsonl://`) is the entry point for machine-readable input; rungs 2–5 and `tokens://` are process-local buffers, so
 a ladder that crosses a process boundary must re-enter through a file waypoint (`jsonl://`, `md://`). These rungs are
@@ -489,7 +489,7 @@ Outside a batch scope they throw. No `resume()`: scope state is in-memory, a res
 - Source hooks: `onStart`, `filter` (drop envelopes), `onItem`
 - Target hooks: `onOpen`, `onWrite`, `onClose`
 
-Demonstrated in `samples/sample4/pipelines/waypoint-log.ts`, which re-runs the sample4 normalize chain
+Demonstrated in `samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts` (`waypointLogPipeline`), which re-runs the normalize chain
 with an audit-logging `jsonl://` source and `md://` target. The base accepts a URI string or an instance
 (`defineSource(...)` / `defineTarget(...)`); the sample passes instances so the wrapped endpoints are built
 explicitly next to their hooks.

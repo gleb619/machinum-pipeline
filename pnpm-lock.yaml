@@ -430,45 +430,7 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.17)(terser@5.46.2)
 
-  samples/sample0:
-    dependencies:
-      '@mt/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-      '@mt/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@mt/waypoint':
-        specifier: workspace:*
-        version: link:../../packages/waypoint
-    devDependencies:
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4)
-
-  samples/sample1:
-    dependencies:
-      '@mt/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-      '@mt/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@mt/tools':
-        specifier: workspace:*
-        version: link:../../packages/tools
-      '@mt/waypoint':
-        specifier: workspace:*
-        version: link:../../packages/waypoint
-    devDependencies:
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4)
-
-  samples/sample2:
+  samples/sample1-tutorial:
     dependencies:
       '@mt/cli':
         specifier: workspace:*
@@ -493,54 +455,7 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4)
 
-  samples/sample3:
-    dependencies:
-      '@mt/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-      '@mt/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@mt/tools':
-        specifier: workspace:*
-        version: link:../../packages/tools
-      '@mt/waypoint':
-        specifier: workspace:*
-        version: link:../../packages/waypoint
-    devDependencies:
-      lorem-ipsum:
-        specifier: ^3.0.0
-        version: 3.0.0
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4)
-
-  samples/sample4:
-    dependencies:
-      '@mt/cli':
-        specifier: workspace:*
-        version: link:../../packages/cli
-      '@mt/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@mt/tools':
-        specifier: workspace:*
-        version: link:../../packages/tools
-      '@mt/waypoint':
-        specifier: workspace:*
-        version: link:../../packages/waypoint
-    devDependencies:
-      tsx:
-        specifier: ^4.19.0
-        version: 4.21.0
-      vitest:
-        specifier: ^3.0.0
-        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(tsx@4.21.0)(yaml@2.8.4)
-
-  samples/sample5:
+  samples/sample2-practical:
     dependencies:
       '@mt/cli':
         specifier: workspace:*

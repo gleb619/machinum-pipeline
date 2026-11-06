@@ -1,0 +1,25 @@
+{
+  "imports": ["./mt.local.json"],
+  "project": {
+    "name": "sample1-tutorial"
+  },
+  "defaults": {
+    "retry": {
+      "max": 3,
+      "backoffMs": 1000,
+      "strategy": "exp"
+    },
+    "onError": "fail-run",
+    "concurrency": 4
+  },
+  "uris": {
+    "en": "md://./chapters/en",
+    "ru": "my-target://./chapters",
+    "chapters": "md://./chapters"
+  },
+  "settings": {
+    "llm.tool": "mock",
+    "llm.model": "",
+    "demo.vaultRef": "vault://demo-embed"
+  }
+}

@@ -116,7 +116,7 @@ Behaviour:
 - Logging via `ctx.run.logger`; URL query secrets are masked in log lines.
 - Docs landed with it: `docs/steering/waypoint.md` (WT003 row, WP003 matrix, `http-target.ts`
   section), `docs/steering/tools.md` ("`hs://` is **ingest-only**" note), `docs/steering/structure.md`,
-  `docs/guiding/architecture.md`, `samples/sample1` README, `docs/SKILL.md` (URI scheme table).
+  `docs/guiding/architecture.md`, `samples/sample1-tutorial` README, `docs/SKILL.md` (URI scheme table).
 
 ### 1a. Automatic sync between two mt servers
 

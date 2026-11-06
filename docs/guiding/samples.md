@@ -1,44 +1,71 @@
 # Samples
 
-| Sample  | Path              | What it demonstrates                                          |
-|---------|-------------------|---------------------------------------------------------------|
-| sample0 | `samples/sample0` | `mt init` integration test — validates scaffolded artifacts   |
-| sample1 | `samples/sample1` | HTTP → JSONL pipeline (`hs://` source, `jsonl://` target); also stop/resume demo (`pipelines/stop-resume.ts` + `waitForFile` latches, Ctrl-C → `mt resume`) |
-| sample2 | `samples/sample2` | Markdown processing in three levels. **Beginner** (`pipelines/beginner.ts`: source → shipped `wordCounter`/`toMarkdownTool`/`statFreq` → target, zero `defineTool`, five pipelines in an explicit process, `console://` preview) → `pnpm run runner:beginner`. **Intermediate** (`pipelines/intermediate.ts`: one markdown chapter per JSONL item, `.fork('chapter-views', [countBranch, reorderBranch, commasBranch])` runs three tool-based branches concurrently with isolated envelopes, per-branch checkpoints and deterministic declaration-order merge → `chapters/parallel-forks.md`) → `pnpm run runner:intermediate`. **Advanced** (`pipelines/advanced.ts`: `chunkSplit` cleans → token-bounded chunks → `---` separators → separator reuse; Structure Ladder jsonl → md → chunks ─┬→ paragraphs → lines → words / └→ tokens; series split) → `pnpm run runner:advanced`. Big lorem-ipsum fixtures are generated once by `prepare-input.ts` (`pnpm run prepare-input`, `prepare-input:force` to refresh) |
-| sample3 | `samples/sample3` | Multi-tool pipeline: JSONL → tools → subflows → batch → MD output |
-| sample4 | `samples/sample4` | Book flow in three chained stages: raw JSONL -> normalize -> summary/glossary/`<term>` tagging -> line-by-line EN->RU with a parity linter; plus secret-backend demos (embed/keepass/vlt) |
-| sample5 | `samples/sample5` | One tiny pipeline per LLM-backed tool (summary, translate modes, typo-fix, glossary, statdata, ...) with a side-by-side report in `out/<tool>/`; remote ollama via gitignored `mt.local.json` |
+Two runnable samples cover the feature set: a numbered tutorial and a practical book-translation
+workflow. Both live in the pnpm workspace and double as integration tests.
+
+| Sample | Path | What it demonstrates |
+|---|---|---|
+| sample1-tutorial | `samples/sample1-tutorial` | Ten numbered pipes, simple → complex: `from → use → to`, HTTP source + URI aliases + a custom waypoint, multi-tool chains/subflows/batch, `.fork()` branches, chunking + the structure ladder, stop/resume, normalize + analyze (summaries/glossary/`<term>` tagging), line-by-line EN→RU translation with parity lint, the LLM tool gallery, and the secret-backend demo. Input: `books/book1` plus deterministic lorem-ipsum fixtures. |
+| sample2-practical | `samples/sample2-practical` | Real book translation prep against `books/book2` (21 chapters): extract EN chapters, batch-translate titles, extract a glossary, summarize each chapter for context, translate the body line by line with parity lint, and assemble the result with `bookCompiler` → `book://`. Output under `chapters/ru/` and `chapters/book/`. |
 
 Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 
-Integration tests for samples live under `samples/sample*/tests/` and are part of the
-pre-merge gate (see [change-workflow.md](../change-workflow.md)).
+## Tutorial pipe map
 
-## LLM backend of a sample
+| Pipe | Lesson |
+|---|---|
+| `pipe01-beginning.ts` | Minimal source → shipped tool → target; typed chapter trees; `statFreq`; `console://` |
+| `pipe02-waypoints.ts` | `hs://` HTTP ingestion, `@en` / `@ru` aliases, sample-owned `my-target://` |
+| `pipe03-tools-multitool.ts` | Six-tool chain, `.batch(n)`, subflow composition |
+| `pipe04-forks.ts` | Parallel `.fork('chapter-views', [...])` branches with isolated envelopes |
+| `pipe05-chunks-ladder.ts` | `chunkSplit`, separator reuse, chunks → paragraphs → lines → words / tokens, series split |
+| `pipe06-stop-resume.ts` | SIGINT pause, latch files, `mt resume` with no duplicate lines |
+| `pipe07-normalize-analyze.ts` | Raw JSONL → clean markdown → summaries + glossary + `<term>` tagged text |
+| `pipe08-translate-mock.ts` | Glossary-aware titles + line-by-line body translation, parity lint, plain/xml/properties modes |
+| `pipe09-llm-tools.ts` | One tiny pipeline per LLM tool, side-by-side input/output reports |
+| `pipe10-secrets.ts` | Vault ref resolution with the built-in `embed:` backend |
 
-`sample3` and `sample4` route every LLM-backed tool through one pick (`pickLlmTool` from `@mt/tools`;
-sample3 installs the mock process-wide via `defineProcess().install(mockLlm(...))` instead of wiring it
-per tool — see [mock-tools.md](mock-tools.md)):
-`MT_LLM_TOOL` (`router` | `openrouter-free` | `openrouter-pool` | `ollama` | `mock`) selects the
-backend and `MT_LLM_MODEL` the model; `mt.json` → `settings.llm.tool` / `settings.llm.model` are the
-file-based fallback (the env wins). The default is the offline `mock` backend, so the sample tests
-need no credentials — swap the backend without touching the pipeline.
+Integration tests live under `samples/*/tests/` and are part of the pre-merge gate
+(see [change-workflow.md](../change-workflow.md)). Both samples use `fileParallelism: false`
+because pipes share the sample directory.
 
-`sample5` runs every LLM-backed tool on its own against a remote ollama: put the endpoint and model in the
-gitignored `samples/sample5/mt.local.json` (imported by `mt.json`, see its README); the tests force `mock`.
+## LLM backend
 
-In `sample4` each stage has one further switch of its own, off by default: `MT_LLM_TYPO_FIX=1` (normalize)
-and `MT_LLM_SUMMARY=1` (analyze) add the LLM step; the `mock` backend answers with fake Cyrillic so
-`translate` runs end to end offline, and `MT_TRANSLATE_PROMPT_LOG` dumps every prompt for the test.
+Every LLM-backed pipe goes through one pick (`pickLlmTool` from `@mt/tools`, wrapped by the
+sample's `lib/llm.ts`):
 
-Every sample exposes `pnpm run info`, which runs `mt info` to print the effective `mt.json` with secrets masked, plus the `.mt` state size, run statuses and timings.
+- `MT_LLM_TOOL` = `router` | `openrouter-free` | `openrouter-pool` | `ollama` | `mock`
+  (default `mock` — offline, no API key, no network).
+- `MT_LLM_MODEL` selects the model.
+- `mt.json` → `settings.llm.tool` / `settings.llm.model` are the file fallback; env wins. A
+  gitignored `mt.local.json` imported by `mt.json` can hold local settings.
 
-## Running a sample manually
-
-Requires packing local deps first:
+`sample2-practical` also supports per-pipe scope and prompt inspection:
 
 ```bash
-cd samples/sample3
+MT_ONLY_CHAPTERS=1,2 pnpm run runner:chapters
+MT_TRANSLATE_PROMPT_LOG=$PWD/.mt-translate-prompts.jsonl pnpm run runner:chapters
+```
+
+## Running a sample
+
+```bash
+cd samples/sample1-tutorial
+pnpm install
+pnpm run example
+pnpm run cleanup
+
+cd ../sample2-practical
+pnpm run example
+```
+
+`pnpm run info` (both samples) prints the effective `mt.json` with secrets masked, plus `.mt` state
+sizes, run statuses and timings.
+
+## Running manually (packed local deps)
+
+```bash
+cd samples/sample2-practical
 pnpm -C ../../packages/core pack --pack-destination ./vendor
 pnpm -C ../../packages/cli pack --pack-destination ./vendor
 npm install --no-audit --no-fund
