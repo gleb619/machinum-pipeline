@@ -1,4 +1,4 @@
-import { createExchange, getVariable, variable } from '@mt/core'
+import { Chapter, createExchange, getVariable, variable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
@@ -17,6 +17,14 @@ import {
 // Fixtures
 // ---------------------------------------------------------------------------
 
+function docChapter(title: string, body: string): Chapter {
+  return new Chapter({
+    id: 'chapter-doc',
+    meta: { bookId: 'chapter-doc' },
+    text: `# ${title}\n\n${body}`,
+  })
+}
+
 function createFullChapter(): ChapterDoc {
   return {
     number: 1,
@@ -25,18 +33,16 @@ function createFullChapter(): ChapterDoc {
       { id: 1, text: 'Type on line 2, with `HUIJKL` text' },
       { id: 'lang', text: 'Strong language' },
     ],
-    chapter: {
-      id: 'chapter-doc',
-      bookId: 'chapter-doc',
-      title: 'Chapter 1: The Road from Thornhaven',
-      body: [
+    chapter: docChapter(
+      'Chapter 1: The Road from Thornhaven',
+      [
         'Sir Aldric tightened the strap of his battered leather satchel.',
         'The morning sun rose over the hills.',
         '',
         'The road from Thornhaven was long and treacherous.',
         'Bandits lurked in every shadow.',
       ].join('\n'),
-    },
+    ),
   }
 }
 
@@ -44,12 +50,7 @@ function createSimpleChapter(): ChapterDoc {
   return {
     number: 2,
     warnings: [],
-    chapter: {
-      id: 'chapter-doc',
-      bookId: 'chapter-doc',
-      title: 'Simple Chapter',
-      body: 'Just a single paragraph with one line.',
-    },
+    chapter: docChapter('Simple Chapter', 'Just a single paragraph with one line.'),
   }
 }
 
@@ -108,12 +109,7 @@ describe('writeChapterDoc', () => {
       number: 3,
       series: 'chapter:one.en.md, chapter:two.en.md',
       warnings: [{ id: 'warn:1', text: 'Has "quotes" and: colons' }],
-      chapter: {
-        id: 'chapter-doc',
-        bookId: 'chapter-doc',
-        title: 'Quoted',
-        body: 'Body text.',
-      },
+      chapter: docChapter('Quoted', 'Body text.'),
     }
     const md = await writeChapterDoc(doc)
 
@@ -137,7 +133,7 @@ describe('readChapterDoc', () => {
     expect(parsed.number).toBe(doc.number)
     expect(parsed.series).toBe(doc.series)
     expect(parsed.warnings).toEqual(doc.warnings)
-    expect(parsed.chapter.body).toBe(doc.chapter.body)
+    expect(parsed.chapter.content).toBe(doc.chapter.content)
   })
 
   it('correctly parses markdown without optional fields', () => {
@@ -148,7 +144,7 @@ describe('readChapterDoc', () => {
     expect(parsed.number).toBeUndefined()
     expect(parsed.series).toBeUndefined()
     expect(parsed.warnings).toEqual([])
-    expect(parsed.chapter.body).toBe('First paragraph.\n\nSecond paragraph.')
+    expect(parsed.chapter.content).toBe('First paragraph.\n\nSecond paragraph.')
   })
 
   it('reads warnings from frontmatter', () => {
@@ -229,12 +225,7 @@ describe('write → read → write → read roundtrip', () => {
       number: 99,
       series: 'chapter:final.en.md',
       warnings: [{ id: 'warn:1', text: 'Text with "quotes"' }],
-      chapter: {
-        id: 'chapter-doc',
-        bookId: 'chapter-doc',
-        title: 'Chapter: "The End"',
-        body: 'Line with: colon and "quotes".',
-      },
+      chapter: docChapter('Chapter: "The End"', 'Line with: colon and "quotes".'),
     }
 
     const md1 = await writeChapterDoc(original)
@@ -297,7 +288,7 @@ describe('md-formatter compatibility', () => {
     expect(parsed.number).toBe(original.number)
     expect(parsed.series).toBe(original.series)
     expect(parsed.warnings).toEqual(original.warnings)
-    expect(parsed.chapter.body).toBe(original.chapter.body)
+    expect(parsed.chapter.content).toBe(original.chapter.content)
   })
 
   it('read survives removal of hard breaks', async () => {
@@ -342,11 +333,9 @@ describe('md-formatter compatibility', () => {
         { id: 'spoilers', text: 'Major plot spoilers for Book 2' },
         { id: 'lang', text: 'Frequent profanity' },
       ],
-      chapter: {
-        id: 'chapter-doc',
-        bookId: 'chapter-doc',
-        title: 'Heavily Tagged',
-        body: [
+      chapter: docChapter(
+        'Heavily Tagged',
+        [
           'First line of first paragraph.',
           'Second line of first paragraph.',
           '',
@@ -356,7 +345,7 @@ describe('md-formatter compatibility', () => {
           'Third paragraph line two.',
           'Third paragraph line three.',
         ].join('\n'),
-      },
+      ),
     }
 
     const md = await writeChapterDoc(original)
@@ -696,7 +685,7 @@ describe('ChapterDocNode.chapterTree()', () => {
     if (line) line.text = 'Goodbye world.'
 
     expect(paragraphLines(doc)).toEqual([['Goodbye world.'], ['Second paragraph.']])
-    expect(doc.chapter.body).toBe('Goodbye world.\n\nSecond paragraph.')
+    expect(doc.chapter.content).toBe('Goodbye world.\n\nSecond paragraph.')
 
     const md = await writeChapterDoc(doc)
     expect(md).toContain('Goodbye world.')
@@ -708,7 +697,9 @@ describe('ChapterDocNode.chapterTree()', () => {
     doc.chapterTree().title = 'New'
     expect(doc.chapter.title).toBe('New')
 
-    doc.chapter = { ...doc.chapter, title: 'Newer' }
+    const newer = doc.chapter.toChapter()
+    newer.title = 'Newer'
+    doc.chapter = newer
     expect(doc.chapterTree().title).toBe('Newer')
 
     const md = await writeChapterDoc(doc)
@@ -725,7 +716,7 @@ describe('ChapterDocNode.chapterTree()', () => {
 
   it('chapter body setter rebuilds the tree', () => {
     const doc = readChapterDoc('# Title\n\nOld body.')
-    doc.chapterTree().body = 'Fresh line one.\nFresh line two.'
+    doc.chapterTree().content = 'Fresh line one.\nFresh line two.'
 
     expect(
       doc
@@ -751,7 +742,7 @@ describe('ChapterDocNode.chapterTree()', () => {
 
 describe('toChapterBody', () => {
   it('normalizes string, Chapter, node, ChapterBody and legacy paragraph inputs', () => {
-    const chapter = { id: 'c1', bookId: 'b1', title: 'T', body: 'Body text.' }
+    const chapter = docChapter('T', 'Body text.')
     const node = readChapterDoc('# Title\n\nBody text.')
 
     expect(toChapterBody('# Title\n\nMarkdown body.')).toBe('Markdown body.')

@@ -1,4 +1,4 @@
-import { createExchange, getVariable } from '@mt/core'
+import { Chapter, createExchange, getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
@@ -17,12 +17,11 @@ function makeChapter(number: number, title: string, bodyText = 'Some paragraph.'
   return {
     number,
     warnings: [],
-    chapter: {
+    chapter: new Chapter({
       id: `chapter-${number}`,
-      bookId: 'book',
-      title,
-      body: bodyText,
-    },
+      meta: { bookId: 'book', index: number },
+      text: `# ${title}\n\n${bodyText}`,
+    }),
   }
 }
 
@@ -92,7 +91,11 @@ describe('book-compiler', () => {
       makeChapter(1, 'Alpha', 'Text.'),
       {
         ...makeChapter(2, 'Beta'),
-        chapter: { ...makeChapter(2, 'Beta').chapter, body: '' },
+        chapter: new Chapter({
+          id: 'chapter-2',
+          meta: { bookId: 'book', index: 2 },
+          text: '# Beta',
+        }),
       },
     ]
 
@@ -107,8 +110,8 @@ describe('book-compiler', () => {
 
   it('uses a domain chapter index as its chapter number', async () => {
     const chapters = [
-      { id: 'c2', bookId: 'b', title: 'Prologue', body: 'Text.', index: 2 },
-      { id: 'c3', bookId: 'b', title: 'Epilogue', body: 'More text.', index: 3 },
+      new Chapter({ id: 'c2', meta: { bookId: 'b', index: 2 }, text: '# Prologue\n\nText.' }),
+      new Chapter({ id: 'c3', meta: { bookId: 'b', index: 3 }, text: '# Epilogue\n\nMore text.' }),
     ]
 
     const built = await bookCompilerBuild.invoke(createExchange(chapters), ctx)

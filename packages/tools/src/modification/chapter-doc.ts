@@ -1,4 +1,5 @@
 import {
+  Chapter,
   annotate,
   category,
   chapterTree as createChapterTree,
@@ -9,14 +10,7 @@ import {
   tool,
   withItem,
 } from '@mt/core'
-import type {
-  Chapter,
-  ChapterBody,
-  ChapterNode,
-  DomainTreeOptions,
-  Exchange,
-  ToolContext,
-} from '@mt/core'
+import type { ChapterBody, ChapterNode, DomainTreeOptions, Exchange, ToolContext } from '@mt/core'
 import matter from 'gray-matter'
 
 import { appendMdOutput } from '../core/md-outputs.js'
@@ -43,7 +37,7 @@ export interface ChapterDoc {
   warnings: ChapterDocWarning[]
   /** Extra frontmatter keys beyond `number` / `series` / `warnings`. */
   meta?: Record<string, unknown>
-  /** Content: `chapter.title` is the H1, `chapter.body` the markdown body. */
+  /** Content: `chapter.title` is the H1, `chapter.content` the markdown body. */
   chapter: Chapter
 }
 
@@ -64,8 +58,8 @@ const DOC_CHAPTER_ID = 'chapter-doc'
 const DOC_BOOK_ID = 'chapter-doc'
 
 /** Chapter docs have no chunk layer: the whole body is a single chunk so `---` lines stay plain lines. */
-function chapterDocChunks(body: string): string[] {
-  return body.trim().length > 0 ? [body] : []
+function chapterDocChunks(text: string): string[] {
+  return text.trim().length > 0 ? [text] : []
 }
 
 function legacyParagraphsToText(paragraphs: LegacyChapterParagraph[]): string {
@@ -98,8 +92,9 @@ export function toChapterBody(input: ChapterBodyInput | null | undefined): strin
 
   if (Array.isArray(input)) return legacyParagraphsToText(input)
 
-  if ('body' in input && typeof input.body === 'string') return input.body
+  if (input instanceof Chapter) return input.content
   if ('content' in input && typeof input.content === 'function') return input.content().value()
+  if ('body' in input && typeof input.body === 'string') return input.body
   return ''
 }
 
@@ -341,7 +336,7 @@ function extractExtraMeta(data: Record<string, unknown>): Record<string, unknown
  */
 export async function writeChapterDoc(doc: ChapterDoc): Promise<string> {
   const title = doc.chapter.title
-  const body = doc.chapter.body
+  const body = doc.chapter.content
   const parts: string[] = []
 
   const frontmatter = serializeFrontmatter(doc)
@@ -392,12 +387,16 @@ function extractTitle(content: string): { title: string; bodyStartLine: number }
 function parseBody(content: string, bodyStartLine: number, title: string): string {
   const bodyText = content.split('\n').slice(bodyStartLine).join('\n')
   const tree = createChapterTree(
-    { id: DOC_CHAPTER_ID, bookId: DOC_BOOK_ID, title, body: bodyText },
+    new Chapter({
+      id: DOC_CHAPTER_ID,
+      meta: { bookId: DOC_BOOK_ID },
+      text: `# ${title}\n\n${bodyText}`,
+    }),
     { splitChunks: chapterDocChunks },
   )
   return tree
     .paragraphs()
-    .map((paragraph) => paragraph.body)
+    .map((paragraph) => paragraph.text)
     .join('\n\n')
 }
 
@@ -414,7 +413,11 @@ export function readChapterDoc(markdown: string): ChapterDocNode {
     series: data.series ? String(data.series) : undefined,
     warnings: normalizeWarnings(data.warnings),
     meta: extractExtraMeta(dataRecord),
-    chapter: { id: DOC_CHAPTER_ID, bookId: DOC_BOOK_ID, title, body },
+    chapter: new Chapter({
+      id: DOC_CHAPTER_ID,
+      meta: { bookId: DOC_BOOK_ID },
+      text: `# ${title}\n\n${body}`,
+    }),
   })
 }
 
@@ -467,12 +470,11 @@ function buildChapterDocFromInput(
     series: resolvedSeries,
     warnings: resolvedWarnings,
     meta: Object.keys(extra).length > 0 ? extra : undefined,
-    chapter: {
+    chapter: new Chapter({
       id: DOC_CHAPTER_ID,
-      bookId: DOC_BOOK_ID,
-      title: input.title,
-      body: toChapterBody(input.body),
-    },
+      meta: { bookId: DOC_BOOK_ID },
+      text: `# ${input.title}\n\n${toChapterBody(input.body)}`,
+    }),
   })
 }
 

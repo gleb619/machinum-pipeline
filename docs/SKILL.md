@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.26.0 | 2026-11-06 -->
+<!-- skill-version: 1.27.0 | 2026-11-08 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -91,10 +91,13 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   as one unchanged item. Its size threshold is the tunable `SERIES_SPLIT_TARGET_CHARS` (see
   below). The `chunks` splitter parses chapter markdown into core `Chunk` entities using the
   chunk-size chain (`MT_CHUNK_SIZE`). Source ids are stable; the engine never mints them.
-- `chapterTree(chapter)` / `parseChapterTree(markdown, { id, bookId, title? })` (`mt` /
-  `@mt/core`) wrap a `Chapter` in a mutable fluent view:
-  `tree.chunks()[0].paragraphs()[0].lines[0].text = '…'` writes back through `tree.body`,
-  `tree.toMarkdown()` and `tree.toChapter()`. `opts.splitChunks` / `opts.splitParagraphs` /
+- `Chapter` is an active-record entity: `{ id, meta: { bookId, url?, index? }, text }`; `text` is
+  full markdown (`# title` + content), `chapter.body()` returns the `ChapterBody` view, and
+  `chapter.chunks()[0].paragraphs()[0].lines[0].text = '…'` writes back through `chapter.text` /
+  `toMarkdown()`. `Chunk.text`, `Paragraph.text`, `ParagraphLine.text` and `LineWord.text` are the
+  text payloads; `Chunk.paragraphs()`, `Paragraph.lines`, `ParagraphLine.words()` descend.
+  `chapterTree(chapter)` / `parseChapterTree(markdown, { id, meta })` (`mt` / `@mt/core`) return
+  the same view under its historical node names. `opts.splitChunks` / `opts.splitParagraphs` /
   `opts.splitLines` / `opts.splitWords` / `opts.tokenize` plug in tool splitters;
   `chunk.tokens()` needs `tokenize`.
 - Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline

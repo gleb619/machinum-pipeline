@@ -232,19 +232,18 @@ async function splitSeriesMarkdown(
 
   const series = doc.series ?? doc.chapter.title
   const output = await Promise.all(
-    bodyParts.map((body, index) =>
-      writeChapterDoc({
+    bodyParts.map((body, index) => {
+      const chapter = doc.chapter.toChapter()
+      chapter.title = `${doc.chapter.title} ${index + 1}`
+      chapter.content = body
+      return writeChapterDoc({
         number: doc.number,
         series,
         warnings: doc.warnings.map((warning) => ({ ...warning })),
         meta: doc.meta ? { ...doc.meta } : undefined,
-        chapter: {
-          ...doc.chapter,
-          title: `${doc.chapter.title} ${index + 1}`,
-          body,
-        },
-      }),
-    ),
+        chapter,
+      })
+    }),
   )
 
   return { parts: output, split: true, series }

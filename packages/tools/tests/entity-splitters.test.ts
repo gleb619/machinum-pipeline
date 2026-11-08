@@ -1,5 +1,5 @@
-import { createExchange, registry } from '@mt/core'
-import type { Chunk, Paragraph, ParagraphLine, SplitterContext } from '@mt/core'
+import { Chunk, Paragraph, ParagraphLine, createExchange, registry } from '@mt/core'
+import type { SplitterContext } from '@mt/core'
 import { splitLineUnits, splitParagraphUnits } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import {
@@ -67,9 +67,9 @@ describe('chunkSplitter', () => {
       chapterId: 'chapter-42',
       index: 0,
     })
-    expect(chunk?.body).toContain('First paragraph.')
-    expect(chunk?.body).toContain('Second paragraph.')
-    expect(chunk?.tokens).toBe(Math.ceil((chunk?.body.length ?? 0) / 4))
+    expect(chunk?.text).toContain('First paragraph.')
+    expect(chunk?.text).toContain('Second paragraph.')
+    expect(chunk?.tokenCount).toBe(Math.ceil((chunk?.text.length ?? 0) / 4))
   })
 
   it('falls back to the chapter number for the id when meta.chapterId is absent', () => {
@@ -105,7 +105,7 @@ describe('chunkSplitter', () => {
     expect(chunks.length).toBeGreaterThan(1)
     expect(chunks.map((chunk) => chunk.index)).toEqual(chunks.map((_, index) => index))
     for (const chunk of chunks) {
-      expect(chunk.tokens).toBeLessThanOrEqual(10)
+      expect(chunk.tokenCount).toBeLessThanOrEqual(10)
     }
   })
 
@@ -129,24 +129,24 @@ describe('paragraphSplitter', () => {
         chapterId: 'chapter-7',
         chunkId: 'chunk-3',
         index: 0,
-        body: 'First paragraph.',
+        text: 'First paragraph.',
       },
       {
         id: 'chunk-3/paragraph-2',
         chapterId: 'chapter-7',
         chunkId: 'chunk-3',
         index: 1,
-        body: 'Second paragraph.',
+        text: 'Second paragraph.',
       },
     ])
   })
 
   it('accepts a Chunk-like entity and uses its ids', () => {
-    const chunk: Chunk = {
+    const chunk = new Chunk({
       id: 'chunk-9',
       chapterId: 'chapter-2',
-      body: 'Alpha\n\nBeta\n\n',
-    }
+      text: 'Alpha\n\nBeta\n\n',
+    })
 
     expect(paragraphSplitter.split(createExchange(chunk, { id: 'envelope' }))).toEqual([
       {
@@ -154,14 +154,14 @@ describe('paragraphSplitter', () => {
         chapterId: 'chapter-2',
         chunkId: 'chunk-9',
         index: 0,
-        body: 'Alpha',
+        text: 'Alpha',
       },
       {
         id: 'chunk-9/paragraph-2',
         chapterId: 'chapter-2',
         chunkId: 'chunk-9',
         index: 1,
-        body: 'Beta',
+        text: 'Beta',
       },
     ])
   })
@@ -174,18 +174,18 @@ describe('paragraphSplitter', () => {
         chapterId: 'fallback-chunk',
         chunkId: 'fallback-chunk',
         index: 0,
-        body: 'Only paragraph',
+        text: 'Only paragraph',
       },
     ])
   })
 
   it('matches the old paragraph flatMap behavior', () => {
-    const chunk: Chunk = {
+    const chunk = new Chunk({
       id: 'chunk-old',
       chapterId: 'chapter-old',
-      body: 'First\n\nSecond\n\nThird',
-    }
-    const old = chunk.body
+      text: 'First\n\nSecond\n\nThird',
+    })
+    const old = chunk.text
       .split(/\n\n+/)
       .filter((part) => part.trim().length > 0)
       .map((part, index) => ({
@@ -193,7 +193,7 @@ describe('paragraphSplitter', () => {
         chapterId: chunk.chapterId,
         chunkId: chunk.id,
         index,
-        body: part,
+        text: part,
       }))
 
     expect(paragraphSplitter.split(createExchange(chunk))).toEqual(old)
@@ -224,11 +224,11 @@ describe('lineSplitter', () => {
   })
 
   it('accepts a Paragraph-like entity and uses its id', () => {
-    const paragraph: Paragraph = {
+    const paragraph = new Paragraph({
       id: 'paragraph-9',
       chapterId: 'chapter-3',
-      body: 'alpha\nbeta\n',
-    }
+      text: 'alpha\nbeta\n',
+    })
 
     expect(lineSplitter.split(createExchange(paragraph, { id: 'envelope' }))).toEqual([
       {
@@ -259,12 +259,12 @@ describe('lineSplitter', () => {
   })
 
   it('matches the old line flatMap behavior for non-blank lines', () => {
-    const paragraph: Paragraph = {
+    const paragraph = new Paragraph({
       id: 'paragraph-old',
       chapterId: 'chapter-old',
-      body: 'First line\nSecond line\nThird line',
-    }
-    const old = paragraph.body
+      text: 'First line\nSecond line\nThird line',
+    })
+    const old = paragraph.text
       .split('\n')
       .map((text, index) => ({
         id: `${paragraph.id}/line-${index + 1}`,
@@ -290,46 +290,46 @@ describe('wordSplitter', () => {
         id: 'line-5/word-1',
         paragraphId: 'paragraph-2',
         lineId: 'line-5',
-        word: 'alpha',
+        text: 'alpha',
         index: 0,
       },
       {
         id: 'line-5/word-2',
         paragraphId: 'paragraph-2',
         lineId: 'line-5',
-        word: 'beta',
+        text: 'beta',
         index: 1,
       },
       {
         id: 'line-5/word-3',
         paragraphId: 'paragraph-2',
         lineId: 'line-5',
-        word: 'gamma',
+        text: 'gamma',
         index: 2,
       },
     ])
   })
 
   it('accepts a ParagraphLine-like entity and uses its ids', () => {
-    const line: ParagraphLine = {
+    const line = new ParagraphLine({
       id: 'line-9',
       paragraphId: 'paragraph-3',
       text: 'one two',
-    }
+    })
 
     expect(wordSplitter.split(createExchange(line))).toEqual([
       {
         id: 'line-9/word-1',
         paragraphId: 'paragraph-3',
         lineId: 'line-9',
-        word: 'one',
+        text: 'one',
         index: 0,
       },
       {
         id: 'line-9/word-2',
         paragraphId: 'paragraph-3',
         lineId: 'line-9',
-        word: 'two',
+        text: 'two',
         index: 1,
       },
     ])

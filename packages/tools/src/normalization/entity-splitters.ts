@@ -1,14 +1,14 @@
 import { registry } from '@mt/core'
-import type {
+import {
   Chunk,
-  Exchange,
+  type Exchange,
   LineWord,
   Paragraph,
   ParagraphLine,
-  Splitter,
-  SplitterContext,
+  type Splitter,
+  type SplitterContext,
   Token,
-  ToolContext,
+  type ToolContext,
 } from '@mt/core'
 import { heuristicTokenCount, splitLineUnits, splitParagraphUnits } from '@mt/core'
 import { readChapterDoc } from '../modification/chapter-doc.js'
@@ -18,12 +18,12 @@ import { resolveChunkSize, splitIntoChunks, tokenizeChunkDetailed } from './toke
 interface ParagraphSource {
   chapterId: string
   chunkId: string
-  body: string
+  text: string
 }
 
 interface LineSource {
   paragraphId: string
-  body: string
+  text: string
 }
 
 interface WordSource {
@@ -51,7 +51,7 @@ function paragraphSource(env: Exchange<unknown>): ParagraphSource {
     return {
       chapterId: metaString(env, 'chapterId') ?? env.id,
       chunkId: metaString(env, 'chunkId') ?? env.id,
-      body: env.item,
+      text: env.item,
     }
   }
 
@@ -60,13 +60,13 @@ function paragraphSource(env: Exchange<unknown>): ParagraphSource {
     item !== undefined &&
     typeof item.chapterId === 'string' &&
     typeof item.id === 'string' &&
-    typeof item.body === 'string'
+    typeof item.text === 'string'
   ) {
-    return { chapterId: item.chapterId, chunkId: item.id, body: item.body }
+    return { chapterId: item.chapterId, chunkId: item.id, text: item.text }
   }
 
   throw new Error(
-    'paragraphSplitter: item must be a string or a Chunk-like object with id, chapterId and body',
+    'paragraphSplitter: item must be a string or a Chunk-like object with id, chapterId and text',
   )
 }
 
@@ -74,16 +74,16 @@ function lineSource(env: Exchange<unknown>): LineSource {
   if (typeof env.item === 'string') {
     return {
       paragraphId: metaString(env, 'paragraphId') ?? env.id,
-      body: env.item,
+      text: env.item,
     }
   }
 
   const item = asRecord(env.item)
-  if (item !== undefined && typeof item.id === 'string' && typeof item.body === 'string') {
-    return { paragraphId: item.id, body: item.body }
+  if (item !== undefined && typeof item.id === 'string' && typeof item.text === 'string') {
+    return { paragraphId: item.id, text: item.text }
   }
 
-  throw new Error('lineSplitter: item must be a string or a Paragraph-like object with id and body')
+  throw new Error('lineSplitter: item must be a string or a Paragraph-like object with id and text')
 }
 
 function wordSource(env: Exchange<unknown>): WordSource {
@@ -124,15 +124,18 @@ export const chunkSplitter = {
     }
     const doc = readChapterDoc(env.item)
     const chapterId = metaString(env, 'chapterId') ?? `chapter-${doc.number ?? 0}`
-    const text = doc.chapter.body
+    const text = doc.chapter.content
     const targetTokens = resolveChunkSize(env, ctx as ToolContext | undefined)
-    return splitIntoChunks(text, { targetTokens }).map((body, index) => ({
-      id: `${chapterId}/chunk-${index + 1}`,
-      chapterId,
-      index,
-      body,
-      tokens: heuristicTokenCount(body),
-    }))
+    return splitIntoChunks(text, { targetTokens }).map(
+      (body, index) =>
+        new Chunk({
+          id: `${chapterId}/chunk-${index + 1}`,
+          chapterId,
+          index,
+          text: body,
+          tokenCount: heuristicTokenCount(body),
+        }),
+    )
   },
 } satisfies Splitter<Chunk>
 
@@ -143,14 +146,17 @@ export const chunkSplitter = {
 export const paragraphSplitter: Splitter<Paragraph> = {
   name: 'paragraph-splitter',
   split(env) {
-    const { chapterId, chunkId, body } = paragraphSource(env)
-    return splitParagraphUnits(body).map((part, index) => ({
-      id: `${chunkId}/paragraph-${index + 1}`,
-      chapterId,
-      chunkId,
-      index,
-      body: part,
-    }))
+    const { chapterId, chunkId, text } = paragraphSource(env)
+    return splitParagraphUnits(text).map(
+      (part, index) =>
+        new Paragraph({
+          id: `${chunkId}/paragraph-${index + 1}`,
+          chapterId,
+          chunkId,
+          index,
+          text: part,
+        }),
+    )
   },
 }
 
@@ -161,13 +167,16 @@ export const paragraphSplitter: Splitter<Paragraph> = {
 export const lineSplitter: Splitter<ParagraphLine> = {
   name: 'line-splitter',
   split(env) {
-    const { paragraphId, body } = lineSource(env)
-    return splitLineUnits(body).map((text, index) => ({
-      id: `${paragraphId}/line-${index + 1}`,
-      paragraphId,
-      index,
-      text,
-    }))
+    const { paragraphId, text } = lineSource(env)
+    return splitLineUnits(text).map(
+      (line, index) =>
+        new ParagraphLine({
+          id: `${paragraphId}/line-${index + 1}`,
+          paragraphId,
+          index,
+          text: line,
+        }),
+    )
   },
 }
 
@@ -179,46 +188,52 @@ export const wordSplitter: Splitter<LineWord> = {
   name: 'word-splitter',
   split(env) {
     const { paragraphId, lineId, text } = wordSource(env)
-    return tokenizeWords(text).map((word, index) => ({
-      id: `${lineId}/word-${index + 1}`,
-      paragraphId,
-      lineId,
-      word,
-      index,
-    }))
+    return tokenizeWords(text).map(
+      (word, index) =>
+        new LineWord({
+          id: `${lineId}/word-${index + 1}`,
+          paragraphId,
+          lineId,
+          text: word,
+          index,
+        }),
+    )
   },
 }
 
 /**
  * Chunk → Token splitter (the alternate descent, sibling of paragraphs). Accepts a
- * chunk body string or a `Chunk`-like object with `id` and `body`; ids are
+ * chunk text or a `Chunk`-like object with `id` and `text`; ids are
  * `${chunkId}/token-N`.
  */
 export const chunkTokenSplitter: Splitter<Token> = {
   name: 'token-splitter',
   async split(env) {
     const item = asRecord(env.item)
-    const body =
+    const text =
       typeof env.item === 'string'
         ? env.item
-        : item !== undefined && typeof item.body === 'string'
-          ? item.body
+        : item !== undefined && typeof item.text === 'string'
+          ? item.text
           : undefined
-    if (body === undefined) {
-      throw new Error('tokenSplitter: item must be a string or a Chunk-like object with body')
+    if (text === undefined) {
+      throw new Error('tokenSplitter: item must be a string or a Chunk-like object with text')
     }
     const chunkId =
       item !== undefined && typeof item.id === 'string'
         ? item.id
         : (metaString(env, 'chunkId') ?? env.id)
-    const { tokens } = await tokenizeChunkDetailed(body)
-    return tokens.map((token, index) => ({
-      id: `${chunkId}/token-${index + 1}`,
-      chunkId,
-      tokenId: token.tokenId,
-      text: token.text,
-      index,
-    }))
+    const { tokens } = await tokenizeChunkDetailed(text)
+    return tokens.map(
+      (token, index) =>
+        new Token({
+          id: `${chunkId}/token-${index + 1}`,
+          chunkId,
+          tokenId: token.tokenId,
+          text: token.text,
+          index,
+        }),
+    )
   },
 }
 

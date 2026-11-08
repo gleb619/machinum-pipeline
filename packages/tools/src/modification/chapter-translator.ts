@@ -210,10 +210,12 @@ const titleAssemble = defineTool<TitleTranslatorState, TitleTranslatorOutput>({
     for (const state of states) {
       const translated = state.translatedTitle?.trim()
       if (state.mode === 'doc' && state.doc && translated) {
+        const chapter = state.doc.chapter.toChapter()
+        chapter.title = translated
         results.push({
           text: await writeChapterDoc({
             ...state.doc,
-            chapter: { ...state.doc.chapter, title: translated },
+            chapter,
           }),
           titleTranslated: true,
         })
@@ -394,14 +396,12 @@ const paragraphAssemble = defineTool<ParagraphTranslatorState, ParagraphTranslat
   async invoke(env) {
     const state = env.item
     const translated = state.translated ?? []
-    const text = state.legacy
-      ? translated.join('\n\n')
-      : state.doc
-        ? await writeChapterDoc({
-            ...state.doc,
-            chapter: { ...state.doc.chapter, body: translated.join('\n\n') },
-          })
-        : translated.join('\n\n')
+    let text = translated.join('\n\n')
+    if (!state.legacy && state.doc) {
+      const chapter = state.doc.chapter.toChapter()
+      chapter.content = text
+      text = await writeChapterDoc({ ...state.doc, chapter })
+    }
     return setVariables(withItem(env, { text, paragraphsTranslated: translated.length }), {
       paragraphsTranslated: translated.length,
     })

@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool, source, target } from '../src/dsl.js'
-import type {
-  Book,
-  Chapter,
-  Envelope,
-  Paragraph,
-  ParagraphLine,
-  RetryPolicy,
-} from '../src/types.js'
+import { Book, Chapter, Paragraph, ParagraphLine } from '../src/types.js'
+import type { Envelope, RetryPolicy } from '../src/types.js'
 import { registry } from '../src/uri.js'
 
 // Register jsonl scheme for tests
@@ -199,31 +193,24 @@ describe('DSL', () => {
   })
 
   it('T002-11: domain models are correctly defined (type check)', () => {
-    const book: Book = {
-      id: 'book-1',
-      name: 'Test Book',
-      author: 'Test Author',
-    }
-    const chapter: Chapter = {
+    const book = new Book({ id: 'book-1', ruName: 'Test Book', author: 'Test Author' })
+    const chapter = new Chapter({
       id: 'chap-1',
-      bookId: 'book-1',
-      title: 'Chapter 1',
-      body: 'Content',
-    }
-    const paragraph: Paragraph = {
+      meta: { bookId: 'book-1' },
+      text: '# Chapter 1\n\nContent',
+    })
+    const paragraph = new Paragraph({
       id: 'para-1',
       chapterId: 'chap-1',
-      body: 'Paragraph content',
-    }
-    const line: ParagraphLine = {
-      id: 'line-1',
-      paragraphId: 'para-1',
-      text: 'Line text',
-    }
+      text: 'Paragraph content',
+    })
+    const line = new ParagraphLine({ id: 'line-1', paragraphId: 'para-1', text: 'Line text' })
 
     expect(book.id).toBe('book-1')
+    expect(book.ruName).toBe('Test Book')
     expect(chapter.title).toBe('Chapter 1')
-    expect(paragraph.body).toBe('Paragraph content')
+    expect(chapter.content).toBe('Content')
+    expect(paragraph.text).toBe('Paragraph content')
     expect(line.text).toBe('Line text')
   })
 

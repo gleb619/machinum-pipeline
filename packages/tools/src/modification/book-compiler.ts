@@ -1,4 +1,5 @@
 import {
+  Chapter,
   annotate,
   category,
   defineComposableTool,
@@ -7,7 +8,7 @@ import {
   tool,
   withItem,
 } from '@mt/core'
-import type { Chapter, Exchange, ToolContext } from '@mt/core'
+import type { Exchange, ToolContext } from '@mt/core'
 import { readNumber as finiteNumber } from '../core/values.js'
 import { readChapterDoc, toChapterBody } from './chapter-doc.js'
 import type { ChapterBodyInput, ChapterDoc } from './chapter-doc.js'
@@ -98,7 +99,7 @@ function headingText(chapter: ChapterDoc): string {
 
 /** Body paragraphs of a chapter document (blank-line separated). */
 function bodyParagraphs(chapter: ChapterDoc): string[] {
-  return chapter.chapter.body
+  return chapter.chapter.content
     .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph.length > 0)
@@ -135,13 +136,22 @@ function toChapterDoc(raw: unknown): ChapterDoc | undefined {
   }
   if (!isRecord(raw)) return undefined
 
+  if (raw instanceof Chapter) {
+    return {
+      number: finiteNumber(raw.meta.index),
+      warnings: [],
+      chapter: raw,
+    }
+  }
+
   // Already a ChapterDoc: { chapter: Chapter, number?, series?, warnings?, meta? }.
-  if (isRecord(raw.chapter) && typeof raw.chapter.body === 'string') {
-    const chapter = raw.chapter as unknown as Chapter
+  if (isRecord(raw.chapter) && typeof raw.chapter.text === 'string') {
+    const chapter = raw.chapter instanceof Chapter ? raw.chapter : new Chapter(raw.chapter as never)
     return {
       number:
         finiteNumber(raw.number) ??
         finiteNumber(raw.index) ??
+        finiteNumber(chapter.meta.index) ??
         numberFromTitle(String(chapter.title ?? '')),
       series: typeof raw.series === 'string' ? raw.series : undefined,
       warnings: toWarnings(raw.warnings),
@@ -153,12 +163,11 @@ function toChapterDoc(raw: unknown): ChapterDoc | undefined {
   // Domain chapter / legacy document-like record: title + body, `index` is its chapter number.
   const title = String(raw.title ?? '')
   const number = finiteNumber(raw.number) ?? finiteNumber(raw.index) ?? numberFromTitle(title)
-  const chapter: Chapter = {
+  const chapter = new Chapter({
     id: typeof raw.id === 'string' ? raw.id : `chapter-${number ?? 0}`,
-    bookId: typeof raw.bookId === 'string' ? raw.bookId : 'book',
-    title,
-    body: toChapterBody(raw.body as ChapterBodyInput),
-  }
+    meta: { bookId: typeof raw.bookId === 'string' ? raw.bookId : 'book', index: number },
+    text: `# ${title}\n\n${toChapterBody(raw.body as ChapterBodyInput)}`,
+  })
   return {
     number,
     series: typeof raw.series === 'string' ? raw.series : undefined,
@@ -184,7 +193,7 @@ function readInput(env: Exchange<BookCompilerInput>): { chapters: ChapterDoc[]; 
 function countWords(chapters: ChapterDoc[]): number {
   let count = 0
   for (const chapter of chapters) {
-    count += chapter.chapter.body.split(/\s+/).filter((word) => word.length > 0).length
+    count += chapter.chapter.content.split(/\s+/).filter((word) => word.length > 0).length
   }
   return count
 }
@@ -235,7 +244,7 @@ function validateChapters(chapters: ChapterDoc[]): BookWarning[] {
   }
 
   for (const chapter of chapters) {
-    const empty = chapter.chapter.body.trim().length === 0
+    const empty = chapter.chapter.content.trim().length === 0
     if (empty) {
       warnings.push({
         code: 'EMPTY_BODY',

@@ -20,15 +20,25 @@ Re-exports everything needed by consumers:
 
 ## Key Modules
 
-### `domain.ts`
-Plain interfaces only: `Book`, `Chapter`, `Chunk`, `Paragraph` (optional `chunkId` — paragraph of a chunk), `Token` (BPE token of a chunk — alternate descent from `Chunk`, sibling of `Paragraph`), `ParagraphLine`, `LineWord`, plus the chapter-direct line path `ChapterLine` / `ChapterLineWord`. No classes, no methods. Sources provide stable IDs.
+### `types/domain.ts` — active-record entities
+Classes, not bare interfaces. Every entity has a stable `id` (a filename for persisted entities) and its own text field; the descent methods live on the entities, so a pipeline can walk the Structure Ladder without adapters:
 
-### `domain-tree.ts` — fluent domain view
-`chapterTree(chapter, opts?)` / `parseChapterTree(markdown, { id, bookId, title? }, opts?)` wrap the plain domain interfaces in mutable nodes (`ChapterNode`, `ChunkNode`, `ParagraphNode`, `LineNode`, `WordNode`, `TokenNode`) without changing the wire shapes. The pinned descent is `chapter.chunks()[0].paragraphs()[0].lines[0]`; `chapter.paragraphs()`, `chapter.lines()` and `chapter.words()` flatten in document order, and `chunk.tokens()` is the alternate descent when `opts.tokenize` is injected.
+```ts
+chapter.text                 // full markdown: `# title` + content
+chapter.body()               // ChapterBody: value() / title() / content()
+chapter.chunks()[0].paragraphs()[0].lines[0].words()[0].text
+```
 
-`ChapterBody` (`domain-tree.ts`) is the scenario-agnostic read view with exactly three methods: `value()` (full markdown: H1 + body), `title()` (the `# <title>` H1 as `ChapterText`) and `content()` (the `ChapterContent` below the H1). `ChapterText` is the typed text value (`value(): string`); `ChapterContent` extends it with `chunks()` / `paragraphs()` / `lines()` / `words()`. `chapterBody(chapter, opts?)` / `chapterBodyFromMarkdown(markdown, { id, bookId }, opts?)` adapt a plain `Chapter` or markdown into it. Tools that accept "some chapter body" normalize through this seam instead of inventing private paragraph shapes.
+- `Book` — fields mirror the Java `machinum.book.Book` record (`uniqueId`, `ruName`, `enName`, `originName`, `link`, `linkText`, `type`, `genre`, `tags`, `year`, `chapters`, `author`, `description`, `imageId`, `imageData`, `originImageId`, `jsonlFileLink`, `jsonlFileData`, `createdAt`, `updatedAt`). `get` / `set` / `patch` / `getMeta` / `patchMeta` mutate in place.
+- `Chapter` — `{ id, meta: ChapterMeta, text }`; `meta` is the YAML header (`bookId`, `url?`, `index?`) with `get` / `has` / `set` / `patch` / `toObject` helpers, plus `chapter.setMeta` / `patchMeta` / `getMeta`. `text` is full markdown; `title` / `content` are mutable string accessors; `body()` returns the read-side `ChapterBody`; `chunks()` / `paragraphs()` / `lines()` / `words()` descend and serialize back through `text` / `toMarkdown()`.
+- `Chunk.text`, `Paragraph.text`, `ParagraphLine.text`, `LineWord.text`, `ChapterLine.text`, `ChapterLineWord.text`, `Token.text` — the plain text payload. `Chunk.paragraphs()`, `Chunk.tokens()` (needs `opts.tokenize`), `Paragraph.lines` (getter), `ParagraphLine.words()`, `ChapterLine.words()`.
+- `Chunk.tokenCount` is the token-count field (`tokens()` is the token descent).
+- Mutation helpers: `line.text`, `paragraph.setText()` / `insertLine()` / `removeLine()`, `chapter.title` / `chapter.content`. Serialization joins chunks on `\n\n---\n\n` (custom `opts.separator`), paragraphs on `\n\n`, lines on `\n`.
+- Ids are view-local and deterministic (`<chapterId>:c0:p0:l0:w0`); Sources still provide top-level ids, the engine never mints. Core does structural splitting only; token-bounded chunking/BPE stays in `@mt/tools` behind `opts.splitChunks`, `opts.splitParagraphs`, `opts.splitLines`, `opts.splitWords` and `opts.tokenize`. `splitWords` returns span objects (`{ word, start, end }`) so `line.wordAt()` / `line.replaceWord()` stay positional.
+- Round-trip is best-effort: CRLF, leading/trailing whitespace and separator-line style are normalised; frontmatter/`ChapterDoc` metadata stay in `@mt/tools`.
 
-Nodes serialize back through getters: chunks join on `\n\n---\n\n` (custom `opts.separator`), paragraphs on `\n\n`, lines on `\n`. Mutation helpers include `line.text`, `paragraph.setText()`, `paragraph.insertLine()`, `paragraph.removeLine()`, `chapter.title`, and `chapter.body`; `chapter.toMarkdown()` adds the `# title` heading and `chapter.toChapter()` returns a plain `Chapter` snapshot. Ids are view-local and deterministic (`<chapterId>:c0:p0:l0:w0`); core does structural splitting only, while token-bounded chunking/BPE stays in `@mt/tools` behind `opts.splitChunks`, `opts.splitParagraphs`, `opts.splitLines`, `opts.splitWords` and `opts.tokenize`. `splitWords` returns span objects (`{ word, start, end }`) so `line.wordAt()` / `line.replaceWord()` stay positional. Round-trip is best-effort: CRLF, leading/trailing whitespace and separator-line style are normalised; frontmatter/`ChapterDoc` metadata stay in `@mt/tools`.
+### `domain-tree.ts` — fluent view aliases
+`chapterTree(chapter, opts?)` / `parseChapterTree(markdown, { id, meta }, opts?)` normalize a `Chapter` (or constructor input) into `ChapterNode`; the node classes (`ChapterNode`, `ChunkNode`, `ParagraphNode`, `LineNode`, `WordNode`, `TokenNode`) are thin subclasses of the domain classes, kept for the fluent entry point and markdown adapters. `ChapterBody` remains the scenario-agnostic read view (`value()` = full markdown, `title()` = H1, `content()` = below-H1 descent); `chapterBody(chapter)` / `chapterBodyFromMarkdown(markdown, { id, meta })` adapt a `Chapter` or markdown into it. Tools that accept "some chapter body" normalize through this seam instead of inventing private paragraph shapes.
 
 ### `exchange.ts`
 The data unit is a Camel-style **Exchange** (replaces the bare Envelope; `Envelope<T>` stays as a

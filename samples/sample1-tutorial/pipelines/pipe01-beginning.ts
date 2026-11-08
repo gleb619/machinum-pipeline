@@ -1,4 +1,5 @@
 import {
+  Chapter,
   chapterTree,
   definePipeline,
   defineProcess,
@@ -6,7 +7,6 @@ import {
   log,
   parseChapterTree,
 } from '@mt/core'
-import type { Chapter } from '@mt/core'
 import { chapterDocBuild, statFreq, toMarkdownTool, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -73,7 +73,7 @@ export const typedContentPipeline = definePipeline({ id: 'pipe01-typed-content' 
     return [`# Line ${id}\n\n${toLineText(record)}`]
   })
   .flatMap(async (md: string) => {
-    const tree = parseChapterTree(md, { id: 'typed-content', bookId: 'sample1-tutorial' })
+    const tree = parseChapterTree(md, { id: 'typed-content', meta: { bookId: 'sample1-tutorial' } })
 
     // 1. Change the title — prepend a tag.
     tree.title = `Edited: ${tree.title}`
@@ -87,15 +87,15 @@ export const typedContentPipeline = definePipeline({ id: 'pipe01-typed-content' 
     firstChunk?.paragraphs()[1]?.setText('<REWRITTEN PARAGRAPH>')
 
     // Return the mutated tree as the shape expected by `chapterDocBuild`.
-    return [{ title: tree.title, body: tree.body }]
+    return [{ title: tree.title, body: tree.content }]
   })
   .use(chapterDocBuild)
   .tap((env) => {
-    const doc = getVariable<{ chapter: { title: string; body: string } }>(env, 'chapterDoc')
+    const doc = getVariable<{ chapter: { title: string; content: string } }>(env, 'chapterDoc')
     log.info('pipe01 typed', {
       id: env.id,
       title: doc?.chapter.title ?? '[unknown]',
-      paragraphs: doc?.chapter.body.split(/\n\s*\n/).filter((p) => p.length > 0).length ?? 0,
+      paragraphs: doc?.chapter.content.split(/\n\s*\n/).filter((p) => p.length > 0).length ?? 0,
     })
   })
   .to('md://./chapters/output-typed.md')
@@ -107,16 +107,15 @@ export const chapterDomainPipeline = definePipeline({ id: 'pipe01-chapter-domain
   .from('jsonl://./jsonl/beginner.jsonl')
   .flatMap(async (record: unknown) => {
     const { id } = record as LineRecord
-    const chapter: Chapter = {
+    const chapter = new Chapter({
       id: String(id),
-      bookId: 'sample1-tutorial',
-      title: `Line ${id}`,
-      body: toLineText(record),
-    }
+      meta: { bookId: 'sample1-tutorial' },
+      text: `# Line ${id}\n\n${toLineText(record)}`,
+    })
     const tree = chapterTree(chapter)
     const firstLine = tree.chunks()[0]?.paragraphs()[0]?.lines[0]
     if (firstLine) firstLine.text = `Edited: ${firstLine.text}`
-    return [{ title: tree.title, body: tree.body }]
+    return [{ title: tree.title, body: tree.content }]
   })
   .use(chapterDocBuild)
   .to('md://./chapters/output-custom-typed.md')

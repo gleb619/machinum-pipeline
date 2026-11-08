@@ -62,7 +62,7 @@ export const treeMutationPipeline = definePipeline({ id: 'pipe05-tree-mutation' 
   .flatMap(async (markdown: unknown) => {
     const tree = parseChapterTree(String(markdown), {
       id: 'chapter1-tree',
-      bookId: 'sample1-tutorial',
+      meta: { bookId: 'sample1-tutorial' },
     })
     const firstLine = tree.chunks()[0]?.paragraphs()[0]?.lines[0]
     if (firstLine) firstLine.text = `${firstLine.text} [tree-edit]`
