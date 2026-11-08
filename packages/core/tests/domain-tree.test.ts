@@ -210,16 +210,34 @@ describe('domain tree', () => {
       body: 'One.\nTwo.\n\nThree.',
     })
 
-    expect(body.text).toBe('One.\nTwo.\n\nThree.')
-    expect(body.paragraphs()).toHaveLength(2)
-    expect(body.lines().map((line) => line.text)).toEqual(['One.', 'Two.', 'Three.'])
-    expect(body.words().map((word) => word.word)).toEqual(['One.', 'Two.', 'Three.'])
+    expect(body.value()).toBe('# Body\n\nOne.\nTwo.\n\nThree.')
+    expect(body.title().value()).toBe('# Body')
+    expect(body.content().value()).toBe('One.\nTwo.\n\nThree.')
+    expect(body.content().paragraphs()).toHaveLength(2)
+    expect(
+      body
+        .content()
+        .lines()
+        .map((line) => line.text),
+    ).toEqual(['One.', 'Two.', 'Three.'])
+    expect(
+      body
+        .content()
+        .words()
+        .map((word) => word.word),
+    ).toEqual(['One.', 'Two.', 'Three.'])
   })
 
   it('adapts markdown into the ChapterBody view', () => {
     const body = chapterBodyFromMarkdown('# Heading\n\nOne.\n\nTwo.', { id: 'md', bookId: 'book' })
 
-    expect(body.text).toBe('One.\n\nTwo.')
-    expect(body.lines().map((line) => line.text)).toEqual(['One.', 'Two.'])
+    expect(body.value()).toBe('# Heading\n\nOne.\n\nTwo.')
+    expect(body.title().value()).toBe('# Heading')
+    expect(
+      body
+        .content()
+        .lines()
+        .map((line) => line.text),
+    ).toEqual(['One.', 'Two.'])
   })
 })

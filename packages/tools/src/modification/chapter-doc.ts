@@ -99,7 +99,7 @@ export function toChapterBody(input: ChapterBodyInput | null | undefined): strin
   if (Array.isArray(input)) return legacyParagraphsToText(input)
 
   if ('body' in input && typeof input.body === 'string') return input.body
-  if ('text' in input && typeof input.text === 'string') return input.text
+  if ('content' in input && typeof input.content === 'function') return input.content().value()
   return ''
 }
 

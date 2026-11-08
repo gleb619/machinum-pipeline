@@ -252,6 +252,8 @@ export {
 } from './domain-tree.js'
 export type {
   ChapterBody,
+  ChapterContent,
+  ChapterText,
   ChapterTreeInput,
   ChunkBodySplitter,
   DomainTreeOptions,

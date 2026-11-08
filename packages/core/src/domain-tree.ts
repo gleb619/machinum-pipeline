@@ -49,18 +49,34 @@ export interface ChapterTreeInput extends Pick<Chapter, 'id' | 'bookId'> {
   index?: number
 }
 
+/** Typed text value: read it through {@link ChapterText.value}. */
+export interface ChapterText {
+  /** Canonical text (markdown body, H1 header, ...). */
+  value(): string
+}
+
 /**
- * Read-side structural view over chapter body content, scenario-agnostic.
- * {@link ChapterNode} satisfies it; plain `Chapter`/markdown inputs adapt via
- * {@link chapterBody} / {@link chapterBodyFromMarkdown}.
+ * Body content below the H1: the structural descent shared by chunks, paragraphs,
+ * lines and words.
  */
-export interface ChapterBody {
-  /** Canonical serialized markdown body (no `# title`, no frontmatter). */
-  readonly text: string
+export interface ChapterContent extends ChapterText {
   chunks(opts?: DomainTreeOptions): ChunkNode[]
   paragraphs(): ParagraphNode[]
   lines(): LineNode[]
   words(): WordNode[]
+}
+
+/**
+ * Read-side view over a chapter body, scenario-agnostic: `value()` is the full
+ * markdown (H1 + content), `title()` the H1 header, `content()` everything below it.
+ * Plain `Chapter`/markdown inputs adapt via {@link chapterBody} /
+ * {@link chapterBodyFromMarkdown}.
+ */
+export interface ChapterBody extends ChapterText {
+  /** `# <title>` header line. */
+  title(): ChapterText
+  /** Markdown body below the H1, with the chunk/paragraph/line/word descent. */
+  content(): ChapterContent
 }
 
 function normalizeNewlines(text: string): string {
@@ -135,7 +151,7 @@ function serializeChunks(chunks: ChunkNode[], separator: string): string {
  * Mutable chapter view. `body` serializes the current chunk/paragraph/line tree;
  * `toChapter()` returns the plain wire-shape snapshot.
  */
-export class ChapterNode implements Chapter, ChapterBody {
+export class ChapterNode implements Chapter {
   readonly id: string
   readonly bookId: string
   url?: string
@@ -171,11 +187,6 @@ export class ChapterNode implements Chapter, ChapterBody {
   set body(value: string) {
     this._sourceBody = normalizeBlock(value)
     this._chunks = undefined
-  }
-
-  /** {@link ChapterBody} alias of {@link body}. */
-  get text(): string {
-    return this.body
   }
 
   chunks(opts: DomainTreeOptions = {}): ChunkNode[] {
@@ -231,6 +242,71 @@ export class ChapterNode implements Chapter, ChapterBody {
           this._options,
         ),
     )
+  }
+}
+
+/** {@link ChapterText} over a reader callback, so later mutations stay visible. */
+class ChapterTextView implements ChapterText {
+  readonly #read: () => string
+
+  constructor(read: () => string) {
+    this.#read = read
+  }
+
+  value(): string {
+    return this.#read()
+  }
+}
+
+/** {@link ChapterContent} over a live {@link ChapterNode}. */
+class ChapterContentView implements ChapterContent {
+  readonly #node: ChapterNode
+
+  constructor(node: ChapterNode) {
+    this.#node = node
+  }
+
+  value(): string {
+    return this.#node.body
+  }
+
+  chunks(opts: DomainTreeOptions = {}): ChunkNode[] {
+    return this.#node.chunks(opts)
+  }
+
+  paragraphs(): ParagraphNode[] {
+    return this.#node.paragraphs()
+  }
+
+  lines(): LineNode[] {
+    return this.#node.lines()
+  }
+
+  words(): WordNode[] {
+    return this.#node.words()
+  }
+}
+
+/** {@link ChapterBody}: `value()` is H1 + content, `title()` the H1, `content()` the rest. */
+class ChapterBodyView implements ChapterBody {
+  readonly #node: ChapterNode
+  readonly #content: ChapterContentView
+
+  constructor(node: ChapterNode) {
+    this.#node = node
+    this.#content = new ChapterContentView(node)
+  }
+
+  value(): string {
+    return this.#node.toMarkdown()
+  }
+
+  title(): ChapterText {
+    return new ChapterTextView(() => `# ${this.#node.title}`)
+  }
+
+  content(): ChapterContent {
+    return this.#content
   }
 }
 
@@ -544,7 +620,7 @@ export function chapterTree(chapter: Chapter, opts: DomainTreeOptions = {}): Cha
 
 /** Adapt a plain {@link Chapter} into the read-side {@link ChapterBody} view. */
 export function chapterBody(chapter: Chapter, opts: DomainTreeOptions = {}): ChapterBody {
-  return new ChapterNode(chapter, opts)
+  return new ChapterBodyView(chapterTree(chapter, opts))
 }
 
 /** Adapt markdown (`# Title` + body) into the read-side {@link ChapterBody} view. */
@@ -553,7 +629,7 @@ export function chapterBodyFromMarkdown(
   chapter: ChapterTreeInput,
   opts: DomainTreeOptions = {},
 ): ChapterBody {
-  return parseChapterTree(markdown, chapter, opts)
+  return new ChapterBodyView(parseChapterTree(markdown, chapter, opts))
 }
 
 /** Parse markdown (`# Title` + body) into a {@link ChapterNode}. */
