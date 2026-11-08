@@ -43,6 +43,7 @@ export {
   atomicWriteFile,
   AtomicStreamWriter,
   type AtomicStreamWriterOptions,
+  type AtomicWriteOptions,
   removeStaleTmpFiles,
   tmpPathFor,
   truncateFileToBytes,

@@ -1,7 +1,7 @@
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
-import { tmpPathFor } from './atomic.js'
+import { join, resolve } from 'node:path'
+import { atomicWriteFile } from './atomic.js'
+import { readJsonOrThrow } from './json-file.js'
 import { isEmbedRef, resolveEmbedValue } from './secrets.js'
 
 /**
@@ -179,21 +179,8 @@ async function resolveSecretValue(
 }
 
 async function readVaultFile(path: string): Promise<Vault | undefined> {
-  let raw: string
-  try {
-    raw = await readFile(path, 'utf-8')
-  } catch (err) {
-    if (err instanceof Error && (err as { code?: string }).code === 'ENOENT') return undefined
-    const code = (err as { code?: string }).code ?? 'unknown error'
-    throw new Error(`Cannot read vault ${path}: ${code}`)
-  }
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    // Parser messages can quote file content; keep secrets out.
-    throw new Error(`Invalid vault ${path}: malformed JSON`)
-  }
+  const parsed = await readJsonOrThrow(path, 'vault', { ignoreMissing: true })
+  if (parsed === undefined) return undefined
   return validateVault(parsed, path)
 }
 
@@ -371,13 +358,8 @@ export async function saveVault(path: string, vault: Vault): Promise<void> {
     if (plain.length > 0)
       throw new Error(`Refusing to write ${path}: ${plaintextMessage(name, plain)}`)
   }
-  await mkdir(dirname(path), { recursive: true })
-  const tmp = tmpPathFor(path)
-  try {
-    await writeFile(tmp, `${JSON.stringify(vault, null, 2)}\n`, { encoding: 'utf-8', mode: 0o600 })
-    await rename(tmp, path)
-  } catch (err) {
-    await unlink(tmp).catch(() => {})
-    throw err
-  }
+  await atomicWriteFile(path, `${JSON.stringify(vault, null, 2)}\n`, {
+    mode: 0o600,
+    createParent: true,
+  })
 }

@@ -1,8 +1,9 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto'
-import { chmod, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
-import { tmpPathFor } from './atomic.js'
+import { join, resolve } from 'node:path'
+import { atomicWriteFile } from './atomic.js'
+import { readJsonOrThrow } from './json-file.js'
 import { createConsoleLogger } from './logging.js'
 
 const logger = createConsoleLogger()
@@ -344,19 +345,11 @@ export async function writeMasterKeyFile(
       )
     }
   }
-  await mkdir(dirname(target), { recursive: true, mode: 0o700 })
-  const tmp = tmpPathFor(target)
-  try {
-    await writeFile(tmp, `${options.key ?? generateMasterKey()}\n`, {
-      encoding: 'utf-8',
-      mode: 0o600,
-    })
-    await chmod(tmp, 0o600)
-    await rename(tmp, target)
-  } catch (err) {
-    await unlink(tmp).catch(() => {})
-    throw err
-  }
+  await atomicWriteFile(target, `${options.key ?? generateMasterKey()}\n`, {
+    mode: 0o600,
+    createParent: true,
+    parentMode: 0o700,
+  })
   return { path: target }
 }
 
@@ -632,19 +625,7 @@ async function openStore(path: string, password: string): Promise<StoreData> {
   const cached = storeCache.get(key)
   if (cached?.signature === signature) return cached.store
   const store = (async (): Promise<StoreData> => {
-    let raw: string
-    try {
-      raw = await readFile(path, 'utf-8')
-    } catch (err) {
-      const code = (err as { code?: string }).code ?? 'unknown error'
-      throw new Error(`Cannot read embedded store ${path}: ${code}`)
-    }
-    let data: unknown
-    try {
-      data = JSON.parse(raw)
-    } catch {
-      throw new Error(`Invalid embedded store ${path}: malformed JSON`)
-    }
+    const data = await readJsonOrThrow(path, 'embedded store')
     const envelope = validateEnvelope(data, path)
     return { keyring: unlockKeyring(envelope, password, path), secrets: envelope.secrets }
   })()
@@ -675,18 +656,10 @@ function newStore(path: string): StoreData {
 
 async function writeStore(path: string, store: StoreData, password: string): Promise<void> {
   const envelope = buildEnvelope(store, password)
-  await mkdir(dirname(path), { recursive: true })
-  const tmp = tmpPathFor(path)
-  try {
-    await writeFile(tmp, `${JSON.stringify(envelope, null, 2)}\n`, {
-      encoding: 'utf-8',
-      mode: 0o600,
-    })
-    await rename(tmp, path)
-  } catch (err) {
-    await unlink(tmp).catch(() => {})
-    throw err
-  }
+  await atomicWriteFile(path, `${JSON.stringify(envelope, null, 2)}\n`, {
+    mode: 0o600,
+    createParent: true,
+  })
   resetEmbedCache(path)
 }
 
@@ -897,25 +870,19 @@ export async function rekeyEmbedStore(
   resetEmbedCache(path)
   const store = await openStore(path, current)
   const envelope = buildEnvelope(store, options.newPassword)
-  const tmp = tmpPathFor(path)
-  try {
-    await writeFile(tmp, `${JSON.stringify(envelope, null, 2)}\n`, {
-      encoding: 'utf-8',
-      mode: 0o600,
-    })
-    const written = validateEnvelope(JSON.parse(await readFile(tmp, 'utf-8')), tmp)
-    const keyring = unlockKeyring(written, options.newPassword, path)
-    if (
-      JSON.stringify(keyring) !== JSON.stringify(store.keyring) ||
-      JSON.stringify(written.secrets) !== JSON.stringify(store.secrets)
-    ) {
-      throw new Error(`Re-key verification failed for ${path}: store left unchanged`)
-    }
-    await rename(tmp, path)
-  } catch (err) {
-    await unlink(tmp).catch(() => {})
-    throw err
-  }
+  await atomicWriteFile(path, `${JSON.stringify(envelope, null, 2)}\n`, {
+    mode: 0o600,
+    verify: async (tmp) => {
+      const written = validateEnvelope(JSON.parse(await readFile(tmp, 'utf-8')), tmp)
+      const keyring = unlockKeyring(written, options.newPassword, path)
+      if (
+        JSON.stringify(keyring) !== JSON.stringify(store.keyring) ||
+        JSON.stringify(written.secrets) !== JSON.stringify(store.secrets)
+      ) {
+        throw new Error(`Re-key verification failed for ${path}: store left unchanged`)
+      }
+    },
+  })
   resetEmbedCache(path)
   return { path, entries: Object.keys(store.secrets).length }
 }

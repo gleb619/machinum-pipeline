@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { type WriteStream, createWriteStream, fsync } from 'node:fs'
-import { access, open, readdir, rename, unlink, writeFile } from 'node:fs/promises'
+import { access, chmod, mkdir, open, readdir, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 /**
@@ -29,14 +29,40 @@ async function discardTmp(tmpPath: string): Promise<void> {
   await unlink(tmpPath).catch(() => {})
 }
 
+/** Options for {@link atomicWriteFile}. */
+export interface AtomicWriteOptions {
+  /** File mode of the written file (e.g. `0o600` for secret files). */
+  mode?: number
+  /** Create the parent directory when it is missing. */
+  createParent?: boolean
+  /** Mode of the created parent directory (default: Node's default for `mkdir`). */
+  parentMode?: number
+  /**
+   * Inspect the temp file before it is published. Throwing aborts the write and
+   * leaves the target untouched.
+   */
+  verify?: (tmpPath: string) => Promise<void>
+}
+
 /**
  * Write `data` to `filePath` atomically: temp file → rename.
- * The parent directory must already exist.
+ * The parent directory must already exist unless `options.createParent` is set.
  */
-export async function atomicWriteFile(filePath: string, data: string): Promise<void> {
+export async function atomicWriteFile(
+  filePath: string,
+  data: string | Uint8Array,
+  options: AtomicWriteOptions = {},
+): Promise<void> {
+  if (options.createParent) {
+    await mkdir(dirname(filePath), { recursive: true, mode: options.parentMode })
+  }
   const tmpPath = tmpPathFor(filePath)
   try {
-    await writeFile(tmpPath, data, 'utf-8')
+    await writeFile(tmpPath, data, { encoding: 'utf-8', mode: options.mode })
+    // `writeFile` masks the mode with the umask — restore it so a secret file is
+    // never left without owner-write.
+    if (options.mode !== undefined) await chmod(tmpPath, options.mode)
+    if (options.verify) await options.verify(tmpPath)
     await rename(tmpPath, filePath)
   } catch (error) {
     await discardTmp(tmpPath)

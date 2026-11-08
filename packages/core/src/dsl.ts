@@ -207,19 +207,10 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * .from('jsonl://./input.jsonl')
    */
   from<T>(source: Source<T> | string): PipelineBuilder<T, O> {
-    if (typeof source === 'string' && registry.isAliasCandidate(source)) {
-      // Named URI alias — needs mt.json settings, so the Runner resolves it at run time
-      this._steps.push({ type: 'source', config: { uri: source } })
-      return this as unknown as PipelineBuilder<T, O>
-    }
-    if (typeof source !== 'string') {
-      // Keep the instance: the Runner uses it instead of re-resolving the URI from the registry
-      // (this is what lets `defineWaypoint` wrappers and custom Sources reach the actual run).
-      this._steps.push({ type: 'source', config: { uri: source.uri, instance: source } })
-      return this as unknown as PipelineBuilder<T, O>
-    }
-    const resolvedSource = registry.resolveSource<T>(source)
-    this._steps.push({ type: 'source', config: { uri: resolvedSource.uri } })
+    this._steps.push({
+      type: 'source',
+      config: this.resolveEndpoint(source, (uri) => registry.resolveSource<T>(uri)),
+    })
     return this as unknown as PipelineBuilder<T, O>
   }
 
@@ -265,19 +256,10 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    * .to('md://./output.md')
    */
   to<T>(target: Target<T> | string): PipelineBuilder<I, O> {
-    if (typeof target === 'string' && registry.isAliasCandidate(target)) {
-      // Named URI alias — needs mt.json settings, so the Runner resolves it at run time
-      this._steps.push({ type: 'target', config: { uri: target } })
-      return this
-    }
-    if (typeof target !== 'string') {
-      // Keep the instance: the Runner uses it instead of re-resolving the URI from the registry
-      // (this is what lets `defineWaypoint` wrappers and custom Targets reach the actual run).
-      this._steps.push({ type: 'target', config: { uri: target.uri, instance: target } })
-      return this
-    }
-    const resolvedTarget = registry.resolveTarget<T>(target)
-    this._steps.push({ type: 'target', config: { uri: resolvedTarget.uri } })
+    this._steps.push({
+      type: 'target',
+      config: this.resolveEndpoint(target, (uri) => registry.resolveTarget<T>(uri)),
+    })
     return this
   }
 
@@ -441,6 +423,26 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this.tap((ex) => {
       log[severity](`[${label}] ${ex.id} ${renderLogItem(ex.item, truncate)}`)
     })
+  }
+
+  /**
+   * Resolve a Source/Target given as an instance or a URI string into a step config.
+   * Shared by {@link from} and {@link to} — only the step type and the registry lookup differ.
+   */
+  private resolveEndpoint<T>(
+    endpoint: Source<T> | Target<T> | string,
+    resolve: (uri: string) => { uri: string },
+  ): { uri: string; instance?: Source<T> | Target<T> } {
+    if (typeof endpoint === 'string' && registry.isAliasCandidate(endpoint)) {
+      // Named URI alias — needs mt.json settings, so the Runner resolves it at run time
+      return { uri: endpoint }
+    }
+    if (typeof endpoint !== 'string') {
+      // Keep the instance: the Runner uses it instead of re-resolving the URI from the registry
+      // (this is what lets `defineWaypoint` wrappers and custom Sources/Targets reach the actual run).
+      return { uri: endpoint.uri, instance: endpoint }
+    }
+    return { uri: resolve(endpoint).uri }
   }
 }
 

@@ -1,6 +1,6 @@
-import { randomBytes } from 'node:crypto'
-import { lstat, mkdir, readFile, realpath, rename, unlink, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, realpath, unlink } from 'node:fs/promises'
 import { isAbsolute, join, relative } from 'node:path'
+import { atomicWriteFile } from '../atomic.js'
 import {
   type SyncScopeOptions,
   isProtectedSyncPath,
@@ -156,14 +156,7 @@ export async function writeSyncFile(
     throw new SyncFileTooLargeError(normalized, buffer.length, options.maxBytes)
   }
   const target = await ensureParentDirectories(root, normalized)
-  const temp = `${target}.tmp.${Date.now()}-${randomBytes(4).toString('hex')}`
-  try {
-    await writeFile(temp, buffer)
-    await rename(temp, target)
-  } catch (error) {
-    await unlink(temp).catch(() => {})
-    throw error
-  }
+  await atomicWriteFile(target, buffer)
   return buffer.length
 }
 

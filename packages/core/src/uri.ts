@@ -182,13 +182,7 @@ class UriRegistry {
    * project's "uris" table in settings before lookup.
    */
   resolveSource<T>(uri: string, settings?: Settings): Source<T> {
-    const resolvedUri = this.expandAliases(uri, settings)
-    const parsed = this.parse(resolvedUri)
-    const factory = this.sources.get(parsed.scheme)
-    if (!factory) {
-      throw new Error(`No source registered for scheme: ${parsed.scheme} (URI: ${resolvedUri})`)
-    }
-    return factory(parsed) as Source<T>
+    return this.resolveEndpoint(uri, this.sources, 'source', settings) as Source<T>
   }
 
   /**
@@ -197,13 +191,26 @@ class UriRegistry {
    * project's "uris" table in settings before lookup.
    */
   resolveTarget<T>(uri: string, settings?: Settings): Target<T> {
+    return this.resolveEndpoint(uri, this.targets, 'target', settings) as Target<T>
+  }
+
+  /**
+   * Expand aliases, parse the URI and look the scheme up in the given factory
+   * map. Shared by {@link resolveSource} and {@link resolveTarget}.
+   */
+  private resolveEndpoint<T>(
+    uri: string,
+    factories: Map<string, (parsed: ParsedUri) => T>,
+    kind: 'source' | 'target',
+    settings?: Settings,
+  ): T {
     const resolvedUri = this.expandAliases(uri, settings)
     const parsed = this.parse(resolvedUri)
-    const factory = this.targets.get(parsed.scheme)
+    const factory = factories.get(parsed.scheme)
     if (!factory) {
-      throw new Error(`No target registered for scheme: ${parsed.scheme} (URI: ${resolvedUri})`)
+      throw new Error(`No ${kind} registered for scheme: ${parsed.scheme} (URI: ${resolvedUri})`)
     }
-    return factory(parsed) as Target<T>
+    return factory(parsed)
   }
 
   /**
