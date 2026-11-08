@@ -13,16 +13,7 @@ import type {
   DomainTreeOptions,
   TokenPart,
   WordSpan,
-} from './types/domain.js'
-export type {
-  TokenPart,
-  WordSpan,
-  DomainTreeOptions,
-  ChapterTreeInput,
-  ChapterText,
-  ChapterContent,
-  ChapterBody,
-} from './types/domain.js'
+} from 'types.js'
 
 export type ChunkBodySplitter = (body: string) => string[]
 export type ParagraphBodySplitter = (body: string) => string[]

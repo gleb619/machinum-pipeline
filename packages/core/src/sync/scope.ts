@@ -3,8 +3,7 @@ import type { Dirent } from 'node:fs'
 import { lstat, readFile, readdir } from 'node:fs/promises'
 import { basename, isAbsolute, join, posix, resolve } from 'node:path'
 import { DEFAULT_MT_CONFIG, readMtConfig } from '../config.js'
-import type { SyncOutputScopeOptions, SyncScopeOptions } from '../types/sync/scope.js'
-export type { SyncScopeOptions, SyncOutputScopeOptions } from '../types/sync/scope.js'
+import type { SyncOutputScopeOptions, SyncScopeOptions } from 'types.js'
 
 /** Default source scope: every pipeline module plus the project config. */
 export const DEFAULT_SYNC_INCLUDE = ['pipelines/**', 'mt.json']

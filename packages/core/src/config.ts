@@ -3,9 +3,8 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import type { ErrorPolicy, GlobalContext, RetryPolicy, RetryStrategy } from './contexts.js'
 import type { Settings } from './types.js'
-import type { MtConfig, RemoteSyncConfig } from './types/config.js'
+import type { MtConfig, RemoteSyncConfig } from 'types.js'
 import { loadVault } from './vault.js'
-export type { RemoteSyncConfig, RemoteConfig, MtConfig } from './types/config.js'
 
 /** Transfer mode for project sync. `git` is reserved/deferred. */
 export type RemoteSyncMode = 'http' | 'git'

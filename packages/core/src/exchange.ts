@@ -26,18 +26,7 @@ import type {
   Qualifier,
   Variable,
   VariableOptions,
-} from './types/exchange.js'
-
-export type {
-  BatchMembers,
-  Exchange,
-  ExchangeInput,
-  ExchangeMeta,
-  PersistedExchange,
-  Qualifier,
-  Variable,
-  VariableOptions,
-} from './types/exchange.js'
+} from 'types.js'
 
 /** Name of the variable carrying the payload (qualifier `new`; previous payload is `old`). */
 export const ITEM_VARIABLE = 'item'

@@ -1,8 +1,7 @@
 import { type PersistedExchange, toPersisted } from '../exchange.js'
 import type { Store } from '../store.js'
 import type { Envelope } from '../types.js'
-import type { DeadLetterEntry } from '../types/engine/dead-letter.js'
-export type { DeadLetterEntry } from '../types/engine/dead-letter.js'
+import type { DeadLetterEntry } from 'types.js'
 
 /**
  * Write a dead-letter entry to the dead-letter queue.

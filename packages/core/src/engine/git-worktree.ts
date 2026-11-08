@@ -1,7 +1,6 @@
 import { join } from 'node:path'
-import type { MergeWorktreeOptions, MergeWorktreeResult } from '../types/engine/git-worktree.js'
+import type { MergeWorktreeOptions, MergeWorktreeResult } from 'types.js'
 import { execGit } from './git.js'
-export type { MergeWorktreeOptions, MergeWorktreeResult } from '../types/engine/git-worktree.js'
 
 /**
  * Create a Git worktree for the given branch name.

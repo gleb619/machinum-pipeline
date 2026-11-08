@@ -6,18 +6,13 @@ import type {
   BuildManifestOptions,
   SyncHashCache,
   SyncManifestEntry,
-} from '../types/sync/manifest.js'
+} from 'types.js'
 import {
   type SyncScopeOptions,
   isProtectedSyncPath,
   normalizeSyncPath,
   walkSyncFiles,
 } from './scope.js'
-export type {
-  SyncManifestEntry,
-  SyncHashCache,
-  BuildManifestOptions,
-} from '../types/sync/manifest.js'
 
 export function createSyncHashCache(): SyncHashCache {
   const values = new Map<string, string>()

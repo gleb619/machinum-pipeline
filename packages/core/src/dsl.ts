@@ -21,17 +21,8 @@ import type {
   ProcessOptions,
   WaypointSourceHooks,
   WaypointTargetHooks,
-} from './types/dsl.js'
+} from 'types.js'
 import { registry } from './uri.js'
-export type {
-  BatchOptions,
-  LogOptions,
-  ProcessConfig,
-  ProcessOptions,
-  WaypointSourceHooks,
-  WaypointTargetHooks,
-  ComposableTool,
-} from './types/dsl.js'
 
 /**
  * Default retry configuration

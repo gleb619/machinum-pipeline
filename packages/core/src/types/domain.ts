@@ -35,18 +35,6 @@ export interface Chapter {
 }
 
 /**
- * Paragraph — a paragraph within a chapter, or within one of its chunks.
- */
-export interface Paragraph {
-  id: string
-  chapterId: string
-  /** Paragraph of a chunk: the id of the `Chunk` it was derived from. */
-  chunkId?: string
-  body: string
-  index?: number
-}
-
-/**
  * Chunk — a token-bounded, separator-fixated slice of a chapter's text,
  * used for translation (and other LLM work) within a token budget.
  *
@@ -64,20 +52,14 @@ export interface Chunk {
 }
 
 /**
- * Token — one tiktoken-style BPE token of a chunk.
- *
- * The alternate descent from a `Chunk` (a sibling of `Paragraph`): chunks
- * -> tokens instead of chunks -> paragraphs. A token is what the LLM
- * actually sees, so tokens are the unit for budget and cost reasoning.
+ * Paragraph — a paragraph within a chapter, or within one of its chunks.
  */
-export interface Token {
+export interface Paragraph {
   id: string
-  /** The `Chunk` this token was derived from. */
-  chunkId: string
-  /** BPE token id. */
-  tokenId: number
-  /** Decoded text piece of the token. */
-  text: string
+  chapterId: string
+  /** Paragraph of a chunk: the id of the `Chunk` it was derived from. */
+  chunkId?: string
+  body: string
   index?: number
 }
 
@@ -125,6 +107,24 @@ export interface ChapterLineWord {
   chapterId: string
   lineId: string
   word: string
+  index?: number
+}
+
+/**
+ * Token — one tiktoken-style BPE token of a chunk.
+ *
+ * The alternate descent from a `Chunk` (a sibling of `Paragraph`): chunks
+ * -> tokens instead of chunks -> paragraphs. A token is what the LLM
+ * actually sees, so tokens are the unit for budget and cost reasoning.
+ */
+export interface Token {
+  id: string
+  /** The `Chunk` this token was derived from. */
+  chunkId: string
+  /** BPE token id. */
+  tokenId: number
+  /** Decoded text piece of the token. */
+  text: string
   index?: number
 }
 

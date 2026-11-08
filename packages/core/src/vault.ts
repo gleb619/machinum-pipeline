@@ -9,14 +9,7 @@ import type {
   Vault,
   VaultEntry,
   VaultRef,
-} from './types/vault.js'
-export type {
-  VaultEntry,
-  Vault,
-  VaultRef,
-  ResolvedVaultRef,
-  LoadVaultOptions,
-} from './types/vault.js'
+} from 'types.js'
 
 /**
  * Vault — gitignored store of sensitive LLM endpoint data (URLs, keys, headers).

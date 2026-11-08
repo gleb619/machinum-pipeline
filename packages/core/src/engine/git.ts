@@ -1,8 +1,7 @@
 import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { createConsoleLogger } from '../logging.js'
-import type { GitResult } from '../types/engine/git.js'
-export type { GitResult } from '../types/engine/git.js'
+import type { GitResult } from 'types.js'
 
 const logger = createConsoleLogger()
 

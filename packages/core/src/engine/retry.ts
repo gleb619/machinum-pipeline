@@ -1,6 +1,5 @@
 import type { RetryPolicy, RetryStrategy } from '../contexts.js'
-import type { RetryableError } from '../types/engine/retry.js'
-export type { RetryableError } from '../types/engine/retry.js'
+import type { RetryableError } from 'types.js'
 
 /** Any retry layer may be partial — unset fields inherit from the layer below. */
 export type PartialRetryPolicy = {

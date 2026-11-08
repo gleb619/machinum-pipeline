@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { Store } from '../store.js'
-import type { CacheEntry, CacheOptions } from '../types/engine/cache.js'
-export type { CacheEntry, CacheOptions } from '../types/engine/cache.js'
+import type { CacheEntry, CacheOptions } from 'types.js'
 
 /**
  * Tool cache — memoises tool outputs by content hash.

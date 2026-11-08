@@ -1,6 +1,4 @@
-import type { Settings } from './types/settings.js'
-
-export type { Settings } from './types/settings.js'
+import type { Settings } from 'types.js'
 
 /**
  * Read a typed setting using dot-path lookup.

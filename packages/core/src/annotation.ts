@@ -6,16 +6,7 @@ import type {
   CategoryAnnotation,
   CategoryFactory,
   IdAnnotation,
-} from './types/annotation.js'
-export type {
-  AnnotationSpec,
-  IdAnnotation,
-  CategoryAnnotation,
-  AnnotationKindFactory,
-  CategoryFactory,
-  AnnotationFactories,
-  AnnotationRecord,
-} from './types/annotation.js'
+} from 'types.js'
 /**
  * Runtime annotations — one common mechanism, four sealed kinds.
  *

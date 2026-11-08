@@ -21,24 +21,7 @@ import type {
   SetEmbedSecretInput,
   SetEmbedSecretOptions,
   WriteMasterKeyOptions,
-} from './types/secrets.js'
-export type {
-  EmbedSecret,
-  EmbedEntryInfo,
-  EmbedKeyInfo,
-  CreateEmbedOptions,
-  SetEmbedSecretInput,
-  SetEmbedSecretOptions,
-  MasterKeyPaths,
-  MasterKeyResolution,
-  WriteMasterKeyOptions,
-  RotateEmbedSecretOptions,
-  RekeyEmbedOptions,
-  EmbedKeyringOptions,
-  GenerateEmbedKeyOptions,
-  AddEmbedKeyOptions,
-  RotateEmbedKeysOptions,
-} from './types/secrets.js'
+} from 'types.js'
 
 const logger = createConsoleLogger()
 

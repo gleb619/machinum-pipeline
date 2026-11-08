@@ -107,3 +107,4 @@ build
 /docs/docs/plans/
 /docs/locks/*
 coverage/
+/samples/depricated/

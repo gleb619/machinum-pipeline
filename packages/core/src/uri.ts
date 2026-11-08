@@ -1,7 +1,6 @@
 import type { Settings } from './types.js'
 import type { BufferWriter, BufferWriterFactory, Source, Splitter, Target } from './types.js'
-import type { ParsedUri, UriAliases } from './types/uri.js'
-export type { ParsedUri, UriAliases } from './types/uri.js'
+import type { ParsedUri, UriAliases } from 'types.js'
 
 /**
  * URI registry — maps URI schemes to Source/Target factories.
