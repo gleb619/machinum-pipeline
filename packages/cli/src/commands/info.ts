@@ -1,8 +1,8 @@
 import type { Dirent } from 'node:fs'
-import { access, lstat, readFile, readdir, stat } from 'node:fs/promises'
+import { lstat, readFile, readdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { DEFAULT_MT_CONFIG, annotate, readMtConfig, useCase } from '@mt/core'
+import { DEFAULT_MT_CONFIG, annotate, pathExists, readMtConfig, useCase } from '@mt/core'
 import type { CheckpointNode, MtConfig } from '@mt/core'
 import { maskSecrets } from '../utils/mask.js'
 
@@ -662,17 +662,6 @@ function cloneValue(value: unknown): unknown {
     return out
   }
   return value
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch (error) {
-    if (isNotFound(error)) return false
-    // Unreadable is not the same as missing, but `info` must stay read-only and non-fatal.
-    return false
-  }
 }
 
 async function pathIsFile(path: string): Promise<boolean> {
