@@ -1,9 +1,10 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Exchange, ParsedUri, Target, TargetContext } from '@mt/core'
-import { annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
+import { atomicWriteFile } from '@mt/core'
 import { exchangeField } from './fields.js'
-import { resolveWaypointRoot } from './settings.js'
+import { registerWaypointPair } from './registration.js'
+import { resolveUriInContext } from './settings.js'
 
 /**
  * Variable the `book-compiler` tool publishes (title, TOC, warnings).
@@ -37,12 +38,7 @@ export function createBookTarget<T>(uri: ParsedUri): Target<T> {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       committedEnvelopes = 0
-      rootDir = resolveWaypointRoot(
-        uri,
-        'book',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      rootDir = resolveUriInContext(uri, 'book', ctx)
       mkdirSync(rootDir, { recursive: true })
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
@@ -84,12 +80,12 @@ export function createBookTarget<T>(uri: ParsedUri): Target<T> {
   }
 }
 
-annotate(
-  createBookTarget,
-  waypoint('WT016', {
+registerWaypointPair({
+  id: 'WT016',
+  target: {
+    factory: createBookTarget,
     name: 'book target',
     description: 'Writes book.md + book.json (TOC, warnings) atomically under a directory.',
-    meta: { schemes: ['book'], direction: 'target' },
-  }),
-)
-registry.registerTarget('book', createBookTarget)
+    schemes: ['book'],
+  },
+})

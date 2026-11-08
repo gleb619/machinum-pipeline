@@ -1,14 +1,16 @@
 import { mkdirSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { basename, isAbsolute, join, relative, sep } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, MdOutputEntry, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { MD_OUTPUTS_VARIABLE, annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
+import { MD_OUTPUTS_VARIABLE, atomicWriteFile } from '@mt/core'
+import { assertChapterNum, chapterFileName, discoverChapterFiles } from './chapter-files.js'
 import { exchangeField } from './fields.js'
-import { walkFiles } from './file-walk.js'
+import { mdOutputsRejectionError } from './md-outputs.js'
+import { registerWaypointPair } from './registration.js'
 import { resumeFrom } from './resume.js'
-import { resolveWaypointPath } from './settings.js'
+import { resolveUriInContext } from './settings.js'
 
 /**
  * Chapter Output Target — writes chapters to chapters/{lang}/chapter{N}.md.
@@ -51,13 +53,6 @@ function assertSafeLang(lang: unknown): asserts lang is string | undefined {
   }
 }
 
-function assertChapterNum(chapterNum: unknown): asserts chapterNum is number {
-  if (typeof chapterNum !== 'number' || !Number.isInteger(chapterNum) || chapterNum < 0) {
-    throw new Error(
-      `chapter-output target: meta.chapterNum must be a non-negative integer, got ${JSON.stringify(chapterNum)}`,
-    )
-  }
-}
 export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
   let chapterIndex = 0
   let baseDir = ''
@@ -68,12 +63,7 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
     async open(ctx: TargetContext): Promise<void> {
       chapterIndex = 0
       committedEnvelopes = 0
-      baseDir = resolveWaypointPath(
-        uri,
-        'chapter-output',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      baseDir = resolveUriInContext(uri, 'chapter-output', ctx)
       mkdirSync(baseDir, { recursive: true })
       // Resume replay must continue numbering above what is already on disk.
       if (ctx.resumeCursor !== undefined && ctx.resumeCursor > 0) {
@@ -87,13 +77,7 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
         // This target writes `env.item` as one chapter file per envelope — the
         // per-file intents have nowhere to go, so reject instead of dropping their
         // content silently.
-        throw new Error(
-          [
-            `chapter-output target '${uri.raw}': mdOutputs intents `,
-            `(${mdOutputs.map((output) => output.name).join(', ')}) are not supported — `,
-            'write them to an md:// target',
-          ].join(''),
-        )
+        throw mdOutputsRejectionError('chapter-output target', uri.raw, mdOutputs, 'unsupported')
       }
       const meta = (env.meta || {}) as Record<string, unknown>
       assertSafeLang(meta.lang)
@@ -101,9 +85,9 @@ export function createChapterOutputTarget<T>(uri: ParsedUri): Target<T> {
       const explicitNum = meta.chapterNum ?? meta.chapter
       const chapterNum =
         explicitNum === undefined || explicitNum === null ? ++chapterIndex : (explicitNum as number)
-      assertChapterNum(chapterNum)
+      assertChapterNum(chapterNum, 'chapter-output target')
 
-      const filename = `chapter${chapterNum}.md`
+      const filename = chapterFileName(chapterNum)
 
       let dir = baseDir
       if (lang) {
@@ -160,92 +144,28 @@ export function createChapterOutputSource<T>(uri: ParsedUri): Source<T> {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
-      const baseDir = resolveWaypointPath(
-        uri,
-        'chapter-output',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      const baseDir = resolveUriInContext(uri, 'chapter-output', ctx)
       yield* readChapterEnvelopes(baseDir)
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
-      const baseDir = resolveWaypointPath(
-        uri,
-        'chapter-output',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      const baseDir = resolveUriInContext(uri, 'chapter-output', ctx)
       yield* resumeFrom(() => readChapterEnvelopes(baseDir), cursor)
     },
   }
 }
 
-/**
- * Discovered chapter file metadata.
- */
-interface ChapterFile {
-  path: string
-  chapterNum: number
-  lang: string | undefined
-}
-
-/** Chapter file base names look like `chapter42.md`. */
-const CHAPTER_BASENAME_RE = /^chapter\d+\.md$/i
-
-/**
- * Recursively walk a directory to find chapter{N}.md files.
- * Chapter files are .md files matching /^chapter(\d+)\.md$/i.
- * If a .md file is inside a subdirectory, that subdirectory name is recorded as lang.
- */
-async function discoverChapterFiles(dir: string): Promise<ChapterFile[]> {
-  const walked = await walkFiles(
-    dir,
-    (entry) => {
-      if (entry.isDirectory) return 'recurse'
-      if (entry.name.endsWith('.md') && CHAPTER_BASENAME_RE.test(entry.name)) return 'collect'
-      return 'skip'
-    },
-    { onMissingDir: 'ignore' },
-  )
-
-  const results: ChapterFile[] = []
-  for (const file of walked) {
-    const match = basename(file.name, '.md').match(/^chapter(\d+)$/i)
-    const group = match?.[1]
-    if (!group) continue
-    const chapterNum = Number.parseInt(group, 10)
-    if (Number.isNaN(chapterNum)) continue
-    // The lang is the deepest subdirectory name, mirroring the historical walk.
-    const lang =
-      file.relativeDir === '' ? undefined : (file.relativeDir.split(sep).at(-1) ?? undefined)
-    results.push({ path: file.path, chapterNum, lang })
-  }
-
-  // Sort by lang then chapter number for deterministic ordering
-  results.sort((a, b) => {
-    const langCmp = (a.lang ?? '').localeCompare(b.lang ?? '')
-    if (langCmp !== 0) return langCmp
-    return a.chapterNum - b.chapterNum
-  })
-  return results
-}
-
-annotate(
-  createChapterOutputSource,
-  waypoint('WT004', {
+registerWaypointPair({
+  id: 'WT004',
+  source: {
+    factory: createChapterOutputSource,
     name: 'chapter-output source',
     description: 'Reads chapter files recursively from a chapter-output directory.',
-    meta: { schemes: ['chapter-output'], direction: 'source' },
-  }),
-)
-annotate(
-  createChapterOutputTarget,
-  waypoint('WT004', {
+    schemes: ['chapter-output'],
+  },
+  target: {
+    factory: createChapterOutputTarget,
     name: 'chapter-output target',
     description: 'Writes chapters to <base-dir>/<lang>/chapter<N>.md files atomically.',
-    meta: { schemes: ['chapter-output'], direction: 'target' },
-  }),
-)
-// Register built-in Chapter Output source and target
-registry.registerSource('chapter-output', createChapterOutputSource)
-registry.registerTarget('chapter-output', createChapterOutputTarget)
+    schemes: ['chapter-output'],
+  },
+})

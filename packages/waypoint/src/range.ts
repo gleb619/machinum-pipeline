@@ -1,6 +1,6 @@
 import type { ExchangeInput, ParsedUri } from '@mt/core'
 import type { Source, SourceContext } from '@mt/core'
-import { annotate, registry, waypoint } from '@mt/core'
+import { registerWaypointPair } from './registration.js'
 import { resumeFrom } from './resume.js'
 
 /**
@@ -68,12 +68,12 @@ function parseInteger(text: string, component: string, raw: string): number {
 }
 
 // Register built-in range source (source-only: no target registration)
-annotate(
-  createRangeSource,
-  waypoint('WT007', {
+registerWaypointPair({
+  id: 'WT007',
+  source: {
+    factory: createRangeSource,
     name: 'range source',
     description: 'Generates an inclusive integer range from a range://start..end URI.',
-    meta: { schemes: ['range'], direction: 'source' },
-  }),
-)
-registry.registerSource('range', createRangeSource)
+    schemes: ['range'],
+  },
+})

@@ -4,13 +4,14 @@ import { dirname, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
+import { atomicWriteFile } from '@mt/core'
 import matter from 'gray-matter'
 import remarkParse from 'remark-parse'
 import { unified } from 'unified'
 import { exchangeField } from './fields.js'
+import { registerWaypointPair } from './registration.js'
 import { resumeFrom } from './resume.js'
-import { resolveWaypointPath } from './settings.js'
+import { resolveUriInContext } from './settings.js'
 
 export interface SchemaDocMetadata {
   chapter: number
@@ -43,12 +44,7 @@ export function createSchemaDocTarget(uri: ParsedUri): Target<string> {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       committedEnvelopes = 0
-      baseDir = resolveWaypointPath(
-        uri,
-        'schema-doc',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      baseDir = resolveUriInContext(uri, 'schema-doc', ctx)
       mkdirSync(baseDir, { recursive: true })
     },
     async write(env: Exchange<string>, _ctx: TargetContext): Promise<void> {
@@ -148,12 +144,7 @@ export function createSchemaDocSource(uri: ParsedUri): Source<SchemaDocEnvelope>
   const readEnvelope = async function* (
     ctx: SourceContext,
   ): AsyncIterable<ExchangeInput<SchemaDocEnvelope>> {
-    const filePath = resolveWaypointPath(
-      uri,
-      'schema-doc',
-      ctx.run.global.settings,
-      ctx.run.global.project.root,
-    )
+    const filePath = resolveUriInContext(uri, 'schema-doc', ctx)
     const text = await readFile(filePath, 'utf-8')
     const doc = parseSchemaDoc(text)
     yield { id: `schema-doc:${filePath}`, item: doc, meta: {} }
@@ -310,22 +301,18 @@ function extractTextContent(node: MdastPhrasable): string {
   return ''
 }
 
-annotate(
-  createSchemaDocSource,
-  waypoint('WT005', {
+registerWaypointPair({
+  id: 'WT005',
+  source: {
+    factory: createSchemaDocSource,
     name: 'schema-doc source',
     description: 'Reads a schema document and parses its metadata, summary, entities and schema.',
-    meta: { schemes: ['schema-doc'], direction: 'source' },
-  }),
-)
-annotate(
-  createSchemaDocTarget,
-  waypoint('WT005', {
+    schemes: ['schema-doc'],
+  },
+  target: {
+    factory: createSchemaDocTarget,
     name: 'schema-doc target',
     description: 'Writes per-chapter schema documents to <dir>/chapter<N>.schema.md.',
-    meta: { schemes: ['schema-doc'], direction: 'target' },
-  }),
-)
-// Register built-in Schema Document source and target
-registry.registerSource('schema-doc', createSchemaDocSource)
-registry.registerTarget('schema-doc', createSchemaDocTarget)
+    schemes: ['schema-doc'],
+  },
+})

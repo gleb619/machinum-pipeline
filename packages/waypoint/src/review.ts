@@ -1,8 +1,9 @@
 import type { ParsedUri } from '@mt/core'
 import type { Exchange, Target, TargetContext } from '@mt/core'
-import { annotate, atomicWriteFile, registry, waypoint } from '@mt/core'
+import { atomicWriteFile } from '@mt/core'
 import { exchangeField } from './fields.js'
-import { resolveWaypointRoot } from './settings.js'
+import { registerWaypointPair } from './registration.js'
+import { resolveUriInContext } from './settings.js'
 
 /**
  * Structural mirror of the `@mt/tools` glossary JSON (`chapters/glossary.json`).
@@ -120,7 +121,7 @@ export function createReviewTarget<T>(uri: ParsedUri): Target<T> {
     async open(ctx: TargetContext): Promise<void> {
       committedEnvelopes = 0
       const projectRoot = ctx.run.global.project?.root ?? process.cwd()
-      filePath = resolveWaypointRoot(uri, 'review', ctx.run.global.settings, projectRoot)
+      filePath = resolveUriInContext(uri, 'review', ctx, projectRoot)
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
       if (!filePath) {
@@ -146,12 +147,12 @@ export function createReviewTarget<T>(uri: ParsedUri): Target<T> {
 }
 
 // Register built-in review target (target-only: no source registration)
-annotate(
-  createReviewTarget,
-  waypoint('WT011', {
+registerWaypointPair({
+  id: 'WT011',
+  target: {
+    factory: createReviewTarget,
     name: 'review target',
     description: 'Renders the glossary pending-change review queue as a markdown worksheet.',
-    meta: { schemes: ['review'], direction: 'target' },
-  }),
-)
-registry.registerTarget('review', createReviewTarget)
+    schemes: ['review'],
+  },
+})

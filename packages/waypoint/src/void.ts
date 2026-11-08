@@ -1,6 +1,6 @@
 import type { ParsedUri } from '@mt/core'
 import type { Exchange, Target, TargetContext } from '@mt/core'
-import { annotate, registry, waypoint } from '@mt/core'
+import { registerWaypointPair } from './registration.js'
 
 /**
  * Discard everything written to it (like /dev/null).
@@ -31,12 +31,12 @@ export function createVoidTarget<T>(uri: ParsedUri): Target<T> {
 }
 
 // Register built-in void target (target-only: no source registration)
-annotate(
-  createVoidTarget,
-  waypoint('WT008', {
+registerWaypointPair({
+  id: 'WT008',
+  target: {
+    factory: createVoidTarget,
     name: 'void target',
     description: 'Discards every envelope written to it, like /dev/null.',
-    meta: { schemes: ['void'], direction: 'target' },
-  }),
-)
-registry.registerTarget('void', createVoidTarget)
+    schemes: ['void'],
+  },
+})

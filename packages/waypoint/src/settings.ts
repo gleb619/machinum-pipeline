@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from 'node:path'
 import { type Settings, getSetting } from '@mt/core'
-import type { ParsedUri } from '@mt/core'
+import type { ParsedUri, SourceContext, TargetContext } from '@mt/core'
 
 /**
  * Resolve a file path for a waypoint source/target, applying any
@@ -73,4 +73,26 @@ export function getWaypointSetting<T>(
   key: string,
 ): T | undefined {
   return getSetting<T>(settings, 'waypoint', scheme, key)
+}
+
+/**
+ * Resolve a waypoint path against the run's project root and settings.
+ *
+ * Thin wrapper over {@link resolveWaypointRoot} that reads both from the run
+ * context, so the call sites do not repeat the `ctx.run.global.…` chain.
+ * `projectRoot` overrides the context's root — `review://` falls back to the
+ * working directory when the context carries no project.
+ */
+export function resolveUriInContext(
+  uri: ParsedUri,
+  scheme: string,
+  ctx: SourceContext | TargetContext,
+  projectRoot?: string,
+): string {
+  return resolveWaypointRoot(
+    uri,
+    scheme,
+    ctx.run.global.settings,
+    projectRoot ?? ctx.run.global.project.root,
+  )
 }

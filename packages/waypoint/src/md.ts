@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs'
-import { access, copyFile, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { copyFile, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import {
@@ -18,31 +18,18 @@ import type {
   Target,
 } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import {
-  AtomicStreamWriter,
-  annotate,
-  atomicWriteFile,
-  registry,
-  tmpPathFor,
-  truncateFileToBytes,
-  waypoint,
-} from '@mt/core'
+import { atomicWriteFile, registry, tmpPathFor } from '@mt/core'
+import { seedAutoIndex, writeChapterFile } from './chapter-files.js'
 import { exchangeField } from './fields.js'
 import { walkFiles } from './file-walk.js'
+import { pathExists } from './fs-utils.js'
+import { mdOutputsRejectionError } from './md-outputs.js'
+import { registerWaypointPair } from './registration.js'
+import { ResumableStagedWriter } from './resumable-writer.js'
 import { resumeFrom } from './resume.js'
-import { resolveWaypointPath, resolveWaypointRoot } from './settings.js'
+import { resolveUriInContext } from './settings.js'
 
 const PATH_SEPARATOR_RE = /[\\/]/
-const CHAPTER_FILE_RE = /^chapter(\d+)\.md$/i
-
-async function pathExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath)
-    return true
-  } catch {
-    return false
-  }
-}
 
 /**
  * File mode stages into `<final>.tmp.<runId>`; the offsets sidecar records the byte
@@ -67,25 +54,6 @@ async function removeStaleOffsetSidecars(filePath: string): Promise<void> {
       .filter((entry) => entry.startsWith(prefix) && entry.endsWith('.offsets.json'))
       .map((entry) => unlink(join(dir, entry)).catch(() => {})),
   )
-}
-
-/** Highest `chapterN.md` index directly under `root`, used to continue auto-numbering. */
-async function seedAutoIndex(root: string): Promise<number> {
-  let entries: string[]
-  try {
-    entries = await readdir(root)
-  } catch {
-    return 0
-  }
-  let max = 0
-  for (const entry of entries) {
-    const match = CHAPTER_FILE_RE.exec(entry)
-    const digits = match?.[1]
-    if (!digits) continue
-    const value = Number.parseInt(digits, 10)
-    if (!Number.isNaN(value) && value > max) max = value
-  }
-  return max
 }
 
 interface OffsetSidecar {
@@ -215,22 +183,12 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
       const splitter = resolveMdSplitter(uri, split)
-      const filePath = resolveWaypointPath(
-        uri,
-        'md',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      const filePath = resolveUriInContext(uri, 'md', ctx)
       yield* readMdEnvelopes<T>(ctx, filePath, splitter)
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
       const splitter = resolveMdSplitter(uri, split)
-      const filePath = resolveWaypointPath(
-        uri,
-        'md',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      const filePath = resolveUriInContext(uri, 'md', ctx)
       yield* resumeFrom(() => readMdEnvelopes<T>(ctx, filePath, splitter), cursor)
     },
   }
@@ -257,15 +215,13 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
  * overwrites a lower chapter.
  */
 export function createMdTarget<T>(uri: ParsedUri): Target<T> {
-  let writer: AtomicStreamWriter | null = null
+  let staged: ResumableStagedWriter | null = null
   let autoIndex = 0
   let filePath = ''
   let isFileMode = false
   let writtenFiles = 0
   let seriesSplitter: Splitter<string> | null = null
   let committedEnvelopes = 0
-  /** Byte offset in the staging file where the current session starts appending. */
-  let baseBytes = 0
   /** Envelope boundaries carried over from the persisted sidecar. */
   let baseOffsets: number[] = []
   /** Envelope boundaries produced by this session (appended to `baseOffsets`). */
@@ -274,10 +230,10 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
   const seriesEnabled = uri.query.series === 'true' || uri.query.series === '1'
 
   async function appendFileValue(value: unknown): Promise<void> {
-    if (!writer) {
+    if (!staged) {
       throw new Error('Target not opened. Call open() before write().')
     }
-    await writer.write(`${String(value)}\n`)
+    await staged.write(`${String(value)}\n`)
   }
 
   /**
@@ -289,19 +245,17 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
     value: unknown,
     autoNumber = false,
   ): Promise<void> {
-    const chapterNum = autoNumber
-      ? ++autoIndex
-      : env.meta.chapterNum || env.meta.chapter || ++autoIndex
-    const baseDir = filePath
-    mkdirSync(baseDir, { recursive: true })
-    await atomicWriteFile(join(baseDir, `chapter${chapterNum}.md`), String(value))
+    const chapterNum = (
+      autoNumber ? ++autoIndex : env.meta.chapterNum || env.meta.chapter || ++autoIndex
+    ) as number
+    await writeChapterFile(filePath, chapterNum, value)
     writtenFiles += 1
   }
 
   /** Book-keep one fully written envelope and, in file mode, its staging boundary. */
   function recordEnvelope(): void {
     committedEnvelopes += 1
-    if (isFileMode && writer) newOffsets.push(baseBytes + writer.bytesWritten)
+    if (isFileMode && staged) newOffsets.push(staged.baseOffset + staged.bytesWritten)
   }
 
   return {
@@ -310,13 +264,12 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
       autoIndex = 0
       writtenFiles = 0
       committedEnvelopes = 0
-      baseBytes = 0
       baseOffsets = []
       newOffsets = []
       sidecarPath = ''
       seriesSplitter = null
-      const projectRoot = ctx.run.global.project.root
-      filePath = resolveWaypointRoot(uri, 'md', ctx.run.global.settings, projectRoot)
+      staged = null
+      filePath = resolveUriInContext(uri, 'md', ctx)
       isFileMode = filePath.endsWith('.md')
       if (seriesEnabled) {
         if (!registry.hasSplitter('series')) {
@@ -338,47 +291,39 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
         return
       }
 
-      const stagingPath = tmpPathFor(filePath, ctx.run.runId)
-      sidecarPath = offsetsPathFor(stagingPath)
-      if (resumeCursor === undefined) {
-        await removeStaleOffsetSidecars(filePath)
-        writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
-        return
-      }
-
-      if (await pathExists(sidecarPath)) {
-        const offsets = parseOffsetSidecar(await readFile(sidecarPath, 'utf-8'))
-        if (resumeCursor > offsets.length) {
+      sidecarPath = offsetsPathFor(tmpPathFor(filePath, ctx.run.runId))
+      staged = new ResumableStagedWriter(filePath, ctx.run.runId)
+      await staged.open({
+        resumeCursor,
+        onFresh: () => removeStaleOffsetSidecars(filePath),
+        restore: async (stagingPath, cursor) => {
+          if (await pathExists(sidecarPath)) {
+            const offsets = parseOffsetSidecar(await readFile(sidecarPath, 'utf-8'))
+            if (cursor > offsets.length) {
+              throw new Error(
+                `md target '${uri.raw}': resume cursor ${cursor} exceeds the ` +
+                  `${offsets.length} envelope(s) recorded in ${sidecarPath}`,
+              )
+            }
+            baseOffsets = offsets.slice(0, cursor)
+            return cursor === 0 ? 0 : (offsets[cursor - 1] ?? 0)
+          }
+          if (await pathExists(filePath)) {
+            // A published file is the durable base; no per-envelope record survived.
+            await copyFile(filePath, stagingPath)
+            const stats = await stat(stagingPath)
+            baseOffsets = new Array<number>(cursor).fill(stats.size)
+            return stats.size
+          }
+          if (cursor === 0) {
+            await writeFile(stagingPath, '')
+            return 0
+          }
           throw new Error(
-            `md target '${uri.raw}': resume cursor ${resumeCursor} exceeds the ` +
-              `${offsets.length} envelope(s) recorded in ${sidecarPath}`,
+            `md target '${uri.raw}': cannot resume at cursor ${cursor} — ` +
+              `neither staged output nor an offsets sidecar exists for ${filePath}`,
           )
-        }
-        baseOffsets = offsets.slice(0, resumeCursor)
-        baseBytes = resumeCursor === 0 ? 0 : (offsets[resumeCursor - 1] ?? 0)
-      } else if (await pathExists(filePath)) {
-        // A published file is the durable base; no per-envelope record survived.
-        await copyFile(filePath, stagingPath)
-        const stats = await stat(stagingPath)
-        baseBytes = stats.size
-        baseOffsets = new Array<number>(resumeCursor).fill(stats.size)
-      } else if (resumeCursor === 0) {
-        await writeFile(stagingPath, '')
-      } else {
-        throw new Error(
-          `md target '${uri.raw}': cannot resume at cursor ${resumeCursor} — ` +
-            `neither staged output nor an offsets sidecar exists for ${filePath}`,
-        )
-      }
-
-      if (await pathExists(stagingPath)) {
-        await truncateFileToBytes(stagingPath, baseBytes)
-      } else {
-        await writeFile(stagingPath, '')
-      }
-      writer = await AtomicStreamWriter.open(filePath, {
-        tag: ctx.run.runId,
-        append: true,
+        },
       })
     },
     async write(env: Exchange<T>, ctx: TargetContext): Promise<void> {
@@ -390,22 +335,12 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
         // File mode appends `env.item` to a single file — the per-file intents have
         // nowhere to go, so honouring them is impossible: reject instead of dropping
         // their content silently.
-        throw new Error(
-          [
-            `md target '${uri.raw}': file mode cannot be combined with mdOutputs `,
-            `intents (${mdOutputs.map((output) => output.name).join(', ')})`,
-          ].join(''),
-        )
+        throw mdOutputsRejectionError('md target', uri.raw, mdOutputs, 'file-mode')
       }
       if (seriesSplitter) {
         if (!isFileMode) {
           if (mdOutputs && mdOutputs.length > 0) {
-            throw new Error(
-              [
-                `md target '${uri.raw}': ?series=true cannot be combined with mdOutputs `,
-                'intents (no unambiguous filenames)',
-              ].join(''),
-            )
+            throw mdOutputsRejectionError('md target', uri.raw, mdOutputs, 'series')
           }
         }
         const parts = await seriesSplitter.split(env, { run: ctx.run } satisfies SplitterContext)
@@ -447,8 +382,8 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
       }
     },
     async checkpoint(): Promise<number> {
-      if (isFileMode && writer && sidecarPath) {
-        await writer.sync()
+      if (isFileMode && staged && sidecarPath) {
+        await staged.sync()
         await atomicWriteFile(
           sidecarPath,
           JSON.stringify({ offsets: [...baseOffsets, ...newOffsets] }),
@@ -457,10 +392,9 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
       return committedEnvelopes
     },
     async close(ctx: TargetContext): Promise<void> {
-      if (writer) {
-        const pending = writer
-        writer = null
-        await pending.commit()
+      if (staged) {
+        await staged.close()
+        staged = null
       }
       if (isFileMode && sidecarPath) {
         await unlink(sidecarPath).catch(() => {})
@@ -474,21 +408,18 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
   }
 }
 
-annotate(
-  createMdSource,
-  waypoint('WT002', {
+registerWaypointPair({
+  id: 'WT002',
+  source: {
+    factory: createMdSource,
     name: 'md source',
     description: 'Reads a markdown file or directory of markdown files as envelopes.',
-    meta: { schemes: ['md'], direction: 'source' },
-  }),
-)
-annotate(
-  createMdTarget,
-  waypoint('WT002', {
+    schemes: ['md'],
+  },
+  target: {
+    factory: createMdTarget,
     name: 'md target',
     description: 'Writes markdown to a single file or one atomic chapter file per envelope.',
-    meta: { schemes: ['md'], direction: 'target' },
-  }),
-)
-registry.registerSource('md', createMdSource)
-registry.registerTarget('md', createMdTarget)
+    schemes: ['md'],
+  },
+})

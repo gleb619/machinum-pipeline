@@ -1,5 +1,7 @@
 import type { Exchange, ParsedUri, RetryPolicy, Target, TargetContext } from '@mt/core'
-import { annotate, parseRetryAfterMs, registry, waypoint, withRetry } from '@mt/core'
+import { parseRetryAfterMs, withRetry } from '@mt/core'
+import { parseBoolean, parseNonNegativeInt, parsePositiveInt } from './parse-options.js'
+import { registerWaypointPair } from './registration.js'
 
 /**
  * Built-in HTTP Target — sends envelopes to an HTTP endpoint (client role).
@@ -129,31 +131,6 @@ function parseContentType(value: string | undefined): HttpTargetContentType {
   )
 }
 
-function parsePositiveInt(value: string | undefined, fallback: number, name: string): number {
-  if (value === undefined) return fallback
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`http target: ${name} must be a positive integer, got '${value}'`)
-  }
-  return parsed
-}
-
-function parseNonNegativeInt(value: string | undefined, fallback: number, name: string): number {
-  if (value === undefined) return fallback
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(`http target: ${name} must be an integer >= 0, got '${value}'`)
-  }
-  return parsed
-}
-
-function parseBoolean(value: string | undefined, name: string): boolean {
-  if (value === undefined) return false
-  if (value === 'true' || value === '1') return true
-  if (value === 'false' || value === '0') return false
-  throw new Error(`http target: ${name} must be true or false, got '${value}'`)
-}
-
 /**
  * A `bearer=` value is a reference, never a secret. Env-var names are accepted as-is;
  * anything else that looks like a token (contains a dot or is longer than 64 chars) is
@@ -206,9 +183,14 @@ function parseConfig(uri: ParsedUri): HttpTargetConfig {
     requestUrl: buildRequestUrl(url),
     method: parseMethod(uri.query.method),
     contentType: parseContentType(uri.query.contentType),
-    timeoutMs: parsePositiveInt(uri.query.timeoutMs, DEFAULT_TIMEOUT_MS, 'timeoutMs'),
-    retries: parseNonNegativeInt(uri.query.retries, DEFAULT_RETRIES, 'retries'),
-    batch: parseBoolean(uri.query.batch, 'batch'),
+    timeoutMs: parsePositiveInt(
+      uri.query.timeoutMs,
+      DEFAULT_TIMEOUT_MS,
+      'timeoutMs',
+      'http target',
+    ),
+    retries: parseNonNegativeInt(uri.query.retries, DEFAULT_RETRIES, 'retries', 'http target'),
+    batch: parseBoolean(uri.query.batch, 'batch', 'http target'),
     ...(bearerRef === undefined ? {} : { bearerRef }),
     headers: parseHeaders(uri.query),
   }
@@ -425,14 +407,13 @@ export function createHttpTarget<T>(uri: ParsedUri): Target<T> {
   }
 }
 
-annotate(
-  createHttpTarget,
-  waypoint('WT003', {
+registerWaypointPair({
+  id: 'WT003',
+  // Registered under both schemes — `hs://` stays source-only.
+  target: {
+    factory: createHttpTarget,
     name: 'http target',
     description: 'Sends envelopes to an HTTP endpoint, one request per exchange.',
-    meta: { schemes: ['http', 'https'], direction: 'target' },
-  }),
-)
-// Register built-in HTTP target under both schemes — `hs://` stays source-only.
-registry.registerTarget('http', createHttpTarget)
-registry.registerTarget('https', createHttpTarget)
+    schemes: ['http', 'https'],
+  },
+})

@@ -1,11 +1,12 @@
 import type { BufferWriter, ParsedUri, Source, Target } from '@mt/core'
-import { annotate, registry, waypoint } from '@mt/core'
+import { registry } from '@mt/core'
 import {
   appendNamedBuffer,
   createNamedEphemeralSource,
   createNamedEphemeralTarget,
   resetNamedBuffer,
 } from './ephemeral.js'
+import { annotateWaypoint } from './registration.js'
 
 /**
  * Entity-level shortcuts for the in-memory buffer.
@@ -98,24 +99,23 @@ export function createEntityBufferWriter(
   }
 }
 
-annotate(
-  createEntityBufferSource,
-  waypoint('WT015', {
-    name: 'entity buffer source',
-    description:
-      'Reads/writes typed in-memory entity buffers (batches and Structure Ladder rungs).',
-    meta: { schemes: [...ENTITY_BUFFER_SCHEMES], direction: 'source' },
-  }),
-)
-annotate(
-  createEntityBufferTarget,
-  waypoint('WT015', {
-    name: 'entity buffer target',
-    description:
-      'Reads/writes typed in-memory entity buffers (batches and Structure Ladder rungs).',
-    meta: { schemes: [...ENTITY_BUFFER_SCHEMES], direction: 'target' },
-  }),
-)
+// The entity buffers bind the scheme into their factory, so each scheme gets its
+// own registration — they are annotated but not registered through the shared pair
+// helper.
+annotateWaypoint(createEntityBufferSource, {
+  id: 'WT015',
+  name: 'entity buffer source',
+  description: 'Reads/writes typed in-memory entity buffers (batches and Structure Ladder rungs).',
+  schemes: [...ENTITY_BUFFER_SCHEMES],
+  direction: 'source',
+})
+annotateWaypoint(createEntityBufferTarget, {
+  id: 'WT015',
+  name: 'entity buffer target',
+  description: 'Reads/writes typed in-memory entity buffers (batches and Structure Ladder rungs).',
+  schemes: [...ENTITY_BUFFER_SCHEMES],
+  direction: 'target',
+})
 
 for (const scheme of ENTITY_BUFFER_SCHEMES) {
   registry.registerSource(scheme, (uri: ParsedUri) => createEntityBufferSource(scheme, uri))

@@ -1,9 +1,10 @@
 import type { ParsedUri } from '@mt/core'
-import { annotate, registry, waypoint } from '@mt/core'
+import { registry } from '@mt/core'
 import {
   createGitWorktreeSource,
   createGitWorktreeTarget,
 } from '@mt/core/engine/git-worktree-source.js'
+import { annotateWaypoint } from './registration.js'
 
 /**
  * Git worktree Source/Target implementations live in @mt/core — they are
@@ -18,22 +19,20 @@ export { createGitWorktreeSource, createGitWorktreeTarget }
 // Module-level side effect: register git+ composite resolver
 // ---------------------------------------------------------------------------
 
-annotate(
-  createGitWorktreeSource,
-  waypoint('WT006', {
-    name: 'git worktree source',
-    description: 'Reads the inner source inside a git worktree (git+<scheme>://…).',
-    meta: { schemes: ['git'], direction: 'source' },
-  }),
-)
-annotate(
-  createGitWorktreeTarget,
-  waypoint('WT006', {
-    name: 'git worktree target',
-    description: 'Writes through the inner target inside a git worktree (git+<scheme>://…).',
-    meta: { schemes: ['git'], direction: 'target' },
-  }),
-)
+annotateWaypoint(createGitWorktreeSource, {
+  id: 'WT006',
+  name: 'git worktree source',
+  description: 'Reads the inner source inside a git worktree (git+<scheme>://…).',
+  schemes: ['git'],
+  direction: 'source',
+})
+annotateWaypoint(createGitWorktreeTarget, {
+  id: 'WT006',
+  name: 'git worktree target',
+  description: 'Writes through the inner target inside a git worktree (git+<scheme>://…).',
+  schemes: ['git'],
+  direction: 'target',
+})
 
 /**
  * Composite resolver for git+ URIs.

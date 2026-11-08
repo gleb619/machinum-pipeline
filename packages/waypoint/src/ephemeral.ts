@@ -1,7 +1,7 @@
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { annotate, registry, waypoint } from '@mt/core'
+import { annotateWaypoint, registerWaypointPair } from './registration.js'
 import { resumeFrom } from './resume.js'
 
 /**
@@ -98,40 +98,33 @@ export function createNamedEphemeralTarget<T>(uri: ParsedUri, bufferName: string
 }
 
 // Register built-in ephemeral source and target
-annotate(
-  createEphemeralSource,
-  waypoint('WT013', {
+registerWaypointPair({
+  id: 'WT013',
+  source: {
+    factory: createEphemeralSource,
     name: 'ephemeral source',
     description: 'Reads envelopes from a process-local in-memory buffer.',
-    meta: { schemes: ['ephemeral', 'mem'], direction: 'source' },
-  }),
-)
-annotate(
-  createEphemeralTarget,
-  waypoint('WT013', {
+    schemes: ['ephemeral', 'mem'],
+  },
+  target: {
+    factory: createEphemeralTarget,
     name: 'ephemeral target',
     description: 'Writes envelopes to a process-local in-memory buffer.',
-    meta: { schemes: ['ephemeral', 'mem'], direction: 'target' },
-  }),
-)
-annotate(
-  createNamedEphemeralSource,
-  waypoint('WT013', {
-    name: 'named ephemeral source',
-    description: 'Reads envelopes from a process-local in-memory buffer.',
-    meta: { schemes: ['ephemeral'], direction: 'source' },
-  }),
-)
-annotate(
-  createNamedEphemeralTarget,
-  waypoint('WT013', {
-    name: 'named ephemeral target',
-    description: 'Writes envelopes to a process-local in-memory buffer.',
-    meta: { schemes: ['ephemeral'], direction: 'target' },
-  }),
-)
-registry.registerSource('ephemeral', createEphemeralSource)
-registry.registerTarget('ephemeral', createEphemeralTarget)
-// Short alias: `mem://x` shares the key space of `ephemeral://x`
-registry.registerSource('mem', createEphemeralSource)
-registry.registerTarget('mem', createEphemeralTarget)
+    schemes: ['ephemeral', 'mem'],
+  },
+})
+// The named forms back the scheme aliases — annotated, but registered by the caller.
+annotateWaypoint(createNamedEphemeralSource, {
+  id: 'WT013',
+  name: 'named ephemeral source',
+  description: 'Reads envelopes from a process-local in-memory buffer.',
+  schemes: ['ephemeral'],
+  direction: 'source',
+})
+annotateWaypoint(createNamedEphemeralTarget, {
+  id: 'WT013',
+  name: 'named ephemeral target',
+  description: 'Writes envelopes to a process-local in-memory buffer.',
+  schemes: ['ephemeral'],
+  direction: 'target',
+})

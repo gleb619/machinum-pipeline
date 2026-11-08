@@ -1,14 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import {
-  type SourceContext,
-  acquireListener,
-  annotate,
-  newExchangeId,
-  registry,
-  waypoint,
-} from '@mt/core'
+import { type SourceContext, acquireListener, newExchangeId, registry } from '@mt/core'
 import type { Exchange, ExchangeInput, RunEvent, Source } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
+import { parseSizeOption } from './parse-options.js'
+import { registerWaypointPair } from './registration.js'
 
 /**
  * Built-in HTTP Source — long-lived HTTP server that receives envelopes via POST.
@@ -40,12 +35,6 @@ const MIRRORED_LIFECYCLE_TYPES = new Set(['paused', 'resumed', 'done', 'failed']
 
 /** Seconds a producer should wait before retrying a 503 (buffer full). */
 const RETRY_AFTER_SECONDS = 1
-
-function parseSizeOption(value: string | undefined, fallback: number): number {
-  if (!value) return fallback
-  const parsed = Number.parseInt(value, 10)
-  return Number.isNaN(parsed) || parsed <= 0 ? fallback : parsed
-}
 
 function normalizeIngestPath(path: string): string {
   if (path === '' || path === '/') return '/'
@@ -382,14 +371,14 @@ export function createHttpSource<T>(uri: ParsedUri): Source<T> {
   }
 }
 
-annotate(
-  createHttpSource,
-  waypoint('WT003', {
+registerWaypointPair({
+  id: 'WT003',
+  // Registered under both the legacy and the shorthand scheme.
+  source: {
+    factory: createHttpSource,
     name: 'http source',
     description: 'Reads envelopes via HTTP POST on a long-lived local server.',
-    meta: { schemes: ['hs', 'http'], direction: 'source' },
-  }),
-)
-// Register built-in HTTP source under both legacy and shorthand schemes
-registry.registerSource('http', createHttpSource)
-registry.registerSource('hs', createHttpSource)
+    schemes: ['hs', 'http'],
+    registerSchemes: ['http', 'hs'],
+  },
+})

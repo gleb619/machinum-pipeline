@@ -1,34 +1,15 @@
 // @ts-expect-error globSync is available in Node 22 but @types/node v20 doesn't include it
 import { createReadStream, globSync } from 'node:fs'
-import { access, copyFile, open, writeFile } from 'node:fs/promises'
+import { copyFile, open, writeFile } from 'node:fs/promises'
 import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import {
-  AtomicStreamWriter,
-  ITEM_VARIABLE,
-  annotate,
-  createExchange,
-  mergeVariables,
-  registry,
-  tmpPathFor,
-  toExchange,
-  toPersisted,
-  truncateFileToBytes,
-  waypoint,
-} from '@mt/core'
-import { resolveWaypointPath } from './settings.js'
-
-/** True when `filePath` exists (any type). */
-async function pathExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath)
-    return true
-  } catch {
-    return false
-  }
-}
+import { ITEM_VARIABLE, createExchange, mergeVariables, toExchange, toPersisted } from '@mt/core'
+import { pathExists } from './fs-utils.js'
+import { registerWaypointPair } from './registration.js'
+import { ResumableStagedWriter } from './resumable-writer.js'
+import { resolveUriInContext } from './settings.js'
 
 /**
  * Byte offset just past the `lines`-th newline. Cursors are envelope indexes, so
@@ -246,12 +227,7 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
     uri: uri.raw,
     lifestyle: 'resumable',
     async *start(ctx: SourceContext): AsyncIterable<ExchangeInput<T>> {
-      const filePath = resolveWaypointPath(
-        uri,
-        'jsonl',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      const filePath = resolveUriInContext(uri, 'jsonl', ctx)
       if (isGlobPattern(filePath)) {
         yield* yieldBatched(readFiles<T>(resolveGlobFiles(filePath), 0), batchSize)
       } else {
@@ -259,12 +235,7 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
       }
     },
     async *resume(ctx: SourceContext, cursor: unknown): AsyncIterable<ExchangeInput<T>> {
-      const filePath = resolveWaypointPath(
-        uri,
-        'jsonl',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
+      const filePath = resolveUriInContext(uri, 'jsonl', ctx)
       if (isGlobPattern(filePath)) {
         let startFileIndex = 0
         let startLine = 0
@@ -303,84 +274,68 @@ export function createJsonlSource<T>(uri: ParsedUri): Source<T> {
  * `TargetContext.resumeCursor` before new lines are appended.
  */
 export function createJsonlTarget<T>(uri: ParsedUri): Target<T> {
-  let writer: AtomicStreamWriter | null = null
+  let staged: ResumableStagedWriter | null = null
   let committedEnvelopes = 0
 
   return {
     uri: uri.raw,
     async open(ctx: TargetContext): Promise<void> {
       committedEnvelopes = 0
-      const filePath = resolveWaypointPath(
-        uri,
-        'jsonl',
-        ctx.run.global.settings,
-        ctx.run.global.project.root,
-      )
-      const resumeCursor = ctx.resumeCursor
-      if (resumeCursor === undefined) {
-        writer = await AtomicStreamWriter.open(filePath, ctx.run.runId)
-        return
-      }
-
-      const stagingPath = tmpPathFor(filePath, ctx.run.runId)
-      if (!(await pathExists(stagingPath))) {
-        if (await pathExists(filePath)) {
-          await copyFile(filePath, stagingPath)
-        } else if (resumeCursor > 0) {
-          throw new Error(
-            `jsonl target '${uri.raw}': cannot resume at cursor ${resumeCursor} — ` +
-              `neither staged nor final output exists at ${filePath}`,
-          )
-        }
-      }
-      if (await pathExists(stagingPath)) {
-        const boundary = await lineBoundaryOffset(stagingPath, resumeCursor)
-        await truncateFileToBytes(stagingPath, boundary)
-      } else {
-        await writeFile(stagingPath, '')
-      }
-      writer = await AtomicStreamWriter.open(filePath, {
-        tag: ctx.run.runId,
-        append: true,
+      const filePath = resolveUriInContext(uri, 'jsonl', ctx)
+      staged = new ResumableStagedWriter(filePath, ctx.run.runId)
+      await staged.open({
+        resumeCursor: ctx.resumeCursor,
+        restore: async (stagingPath, cursor) => {
+          if (!(await pathExists(stagingPath))) {
+            if (await pathExists(filePath)) {
+              await copyFile(filePath, stagingPath)
+            } else if (cursor > 0) {
+              throw new Error(
+                `jsonl target '${uri.raw}': cannot resume at cursor ${cursor} — ` +
+                  `neither staged nor final output exists at ${filePath}`,
+              )
+            }
+          }
+          if (await pathExists(stagingPath)) {
+            return lineBoundaryOffset(stagingPath, cursor)
+          }
+          await writeFile(stagingPath, '')
+          return 0
+        },
       })
     },
     async write(env: Exchange<T>, _ctx: TargetContext): Promise<void> {
-      if (!writer) {
+      if (!staged) {
         throw new Error('Target not opened. Call open() before write().')
       }
-      await writer.write(`${JSON.stringify(toPersisted(env))}\n`)
+      await staged.write(`${JSON.stringify(toPersisted(env))}\n`)
       committedEnvelopes += 1
     },
     async checkpoint(): Promise<number> {
-      if (writer) await writer.sync()
+      await staged?.sync()
       return committedEnvelopes
     },
     async close(_ctx: TargetContext): Promise<void> {
-      if (writer) {
-        const pending = writer
-        writer = null
-        await pending.commit()
+      if (staged) {
+        await staged.close()
+        staged = null
       }
     },
   }
 }
 
-annotate(
-  createJsonlSource,
-  waypoint('WT001', {
+registerWaypointPair({
+  id: 'WT001',
+  source: {
+    factory: createJsonlSource,
     name: 'jsonl source',
     description: 'Reads envelopes from a JSONL file or glob pattern, one envelope per line.',
-    meta: { schemes: ['jsonl'], direction: 'source' },
-  }),
-)
-annotate(
-  createJsonlTarget,
-  waypoint('WT001', {
+    schemes: ['jsonl'],
+  },
+  target: {
+    factory: createJsonlTarget,
     name: 'jsonl target',
     description: 'Writes envelopes to a JSONL file, one JSON line per envelope.',
-    meta: { schemes: ['jsonl'], direction: 'target' },
-  }),
-)
-// Register built-in JSONL source and target
-registry.registerSource('jsonl', createJsonlSource)
-registry.registerTarget('jsonl', createJsonlTarget)
+    schemes: ['jsonl'],
+  },
+})
