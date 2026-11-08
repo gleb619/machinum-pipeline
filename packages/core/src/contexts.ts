@@ -1,16 +1,3 @@
-export type {
-  BatchScope,
-  CheckpointHandle,
-  GlobalContext,
-  RetryPolicy,
-  RunContext,
-  SourceContext,
-  SplitterContext,
-  StepInfo,
-  TargetContext,
-  ToolContext,
-} from './types.js'
-
 /**
  * Error policy — what to do when a step fails.
  */
