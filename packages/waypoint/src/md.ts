@@ -18,11 +18,10 @@ import type {
   Target,
 } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { atomicWriteFile, registry, tmpPathFor } from '@mt/core'
+import { atomicWriteFile, pathExists, registry, tmpPathFor } from '@mt/core'
 import { seedAutoIndex, writeChapterFile } from './chapter-files.js'
 import { exchangeField } from './fields.js'
 import { walkFiles } from './file-walk.js'
-import { pathExists } from './fs-utils.js'
 import { mdOutputsRejectionError } from './md-outputs.js'
 import { registerWaypointPair } from './registration.js'
 import { ResumableStagedWriter } from './resumable-writer.js'

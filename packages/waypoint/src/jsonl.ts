@@ -5,8 +5,14 @@ import { createInterface } from 'node:readline'
 import type { SourceContext, TargetContext } from '@mt/core'
 import type { Exchange, ExchangeInput, Source, Target } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
-import { ITEM_VARIABLE, createExchange, mergeVariables, toExchange, toPersisted } from '@mt/core'
-import { pathExists } from './fs-utils.js'
+import {
+  ITEM_VARIABLE,
+  createExchange,
+  mergeVariables,
+  pathExists,
+  toExchange,
+  toPersisted,
+} from '@mt/core'
 import { registerWaypointPair } from './registration.js'
 import { ResumableStagedWriter } from './resumable-writer.js'
 import { resolveUriInContext } from './settings.js'

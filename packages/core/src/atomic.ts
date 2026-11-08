@@ -103,6 +103,16 @@ export async function truncateFileToBytes(filePath: string, bytes: number): Prom
   }
 }
 
+/** True when `filePath` exists (any type). */
+export async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Options for {@link AtomicStreamWriter.open}. */
 export interface AtomicStreamWriterOptions {
   /** Temp-file suffix; pass the run id so a resume can find its own staging file. */

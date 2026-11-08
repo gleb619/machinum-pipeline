@@ -1,6 +1,6 @@
-import { access, unlink } from 'node:fs/promises'
+import { unlink } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
-import { category, defineTool, setVariable, tool } from '@mt/core'
+import { category, defineTool, pathExists, setVariable, tool } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
 
 /** Options for {@link createWaitForFile}. */
@@ -38,15 +38,6 @@ function positiveInteger(value: number | undefined, fallback: number, label: str
     throw new Error(`wait-for-file: ${label} must be a positive integer, got ${value}`)
   }
   return value
-}
-
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /**

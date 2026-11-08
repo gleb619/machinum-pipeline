@@ -1,6 +1,5 @@
 import { writeFile } from 'node:fs/promises'
-import { AtomicStreamWriter, tmpPathFor, truncateFileToBytes } from '@mt/core'
-import { pathExists } from './fs-utils.js'
+import { AtomicStreamWriter, pathExists, tmpPathFor, truncateFileToBytes } from '@mt/core'
 
 /** Options for {@link ResumableStagedWriter.open}. */
 export interface StagedWriterOptions {

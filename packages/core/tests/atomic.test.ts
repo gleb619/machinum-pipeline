@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   AtomicStreamWriter,
   atomicWriteFile,
+  pathExists,
   removeStaleTmpFiles,
   tmpPathFor,
   truncateFileToBytes,
@@ -271,5 +272,24 @@ describe('truncateFileToBytes', () => {
     writeFileSync(file, 'a\n', 'utf-8')
     await truncateFileToBytes(file, 0)
     expect(await readFile(file, 'utf-8')).toBe('')
+  })
+})
+
+describe('pathExists', () => {
+  it('is true for an existing file', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-exists-'))
+    const file = join(dir, 'staged.jsonl')
+    writeFileSync(file, 'a\n', 'utf-8')
+    expect(await pathExists(file)).toBe(true)
+  })
+
+  it('is true for an existing directory', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-exists-'))
+    expect(await pathExists(dir)).toBe(true)
+  })
+
+  it('is false for a missing path', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'mt-exists-'))
+    expect(await pathExists(join(dir, 'absent.jsonl'))).toBe(false)
   })
 })
