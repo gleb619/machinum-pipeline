@@ -32,6 +32,7 @@ import type { LlmConfigLayer } from './llm-config.js'
 import { readCtx } from './llm-config.js'
 import { type GateInput, type GateSlot, type GateState, createLlmGate } from './llm-gate.js'
 import { promptSourcesFromCtx, resolvePrompt } from './llm-prompts.js'
+import { numberOrZero as num } from './values.js'
 
 export interface TranslateInput {
   text: string
@@ -112,10 +113,6 @@ export function translateNormalize(targetLangDefault?: string) {
       model: i.model,
     }
   }
-}
-
-function num(v: unknown): number {
-  return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
 
 /** Shared output shaping: trim the model/router answer into `TranslateOutput`. */

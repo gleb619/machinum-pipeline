@@ -1,17 +1,12 @@
 import { category, defineTool, tool } from '@mt/core'
-import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { MAX_ENTITIES } from '../../constants.js'
-import {
-  type ChunkModeOptions,
-  resolvePromptBudget,
-  runChunkedText,
-  toChunkRecord,
-} from '../../core/chunk-processor.js'
-import { chapterVars, parseEntityRows, readChapter, renderPrompt, roundTripIssue } from './doc.js'
+import type { ChunkModeOptions } from '../../core/chunk-processor.js'
+import { parseEntityRows, roundTripIssue } from './doc.js'
 import type { ChapterSource } from './doc.js'
-import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
-import type { PromptRetryResult, PromptValidation, SchemaDocLlmOptions } from './llm.js'
+import { runExtractor } from './extractor.js'
+import type { ExtractorSpec } from './extractor.js'
+import type { PromptValidation, SchemaDocLlmOptions } from './llm.js'
 
 export const ENTITIES_SYSTEM_PROMPT =
   'You extract named entities (people, places, organisations, works, products) from a chapter. ' +
@@ -70,9 +65,35 @@ function validateEntities(
   return { ok: true, value: grounded }
 }
 
-const DEFAULTS: SchemaDocLlmOptions = {
-  systemPrompt: ENTITIES_SYSTEM_PROMPT,
-  userPrompt: ENTITIES_USER_PROMPT,
+/** Merges per-chunk entity lists: first occurrence wins (case-insensitive), re-indexed, capped. */
+function mergeEntities(lists: readonly SchemaEntity[][]): SchemaEntity[] {
+  const seen = new Set<string>()
+  const merged: SchemaEntity[] = []
+  for (const list of lists) {
+    for (const entity of list) {
+      const key = entity.name.trim().toLowerCase()
+      if (!key || seen.has(key)) continue
+      seen.add(key)
+      merged.push({ index: merged.length + 1, name: entity.name })
+    }
+  }
+  return merged.slice(0, MAX_ENTITIES)
+}
+
+const SPEC: ExtractorSpec<SchemaEntity[]> = {
+  key: 'entities',
+  defaults: () => ({
+    systemPrompt: ENTITIES_SYSTEM_PROMPT,
+    userPrompt: ENTITIES_USER_PROMPT,
+  }),
+  validate: (content, run) => validateEntities(content, run.source),
+  // A failed chunk contributes nothing; an empty result falls back to the schema-doc block.
+  partFallback: () => [],
+  fallback: (run) =>
+    run.source.doc.entities.length > 0 ? run.source.doc.entities : [{ index: 1, name: 'chapter' }],
+  merge: (lists) => mergeEntities(lists),
+  postProcess: (value, run) => (value.length > 0 ? value : SPEC.fallback(run)),
+  empty: [],
 }
 
 /**
@@ -103,87 +124,15 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions & ChunkModeOpti
       category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...llmOptions }, env, 'entities')
-      const inputs = env.items ?? [env.item]
-
-      const collected: SchemaEntity[][] = []
-      const results: PromptRetryResult<SchemaEntity[]>[] = []
-      const chunkRecords: ReturnType<typeof toChunkRecord>[] = []
-
-      for (const input of inputs) {
-        const source = readChapter(input)
-        const runOne = async (part: ChapterSource): Promise<SchemaEntity[]> => {
-          const outcome = await runPromptWithRetry(ctx, {
-            ...resolved,
-            systemPrompt: renderPrompt(
-              resolved.systemPrompt ?? ENTITIES_SYSTEM_PROMPT,
-              chapterVars(part),
-            ),
-            userPrompt: renderPrompt(
-              resolved.userPrompt ?? ENTITIES_USER_PROMPT,
-              chapterVars(part),
-            ),
-            validate: (content) => validateEntities(content, part),
-          })
-          results.push(outcome)
-          return outcome.ok && outcome.value ? outcome.value : []
-        }
-
-        const run = await runChunkedText<SchemaEntity[]>({
-          mode: chunkMode,
-          text: source.body,
-          budget: () =>
-            resolvePromptBudget(ctx, resolved, { outputReserve, reserve }, [
-              renderPrompt(resolved.systemPrompt ?? ENTITIES_SYSTEM_PROMPT, {
-                ...chapterVars(source),
-                body: '',
-              }),
-              renderPrompt(resolved.userPrompt ?? ENTITIES_USER_PROMPT, {
-                ...chapterVars(source),
-                body: '',
-              }),
-            ]),
-          single: () => runOne(source),
-          chunk: (chunk) => runOne({ ...source, body: chunk }),
-          merge: mergeEntities,
-          splitUnit,
-          concurrency: chunkConcurrency,
-        })
-        if (run.budget) chunkRecords.push(toChunkRecord(run.budget, run.chunks))
-
-        const fallback =
-          source.doc.entities.length > 0 ? source.doc.entities : [{ index: 1, name: 'chapter' }]
-        collected.push(run.value.length > 0 ? run.value : fallback)
-      }
-
-      const values: Record<string, unknown> = {
-        entities: collected[0] ?? [],
-        entitiesLlm: attemptMeta(results),
-      }
-      if (env.items) {
-        values.entitiesByItem = collected
-      }
-      if (chunkRecords.length > 0) {
-        values.entitiesChunks = chunkRecords
-      }
-      return setVariables(env, values)
+      return runExtractor(SPEC, env, ctx, llmOptions, {
+        chunkMode,
+        outputReserve,
+        reserve,
+        splitUnit,
+        chunkConcurrency,
+      })
     },
   })
-}
-
-/** Merges per-chunk entity lists: first occurrence wins (case-insensitive), re-indexed, capped. */
-function mergeEntities(lists: readonly SchemaEntity[][]): SchemaEntity[] {
-  const seen = new Set<string>()
-  const merged: SchemaEntity[] = []
-  for (const list of lists) {
-    for (const entity of list) {
-      const key = entity.name.trim().toLowerCase()
-      if (!key || seen.has(key)) continue
-      seen.add(key)
-      merged.push({ index: merged.length + 1, name: entity.name })
-    }
-  }
-  return merged.slice(0, MAX_ENTITIES)
 }
 
 /** Entity tool with the default prompts and model. */

@@ -1,5 +1,6 @@
 import type { Exchange } from '@mt/core'
 import { FREQUENT_TERMS_LIMIT, WORDLIST_CELL_MAX_CHARS } from '../../constants.js'
+import { readCount } from '../../core/values.js'
 import { parseCsvRows, readDoc, writeDoc } from '../../modification/schema-doc.js'
 import type { SchemaDocEnvelope, SchemaDocMetadata } from '../../modification/schema-doc.js'
 import { exField } from '../fields.js'
@@ -190,18 +191,15 @@ export function metadataGroundTruth(
   item: string,
 ): SchemaDocMetadata {
   const doc = source.doc.metadata
-  const fromMeta = (value: unknown) =>
-    typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
-
-  const chapterValue = fromMeta(ex.meta?.chapterNum) ?? fromMeta(ex.meta?.chapter)
-  const wordCountValue = fromMeta(exField(ex, 'wordCount'))
-  const tokenCountValue = fromMeta(exField(ex, 'tokenCount'))
+  const chapterValue = readCount(ex.meta?.chapterNum) ?? readCount(ex.meta?.chapter)
+  const wordCountValue = readCount(exField(ex, 'wordCount'))
+  const tokenCountValue = readCount(exField(ex, 'tokenCount'))
 
   return {
     chapter: chapterValue ?? (doc.chapter > 0 ? doc.chapter : 1),
     wordCount: wordCountValue ?? (doc.wordCount > 0 ? doc.wordCount : countWords(source.body)),
     tokenCount: tokenCountValue ?? doc.tokenCount,
-    charLength: fromMeta(exField(ex, 'charLength')) ?? (doc.charLength || item.length),
+    charLength: readCount(exField(ex, 'charLength')) ?? (doc.charLength || item.length),
   }
 }
 

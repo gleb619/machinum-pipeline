@@ -4,18 +4,11 @@ import type { Server } from 'node:http'
 import { createRequire } from 'node:module'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
-import {
-  category,
-  defineTool,
-  mapConcurrent,
-  parseRetryAfterMs,
-  setVariable,
-  tool,
-  wait,
-  withItem,
-} from '@mt/core'
+import { category, defineTool, mapConcurrent, setVariable, tool, withItem } from '@mt/core'
 import type { Exchange, Tool, ToolContext } from '@mt/core'
+import { fetchWithRetry } from '../core/http-retry.js'
 import type { TranslateInput, TranslateOutput } from '../core/translate-text.js'
+import { errorMessage, nonNegativeInteger, positiveInteger } from '../core/values.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -346,16 +339,6 @@ function isFile(path: string): boolean {
   }
 }
 
-function positiveInteger(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback
-  return Math.max(1, Math.floor(value))
-}
-
-function nonNegativeInteger(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback
-  return Math.max(0, Math.floor(value))
-}
-
 function normalizeRemoteTranslateUrl(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed) throw new Error('browser-translate: remote URL is empty')
@@ -386,20 +369,6 @@ function normalizeRemoteTranslateUrl(raw: string): string {
 
 function redactUrlUserInfo(value: string): string {
   return value.replace(/\/\/[^/\s@]*@/g, '//[redacted]@').replace(/^[^/\s@]+@/, '[redacted]@')
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-function retryDelayMs(response: Response | undefined, attempt: number): number {
-  const retryAfter = parseRetryAfterMs(response?.headers.get('retry-after'), { allowZero: true })
-  if (retryAfter !== undefined) return retryAfter
-  return REMOTE_RETRY_BASE_MS * 2 ** attempt
-}
-
-function isRetryableStatus(status: number): boolean {
-  return status === 429 || status === 502 || status === 503 || status === 504
 }
 
 function chromeCandidates(): string[] {
@@ -674,73 +643,50 @@ export function createRemoteGoogleEngine(
         ...(options.cache !== undefined ? { cache: options.cache } : {}),
       })
 
-      for (let attempt = 0; attempt <= retries; attempt++) {
-        let response: Response
-        try {
-          response = await fetchImpl(endpoint, {
-            method: 'POST',
-            headers,
-            body: payload,
-            signal: AbortSignal.timeout(timeoutMs),
-          })
-        } catch (error) {
-          if (attempt < retries) {
-            await wait(retryDelayMs(undefined, attempt))
-            continue
-          }
-          throw new Error(
-            `browser-translate: remote request failed after ${attempt + 1} attempts: ${errorMessage(error)}`,
-          )
-        }
+      const response = await fetchWithRetry(
+        fetchImpl,
+        endpoint,
+        { method: 'POST', headers, body: payload },
+        {
+          attempts: retries + 1,
+          baseDelayMs: REMOTE_RETRY_BASE_MS,
+          signal: () => AbortSignal.timeout(timeoutMs),
+          networkError: (attempts, error) =>
+            `browser-translate: remote request failed after ${attempts} attempts: ${errorMessage(error)}`,
+          statusError: (attempts, status) =>
+            `browser-translate: remote translate failed after ${attempts} attempts: HTTP ${status}`,
+        },
+      )
 
-        if (isRetryableStatus(response.status)) {
-          if (attempt < retries) {
-            const delay = retryDelayMs(response, attempt)
-            try {
-              await response.body?.cancel()
-            } catch {
-              // The retry decision does not depend on draining this response.
-            }
-            await wait(delay)
-            continue
-          }
-          throw new Error(
-            `browser-translate: remote translate failed after ${attempt + 1} attempts: HTTP ${response.status}`,
-          )
-        }
-
-        if (!response.ok) {
-          throw new Error(
-            `browser-translate: remote translate failed: HTTP ${response.status} ${response.statusText}`.trim(),
-          )
-        }
-
-        let raw: string
-        try {
-          raw = await response.text()
-        } catch (error) {
-          throw new Error(`browser-translate: remote response read failed: ${errorMessage(error)}`)
-        }
-
-        let data: unknown
-        try {
-          data = JSON.parse(raw) as unknown
-        } catch {
-          throw new Error('browser-translate: remote response is not valid JSON')
-        }
-        if (
-          typeof data !== 'object' ||
-          data === null ||
-          !('translatedText' in data) ||
-          typeof data.translatedText !== 'string' ||
-          !data.translatedText
-        ) {
-          throw new Error('browser-translate: remote response missing translatedText')
-        }
-        return data.translatedText
+      if (!response.ok) {
+        throw new Error(
+          `browser-translate: remote translate failed: HTTP ${response.status} ${response.statusText}`.trim(),
+        )
       }
 
-      throw new Error('browser-translate: remote translate failed')
+      let raw: string
+      try {
+        raw = await response.text()
+      } catch (error) {
+        throw new Error(`browser-translate: remote response read failed: ${errorMessage(error)}`)
+      }
+
+      let data: unknown
+      try {
+        data = JSON.parse(raw) as unknown
+      } catch {
+        throw new Error('browser-translate: remote response is not valid JSON')
+      }
+      if (
+        typeof data !== 'object' ||
+        data === null ||
+        !('translatedText' in data) ||
+        typeof data.translatedText !== 'string' ||
+        !data.translatedText
+      ) {
+        throw new Error('browser-translate: remote response missing translatedText')
+      }
+      return data.translatedText
     },
   }
 }

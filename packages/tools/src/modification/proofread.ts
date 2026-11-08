@@ -1,16 +1,17 @@
 import { category, defineTool, setVariable, tool, useCase } from '@mt/core'
-import type { Envelope, Tool, ToolContext } from '@mt/core'
+import type { Annotation, Envelope, Tool, ToolContext } from '@mt/core'
 
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
 import {
   type ChunkBudget,
   DEFAULT_OUTPUT_RESERVE,
+  type SemanticUnit,
   estimateOverhead,
   groupItemsToBudget,
   processChunks,
   resolveChunkBudget,
+  toChunkRecord,
 } from '../core/chunk-processor.js'
-import type { SemanticUnit } from '../core/chunk-processor.js'
 import { extractPropertiesEntries, extractXmlResultEntries } from '../core/prompt-blocks.js'
 import { renderPrompt } from '../normalization/schema/doc.js'
 import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from '../normalization/schema/llm.js'
@@ -18,7 +19,6 @@ import type {
   LlmAttemptMeta,
   PromptRetryResult,
   PromptValidation,
-  SchemaDocLlmCall,
   SchemaDocLlmOptions,
 } from '../normalization/schema/llm.js'
 import { countTextTokens } from '../normalization/token-counter.js'
@@ -30,6 +30,8 @@ import { resolveTunedNum } from '../resolve-constants.js'
 
 export const PROOFREAD_SYSTEM_PROMPT = loadBundledPrompt('proofread.system')
 export const PROOFREAD_USER_PROMPT = loadBundledPrompt('proofread.user')
+export const PROOFREAD_PROPERTIES_SYSTEM_PROMPT = loadBundledPrompt('proofread.properties.system')
+export const PROOFREAD_PROPERTIES_USER_PROMPT = loadBundledPrompt('proofread.properties.user')
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,8 +68,17 @@ interface ResultBlock {
   text: string
 }
 
+/** The annotation block shared by the three proofreading tools. */
+function proofreadAnnotations(id: string, name: string, description: string): Annotation[] {
+  return [
+    tool(id, { name, description, refs: ['UC058'] }),
+    useCase('UC058'),
+    category(['validator', 'llm']),
+  ]
+}
+
 // ---------------------------------------------------------------------------
-// XML helpers
+// Helpers and variant description
 // ---------------------------------------------------------------------------
 
 function escapeXml(text: string): string {
@@ -88,37 +99,23 @@ function unescapeXml(text: string): string {
     .replace(/&amp;/g, '&')
 }
 
-function splitParagraphs(text: string): string[] {
-  return text
-    .split(/\n\s*\n/)
-    .map((p) => p.trim())
-    .filter((p) => p !== '')
+/** Wraps `<result>` fragments into a `<results>` document. */
+function wrapResults(fragments: readonly string[]): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<results>\n${fragments.join('\n')}\n</results>`
 }
 
-function buildProofreadXml(paragraphs: readonly string[], firstId = 1): string {
-  const lines = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<results>',
-    ...paragraphs.map((text, index) => {
-      const id = firstId + index
-      return `  <result>\n    <id>${id}</id>\n    <text>${escapeXml(text)}</text>\n  </result>`
-    }),
-    '</results>',
-  ]
-  return lines.join('\n')
-}
-
-function buildProofreadOutputXml(paragraphs: readonly string[]): string {
-  const lines = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<results>',
-    ...paragraphs.map((text, index) => {
-      const id = index + 1
-      return `  <result>\n    <id>${id}</id>\n    <proofread>${escapeXml(text)}</proofread>\n  </result>`
-    }),
-    '</results>',
-  ]
-  return lines.join('\n')
+/** A `<results>` document of `<result>` blocks; `tag` is the payload element. */
+function buildResultsXml(
+  items: readonly string[],
+  firstId = 1,
+  tag: 'text' | 'proofread' = 'text',
+): string {
+  return wrapResults(
+    items.map(
+      (text, index) =>
+        `  <result>\n    <id>${firstId + index}</id>\n    <${tag}>${escapeXml(text)}</${tag}>\n  </result>`,
+    ),
+  )
 }
 
 function parseResultBlocks(xml: string, tag: 'text' | 'proofread'): ResultBlock[] {
@@ -129,6 +126,11 @@ function parseResultBlocks(xml: string, tag: 'text' | 'proofread'): ResultBlock[
     .sort((a, b) => a.id - b.id)
 }
 
+/** The answer blocks of the XML flavours (`<proofread>` entries). */
+function parseProofreadAnswer(content: string): ResultBlock[] {
+  return parseResultBlocks(content, 'proofread')
+}
+
 function toResultMap(blocks: readonly ResultBlock[]): Map<number, string> {
   const map = new Map<number, string>()
   for (const block of blocks) {
@@ -137,28 +139,85 @@ function toResultMap(blocks: readonly ResultBlock[]): Map<number, string> {
   return map
 }
 
-function reconstructText(paragraphs: readonly string[], proofread: Map<number, string>): string {
-  const proofed = paragraphs.map((original, index) => {
+/** The proofread value of every paragraph, falling back to the original text. */
+function proofreadParagraphs(
+  paragraphs: readonly string[],
+  proofread: Map<number, string>,
+): string[] {
+  return paragraphs.map((original, index) => {
     const id = index + 1
     return proofread.has(id) ? (proofread.get(id) ?? original) : original
   })
-  return proofed.join('\n\n')
 }
 
-function reconstructXml(paragraphs: readonly string[], proofread: Map<number, string>): string {
-  const proofed = paragraphs.map((original, index) => {
-    const id = index + 1
-    return proofread.has(id) ? (proofread.get(id) ?? original) : original
-  })
-  return buildProofreadOutputXml(proofed)
+function escapeProperties(text: string): string {
+  return text.replace(/\\\\/g, '\\\\\\\\').replace(/\n/g, '\\n').replace(/=/g, '\\=')
 }
 
-function validateProofreadXml(
+function parsePropertiesBlock(content: string): ResultBlock[] {
+  // shared tolerant `N=value` extraction (with the Java-properties value unescaping the
+  // proofread properties format uses); keys stay in document order.
+  return extractPropertiesEntries(content, { unescape: true }).map((e) => ({
+    id: e.key,
+    text: e.value,
+  }))
+}
+
+/**
+ * One proofreading flavour: how the input is split, what is sent to the model, how the answer
+ * is parsed back and how the output item is rebuilt. The three proofreading tools are three
+ * flavours of the same flow.
+ */
+interface ProofreadVariant {
+  name: string
+  version: string
+  mdDescription: string
+  annotations: readonly Annotation[]
+  /** Default system prompt. */
+  system: string
+  /** Default user prompt. */
+  user: string
+  /** Prefix of the per-envelope prompt overrides (`<key>Prompt` / `<key>SystemPrompt`). */
+  optionKey: string
+  /** Splits the tool input into ordered blocks and builds the model payload. */
+  prepare: (input: string) => { blocks: ResultBlock[]; payload: string }
+  /** Parses the model answer into ordered blocks. */
+  parseAnswer: (content: string) => ResultBlock[]
+  /** Rebuilds the output item from the single-call answer or the merged chunk answers. */
+  wrap: (blocks: readonly ResultBlock[], run: ProofreadRun) => string
+  /** Splits the input into per-call payloads under the budget. Absent = no chunk modes. */
+  group?: (blocks: readonly ResultBlock[], budget: ChunkBudget) => string[]
+  /** Variable the chunk metadata is published under. */
+  chunksVariable?: string
+  /** Meta key of the diagnostics. */
+  metaKey: 'proofread' | 'proofreadXml' | 'proofreadProperties'
+}
+
+/** What one proofreading pass produced. */
+interface ProofreadRun {
+  answer: string
+  merged?: Map<number, string>
+}
+
+/** Everything one proofreading pass needs besides its payload and expected ids. */
+interface ProofreadCall {
+  variant: ProofreadVariant
+  options: ProofreadOptions & ProofreadChunkOptions
+  env: Envelope<string>
+  ctx: ToolContext
+}
+
+// ---------------------------------------------------------------------------
+// Shared LLM proofreader and chunk budget
+// ---------------------------------------------------------------------------
+
+/** Rejects an answer that misses an id or carries an empty value for it. */
+function validateProofreadBlocks(
   content: string,
   expectedIds: readonly number[],
+  parse: (content: string) => ResultBlock[],
 ): PromptValidation<Map<number, string>> {
-  const blocks = parseResultBlocks(content, 'proofread')
-  const map = toResultMap(blocks)
+  const map = toResultMap(parse(content))
   const missing = expectedIds.filter((id) => !map.has(id))
   if (missing.length > 0) {
     return { ok: false, reason: `missing proofread for ids ${missing.join(', ')}` }
@@ -170,57 +229,45 @@ function validateProofreadXml(
   return { ok: true, value: map }
 }
 
-// ---------------------------------------------------------------------------
-// Shared LLM proofreader
-// ---------------------------------------------------------------------------
-
+/**
+ * Sends one payload to the model and re-prompts until the answer carries every expected id.
+ * Never throws: when the guard is exhausted the parseable part is kept, otherwise the input
+ * payload is echoed back.
+ */
 async function runProofread(
-  inputXml: string,
+  payload: string,
   expectedIds: readonly number[],
-  options: ProofreadOptions,
-  env: Envelope<string>,
-  ctx: ToolContext,
-): Promise<{ xml: string; meta: ProofreadMeta }> {
+  call: ProofreadCall,
+): Promise<{ content: string; meta: ProofreadMeta }> {
+  const { variant, options, env, ctx } = call
   const language = options.language ?? 'en'
-  const defaults: SchemaDocLlmOptions = {
-    systemPrompt: PROOFREAD_SYSTEM_PROMPT,
-    userPrompt: PROOFREAD_USER_PROMPT,
-  }
-  const resolved = resolveLlmOptions({ ...defaults, ...options }, env, 'proofread')
+  const resolved = resolveLlmOptions(
+    { systemPrompt: variant.system, userPrompt: variant.user, ...options },
+    env,
+    variant.optionKey,
+  )
 
   const outcome = await runPromptWithRetry<Map<number, string>>(ctx, {
     ...resolved,
-    systemPrompt: renderPrompt(resolved.systemPrompt ?? PROOFREAD_SYSTEM_PROMPT, { language }),
-    userPrompt: renderPrompt(resolved.userPrompt ?? PROOFREAD_USER_PROMPT, { text: inputXml }),
-    validate: (content) => validateProofreadXml(content, expectedIds),
+    systemPrompt: renderPrompt(resolved.systemPrompt ?? variant.system, { language }),
+    userPrompt: renderPrompt(resolved.userPrompt ?? variant.user, { text: payload }),
+    validate: (content) => validateProofreadBlocks(content, expectedIds, variant.parseAnswer),
   })
 
-  const resultMeta: ProofreadMeta = {
+  const meta: ProofreadMeta = {
     ...attemptMeta([outcome as PromptRetryResult<unknown>]),
     proofreadXml: outcome.content,
   }
 
-  if (outcome.ok && outcome.value) {
-    return { xml: outcome.content, meta: resultMeta }
-  }
-
-  // Loop guard exhausted: keep whatever is parseable, otherwise echo the input XML.
-  const fallback = validateProofreadXml(outcome.content, expectedIds)
-  if (fallback.ok) {
-    return { xml: outcome.content, meta: resultMeta }
-  }
-  return { xml: inputXml, meta: resultMeta }
+  // Loop guard exhausted: keep whatever is parseable, otherwise echo the input payload.
+  const parsed = validateProofreadBlocks(outcome.content, expectedIds, variant.parseAnswer)
+  const content =
+    outcome.ok && outcome.value ? outcome.content : parsed.ok ? outcome.content : payload
+  return { content, meta }
 }
 
-// ---------------------------------------------------------------------------
-// Chunk budget for proofreading
-// ---------------------------------------------------------------------------
-
-function proofreadBudget(
-  options: ProofreadOptions & ProofreadChunkOptions,
-  env: Envelope<string>,
-  ctx: ToolContext,
-): ChunkBudget | null {
+function proofreadBudget(call: ProofreadCall): ChunkBudget | null {
+  const { options, env, ctx } = call
   const resolved = resolveLlmOptions({ ...options }, env, 'proofread')
   const system = resolved.systemPrompt ?? PROOFREAD_SYSTEM_PROMPT
   const userPrefix = renderPrompt(resolved.userPrompt ?? PROOFREAD_USER_PROMPT, { text: '' })
@@ -240,60 +287,25 @@ function proofreadBudget(
   })
 }
 
-function groupParagraphsGreedy(paragraphs: readonly string[], budget: ChunkBudget): string[][] {
-  const groups: string[][] = []
-  let current: string[] = []
-
-  for (const paragraph of paragraphs) {
-    const probe = [...current, paragraph]
-    if (current.length > 0 && countTextTokens(buildProofreadXml(probe)) > budget.inputBudget) {
-      groups.push(current)
-      current = [paragraph]
-    } else {
-      current = probe
-    }
-  }
-  if (current.length > 0) groups.push(current)
-
-  return groups
-}
-
-interface GroupOutcome {
-  index: number
-  map: Map<number, string>
-  rawXml: string
-  meta: ProofreadMeta
-}
-
 /**
  * Proofreads pre-built group XMLs (one LLM call each) on the shared {@link processChunks}
  * loop and merges the results by id. Used by `proofread` and `proofread-xml`.
  */
 async function proofreadGroupXmls(
   groupXmls: string[],
-  options: ProofreadOptions,
-  env: Envelope<string>,
-  ctx: ToolContext,
-  chunkConcurrency = 2,
+  call: ProofreadCall,
 ): Promise<{ merged: Map<number, string>; meta: ProofreadMeta }> {
-  const outcome = await processChunks<{ outcomes: GroupOutcome[] }>({
+  const { variant } = call
+  type GroupOutcome = { map: Map<number, string>; rawXml: string; meta: ProofreadMeta }
+  const outcome = await processChunks<GroupOutcome[]>({
     chunks: groupXmls,
-    process: async (groupXml, index) => {
+    process: async (groupXml) => {
       const groupIds = parseResultBlocks(groupXml, 'text').map((b) => b.id)
-      const r = await runProofread(groupXml, groupIds, options, env, ctx)
-      return {
-        outcomes: [
-          {
-            index,
-            map: toResultMap(parseResultBlocks(r.xml, 'proofread')),
-            rawXml: r.xml,
-            meta: r.meta,
-          },
-        ],
-      }
+      const r = await runProofread(groupXml, groupIds, call)
+      return [{ map: toResultMap(variant.parseAnswer(r.content)), rawXml: r.content, meta: r.meta }]
     },
-    merge: (parts) => ({ outcomes: parts.flatMap((p) => p.outcomes) }),
-    concurrency: chunkConcurrency,
+    merge: (parts) => parts.flat(),
+    concurrency: call.options.chunkConcurrency ?? 2,
   })
 
   const merged = new Map<number, string>()
@@ -301,7 +313,7 @@ async function proofreadGroupXmls(
   let attempts = 0
   let tokens = 0
   let lastFailure: string | undefined
-  for (const o of [...outcome.outcomes].sort((x, y) => x.index - y.index)) {
+  for (const o of outcome) {
     for (const [id, text] of o.map) merged.set(id, text)
     rawXml += o.rawXml
     attempts += o.meta.attempts ?? 0
@@ -315,101 +327,132 @@ async function proofreadGroupXmls(
 }
 
 // ---------------------------------------------------------------------------
-// Tool: proofread (plain text)
+// Shared factory
 // ---------------------------------------------------------------------------
 
 /**
- * Builds an LLM proofreading tool for plain text.
- *
- * Input text is split into blank-line paragraphs, sent to the LLM as XML, and
- * reconstructed from the returned `<proofread>` blocks. English is the default
- * language; pass a custom `systemPrompt`/`userPrompt` for other text kinds.
+ * Builds a proofreading tool from a flavour description: one call over the whole input
+ * (`shrink`), or one call per budget-sized group (`chunk` / `auto`) merged back by id.
  */
-export function createProofreadTool(
+function createProofreadVariantTool(
+  variant: ProofreadVariant,
   options: ProofreadOptions & ProofreadChunkOptions = {},
 ): Tool<string, string> {
   const { chunkMode = 'shrink', ...proofOptions } = options
 
   return defineTool<string, string>({
-    name: 'proofread',
-    version: '1.1.0',
-    mdDescription:
-      'Proofreads plain text with an LLM through the OpenRouter proxy. Splits the text into ' +
-      'paragraphs, sends XML to the model, and returns the corrected text. English by default; ' +
-      'prompts are fully overridable. Supports shrink/chunk/auto modes.',
-    annotations: [
-      tool('TL227', {
-        name: 'proofread',
-        description: 'Proofreads plain text with paragraph-aware LLM prompts.',
-        refs: ['UC058'],
-      }),
-      useCase('UC058'),
-      category(['validator', 'llm']),
-    ],
+    name: variant.name,
+    version: variant.version,
+    mdDescription: variant.mdDescription,
+    annotations: variant.annotations,
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const text = env.item
-      const paragraphs = splitParagraphs(text)
-      const inputXml = buildProofreadXml(paragraphs)
-      const expectedIds = paragraphs.map((_, index) => index + 1)
+      const { blocks, payload } = variant.prepare(env.item)
+      const expectedIds = blocks.map((block) => block.id)
+      const call: ProofreadCall = { variant, options: proofOptions, env, ctx }
 
-      let xml: string
-      let proofreadText: string
+      // Chunking is off unless the flavour groups, the mode asks for it and the payload
+      // does not fit the budget on its own.
+      let budget: ChunkBudget | null = null
+      let groupXmls: string[] | null = null
+      if (variant.group && chunkMode !== 'shrink') {
+        const resolved = proofreadBudget(call)
+        if (
+          resolved &&
+          !(chunkMode === 'auto' && countTextTokens(payload) <= resolved.inputBudget)
+        ) {
+          budget = resolved
+          groupXmls = variant.group(blocks, resolved)
+        }
+      }
+
+      const run: ProofreadRun = { answer: '' }
       let meta: ProofreadMeta
       let chunks = 0
-      let budget: ChunkBudget | null = null
 
-      if (chunkMode === 'shrink') {
-        const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
-        xml = r.xml
+      if (groupXmls) {
+        const r = await proofreadGroupXmls(groupXmls, call)
+        run.merged = r.merged
         meta = r.meta
-        const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
-        proofreadText = reconstructText(paragraphs, proofreadMap)
+        chunks = groupXmls.length
       } else {
-        budget = proofreadBudget(proofOptions, env, ctx)
-        if (!budget || (chunkMode === 'auto' && countTextTokens(inputXml) <= budget.inputBudget)) {
-          const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
-          xml = r.xml
-          meta = r.meta
-          const proofreadMap = toResultMap(parseResultBlocks(xml, 'proofread'))
-          proofreadText = reconstructText(paragraphs, proofreadMap)
-        } else {
-          const groups = groupParagraphsGreedy(paragraphs, budget)
-          let start = 1
-          const groupXmls = groups.map((group) => {
-            const groupXml = buildProofreadXml(group, start)
-            start += group.length
-            return groupXml
-          })
-          const r = await proofreadGroupXmls(
-            groupXmls,
-            proofOptions,
-            env,
-            ctx,
-            options.chunkConcurrency,
-          )
-          xml = reconstructXml(paragraphs, r.merged)
-          meta = r.meta
-          proofreadText = reconstructText(paragraphs, r.merged)
-          chunks = groups.length
-        }
+        const r = await runProofread(payload, expectedIds, call)
+        run.answer = r.content
+        meta = r.meta
       }
 
       const next: Envelope<string> = {
         ...env,
-        item: proofreadText,
-        meta: { ...env.meta, proofread: meta },
+        item: variant.wrap(blocks, run),
+        meta: { ...env.meta, [variant.metaKey]: meta },
       }
-      if (chunks > 0 && budget) {
-        return setVariable(next, 'proofreadChunks', {
-          chunks,
-          limit: budget.limit,
-          inputBudget: budget.inputBudget,
-          model: budget.model,
-        })
+      if (chunks > 0 && budget && variant.chunksVariable) {
+        return setVariable(next, variant.chunksVariable, toChunkRecord(budget, chunks))
       }
       return next
     },
   })
+}
+
+// ---------------------------------------------------------------------------
+// Tool: proofread (plain text)
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds an LLM proofreading tool for plain text: the text is split into blank-line
+ * paragraphs, sent to the LLM as XML, and rebuilt from the returned `<proofread>` blocks.
+ * English by default; pass custom `systemPrompt`/`userPrompt` for other text kinds.
+ */
+export function createProofreadTool(
+  options: ProofreadOptions & ProofreadChunkOptions = {},
+): Tool<string, string> {
+  return createProofreadVariantTool(
+    {
+      name: 'proofread',
+      version: '1.1.0',
+      mdDescription:
+        'Proofreads plain text with an LLM through the OpenRouter proxy. Splits the text into ' +
+        'paragraphs, sends XML to the model, and returns the corrected text. English by default; ' +
+        'prompts are fully overridable. Supports shrink/chunk/auto modes.',
+      annotations: proofreadAnnotations(
+        'TL227',
+        'proofread',
+        'Proofreads plain text with paragraph-aware LLM prompts.',
+      ),
+      system: PROOFREAD_SYSTEM_PROMPT,
+      user: PROOFREAD_USER_PROMPT,
+      optionKey: 'proofread',
+      prepare: (input) => {
+        const blocks = input
+          .split(/\n\s*\n/)
+          .map((text) => text.trim())
+          .filter((text) => text !== '')
+          .map((text, index) => ({ id: index + 1, text }))
+        return { blocks, payload: buildResultsXml(blocks.map((block) => block.text)) }
+      },
+      parseAnswer: parseProofreadAnswer,
+      wrap: (blocks, run) =>
+        proofreadParagraphs(
+          blocks.map((block) => block.text),
+          run.merged ?? toResultMap(parseProofreadAnswer(run.answer)),
+        ).join('\n\n'),
+      group: (blocks, budget) => {
+        let start = 1
+        return groupItemsToBudget({
+          items: blocks.map((block) => block.text),
+          budget,
+          weigh: (group) => countTextTokens(buildResultsXml(group)),
+          render: (group) => {
+            const groupXml = buildResultsXml(group, start)
+            start += group.length
+            return groupXml
+          },
+        })
+      },
+      chunksVariable: 'proofreadChunks',
+      metaKey: 'proofread',
+    },
+    options,
+  )
 }
 
 /** Default proofreading tool: English text, bundled prompts. */
@@ -420,238 +463,104 @@ export const proofreadTool = createProofreadTool()
 // ---------------------------------------------------------------------------
 
 /**
- * Lower-level proofreading sub tool: the input is already the XML expected by the
- * model (`<results>` with `<id>` + `<text>`), and the output is the model's XML
- * (`<id>` + `<proofread>`). Handy when callers already have paragraph XML or want
- * to chain the raw XML through another tool.
+ * Lower-level proofreading sub tool: the input is already the XML expected by the model
+ * (`<results>` with `<id>` + `<text>`), and the output is the model's XML
+ * (`<id>` + `<proofread>`) — handy when callers already hold paragraph XML.
  */
 export function createProofreadXmlTool(
   options: ProofreadXmlOptions & ProofreadChunkOptions = {},
 ): Tool<string, string> {
-  const { chunkMode = 'shrink', ...proofOptions } = options
-
-  return defineTool<string, string>({
-    name: 'proofread-xml',
-    version: '1.1.0',
-    mdDescription:
-      'Lower-level proofreading sub tool. Accepts the paragraph XML expected by the proofreader ' +
-      'and returns the raw `<proofread>` XML from the LLM. Supports chunk modes.',
-    annotations: [
-      tool('TL228', {
-        name: 'proofread-xml',
-        description: 'Proofreads raw paragraph XML and returns corrected XML.',
-        refs: ['UC058'],
-      }),
-      useCase('UC058'),
-      category(['validator', 'llm']),
-    ],
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const inputXml = env.item
-      const inputBlocks = parseResultBlocks(inputXml, 'text')
-      const expectedIds = inputBlocks.map((block) => block.id)
-
-      let xml: string
-      let meta: ProofreadMeta
-      let chunks = 0
-      let budget: ChunkBudget | null = null
-
-      if (chunkMode === 'shrink') {
-        const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
-        xml = r.xml
-        meta = r.meta
-      } else {
-        budget = proofreadBudget(proofOptions, env, ctx)
-        if (!budget || (chunkMode === 'auto' && countTextTokens(inputXml) <= budget.inputBudget)) {
-          const r = await runProofread(inputXml, expectedIds, proofOptions, env, ctx)
-          xml = r.xml
-          meta = r.meta
-        } else {
-          const blockXmls = inputBlocks.map(
+  return createProofreadVariantTool(
+    {
+      name: 'proofread-xml',
+      version: '1.1.0',
+      mdDescription:
+        'Lower-level proofreading sub tool. Accepts the paragraph XML expected by the proofreader ' +
+        'and returns the raw `<proofread>` XML from the LLM. Supports chunk modes.',
+      annotations: proofreadAnnotations(
+        'TL228',
+        'proofread-xml',
+        'Proofreads raw paragraph XML and returns corrected XML.',
+      ),
+      system: PROOFREAD_SYSTEM_PROMPT,
+      user: PROOFREAD_USER_PROMPT,
+      optionKey: 'proofread',
+      prepare: (input) => ({ blocks: parseResultBlocks(input, 'text'), payload: input }),
+      parseAnswer: parseProofreadAnswer,
+      wrap: (blocks, run) => {
+        if (!run.merged) return run.answer
+        const originalMap = toResultMap(blocks)
+        const ordered = blocks.map(
+          (block) => run.merged?.get(block.id) ?? originalMap.get(block.id) ?? '',
+        )
+        return buildResultsXml(proofreadParagraphs(ordered, run.merged), 1, 'proofread')
+      },
+      group: (blocks, budget) =>
+        groupItemsToBudget({
+          items: blocks.map(
             (block) =>
               `  <result>\n    <id>${block.id}</id>\n    <text>${escapeXml(block.text)}</text>\n  </result>`,
-          )
-          const groups = groupItemsToBudget({
-            items: blockXmls,
-            budget,
-            weigh: (group) =>
-              countTextTokens(
-                `<?xml version="1.0" encoding="UTF-8"?>\n<results>\n${group.join('\n')}\n</results>`,
-              ),
-            render: (group) =>
-              `<?xml version="1.0" encoding="UTF-8"?>\n<results>\n${group.join('\n')}\n</results>`,
-          })
-
-          const r = await proofreadGroupXmls(
-            groups,
-            proofOptions,
-            env,
-            ctx,
-            options.chunkConcurrency,
-          )
-          const originalMap = toResultMap(inputBlocks)
-          const orderedTexts = expectedIds.map(
-            (id) => r.merged.get(id) ?? originalMap.get(id) ?? '',
-          )
-          xml = reconstructXml(orderedTexts, r.merged)
-          meta = r.meta
-          chunks = groups.length
-        }
-      }
-
-      const next: Envelope<string> = {
-        ...env,
-        item: xml,
-        meta: { ...env.meta, proofreadXml: meta },
-      }
-      if (chunks > 0 && budget) {
-        return setVariable(next, 'proofreadXmlChunks', {
-          chunks,
-          limit: budget.limit,
-          inputBudget: budget.inputBudget,
-          model: budget.model,
-        })
-      }
-      return next
+          ),
+          budget,
+          weigh: (group) => countTextTokens(wrapResults(group)),
+          render: wrapResults,
+        }),
+      chunksVariable: 'proofreadXmlChunks',
+      metaKey: 'proofreadXml',
     },
-  })
+    options,
+  )
 }
 
 /** Default XML proofreading sub tool. */
 export const proofreadXmlTool = createProofreadXmlTool()
-// ---------------------------------------------------------------------------
-// Bundled properties prompts
-// ---------------------------------------------------------------------------
-
-export const PROOFREAD_PROPERTIES_SYSTEM_PROMPT = loadBundledPrompt('proofread.properties.system')
-export const PROOFREAD_PROPERTIES_USER_PROMPT = loadBundledPrompt('proofread.properties.user')
-
-// ---------------------------------------------------------------------------
-// Properties helpers
-// ---------------------------------------------------------------------------
-
-function escapeProperties(text: string): string {
-  return text.replace(/\\\\/g, '\\\\\\\\').replace(/\n/g, '\\n').replace(/=/g, '\\=')
-}
-
-function parsePropertiesBlock(content: string): ResultBlock[] {
-  // shared tolerant `N=value` extraction (with the Java-properties value unescaping the
-  // proofread properties format uses); keys stay in document order.
-  return extractPropertiesEntries(content, { unescape: true }).map((e) => ({
-    id: e.key,
-    text: e.value,
-  }))
-}
-
-function validateProofreadProperties(
-  content: string,
-  expectedIds: readonly number[],
-): PromptValidation<Map<number, string>> {
-  const blocks = parsePropertiesBlock(content)
-  const map = toResultMap(blocks)
-  const missing = expectedIds.filter((id) => !map.has(id))
-  if (missing.length > 0) {
-    return { ok: false, reason: `missing proofread for ids ${missing.join(', ')}` }
-  }
-  const empty = expectedIds.filter((id) => (map.get(id) ?? '').trim() === '')
-  if (empty.length > 0) {
-    return { ok: false, reason: `empty proofread for ids ${empty.join(', ')}` }
-  }
-  return { ok: true, value: map }
-}
-
-async function runProofreadProperties(
-  input: string,
-  expectedIds: readonly number[],
-  options: ProofreadOptions,
-  env: Envelope<string>,
-  ctx: ToolContext,
-): Promise<{ content: string; meta: ProofreadMeta }> {
-  const language = options.language ?? 'en'
-  const defaults: SchemaDocLlmOptions = {
-    systemPrompt: PROOFREAD_PROPERTIES_SYSTEM_PROMPT,
-    userPrompt: PROOFREAD_PROPERTIES_USER_PROMPT,
-  }
-  const resolved = resolveLlmOptions({ ...defaults, ...options }, env, 'proofreadProperties')
-
-  const outcome = await runPromptWithRetry<Map<number, string>>(ctx, {
-    ...resolved,
-    systemPrompt: renderPrompt(resolved.systemPrompt ?? PROOFREAD_PROPERTIES_SYSTEM_PROMPT, {
-      language,
-    }),
-    userPrompt: renderPrompt(resolved.userPrompt ?? PROOFREAD_PROPERTIES_USER_PROMPT, {
-      text: input,
-    }),
-    validate: (content) => validateProofreadProperties(content, expectedIds),
-  })
-
-  const resultMeta: ProofreadMeta = {
-    ...attemptMeta([outcome as PromptRetryResult<unknown>]),
-    proofreadXml: outcome.content,
-  }
-
-  if (outcome.ok && outcome.value) {
-    return { content: outcome.content, meta: resultMeta }
-  }
-
-  const fallback = validateProofreadProperties(outcome.content, expectedIds)
-  if (fallback.ok) {
-    return { content: outcome.content, meta: resultMeta }
-  }
-  return { content: input, meta: resultMeta }
-}
 
 // ---------------------------------------------------------------------------
 // Tool: proofread-properties (sub tool)
 // ---------------------------------------------------------------------------
 
 /**
- * Lower-level proofreading sub tool using Java properties format. Input must be
- * one `key=value` per line where the key is the id/line number and the value is
- * the original text. Output is the same set of keys with proofread values.
+ * Lower-level proofreading sub tool using Java properties format: input is one
+ * `key=value` per line (key = id/line number, value = original text), output the same
+ * keys with proofread values.
  */
 export function createProofreadPropertiesTool(
   options: ProofreadOptions = {},
 ): Tool<string, string> {
-  return defineTool<string, string>({
-    name: 'proofread-properties',
-    version: '1.0.0',
-    mdDescription:
-      'Lower-level proofreading sub tool using Java properties format. ' +
-      'Accepts one key=value per line (key = id/line number, value = original text) ' +
-      'and returns the same keys with proofread values.',
-    annotations: [
-      tool('TL226', {
-        name: 'proofread-properties',
-        description: 'Proofreads Java-properties formatted text.',
-        refs: ['UC058'],
-      }),
-      useCase('UC058'),
-      category(['validator', 'llm']),
-    ],
-    async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
-      const input = env.item
-      const inputBlocks = parsePropertiesBlock(input)
-      const expectedIds = inputBlocks.map((block) => block.id)
-
-      const { content, meta } = await runProofreadProperties(input, expectedIds, options, env, ctx)
-      const proofreadMap = toResultMap(parsePropertiesBlock(content))
-      const originalMap = toResultMap(inputBlocks)
-
-      const lines: string[] = []
-      for (const id of expectedIds) {
-        const value = proofreadMap.has(id)
-          ? (proofreadMap.get(id) ?? '')
-          : (originalMap.get(id) ?? '')
-        lines.push(`${id}=${escapeProperties(value)}`)
-      }
-
-      return {
-        ...env,
-        item: lines.join('\n'),
-        meta: { ...env.meta, proofreadProperties: meta },
-      }
+  return createProofreadVariantTool(
+    {
+      name: 'proofread-properties',
+      version: '1.0.0',
+      mdDescription:
+        'Lower-level proofreading sub tool using Java properties format. ' +
+        'Accepts one key=value per line (key = id/line number, value = original text) ' +
+        'and returns the same keys with proofread values.',
+      annotations: proofreadAnnotations(
+        'TL226',
+        'proofread-properties',
+        'Proofreads Java-properties formatted text.',
+      ),
+      system: PROOFREAD_PROPERTIES_SYSTEM_PROMPT,
+      user: PROOFREAD_PROPERTIES_USER_PROMPT,
+      optionKey: 'proofreadProperties',
+      prepare: (input) => ({ blocks: parsePropertiesBlock(input), payload: input }),
+      parseAnswer: (content) => parsePropertiesBlock(content),
+      wrap: (blocks, run) => {
+        const proofreadMap = toResultMap(parsePropertiesBlock(run.answer))
+        const originalMap = toResultMap(blocks)
+        return blocks
+          .map((block) => {
+            const value = proofreadMap.has(block.id)
+              ? (proofreadMap.get(block.id) ?? '')
+              : (originalMap.get(block.id) ?? '')
+            return `${block.id}=${escapeProperties(value)}`
+          })
+          .join('\n')
+      },
+      metaKey: 'proofreadProperties',
     },
-  })
+    options,
+  )
 }
 
 /** Default properties proofreading sub tool. */

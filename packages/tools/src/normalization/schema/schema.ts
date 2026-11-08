@@ -1,11 +1,11 @@
 import { category, defineTool, tool } from '@mt/core'
-import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { MAX_SCHEMA_LINES } from '../../constants.js'
-import { chapterVars, readChapter, renderPrompt, roundTripIssue, stripCodeFence } from './doc.js'
+import { roundTripIssue, stripCodeFence } from './doc.js'
 import type { ChapterSource } from './doc.js'
-import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
-import type { PromptRetryResult, PromptValidation, SchemaDocLlmOptions } from './llm.js'
+import { runExtractor } from './extractor.js'
+import type { ExtractorSpec } from './extractor.js'
+import type { PromptValidation, SchemaDocLlmOptions } from './llm.js'
 
 export const SCHEMA_SYSTEM_PROMPT =
   'You model a document chapter as a mermaid diagram. Reply with mermaid code only: a first line ' +
@@ -62,9 +62,24 @@ function validateSchema(content: string, source: ChapterSource): PromptValidatio
   return { ok: true, value: diagram }
 }
 
-const DEFAULTS: SchemaDocLlmOptions = {
-  systemPrompt: SCHEMA_SYSTEM_PROMPT,
-  userPrompt: SCHEMA_USER_PROMPT,
+/** Deterministic diagram: the parsed `## Schema` block, else a title-rooted graph. */
+export function fallbackDiagram(source: ChapterSource): string {
+  if (source.doc.schema) {
+    return source.doc.schema
+  }
+  const titleText = source.doc.title.replace(/^Chapter \d+: /, '') || 'Unknown'
+  return `graph TD\n    ${titleText} --> Next`
+}
+
+const SPEC: ExtractorSpec<string> = {
+  key: 'schema',
+  defaults: () => ({
+    systemPrompt: SCHEMA_SYSTEM_PROMPT,
+    userPrompt: SCHEMA_USER_PROMPT,
+  }),
+  validate: (content, run) => validateSchema(content, run.source),
+  fallback: (run) => fallbackDiagram(run.source),
+  empty: '',
 }
 
 /**
@@ -91,48 +106,9 @@ export function createSchemaTool(options?: SchemaDocLlmOptions) {
       category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'schema')
-      const inputs = env.items ?? [env.item]
-
-      const diagrams: string[] = []
-      const results: PromptRetryResult<string>[] = []
-
-      for (const input of inputs) {
-        const source = readChapter(input)
-        const outcome = await runPromptWithRetry(ctx, {
-          ...resolved,
-          systemPrompt: renderPrompt(
-            resolved.systemPrompt ?? SCHEMA_SYSTEM_PROMPT,
-            chapterVars(source),
-          ),
-          userPrompt: renderPrompt(resolved.userPrompt ?? SCHEMA_USER_PROMPT, chapterVars(source)),
-          validate: (content) => validateSchema(content, source),
-        })
-        diagrams.push(
-          outcome.ok && outcome.value !== undefined ? outcome.value : fallbackDiagram(source),
-        )
-        results.push(outcome)
-      }
-
-      const values: Record<string, unknown> = {
-        schema: diagrams[0] ?? '',
-        schemaLlm: attemptMeta(results),
-      }
-      if (env.items) {
-        values.schemaByItem = diagrams
-      }
-      return setVariables(env, values)
+      return runExtractor(SPEC, env, ctx, options ?? {}, {})
     },
   })
-}
-
-/** Deterministic diagram: the parsed `## Schema` block, else a title-rooted graph. */
-export function fallbackDiagram(source: ChapterSource): string {
-  if (source.doc.schema) {
-    return source.doc.schema
-  }
-  const titleText = source.doc.title.replace(/^Chapter \d+: /, '') || 'Unknown'
-  return `graph TD\n    ${titleText} --> Next`
 }
 
 /** Schema tool with the default prompts and model. */

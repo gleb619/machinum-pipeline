@@ -8,6 +8,7 @@ import {
   withItem,
 } from '@mt/core'
 import type { Chapter, Exchange, ToolContext } from '@mt/core'
+import { readNumber as finiteNumber } from '../core/values.js'
 import { readChapterDoc, toChapterBody } from './chapter-doc.js'
 import type { ChapterBodyInput, ChapterDoc } from './chapter-doc.js'
 
@@ -120,10 +121,6 @@ function buildToc(chapters: ChapterDoc[]): BookTocEntry[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
-}
-
-function finiteNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
 function toWarnings(value: unknown): ChapterDoc['warnings'] {

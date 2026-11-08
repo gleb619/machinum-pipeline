@@ -1,18 +1,11 @@
 import { category, defineTool, tool } from '@mt/core'
-import { setVariables } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { SchemaDocMetadata } from '../../modification/schema-doc.js'
-import {
-  chapterVars,
-  metadataGroundTruth,
-  parseMetadataRow,
-  readChapter,
-  renderPrompt,
-  roundTripIssue,
-} from './doc.js'
+import { metadataGroundTruth, parseMetadataRow, roundTripIssue } from './doc.js'
 import type { ChapterSource } from './doc.js'
-import { attemptMeta, resolveLlmOptions, runPromptWithRetry } from './llm.js'
-import type { PromptRetryResult, PromptValidation, SchemaDocLlmOptions } from './llm.js'
+import { runExtractor } from './extractor.js'
+import type { ExtractorRun, ExtractorSpec } from './extractor.js'
+import type { PromptValidation, SchemaDocLlmOptions } from './llm.js'
 
 export const METADATA_SYSTEM_PROMPT =
   'You fill the Metadata table of a schema document. Reply with exactly one markdown table: the ' +
@@ -73,9 +66,29 @@ function validateMetadata(
   return { ok: true, value: parsed }
 }
 
-const DEFAULTS: SchemaDocLlmOptions = {
-  systemPrompt: METADATA_SYSTEM_PROMPT,
-  userPrompt: METADATA_USER_PROMPT,
+/** The measured counters of one item: the ground truth of the Metadata row. */
+function truthOf(run: ExtractorRun): SchemaDocMetadata {
+  return metadataGroundTruth(run.env, run.source, run.item)
+}
+
+const SPEC: ExtractorSpec<SchemaDocMetadata> = {
+  key: 'metadata',
+  defaults: () => ({
+    systemPrompt: METADATA_SYSTEM_PROMPT,
+    userPrompt: METADATA_USER_PROMPT,
+  }),
+  vars: (run) => {
+    const truth = truthOf(run)
+    return {
+      chapter: truth.chapter,
+      wordCount: truth.wordCount,
+      tokenCount: truth.tokenCount,
+      charLength: truth.charLength,
+    }
+  },
+  validate: (content, run) => validateMetadata(content, run.source, truthOf(run)),
+  fallback: (run) => truthOf(run),
+  empty: { chapter: 1, wordCount: 0, tokenCount: 0, charLength: 0 },
 }
 
 /**
@@ -105,45 +118,7 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
       category(['extractor', 'llm']),
     ],
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {
-      const resolved = resolveLlmOptions({ ...DEFAULTS, ...options }, env, 'metadata')
-      const inputs = env.items ?? [env.item]
-
-      const rows: SchemaDocMetadata[] = []
-      const results: PromptRetryResult<SchemaDocMetadata>[] = []
-
-      for (const input of inputs) {
-        const source = readChapter(input)
-        const truth = metadataGroundTruth(env, source, input)
-        const outcome = await runPromptWithRetry(ctx, {
-          ...resolved,
-          systemPrompt: renderPrompt(resolved.systemPrompt ?? METADATA_SYSTEM_PROMPT, {
-            ...chapterVars(source),
-            chapter: truth.chapter,
-            wordCount: truth.wordCount,
-            tokenCount: truth.tokenCount,
-            charLength: truth.charLength,
-          }),
-          userPrompt: renderPrompt(resolved.userPrompt ?? METADATA_USER_PROMPT, {
-            ...chapterVars(source),
-            chapter: truth.chapter,
-            wordCount: truth.wordCount,
-            tokenCount: truth.tokenCount,
-            charLength: truth.charLength,
-          }),
-          validate: (content) => validateMetadata(content, source, truth),
-        })
-        rows.push(outcome.ok && outcome.value ? outcome.value : truth)
-        results.push(outcome)
-      }
-
-      const values: Record<string, unknown> = {
-        metadata: rows[0] ?? { chapter: 1, wordCount: 0, tokenCount: 0, charLength: 0 },
-        metadataLlm: attemptMeta(results),
-      }
-      if (env.items) {
-        values.metadataByItem = rows
-      }
-      return setVariables(env, values)
+      return runExtractor(SPEC, env, ctx, options ?? {}, {})
     },
   })
 }

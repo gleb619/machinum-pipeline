@@ -12,6 +12,7 @@ import {
 import type { ComposableTool, Exchange, Tool, ToolContext } from '@mt/core'
 import type { ChunkModeOptions } from '../core/chunk-processor.js'
 import { resolveProcessLlm } from '../core/llm-install.js'
+import { createLruCache } from '../core/lru-cache.js'
 import {
   type TranslateInput,
   type TranslateOutput,
@@ -316,24 +317,6 @@ function paragraphMemoKey(
   return JSON.stringify([req.text, req.targetLang, req.sourceLang ?? null, translator.name])
 }
 
-function memoGet(memo: Map<string, string>, key: string): string | undefined {
-  const hit = memo.get(key)
-  if (hit === undefined) return undefined
-  // Refresh recency (LRU).
-  memo.delete(key)
-  memo.set(key, hit)
-  return hit
-}
-
-function memoSet(memo: Map<string, string>, key: string, value: string): void {
-  memo.set(key, value)
-  while (memo.size > PARAGRAPH_MEMO_MAX_ENTRIES) {
-    const oldest = memo.keys().next().value
-    if (oldest === undefined) break
-    memo.delete(oldest)
-  }
-}
-
 async function* asAsync<T>(items: readonly T[]): AsyncIterable<T> {
   yield* items
 }
@@ -369,7 +352,10 @@ function paragraphTranslateSlot(
   // Per-paragraph memo, lifetime of this tool instance: the runner's retry re-invokes
   // the whole slot, so a memo hit means the paragraph is not re-translated (retry only
   // pays for paragraphs that failed). Skipped for non-idempotent translators.
-  const memo = translator.idempotent === false ? undefined : new Map<string, string>()
+  const memo =
+    translator.idempotent === false
+      ? undefined
+      : createLruCache({ maxEntries: PARAGRAPH_MEMO_MAX_ENTRIES })
   return defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
     name: 'paragraph-translator:translate',
     version: '1.1.0',
@@ -386,11 +372,11 @@ function paragraphTranslateSlot(
           const req = toTranslateInput(para, state.input)
           const key = memo ? paragraphMemoKey(req, translator) : undefined
           if (memo && key !== undefined) {
-            const hit = memoGet(memo, key)
+            const hit = memo.get(key)
             if (hit !== undefined) return hit
           }
           const out = await translateVia(translator, req, env, ctx)
-          if (memo && key !== undefined) memoSet(memo, key, out.translatedText)
+          if (memo && key !== undefined) memo.set(key, out.translatedText)
           return out.translatedText
         },
       )) {

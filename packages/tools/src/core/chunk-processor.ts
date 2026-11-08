@@ -527,7 +527,8 @@ export interface ChunkedRunArgs<T> {
   chunk: (chunkText: string, index: number) => Promise<T>
   merge: (outputs: readonly T[]) => T
   splitUnit?: SemanticUnit
-  concurrency?: number
+  /** Chunk concurrency; a thunk is resolved only when the chunked path runs. */
+  concurrency?: number | (() => number | undefined)
 }
 
 export interface ChunkedRunResult<T> {
@@ -553,11 +554,12 @@ export async function runChunkedText<T>(args: ChunkedRunArgs<T>): Promise<Chunke
     unit: args.splitUnit ?? 'paragraph',
     count: countTextTokens,
   })
+  const concurrency = typeof args.concurrency === 'function' ? args.concurrency() : args.concurrency
   const value = await processChunks({
     chunks,
     process: args.chunk,
     merge: args.merge,
-    concurrency: args.concurrency ?? DEFAULT_CHUNK_CONCURRENCY,
+    concurrency: concurrency ?? DEFAULT_CHUNK_CONCURRENCY,
   })
   return { value, chunks: chunks.length, budget }
 }

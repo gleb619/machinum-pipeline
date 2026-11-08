@@ -12,6 +12,7 @@ import {
 } from './llm-config.js'
 import { LlmContextLengthError } from './llm-errors.js'
 import { type PromptSources, promptSourcesFromCtx, resolvePrompt } from './llm-prompts.js'
+import { parseCount as numOf } from './values.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -565,11 +566,6 @@ export interface ResolveContextConfigArgs {
   modelLimit?: number
   /** Fallback reserve (e.g. request.maxTokens) when no layer sets one. */
   outputReserve?: number
-}
-
-function numOf(v: unknown): number | undefined {
-  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
-  return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined
 }
 
 function stratList(v: unknown): StrategySpec[] | undefined {

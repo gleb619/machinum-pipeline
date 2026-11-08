@@ -32,6 +32,7 @@ import {
   applyPoolError,
   sharedPoolFor,
 } from './openrouter-pool.js'
+import { numberOrZero as num } from './values.js'
 
 // ---------------------------------------------------------------------------
 // Minimal structural SDK interfaces (typed locals; the real SDKs are cast to these)
@@ -259,10 +260,6 @@ interface OpenAiUsage {
   prompt_tokens?: number
   completion_tokens?: number
   total_tokens?: number
-}
-
-function num(v: unknown): number {
-  return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
 
 export function createOpenAiSdkClient(options: OpenAiSdkClientOptions): LlmClient {

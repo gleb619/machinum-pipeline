@@ -4,6 +4,9 @@ import { createServer } from 'node:http'
 import type { IncomingMessage, Server, ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { formatLogLine } from '@mt/core'
+import { createLimiter } from '../core/limiter.js'
+import { createLruCache } from '../core/lru-cache.js'
+import { errorMessage, nonNegativeInteger, positiveInteger } from '../core/values.js'
 import { type BrowserTranslateEngine, createHeadlessGoogleEngine } from './browser-translate.js'
 
 const DEFAULT_HOST = '127.0.0.1'
@@ -102,22 +105,7 @@ interface TranslateResponseBody {
   cached: boolean
 }
 
-interface CacheEntry {
-  value: string
-  bytes: number
-}
-
 type JsonRecord = Record<string, unknown>
-
-function positiveInteger(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback
-  return Math.max(1, Math.floor(value))
-}
-
-function nonNegativeInteger(value: number | undefined, fallback: number): number {
-  if (value === undefined || !Number.isFinite(value)) return fallback
-  return Math.max(0, Math.floor(value))
-}
 
 function tokenMatches(given: string, expected: string): boolean {
   const actual = Buffer.from(given, 'utf8')
@@ -214,10 +202,6 @@ function isTimeoutError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   if (error.name === 'TimeoutError' || error.name === 'AbortError') return true
   return /timed?\s*out|timeout/i.test(error.message)
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function cacheKey(body: TranslateRequestBody): string {
@@ -375,64 +359,20 @@ export async function startBrowserTranslateServer(
     active: 0,
     queued: 0,
   }
-  const cache = new Map<string, CacheEntry>()
-  const waiting: Array<() => void> = []
+  const cache = createLruCache({ maxEntries: cacheEntries, maxBytes: cacheMaxBytes })
   const pending = new Set<Promise<void>>()
-  let cacheBytes = 0
   let activeUploads = 0
   let closing = false
   let closePromise: Promise<void> | undefined
 
-  const cacheGet = (key: string): string | undefined => {
-    const hit = cache.get(key)
-    if (hit === undefined) return undefined
-    cache.delete(key)
-    cache.set(key, hit)
-    return hit.value
-  }
-
-  const cacheSet = (key: string, value: string): void => {
-    if (cacheEntries === 0 || cacheMaxBytes === 0) return
-    const bytes = Buffer.byteLength(key, 'utf8') + Buffer.byteLength(value, 'utf8')
-    if (bytes > cacheMaxBytes) return
-
-    const previous = cache.get(key)
-    if (previous) cacheBytes -= previous.bytes
-    cache.delete(key)
-    cache.set(key, { value, bytes })
-    cacheBytes += bytes
-
-    while (cache.size > cacheEntries || cacheBytes > cacheMaxBytes) {
-      const oldest = cache.keys().next().value
-      if (oldest === undefined) break
-      const evicted = cache.get(oldest)
-      if (evicted) cacheBytes -= evicted.bytes
-      cache.delete(oldest)
-    }
-  }
-
-  const acquireSlot = async (): Promise<boolean> => {
-    if (stats.active < concurrency) {
-      stats.active++
-      return true
-    }
-    if (waiting.length >= queueLimit) return false
-    await new Promise<void>((resolve) => {
-      waiting.push(resolve)
-      stats.queued = waiting.length
-    })
-    return true
-  }
-
-  const releaseSlot = (): void => {
-    stats.active = Math.max(0, stats.active - 1)
-    const next = waiting.shift()
-    stats.queued = waiting.length
-    if (next) {
-      stats.active++
-      next()
-    }
-  }
+  const limiter = createLimiter({
+    concurrency,
+    queueLimit,
+    onChange: (active, queued) => {
+      stats.active = active
+      stats.queued = queued
+    },
+  })
 
   const handleHealth = (response: ServerResponse): void => {
     sendJson(response, 200, {
@@ -440,7 +380,7 @@ export async function startBrowserTranslateServer(
       engine: 'google-endpoint',
       cache: {
         entries: cache.size,
-        bytes: cacheBytes,
+        bytes: cache.bytes,
         hits: stats.cacheHits,
         misses: stats.cacheMisses,
       },
@@ -514,7 +454,7 @@ export async function startBrowserTranslateServer(
 
     const key = cacheKey(body)
     if (body.cache !== false) {
-      const cached = cacheGet(key)
+      const cached = cache.get(key)
       if (cached !== undefined) {
         stats.cacheHits++
         const hit: TranslateResponseBody = {
@@ -530,7 +470,7 @@ export async function startBrowserTranslateServer(
     }
     stats.cacheMisses++
 
-    const admitted = await acquireSlot()
+    const admitted = await limiter.acquire()
     if (!admitted) {
       sendJson(
         response,
@@ -562,7 +502,7 @@ export async function startBrowserTranslateServer(
       }
 
       const ms = Math.max(0, Math.round(performance.now() - started))
-      cacheSet(key, translatedText)
+      cache.set(key, translatedText)
       const result: TranslateResponseBody = {
         translatedText,
         engine: 'google-endpoint',
@@ -572,7 +512,7 @@ export async function startBrowserTranslateServer(
       }
       sendJson(response, 200, result)
     } finally {
-      releaseSlot()
+      limiter.release()
     }
   }
 

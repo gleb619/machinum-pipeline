@@ -1,6 +1,7 @@
 import { type Vault, getVariable, resolveVaultRef } from '@mt/core'
 import type { Exchange, Logger, RetryPolicy, ToolContext } from '@mt/core'
 import { defaultTransportKind } from './llm-sdk-transports.js'
+import { parseCount as posNum } from './values.js'
 
 export type LlmProvider = 'router' | 'openrouter' | 'openai' | 'ollama' | 'anthropic' | 'custom'
 
@@ -103,11 +104,6 @@ const DEFAULT_BASE_URL: Partial<Record<LlmProvider, string>> = {
 
 function nonEmpty(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined
-}
-
-function posNum(v: unknown): number | undefined {
-  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v
-  return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined
 }
 
 function bool(v: unknown): boolean | undefined {

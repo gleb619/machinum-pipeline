@@ -17,6 +17,7 @@ import {
   applyPoolError,
   sharedPoolFor,
 } from './openrouter-pool.js'
+import { numberOrZero as num } from './values.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,10 +118,6 @@ async function send(transport: LlmTransport, req: LlmHttpRequest): Promise<LlmHt
 
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
-}
-
-function num(v: unknown): number {
-  return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
 
 // ---------------------------------------------------------------------------

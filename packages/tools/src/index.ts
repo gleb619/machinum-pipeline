@@ -121,6 +121,12 @@ export {
 } from './normalization/schema/vocabulary.js'
 
 export {
+  runExtractor,
+  type ExtractorSpec,
+  type ExtractorRun,
+} from './normalization/schema/extractor.js'
+
+export {
   translateText,
   createTranslateText,
   createTranslateGate,
@@ -787,6 +793,27 @@ export {
   type ChunkedRunArgs,
   type ChunkedRunResult,
 } from './core/chunk-processor.js'
+
+export {
+  fetchWithRetry,
+  isRetryableStatus,
+  retryDelayMs,
+  type RetryRequest,
+} from './core/http-retry.js'
+
+export {
+  createLimiter,
+  type Limiter,
+  type LimiterOptions,
+} from './core/limiter.js'
+
+export {
+  createLruCache,
+  type LruCache,
+  type LruCacheOptions,
+} from './core/lru-cache.js'
+
+export { positiveInteger, nonNegativeInteger, errorMessage } from './core/values.js'
 
 export {
   createLlmGate,
