@@ -1,4 +1,7 @@
 import { readFile } from 'node:fs/promises'
+import type { ReadJsonOptions } from './types/json-file.js'
+
+export type { ReadJsonOptions } from './types/json-file.js'
 
 /**
  * Guarded JSON reads — one error shape for every file kind.
@@ -6,12 +9,6 @@ import { readFile } from 'node:fs/promises'
  * `label` names the kind of file in the error message ("vault", "embedded store").
  * Parser errors are never echoed: they can quote the file content, which may hold secrets.
  */
-
-/** Options for {@link readJsonOrThrow}. */
-export interface ReadJsonOptions {
-  /** Yield `undefined` instead of throwing when the file does not exist. */
-  ignoreMissing?: boolean
-}
 
 /**
  * Read `path` and parse it as JSON.

@@ -2,13 +2,11 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readMtConfig } from './config.js'
 import { createConsoleLogger } from './logging.js'
+import type { DiscoveredPipeline } from './types/discovery.js'
+
+export type { DiscoveredPipeline } from './types/discovery.js'
 
 const logger = createConsoleLogger()
-
-export interface DiscoveredPipeline {
-  path: string
-  declared: string
-}
 
 export async function discoverPipelines(projectRoot: string): Promise<DiscoveredPipeline[]> {
   const config = await readMtConfig(projectRoot)

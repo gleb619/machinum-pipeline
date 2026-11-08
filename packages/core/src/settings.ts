@@ -1,11 +1,6 @@
-/**
- * Project-level settings from mt.json.
- * Keys follow the convention: <type>.<name>.<setting>
- * Example: "waypoint.jsonl.defaultFolder"
- */
-export interface Settings {
-  [key: string]: unknown
-}
+import type { Settings } from './types/settings.js'
+
+export type { Settings } from './types/settings.js'
 
 /**
  * Read a typed setting using dot-path lookup.
