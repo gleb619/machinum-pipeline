@@ -1,4 +1,3 @@
-import type { BatchScope } from './contexts.js'
 import {
   type Exchange,
   type Variable,
@@ -7,6 +6,7 @@ import {
   unbatchExchange,
   withVariable,
 } from './exchange.js'
+import type { BatchScope } from './types.js'
 
 /**
  * Scope state of one `.batch(opts, nested)` group.

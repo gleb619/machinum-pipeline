@@ -1,9 +1,9 @@
 import { basename, isAbsolute, join } from 'node:path'
-import type { SourceContext, TargetContext } from '../contexts.js'
-import type { Exchange, ExchangeInput } from '../exchange.js'
+
 import { createConsoleLogger } from '../logging.js'
 import type { Lifecycle, Source, Target } from '../types.js'
-import type { ParsedUri } from '../uri.js'
+
+import type { Exchange, ExchangeInput, ParsedUri, SourceContext, TargetContext } from '../types.js'
 import { registry } from '../uri.js'
 import { createWorktree, mergeWorktreeToMain, removeWorktree } from './git-worktree.js'
 import { autoCommit } from './git.js'

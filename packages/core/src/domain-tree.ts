@@ -1,10 +1,10 @@
-import type { Chapter, Chunk, LineWord, Paragraph, ParagraphLine, Token } from './domain.js'
 import {
   DEFAULT_CHUNK_SEPARATOR,
   parseChunks,
   splitLineUnits,
   splitParagraphUnits,
 } from './text-split.js'
+import type { Chapter, Chunk, LineWord, Paragraph, ParagraphLine, Token } from './types.js'
 import type {
   ChapterBody,
   ChapterContent,

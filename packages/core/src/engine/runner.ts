@@ -37,7 +37,8 @@ import type {
   Target,
   Tool,
 } from '../types.js'
-import type { ParsedUri } from '../uri.js'
+
+import type { ParsedUri } from '../types.js'
 import { registry } from '../uri.js'
 import { Cache } from './cache.js'
 import {
