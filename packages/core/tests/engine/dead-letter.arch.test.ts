@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { writeDeadLetter } from '../../src/engine/dead-letter.js'
-import type { DeadLetterEntry } from '../../src/engine/dead-letter.js'
 import { fromPersisted, variable } from '../../src/exchange.js'
 import { Store } from '../../src/store.js'
+import type { DeadLetterEntry } from '../../src/types.js'
 
 describe('UC-18 — Dead-letter queue (architectural)', () => {
   it('writeDeadLetter is exported as a function', () => {

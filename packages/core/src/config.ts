@@ -1,9 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
-import type { ErrorPolicy, GlobalContext, RetryPolicy, RetryStrategy } from './contexts.js'
-import type { Settings } from './types.js'
-import type { MtConfig, RemoteSyncConfig } from 'types.js'
+import type { ErrorPolicy, RetryStrategy } from './contexts.js'
+import type { GlobalContext, MtConfig, RemoteSyncConfig, RetryPolicy, Settings } from './types.js'
 import { loadVault } from './vault.js'
 
 /** Transfer mode for project sync. `git` is reserved/deferred. */

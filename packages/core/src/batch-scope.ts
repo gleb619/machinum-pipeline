@@ -1,12 +1,5 @@
-import {
-  type Exchange,
-  type Variable,
-  batchMembersOf,
-  groupVariableEdits,
-  unbatchExchange,
-  withVariable,
-} from './exchange.js'
-import type { BatchScope } from './types.js'
+import { batchMembersOf, groupVariableEdits, unbatchExchange, withVariable } from './exchange.js'
+import type { BatchScope, Exchange, Variable } from './types.js'
 
 /**
  * Scope state of one `.batch(opts, nested)` group.

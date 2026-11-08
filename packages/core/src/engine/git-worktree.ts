@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import type { MergeWorktreeOptions, MergeWorktreeResult } from 'types.js'
+import type { MergeWorktreeOptions, MergeWorktreeResult } from '../types.js'
 import { execGit } from './git.js'
 
 /**

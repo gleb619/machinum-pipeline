@@ -1,5 +1,5 @@
 import type { Logger } from './types.js'
-import type { LogFunction } from 'types.js'
+import type { LogFunction } from './types.js'
 
 /** Log severities emitted by the shared formatter. */
 export type LogSeverity = 'debug' | 'info' | 'warn' | 'error'

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { type DiscoveredPipeline, discoverPipelines } from '../src/discovery.js'
+import { discoverPipelines } from '../src/discovery.js'
+import type { DiscoveredPipeline } from '../src/types.js'
 
 describe('UC-48 — Discover pipelines from mt.json (architectural)', () => {
   it('discoverPipelines is exported as a function', () => {

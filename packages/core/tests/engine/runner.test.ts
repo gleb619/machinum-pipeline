@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import { Store } from '../../src/store.js'
 import type { Pipeline } from '../../src/types.js'
+import type { GlobalContext } from '../../src/types.js'
 
 vi.mock('../../src/store.js', () => ({
   Store: class {

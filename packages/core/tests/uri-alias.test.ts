@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Settings } from '../src/settings.js'
 import type { Source, Target } from '../src/types.js'
+import type { Settings } from '../src/types.js'
 import { MAX_URI_ALIAS_DEPTH, UriRegistry } from '../src/uri.js'
 
 function makeRegistry(): UriRegistry {

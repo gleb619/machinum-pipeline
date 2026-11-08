@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import type { Pipeline } from '../../src/types.js'
+import type { GlobalContext } from '../../src/types.js'
 
 describe('Runner Pause', () => {
   it('should transition to paused state', async () => {

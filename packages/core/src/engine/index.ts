@@ -1,7 +1,7 @@
 export { RunStateMachine } from './state-machine.js'
 export { Runner } from './runner.js'
 export { Cache } from './cache.js'
-export type { CacheOptions, CacheEntry } from './cache.js'
+export type { CacheOptions, CacheEntry } from '../types.js'
 export { writeDeadLetter } from './dead-letter.js'
 export { autoCommit, execGit } from './git.js'
 export {
@@ -10,7 +10,7 @@ export {
   mergeWorktreeToMain,
   getRepoRoot,
 } from './git-worktree.js'
-export type { MergeWorktreeOptions, MergeWorktreeResult } from './git-worktree.js'
+export type { MergeWorktreeOptions, MergeWorktreeResult } from '../types.js'
 export {
   createRootCheckpoint,
   findNode,

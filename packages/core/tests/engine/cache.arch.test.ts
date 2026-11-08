@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { Cache } from '../../src/engine/cache.js'
-import type { CacheEntry, CacheOptions } from '../../src/engine/cache.js'
 import type { Tool } from '../../src/types.js'
+import type { CacheEntry, CacheOptions } from '../../src/types.js'
 
 describe('UC-19 — Tool cache (architectural)', () => {
   it('Cache class is exported and constructable', () => {

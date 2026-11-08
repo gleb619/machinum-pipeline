@@ -2,7 +2,7 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { readMtConfig } from './config.js'
 import { createConsoleLogger } from './logging.js'
-import type { DiscoveredPipeline } from 'types.js'
+import type { DiscoveredPipeline } from './types.js'
 
 const logger = createConsoleLogger()
 

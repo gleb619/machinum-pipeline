@@ -1,4 +1,4 @@
-import type { Exchange } from './exchange.js'
+import type { Exchange } from './types/exchange.js'
 import type { BufferWriter, Pipeline } from './types/pipeline.js'
 import type { RunEvent } from './types/run-events.js'
 
@@ -7,7 +7,6 @@ export * from './types/atomic.js'
 export * from './types/config.js'
 export * from './types/contexts.js'
 export * from './types/discovery.js'
-export * from './types/domain.js'
 export * from './types/domain.js'
 export * from './types/dsl.js'
 export * from './types/engine/cache.js'

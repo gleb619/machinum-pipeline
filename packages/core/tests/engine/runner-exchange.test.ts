@@ -2,11 +2,9 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import {
   BATCH_MEMBERS_VARIABLE,
-  type Exchange,
   ITEM_VARIABLE,
   createExchange,
   getVariable,
@@ -19,6 +17,7 @@ import {
   withMeta,
 } from '../../src/exchange.js'
 import type { Pipeline, Splitter, Tool } from '../../src/types.js'
+import type { Exchange, GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 const inputs: Array<Exchange<unknown> | { item: unknown }> = []

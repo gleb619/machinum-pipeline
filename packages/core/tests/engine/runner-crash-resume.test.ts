@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AtomicStreamWriter } from '../../src/atomic.js'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import type { Envelope, Pipeline, RunStateData, Target } from '../../src/types.js'
+import type { GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 /**

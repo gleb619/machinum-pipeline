@@ -7,7 +7,7 @@ import type {
   SplitIntoChunksOptions,
   TokenSplitStrategy,
   WhitespaceStrategyOptions,
-} from 'types.js'
+} from './types.js'
 /**
  * Pure text-splitting primitives: unit splitting, balanced partitioning and
  * separator-fixated chunking. Dependency-free so every package can reuse it.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { RetryPolicy } from '../../src/contexts.js'
 import { getBackoff, wait, withRetry } from '../../src/engine/retry.js'
+import type { RetryPolicy } from '../../src/types.js'
 
 describe('UC-17 — Retry logic (architectural)', () => {
   it('withRetry is exported as a function', () => {

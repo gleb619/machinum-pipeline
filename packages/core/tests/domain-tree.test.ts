@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  type WordSpan,
   chapterBody,
   chapterBodyFromMarkdown,
   chapterTree,
   parseChapterTree,
 } from '../src/domain-tree.js'
-import type { Chapter } from '../src/domain.js'
+import type { Chapter, WordSpan } from '../src/types.js'
 
 function requireValue<T>(value: T | undefined, message: string): T {
   if (value === undefined) throw new Error(message)

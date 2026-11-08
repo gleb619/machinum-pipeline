@@ -8,8 +8,8 @@ vi.mock('node:child_process', () => ({ execFile: execFileMock }))
 
 import { loadGlobalContext } from '../src/config.js'
 import { setEmbedSecret } from '../src/secrets.js'
+import type { Vault } from '../src/types.js'
 import {
-  type Vault,
   findPlaintextKeys,
   isSecretRef,
   loadVault,

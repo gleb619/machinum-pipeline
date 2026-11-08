@@ -6,7 +6,7 @@ import type {
   CategoryAnnotation,
   CategoryFactory,
   IdAnnotation,
-} from 'types.js'
+} from './types.js'
 /**
  * Runtime annotations — one common mechanism, four sealed kinds.
  *

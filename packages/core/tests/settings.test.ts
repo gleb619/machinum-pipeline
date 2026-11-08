@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { type Settings, getSetting } from '../src/settings.js'
+import { getSetting } from '../src/settings.js'
+import type { Settings } from '../src/types.js'
 
 describe('settings', () => {
   it('returns undefined when settings bag is missing', () => {

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises'
-import type { ReadJsonOptions } from 'types.js'
+import type { ReadJsonOptions } from './types.js'
 
 /**
  * Guarded JSON reads — one error shape for every file kind.

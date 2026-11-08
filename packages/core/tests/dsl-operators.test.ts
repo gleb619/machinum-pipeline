@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { DEFAULT_BATCH_SIZE, definePipeline, source, target } from '../src/dsl.js'
 import type { Pipeline } from '../src/types.js'
-import type { ParsedUri } from '../src/uri.js'
+import type { ParsedUri } from '../src/types.js'
 import { registry } from '../src/uri.js'
 
 beforeAll(() => {

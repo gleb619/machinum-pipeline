@@ -56,7 +56,7 @@ describe('UC-12/UC-13/UC-14 — Concurrency, Batching & Forking (architectural)'
 
   it('GlobalContext.defaults.concurrency exists as a number', () => {
     // The runner reads concurrency from step config, falling back to global defaults
-    const ctx: import('../../src/contexts.js').GlobalContext = {
+    const ctx: import('../../src/types.js').GlobalContext = {
       project: { name: 'test', root: '/tmp/test' },
       defaults: {
         retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
@@ -101,7 +101,7 @@ describe('UC-52/53 — Context plumbing: logger & artifacts (architectural)', ()
   it('RunContext has artifactsDir property for persisting intermediate outputs', () => {
     // Verify that contexts.ts exports artifactsDir in RunContext
     // Read the contexts source file to confirm
-    const ctx: import('../../src/contexts.js').RunContext = {
+    const ctx: import('../../src/types.js').RunContext = {
       runId: 'test',
       pipelineId: 'test',
       startedAt: new Date().toISOString(),
@@ -124,7 +124,7 @@ describe('UC-52/53 — Context plumbing: logger & artifacts (architectural)', ()
   })
 
   it('RunContext has logger property conforming to Logger interface', () => {
-    const ctx: import('../../src/contexts.js').RunContext = {
+    const ctx: import('../../src/types.js').RunContext = {
       runId: 'test',
       pipelineId: 'test',
       startedAt: new Date().toISOString(),
@@ -150,7 +150,7 @@ describe('UC-52/53 — Context plumbing: logger & artifacts (architectural)', ()
   })
 
   it('ToolContext.run forwards RunContext (including logger and artifactsDir)', () => {
-    const ctx: import('../../src/contexts.js').ToolContext = {
+    const ctx: import('../../src/types.js').ToolContext = {
       run: {
         runId: 'test',
         pipelineId: 'test',
@@ -176,7 +176,7 @@ describe('UC-52/53 — Context plumbing: logger & artifacts (architectural)', ()
   })
 
   it('SourceContext.run exposes RunContext with logger', () => {
-    const ctx: import('../../src/contexts.js').SourceContext = {
+    const ctx: import('../../src/types.js').SourceContext = {
       run: {
         runId: 'test',
         pipelineId: 'test',
@@ -200,7 +200,7 @@ describe('UC-52/53 — Context plumbing: logger & artifacts (architectural)', ()
   })
 
   it('TargetContext.run exposes RunContext with logger', () => {
-    const ctx: import('../../src/contexts.js').TargetContext = {
+    const ctx: import('../../src/types.js').TargetContext = {
       run: {
         runId: 'test',
         pipelineId: 'test',

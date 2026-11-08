@@ -1,27 +1,33 @@
 import { basename, dirname } from 'node:path'
 import { type Annotation, annotate } from './annotation.js'
 import { loadGlobalContext } from './config.js'
-import type {
-  GlobalContext,
-  RetryPolicy,
-  SourceContext,
-  TargetContext,
-  ToolContext,
-} from './contexts.js'
 import { Runner } from './engine/runner.js'
-import { type Exchange, type ExchangeInput, toExchange } from './exchange.js'
+import { toExchange } from './exchange.js'
 import { type LogSeverity, createConsoleLogger, log } from './logging.js'
-import type { Process, ProcessMode, ProcessRunOptions } from './process.js'
-import type { Pipeline, PipelineStep, Source, Target, Tool } from './types.js'
+import type { ProcessMode } from './process.js'
 import type {
   BatchOptions,
   ComposableTool,
+  Exchange,
+  ExchangeInput,
+  GlobalContext,
   LogOptions,
+  Pipeline,
+  PipelineStep,
+  Process,
   ProcessConfig,
   ProcessOptions,
+  ProcessRunOptions,
+  RetryPolicy,
+  Source,
+  SourceContext,
+  Target,
+  TargetContext,
+  Tool,
+  ToolContext,
   WaypointSourceHooks,
   WaypointTargetHooks,
-} from 'types.js'
+} from './types.js'
 import { registry } from './uri.js'
 
 /**

@@ -15,18 +15,6 @@ export {
   useCase,
   waypoint,
 } from './annotation.js'
-export type {
-  Annotation,
-  AnnotationFactories,
-  AnnotationKind,
-  AnnotationKindFactory,
-  AnnotationRecord,
-  AnnotationSpec,
-  CategoryAnnotation,
-  CategoryFactory,
-  IdAnnotation,
-  IdAnnotationKind,
-} from './annotation.js'
 export {
   createConsoleLogger,
   escapeLogNewlines,
@@ -35,27 +23,19 @@ export {
   formatLogLine,
   log,
 } from './logging.js'
-export type { LogFormat, LogFunction, LogSeverity } from './logging.js'
+export type { LogFormat, LogSeverity } from './logging.js'
 export { acquireListener, hostsShareListener } from './http-listener.js'
-export type { HttpRouteHandler, ListenerFactory, ListenerLease } from './http-listener.js'
+export type { ListenerFactory } from './http-listener.js'
 export { Store } from './store.js'
 export {
   atomicWriteFile,
   AtomicStreamWriter,
-  type AtomicStreamWriterOptions,
-  type AtomicWriteOptions,
   pathExists,
   removeStaleTmpFiles,
   tmpPathFor,
   truncateFileToBytes,
 } from './atomic.js'
-export type {
-  LifecycleScripts,
-  MtConfig,
-  RemoteConfig,
-  RemoteSyncConfig,
-  RemoteSyncMode,
-} from './config.js'
+export type { LifecycleScripts, RemoteSyncMode } from './config.js'
 export {
   DEFAULT_MT_CONFIG,
   DEFAULT_REMOTE_SYNC,
@@ -65,27 +45,8 @@ export {
   readMtConfigSync,
   validateRemoteConfig,
 } from './config.js'
-export type {
-  GlobalContext,
-  RunContext,
-  SplitterContext,
-  ToolContext,
-  SourceContext,
-  TargetContext,
-  CheckpointHandle,
-  StepInfo,
-  RetryPolicy,
-  ErrorPolicy,
-  RetryStrategy,
-  BatchScope,
-} from './contexts.js'
-export type {
-  Vault,
-  VaultEntry,
-  VaultProvider,
-  VaultRef,
-  ResolvedVaultRef,
-} from './vault.js'
+export type { ErrorPolicy, RetryStrategy } from './contexts.js'
+export type { VaultProvider } from './vault.js'
 export {
   addEntry,
   emptyVault,
@@ -103,26 +64,9 @@ export {
   vaultPaths,
   VAULT_PROVIDERS,
 } from './vault.js'
-export type { LoadVaultOptions, SecretResolver } from './vault.js'
+export type { SecretResolver } from './vault.js'
 export { registerSecretResolver, registeredSecretPrefixes, resetSecretResolvers } from './vault.js'
-export type {
-  AddEmbedKeyOptions,
-  CreateEmbedOptions,
-  EmbedEntryInfo,
-  EmbedKeyInfo,
-  EmbedKeyringOptions,
-  GenerateEmbedKeyOptions,
-  RotateEmbedKeysOptions,
-  EmbedSecret,
-  MasterKeyPaths,
-  MasterKeyResolution,
-  MasterKeySource,
-  RekeyEmbedOptions,
-  WriteMasterKeyOptions,
-  RotateEmbedSecretOptions,
-  SetEmbedSecretInput,
-  SetEmbedSecretOptions,
-} from './secrets.js'
+export type { MasterKeySource } from './secrets.js'
 export {
   DEFAULT_EMBED_PASSWORD,
   DEFAULT_EMBED_WARNING,
@@ -156,41 +100,134 @@ export {
   setEmbedSecret,
   useEmbedKey,
 } from './secrets.js'
-export type { Settings } from './settings.js'
 export { getSetting } from './settings.js'
 export type {
-  Source,
-  Splitter,
-  Tool,
-  Target,
+  AddEmbedKeyOptions,
+  Annotation,
+  AnnotationFactories,
+  AnnotationKind,
+  AnnotationKindFactory,
+  AnnotationRecord,
+  AnnotationSpec,
+  AtomicStreamWriterOptions,
+  AtomicWriteOptions,
+  BalancedLineStrategyOptions,
+  BalancedStrategyOptions,
+  BatchMembers,
+  BatchOptions,
+  BatchScope,
+  Book,
   BufferWriter,
   BufferWriterFactory,
-  Envelope,
-  Lifecycle,
-  Logger,
-  Pipeline,
-  ForkStepConfig,
-  PipelineStep,
-  RunState,
-  RunEvent,
-  RunEventType,
-  RunEventListener,
-  RunEvents,
+  BuildManifestOptions,
+  CacheEntry,
+  CacheOptions,
+  CategoryAnnotation,
+  CategoryFactory,
+  Chapter,
+  ChapterBody,
+  ChapterContent,
+  ChapterLine,
+  ChapterLineWord,
+  ChapterText,
+  ChapterTreeInput,
+  CheckpointHandle,
   CheckpointNode,
-  RunStateData,
-  RunnerOptions,
-  MdOutputEntry,
-} from './types.js'
-export type {
-  BatchMembers,
+  Chunk,
+  ComposableTool,
+  CreateEmbedOptions,
+  DeadLetterEntry,
+  DiscoveredPipeline,
+  DomainTreeOptions,
+  EmbedEntryInfo,
+  EmbedKeyInfo,
+  EmbedKeyringOptions,
+  EmbedSecret,
+  Envelope,
   Exchange,
   ExchangeInput,
   ExchangeMeta,
+  ForkStepConfig,
+  GenerateEmbedKeyOptions,
+  GlobalContext,
+  HttpRouteHandler,
+  IdAnnotation,
+  IdAnnotationKind,
+  Lifecycle,
+  LineStrategyOptions,
+  LineWord,
+  ListenerLease,
+  LoadVaultOptions,
+  LogFunction,
+  LogOptions,
+  Logger,
+  MasterKeyPaths,
+  MasterKeyResolution,
+  MdOutputEntry,
+  MtConfig,
+  Paragraph,
+  ParagraphLine,
+  ParagraphStrategyOptions,
+  ParsedUri,
   PersistedExchange,
+  Pipeline,
+  PipelineStep,
+  Process,
+  ProcessConfig,
+  ProcessOptions,
+  ProcessRunOptions,
   Qualifier,
+  RekeyEmbedOptions,
+  RemoteConfig,
+  RemoteSyncConfig,
+  ResolvedVaultRef,
+  RetryPolicy,
+  RetryableError,
+  RotateEmbedKeysOptions,
+  RotateEmbedSecretOptions,
+  RunContext,
+  RunEvent,
+  RunEventListener,
+  RunEventType,
+  RunEvents,
+  RunState,
+  RunStateData,
+  RunnerOptions,
+  SentenceStrategyOptions,
+  SetEmbedSecretInput,
+  SetEmbedSecretOptions,
+  Settings,
+  Source,
+  SourceContext,
+  SplitIntoChunksOptions,
+  Splitter,
+  SplitterContext,
+  StepInfo,
+  SyncApplyOptions,
+  SyncDiff,
+  SyncHashCache,
+  SyncManifestEntry,
+  SyncOutputScopeOptions,
+  SyncScopeOptions,
+  Target,
+  TargetContext,
+  Token,
+  TokenPart,
+  TokenSplitStrategy,
+  Tool,
+  ToolContext,
+  UriAliases,
   Variable,
   VariableOptions,
-} from './exchange.js'
+  Vault,
+  VaultEntry,
+  VaultRef,
+  WaypointSourceHooks,
+  WaypointTargetHooks,
+  WhitespaceStrategyOptions,
+  WordSpan,
+  WriteMasterKeyOptions,
+} from './types.js'
 export {
   BATCH_MEMBERS_VARIABLE,
   batchMembersOf,
@@ -227,17 +264,6 @@ export {
   withoutOldAndEmpty,
   withoutVariable,
 } from './exchange.js'
-export type {
-  Book,
-  Chapter,
-  ChapterLine,
-  ChapterLineWord,
-  Paragraph,
-  Chunk,
-  Token,
-  ParagraphLine,
-  LineWord,
-} from './domain.js'
 export {
   ChapterNode,
   ChunkNode,
@@ -251,18 +277,11 @@ export {
   parseChapterTree,
 } from './domain-tree.js'
 export type {
-  ChapterBody,
-  ChapterContent,
-  ChapterText,
-  ChapterTreeInput,
   ChunkBodySplitter,
-  DomainTreeOptions,
   DomainTreeTokenizer,
   LineBodySplitter,
   LineWordSplitter,
   ParagraphBodySplitter,
-  TokenPart,
-  WordSpan,
 } from './domain-tree.js'
 export {
   BALANCE_ALLOWED_DEVIATION,
@@ -300,17 +319,7 @@ export {
 } from './text-split.js'
 export * from './constants.js'
 
-export type {
-  BalancedLineStrategyOptions,
-  BalancedStrategyOptions,
-  LineStrategyOptions,
-  ParagraphStrategyOptions,
-  SentenceStrategyOptions,
-  SplitIntoChunksOptions,
-  TokenCountFn,
-  TokenSplitStrategy,
-  WhitespaceStrategyOptions,
-} from './text-split.js'
+export type { TokenCountFn } from './text-split.js'
 export {
   definePipeline,
   defineTool,
@@ -327,31 +336,13 @@ export {
   PipelineBuilder,
   DEFAULT_BATCH_SIZE,
 } from './dsl.js'
-export type { BatchOptions } from './dsl.js'
 export { createBatchScope } from './batch-scope.js'
-export type {
-  ComposableTool,
-  LogLevel,
-  LogOptions,
-  ProcessConfig,
-  ProcessInstall,
-  ToolFn,
-  WaypointSourceHooks,
-  WaypointTargetHooks,
-} from './dsl.js'
+export type { LogLevel, ProcessInstall, ToolFn } from './dsl.js'
 export { isProcess } from './process.js'
-export type { Process, ProcessMode, ProcessRunOptions } from './process.js'
-export type { ProcessOptions } from './dsl.js'
+export type { ProcessMode } from './process.js'
 export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
-export type {
-  ParsedUri,
-  SourceFactory,
-  TargetFactory,
-  CompositeResolver,
-  UriAliases,
-} from './uri.js'
+export type { SourceFactory, TargetFactory, CompositeResolver } from './uri.js'
 export { discoverPipelines } from './discovery.js'
-export type { DiscoveredPipeline } from './discovery.js'
 export { derivePipelineId } from './dsl.js'
 export {
   importPipelineModule,
@@ -389,10 +380,8 @@ export {
   wait,
   withRetry,
 } from './engine/retry.js'
-export type { PartialRetryPolicy, RetryableError } from './engine/retry.js'
+export type { PartialRetryPolicy } from './engine/retry.js'
 export { Cache } from './engine/cache.js'
-export type { CacheEntry, CacheOptions } from './engine/cache.js'
-export type { DeadLetterEntry } from './engine/dead-letter.js'
 export { mapConcurrent } from './engine/stream.js'
 // Built-in source/target registration moved to @mt/waypoint package.
 // Import '@mt/waypoint' to register jsonl, md, http, hs, git+ schemes.
@@ -422,21 +411,18 @@ export {
   resolveProjectId,
   walkSyncFiles,
 } from './sync/scope.js'
-export type { SyncOutputScopeOptions, SyncScopeOptions } from './sync/scope.js'
 export {
   buildManifest,
   createSyncHashCache,
   hashFile,
   manifestTotalBytes,
 } from './sync/manifest.js'
-export type { BuildManifestOptions, SyncHashCache, SyncManifestEntry } from './sync/manifest.js'
 export {
   diffManifest,
   diffManifests,
   hasSyncChanges,
   manifestHashMap,
 } from './sync/diff.js'
-export type { SyncDiff } from './sync/diff.js'
 export {
   SyncFileTooLargeError,
   SyncPathError,
@@ -448,4 +434,3 @@ export {
   resolveSyncPath,
   writeSyncFile,
 } from './sync/apply.js'
-export type { SyncApplyOptions } from './sync/apply.js'

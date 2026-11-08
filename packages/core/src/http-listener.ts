@@ -7,7 +7,7 @@ import {
 } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { createConsoleLogger } from './logging.js'
-import type { ListenerLease } from 'types.js'
+import type { ListenerLease } from './types.js'
 
 /**
  * Handler mounted on a shared HTTP listener. The registry dispatches by exact pathname;

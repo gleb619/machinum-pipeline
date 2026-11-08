@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import type { Envelope, Pipeline, Tool } from '../../src/types.js'
+import type { GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 vi.mock('../../src/store.js', () => ({

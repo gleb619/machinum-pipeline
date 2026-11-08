@@ -1,5 +1,4 @@
-import type { SyncDiff } from 'types.js'
-import type { SyncManifestEntry } from './manifest.js'
+import type { SyncDiff, SyncManifestEntry } from '../types.js'
 
 function byPath(entries: readonly SyncManifestEntry[]): Map<string, SyncManifestEntry> {
   return new Map(entries.map((entry) => [entry.path, entry]))

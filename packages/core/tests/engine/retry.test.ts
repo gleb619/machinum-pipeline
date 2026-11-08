@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { RetryPolicy } from '../../src/contexts.js'
 import { getBackoff, resolveRetryPolicy, withRetry } from '../../src/engine/retry.js'
+import type { RetryPolicy } from '../../src/types.js'
 
 describe('resolveRetryPolicy', () => {
   const defaults: RetryPolicy = { max: 0, backoffMs: 0, strategy: 'fixed' }

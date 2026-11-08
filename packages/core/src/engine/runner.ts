@@ -2,10 +2,9 @@ import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { annotate, useCase } from '../annotation.js'
 import { createBatchScope } from '../batch-scope.js'
-import type { ErrorPolicy, GlobalContext, RetryPolicy, RunContext, StepInfo } from '../contexts.js'
+import type { ErrorPolicy } from '../contexts.js'
 import {
   BATCH_MEMBERS_VARIABLE,
-  type ExchangeInput,
   ITEM_VARIABLE,
   batchMembersOf,
   createExchange,
@@ -22,9 +21,14 @@ import type {
   BufferWriter,
   CheckpointNode,
   Envelope,
+  ExchangeInput,
+  GlobalContext,
   Logger,
+  ParsedUri,
   Pipeline,
   PipelineStep,
+  RetryPolicy,
+  RunContext,
   RunEvent,
   RunEventListener,
   RunEventType,
@@ -34,11 +38,10 @@ import type {
   RunnerOptions,
   Source,
   Splitter,
+  StepInfo,
   Target,
   Tool,
 } from '../types.js'
-
-import type { ParsedUri } from '../types.js'
 import { registry } from '../uri.js'
 import { Cache } from './cache.js'
 import {

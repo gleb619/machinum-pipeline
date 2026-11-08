@@ -2,10 +2,10 @@ import { mkdtemp, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import { Store } from '../../src/store.js'
 import type { Envelope, Pipeline, RunEventType, Tool } from '../../src/types.js'
+import type { GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 const sourceItems: Array<Envelope<unknown>> = []

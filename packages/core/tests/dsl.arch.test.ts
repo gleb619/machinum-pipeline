@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { PipelineBuilder, definePipeline, defineTool } from '../src/dsl.js'
-import type { Pipeline, RetryPolicy, Tool } from '../src/index.js'
+import type { Pipeline, RetryPolicy, Tool } from '../src/types.js'
 import { registry } from '../src/uri.js'
 
 describe('UC-02 — Author a pipeline in TS (architectural)', () => {

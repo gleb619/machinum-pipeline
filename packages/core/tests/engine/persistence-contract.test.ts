@@ -2,11 +2,9 @@ import { mkdtemp, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { writeDeadLetter } from '../../src/engine/dead-letter.js'
 import { Runner } from '../../src/engine/runner.js'
 import {
-  type Exchange,
   createExchange,
   fromPersisted,
   getVariable,
@@ -17,6 +15,7 @@ import {
 } from '../../src/exchange.js'
 import { Store } from '../../src/store.js'
 import type { Pipeline, Tool } from '../../src/types.js'
+import type { Exchange, GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 /** Persistence contract: `meta` is in-flight only, `variables` persist (ephemeral dropped). */

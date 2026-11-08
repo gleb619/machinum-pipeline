@@ -21,7 +21,7 @@ import type {
   SetEmbedSecretInput,
   SetEmbedSecretOptions,
   WriteMasterKeyOptions,
-} from 'types.js'
+} from './types.js'
 
 const logger = createConsoleLogger()
 

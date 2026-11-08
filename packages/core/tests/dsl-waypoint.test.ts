@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GlobalContext, SourceContext, TargetContext } from '../src/contexts.js'
 import { definePipeline, defineWaypoint } from '../src/dsl.js'
 import { Runner } from '../src/engine/runner.js'
-import {
-  type ExchangeInput,
-  type Lifecycle,
-  type Source,
-  type Target,
-  createExchange,
-} from '../src/index.js'
+import { createExchange } from '../src/index.js'
+import type {
+  ExchangeInput,
+  GlobalContext,
+  Lifecycle,
+  Source,
+  SourceContext,
+  Target,
+  TargetContext,
+} from '../src/types.js'
 import { registry } from '../src/uri.js'
 
 // Runner-level tests persist nothing: stub the Store like tests/engine/runner.test.ts does.

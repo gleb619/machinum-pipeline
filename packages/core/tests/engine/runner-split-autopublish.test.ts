@@ -2,10 +2,10 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { definePipeline } from '../../src/dsl.js'
 import { Runner } from '../../src/engine/runner.js'
 import type { BufferWriter, Splitter } from '../../src/types.js'
+import type { GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 /** Namespace -> published items, shared by the fake writer. */

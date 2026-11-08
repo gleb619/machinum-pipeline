@@ -4,8 +4,8 @@ import type {
   SplitterContext,
   TargetContext,
   ToolContext,
-} from '../contexts.js'
-import type { Exchange, ExchangeInput } from '../exchange.js'
+} from './contexts.js'
+import type { Exchange, ExchangeInput } from './exchange.js'
 
 /**
  * Lifecycle type for sources.

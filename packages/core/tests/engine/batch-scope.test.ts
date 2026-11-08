@@ -2,11 +2,9 @@ import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { GlobalContext, SourceContext, TargetContext } from '../../src/contexts.js'
 import { definePipeline } from '../../src/dsl.js'
 import { Runner } from '../../src/engine/runner.js'
 import {
-  type Exchange,
   batchMembersOf,
   createExchange,
   getVariable,
@@ -17,6 +15,7 @@ import {
   withMeta,
 } from '../../src/exchange.js'
 import type { Pipeline, Source, Target, Tool } from '../../src/types.js'
+import type { Exchange, GlobalContext, SourceContext, TargetContext } from '../../src/types.js'
 
 const inputs: Exchange<unknown>[] = []
 const outputs: Exchange<unknown>[] = []

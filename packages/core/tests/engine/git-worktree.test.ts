@@ -3,7 +3,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SourceContext, TargetContext } from '../../src/contexts.js'
 import {
   GitWorktreeSource,
   GitWorktreeTarget,
@@ -18,8 +17,8 @@ import {
 } from '../../src/engine/git-worktree.js'
 import { autoCommit, execGit } from '../../src/engine/git.js'
 import type { Envelope, Lifecycle, Source, Target } from '../../src/types.js'
+import type { ParsedUri, SourceContext, TargetContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
-import type { ParsedUri } from '../../src/uri.js'
 
 // ---------------------------------------------------------------------------
 // Helpers

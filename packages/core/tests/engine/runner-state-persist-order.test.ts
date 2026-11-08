@@ -2,10 +2,10 @@ import { mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
-import { type Exchange, createExchange } from '../../src/exchange.js'
+import { createExchange } from '../../src/exchange.js'
 import type { Pipeline } from '../../src/types.js'
+import type { Exchange, GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 /**

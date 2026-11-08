@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ParsedUri } from '../src/uri.js'
+import type { ParsedUri } from '../src/types.js'
 import { UriRegistry, registry } from '../src/uri.js'
 
 describe('UriRegistry', () => {

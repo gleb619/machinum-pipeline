@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { ToolContext } from '../src/contexts.js'
 import { chain, defineComposableTool, definePipeline, defineTool } from '../src/dsl.js'
+import type { ToolContext } from '../src/types.js'
 
 const ctx = {} as ToolContext
 const appender = (name: string) =>

@@ -3,13 +3,7 @@ import { join, resolve } from 'node:path'
 import { atomicWriteFile } from './atomic.js'
 import { readJsonOrThrow } from './json-file.js'
 import { isEmbedRef, resolveEmbedValue } from './secrets.js'
-import type {
-  LoadVaultOptions,
-  ResolvedVaultRef,
-  Vault,
-  VaultEntry,
-  VaultRef,
-} from 'types.js'
+import type { LoadVaultOptions, ResolvedVaultRef, Vault, VaultEntry, VaultRef } from './types.js'
 
 /**
  * Vault — gitignored store of sensitive LLM endpoint data (URLs, keys, headers).

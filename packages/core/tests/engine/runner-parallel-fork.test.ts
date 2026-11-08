@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GlobalContext } from '../../src/contexts.js'
 import { Runner } from '../../src/engine/runner.js'
 import { ITEM_VARIABLE, getVariable } from '../../src/exchange.js'
 import type { CheckpointNode, Envelope, Pipeline, RunStateData } from '../../src/types.js'
+import type { GlobalContext } from '../../src/types.js'
 import { registry } from '../../src/uri.js'
 
 /** Every state.json payload the runner persists during a test. */

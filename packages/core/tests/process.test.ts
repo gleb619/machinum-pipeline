@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GlobalContext } from '../src/contexts.js'
 import type { Pipeline, RunnerOptions } from '../src/types.js'
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +19,7 @@ vi.mock('../src/config.js', () => ({ loadGlobalContext: mocks.loadGlobalContext 
 
 import { defineProcess, isPipeline } from '../src/dsl.js'
 import { isProcess } from '../src/process.js'
+import type { GlobalContext } from '../src/types.js'
 
 function makePipeline(id: string): Pipeline {
   return {

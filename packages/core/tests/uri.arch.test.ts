@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { source, target } from '../src/dsl.js'
-import type { Envelope, Source, SourceContext, Target, TargetContext } from '../src/index.js'
+import type { Envelope, Source, SourceContext, Target, TargetContext } from '../src/types.js'
 import { registry } from '../src/uri.js'
 
 // Register jsonl scheme for URI resolution tests

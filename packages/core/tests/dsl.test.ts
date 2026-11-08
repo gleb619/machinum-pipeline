@@ -7,7 +7,7 @@ import type {
   Paragraph,
   ParagraphLine,
   RetryPolicy,
-} from '../src/index.js'
+} from '../src/types.js'
 import { registry } from '../src/uri.js'
 
 // Register jsonl scheme for tests
