@@ -1,7 +1,17 @@
 # Samples
 
-Two runnable samples cover the feature set: a numbered tutorial and a practical book-translation
-workflow. Both live in the pnpm workspace and double as integration tests.
+Two runnable samples cover the feature set. Both live in the pnpm workspace and double as
+integration tests:
+
+- `sample1-tutorial` — tutorial/showcase of the project's human-facing features: ten numbered
+  pipes, fixtures, demo data. Runs against `books/book1` plus deterministic lorem-ipsum fixtures;
+  it is not a real full book run.
+- `sample2-practical` — the real pipeline: processes `books/book2` (21 chapters) end-to-end
+  (extract, glossary, summarize, translate, `bookCompiler` → `book://`).
+
+Deprecated samples (old `sample0`…`sample5` directories) are archived under
+`samples/depricated/` for reference; they are not in the pnpm workspace and do not run in
+test gates.
 
 | Sample | Path | What it demonstrates |
 |---|---|---|
