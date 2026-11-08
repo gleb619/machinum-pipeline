@@ -1,3 +1,23 @@
+import type {
+  BalancedLineStrategyOptions,
+  BalancedStrategyOptions,
+  LineStrategyOptions,
+  ParagraphStrategyOptions,
+  SentenceStrategyOptions,
+  SplitIntoChunksOptions,
+  TokenSplitStrategy,
+  WhitespaceStrategyOptions,
+} from './types/text-split.js'
+export type {
+  TokenSplitStrategy,
+  SplitIntoChunksOptions,
+  ParagraphStrategyOptions,
+  LineStrategyOptions,
+  WhitespaceStrategyOptions,
+  SentenceStrategyOptions,
+  BalancedStrategyOptions,
+  BalancedLineStrategyOptions,
+} from './types/text-split.js'
 /**
  * Pure text-splitting primitives: unit splitting, balanced partitioning and
  * separator-fixated chunking. Dependency-free so every package can reuse it.
@@ -21,11 +41,6 @@ export function heuristicTokenCount(text: string): number {
 }
 
 export type TokenCountFn = (text: string) => number
-
-export interface TokenSplitStrategy {
-  readonly name: string
-  split(text: string): string[] | Promise<string[]>
-}
 
 /** Raw line split on CR/LF. Empty lines are preserved. */
 export function splitLines(text: string): string[] {
@@ -440,13 +455,6 @@ function splitLongParagraph(
   return packUnits(pieces, targetTokens, count, '\n')
 }
 
-export interface SplitIntoChunksOptions {
-  /** Max tokens per chunk. Default {@link DEFAULT_CHUNK_TARGET}. */
-  targetTokens?: number
-  /** Token counter. Default {@link heuristicTokenCount}. */
-  count?: TokenCountFn
-}
-
 /**
  * Strip separators, then split text into chunks of at most `targetTokens` each.
  * Paragraph boundaries are preferred, line boundaries next, and a single over-long line
@@ -509,11 +517,6 @@ export function parseChunks(text: string, separator = DEFAULT_CHUNK_SEPARATOR): 
 // Strategies
 // ---------------------------------------------------------------------------
 
-export interface ParagraphStrategyOptions {
-  targetTokens?: number
-  count?: TokenCountFn
-}
-
 export function paragraphStrategy(options?: ParagraphStrategyOptions): TokenSplitStrategy {
   const { targetTokens = DEFAULT_CHUNK_TARGET, count = heuristicTokenCount } = options ?? {}
 
@@ -548,11 +551,6 @@ export function paragraphStrategy(options?: ParagraphStrategyOptions): TokenSpli
   }
 }
 
-export interface LineStrategyOptions {
-  maxTokens?: number
-  count?: TokenCountFn
-}
-
 export function lineStrategy(options?: LineStrategyOptions): TokenSplitStrategy {
   const { maxTokens = DEFAULT_LINE_MAX_TOKENS, count = heuristicTokenCount } = options ?? {}
 
@@ -570,11 +568,6 @@ export function lineStrategy(options?: LineStrategyOptions): TokenSplitStrategy 
   }
 }
 
-export interface WhitespaceStrategyOptions {
-  maxTokens?: number
-  count?: TokenCountFn
-}
-
 export function whitespaceStrategy(options?: WhitespaceStrategyOptions): TokenSplitStrategy {
   const { maxTokens = DEFAULT_LINE_MAX_TOKENS, count = heuristicTokenCount } = options ?? {}
 
@@ -588,10 +581,6 @@ export function whitespaceStrategy(options?: WhitespaceStrategyOptions): TokenSp
       return chunkUnits(words, count, maxTokens, ' ')
     },
   }
-}
-
-export interface SentenceStrategyOptions {
-  maxChars?: number
 }
 
 export function sentenceStrategy(options?: SentenceStrategyOptions): TokenSplitStrategy {
@@ -627,12 +616,6 @@ export function singleStrategy(): TokenSplitStrategy {
   }
 }
 
-export interface BalancedStrategyOptions {
-  targetTokens?: number
-  overlapChars?: number
-  count?: TokenCountFn
-}
-
 export function balancedStrategy(options?: BalancedStrategyOptions): TokenSplitStrategy {
   const {
     targetTokens = DEFAULT_CHUNK_TARGET,
@@ -658,12 +641,6 @@ export function balancedStrategy(options?: BalancedStrategyOptions): TokenSplitS
       return chunks
     },
   }
-}
-
-export interface BalancedLineStrategyOptions {
-  maxTokens?: number
-  overlapChars?: number
-  count?: TokenCountFn
 }
 
 export function balancedLineStrategy(options?: BalancedLineStrategyOptions): TokenSplitStrategy {

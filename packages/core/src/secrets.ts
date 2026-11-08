@@ -5,6 +5,40 @@ import { join, resolve } from 'node:path'
 import { atomicWriteFile } from './atomic.js'
 import { readJsonOrThrow } from './json-file.js'
 import { createConsoleLogger } from './logging.js'
+import type {
+  AddEmbedKeyOptions,
+  CreateEmbedOptions,
+  EmbedEntryInfo,
+  EmbedKeyInfo,
+  EmbedKeyringOptions,
+  EmbedSecret,
+  GenerateEmbedKeyOptions,
+  MasterKeyPaths,
+  MasterKeyResolution,
+  RekeyEmbedOptions,
+  RotateEmbedKeysOptions,
+  RotateEmbedSecretOptions,
+  SetEmbedSecretInput,
+  SetEmbedSecretOptions,
+  WriteMasterKeyOptions,
+} from './types/secrets.js'
+export type {
+  EmbedSecret,
+  EmbedEntryInfo,
+  EmbedKeyInfo,
+  CreateEmbedOptions,
+  SetEmbedSecretInput,
+  SetEmbedSecretOptions,
+  MasterKeyPaths,
+  MasterKeyResolution,
+  WriteMasterKeyOptions,
+  RotateEmbedSecretOptions,
+  RekeyEmbedOptions,
+  EmbedKeyringOptions,
+  GenerateEmbedKeyOptions,
+  AddEmbedKeyOptions,
+  RotateEmbedKeysOptions,
+} from './types/secrets.js'
 
 const logger = createConsoleLogger()
 
@@ -103,66 +137,6 @@ export function embedCredentialsConfigured(env: Env = process.env): boolean {
   return Boolean(env.MT_EMBED_PASSWORD || env.MT_EMBED_PASSWORD_FILE)
 }
 
-export interface EmbedSecret {
-  name: string
-  secret: string
-  /** Encryption key id this secret is sealed with. */
-  kid: string
-  username?: string
-  url?: string
-  notes?: string
-}
-
-/** Entry metadata without the secret value (safe for list/status output). */
-export interface EmbedEntryInfo {
-  name: string
-  /** Encryption key id this secret is sealed with. */
-  kid: string
-  /** ISO timestamp of first creation. */
-  createdAt: string
-  /** ISO timestamp of the last value rotation / overwrite. */
-  rotatedAt?: string
-  username?: string
-  url?: string
-  notes?: string
-}
-
-/** Encryption key metadata (never the key material). */
-export interface EmbedKeyInfo {
-  kid: string
-  status: 'active' | 'retired'
-  createdAt: string
-  note?: string
-  /** Number of secrets currently sealed with this key. */
-  secrets: number
-}
-
-export interface CreateEmbedOptions {
-  /** Store path; defaults to {@link defaultEmbedPath}. */
-  path?: string
-  /** Master password; defaults to the environment. */
-  password?: string
-}
-
-export interface SetEmbedSecretInput {
-  name: string
-  secret: string
-  username?: string
-  url?: string
-  notes?: string
-}
-
-export interface SetEmbedSecretOptions {
-  /** Store path; defaults to {@link defaultEmbedPath}. */
-  path?: string
-  /** Master password; defaults to the environment. */
-  password?: string
-  /** default false: an existing name is an error (CLI --force sets true) */
-  overwrite?: boolean
-  /** Seal with this encryption key (default: the active one). */
-  kid?: string
-}
-
 interface KeyRecord {
   /** base64 256-bit encryption key */
   key: string
@@ -212,11 +186,6 @@ interface EmbedEnvelope {
 /** Where the active master password comes from. */
 export type MasterKeySource = 'env' | 'env-file' | 'project' | 'user' | 'default'
 
-export interface MasterKeyPaths {
-  project: string
-  user: string
-}
-
 /** Candidate master-key file locations: project `<root>/.mt/master.key`, user `$MT_HOME|~/.mt/master.key`. */
 export function masterKeyPaths(env: Env = process.env): MasterKeyPaths {
   const root = resolve(env.MT_PROJECT_ROOT || process.cwd())
@@ -224,14 +193,6 @@ export function masterKeyPaths(env: Env = process.env): MasterKeyPaths {
     project: join(root, '.mt', 'master.key'),
     user: join(env.MT_HOME || join(env.HOME || homedir(), '.mt'), 'master.key'),
   }
-}
-
-export interface MasterKeyResolution {
-  source: MasterKeySource
-  /** File the password came from (`env-file`, `project`, `user`). */
-  path?: string
-  /** The master password. Never print or log it. */
-  password: string
 }
 
 /** Permission bits beyond the owner (group/other) make a key file readable by others. */
@@ -314,13 +275,6 @@ async function requirePassword(env: Env, explicit: string | undefined): Promise<
 /** A fresh random 256-bit master key, base64url (43 chars, no padding). */
 export function generateMasterKey(): string {
   return randomBytes(32).toString('base64url')
-}
-
-export interface WriteMasterKeyOptions {
-  /** Overwrite an existing file. Overwriting a key that sealed a store locks that store. */
-  force?: boolean
-  /** Key to write; defaults to {@link generateMasterKey}. */
-  key?: string
 }
 
 /**
@@ -796,13 +750,6 @@ export async function resolveEmbedValue(value: string, env: Env = process.env): 
   return secret.secret
 }
 
-export interface RotateEmbedSecretOptions {
-  /** Store path; defaults to {@link defaultEmbedPath}. */
-  path?: string
-  /** Master password; defaults to the environment. */
-  password?: string
-}
-
 /**
  * Replace the value of an existing entry, keeping its name (so `embed:<name>` refs stay
  * valid) and other metadata, and seal it under the ACTIVE encryption key. Stamps `rotatedAt`.
@@ -836,15 +783,6 @@ export async function rotateEmbedSecret(
     password,
   )
   return { path, kid, rotatedAt }
-}
-
-export interface RekeyEmbedOptions {
-  /** Store path; defaults to {@link defaultEmbedPath}. */
-  path?: string
-  /** Current master password; defaults to the resolution order (or the built-in default). */
-  currentPassword?: string
-  /** New master password (required, non-empty, different from the current one). */
-  newPassword: string
 }
 
 /**
@@ -889,13 +827,6 @@ export async function rekeyEmbedStore(
 
 // ---- keyring management ----------------------------------------------------------------
 
-export interface EmbedKeyringOptions {
-  /** Store path; defaults to {@link defaultEmbedPath}. */
-  path?: string
-  /** Master password; defaults to the environment. */
-  password?: string
-}
-
 async function mutateKeyring(
   options: EmbedKeyringOptions,
   env: Env,
@@ -926,14 +857,6 @@ export async function listEmbedKeys(
       return info
     })
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.kid.localeCompare(b.kid))
-}
-
-export interface GenerateEmbedKeyOptions extends EmbedKeyringOptions {
-  /** Key id (default: next free `k<N>`). */
-  kid?: string
-  note?: string
-  /** default true: make it the active key for new writes */
-  activate?: boolean
 }
 
 /** Generate a random 256-bit encryption key and add it to the keyring. */
@@ -982,16 +905,6 @@ export function parseSuppliedEmbedKey(text: string, kid: string): Buffer {
     )
   }
   return deriveKey(value, Buffer.from(`${SUPPLIED_KEY_SALT}${kid}`, 'utf-8'))
-}
-
-export interface AddEmbedKeyOptions extends EmbedKeyringOptions {
-  /** Key id (required). */
-  kid: string
-  /** Supplied encryption key text (see {@link parseSuppliedEmbedKey}). */
-  key: string
-  note?: string
-  /** default true */
-  activate?: boolean
 }
 
 /** Add a user-supplied encryption key to the keyring. */
@@ -1089,14 +1002,6 @@ export async function removeEmbedKey(
     Reflect.deleteProperty(keys, id)
     return { keyring: { keys }, secrets: store.secrets }
   })
-}
-
-export interface RotateEmbedKeysOptions extends EmbedKeyringOptions {
-  /** New key id (default: next free `k<N>`). */
-  kid?: string
-  note?: string
-  /** Re-seal every secret under the new key. */
-  reencrypt?: boolean
 }
 
 /**

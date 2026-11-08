@@ -3,6 +3,20 @@ import { join, resolve } from 'node:path'
 import { atomicWriteFile } from './atomic.js'
 import { readJsonOrThrow } from './json-file.js'
 import { isEmbedRef, resolveEmbedValue } from './secrets.js'
+import type {
+  LoadVaultOptions,
+  ResolvedVaultRef,
+  Vault,
+  VaultEntry,
+  VaultRef,
+} from './types/vault.js'
+export type {
+  VaultEntry,
+  Vault,
+  VaultRef,
+  ResolvedVaultRef,
+  LoadVaultOptions,
+} from './types/vault.js'
 
 /**
  * Vault — gitignored store of sensitive LLM endpoint data (URLs, keys, headers).
@@ -59,33 +73,6 @@ export const VAULT_PROVIDERS = [
 
 export type VaultProvider = (typeof VAULT_PROVIDERS)[number]
 
-export interface VaultEntry {
-  provider: VaultProvider
-  baseUrl?: string
-  apiKey?: string
-  apiKeys?: string[]
-  headers?: Record<string, string>
-  models?: string[]
-  defaultModel?: string
-  notes?: string
-}
-
-export interface Vault {
-  version: 1
-  entries: Record<string, VaultEntry>
-}
-
-export interface VaultRef {
-  entry: string
-  model?: string
-}
-
-export interface ResolvedVaultRef {
-  entry: VaultEntry
-  name: string
-  model: string | undefined
-}
-
 export function emptyVault(): Vault {
   return { version: 1, entries: {} }
 }
@@ -96,16 +83,6 @@ export function vaultPaths(projectRoot: string, env: Record<string, string | und
   if (override) return [resolve(override)]
   const mtHome = env.MT_HOME || join(env.HOME || homedir(), '.mt')
   return [join(mtHome, 'vault.json'), join(resolve(projectRoot), '.mt', 'vault.json')]
-}
-
-export interface LoadVaultOptions {
-  /**
-   * Resolve secret refs (`vlt:`, `keepass:`, `embed:`) in `apiKey`/`apiKeys` (default true).
-   * Pass false when only the stored values matter (e.g. editing the file).
-   */
-  resolveRefs?: boolean
-  /** @deprecated use {@link resolveRefs}. */
-  resolveVlt?: boolean
 }
 
 const SECRET_REF_PREFIXES = ['vlt:', 'keepass:', 'embed:'] as const
