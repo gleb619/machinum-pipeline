@@ -217,6 +217,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@mt/plugins':
+        specifier: workspace:*
+        version: link:../plugins
       '@mt/router':
         specifier: workspace:*
         version: link:../router

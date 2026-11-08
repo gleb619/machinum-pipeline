@@ -75,6 +75,7 @@
     "@mt/cli": "workspace:*",
     "@mt/core": "workspace:*",
     "@mt/components": "workspace:*",
+    "@mt/plugins": "workspace:*",
     "@mt/router": "workspace:*",
     "@mt/tools": "workspace:*",
     "@mt/waypoint": "workspace:*",
