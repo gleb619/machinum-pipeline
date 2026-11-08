@@ -2,9 +2,7 @@ import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { tmpPathFor } from './atomic.js'
-import { isEmbedRef, resolveEmbedValue } from './embed.js'
-import { isKeepassRef, resolveKeepassValue } from './keepass.js'
-import { isVltRef, resolveVltValue } from './vlt.js'
+import { isEmbedRef, resolveEmbedValue } from './secrets.js'
 
 /**
  * Vault — gitignored store of sensitive LLM endpoint data (URLs, keys, headers).
@@ -15,7 +13,40 @@ import { isVltRef, resolveVltValue } from './vlt.js'
  * `vlt:<name>` (vlt CLI), `keepass:<title|uuid>` (KeePass database) or `embed:<name>`
  * (embedded encrypted store, the default backend). Plaintext values are rejected at load
  * and at save. Refs are resolved in memory at load time; the file on disk keeps the refs.
+ *
+ * Ref resolution: `embed:` is built in (see `secrets.ts`). `vlt:` / `keepass:` are
+ * resolved through {@link registerSecretResolver} — provided by `@mt/plugins`, which
+ * registers them as an import side effect (`import '@mt/plugins'`).
  */
+
+/** Resolves one vault secret ref (e.g. `vlt:<name>`) to its value, in memory only. */
+export type SecretResolver = (
+  value: string,
+  env: Record<string, string | undefined>,
+) => Promise<string>
+
+const secretResolvers = new Map<string, SecretResolver>()
+
+/**
+ * Register a resolver for a secret-ref prefix (e.g. `vlt:`, including the colon).
+ * Later registrations replace earlier ones. Called by `@mt/plugins` at import time.
+ */
+export function registerSecretResolver(prefix: string, resolver: SecretResolver): void {
+  if (!/^[a-z][a-z0-9-]*:$/.test(prefix)) {
+    throw new Error(`Invalid secret ref prefix "${prefix}": use lowercase "<name>:"`)
+  }
+  secretResolvers.set(prefix, resolver)
+}
+
+/** Remove all registered resolvers (tests). The built-in `embed:` resolution is unaffected. */
+export function resetSecretResolvers(): void {
+  secretResolvers.clear()
+}
+
+/** Prefixes with a registered resolver (tests/diagnostics). */
+export function registeredSecretPrefixes(): string[] {
+  return [...secretResolvers.keys()]
+}
 
 export const VAULT_PROVIDERS = [
   'ollama',
@@ -138,9 +169,12 @@ async function resolveSecretValue(
   value: string,
   env: Record<string, string | undefined>,
 ): Promise<string> {
-  if (isVltRef(value)) return resolveVltValue(value, env)
-  if (isKeepassRef(value)) return resolveKeepassValue(value, env)
   if (isEmbedRef(value)) return resolveEmbedValue(value, env)
+  const colon = value.indexOf(':')
+  if (colon > 0) {
+    const resolver = secretResolvers.get(value.slice(0, colon + 1))
+    if (resolver !== undefined) return resolver(value, env)
+  }
   return value
 }
 

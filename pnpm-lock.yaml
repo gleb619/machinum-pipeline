@@ -47,6 +47,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@mt/plugins':
+        specifier: workspace:*
+        version: link:../plugins
       '@mt/router':
         specifier: workspace:*
         version: link:../router
@@ -99,13 +102,6 @@ importers:
         version: 3.3.13(typescript@5.9.3)
 
   packages/core:
-    dependencies:
-      hash-wasm:
-        specifier: ^4.12.0
-        version: 4.12.0
-      kdbxweb:
-        specifier: ^2.1.1
-        version: 2.1.1
     devDependencies:
       '@types/node':
         specifier: ^20.14.0
@@ -233,6 +229,28 @@ importers:
       '@mt/webui':
         specifier: workspace:*
         version: link:../webui
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.39
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
+
+  packages/plugins:
+    dependencies:
+      '@mt/core':
+        specifier: workspace:*
+        version: link:../core
+      hash-wasm:
+        specifier: ^4.12.0
+        version: 4.12.0
+      kdbxweb:
+        specifier: ^2.1.1
+        version: 2.1.1
+    devDependencies:
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.39
@@ -404,6 +422,9 @@ importers:
       '@mt/core':
         specifier: workspace:*
         version: link:../core
+      '@mt/plugins':
+        specifier: workspace:*
+        version: link:../plugins
       '@mt/router':
         specifier: workspace:*
         version: link:../router

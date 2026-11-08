@@ -32,8 +32,8 @@ async function mtImports(): Promise<string[]> {
 }
 
 describe('backend import layers (architectural)', () => {
-  it('imports only @mt/core and @mt/router/standalone', async () => {
-    const allowed = new Set(['@mt/core', '@mt/router/standalone'])
+  it('imports only @mt/core, @mt/plugins and @mt/router/standalone', async () => {
+    const allowed = new Set(['@mt/core', '@mt/plugins', '@mt/router/standalone'])
     const offenders = (await mtImports()).filter((specifier) => !allowed.has(specifier))
     expect(offenders).toEqual([])
   })

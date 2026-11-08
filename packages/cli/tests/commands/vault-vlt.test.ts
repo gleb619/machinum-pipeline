@@ -9,8 +9,8 @@ const { execFileSyncMock, findVltMock, installVltMock } = vi.hoisted(() => ({
 
 vi.mock('node:child_process', () => ({ execFileSync: execFileSyncMock }))
 
-vi.mock('@mt/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@mt/core')>()
+vi.mock('@mt/plugins', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@mt/plugins')>()
   return { ...actual, findVlt: findVltMock, installVlt: installVltMock }
 })
 

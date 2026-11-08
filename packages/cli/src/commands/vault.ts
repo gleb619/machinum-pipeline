@@ -8,24 +8,17 @@ import {
   VAULT_PROVIDERS,
   addEmbedKey,
   addEntry,
-  addKeepassSecret,
   annotate,
   createEmbedStore,
-  createKeepassDatabase,
   defaultEmbedPath,
-  defaultKeepassPath,
   embedCredentialsConfigured,
   emptyVault,
-  findVlt,
   generateEmbedKey,
   getEmbedSecret,
-  installVlt,
   isSecretRef,
   isVaultProvider,
-  keepassCredentialsConfigured,
   listEmbedEntries,
   listEmbedKeys,
-  listKeepassEntries,
   loadVault,
   maskVault,
   rekeyEmbedStore,
@@ -41,6 +34,15 @@ import {
   vaultPaths,
 } from '@mt/core'
 import type { Vault, VaultEntry, VaultProvider } from '@mt/core'
+import {
+  addKeepassSecret,
+  createKeepassDatabase,
+  defaultKeepassPath,
+  findVlt,
+  installVlt,
+  keepassCredentialsConfigured,
+  listKeepassEntries,
+} from '@mt/plugins'
 import { VAULT_IGNORE_PATTERNS, ensureIgnorePatterns } from '../utils/gitignore.js'
 import {
   masterKeyGenerateCommand,

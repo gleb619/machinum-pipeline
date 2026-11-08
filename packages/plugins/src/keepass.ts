@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto'
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { tmpPathFor } from '@mt/core'
 import { argon2d, argon2id } from 'hash-wasm'
 import kdbxweb from 'kdbxweb'
-import { tmpPathFor } from './atomic.js'
 
 /**
  * KeePass (`.kdbx`) backend for vault secrets.

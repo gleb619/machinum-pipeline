@@ -8,6 +8,7 @@ const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
 /** `@mt/*` packages the CLI is allowed to import. */
 const ALLOWED = new Set([
   '@mt/core',
+  '@mt/plugins',
   '@mt/waypoint',
   '@mt/webui/standalone',
   '@mt/router/standalone',

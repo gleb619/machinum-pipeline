@@ -1,9 +1,11 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { loadVault, registerSecretResolver, saveVault } from '@mt/core'
 import * as kdbxweb from 'kdbxweb'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  KEEPASS_REF_PREFIX,
   addKeepassSecret,
   createKeepassDatabase,
   defaultKeepassPath,
@@ -14,10 +16,11 @@ import {
   resetKeepassCache,
   resolveKeepassValue,
 } from '../src/keepass.js'
-import { loadVault, saveVault } from '../src/vault.js'
 
 const MASTER = 'test-master-password'
 const SECRET = 'sk-or-v1-KEEPASSSECRET1234'
+
+registerSecretResolver(KEEPASS_REF_PREFIX, resolveKeepassValue)
 
 describe('keepass backend', () => {
   let dir: string

@@ -15,7 +15,7 @@ import {
   resetEmbedDefaultWarning,
   resolveEmbedValue,
   setEmbedSecret,
-} from '../src/embed.js'
+} from '../src/secrets.js'
 import { loadVault, saveVault } from '../src/vault.js'
 
 const MASTER = 'test-embed-master-password'

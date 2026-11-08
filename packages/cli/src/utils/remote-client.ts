@@ -20,12 +20,11 @@ import {
   isSecretRef,
   readMtConfig,
   resolveEmbedValue,
-  resolveKeepassValue,
   resolveProjectId,
-  resolveVltValue,
   versionsCompatible,
   writeSyncFile,
 } from '@mt/core'
+import { resolveKeepassValue, resolveVltValue } from '@mt/plugins'
 
 export interface RemoteHealth {
   status: string

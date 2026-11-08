@@ -101,7 +101,8 @@ export {
   vaultPaths,
   VAULT_PROVIDERS,
 } from './vault.js'
-export type { LoadVaultOptions } from './vault.js'
+export type { LoadVaultOptions, SecretResolver } from './vault.js'
+export { registerSecretResolver, registeredSecretPrefixes, resetSecretResolvers } from './vault.js'
 export type {
   AddEmbedKeyOptions,
   CreateEmbedOptions,
@@ -119,7 +120,7 @@ export type {
   RotateEmbedSecretOptions,
   SetEmbedSecretInput,
   SetEmbedSecretOptions,
-} from './embed.js'
+} from './secrets.js'
 export {
   DEFAULT_EMBED_PASSWORD,
   DEFAULT_EMBED_WARNING,
@@ -152,29 +153,8 @@ export {
   rotateEmbedSecret,
   setEmbedSecret,
   useEmbedKey,
-} from './embed.js'
-export type {
-  AddKeepassSecretInput,
-  AddKeepassSecretOptions,
-  CreateKeepassOptions,
-  KeepassEntryInfo,
-  KeepassSecret,
-} from './keepass.js'
-export {
-  KEEPASS_REF_PREFIX,
-  addKeepassSecret,
-  createKeepassDatabase,
-  defaultKeepassPath,
-  getKeepassSecret,
-  isKeepassRef,
-  keepassCredentialsConfigured,
-  keepassDisabled,
-  listKeepassEntries,
-  resetKeepassCache,
-  resolveKeepassValue,
-} from './keepass.js'
+} from './secrets.js'
 export type { Settings } from './settings.js'
-export { VLT_REF_PREFIX, findVlt, getVltSecret, installVlt, resolveVltValue } from './vlt.js'
 export { getSetting } from './settings.js'
 export type {
   Source,

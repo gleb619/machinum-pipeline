@@ -5,8 +5,7 @@ import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { gunzipSync, inflateRawSync } from 'node:zlib'
-import { tmpPathFor } from './atomic.js'
-import { createConsoleLogger } from './logging.js'
+import { createConsoleLogger, tmpPathFor } from '@mt/core'
 
 const logger = createConsoleLogger()
 

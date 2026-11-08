@@ -19,7 +19,7 @@ import {
   rotateEmbedSecret,
   setEmbedSecret,
   useEmbedKey,
-} from '../src/embed.js'
+} from '../src/secrets.js'
 
 const OLD = 'old-master-password'
 const NEW = 'new-master-password'

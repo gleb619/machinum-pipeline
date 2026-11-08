@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@mt/core": "workspace:*",
+    "@mt/plugins": "workspace:*",
     "@mt/router": "workspace:*",
     "better-sqlite3": "^9.6.0",
     "h3": "^1.13.0",

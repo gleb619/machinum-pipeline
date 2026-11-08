@@ -1,11 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto'
-import {
-  isSecretRef,
-  readMtConfig,
-  resolveEmbedValue,
-  resolveKeepassValue,
-  resolveVltValue,
-} from '@mt/core'
+import { isSecretRef, readMtConfig, resolveEmbedValue } from '@mt/core'
+import { resolveKeepassValue, resolveVltValue } from '@mt/plugins'
 
 type Env = Record<string, string | undefined>
 

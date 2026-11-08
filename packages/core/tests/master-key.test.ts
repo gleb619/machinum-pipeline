@@ -15,7 +15,7 @@ import {
   resolveMasterKey,
   setEmbedSecret,
   writeMasterKeyFile,
-} from '../src/embed.js'
+} from '../src/secrets.js'
 
 describe('master key', () => {
   let dir: string
