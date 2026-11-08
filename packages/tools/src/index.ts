@@ -1001,3 +1001,52 @@ export {
   resolveTunedStr,
   type ConstantsEnv,
 } from './resolve-constants.js'
+
+export {
+  sftTriples,
+  buildSftTriples,
+  isPromptEcho,
+  type ChatRole,
+  type ChatTurn,
+  type ChatTriple,
+  type SftDropReason,
+  type SftTriplesStats,
+  type SftTriplesResult,
+} from './modification/sft-triples.js'
+
+export {
+  parallelPairs,
+  buildParallelPairs,
+  splitParagraphs,
+  pairId,
+  MIN_PARALLEL_ALIGNMENT,
+  ParallelPairsError,
+  type ParallelChapter,
+  type ParallelPair,
+  type ParagraphDropStats,
+  type ParagraphSplit,
+  type ParallelPairsStats,
+  type ParallelPairsResult,
+} from './normalization/parallel-pairs.js'
+
+export {
+  datasetSplit,
+  splitDataset,
+  hashBucket,
+  DEFAULT_VAL_PERCENT,
+  type DatasetSplitOptions,
+  type DatasetSplitOutput,
+  type DatasetSplitStats,
+  type DatasetSplitResult,
+} from './modification/dataset-split.js'
+
+export {
+  datasetCard,
+  buildDatasetCard,
+  resolveCardStats,
+  estimateTokens,
+  DEFAULT_LICENCE_NOTE,
+  DEFAULT_INTENDED_USE,
+  type DatasetCardStats,
+  type ResolvedDatasetCardStats,
+} from './modification/dataset-card.js'

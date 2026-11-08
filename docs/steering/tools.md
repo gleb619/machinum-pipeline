@@ -1158,6 +1158,10 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL251 | `bookCompiler` | `book-compiler` | — | `modification/book-compiler.ts` |
 | TL252 | `waitForFile`, `createWaitForFile` | `wait-for-file` | — | `core/wait-for-file.ts` |
 | TL253 | `chapterDocLinter`, `createChapterDocLinter` | `chapter-doc-linter` | UC057 | `verification/chapter-doc-linter.ts` |
+| TL254 | `sftTriples` | `sft-triples` | — | `modification/sft-triples.ts` |
+| TL255 | `parallelPairs` | `parallel-pairs` | — | `normalization/parallel-pairs.ts` |
+| TL256 | `datasetSplit` | `dataset-split` | — | `modification/dataset-split.ts` |
+| TL257 | `datasetCard` | `dataset-card` | — | `modification/dataset-card.ts` |
 
 ## Translation eval harness (`tests/eval/`)
 
