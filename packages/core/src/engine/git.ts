@@ -1,17 +1,10 @@
 import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { createConsoleLogger } from '../logging.js'
+import type { GitResult } from '../types/engine/git.js'
+export type { GitResult } from '../types/engine/git.js'
 
 const logger = createConsoleLogger()
-
-/**
- * Git command execution result.
- */
-export interface GitResult {
-  stdout: string
-  stderr: string
-  exitCode: number
-}
 
 /**
  * Execute a git command in the specified working directory.

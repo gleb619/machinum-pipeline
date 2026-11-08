@@ -1,5 +1,7 @@
 import type { Settings } from './settings.js'
 import type { BufferWriter, BufferWriterFactory, Source, Splitter, Target } from './types.ts'
+import type { ParsedUri, UriAliases } from './types/uri.js'
+export type { ParsedUri, UriAliases } from './types/uri.js'
 
 /**
  * URI registry — maps URI schemes to Source/Target factories.
@@ -21,29 +23,9 @@ export type SourceFactory<T> = (uri: ParsedUri) => Source<T>
 export type TargetFactory<T> = (uri: ParsedUri) => Target<T>
 
 /**
- * Parsed URI components.
- */
-export interface ParsedUri {
-  scheme: string
-  host: string
-  path: string
-  query: Record<string, string>
-  fragment: string
-  raw: string
-}
-
-/**
  * Composite resolver — combines two or more schemes.
  */
 export type CompositeResolver = (schemes: string[], rest: string) => ParsedUri
-
-/**
- * Named URI shortcuts (aliases) — configured per-project in mt.json:
- * { "uris": { "en": "md://./chapters/en" } }
- */
-export interface UriAliases {
-  [alias: string]: string
-}
 
 /**
  * Maximum number of alias-to-alias hops before expansion fails.

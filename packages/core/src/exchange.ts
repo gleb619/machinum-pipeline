@@ -67,18 +67,6 @@ export function fromPersisted<T = unknown>(p: PersistedExchange): Exchange<T> {
   return ex
 }
 
-/**
- * Loose input shape accepted from Sources / flatMap / literals: `id` and `variables` optional.
- * Normalized by {@link toExchange}.
- */
-export interface ExchangeInput<T = unknown> {
-  id?: string
-  item: T
-  items?: T[]
-  meta?: ExchangeMeta
-  variables?: Variable[]
-}
-
 let idCounter = 0
 
 /** Mint a fresh process-unique id with the given prefix. */
@@ -93,13 +81,6 @@ export function isEmptyValue(value: unknown): boolean {
   if (typeof value === 'string') return value.trim().length === 0
   if (Array.isArray(value)) return value.length === 0
   return false
-}
-
-export interface VariableOptions {
-  qualifier?: Qualifier
-  ephemeral?: boolean
-  id?: string
-  timestamp?: string
 }
 
 /** Build a Variable (qualifier defaults to `new`). */
@@ -377,17 +358,6 @@ export function withoutEmpty<T>(ex: Exchange<T>): Exchange<T> {
  * resumed run re-forms the group from the source and re-runs its scope (see `batch-scope.ts`).
  */
 export const BATCH_MEMBERS_VARIABLE = 'batchMembers'
-
-/**
- * Payload of {@link BATCH_MEMBERS_VARIABLE}: the original member envelopes plus a snapshot of
- * the variables that were merged into the batch when it was created. The snapshot lets
- * {@link unbatchExchange} tell apart variables that existed before batching (already on the
- * members) from the ones a batch-aware tool changed since (which must be propagated back).
- */
-export interface BatchMembers {
-  members: Exchange<unknown>[]
-  base: Variable[]
-}
 
 /**
  * Attach the source envelopes of a batch group to the merged batch exchange, so the batch scope

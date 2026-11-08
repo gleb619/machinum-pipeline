@@ -1,27 +1,8 @@
 import { createHash } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { Store } from '../store.js'
-
-/**
- * Cache entry stored in .mt/cache/<hash>.json
- */
-export interface CacheEntry<T = unknown> {
-  toolName: string
-  version: string
-  inputHash: string
-  output: T
-  createdAt: string
-}
-
-/**
- * Cache options for computing keys.
- */
-export interface CacheOptions {
-  toolName: string
-  version: string
-  input: unknown
-  context?: Record<string, unknown>
-}
+import type { CacheEntry, CacheOptions } from '../types/engine/cache.js'
+export type { CacheEntry, CacheOptions } from '../types/engine/cache.js'
 
 /**
  * Tool cache — memoises tool outputs by content hash.

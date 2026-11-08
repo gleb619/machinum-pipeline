@@ -1,4 +1,6 @@
 import type { RetryPolicy, RetryStrategy } from '../contexts.js'
+import type { RetryableError } from '../types/engine/retry.js'
+export type { RetryableError } from '../types/engine/retry.js'
 
 /** Any retry layer may be partial — unset fields inherit from the layer below. */
 export type PartialRetryPolicy = {
@@ -12,16 +14,6 @@ const STRATEGIES: readonly RetryStrategy[] = ['fixed', 'linear', 'exp']
 
 /** Ceiling used when a policy declares no `maxBackoffMs`. */
 export const DEFAULT_MAX_BACKOFF_MS = 60_000
-
-/**
- * Duck-typed error contract read by `withRetry`. Core must not import tool error classes, so any
- * shape works: `retryable: false` marks the failure fatal for this item (quota / auth / oversize
- * prompt / parse), `retryAfterMs` tells the engine how long the server asked it to wait.
- */
-export interface RetryableError {
-  readonly retryable?: boolean
-  readonly retryAfterMs?: number
-}
 
 /** Only an explicit `retryable: false` is fatal — an error that says nothing keeps retrying. */
 export function isFatalError(error: unknown): boolean {

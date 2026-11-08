@@ -96,3 +96,28 @@ export interface BufferWriter {
   /** Append one published envelope. */
   append(env: Exchange<unknown>): void
 }
+
+/**
+ * A single step in a pipeline.
+ *
+ * Fork steps use one of the two {@link ForkStepConfig} shapes.
+ */
+export interface PipelineStep {
+  type: 'source' | 'tool' | 'target' | 'fork' | 'batch' | 'flatmap' | 'split' | 'tap' | 'subflow'
+  config: Record<string, unknown>
+}
+
+/**
+ * Pipeline definition — the result of definePipeline().
+ */
+export interface Pipeline<_I = unknown, _O = unknown> {
+  id: string
+  retry: RetryPolicy
+  onError: 'fail-run' | 'skip-item' | 'dead-letter'
+  steps: PipelineStep[]
+  /**
+   * Pipeline-scoped env defaults (from `defineProcess().config({ env })`), merged into the
+   * run env by the Runner for keys not already set in `process.env` or the mt.json env.
+   */
+  envDefaults?: Record<string, string>
+}

@@ -3,6 +3,8 @@ import type { Dirent } from 'node:fs'
 import { lstat, readFile, readdir } from 'node:fs/promises'
 import { basename, isAbsolute, join, posix, resolve } from 'node:path'
 import { DEFAULT_MT_CONFIG, readMtConfig } from '../config.js'
+import type { SyncOutputScopeOptions, SyncScopeOptions } from '../types/sync/scope.js'
+export type { SyncScopeOptions, SyncOutputScopeOptions } from '../types/sync/scope.js'
 
 /** Default source scope: every pipeline module plus the project config. */
 export const DEFAULT_SYNC_INCLUDE = ['pipelines/**', 'mt.json']
@@ -46,19 +48,6 @@ export const MAX_PROJECT_BYTES = 500 * 1024 * 1024
 const CODE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']
 const RESOLVE_EXTENSIONS = [...CODE_EXTENSIONS, '.json']
 const SAFE_PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
-
-export interface SyncScopeOptions {
-  /** When present these replace {@link DEFAULT_SYNC_INCLUDE}; hard exclusions still apply. */
-  include?: readonly string[]
-  /** Additional excludes on top of {@link DEFAULT_SYNC_EXCLUDE}. */
-  exclude?: readonly string[]
-  /** Include `.mt/runs/**` (only safe for read-only output manifests). */
-  allowRunState?: boolean
-}
-
-export interface SyncOutputScopeOptions {
-  runId?: string
-}
 
 function normalizePattern(pattern: string): string {
   return pattern.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '')

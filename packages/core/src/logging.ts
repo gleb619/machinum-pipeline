@@ -1,4 +1,6 @@
 import type { Logger } from './types.js'
+import type { LogFunction } from './types/logging.js'
+export type { LogFunction } from './types/logging.js'
 
 /** Log severities emitted by the shared formatter. */
 export type LogSeverity = 'debug' | 'info' | 'warn' | 'error'
@@ -98,16 +100,6 @@ export function formatJsonLogLine(
   }
   if (meta && Object.keys(meta).length > 0) record.meta = meta
   return JSON.stringify(record)
-}
-
-/**
- * Callable console-backed logger. The default call is INFO; the named methods
- * mirror {@link Logger}. Every path emits the shared line format with exactly
- * one console argument, and `.debug` is gated on `MT_DEBUG` (or `options.debug`
- * of the underlying console logger).
- */
-export interface LogFunction extends Logger {
-  (message: string, meta?: Record<string, unknown>): void
 }
 
 /**

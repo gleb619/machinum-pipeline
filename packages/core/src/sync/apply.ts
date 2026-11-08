@@ -1,12 +1,14 @@
 import { lstat, mkdir, readFile, realpath, unlink } from 'node:fs/promises'
 import { isAbsolute, join, relative } from 'node:path'
 import { atomicWriteFile } from '../atomic.js'
+import type { SyncApplyOptions } from '../types/sync/apply.js'
 import {
   type SyncScopeOptions,
   isProtectedSyncPath,
   normalizeSyncPath,
   walkSyncFiles,
 } from './scope.js'
+export type { SyncApplyOptions } from '../types/sync/apply.js'
 
 export class SyncPathError extends Error {
   constructor(
@@ -41,11 +43,6 @@ export class SyncFileTooLargeError extends SyncPathError {
     super(path, `File '${path}' is ${size} bytes; cap is ${maxBytes} bytes`)
     this.name = 'SyncFileTooLargeError'
   }
-}
-
-export interface SyncApplyOptions {
-  /** Allow `.mt/runs/<id>/...` (pull/output direction). Secrets are still rejected. */
-  allowRunState?: boolean
 }
 
 function normalizeOrThrow(path: string): string {

@@ -2,27 +2,22 @@ import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { lstat } from 'node:fs/promises'
 import { join } from 'node:path'
+import type {
+  BuildManifestOptions,
+  SyncHashCache,
+  SyncManifestEntry,
+} from '../types/sync/manifest.js'
 import {
   type SyncScopeOptions,
   isProtectedSyncPath,
   normalizeSyncPath,
   walkSyncFiles,
 } from './scope.js'
-
-/** One file in a sync manifest. `mtime` is epoch milliseconds and informational only. */
-export interface SyncManifestEntry {
-  path: string
-  size: number
-  sha256: string
-  mtime: number
-}
-
-/** Reuse hashes when size + mtime are unchanged. The cache is per sync run, never persisted. */
-export interface SyncHashCache {
-  get(path: string, size: number, mtime: number): string | undefined
-  set(path: string, size: number, mtime: number, sha256: string): void
-  clear(): void
-}
+export type {
+  SyncManifestEntry,
+  SyncHashCache,
+  BuildManifestOptions,
+} from '../types/sync/manifest.js'
 
 export function createSyncHashCache(): SyncHashCache {
   const values = new Map<string, string>()
@@ -50,17 +45,6 @@ export async function hashFile(path: string): Promise<string> {
     stream.on('end', () => resolvePromise())
   })
   return hash.digest('hex')
-}
-
-export interface BuildManifestOptions extends SyncScopeOptions {
-  /**
-   * Explicit file list (POSIX paths relative to `root`). When omitted the tree is walked
-   * with the default sync scope exclusions.
-   */
-  files?: Iterable<string>
-  hashCache?: SyncHashCache
-  /** Allow `.mt/runs/**` entries for output manifests. */
-  allowRunState?: boolean
 }
 
 /**

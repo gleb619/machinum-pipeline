@@ -1,20 +1,8 @@
 import { type PersistedExchange, toPersisted } from '../exchange.js'
 import type { Store } from '../store.js'
 import type { Envelope } from '../types.js'
-
-/**
- * Dead-letter entry written to .mt/runs/<runId>/dead-letter.jsonl
- */
-export interface DeadLetterEntry {
-  timestamp: string
-  /** Persisted form: variables yes (non-ephemeral), `meta` no. */
-  envelope: PersistedExchange
-  error: {
-    message: string
-    name: string
-  }
-  stepId: string
-}
+import type { DeadLetterEntry } from '../types/engine/dead-letter.js'
+export type { DeadLetterEntry } from '../types/engine/dead-letter.js'
 
 /**
  * Write a dead-letter entry to the dead-letter queue.
