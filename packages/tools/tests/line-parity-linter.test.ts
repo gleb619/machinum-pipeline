@@ -25,6 +25,18 @@ describe('lintLineParity', () => {
     expect(r.enLines).toBe(r.ruLines)
   })
 
+  it('flags a token in a foreign script inside an otherwise Russian line', () => {
+    const ru = ['# Глава 1: Начало', '', 'Они намотали его на палубный甲板 магазина, и он молчал.', '', '[Система: уровень повышен!]', ''].join('\n')
+    const report = lintLineParity(EN, ru)
+    expect(report.ok).toBe(false)
+    expect(report.issues.map((i) => i.code)).toContain('foreign-script')
+  })
+
+  it('does not flag Latin brand names', () => {
+    const ru = ['# Глава 1: Начало', '', 'Он слушал Revox A77 и молчал.', '', '[Система: уровень повышен!]', ''].join('\n')
+    expect(codes(EN, ru)).not.toContain('foreign-script')
+  })
+
   it('flags a line count mismatch', () => {
     expect(codes(EN, RU.replace('\n\nОн вошёл.', ''))).toContain('line-count')
   })

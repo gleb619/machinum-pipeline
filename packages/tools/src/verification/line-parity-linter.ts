@@ -22,6 +22,7 @@ export type ParityIssueCode =
   | 'term-tag-left'
   | 'think-block'
   | 'low-cyrillic-accepted'
+  | 'foreign-script'
 
 /** One finding. `line` is 1-based and refers to the RU text (or EN when RU has no such line). */
 export interface ParityIssue {
@@ -60,6 +61,14 @@ export interface LineParityInput {
 
 const CYRILLIC = /[Ѐ-ӿ]/g
 const LETTER = /\p{L}/gu
+/**
+ * Scripts that never belong in a Russian translation. A low-bit quantised multilingual model
+ * occasionally emits a token in the wrong writing system — 板甲 ("deck") inside «палубный…
+ * магазина» on one chapter of a 21-chapter run — and it is invisible to every ratio-based check
+ * because the line is otherwise Russian.
+ */
+const FOREIGN_SCRIPT =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Thai}\p{Script=Devanagari}]/gu
 
 function count(re: RegExp, s: string): number {
   return s.match(re)?.length ?? 0
@@ -148,6 +157,15 @@ export function lintLineParity(
         code: 'think-block',
         severity: 'error',
         message: `think block at line ${i + 1}`,
+        line: i + 1,
+      })
+    }
+    const foreign = line.match(FOREIGN_SCRIPT)
+    if (foreign) {
+      issues.push({
+        code: 'foreign-script',
+        severity: 'error',
+        message: `line ${i + 1} contains non-Cyrillic script: ${[...new Set(foreign)].join('')}`,
         line: i + 1,
       })
     }
