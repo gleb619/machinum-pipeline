@@ -338,8 +338,14 @@ function buildHandBuiltSystemPrompt(
 
 /** Removes reasoning blocks, `<terms>` report blocks and `<term>` tags from a model reply. */
 export function cleanTranslation(reply: string): string {
+  // Models routinely open the report block and forget `</terms>`; a strict pair matcher then
+  // leaves the JSON in the chapter text (seen on chapter 1: five lines). An unterminated
+  // opener is metadata by definition, so drop from it to the end.
   return stripTerms(
-    reply.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(TERMS_BLOCK_RE, ''),
+    reply
+      .replace(/<think[\s\S]*?<\/think>/gi, '')
+      .replace(TERMS_BLOCK_RE, '')
+      .replace(/<terms>[\s\S]*$/i, ''),
   ).trim()
 }
 

@@ -232,7 +232,11 @@ export async function translateTaggedChapter(
     // plain mode: the model sometimes splits a long line: join it back (empty/bracket/other
     // faults still fail); other modes already return exactly one line per input line
     const reply = await opts.ask(prompt.systemPrompt, prompt.userPrompt)
-    const ru = opts.mode === undefined || opts.mode === 'plain' ? joinReplyLines(reply) : reply
+    // The prompt asks for the translation plus one trailing `<terms>` report block, and the
+    // model obeys literally: without this cleanup the block lands in the chapter text.
+    const clean = cleanTranslation(reply)
+    const ru =
+      opts.mode === undefined || opts.mode === 'plain' ? joinReplyLines(clean) : clean
     // parity is checked against the source line, not the (mode-wrapped) user prompt
     const verdict = lintLineParity(stripTerms(job.text), ru, { cyrillicSeverity: 'warn' })
     if (!verdict.ok) throw new LineParityError(verdict, `chapter line ${job.index + 1}`)

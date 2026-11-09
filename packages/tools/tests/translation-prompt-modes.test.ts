@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { loadBundledPrompt } from '../src/core/bundled-prompts.js'
-import { type Glossary, buildTranslationPrompt, wrapTranslationInput } from '../src/index.js'
+import {
+  type Glossary,
+  buildTranslationPrompt,
+  cleanTranslation,
+  wrapTranslationInput,
+} from '../src/index.js'
 import {
   TranslationReplyParseError,
   parseTranslationReply,
@@ -174,5 +179,17 @@ describe('backward compatibility', () => {
   it('parseTranslationReply plain mode agrees with cleanTranslation', () => {
     const reply = '<think>x</think>\nСтрока один.\nСтрока два.'
     expect(parseTranslationReply(reply, 'plain').lines.join('\n')).toBe('Строка один.\nСтрока два.')
+  })
+})
+
+describe('cleanTranslation', () => {
+  it('drops a <terms> report block that never closes', () => {
+    const reply = 'Ночь была холодной. <terms>[ {"term": "station wagon", "ru": "минивэн"} ]'
+    expect(cleanTranslation(reply)).toBe('Ночь была холодной.')
+  })
+
+  it('drops a closed block and leaves the translation intact', () => {
+    const reply = 'Ночь была холодной.\n<terms>[]</terms>'
+    expect(cleanTranslation(reply)).toBe('Ночь была холодной.')
   })
 })
