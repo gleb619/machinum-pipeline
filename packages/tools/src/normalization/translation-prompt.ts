@@ -340,12 +340,19 @@ function buildHandBuiltSystemPrompt(
 export function cleanTranslation(reply: string): string {
   // Models routinely open the report block and forget `</terms>`; a strict pair matcher then
   // leaves the JSON in the chapter text (seen on chapter 1: five lines). An unterminated
-  // opener is metadata by definition, so drop from it to the end.
+  // opener is metadata by definition, so drop it — but only when it starts a line or is
+  // followed by JSON, so prose that merely mentions the markup survives.
+  // An orphan `</think>` is the chat template leaking its opener; drop a leading reasoning
+  // prefix up to the first closer and an unterminated `<think…>` tail as well.
   return stripTerms(
     reply
       .replace(/<think[\s\S]*?<\/think>/gi, '')
+      .replace(/^\s*[\s\S]*?<\/think>(?=\s*\S)/i, '')
+      .replace(/\s*<\/think>\s*$/i, '')
+      .replace(/<think[\s\S]*$/i, '')
       .replace(TERMS_BLOCK_RE, '')
-      .replace(/<terms>[\s\S]*$/i, ''),
+      .replace(/<terms>\s*[\[{][\s\S]*$/i, '')
+      .replace(/^\s*<terms>[\s\S]*$/im, ''),
   ).trim()
 }
 

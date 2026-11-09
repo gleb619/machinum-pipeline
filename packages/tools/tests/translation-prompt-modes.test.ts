@@ -192,4 +192,25 @@ describe('cleanTranslation', () => {
     const reply = 'Ночь была холодной.\n<terms>[]</terms>'
     expect(cleanTranslation(reply)).toBe('Ночь была холодной.')
   })
+
+  it('keeps prose that merely mentions the <terms> markup', () => {
+    const reply = 'В тексте встретился <terms> как обычное слово.'
+    expect(cleanTranslation(reply)).toBe(reply)
+  })
+
+  it('drops an unterminated <terms> block that starts a line', () => {
+    const reply = 'Ночь была холодной.\n<terms>[ {"term": "x"} ]'
+    expect(cleanTranslation(reply)).toBe('Ночь была холодной.')
+  })
+
+  it('strips an orphan think-block closer left by the chat template', () => {
+    const closer = '<' + '/think>'
+    const reply = `Reasoning about the line.\n\n${closer}Ночь была холодной.`
+    expect(cleanTranslation(reply)).toBe('Ночь была холодной.')
+  })
+
+  it('strips an unterminated <think> tail', () => {
+    const reply = 'Ночь была холодной.\n<think more reasoning'
+    expect(cleanTranslation(reply)).toBe('Ночь была холодной.')
+  })
 })

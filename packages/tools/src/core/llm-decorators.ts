@@ -120,7 +120,16 @@ export function cacheableRequest(req: LlmRequest): unknown {
     temperature: req.temperature,
     maxTokens: req.maxTokens,
     responseFormat: req.responseFormat,
+    reasoningEffort: req.reasoningEffort,
   })
+}
+
+/**
+ * A reply is cacheable only when it is a complete answer: an empty `content` (thinking model
+ * without `reasoning_effort`) or a reply cut off at `maxTokens` must never be served again.
+ */
+function isCacheableResponse(res: LlmResponse): boolean {
+  return res.content.trim() !== '' && res.finishReason !== 'length'
 }
 
 /** Memoise responses by stable request hash using core `Cache`-compatible storage. */
@@ -130,7 +139,9 @@ export function withCache(
   options: LlmCacheOptions = {},
 ): LlmClient {
   const toolName = `llm-chat${options.namespace ? `:${options.namespace}` : ''}`
-  const version = options.version ?? '1'
+  // v2: reasoningEffort is part of the key and failed replies are not stored; v1 entries are
+  // unaddressable by design, so abandon them.
+  const version = options.version ?? '2'
   return {
     async chatCompletion(req: LlmRequest): Promise<LlmResponse> {
       if (options.when && !options.when(req)) return inner.chatCompletion(req)
@@ -139,7 +150,7 @@ export function withCache(
       const hit = await cache.get<LlmResponse>(key)
       if (hit) return { ...hit, cached: true }
       const res = await inner.chatCompletion(req)
-      await cache.set(key, keyOptions, res)
+      if (isCacheableResponse(res)) await cache.set(key, keyOptions, res)
       return res
     },
   }

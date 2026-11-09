@@ -11,6 +11,7 @@ import {
   withItem,
 } from '@mt/core'
 import type { Tool, ToolContext } from '@mt/core'
+import { LlmError } from '../core/llm-errors.js'
 import type { TranslateInput, TranslateOutput } from '../core/translate-text.js'
 import { LineParityError, lintLineParity } from '../verification/line-parity-linter.js'
 import type { LineParityInput } from '../verification/line-parity-linter.js'
@@ -44,15 +45,26 @@ export function translateConcurrency(env: Record<string, string | undefined> = p
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1
 }
 
-/** `chaptersDir/glossary.json`, or an empty glossary when absent or malformed. */
+/**
+ * `chaptersDir/glossary.json`, or an empty glossary only when the file does not exist. A file
+ * that exists but cannot be read or parsed throws: silently translating a whole book without
+ * its pinned terms is worse than failing.
+ */
 export async function loadGlossaryOrEmpty(chaptersDir: string): Promise<Glossary> {
+  const path = join(chaptersDir, 'glossary.json')
+  let text: string
   try {
-    return (
-      parseGlossary(await readFile(join(chaptersDir, 'glossary.json'), 'utf-8')) ?? { terms: [] }
+    text = await readFile(path, 'utf-8')
+  } catch (err) {
+    if ((err as { code?: string }).code === 'ENOENT') return { terms: [] }
+    throw new Error(
+      `failed to read glossary ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
     )
-  } catch {
-    return { terms: [] }
   }
+  const glossary = parseGlossary(text)
+  if (!glossary) throw new Error(`failed to parse glossary ${path}: expected {"terms": [...]}`)
+  return glossary
 }
 
 /** Summary text of a chapter (`## Summary` section of `chaptersDir/schema/chapter<N>.summary.md`). */
@@ -87,6 +99,11 @@ async function ask(
     },
     ctx,
   )
+  if (res.finishReason === 'length') {
+    throw new LlmError('translation reply truncated at maxTokens (finishReason: length)', {
+      retryable: true,
+    })
+  }
   if (mode === 'plain') return cleanTranslation(res.content)
   return parseTranslationReply(res.content, mode).lines.join('\n')
 }
@@ -235,10 +252,12 @@ export async function translateTaggedChapter(
     // The prompt asks for the translation plus one trailing `<terms>` report block, and the
     // model obeys literally: without this cleanup the block lands in the chapter text.
     const clean = cleanTranslation(reply)
-    const ru =
-      opts.mode === undefined || opts.mode === 'plain' ? joinReplyLines(clean) : clean
+    const ru = opts.mode === undefined || opts.mode === 'plain' ? joinReplyLines(clean) : clean
     // parity is checked against the source line, not the (mode-wrapped) user prompt
-    const verdict = lintLineParity(stripTerms(job.text), ru, { cyrillicSeverity: 'warn' })
+    const verdict = lintLineParity(stripTerms(job.text), ru, {
+      cyrillicSeverity: 'warn',
+      untranslatedSeverity: 'error',
+    })
     if (!verdict.ok) throw new LineParityError(verdict, `chapter line ${job.index + 1}`)
     opts.memo?.set(key, ru)
     return { index: job.index, ru }

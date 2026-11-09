@@ -26,15 +26,41 @@ describe('lintLineParity', () => {
   })
 
   it('flags a token in a foreign script inside an otherwise Russian line', () => {
-    const ru = ['# Глава 1: Начало', '', 'Они намотали его на палубный甲板 магазина, и он молчал.', '', '[Система: уровень повышен!]', ''].join('\n')
+    const ru = [
+      '# Глава 1: Начало',
+      '',
+      'Они намотали его на палубный甲板 магазина, и он молчал.',
+      '',
+      '[Система: уровень повышен!]',
+      '',
+    ].join('\n')
     const report = lintLineParity(EN, ru)
     expect(report.ok).toBe(false)
     expect(report.issues.map((i) => i.code)).toContain('foreign-script')
   })
 
   it('does not flag Latin brand names', () => {
-    const ru = ['# Глава 1: Начало', '', 'Он слушал Revox A77 и молчал.', '', '[Система: уровень повышен!]', ''].join('\n')
+    const ru = [
+      '# Глава 1: Начало',
+      '',
+      'Он слушал Revox A77 и молчал.',
+      '',
+      '[Система: уровень повышен!]',
+      '',
+    ].join('\n')
     expect(codes(EN, ru)).not.toContain('foreign-script')
+  })
+
+  it('does not flag a foreign script carried over from the source line', () => {
+    const en = 'The sign «東京» hung over the door.'
+    const ru = 'Над дверью висела табличка «Токио (東京)».'
+    expect(codes(en, ru)).not.toContain('foreign-script')
+  })
+
+  it('still flags a foreign token absent from an ASCII source line', () => {
+    const en = 'The sign hung over the door.'
+    const ru = 'Над дверью висела табличка 東京.'
+    expect(codes(en, ru)).toContain('foreign-script')
   })
 
   it('flags a line count mismatch', () => {
@@ -76,6 +102,25 @@ describe('lintLineParity', () => {
     const long = 'He walked slowly into the great hall of the old keep.'
     const r = lintLineParity(`${long}\nок`, `${long}\nок`, { cyrillicSeverity: 'warn' })
     expect(r.issues.some((i) => i.code === 'untranslated-line' && i.severity === 'warn')).toBe(true)
+  })
+
+  it('fails an English echo on a line when untranslatedSeverity is error', () => {
+    const long = 'He walked slowly into the great hall of the old keep.'
+    const r = lintLineParity(`${long}\nок`, `${long}\nок`, {
+      cyrillicSeverity: 'warn',
+      untranslatedSeverity: 'error',
+    })
+    expect(r.ok).toBe(false)
+    expect(r.issues).toContainEqual(
+      expect.objectContaining({ code: 'untranslated-line', severity: 'error', line: 1 }),
+    )
+  })
+
+  it('accepts a legitimately short Cyrillic line with untranslatedSeverity error', () => {
+    const en = 'He walked slowly into the great hall of the old keep.'
+    const r = lintLineParity(en, 'Да.', { untranslatedSeverity: 'error' })
+    expect(r.ok).toBe(true)
+    expect(r.issues.some((i) => i.code === 'untranslated-line')).toBe(false)
   })
 })
 

@@ -1,5 +1,5 @@
 import { category, defineTool, getVariable, setVariable, tool, useCase, withItem } from '@mt/core'
-import { lineParityLinter } from './line-parity-linter.js'
+import { LineParityError, lineParityLinter } from './line-parity-linter.js'
 import type { LineParityInput, LineParityReport } from './line-parity-linter.js'
 
 /**
@@ -26,9 +26,17 @@ export const chapterPairsLinter = defineTool<LineParityInput, LineParityInput>({
     const nums = getVariable<number[]>(env, 'chapterNums') ?? []
     const reports: Record<string, { errors: number; warnings: number }> = {}
     for (const [i, pair] of pairs.entries()) {
-      const res = await lineParityLinter.invoke(withItem(env, pair), ctx)
-      const r = getVariable<LineParityReport>(res, 'parity') as LineParityReport
-      reports[String(nums[i] ?? i + 1)] = { errors: r.errors, warnings: r.warnings }
+      const n = nums[i] ?? i + 1
+      try {
+        const res = await lineParityLinter.invoke(withItem(env, pair), ctx)
+        const r = getVariable<LineParityReport>(res, 'parity') as LineParityReport
+        reports[String(n)] = { errors: r.errors, warnings: r.warnings }
+      } catch (err) {
+        if (err instanceof LineParityError) {
+          throw new LineParityError(err.report, `chapter ${n}`)
+        }
+        throw err
+      }
     }
     return setVariable(env, 'parityByChapter', reports)
   },

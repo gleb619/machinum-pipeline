@@ -37,6 +37,8 @@ export interface LineParityOptions {
   minCyrillicRatio?: number
   /** Severity of the chapter-level Cyrillic ratio check. Default `error`. */
   cyrillicSeverity?: ParitySeverity
+  /** Severity of a single Cyrillic-free RU line. Default `warn`. */
+  untranslatedSeverity?: ParitySeverity
   /** Minimum EN letters on a line before a Cyrillic-free RU line is flagged. Default 20. */
   untranslatedMinLetters?: number
 }
@@ -97,8 +99,8 @@ function firstDiff(a: number[], b: number[]): number | undefined {
  * Compare an EN text with its RU translation line by line (pure function).
  *
  * Hard errors: line count, empty-line positions, `[bracketed]` line positions, leftover
- * `<term>` tags, `think` blocks, chapter-level Cyrillic ratio. Warning: single long line
- * without any Cyrillic.
+ * `<term>` tags, `think` blocks, chapter-level Cyrillic ratio. A single long line without any
+ * Cyrillic is a warning by default (`untranslatedSeverity`).
  */
 export function lintLineParity(
   en: string,
@@ -107,6 +109,7 @@ export function lintLineParity(
 ): LineParityReport {
   const minRatio = options.minCyrillicRatio ?? MIN_CYRILLIC_RATIO
   const ratioSeverity = options.cyrillicSeverity ?? 'error'
+  const untranslatedSeverity = options.untranslatedSeverity ?? 'warn'
   const minLetters = options.untranslatedMinLetters ?? UNTRANSLATED_MIN_LETTERS
   const enLines = en.split('\n')
   const ruLines = ru.split('\n')
@@ -160,8 +163,11 @@ export function lintLineParity(
         line: i + 1,
       })
     }
-    const foreign = line.match(FOREIGN_SCRIPT)
-    if (foreign) {
+    // A quoted sign, name or title in the English source legitimately keeps its native
+    // characters in the translation; only characters absent from the source are a defect.
+    const sourceForeign = new Set(enLines[i]?.match(FOREIGN_SCRIPT) ?? [])
+    const foreign = (line.match(FOREIGN_SCRIPT) ?? []).filter((ch) => !sourceForeign.has(ch))
+    if (foreign.length > 0) {
       issues.push({
         code: 'foreign-script',
         severity: 'error',
@@ -187,7 +193,7 @@ export function lintLineParity(
       if (count(LETTER, line) >= minLetters && count(CYRILLIC, ruLine) === 0) {
         issues.push({
           code: 'untranslated-line',
-          severity: 'warn',
+          severity: untranslatedSeverity,
           message: `line ${i + 1} has no Cyrillic`,
           line: i + 1,
         })

@@ -467,6 +467,8 @@ export interface GateOutput {
   tokens: number
   promptTokens: number
   completionTokens: number
+  /** Provider stop reason (`'length'` = cut off at `maxTokens`). */
+  finishReason?: string
   /** Parsed JSON when JSON mode / parser / validator is active. */
   json?: unknown
 }
@@ -480,6 +482,7 @@ function defaultOutput<I>(state: GateState<I>): GateOutput {
     tokens: r.usage.totalTokens,
     promptTokens: r.usage.promptTokens,
     completionTokens: r.usage.completionTokens,
+    finishReason: r.finishReason,
     ...(state.json !== undefined ? { json: state.json } : {}),
   }
 }

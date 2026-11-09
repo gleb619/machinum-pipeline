@@ -36,6 +36,19 @@ const DRY_RUN = process.argv.includes('--dry-run')
  * constrains the prose for the wrong reason.
  */
 const TYPES = new Set(['character', 'place', 'item'])
+const CYRILLIC = /[Ѐ-ӿ]/
+
+/**
+ * A short reply is not automatically a usable Russian form: `max_tokens` can truncate it, an
+ * echo comes back in English, and an explanation arrives on several lines. Pin nothing rather
+ * than a fragment — the `ru` of a glossary entry constrains the whole book.
+ */
+function rejectReason(term: string, ru: string): string | undefined {
+  if (ru.includes('\n')) return 'multi-line reply'
+  if (!CYRILLIC.test(ru)) return 'no Cyrillic'
+  if (ru.toLowerCase() === term.trim().toLowerCase()) return 'identical to the English term'
+  return undefined
+}
 
 interface Term {
   id?: string
@@ -83,7 +96,9 @@ const terms = glossary.terms ?? []
 const pending = terms.filter(
   (t) => (!t.ru || t.ru.trim() === '') && TYPES.has(String(t.type ?? '')),
 )
-console.log(`glossary: ${terms.length} terms, ${pending.length} without a Russian form (model ${MODEL})`)
+console.log(
+  `glossary: ${terms.length} terms, ${pending.length} without a Russian form (model ${MODEL})`,
+)
 
 let cursor = 0
 let filled = 0
@@ -94,6 +109,11 @@ async function worker(): Promise<void> {
       const ru = await ask(term)
       if (!ru) {
         console.warn(`  skip ${term.term}: empty reply`)
+        continue
+      }
+      const reason = rejectReason(term.term, ru)
+      if (reason) {
+        console.warn(`  reject ${term.term}: ${reason} (${JSON.stringify(ru)})`)
         continue
       }
       console.log(`  ${term.term} → ${ru}`)
@@ -114,4 +134,6 @@ if (!DRY_RUN && filled > 0) {
   writeFileSync(tmp, `${JSON.stringify(glossary, null, 2)}\n`)
   renameSync(tmp, GLOSSARY)
 }
-console.log(DRY_RUN ? `dry run: ${pending.length} proposals` : `filled ${filled} term(s) in ${GLOSSARY}`)
+console.log(
+  DRY_RUN ? `dry run: ${pending.length} proposals` : `filled ${filled} term(s) in ${GLOSSARY}`,
+)

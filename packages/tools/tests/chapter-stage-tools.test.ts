@@ -5,6 +5,7 @@ import { createExchange, getVariable, variable } from '@mt/core'
 import type { Exchange, MdOutputEntry, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 
+import { LlmError } from '../src/core/llm-errors.js'
 import { createAnalyzeOutputs } from '../src/modification/analyze-outputs.js'
 import { createTranslateOutputs } from '../src/modification/translate-outputs.js'
 import {
@@ -20,12 +21,14 @@ import {
   chaptersToTitleInputs,
   createChapterBodyTranslator,
   createGlossaryTitleTranslator,
+  loadGlossaryOrEmpty,
   onlyChapters,
   titleOf,
   translateConcurrency,
   translateTaggedChapter,
 } from '../src/normalization/translation-stage.js'
 import { chapterPairsLinter } from '../src/verification/chapter-pairs-linter.js'
+import { LineParityError } from '../src/verification/line-parity-linter.js'
 
 const ctx = { run: { global: {} } } as unknown as ToolContext
 const reply = (content: string) => async () => ({
@@ -288,5 +291,62 @@ describe('translation stage', () => {
     expect(res.items?.[0]?.ru).toBe('# Глава 1: Начало\n\nПривет')
     const linted = await chapterPairsLinter.invoke(res as never, ctx)
     expect(getVariable(linted, 'parityByChapter')).toEqual({ '1': { errors: 0, warnings: 0 } })
+  })
+
+  it('names the failing chapter in the parity error', async () => {
+    const pairs = [
+      { en: '# Chapter 1\nОн вошёл.', ru: '# Глава 1\nОн вошёл.' },
+      {
+        en: '# Chapter 2\nHe walked into the hall.',
+        ru: '# Chapter 2\nHe walked into the hall.',
+      },
+    ]
+    const env = {
+      id: 'ex-test',
+      variables: [variable('chapterNums', [1, 2])],
+      item: pairs[0],
+      items: pairs,
+      meta: {},
+    }
+    const err = (await chapterPairsLinter
+      .invoke(env as never, ctx)
+      .catch((e) => e)) as LineParityError
+    expect(err).toBeInstanceOf(LineParityError)
+    expect(err.where).toBe('chapter 2')
+    expect(err.message).toContain('chapter 2')
+    expect(err.report.issues).toContainEqual(expect.objectContaining({ code: 'low-cyrillic' }))
+  })
+
+  it('rejects a reply truncated at maxTokens so the engine retries', async () => {
+    const dir = chaptersDir()
+    const call = async () => ({
+      content: '# Глава 1\n\nОборванная стр',
+      model: 'm',
+      tokens: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      finishReason: 'length',
+    })
+    const body = createChapterBodyTranslator({ call, chaptersDir: dir, log: false })
+    const env = {
+      ...createExchange(
+        { text: '# Глава 1' },
+        { variables: [variable('chapters', ['# Chapter 1\n\nA long enough line.'])] },
+      ),
+      items: [{ text: '# Глава 1' }],
+    }
+    await expect(body.invoke(env, ctx)).rejects.toBeInstanceOf(LlmError)
+    await expect(body.invoke(env, ctx)).rejects.toMatchObject({ retryable: true })
+  })
+
+  it('loads an empty glossary only when the file is absent', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mt-glossary-'))
+    expect(await loadGlossaryOrEmpty(dir)).toEqual({ terms: [] })
+  })
+
+  it('throws on a malformed glossary instead of silently translating without terms', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mt-glossary-'))
+    writeFileSync(join(dir, 'glossary.json'), '{ not json')
+    await expect(loadGlossaryOrEmpty(dir)).rejects.toThrow(/glossary\.json/)
   })
 })

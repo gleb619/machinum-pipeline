@@ -262,6 +262,45 @@ describe('withCache', () => {
     await c.chatCompletion(req)
     expect(seen).toHaveLength(2)
   })
+  it('keys on reasoningEffort', async () => {
+    const { transport, seen } = scripted([
+      { status: 200, body: okBody('none') },
+      { status: 200, body: okBody('high') },
+    ])
+    const c = withCache(new OpenAiCompatClient({ baseUrl: 'http://h', transport }), memory())
+    await c.chatCompletion({ ...req, reasoningEffort: 'none' })
+    await c.chatCompletion({ ...req, reasoningEffort: 'high' })
+    expect(seen).toHaveLength(2)
+  })
+  it('does not cache an empty reply', async () => {
+    const cache = memory()
+    const { transport, seen } = scripted([
+      { status: 200, body: okBody('') },
+      { status: 200, body: okBody('Ночь была холодной.') },
+    ])
+    const c = withCache(new OpenAiCompatClient({ baseUrl: 'http://h', transport }), cache)
+    expect((await c.chatCompletion(req)).content).toBe('')
+    expect(cache.store.size).toBe(0)
+    expect((await c.chatCompletion(req)).content).toBe('Ночь была холодной.')
+    expect(seen).toHaveLength(2)
+  })
+  it('does not cache a reply cut off at maxTokens', async () => {
+    const truncated = JSON.stringify({
+      choices: [{ message: { content: 'Обрыв' }, finish_reason: 'length' }],
+      model: 'm',
+      usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5 },
+    })
+    const cache = memory()
+    const { transport, seen } = scripted([
+      { status: 200, body: truncated },
+      { status: 200, body: okBody('Целиком.') },
+    ])
+    const c = withCache(new OpenAiCompatClient({ baseUrl: 'http://h', transport }), cache)
+    expect((await c.chatCompletion(req)).content).toBe('Обрыв')
+    expect(cache.store.size).toBe(0)
+    expect((await c.chatCompletion(req)).content).toBe('Целиком.')
+    expect(seen).toHaveLength(2)
+  })
 })
 
 describe('withTimeout / abort', () => {

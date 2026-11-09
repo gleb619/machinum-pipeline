@@ -31,6 +31,8 @@ export interface ChatCompletionOutput {
   tokens: number
   promptTokens: number
   completionTokens: number
+  /** Provider stop reason (`'length'` = cut off at `maxTokens`). */
+  finishReason?: string
   /** Parsed JSON when `responseFormat: 'json'`. */
   json?: unknown
 }
@@ -90,6 +92,7 @@ export async function chatCompletionSingle(
     tokens: res.usage.totalTokens,
     promptTokens: res.usage.promptTokens,
     completionTokens: res.usage.completionTokens,
+    finishReason: res.finishReason,
   }
 }
 
