@@ -29,6 +29,8 @@ export interface LlmConfigLayer {
   cache?: boolean
   temperature?: number
   maxTokens?: number
+  /** `reasoning_effort` for thinking models; `'none'` disables the reasoning trace. */
+  reasoningEffort?: string
   headers?: Record<string, string>
   transport?: LlmTransportKind
   /**
@@ -50,6 +52,7 @@ export interface ResolvedLlmConfig {
   cache: boolean
   temperature?: number
   maxTokens?: number
+  reasoningEffort?: string
   headers?: Record<string, string>
   /** Which layer supplied each field (observability; contains no secrets). */
   sources: Record<string, string>
@@ -144,6 +147,7 @@ function settingsLayer(settings: Record<string, unknown> | undefined): LlmConfig
     cache: bool(s['llm.cache']),
     temperature: posNum(s['llm.temperature']),
     maxTokens: posNum(s['llm.maxTokens']),
+    reasoningEffort: nonEmpty(s['llm.reasoningEffort']),
     transport: parseTransport(s['llm.transport'], 'settings llm.transport'),
     use: nonEmpty(s['llm.use']),
   }
@@ -163,6 +167,7 @@ function envLayer(env: Record<string, string | undefined>): LlmConfigLayer {
     baseUrl: nonEmpty(env.MT_LLM_BASE_URL),
     timeoutMs: posNum(env.MT_LLM_TIMEOUT_MS),
     cache: bool(env.MT_LLM_CACHE),
+    reasoningEffort: nonEmpty(env.MT_LLM_REASONING_EFFORT),
     transport: parseTransport(env.MT_LLM_TRANSPORT, 'env MT_LLM_TRANSPORT'),
   }
 }
@@ -398,6 +403,7 @@ export function resolveLlmConfig(args: ResolveLlmConfigArgs = {}): ResolvedLlmCo
     cache,
     temperature: pick('temperature'),
     maxTokens: pick('maxTokens'),
+    reasoningEffort: pick('reasoningEffort'),
     headers: pick('headers'),
     sources,
   }

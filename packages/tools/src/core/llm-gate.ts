@@ -247,6 +247,7 @@ export function llmPrepare<I, O>(opts: LlmGateOptions<I, O>): Tool<I, GateState<
           ...(g.maxTokens !== undefined || cfg.maxTokens !== undefined
             ? { maxTokens: g.maxTokens ?? cfg.maxTokens }
             : {}),
+          ...(cfg.reasoningEffort !== undefined ? { reasoningEffort: cfg.reasoningEffort } : {}),
           ...((g.responseFormat ?? opts.responseFormat)
             ? { responseFormat: g.responseFormat ?? opts.responseFormat }
             : {}),

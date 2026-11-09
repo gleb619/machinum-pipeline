@@ -39,6 +39,13 @@ export interface LlmRequest {
   maxTokens?: number
   /** `'json'` asks the provider for JSON output where supported. */
   responseFormat?: LlmResponseFormat
+  /**
+   * `reasoning_effort` for thinking-capable models (ollama: Qwen3.5/3.8, Gemma 4, ...).
+   * `'none'` is the one that matters here: ollama's OpenAI-compatible endpoint ignores
+   * `think: false`, so a thinking model otherwise answers with an empty `content` and all its
+   * tokens spent in `reasoning` — the pipeline sees a blank line and retries until the run dies.
+   */
+  reasoningEffort?: string
   /** Abort signal; never part of the cache key. */
   signal?: AbortSignal
   /** Per-call timeout override; never part of the cache key. */
@@ -180,6 +187,7 @@ export class OpenAiCompatClient implements LlmClient {
     if (req.temperature !== undefined) body.temperature = req.temperature
     if (req.maxTokens !== undefined) body.max_tokens = req.maxTokens
     if (req.responseFormat === 'json') body.response_format = { type: 'json_object' }
+    if (req.reasoningEffort !== undefined) body.reasoning_effort = req.reasoningEffort
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',

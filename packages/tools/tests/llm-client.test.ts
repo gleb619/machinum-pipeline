@@ -49,6 +49,13 @@ const req: LlmRequest = { model: 'm', messages: [{ role: 'user', content: 'q' }]
 const fast = { max: 2, backoffMs: 0, strategy: 'fixed' as const }
 
 describe('OpenAiCompatClient', () => {
+  it('sends reasoning_effort when set (thinking models answer empty without it)', async () => {
+    const { transport, seen } = scripted([{ status: 200, body: okBody('Ночь была холодной.') }])
+    const c = new OpenAiCompatClient({ baseUrl: 'http://h/v1', transport })
+    await c.chatCompletion({ ...req, reasoningEffort: 'none' })
+    expect(JSON.parse(seen[0]?.body ?? '{}').reasoning_effort).toBe('none')
+  })
+
   it('builds request (system first, json mode, key header) and maps response', async () => {
     const { transport, seen } = scripted([{ status: 200, body: okBody('hello', { cost: 0.01 }) }])
     const c = new OpenAiCompatClient({ baseUrl: 'http://h/v1/', apiKey: 'sk-1', transport })
@@ -66,6 +73,7 @@ describe('OpenAiCompatClient', () => {
     expect(body.temperature).toBe(0.2)
     expect(body.max_tokens).toBe(9)
     expect(body.response_format).toEqual({ type: 'json_object' })
+    expect(body.reasoning_effort).toBeUndefined()
     expect(res).toMatchObject({
       content: 'hello',
       model: 'm-resp',
