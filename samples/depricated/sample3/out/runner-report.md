@@ -40,11 +40,11 @@ Totals: 2 runners, 2 ok, 0 failed.
 2026-11-03T13:06:15.930Z [INFO] [forbidden] findings: {"findings":[]}
 2026-11-03T13:06:16.071Z [INFO] [forbidden] findings: {"findings":[]}
 2026-11-03T13:06:16.160Z [INFO] [forbidden] findings: {"findings":[]}
-2026-11-03T13:06:16.241Z [INFO] [MyLogMarker] /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/jsonl/input.jsonl#0 # Chapter 1: The Road from Thornhaven\n\nDolore occaecat et est ut officia ad laborum culpa elit ani...at nostrud sunt magna ullamco do aute consectetur magna minim minim excepteur consequat quis quis.\n (length: 2015 chars)
-2026-11-03T13:06:16.241Z [INFO] [MyLogMarker] /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/jsonl/input.jsonl#1 # Chapter 2: Ambush in the Darkwood\n\nLaboris officia deserunt labore nulla consequat excepteur par...unt ea. Tempor irure cupidatat occaecat veniam dolore cupidatat proident ipsum aliqua labore esse.\n (length: 1942 chars)
-2026-11-03T13:06:16.242Z [INFO] [MyLogMarker] /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/jsonl/input.jsonl#2 # Chapter 3: The Duke’s Tribunal\n\nNulla nulla nostrud ut Lorem consectetur qui anim. Cillum conseq...unt. Commodo reprehenderit exercitation Lorem veniam nisi fugiat adipisicing amet ullamco aliquip.\n (length: 1757 chars)
-2026-11-03T13:06:16.243Z [INFO] md target 'md://./chapters/en' wrote 3 file(s) under /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/chapters/en
-2026-11-03T13:06:16.633Z [INFO] md target 'md://./chapters' wrote 3 file(s) under /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/chapters
+2026-11-03T13:06:16.241Z [INFO] [MyLogMarker] <repo>/samples/sample3/jsonl/input.jsonl#0 # Chapter 1: The Road from Thornhaven\n\nDolore occaecat et est ut officia ad laborum culpa elit ani...at nostrud sunt magna ullamco do aute consectetur magna minim minim excepteur consequat quis quis.\n (length: 2015 chars)
+2026-11-03T13:06:16.241Z [INFO] [MyLogMarker] <repo>/samples/sample3/jsonl/input.jsonl#1 # Chapter 2: Ambush in the Darkwood\n\nLaboris officia deserunt labore nulla consequat excepteur par...unt ea. Tempor irure cupidatat occaecat veniam dolore cupidatat proident ipsum aliqua labore esse.\n (length: 1942 chars)
+2026-11-03T13:06:16.242Z [INFO] [MyLogMarker] <repo>/samples/sample3/jsonl/input.jsonl#2 # Chapter 3: The Duke’s Tribunal\n\nNulla nulla nostrud ut Lorem consectetur qui anim. Cillum conseq...unt. Commodo reprehenderit exercitation Lorem veniam nisi fugiat adipisicing amet ullamco aliquip.\n (length: 1757 chars)
+2026-11-03T13:06:16.243Z [INFO] md target 'md://./chapters/en' wrote 3 file(s) under <repo>/samples/sample3/chapters/en
+2026-11-03T13:06:16.633Z [INFO] md target 'md://./chapters' wrote 3 file(s) under <repo>/samples/sample3/chapters
 2026-11-03T13:06:16.666Z [INFO] Pipeline complete. Run ID: e675a2fb-86b3-430a-9653-ef17e9b0ac09
 ~~~~
 
@@ -69,10 +69,10 @@ Totals: 2 runners, 2 ok, 0 failed.
 2026-11-03T13:06:18.269Z [INFO] [forbidden] findings: {"findings":[]}
 2026-11-03T13:06:18.390Z [INFO] [forbidden] findings: {"findings":[]}
 2026-11-03T13:06:18.462Z [INFO] [forbidden] findings: {"findings":[]}
-2026-11-03T13:06:18.530Z [INFO] [MyLogMarker] /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/jsonl/input.jsonl#0 # Chapter 1: The Road from Thornhaven\n\nDolore occaecat et est ut officia ad laborum culpa elit ani...at nostrud sunt magna ullamco do aute consectetur magna minim minim excepteur consequat quis quis.\n (length: 2015 chars)
-2026-11-03T13:06:18.531Z [INFO] [MyLogMarker] /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/jsonl/input.jsonl#1 # Chapter 2: Ambush in the Darkwood\n\nLaboris officia deserunt labore nulla consequat excepteur par...unt ea. Tempor irure cupidatat occaecat veniam dolore cupidatat proident ipsum aliqua labore esse.\n (length: 1942 chars)
-2026-11-03T13:06:18.532Z [INFO] [MyLogMarker] /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/jsonl/input.jsonl#2 # Chapter 3: The Duke’s Tribunal\n\nNulla nulla nostrud ut Lorem consectetur qui anim. Cillum conseq...unt. Commodo reprehenderit exercitation Lorem veniam nisi fugiat adipisicing amet ullamco aliquip.\n (length: 1757 chars)
-2026-11-03T13:06:18.533Z [INFO] md target 'md://./chapters/en' wrote 3 file(s) under /media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/samples/sample3/chapters/en
+2026-11-03T13:06:18.530Z [INFO] [MyLogMarker] <repo>/samples/sample3/jsonl/input.jsonl#0 # Chapter 1: The Road from Thornhaven\n\nDolore occaecat et est ut officia ad laborum culpa elit ani...at nostrud sunt magna ullamco do aute consectetur magna minim minim excepteur consequat quis quis.\n (length: 2015 chars)
+2026-11-03T13:06:18.531Z [INFO] [MyLogMarker] <repo>/samples/sample3/jsonl/input.jsonl#1 # Chapter 2: Ambush in the Darkwood\n\nLaboris officia deserunt labore nulla consequat excepteur par...unt ea. Tempor irure cupidatat occaecat veniam dolore cupidatat proident ipsum aliqua labore esse.\n (length: 1942 chars)
+2026-11-03T13:06:18.532Z [INFO] [MyLogMarker] <repo>/samples/sample3/jsonl/input.jsonl#2 # Chapter 3: The Duke’s Tribunal\n\nNulla nulla nostrud ut Lorem consectetur qui anim. Cillum conseq...unt. Commodo reprehenderit exercitation Lorem veniam nisi fugiat adipisicing amet ullamco aliquip.\n (length: 1757 chars)
+2026-11-03T13:06:18.533Z [INFO] md target 'md://./chapters/en' wrote 3 file(s) under <repo>/samples/sample3/chapters/en
 2026-11-03T13:06:18.534Z [INFO] Resolved URI alias '@ru' → 'my-target://./chapters'
 2026-11-03T13:06:18.559Z [INFO] Pipeline complete. Run ID: dfdaa89f-d9fd-4f24-93d3-a9ac8f673da6
 ~~~~

@@ -240,7 +240,7 @@ PATH via `~/.bashrc` + `~/.bash_profile`; otherwise add `export PATH="$HOME/.loc
 #   mt-cli <args>  ==  nvm use v22.20.0 && <repo>/packages/mt/dist/bin/mt <args>
 set -uo pipefail
 
-MT_CLI_BIN="${MT_CLI_BIN:-/media/boris/data_nvme1n1/WORKSPACES/WORKSPACE/machinum-pipeline/packages/mt/dist/bin/mt}"
+MT_CLI_BIN="${MT_CLI_BIN:-$PWD/packages/mt/dist/bin/mt}"
 
 if [ ! -x "$MT_CLI_BIN" ]; then
   echo "mt-cli: binary not found or not executable: $MT_CLI_BIN" >&2

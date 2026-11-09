@@ -91,12 +91,18 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 
 ## Hard rules
 
+- **Push only a working main** - `main` reaches the remote only when it is verified on that exact
+  commit: typecheck clean, `pnpm test` green, `pnpm ci:local` green (plus `packages/tools` project
+  typecheck, which the root `tsc` sweep skips). Never push first and repair afterwards, never leave
+  a red `main` on the remote: everyone else branches from it. A branch may be pushed for review;
+  `main` may not be. Force-push only to replace a broken remote `main` with a verified local one,
+  and only with `--force-with-lease`.
 - **Change workflow** - default: worktree + branch → code → test/lint gate → commit → samples IT gate → rebase
   onto `main` → `git merge --ff-only` → cleanup. **Simple tasks (tweak, sample edit, doc fix, single commit): stay
   put**, commit on current branch (usually `main`). **Explicit user override** (work in current worktree/`main`)
   wins. **Merge commits forbidden** (`--no-ff`, merge without rebase). State machine: docs/change-workflow.md.
 - **GPU gate** - before any FF-merge run `pnpm test:gpu` (`packages/tools/tests/it/`, real ollama at
-  `MT_OLLAMA_URL`; use `borispc3ai` skill; host cmds in gitignored `.ollama-remote.md`) and report result.
+  `MT_OLLAMA_URL`; host-specific commands live in a gitignored local note) and report result.
   Excluded from `pnpm test`. Unreachable server **fails loudly** - report it, never skip silently or claim pass.
 - **wrkflw guard** - before any FF-merge run `pnpm ci:local` (wrkflw validate + Docker jobs; needs `wrkflw` +
   Docker), report one-line result. Failure to run = red. `pnpm ci:check` = fast validate-only loop.
