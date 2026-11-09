@@ -1,0 +1,264 @@
+{
+  "_comment": "Canonical renders for book2 (21 chapters of a Maine harbour novel). Checked in because names are editorial decisions, not model output. `gen` is the Russian genitive used for possessives; `type` is the glossary type. Anything not listed here is not a name and must not be pinned in the prompt.",
+  "people": {
+    "Nadia": {
+      "ru": "Надя",
+      "gen": "Нади",
+      "type": "character"
+    },
+    "Nadia Okonkwo": {
+      "ru": "Надя Оконкво",
+      "gen": "Нади Оконкво",
+      "type": "character"
+    },
+    "Emeka": {
+      "ru": "Эмека",
+      "gen": "Эмеки",
+      "type": "character"
+    },
+    "Emeka Okonkwo": {
+      "ru": "Эмека Оконкво",
+      "gen": "Эмеки Оконкво",
+      "type": "character"
+    },
+    "Adaeze": {
+      "ru": "Ададзе",
+      "gen": "Ададзе",
+      "type": "character"
+    },
+    "Adaeze Okonkwo": {
+      "ru": "Ададзе Оконкво",
+      "gen": "Ададзе Оконкво",
+      "type": "character"
+    },
+    "Okonkwo": {
+      "ru": "Оконкво",
+      "gen": "Оконкво",
+      "type": "character"
+    },
+    "Fiona": {
+      "ru": "Файона",
+      "gen": "Файоны",
+      "type": "character"
+    },
+    "Fiona Doyle": {
+      "ru": "Файона Доул",
+      "gen": "Файоны Доул",
+      "type": "character"
+    },
+    "Cormac": {
+      "ru": "Кормак",
+      "gen": "Кормака",
+      "type": "character"
+    },
+    "Cormac Doyle": {
+      "ru": "Кормак Доул",
+      "gen": "Кормака Доула",
+      "type": "character"
+    },
+    "Doyle": {
+      "ru": "Доул",
+      "gen": "Доула",
+      "type": "character"
+    },
+    "Gus": {
+      "ru": "Гус",
+      "gen": "Гуса",
+      "type": "character"
+    },
+    "Gus Pemberton": {
+      "ru": "Гус Пембертон",
+      "gen": "Гуса Пембертона",
+      "type": "character"
+    },
+    "Pemberton": {
+      "ru": "Пембертон",
+      "gen": "Пембертона",
+      "type": "character"
+    },
+    "Anselm": {
+      "ru": "Ансельм",
+      "gen": "Ансельма",
+      "type": "character"
+    },
+    "Vera": {
+      "ru": "Вера",
+      "gen": "Веры",
+      "type": "character"
+    },
+    "Vera Lindqvist": {
+      "ru": "Вера Линдквист",
+      "gen": "Веры Линдквист",
+      "type": "character"
+    },
+    "Lindqvist": {
+      "ru": "Линдквист",
+      "gen": "Линдквист",
+      "type": "character"
+    },
+    "Arthur": {
+      "ru": "Артур",
+      "gen": "Артура",
+      "type": "character"
+    },
+    "Arthur Rusk": {
+      "ru": "Артур Раск",
+      "gen": "Артура Раска",
+      "type": "character"
+    },
+    "Desmond": {
+      "ru": "Десмонд",
+      "gen": "Десмонда",
+      "type": "character"
+    },
+    "Desmond Rusk": {
+      "ru": "Десмонд Раск",
+      "gen": "Десмонда Раска",
+      "type": "character"
+    },
+    "Rusk": {
+      "ru": "Раск",
+      "gen": "Раска",
+      "type": "character"
+    },
+    "Tobias Renn": {
+      "ru": "Тобиас Ренн",
+      "gen": "Тобиаса Ренна",
+      "type": "character"
+    },
+    "Renn": {
+      "ru": "Ренн",
+      "gen": "Ренна",
+      "type": "character"
+    },
+    "Serrano": {
+      "ru": "Серрано",
+      "gen": "Серрано",
+      "type": "character"
+    },
+    "Joaquin Serrano": {
+      "ru": "Хоакин Серрано",
+      "gen": "Хоакина Серрано",
+      "type": "character"
+    },
+    "Tomas": {
+      "ru": "Томас",
+      "gen": "Томаса",
+      "type": "character"
+    },
+    "Tomas Bel": {
+      "ru": "Томас Бел",
+      "gen": "Томаса Бела",
+      "type": "character"
+    },
+    "Elias Ward": {
+      "ru": "Элиас Уорд",
+      "gen": "Элиаса Уорда",
+      "type": "character"
+    },
+    "Em": {
+      "ru": "Эм",
+      "gen": "Эм",
+      "type": "character"
+    }
+  },
+  "places": {
+    "Kestrel Point": {
+      "ru": "Кестрел-Пойнт",
+      "gen": "Кестрел-Пойнта",
+      "type": "place"
+    },
+    "Salt Row": {
+      "ru": "Солт-Роу",
+      "gen": "Солт-Роу",
+      "type": "place"
+    },
+    "Bellwether Hill": {
+      "ru": "Беллвезер-Хилл",
+      "gen": "Беллвезер-Хилла",
+      "type": "place"
+    },
+    "Cape Verity": {
+      "ru": "мыс Верити",
+      "gen": "мыса Верити",
+      "type": "place"
+    },
+    "Marrow Bay": {
+      "ru": "Марроу-Бей",
+      "gen": "Марроу-Бея",
+      "type": "place"
+    },
+    "Cinder Yards": {
+      "ru": "Синдер-Ярдс",
+      "gen": "Синдер-Ярдс",
+      "type": "place"
+    },
+    "Fenwick Street": {
+      "ru": "Фенвик-стрит",
+      "gen": "Фенвик-стрит",
+      "type": "place"
+    },
+    "North Pier": {
+      "ru": "Северный пирс",
+      "gen": "Северного пирса",
+      "type": "place"
+    },
+    "Carnegie": {
+      "ru": "Карнеги",
+      "gen": "Карнеги",
+      "type": "place"
+    },
+    "Harbor Street": {
+      "ru": "Харбор-стрит",
+      "gen": "Харбор-стрит",
+      "type": "place"
+    },
+    "Marrow Bay Municipal Archive": {
+      "ru": "Муниципальный архив Марроу-Бей",
+      "gen": "Муниципального архива Марроу-Бей",
+      "type": "place"
+    }
+  },
+  "things": {
+    "Pelargic": {
+      "ru": "Пеларгик",
+      "gen": "Пеларгика",
+      "type": "item"
+    },
+    "Rusk Marine": {
+      "ru": "Раск Марин",
+      "gen": "Раск Марин",
+      "type": "item"
+    },
+    "Ward Marine Electronics": {
+      "ru": "Уорд Марин Электроникс",
+      "gen": "Уорд Марин Электроникс",
+      "type": "item"
+    },
+    "Coast Guard": {
+      "ru": "береговая охрана",
+      "gen": "береговой охраны",
+      "type": "item"
+    },
+    "Volvo": {
+      "ru": "Вольво",
+      "gen": "Вольво",
+      "type": "item"
+    },
+    "Revox": {
+      "ru": "Ревокс",
+      "gen": "Ревокса",
+      "type": "item"
+    },
+    "Kestrel": {
+      "ru": "Кестрел",
+      "gen": "Кестрела",
+      "type": "item"
+    },
+    "The Anselm": {
+      "ru": "«Ансельм»",
+      "gen": "«Ансельма»",
+      "type": "item"
+    }
+  }
+}

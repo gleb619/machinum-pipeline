@@ -9,6 +9,14 @@
  *   tsx scripts/fill-glossary-ru.ts --dry-run        # print the proposals only
  *   tsx scripts/fill-glossary-ru.ts --model qwen3.8:latest
  *
+ * The model's proposals are a first draft, not authority: it renders each term in isolation, so
+ * the same person arrives in several spellings and possessives arrive as fragments. When the book
+ * has a `chapters/names.json` (the editorial table of proper nouns), run
+ * `python3 scripts/apply_names.py --glossary chapters/glossary.json --names chapters/names.json`
+ * afterwards — it rewrites every name to the table, drops the extractor's non-names, and adds the
+ * names it missed. Measured on book2: the fill alone gave «Кормак До» / «Дойл» / «Файон», and the
+ * table fixed all three.
+ *
  * Idempotent: a term that already has `ru` is never touched, so a hand-corrected name survives
  * a re-run. Writes atomically (tmp + rename) because a half-written glossary breaks every later
  * pipeline run.
