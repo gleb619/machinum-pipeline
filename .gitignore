@@ -9,6 +9,8 @@ vault.json
 *.tsbuildinfo
 .env
 .env.local
+# project journal: bind-mounted markdown wiki, its token lives in .env (ignored above)
+deploy/memory/data/
 mt.local.json
 .sdd/runtime/
 

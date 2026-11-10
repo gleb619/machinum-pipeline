@@ -1,0 +1,47 @@
+# Project memory for machinum-pipeline: one container, one volume, no API key.
+#
+# This is the sibling of machinum-sft's stack, deliberately NOT the same instance: its own
+# container, port, volume and token, so the two journals cannot read each other. A page
+# about the translation pipeline must never surface while an agent works on the fine-tune.
+#
+# Why ai-memory at all (docs/memory.md): it keeps a git-backed markdown wiki as the source of
+# truth and derives an index over it, captures nothing unless you write a page, and needs
+# zero LLM calls. An agent reads it at session start instead of rediscovering the same trap.
+#
+#   cd deploy/memory
+#   cp .env.example .env                       # then paste a token
+#   docker run --rm akitaonrails/ai-memory:3.4.4 generate-auth-token   # the token
+#   mkdir -p data && docker compose up -d
+#   curl -s localhost:49375/healthz            # {"status":"ok"}
+#
+# Images are pinned: `latest` has already broken the sibling stack once.
+
+name: mt-memory
+
+services:
+  ai-memory:
+    image: akitaonrails/ai-memory:3.4.4
+    container_name: mt-memory
+    restart: unless-stopped
+    ports:
+      # loopback only: this is a personal journal, not a service. Nothing needs it from
+      # another machine, and it must never be proxied.
+      # Host 49375 -> container 49374: the image's own default bind is :49374, so the host
+      # port differs from the container port. (Mapping 49375:49375 looks healthy because the
+      # healthcheck runs inside the container, but nothing answers on the host.)
+      - "127.0.0.1:49375:49374"
+    volumes:
+      # bind-mounted, not a named volume: the wiki is markdown, so `cp -a data/` is the
+      # whole backup and `git init data/wiki` is version control.
+      - ./data:/data
+    env_file:
+      - .env
+    environment:
+      AI_MEMORY_ALLOWED_HOSTS: "127.0.0.1,localhost,::1"
+      RUST_LOG: "ai_memory=info,ai_memory_store=info,ai_memory_wiki=info,ai_memory_mcp=info"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/ai-memory", "status"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
