@@ -511,8 +511,12 @@ const unsubscribe = subscribeEvent('chapterReady', (event) => log.info('got', ev
   closing notifies the subscribers through `onClose`. Publishing again reopens the channel.
 - **Lifecycle events** (`started`, `step-done`, `paused`, `resumed`, `done`, `failed`) are published
   to the bus as well, but they never register the publishing run as an emitter — otherwise a
-  subscriber run would keep its own channel open forever. Lifecycle channels end on a terminal
-  event instead.
+  subscriber run would keep its own channel open forever.
+- **Live runs** — the Runner registers its run (`openBusRun(runId)`) synchronously, before the first
+  `await` of `start()`/`resume()`, and unregisters it when the run ends (`closeBusRun(runId)`).
+  `subscribeBusRuns(runId, onChange)` tells a watcher whether *another* run of the process is still
+  live. The synchronous registration is what lets `defineProcess([...]).parallel(true)` start every
+  sibling run before any of them attaches a subscription.
 - The channel name is the raw `type` string — the `events://` waypoint maps a URI onto it.
 
 **Run context (`AsyncLocalStorage`)** — `withRunContext(runId, fn)` (the same pattern as

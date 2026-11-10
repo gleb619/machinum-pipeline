@@ -267,9 +267,10 @@ The `events://` scheme (`packages/waypoint/src/events.ts`) is asymmetric on purp
   subscribes to that lifecycle event; `?only=a,b` filters lifecycle types and leaves the name a
   pure label; any other name is a **custom channel**. Delivery is live (events arrive as they are
   published) with the channel history replayed first, so a late subscriber still sees what came
-  before. End conditions: a lifecycle subscription ends on a terminal event (`done`/`failed`), a
-  custom subscription ends when the channel closes (every publishing run ended), and
-  `?limit=N` / `?timeout=<ms>` end the stream whenever they trigger. The yielded envelope is
+  before. End conditions: a **custom** subscription ends when the channel closes (every publishing
+  run ended); a **lifecycle** subscription has no producer to wait for — its own run can never
+  publish `done` before it ends — so it ends with the last *other* live run of the process. Both
+  also end when `?limit=N` / `?timeout=<ms>` trigger. The yielded envelope is
   `{ id, item: BusEvent, meta: { eventName, eventTs, eventRunId } }`. The source is
   `lifestyle: 'long-lived'` — a live stream has no cursor to resume from.
 - **Target** — unchanged and **run-scoped**: it subscribes to `ctx.events` (the current run) and

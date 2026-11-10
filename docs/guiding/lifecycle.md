@@ -392,8 +392,11 @@ const off = subscribeEvent('chapterReady', (event) => log.info('got', event))
 - `BusEvent` = `{ type, ts, runId?, stepId?, error?, payload? }`.
 - A subscriber first receives the channel's **history** (the last 100 events), then live events.
 - A channel **closes** when every run that published on it has ended (`done`/`failed`) — that is
-  what ends an `events://` subscriber. Publishing again reopens the channel.
+  what ends an `events://` subscriber of a custom channel. Publishing again reopens the channel.
 - Lifecycle events are published to the bus too, but they never keep a channel open.
+- A subscription to a **lifecycle** event (`events://started`) ends with the last *other* run of the
+  process — a lifecycle subscriber can never wait for its own `done` (the run ends only after the
+  stream closed).
 
 The `events://` **source** is the URI front of the bus: `events://<channel>` subscribes to a custom
 channel, `events://started` (and the other lifecycle names) subscribes to that lifecycle event,

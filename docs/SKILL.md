@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.32.0 | 2026-11-10 -->
+<!-- skill-version: 1.33.0 | 2026-11-10 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -504,7 +504,9 @@ const off = subscribeEvent('chapterReady', (event) => log.info('got', event))
 - Inside a run `emitEvent()` carries the run id and marks that run as an **emitter** of the channel.
 - A subscriber first gets the channel's history (the last 100 events), then the live ones.
 - A channel closes when **every** run that published on it has ended (`done`/`failed`) — that is
-  what ends an `events://` subscriber. Publishing again reopens the channel.
+  what ends an `events://` subscriber of a custom channel. Publishing again reopens the channel.
+- A subscription to a **lifecycle** event (`events://started`) ends with the last *other* run of the
+  process — a lifecycle subscriber can never wait for its own `done`.
 - A failing subscriber is logged, never propagated to the publisher.
 - `.from('events://chapterReady')` yields `{ id, item: BusEvent, meta: { eventName, eventTs, eventRunId } }`.
 - Publisher and subscriber must share a process (one `defineProcess([...]).parallel(true)` or one
