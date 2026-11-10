@@ -604,7 +604,6 @@ export {
   ChapterMetadata,
   type ChapterBodyInput,
   type ChapterDoc,
-  type ChapterDocWarning,
 } from './modification/chapter-doc.js'
 
 export {

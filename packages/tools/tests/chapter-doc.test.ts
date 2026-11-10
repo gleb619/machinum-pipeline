@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import {
   type ChapterDoc,
   ChapterDocNode,
-  type LegacyChapterParagraph,
   chapterDoc,
   chapterDocEmit,
   readChapterDoc,
@@ -393,22 +392,6 @@ describe('chapterDoc tool', () => {
     expect(getVariable(result, 'keep')).toBe(7)
   })
 
-  it('accepts structured body as legacy Paragraph[]', async () => {
-    const body: LegacyChapterParagraph[] = [
-      { lines: ['Line one', 'Line two'] },
-      { lines: ['Para two'] },
-    ]
-    const env = createExchange(
-      { title: 'Structured', body, number: 5 },
-      { meta: { chapterNum: 5 } },
-    )
-
-    const result = await chapterDoc.invoke(env, {} as ToolContext)
-    expect(result.item).toContain('Line one')
-    expect(result.item).toContain('Para two')
-    expect(result.item).toContain('number: 5')
-  })
-
   it('reads number from item when meta.chapterNum is absent', async () => {
     const env = createExchange({ title: 'Test', body: 'Body.', number: 9 })
 
@@ -741,7 +724,7 @@ describe('ChapterDocNode.chapterTree()', () => {
 // ---------------------------------------------------------------------------
 
 describe('toChapterBody', () => {
-  it('normalizes string, Chapter, node, ChapterBody and legacy paragraph inputs', () => {
+  it('normalizes string, Chapter, node, and ChapterBody inputs', () => {
     const chapter = docChapter('T', 'Body text.')
     const node = readChapterDoc('# Title\n\nBody text.')
 
@@ -750,8 +733,5 @@ describe('toChapterBody', () => {
     expect(toChapterBody(chapter)).toBe('Body text.')
     expect(toChapterBody(node.chapter)).toBe('Body text.')
     expect(toChapterBody(node.chapterTree())).toBe('Body text.')
-    expect(toChapterBody([{ lines: ['One.', 'Two.'] }, { lines: ['Three.'] }])).toBe(
-      'One.\nTwo.\n\nThree.',
-    )
   })
 })
