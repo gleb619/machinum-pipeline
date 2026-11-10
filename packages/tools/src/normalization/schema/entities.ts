@@ -1,6 +1,6 @@
 import { category, defineTool, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
-import { MAX_ENTITIES } from '../../constants.js'
+import { MAX_ENTITIES } from '@mt/core'
 import type { ChunkModeOptions } from '../../core/chunk-processor.js'
 import { parseEntityRows, roundTripIssue } from './doc.js'
 import type { ChapterSource } from './doc.js'

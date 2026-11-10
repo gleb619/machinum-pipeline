@@ -118,6 +118,8 @@ export {
   useEmbedKey,
 } from './secrets.js'
 export { getSetting } from './settings.js'
+export { emitEvent, subscribeBusRuns, subscribeEvent } from './event-bus.js'
+export type { BusEvent, BusEventListener } from './event-bus.js'
 export * from './types/domain.js'
 export type {
   AddEmbedKeyOptions,

@@ -7,7 +7,7 @@ import {
   MIN_TERM_COVERAGE,
   SUMMARY_MIN_BODY_WORDS,
   SUMMARY_OUTPUT_RESERVE,
-} from '../../constants.js'
+} from '@mt/core'
 import { loadBundledPrompt } from '../../core/bundled-prompts.js'
 import type { ChunkMode, ChunkModeOptions } from '../../core/chunk-processor.js'
 import { composePromptBlocks } from '../../core/prompt-blocks.js'

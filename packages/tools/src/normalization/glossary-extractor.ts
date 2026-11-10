@@ -6,7 +6,7 @@ import {
   GLOSSARY_ALWAYS_CAP_MIN_COUNT,
   GLOSSARY_MAX_REFS_PER_TERM,
   GLOSSARY_MIN_COUNT,
-} from '../constants.js'
+} from '@mt/core'
 import type { ChunkModeOptions } from '../core/chunk-processor.js'
 import { buildGlossaryGraph, serializeGlossaryGraph } from './glossary-graph.js'
 import type { GlossaryGraph } from './glossary-graph.js'

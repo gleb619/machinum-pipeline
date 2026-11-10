@@ -1,6 +1,6 @@
 import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
-import { WORD_CHAR_CLASS } from '../constants.js'
+import { WORD_CHAR_CLASS } from '@mt/core'
 import { exField } from './fields.js'
 import type { RuGender, RuGrammar } from './ru-grammar.js'
 

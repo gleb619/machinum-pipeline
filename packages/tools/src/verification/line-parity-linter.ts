@@ -7,7 +7,7 @@ import {
   PARITY_ABS_TOLERANCE,
   PARITY_REL_TOLERANCE,
   UNTRANSLATED_MIN_LETTERS,
-} from '../constants.js'
+} from '@mt/core'
 import { resolveTunedNum } from '../resolve-constants.js'
 
 /** Severity of a parity issue: `error` fails the check, `warn` is informational. */

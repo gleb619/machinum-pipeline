@@ -14,7 +14,7 @@ import {
   PROMPT_OVERHEAD_SLACK_TOKENS,
   TRANSLATE_PREFIX_FALLBACK_TOKENS,
   TRANSLATE_SYSTEM_FALLBACK_TOKENS,
-} from '../constants.js'
+} from '@mt/core'
 import { countTextTokens } from '../normalization/token-counter.js'
 import { cleanTranslation } from '../normalization/translation-prompt.js'
 import { resolveTunedNum } from '../resolve-constants.js'

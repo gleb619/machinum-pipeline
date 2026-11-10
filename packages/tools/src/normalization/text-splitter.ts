@@ -7,7 +7,7 @@ import {
   paragraphStrategy,
   splitReadableParts,
 } from '@mt/core'
-import { DEFAULT_MAX_TOKENS, SERIES_SPLIT_TARGET_CHARS } from '../constants.js'
+import { DEFAULT_MAX_TOKENS, SERIES_SPLIT_TARGET_CHARS } from '@mt/core'
 import {
   type ChapterDoc,
   type ChapterDocNode,
@@ -43,7 +43,7 @@ export {
   splitSentenceUnits,
   whitespaceStrategy,
 } from '@mt/core'
-export { DEFAULT_MAX_TOKENS } from '../constants.js'
+export { DEFAULT_MAX_TOKENS } from '@mt/core'
 
 /**
  * Count tokens using gpt-tokenizer if available, otherwise use heuristic.

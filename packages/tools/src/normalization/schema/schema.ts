@@ -1,6 +1,6 @@
 import { category, defineTool, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
-import { MAX_SCHEMA_LINES } from '../../constants.js'
+import { MAX_SCHEMA_LINES } from '@mt/core'
 import { roundTripIssue, stripCodeFence } from './doc.js'
 import type { ChapterSource } from './doc.js'
 import { runExtractor } from './extractor.js'

@@ -377,6 +377,34 @@ sequenceDiagram
 - A tailer therefore never sees an event ahead of persisted state.
 - Hook scripts are separate Runners ⇒ separate `runId`s and separate event logs.
 
+### Named events — the process-wide bus
+
+Besides the run lifecycle, `@mt/core` runs **one event bus per process**. Pipelines talk to each
+other through named channels without knowing that the other pipeline exists.
+
+```typescript
+import { emitEvent, subscribeEvent } from '@mt/core'
+
+emitEvent('chapterReady', { chapter: 3, title: 'The Quiet Harbour' })
+const off = subscribeEvent('chapterReady', (event) => log.info('got', event))
+```
+
+- `BusEvent` = `{ type, ts, runId?, stepId?, error?, payload? }`.
+- A subscriber first receives the channel's **history** (the last 100 events), then live events.
+- A channel **closes** when every run that published on it has ended (`done`/`failed`) — that is
+  what ends an `events://` subscriber. Publishing again reopens the channel.
+- Lifecycle events are published to the bus too, but they never keep a channel open.
+
+The `events://` **source** is the URI front of the bus: `events://<channel>` subscribes to a custom
+channel, `events://started` (and the other lifecycle names) subscribes to that lifecycle event,
+`?only=a,b` filters lifecycle types, and `?limit=N` / `?timeout=<ms>` end the stream. The
+`events://` **target** stays run-scoped — it logs the lifecycle lines of its own run.
+
+### No target? `void://`
+
+A root pipeline with a source but no target is valid: the Runner appends a `void://` target that
+discards the envelopes (and counts them, so the checkpoint stays honest).
+
 ---
 
 ## 9. Phase 9 — FINISH

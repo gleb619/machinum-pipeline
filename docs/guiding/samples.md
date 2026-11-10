@@ -27,7 +27,7 @@ Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 | `pipe01-beginning.ts` | Minimal source → shipped tool → target; typed chapter trees; `statFreq`; `console://` |
 | `pipe02-waypoints.ts` | `hs://` HTTP ingestion, `@en` / `@ru` aliases, sample-owned `my-target://` |
 | `pipe03-tools-multitool.ts` | Six-tool chain, batch subflow `.subflow('batch://?size=N', pipe)`, subflow composition, `batch://` views |
-| `pipe04-forks.ts` | Parallel `.fork('chapter-views', [...])` branches with isolated envelopes |
+| `pipe04-forks.ts` | Parallel `.fork('chapter-views', [...])` branches with isolated envelopes; plus a named-event publisher/subscriber pair (`eventsSuite`) |
 | `pipe05-chunks-ladder.ts` | `chunkSplit`, separator reuse, chunks → paragraphs → lines → words / tokens, series split |
 | `pipe06-stop-resume.ts` | SIGINT pause, latch files, `mt resume` with no duplicate lines |
 | `pipe07-normalize-analyze.ts` | Raw JSONL → clean markdown → summaries + glossary + `<term>` tagged text |

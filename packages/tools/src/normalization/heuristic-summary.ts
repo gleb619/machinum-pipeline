@@ -1,6 +1,6 @@
 import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
-import { MIN_SENTENCE_WORDS, SUMMARY_SENTENCE_COUNT } from '../constants.js'
+import { MIN_SENTENCE_WORDS, SUMMARY_SENTENCE_COUNT } from '@mt/core'
 
 /** Variable holding the heuristic summaries (fallback for the LLM summary). */
 export const VAR_HEURISTIC_SUMMARY_BY_ITEM = 'heuristicSummaryByItem'

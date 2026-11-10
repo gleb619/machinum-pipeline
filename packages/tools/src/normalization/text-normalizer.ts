@@ -1,6 +1,6 @@
 import { category, defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
-import { DECORATIVE_LINE_RE, MAX_TITLE_LINE_LENGTH } from '../constants.js'
+import { DECORATIVE_LINE_RE, MAX_TITLE_LINE_LENGTH } from '@mt/core'
 
 export interface TextNormalizerOptions {
   /** Drop lines made only of decorative symbols (`***`, `~~~`, `---`, ...). Default: true. */

@@ -6,7 +6,7 @@ import {
   STAT_FREQ_MAX_NGRAM,
   STAT_FREQ_MIN_WORD_LENGTH,
   STAT_FREQ_TOP_K,
-} from '../constants.js'
+} from '@mt/core'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
 
 /**

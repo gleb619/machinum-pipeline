@@ -11,7 +11,7 @@ import {
   splitIntoChunks,
   stripSeparators,
 } from '@mt/core'
-import { CHARS_PER_TOKEN_HEURISTIC } from '../constants.js'
+import { CHARS_PER_TOKEN_HEURISTIC } from '@mt/core'
 import { readCtx } from '../core/llm-config.js'
 import { resolveTunedNum } from '../resolve-constants.js'
 

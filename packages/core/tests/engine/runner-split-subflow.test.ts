@@ -114,7 +114,9 @@ describe('split-form subflow runner', () => {
     expect(steps[steps.length - 1]).toEqual({ type: 'target', config: { uri: 'void://' } })
 
     await new Runner(pipeline, ctx(root)).start()
-    expect(voidCount).toBe(4)
+    // 4 envelopes go to the child's void target, the 2 parent envelopes to the root
+    // pipeline's default void target (the root has a source but no target).
+    expect(voidCount).toBe(6)
     expect(parentItems).toEqual([])
   })
 })

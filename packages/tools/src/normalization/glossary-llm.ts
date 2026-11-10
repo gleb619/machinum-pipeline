@@ -1,5 +1,5 @@
 import type { ToolContext } from '@mt/core'
-import { GLOSSARY_CORPUS_MAX_CHARS } from '../constants.js'
+import { GLOSSARY_CORPUS_MAX_CHARS } from '@mt/core'
 import { loadBundledPrompt } from '../core/bundled-prompts.js'
 import {
   type ChunkModeOptions,

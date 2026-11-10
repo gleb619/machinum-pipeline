@@ -1,4 +1,13 @@
-import { definePipeline, defineTool, withItem, withMeta } from '@mt/core'
+import {
+  type BusEvent,
+  definePipeline,
+  defineProcess,
+  defineTool,
+  emitEvent,
+  log,
+  withItem,
+  withMeta,
+} from '@mt/core'
 import {
   type MarkdownStatsOutput,
   markdownStatsTool,
@@ -130,5 +139,38 @@ export const parallelForksPipeline = definePipeline({ id: 'pipe04-forks' })
   .from('jsonl://./jsonl/entities.jsonl')
   .fork(countBranch, reorderBranch, commasBranch)
   .to('md://./chapters/chapter-views/')
+
+/**
+ * PIPE 04 (events) — a publisher and a subscriber in one process.
+ *
+ * The publisher announces every chapter on the `chapterReady` channel with a SMALL payload
+ * (the chapter number and title — not the whole envelope), the subscriber listens to that
+ * channel and logs what arrives. Both pipelines run in ONE process, so they share the
+ * process-wide event bus.
+ *
+ * The subscriber ends on its own: the publisher's run ends, the channel closes, and the
+ * subscriber's live stream finishes.
+ */
+const eventsPublisher = definePipeline({ id: 'pipe04-events-publisher' })
+  .from('jsonl://./jsonl/entities.jsonl')
+  .tap((env) => {
+    if (typeof env.item !== 'string') return
+    const doc = readChapterDoc(env.item)
+    emitEvent('chapterReady', { chapter: doc.metadata().number ?? 0, title: doc.chapter.title })
+  })
+  .to('void://')
+
+const eventsSubscriber = definePipeline({ id: 'pipe04-events-subscriber' })
+  .from('events://chapterReady')
+  .tap((env) => {
+    const event = env.item as BusEvent
+    const payload = event.payload as { chapter?: number; title?: string } | undefined
+    log.info('pipe04 chapter ready', { chapter: payload?.chapter, title: payload?.title })
+  })
+  .to('void://')
+
+export const eventsSuite = defineProcess([eventsPublisher, eventsSubscriber], {
+  id: 'pipe04-events',
+}).parallel(true)
 
 export default parallelForksPipeline

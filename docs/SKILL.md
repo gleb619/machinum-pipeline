@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.31.0 | 2026-11-10 -->
+<!-- skill-version: 1.32.0 | 2026-11-10 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -128,6 +128,9 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   be a pipeline without its own `.from()`; a branch without a target merges back into the parent
   stream, an explicit `.to()` redirects it.
 - `onError`: `fail-run` (default) | `skip-item` | `dead-letter` (-> `.mt/runs/<id>/dead-letter.jsonl`).
+- A **root** pipeline with a source and no target is valid: the Runner appends a `void://` target
+  that discards the envelopes (and counts them for the checkpoint). Nested children keep their own
+  contract — a `.fork()` branch without a target merges back into the parent stream.
 - Pipelines are real modules: plain `import`, `console.log`, conditionals work. No build step.
 - `id` defaults to the file name. `mt resume` refuses with `pipelineId mismatch` if it changed.
 
@@ -144,6 +147,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `mem://<name>` (alias `ephemeral://<name>`) | process-local in-memory buffer, source + target; both schemes share one key space |
 | `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
+| `events://<channel>` | source: live subscription to the process-wide event bus — a custom channel (published with `emitEvent()`) or a lifecycle type (`events://started`); `?only=a,b` filters lifecycle types, `?limit=N` / `?timeout=<ms>` end the stream. target: run-scoped lifecycle log |
 | `chunks://<ns>` … `words://<ns>` | typed ladder buffers, source + target; fill with a split-form subflow child writing `.to('chunks://ladder')` and read with `.from('chunks://ladder')` (omitted ns = `default`) |
 | `@name` | alias from `mt.json` `"uris": { "en": "md://./chapters/en" }` -> `.to('@en')` |
 
@@ -446,7 +450,7 @@ On the main machine: `ssh -N -L 8787:127.0.0.1:8787 user@remote`, then set
 ## Tunable constants (`constants` overrides)
 
 Text-processing tuning constants (chunk targets, reserves, concurrency, verification thresholds —
-export names from `@mt/tools` `constants.ts`, e.g. `DEFAULT_CHUNK_TARGET`, `SERIES_SPLIT_TARGET_CHARS`, `DEFAULT_MAX_TOKENS`,
+export names from `@mt/core`, e.g. `DEFAULT_CHUNK_TARGET`, `SERIES_SPLIT_TARGET_CHARS`, `DEFAULT_MAX_TOKENS`,
 `DEFAULT_OUTPUT_RESERVE`, `DEFAULT_CHUNK_CONCURRENCY`, `MIN_CYRILLIC_RATIO`, `MAX_UNTRANSLATED_SHARE`)
 resolve per call, first defined wins:
 
@@ -483,6 +487,28 @@ Runner never enters it. `paused -> done` is illegal.
   (`batch://`, entity buffers, `ephemeral://`) report no count and replay instead.
 - Watch live: `tail -f .mt/runs/<id>/events.jsonl`, `mt inspect <id>`, or `mt serve` (`GET /api/runs`,
   SSE at `/api/runs/<id>/events?stream=true`).
+
+### Named events — the process-wide bus
+
+One bus per process (`mt` / `@mt/core`): pipelines talk to each other through named channels,
+without knowing that the other pipeline exists.
+
+```ts
+import { emitEvent, subscribeEvent } from 'mt'
+
+emitEvent('chapterReady', { chapter: 3, title: 'The Quiet Harbour' })
+const off = subscribeEvent('chapterReady', (event) => log.info('got', event))
+```
+
+- `BusEvent` = `{ type, ts, runId?, stepId?, error?, payload? }`.
+- Inside a run `emitEvent()` carries the run id and marks that run as an **emitter** of the channel.
+- A subscriber first gets the channel's history (the last 100 events), then the live ones.
+- A channel closes when **every** run that published on it has ended (`done`/`failed`) — that is
+  what ends an `events://` subscriber. Publishing again reopens the channel.
+- A failing subscriber is logged, never propagated to the publisher.
+- `.from('events://chapterReady')` yields `{ id, item: BusEvent, meta: { eventName, eventTs, eventRunId } }`.
+- Publisher and subscriber must share a process (one `defineProcess([...]).parallel(true)` or one
+  `mt run`) — the bus is not shared across processes.
 
 ## Common errors
 

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { annotate, useCase } from '../annotation.js'
 import { createBatchScope } from '../batch-scope.js'
 import type { ErrorPolicy } from '../contexts.js'
+import { closeBusRun, openBusRun, publishBusEvent, withRunContext } from '../event-bus.js'
 import {
   BATCH_MEMBERS_VARIABLE,
   ITEM_VARIABLE,
@@ -51,6 +52,7 @@ import type {
   ToolParams,
 } from '../types.js'
 import { registry } from '../uri.js'
+import { createCoreVoidTarget } from '../void-target.js'
 import { Cache } from './cache.js'
 import {
   addChild,
@@ -294,6 +296,9 @@ export class Runner {
    */
   async start(): Promise<RunContext> {
     this.runId = this.options.runId ?? randomUUID()
+    // Registered synchronously, before the first await: a sibling run of the same process
+    // must already be live when another pipeline attaches its event subscription.
+    openBusRun(this.runId)
     this.stateMachine.transition('running')
 
     const runContext = this.createRunContext()
@@ -304,7 +309,8 @@ export class Runner {
 
     // Walk pipeline steps
     try {
-      await this.executeSteps()
+      // The run context makes `emitEvent()` inside a step know its run id.
+      await withRunContext(this.runId, () => this.executeSteps())
     } catch (error) {
       await this.failRun(error)
       throw error
@@ -359,6 +365,7 @@ export class Runner {
       )
     }
     this.runId = runId
+    openBusRun(runId)
     this.stateMachine.reset(stateData.state)
     this.checkpoint = stateData.checkpoint
 
@@ -379,7 +386,7 @@ export class Runner {
     const resumeNode = findFirstNonDone(this.checkpoint)
     if (resumeNode) {
       try {
-        await this.executeSteps()
+        await withRunContext(this.runId, () => this.executeSteps())
       } catch (error) {
         await this.failRun(error)
         throw error
@@ -409,6 +416,8 @@ export class Runner {
     await this.flushPersists()
     await this.closeMetrics()
     await this.emitEvent('done')
+    // The run is over: channels it was emitting on close once every emitter run ended.
+    if (this.runId) closeBusRun(this.runId)
   }
 
   /**
@@ -419,11 +428,37 @@ export class Runner {
     const runContext = this.runContext
     if (!runContext) throw new Error('Run not started')
 
-    const stream = await this.buildStream(this.pipeline, null, runContext)
+    const stream = await this.buildStream(this.pipelineWithDefaultTarget(), null, runContext)
 
     // Drain stream if we ended without a target
     if (stream) {
       await drainStream(stream)
+    }
+  }
+
+  /**
+   * The root pipeline with an explicit `void://` target when it has a source but no target.
+   *
+   * Only the root pipeline: a fork/subflow/batch child returns through its own path
+   * (`batch://return`, the parent stream), so a target there would swallow the results.
+   * The target is resolved at run time — `void://` is registered by `@mt/waypoint`, and a
+   * core-only setup falls back to the built-in discard target.
+   */
+  private pipelineWithDefaultTarget(): Pipeline {
+    const pipeline = this.pipeline
+    const hasSource = pipeline.steps.some((step) => step.type === 'source')
+    const hasTarget = pipeline.steps.some((step) => step.type === 'target')
+    if (!hasSource || hasTarget) return pipeline
+    const target = registry.hasTarget('void')
+      ? registry.resolveTarget('void://')
+      : createCoreVoidTarget()
+    return {
+      id: pipeline.id,
+      retry: pipeline.retry,
+      onError: pipeline.onError,
+      steps: [...pipeline.steps, { type: 'target', config: { uri: 'void://', instance: target } }],
+      interceptors: pipeline.interceptors,
+      envDefaults: pipeline.envDefaults,
     }
   }
 
@@ -1399,6 +1434,10 @@ export class Runner {
    * Append one line to `.mt/runs/<runId>/events.jsonl` — the append-only event log the
    * backend tails for SSE (UC015/UC029). Called after the matching state.json write, so a
    * reader never sees an event that runs ahead of the persisted state.
+   *
+   * The same event goes to the process-wide bus, so an `events://` subscriber can watch the
+   * lifecycle of every run of the process. Lifecycle events never register the publishing
+   * run as an emitter of their channel.
    */
   private async emitEvent(type: RunEventType, stepId?: string, error?: string): Promise<void> {
     if (!this.runId) return
@@ -1407,6 +1446,7 @@ export class Runner {
     if (error) event.error = error
     await this.store.append(`${JSON.stringify(event)}\n`, 'runs', this.runId, 'events.jsonl')
     this.publishEvent(event)
+    publishBusEvent(event)
   }
 
   /**
@@ -1473,6 +1513,8 @@ export class Runner {
       console.error(formatLogLine('error', `Failed to persist failed run state: ${persistError}`))
     }
     await this.closeMetrics()
+    // A failed run is over as well — its channels close like a finished run's.
+    if (this.runId) closeBusRun(this.runId)
   }
 
   /**

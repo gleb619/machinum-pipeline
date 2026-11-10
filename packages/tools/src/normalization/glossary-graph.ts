@@ -1,4 +1,4 @@
-import { REF_GRAPH_MAX_HOPS } from '../constants.js'
+import { REF_GRAPH_MAX_HOPS } from '@mt/core'
 import type { Glossary, GlossaryTermType } from './term-tagger.js'
 
 /**

@@ -1,7 +1,7 @@
 import { createExchange, getVariable, setVariable } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
-import { MAX_UNTRANSLATED_SHARE, MIN_CYRILLIC_RATIO } from './constants.js'
+import { MAX_UNTRANSLATED_SHARE, MIN_CYRILLIC_RATIO } from '@mt/core'
 import { VAR_CONSTANTS, resolveTunedNum, resolveTunedStr } from './resolve-constants.js'
 import { createStatProofread } from './verification/stat-proofread.js'
 import type { ProofreadReport } from './verification/stat-proofread.js'

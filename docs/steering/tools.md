@@ -649,7 +649,7 @@ separator instead of re-splitting.
 
 ### `resolve-constants.ts` — tunable constant overrides
 `resolveTunedNum(name, fallback, ex?, ctx?)` / `resolveTunedStr(...)` resolve a numeric/string tuning
-constant from `constants.ts` per call, first defined wins: per-call `constants` variable
+constant from `@mt/core` per call, first defined wins: per-call `constants` variable
 (`{ NAME: value }`, `VAR_CONSTANTS`) > mt.json `settings.constants.<NAME>` (flat key on
 `ctx.run.global.settings`) > env `MT_CONST_<NAME>` (`process.env` overlaid by `ctx.run.global.env`) >
 the fallback constant. Regex constants stay code-only. Numeric strings are accepted on every layer;

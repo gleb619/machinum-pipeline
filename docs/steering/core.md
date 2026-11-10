@@ -21,6 +21,7 @@ Re-exports everything needed by consumers:
   `createMetricsRecorder`, `BufferedMetricsRecorder`, `metricsEnabled`, `defaultMetricsDbPath`
 - Intra-tool stages: `defineStage`, `wrap`, `StageError` + `Stage`, `StageFn`, `WrappedChain`,
   `StageInterceptor`, `StageHookEvent`, `StageResultEvent`, `StageOutcome` (see [wrap.ts](#wrapts--intra-tool-stages-metricscheckpoints-inside-a-tool))
+- Event bus: `emitEvent`, `subscribeEvent`, `BusEvent`, `BusEventListener` (see [event-bus.ts](#event-busts--process-wide-publishsubscribe))
 
 ## Key Modules
 
@@ -456,6 +457,14 @@ listener latency cannot stall the state machine). Listener errors (throws and re
 logged via the run logger at warn level (`run event listener failed`, meta `eventType`/`stepId`)
 and never thrown — a bad listener can never fail a run.
 
+**Default target** — a root pipeline that has a source but no target gets a `void://` target
+appended by the **Runner** (not by the DSL, whose private `withVoidTarget()` helper is for nested
+children only): `registry.resolveTarget('void://')` when the scheme is registered (`@mt/waypoint`),
+otherwise the built-in discard target in `src/void-target.ts` — core cannot depend on
+`@mt/waypoint`. The discard target counts the envelopes it accepted; `checkpoint()` returns that
+count. Only the root pipeline is patched — nested fork/subflow/batch children keep their own
+contract.
+
 **Per-step log files** — the runner mirrors its step-scoped log lines to
 `.mt/runs/<runId>/logs/<stepId>.log`. Those writes are best-effort: a failed write (ENOSPC,
 EACCES, a run dir removed mid-run) is swallowed, never surfaces as an unhandled rejection and
@@ -476,6 +485,41 @@ argument; the `log` singleton (same module) is the process-level equivalent for 
 `--json`) is excluded and keeps real newlines inside JSON strings. The Runner, `DuplexLogger`,
 tools, sources/targets, `.log()` and the CLI lifecycle lines all share this formatter; do not
 hand-build `[timestamp] [LEVEL]` strings.
+
+### `event-bus.ts` — process-wide publish/subscribe
+
+One bus per process, independent of the run lifecycle: pipelines publish and subscribe to named
+channels without knowing about each other.
+
+```typescript
+import { emitEvent, subscribeEvent } from '@mt/core'
+
+emitEvent('chapterReady', { chapter: 3, title: 'The Quiet Harbour' })
+const unsubscribe = subscribeEvent('chapterReady', (event) => log.info('got', event))
+```
+
+- `BusEvent` — `{ type, ts, runId?, stepId?, error?, payload? }`.
+- `emitEvent(type, payload?)` — validates a non-empty `type` (throws `TypeError` otherwise) and
+  returns the published event. Inside a run it carries the run id and **registers that run as an
+  emitter** of the channel.
+- `subscribeEvent(type, listener, onClose?)` — returns an unsubscribe function. A late subscriber
+  first receives the channel **history** (the last 100 events), then live events. Listener throws
+  and rejections are caught and logged (`event bus listener failed`) — they never reach the
+  publisher.
+- **Close rule (custom channels)** — a channel that had at least one emitter closes when *every*
+  emitter run has ended. The Runner calls `closeBusRun(runId)` when a run reaches `done`/`failed`;
+  closing notifies the subscribers through `onClose`. Publishing again reopens the channel.
+- **Lifecycle events** (`started`, `step-done`, `paused`, `resumed`, `done`, `failed`) are published
+  to the bus as well, but they never register the publishing run as an emitter — otherwise a
+  subscriber run would keep its own channel open forever. Lifecycle channels end on a terminal
+  event instead.
+- The channel name is the raw `type` string — the `events://` waypoint maps a URI onto it.
+
+**Run context (`AsyncLocalStorage`)** — `withRunContext(runId, fn)` (the same pattern as
+`wrap.ts`) scopes the run id, and the Runner wraps the whole `executeSteps()` in it, so
+`emitEvent()` inside a `.tap()` carries the current run id.
+`packages/core/tests/event-bus.test.ts` proves that the context propagates through the runner's
+async-generator chain.
 
 ### `metrics.ts` / `metrics-store.ts` — run metrics (SQLite, WAL)
 

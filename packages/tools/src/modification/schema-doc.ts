@@ -14,6 +14,11 @@ import matter from 'gray-matter'
 
 import { mdOutputEmitter } from '../core/md-outputs.js'
 
+export interface ChapterDocWarning {
+  id: string | number
+  text: string
+}
+
 export interface SchemaDocMetadata {
   chapter: number
   wordCount: number

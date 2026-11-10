@@ -8,7 +8,7 @@ import {
   REASONING_RESERVE_HIGH_TOKENS,
   REASONING_RESERVE_LOW_TOKENS,
   SENTENCE_END_RE,
-} from '../constants.js'
+} from '@mt/core'
 import { countTextTokens } from '../normalization/token-counter.js'
 import { type LlmConfigLayer, readCtx, resolveLlmConfigFromCtx } from './llm-config.js'
 import { modelContextLimit, resolveContextConfig } from './llm-context.js'

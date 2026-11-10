@@ -8,6 +8,7 @@ export {
   schemaDocWriter,
   schemaDocBuild,
   schemaDocEmit,
+  type ChapterDocWarning,
   type SchemaDocEnvelope,
   type SchemaDocMetadata,
 } from './modification/schema-doc.js'
@@ -604,7 +605,6 @@ export {
   type ChapterBodyInput,
   type ChapterDoc,
   type ChapterDocWarning,
-  type LegacyChapterParagraph,
 } from './modification/chapter-doc.js'
 
 export {
@@ -993,7 +993,7 @@ export {
   stubParagraphTranslateSlot,
 } from './stubs/index.js'
 
-export * from './constants.js'
+export * from '@mt/core'
 
 export {
   VAR_CONSTANTS,

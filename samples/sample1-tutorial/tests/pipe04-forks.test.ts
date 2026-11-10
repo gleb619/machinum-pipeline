@@ -1,7 +1,7 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { CHAPTERS, SAMPLE_DIR, clean, run, writeJsonl } from './helpers.js'
+import { CHAPTERS, SAMPLE_DIR, clean, logs, run, writeJsonl } from './helpers.js'
 
 const OUTPUT_DIR = join(CHAPTERS, 'chapter-views')
 const INPUT = join(SAMPLE_DIR, 'jsonl', 'entities.jsonl')
@@ -74,5 +74,15 @@ describe('pipe04 parallel forks', () => {
     expect(commasOne).toContain('A short paragraph ends,')
     const body = commasOne.replace(/^[\s\S]*?dotsReplaced: \d+\s*/, '')
     expect(body).not.toContain('.')
+  })
+
+  it('publishes chapters on the bus and logs them from a subscriber', () => {
+    const stdout = run('pipe04-forks.ts', { pipeline: 'eventsSuite' })
+    const ready = logs(stdout).filter((entry) => entry.title !== undefined)
+    expect(ready).toHaveLength(RECORDS.length)
+    expect(ready[0]?.chapter).toBe(1)
+    expect(ready[0]?.title).toBe('Chapter One')
+    expect(ready[1]?.chapter).toBe(2)
+    expect(ready[1]?.title).toBe('Chapter Two')
   })
 })

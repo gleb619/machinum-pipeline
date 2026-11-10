@@ -7,7 +7,7 @@ import {
   MAX_UNTRANSLATED_SHARE,
   MIN_CYRILLIC_RATIO,
   WORD_CHAR_CLASS,
-} from '../constants.js'
+} from '@mt/core'
 import type { Glossary, TermMatcher } from '../normalization/term-tagger.js'
 import { compileTermMatcher } from '../normalization/term-tagger.js'
 import { resolveTunedNum } from '../resolve-constants.js'

@@ -16,15 +16,13 @@ import matter from 'gray-matter'
 import { appendMdOutput } from '../core/md-outputs.js'
 import { ChapterMetadata } from './chapter-metadata.js'
 import { formatString } from './md-formatter.js'
+import type { ChapterDocWarning } from './schema-doc.js'
+
+export type { ChapterDocWarning } from './schema-doc.js'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export interface ChapterDocWarning {
-  id: string | number
-  text: string
-}
 
 /**
  * Chapter document: frontmatter (`number` / `series` / `warnings` / `meta`) plus the
@@ -41,18 +39,12 @@ export interface ChapterDoc {
   chapter: Chapter
 }
 
-/** Legacy paragraph-array body (`{ lines: string[] }[]`); deprecated adapter input. */
-export interface LegacyChapterParagraph {
-  lines: string[]
-}
-
-/** Body content accepted by tools: markdown, domain chapter, tree/body view, or legacy paragraphs. */
+/** Body content accepted by tools: markdown, domain chapter, or tree/body view. */
 export type ChapterBodyInput =
   | string
   | Chapter
   | ChapterNode
   | ChapterBody
-  | LegacyChapterParagraph[]
 
 const DOC_CHAPTER_ID = 'chapter-doc'
 const DOC_BOOK_ID = 'chapter-doc'
@@ -62,21 +54,9 @@ function chapterDocChunks(text: string): string[] {
   return text.trim().length > 0 ? [text] : []
 }
 
-function legacyParagraphsToText(paragraphs: LegacyChapterParagraph[]): string {
-  return paragraphs
-    .map((paragraph) =>
-      (Array.isArray(paragraph.lines) ? paragraph.lines : [])
-        .map((line) => String(line ?? ''))
-        .filter((line) => line.length > 0)
-        .join('\n'),
-    )
-    .filter((text) => text.length > 0)
-    .join('\n\n')
-}
-
 /**
- * Single body normalization point: raw markdown (leading `# title` stripped), legacy
- * paragraph array, domain `Chapter`, tree node or {@link ChapterBody} -> markdown body text.
+ * Single body normalization point: raw markdown (leading `# title` stripped), domain
+ * `Chapter`, tree node or {@link ChapterBody} -> markdown body text.
  */
 export function toChapterBody(input: ChapterBodyInput | null | undefined): string {
   if (input === null || input === undefined) return ''
@@ -89,8 +69,6 @@ export function toChapterBody(input: ChapterBodyInput | null | undefined): strin
     }
     return text.trim()
   }
-
-  if (Array.isArray(input)) return legacyParagraphsToText(input)
 
   if (input instanceof Chapter) return input.content
   if ('content' in input && typeof input.content === 'function') return input.content().value()

@@ -1,6 +1,6 @@
 import { category, defineTool, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
-import { VOCABULARY_DEFAULT_LIMIT, VOCABULARY_MAX_LIMIT } from '../../constants.js'
+import { VOCABULARY_DEFAULT_LIMIT, VOCABULARY_MAX_LIMIT } from '@mt/core'
 import type { ChunkModeOptions } from '../../core/chunk-processor.js'
 import { readNumber } from '../../core/values.js'
 import { exField } from '../fields.js'

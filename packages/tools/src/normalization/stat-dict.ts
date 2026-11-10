@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { category, defineTool, setVariables, tool } from '@mt/core'
 import type { Exchange } from '@mt/core'
-import { STAT_DICT_MIN_COUNT, STAT_DICT_TOP_K } from '../constants.js'
+import { STAT_DICT_MIN_COUNT, STAT_DICT_TOP_K } from '@mt/core'
 import { atomicWriteFile, ensureParentDir } from '../core/fs-write.js'
 import { exField } from './fields.js'
 import {

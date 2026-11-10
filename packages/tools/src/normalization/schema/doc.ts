@@ -1,5 +1,5 @@
 import type { Exchange } from '@mt/core'
-import { FREQUENT_TERMS_LIMIT, WORDLIST_CELL_MAX_CHARS } from '../../constants.js'
+import { FREQUENT_TERMS_LIMIT, WORDLIST_CELL_MAX_CHARS } from '@mt/core'
 import { readCount } from '../../core/values.js'
 import { parseCsvRows, readDoc, writeDoc } from '../../modification/schema-doc.js'
 import type { SchemaDocEnvelope, SchemaDocMetadata } from '../../modification/schema-doc.js'

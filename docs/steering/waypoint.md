@@ -24,7 +24,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT007 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
 | WT008 | `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
 | WT009 | `console://` | `console.ts` | — | ✓ | Terminal sink (stdout/stderr), per-envelope, target-only |
-| WT010 | `events://<name>?only=…` | `events.ts` | ✓ | ✓ | Subscription handle (not storage): yields `RunEvent` envelopes; target prints `[lifecycle] …` lines |
+| WT010 | `events://<channel>` | `events.ts` | ✓ | ✓ | Source: live bus subscription — custom channel (`emitEvent()`) or lifecycle type, with `?only=`, `?limit=`, `?timeout=`. Target: run-scoped lifecycle log (`[lifecycle] …` lines) |
 | WT011 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 | WT012 | — | — | — | — | Retired write-side scheme: a string-form splitter subflow now auto-publishes into the matching `WT015` buffer |
 | WT013 | `ephemeral://<namespace>` / `mem://<namespace>` | `ephemeral.ts` | ✓ | ✓ | Process-local in-memory buffer; target clears on open |
@@ -257,9 +257,24 @@ logged, never thrown). Pattern: subscribe in `start()`/`open()`, **unsubscribe i
 generator's `finally`** — a source must not hold a listener after the run released it.
 `http-server.ts` is the reference example: it mirrors `paused`/`resumed`/`done`/`failed` into its
 `/events` SSE stream as `{"type":"lifecycle","event":<RunEventType>}` frames, next to the
-per-envelope fan-out, and unsubscribes in the generator's `finally`. The `events://` scheme
-(`packages/waypoint/src/events.ts`) uses the same facade as a subscription handle: as a target
-it logs `[lifecycle] <type>` lines; as a source it yields `RunEvent` envelopes (`item = RunEvent`).
+per-envelope fan-out, and unsubscribes in the generator's `finally`.
+
+The `events://` scheme (`packages/waypoint/src/events.ts`) is asymmetric on purpose:
+
+- **Source** — a live subscription to the process-wide event bus (`@mt/core`, `emitEvent()` /
+  `subscribeEvent()`). The channel name is the URI host (`events://chapReceived` → `chapReceived`).
+  A name that is a lifecycle type (`started`, `step-done`, `paused`, `resumed`, `done`, `failed`)
+  subscribes to that lifecycle event; `?only=a,b` filters lifecycle types and leaves the name a
+  pure label; any other name is a **custom channel**. Delivery is live (events arrive as they are
+  published) with the channel history replayed first, so a late subscriber still sees what came
+  before. End conditions: a lifecycle subscription ends on a terminal event (`done`/`failed`), a
+  custom subscription ends when the channel closes (every publishing run ended), and
+  `?limit=N` / `?timeout=<ms>` end the stream whenever they trigger. The yielded envelope is
+  `{ id, item: BusEvent, meta: { eventName, eventTs, eventRunId } }`. The source is
+  `lifestyle: 'long-lived'` — a live stream has no cursor to resume from.
+- **Target** — unchanged and **run-scoped**: it subscribes to `ctx.events` (the current run) and
+  logs `[lifecycle] <type>` lines. A target belongs to one run, so it never watches the bus.
+
 The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer to
 `events://default?<qualifier>`.
 
