@@ -19,6 +19,8 @@ Re-exports everything needed by consumers:
 - `Runner`, `Store`, `Cache`
 - Metrics: `MetricsEvent`, `MetricsRunSummary`, `MetricsRecorder`, `MetricsStore`, `SqliteMetricsStore`,
   `createMetricsRecorder`, `BufferedMetricsRecorder`, `metricsEnabled`, `defaultMetricsDbPath`
+- Intra-tool stages: `defineStage`, `wrap`, `StageError` + `Stage`, `StageFn`, `WrappedChain`,
+  `StageInterceptor`, `StageHookEvent`, `StageResultEvent`, `StageOutcome` (see [wrap.ts](#wrapts--intra-tool-stages-metricscheckpoints-inside-a-tool))
 
 ## Key Modules
 
@@ -273,6 +275,51 @@ immediately; `.pipeline(p)` returns the pipeline unchanged. Shape:
 `defineProcess().install(mockLlm({ source })).pipeline(definePipeline().from(…))`. Factories resolve
 installed providers at invoke time, so load-time install covers the whole run. See
 [../guiding/mock-tools.md](../guiding/mock-tools.md).
+
+### `wrap.ts` — intra-tool stages (metrics/checkpoints inside a tool)
+
+`wrap(name, ...stages)` composes small named stages into one async callable:
+each stage's output feeds the next, the last stage's output resolves the call.
+It is generic over the payload — usable inside a tool's `invoke` on
+`ex.item`, but not coupled to `Exchange`:
+
+```typescript
+import { defineStage, wrap } from '@mt/core'
+
+const parseDoc = wrap<ChapterDoc, ChapterDoc, ToolContext>(
+  'chapter-doc',
+  defineStage('parse', (doc, ctx) => readChapterDoc(doc)),
+  defineStage('emit', (doc, ctx) => emit(doc, ctx)),
+)
+
+// inside a tool:
+invoke: (ex, ctx) => parseDoc(ex.item, ctx)
+```
+
+- `defineStage(name, fn)` — a named stage; `fn` may be sync or async. The
+  name is used in hook payloads and error attribution.
+- Interception — one design, mirroring the pipeline interceptors: registered
+  per chain via `chain.intercept({ kind, fn })`, dispatched per stage.
+  `before` runs in registration order (return a value to replace the input,
+  throw to short-circuit); `around` is onion middleware (`next(input?)`,
+  first-registered outermost — catch/replace/short-circuit); `after` runs on
+  success only and receives the measured timing payload. With no interceptors
+  registered the call runs straight through — no timing, no events.
+- Hook payload (`StageHookEvent` / `StageResultEvent`): `chain`, `stage`,
+  `index`, `path` (chain names of all enclosing wrapped chains, outer first —
+  a nested `wrap` reports `['outer', 'inner']`), `input`/`output` refs,
+  `ctx` (the caller-provided ctx, forwarded unchanged to every stage fn and
+  interceptor), plus on success `startedAt`, `durationMs`, `outcome: 'ok'`.
+  Raw data only — enough to feed `MetricsEvent`-shaped recorders and
+  checkpoints without a hard dependency on `metrics.ts`.
+- Errors — a failing stage throws `StageError` (`chain`, `stage`, `index`,
+  `path`, original as `cause`; `retryable`/`retryAfterMs` duck-typed fields
+  carried over so `withRetry` still applies). Later stages are skipped; a
+  `StageError` from a nested chain rethrows untouched with its deeper path.
+
+Public API: `defineStage`, `wrap`, `StageError` + types `Stage`, `StageFn`,
+`WrappedChain`, `StageInterceptor`, `StageHookEvent`, `StageResultEvent`,
+`StageOutcome`.
 
 ### `annotation.ts` — runtime annotations
 

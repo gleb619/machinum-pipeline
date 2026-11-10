@@ -352,6 +352,20 @@ export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
 export type { SourceFactory, TargetFactory, CompositeResolver } from './uri.js'
 export { discoverPipelines } from './discovery.js'
 export { derivePipelineId } from './dsl.js'
+export { StageError, defineStage, wrap } from './wrap.js'
+export type {
+  Stage,
+  StageAfterInterceptor,
+  StageAroundInterceptor,
+  StageBeforeInterceptor,
+  StageFn,
+  StageHookEvent,
+  StageInterceptor,
+  StageNext,
+  StageOutcome,
+  StageResultEvent,
+  WrappedChain,
+} from './wrap.js'
 export {
   importPipelineModule,
   isNativeAddonError,
