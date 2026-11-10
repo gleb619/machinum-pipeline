@@ -7,7 +7,7 @@
     "build": "turbo build",
     "dev": "turbo dev",
     "annotations": "tsx scripts/annotations.ts",
-    "lint": "biome check .",
+    "lint": "biome check . && pnpm lint:md",
     "lint:md": "markdownlint-cli2 --config .markdownlint-cli2.jsonc && markdownlint-cli2 --config .markdownlint-cli2.reports.jsonc && tsx scripts/lint-mermaid.ts",
     "format": "biome check --write .",
     "typecheck": "pnpm --filter @mt/core build && tsc -p packages/tools/tsconfig.json --noEmit && turbo typecheck",
@@ -16,7 +16,7 @@
     "test": "turbo test && vitest run && pnpm -C samples/sample1-tutorial run test && pnpm -C samples/sample2-practical run test",
     "test:coverage": "turbo test:coverage",
     "ci:check": "bash scripts/wrkflw-guard.sh --quick",
-    "ci:local": "pnpm typecheck && bash scripts/wrkflw-guard.sh",
+    "ci:local": "pnpm lint && pnpm typecheck && bash scripts/wrkflw-guard.sh",
     "test:gpu": "pnpm --filter=@mt/tools run test:gpu",
     "clean": "turbo clean"
   },

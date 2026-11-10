@@ -52,7 +52,8 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
 4. **Commit** — only when the pre-commit gate is green.
 5. **Pre-merge gate** — rebase/FF-merge **only after** integration tests for `samples/` pass
    (`samples/*/tests/`) **and** the GPU gate `pnpm test:gpu` has been **run**. Red → stay on
-   branch, fix, re-run. Also run the **wrkflw guard** `pnpm ci:local` (see below) and paste its summary line.
+   branch, fix, re-run. Also run the **wrkflw guard** `pnpm ci:local` (see below; includes the docs
+   md/mermaid gate `pnpm lint:md`) and paste its summary line.
 6. **Rebase + FF-merge + cleanup** — rebase the feature branch onto `main` (`git rebase main`),
    then merge → FF only (`git merge --ff-only`) → delete branch + worktree.
    **Regular merge commits are forbidden.** Never use `git merge --no-ff` or merge without rebase.
@@ -73,7 +74,8 @@ merge, and the merge report must state the `pnpm test:gpu` result (or why it cou
 **wrkflw guard (`pnpm ci:local`, `scripts/wrkflw-guard.sh`)** — proves a change will not break `main` CI.
 
 - `pnpm ci:check` (`--quick`): `wrkflw validate` only, no Docker, <1s. Fast loop while editing workflows; not the gate.
-- `pnpm ci:local`: pre-merge gate. Validate + `wrkflw run --runtime docker` for `skill-drift` + `actionlint` (local or
+- `pnpm ci:local`: pre-merge gate. `pnpm lint` (Biome + docs md/mermaid gate) + typecheck, then
+  validate + `wrkflw run --runtime docker` for `skill-drift` + `actionlint` (local or
   `rhysd/actionlint`; catches unknown keys / bad `${{ }}` that `wrkflw validate` misses) + stand-ins for
   `shellcheck` (local or `koalaman/shellcheck`) and `hadolint`, whose commands/flags/image are parsed from `ci.yml` (no drift). Prints one summary line (`RESULT=GREEN|RED`) for the merge note.
   Needs `wrkflw` and Docker; missing either **fails** (never silent skip). `WRKFLW_GUARD_SKIP=1` is a loud, explicit

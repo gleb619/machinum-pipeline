@@ -56,7 +56,7 @@ Other: docs/guiding/{architecture,installation,samples,adding-a-sample,mock-tool
 ## Commands
 
 ```bash
-pnpm install | build | lint | format | typecheck   # Biome only
+pnpm install | build | lint | format | typecheck   # lint = Biome + docs md/mermaid gate
 pnpm lint:md                                       # markdownlint docs gate + mermaid render check
 pnpm test                                          # workspace + sample IT
 pnpm test --filter=@mt/tools                       # one package
@@ -105,8 +105,8 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 - **GPU gate** - before any FF-merge run `pnpm test:gpu` (`packages/tools/tests/it/`, real ollama at
   `MT_OLLAMA_URL`; host-specific commands live in a gitignored local note) and report result.
   Excluded from `pnpm test`. Unreachable server **fails loudly** - report it, never skip silently or claim pass.
-- **wrkflw guard** - before any FF-merge run `pnpm ci:local` (wrkflw validate + Docker jobs; needs `wrkflw` +
-  Docker), report one-line result. Failure to run = red. `pnpm ci:check` = fast validate-only loop.
+- **wrkflw guard** - before any FF-merge run `pnpm ci:local` (lint incl. docs md/mermaid gate +
+  typecheck + wrkflw validate + Docker jobs; needs `wrkflw` + Docker), report one-line result. Failure to run = red. `pnpm ci:check` = fast validate-only loop.
 - **Import layers** - `cli/`/`webui/`/`mcp/` → `core/` only, never reverse (`cli/` may also import `waypoint/` and
   lazy `webui/standalone` for `mt serve`; `webui/` may import `router/`); `components/` → webui API only;
   `router/` zero `@mt/*` deps; `tui/` HTTP-only; extensions via HTTP/MCP. See steering/structure.md.
