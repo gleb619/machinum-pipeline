@@ -19,7 +19,7 @@ import { tagWithGlossary } from '../lib/outputs.js'
 /**
  * Translate the whole book body, line by line, with parity linting.
  *
- *   books/book2 → tag glossary terms → batch(5) → titles → per-line body translation
+ *   books/book2 → batch of 5 → tag glossary terms → titles → per-line body translation
  *               → chapterPairsLinter → chapters/ru/chapter<N>.md + chapters/titles.json
  *
  * `tagWithGlossary` makes the terms of `chapters/glossary.json` visible to the prompt builder;
@@ -45,10 +45,7 @@ function mockAnswer(req: LlmRequest): string {
 
 const llm = pickFor('translate', mockAnswer)
 
-export default definePipeline({ id: 'practical-translate-chapters' })
-  .from('@book2')
-  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
-  .batch(5)
+const translateChild = definePipeline({ id: 'practical-translate-chapters-child' })
   .use(tagWithGlossary(CHAPTERS))
   .use(chaptersToTitleInputs)
   .use(
@@ -66,3 +63,8 @@ export default definePipeline({ id: 'practical-translate-chapters' })
   .use(chapterPairsLinter)
   .use(createTranslateOutputs({ chaptersDir: CHAPTERS }))
   .to('@chapters')
+
+export default definePipeline({ id: 'practical-translate-chapters' })
+  .from('@book2')
+  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
+  .subflow('batch://?size=5', translateChild)

@@ -2,11 +2,13 @@ import { batchMembersOf, defineTool, getVariable, setVariable, withItem } from '
 import type { Exchange, ToolContext } from '@mt/core'
 
 /**
- * Generic batch-package pipeline: collect one keyed value per member of a `.batch()` /
- * `.batch({ slide: true })` package, transform the package as one item, serialize it to a plain-text
- * packet, parse the packet back, and — in the `batch://members` view of a nested `.batch(opts, scope)` —
- * patch each value into its member again. Group steps run on `batch://group`, per-member steps on
- * `batch://members`; both end in `batch://return`.
+ * Generic batch-package pipeline: collect one keyed value per member of a batch package
+ * (`.subflow('batch://?size=N', pipe)`), transform the package as one item, serialize it to a
+ * plain-text packet, parse the packet back, and — in the `batch://members` view of the batch
+ * child — patch each value into its member again. Package steps run on `batch://group`,
+ * per-member steps on `batch://members`; both end in `batch://return`. A child that never calls
+ * `.from()` already receives the package as its input, so `batch://group` is only needed for
+ * multi-stage work.
  *
  * Nothing here knows about titles, chapters or any domain: `read`, `keyOf`, `translate` and
  * `apply` are caller-supplied. The title flow in `title-packet.ts` is one configuration of

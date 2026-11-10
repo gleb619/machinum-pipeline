@@ -558,11 +558,6 @@ function explainStep(
       const size = effectiveBatchSize(step)
       const slide = step.config.slide === true
       const nested = step.config.pipeline as Pipeline | undefined
-      if (nested && slide) {
-        warnings.push(
-          `Step ${index} (${stepIdPattern}): .batch(opts, nested) rejects slide=true at pipeline-definition time; if a hand-built step carries both, Runner still groups it as a sliding window`,
-        )
-      }
       return {
         ...base,
         checkpointNode: nested ? `${stepIdPattern}/batch-<n>` : undefined,
@@ -574,7 +569,7 @@ function explainStep(
             ? 'N → N - size + 1 sliding windows (N >= size; remainder dropped)'
             : 'N → ceil(N / size) groups (remainder flushed)',
         description: nested
-          ? `group every ${size}${slide ? ' (sliding windows)' : ''}; run nested pipeline '${nested.id}' per group and continue with the patched member stream`
+          ? `batch subflow ${batchSubflowUri(size, slide)} - run nested pipeline '${nested.id}' once per package and continue with the patched member stream`
           : `group every ${size}${slide ? ' (sliding windows)' : ' (tumbling; flushes the remainder)'}; emit one batched Exchange per group`,
         nested: nested ? [explainPipeline(nested, settings, defaults, warnings)] : undefined,
       }
@@ -700,6 +695,11 @@ function stepConfigName(step: PipelineStep): string | undefined {
 function effectiveBatchSize(step: PipelineStep): number {
   const size = Number(step.config.size)
   return Number.isFinite(size) && size > 0 ? Math.floor(size) : 1
+}
+
+/** The batch subflow form as a reader writes it: `.subflow('batch://slide?size=5', pipe)`. */
+function batchSubflowUri(size: number, slide: boolean): string {
+  return `.subflow('batch://${slide ? 'slide' : ''}?size=${size}', pipe)`
 }
 
 /**

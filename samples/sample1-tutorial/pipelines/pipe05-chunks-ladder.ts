@@ -11,16 +11,19 @@ import {
 import '@mt/waypoint'
 
 /**
- * PIPE 05 — the structure ladder: chunking and the typed rung sources.
+ * PIPE 05 — the structure ladder: chunking and the typed rung buffers.
  *
  * A markdown chapter can be viewed at several levels:
  *
  *   records → documents → chunks → paragraphs → lines → words
  *                      └──────────────→ tokens
  *
- * `chunks://`, `paragraphs://`, `lines://`, `words://` and `tokens://` are read-only rung
- * sources: a string-form subflow publishes its output into a named buffer
- * (`.subflow('chunks://', 'ladder')`) and the next stage reads it back (`chunks://ladder`).
+ * `chunks://`, `paragraphs://`, `lines://`, `words://` and `tokens://` are typed rung
+ * buffers. A split-form subflow fills them through an explicit target: the parent stage
+ * splits via `.subflow('<scheme>://', stagePipe)` and `stagePipe` writes each child with
+ * `.to('<scheme>://ladder')`; the next stage reads the buffer back
+ * (`.from('<scheme>://ladder')`). The parent stream passes through unchanged — the split
+ * is a synchronous side branch.
  *
  * The other lessons in this file:
  *   - `chunkSplit` cleans decorative `---` lines and writes token-bounded chunks.
@@ -30,8 +33,10 @@ import '@mt/waypoint'
  */
 const seriesSplitFirstStage = definePipeline({ id: 'pipe05-series-first' })
   .from('md://./fixtures/chapter-series.md')
-  .subflow('series://')
-  .to('md://./chapters/series-first-output.md')
+  .subflow(
+    'series://',
+    definePipeline({ id: 'pipe05-series-parts' }).to('md://./chapters/series-first-output.md'),
+  )
 
 const cleanSplitStage = definePipeline({ id: 'pipe05-clean-split' })
   .from('md://./fixtures/chapter1.md')
@@ -138,40 +143,64 @@ const documentStage = definePipeline({ id: 'pipe05-documents' })
   .tap(countRung('documents'))
   .to('md://./chapters/ladder-chapters')
 
-const chunkStage = definePipeline({ id: 'pipe05-chunks' })
-  .from('md://./chapters/ladder-chapters')
-  .subflow('chunks://', 'ladder')
+// Rung pipes: the split-form subflow children. No `.from()` (they receive the split
+// envelopes from the parent stage); each counts its rung and publishes into its buffer.
+const chunkPipe = definePipeline({ id: 'pipe05-chunks' })
   .tap(countRung('chunks'))
+  .to('chunks://ladder')
 
-const paragraphStage = definePipeline({ id: 'pipe05-paragraphs' })
-  .from('chunks://ladder')
-  .subflow('paragraphs://', 'ladder')
+const paragraphPipe = definePipeline({ id: 'pipe05-paragraphs' })
   .tap(countRung('paragraphs'))
+  .to('paragraphs://ladder')
 
-const lineStage = definePipeline({ id: 'pipe05-lines' })
+const linePipe = definePipeline({ id: 'pipe05-lines' }).tap(countRung('lines')).to('lines://ladder')
+
+const wordPipe = definePipeline({ id: 'pipe05-words' }).tap(countRung('words')).to('words://ladder')
+
+const tokenPipe = definePipeline({ id: 'pipe05-tokens' })
+  .tap(countRung('tokens'))
+  .to('tokens://ladder')
+
+// Rung stages: read the previous rung, split through the subflow, drain the parent
+// stream (no target — the runner drains what the side branch leaves behind).
+const chunksStage = definePipeline({ id: 'pipe05-chunks-stage' })
+  .from('md://./chapters/ladder-chapters')
+  .subflow('chunks://', chunkPipe)
+
+const paragraphsStage = definePipeline({ id: 'pipe05-paragraphs-stage' })
+  .from('chunks://ladder')
+  .subflow('paragraphs://', paragraphPipe)
+
+const linesStage = definePipeline({ id: 'pipe05-lines-stage' })
   .from('paragraphs://ladder')
-  .subflow('lines://', 'ladder')
-  .tap(countRung('lines'))
+  .subflow('lines://', linePipe)
 
-const wordStage = definePipeline({ id: 'pipe05-words' })
+const wordsStage = definePipeline({ id: 'pipe05-words-stage' })
   .from('lines://ladder')
-  .subflow('words://', 'ladder')
-  .tap(countRung('words'))
+  .subflow('words://', wordPipe)
 
-const summaryStage = definePipeline({ id: 'pipe05-summary' })
-  .from('words://ladder')
-  .batch(10_000)
+const tokensStage = definePipeline({ id: 'pipe05-tokens-stage' })
+  .from('chunks://ladder')
+  .subflow('tokens://', tokenPipe)
+
+// One batch child per summary: the package (10k words) is one input envelope, `flatMap` turns
+// it into the single rendered summary, and the child owns the target (a sink — the words drain).
+const summaryChild = definePipeline({ id: 'pipe05-summary-child' })
   .tap(async () => logLadderCounts())
   .flatMap(async (words: unknown) => [renderLadderSummary((words as unknown[]).length)])
   .use(mdOutputEmitter({ name: 'ladder-summary', filename: () => 'ladder-summary.md' }))
   .to('md://./chapters')
 
+const summaryStage = definePipeline({ id: 'pipe05-summary' })
+  .from('words://ladder')
+  .subflow('batch://?size=10000', summaryChild)
+
 export const ladderPipeline = definePipeline({ id: 'pipe05-ladder' })
   .subflow(documentStage)
-  .subflow(chunkStage)
-  .subflow(paragraphStage)
-  .subflow(lineStage)
-  .subflow(wordStage)
+  .subflow(chunksStage)
+  .subflow(paragraphsStage)
+  .subflow(linesStage)
+  .subflow(wordsStage)
   .subflow(summaryStage)
 
 function renderTokenSummary(tokens: number): string {
@@ -188,23 +217,20 @@ function renderTokenSummary(tokens: number): string {
   ].join('\n')
 }
 
-const tokenStage = definePipeline({ id: 'pipe05-tokens' })
-  .from('chunks://ladder')
-  .subflow('tokens://', 'ladder')
-  .tap(countRung('tokens'))
-
-const tokenSummaryStage = definePipeline({ id: 'pipe05-token-summary' })
-  .from('tokens://ladder')
-  .batch(100_000)
+const tokenSummaryChild = definePipeline({ id: 'pipe05-token-summary-child' })
   .tap(async () => logLadderCounts())
   .flatMap(async (tokens: unknown) => [renderTokenSummary((tokens as unknown[]).length)])
   .use(mdOutputEmitter({ name: 'token-ladder-summary', filename: () => 'token-ladder-summary.md' }))
   .to('md://./chapters')
 
+const tokenSummaryStage = definePipeline({ id: 'pipe05-token-summary' })
+  .from('tokens://ladder')
+  .subflow('batch://?size=100000', tokenSummaryChild)
+
 export const tokenLadderPipeline = definePipeline({ id: 'pipe05-token-ladder' })
   .subflow(documentStage)
-  .subflow(chunkStage)
-  .subflow(tokenStage)
+  .subflow(chunksStage)
+  .subflow(tokensStage)
   .subflow(tokenSummaryStage)
 
 export default defineProcess()

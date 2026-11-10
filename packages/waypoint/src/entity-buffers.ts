@@ -23,10 +23,11 @@ import { annotateWaypoint } from './registration.js'
  *   words://<namespace>       Word envelopes
  *
  * Ladder rungs (`chapters://` ... `words://`, `tokens://`) are **creational**, not
- * terminal: they are registered as sources only. A string-form splitter subflow
- * auto-publishes its children into the matching buffer, so
- * `.subflow('#chunks', 'ladder')` fills `chunks://ladder` for the next stage.
- * `batches://` stays a bidirectional package buffer because it is not a ladder rung.
+ * terminal: a split-form subflow fills them through the matching explicit target —
+ * `.subflow('chunks://', pipe)` with `.to('chunks://ladder')` inside `pipe` — and the
+ * next stage reads the buffer back with `.from('chunks://ladder')`. Every entity scheme
+ * is bidirectional (source + target); `batches://` additionally carries `.batch(n)`
+ * packages because it is not a ladder rung.
  *
  * Not to be confused with `batch://group|members|return` (`batch-scope.ts`): those are the
  * scope-local views of `.batch(opts, nested)` and share no global buffer.
@@ -66,13 +67,16 @@ export function entityBufferKey(scheme: EntityBufferScheme, uri: ParsedUri): str
   return entityBufferKeyForNamespace(scheme, uri.path || uri.host)
 }
 
-/** Source for an entity namespace (reads what auto-publish or a package target wrote). */
+/** Source for an entity namespace (reads what an earlier stage's target wrote). */
 export function createEntityBufferSource<T>(scheme: EntityBufferScheme, uri: ParsedUri): Source<T> {
   return createNamedEphemeralSource<T>(uri, entityBufferKey(scheme, uri))
 }
 
 /**
  * Target for an entity namespace (clears the buffer on open, then appends).
+ * This is how a split-form subflow publishes its children: `.subflow('chunks://', pipe)`
+ * with `.to('chunks://ladder')` inside `pipe`. The target opens once per stage (one
+ * nested child run per split step), so the reset-at-stage-start contract holds.
  * Deliberately no `checkpoint()`: the buffer is process-local, so a resume replays.
  */
 export function createEntityBufferTarget<T>(scheme: EntityBufferScheme, uri: ParsedUri): Target<T> {
@@ -80,9 +84,9 @@ export function createEntityBufferTarget<T>(scheme: EntityBufferScheme, uri: Par
 }
 
 /**
- * Write side used by string-form `.subflow('<splitter>', '<namespace>')` auto-publish.
- * It shares the key space of the typed sources above, so `chunks` + `ladder` fills the
- * buffer that `chunks://ladder` reads.
+ * Write side shared with the explicit buffer targets above. It uses the same key space,
+ * so `chunks` + `ladder` fills the buffer that `chunks://ladder` reads. Kept on the
+ * registry for tests and custom pipelines; pipeline code writes via `.to('<scheme>://ns')`.
  */
 export function createEntityBufferWriter(
   scheme: EntityBufferScheme,
@@ -119,14 +123,11 @@ annotateWaypoint(createEntityBufferTarget, {
 
 for (const scheme of ENTITY_BUFFER_SCHEMES) {
   registry.registerSource(scheme, (uri: ParsedUri) => createEntityBufferSource(scheme, uri))
-}
-
-// Ladder rungs are creational: source-only. Only package buffers stay writable.
-for (const scheme of PACKAGE_BUFFER_SCHEMES) {
   registry.registerTarget(scheme, (uri: ParsedUri) => createEntityBufferTarget(scheme, uri))
 }
 
-// Splitter subflows auto-publish into every entity buffer (ladder rungs included).
+// Buffer writers back the explicit buffer targets and stay available to tests and
+// custom pipelines that fill a buffer directly.
 for (const scheme of ENTITY_BUFFER_SCHEMES) {
   registry.registerBufferWriter(scheme, (namespace) => createEntityBufferWriter(scheme, namespace))
 }

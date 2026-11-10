@@ -142,7 +142,25 @@ describe('runner exchange semantics', () => {
         return ['a', 'b']
       },
     }
-    await new Runner(pipe([{ type: 'split', config: { splitter } }]), ctx(root)).start()
+    const child = {
+      id: 'split-child',
+      retry: { max: 0, backoffMs: 0, strategy: 'fixed' as const },
+      onError: 'fail-run' as const,
+      steps: [{ type: 'target' as const, config: { uri: 'runner-ex-target://out' } }],
+    }
+    // no parent target: the split is a side branch, so only the children reach the sink
+    await new Runner(
+      {
+        id: 'p-split-ex',
+        retry: { max: 0, backoffMs: 0, strategy: 'fixed' },
+        onError: 'fail-run',
+        steps: [
+          { type: 'source', config: { uri: 'runner-ex-source://in' } },
+          { type: 'split', config: { splitter, splitterType: 'inspect://', pipeline: child } },
+        ],
+      },
+      ctx(root),
+    ).start()
 
     expect(seen?.item).toEqual(['member'])
     expect(seen?.meta).toEqual({ chapterId: 'c' })

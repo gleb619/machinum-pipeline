@@ -70,7 +70,7 @@ export interface LogOptions {
   truncate?: boolean
 }
 
-/** Options of `.batch()`. */
+/** Parsed options of the `batch://[tumbling|slide][?size=N][&slide=true|false]` subflow source. */
 export interface BatchOptions {
   /** Positive integer package size. Default {@link DEFAULT_BATCH_SIZE}. */
   size?: number

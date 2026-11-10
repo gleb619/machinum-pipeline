@@ -1,18 +1,26 @@
-import { batchMembersOf, groupVariableEdits, unbatchExchange, withVariable } from './exchange.js'
+import {
+  batchMembersOf,
+  groupVariableEdits,
+  unbatchExchange,
+  withItem,
+  withVariable,
+} from './exchange.js'
 import type { BatchScope, Exchange, Variable } from './types.js'
 
 /**
- * Scope state of one `.batch(opts, nested)` group.
+ * Scope state of one `batch` step (`.subflow('batch://...', pipe)`).
  *
  * Lives only in memory (the nested run's `RunContext.batchScope`): the member envelopes are an
- * ephemeral variable by design, so after a crash the group is re-formed from the outer source
+ * ephemeral variable by design, so after a crash the package is re-formed from the outer source
  * cursor and the nested pipeline simply runs again for it.
  *
- * Two views over the same group, one commit point:
+ * Two views over the same package, one commit point:
  * - {@link BatchScope.group}: the whole package as ONE exchange (`item` = `items[]`)
  * - {@link BatchScope.members}: every member as its own exchange (own id / meta / variables)
  * - {@link BatchScope.commit}: hand a result back. The group exchange contributes its changed
- *   variables (stamped on every member); a member exchange replaces that member (matched by id).
+ *   variables (stamped on every member) and — when its payload is an array with exactly one
+ *   element per member — zips that payload back onto the members by index; a member exchange
+ *   replaces that member (matched by id) and wins over the zip.
  */
 export function createBatchScope(folded: Exchange<unknown>): BatchScope {
   const original = batchMembersOf(folded)
@@ -21,6 +29,8 @@ export function createBatchScope(folded: Exchange<unknown>): BatchScope {
   }
   const memberIds = new Set(original.map((m) => m.id))
   let groupVars: Variable[] = []
+  /** Payload array of the committed group, zipped onto members by index (same length only). */
+  let groupPayload: unknown[] | undefined
   const patched = new Map<string, Exchange<unknown>>()
   let commits = 0
 
@@ -28,7 +38,12 @@ export function createBatchScope(folded: Exchange<unknown>): BatchScope {
     groupVars.length > 0 ? withVariable(folded, ...groupVars) : folded
 
   const memberViews = (): Exchange<unknown>[] =>
-    unbatchExchange(groupView()).map((m) => patched.get(m.id) ?? m)
+    unbatchExchange(groupView()).map((member, index) => {
+      const explicit = patched.get(member.id)
+      if (explicit) return explicit
+      if (groupPayload) return withItem(member, groupPayload[index])
+      return member
+    })
 
   return {
     groupId: folded.id,
@@ -39,13 +54,17 @@ export function createBatchScope(folded: Exchange<unknown>): BatchScope {
     members: memberViews,
     commit(env: Exchange<unknown>): void {
       if (env.id === folded.id) {
-        // Group result: only its variable edits travel back (the payload may be a title list,
-        // a packet, ... - never a replacement of the members' own payloads).
+        // Group result: its variable edits travel back to every member, and a payload array of
+        // exactly one element per member is zipped back onto them (a title list, a packet, ...
+        // of another length is not a per-member payload and is ignored).
         for (const v of groupVariableEdits(env, folded)) {
           groupVars = [
             ...groupVars.filter((g) => !(g.name === v.name && g.qualifier === v.qualifier)),
             v,
           ]
+        }
+        if (Array.isArray(env.item) && env.item.length === original.length) {
+          groupPayload = env.item
         }
       } else if (memberIds.has(env.id)) {
         patched.set(env.id, env)

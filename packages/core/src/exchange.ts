@@ -343,14 +343,15 @@ export function withoutEmpty<T>(ex: Exchange<T>): Exchange<T> {
 }
 
 /**
- * Name of the ephemeral variable carrying the member envelopes of a `.batch()` group. Ephemeral: it never reaches checkpoints, dead-letter entries or persisted jsonl, so a
- * resumed run re-forms the group from the source and re-runs its scope (see `batch-scope.ts`).
+ * Name of the ephemeral variable carrying the member envelopes of a batch package. Ephemeral: it
+ * never reaches checkpoints, dead-letter entries or persisted jsonl, so a resumed run re-forms the
+ * package from the source and re-runs its child (see `batch-scope.ts`).
  */
 export const BATCH_MEMBERS_VARIABLE = 'batchMembers'
 
 /**
- * Attach the source envelopes of a batch group to the merged batch exchange, so the batch scope
- * (`.batch(opts, nested)`) can restore each member with its own `meta` and variables. Used by
+ * Attach the source envelopes of a batch package to the merged batch exchange, so the batch child
+ * (`.subflow('batch://...', pipe)`) can restore each member with its own `meta` and variables. Used by
  * the Runner.
  */
 export function withBatchMembers<T>(
@@ -402,8 +403,8 @@ export function groupVariableEdits(
 }
 
 /**
- * Internal inverse of `.batch()`: expand a grouped exchange back into its member
- * envelopes (the `batch://members` view of a batch scope). Not part of the DSL. Members keep their `id`, `meta` (plus `meta.batchIndex`) and their own variables;
+ * Internal inverse of the batch grouping: expand a package exchange back into its member
+ * envelopes (the `batch://members` view of a batch child). Not part of the DSL. Members keep their `id`, `meta` (plus `meta.batchIndex`) and their own variables;
  * variables a batch-aware tool set or changed since the group was folded are stamped onto every
  * member (the batch is the most recent stage, so its value wins). A group without carried
  * members (e.g. a source-level batch, or a batch reloaded from a checkpoint) falls back to

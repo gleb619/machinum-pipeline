@@ -22,10 +22,10 @@ describe('mt umbrella exports', () => {
     expect(typeof waypoint.createEntityBufferSource).toBe('function')
   })
 
-  it('ladder entity buffer schemes are source-only and auto-publishable', () => {
+  it('ladder entity buffer schemes are bidirectional (source reads, target publishes)', () => {
     for (const scheme of ['chapters', 'paragraphs', 'chunks', 'tokens', 'lines', 'words']) {
       expect(root.registry.resolveSource(`${scheme}://`)).toHaveProperty('start')
-      expect(root.registry.hasTarget(scheme)).toBe(false)
+      expect(root.registry.resolveTarget(`${scheme}://`)).toHaveProperty('write')
       expect(root.registry.hasBufferWriter(scheme)).toBe(true)
     }
     expect(root.registry.hasSource('temp')).toBe(false)

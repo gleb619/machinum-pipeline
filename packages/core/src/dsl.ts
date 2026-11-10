@@ -41,34 +41,164 @@ import { registry } from './uri.js'
 const DEFAULT_RETRY = { max: 3, backoffMs: 1000, strategy: 'exp' as const }
 const DEFAULT_ON_ERROR: 'fail-run' | 'skip-item' | 'dead-letter' = 'fail-run'
 
-/** Default `.batch()` package size. */
+/** Default `batch://` package size (`.subflow('batch://', pipe)`). */
 export const DEFAULT_BATCH_SIZE = 5
 
-/**
- * Normalize + validate `.batch()` options: size must be a positive integer.
- * Throws at pipeline-definition time so a bad size never reaches the Runner.
- */
-function normalizeBatchOptions(opts: BatchOptions | number | undefined): Required<BatchOptions> {
-  const o: BatchOptions = typeof opts === 'number' ? { size: opts } : (opts ?? {})
-  const size = o.size ?? DEFAULT_BATCH_SIZE
-  if (!Number.isInteger(size) || size < 1) {
-    throw new RangeError(`.batch(size): size must be a positive integer, got ${size}`)
-  }
-  return { size, slide: o.slide ?? false }
+/** Batch modes accepted as the `batch://` authority segment. */
+const BATCH_MODES = new Set(['', 'tumbling', 'slide'])
+
+/** Query keys accepted by `batch://...` (`batchSize` is the documented alias of `size`). */
+const BATCH_QUERY_KEYS = new Set(['size', 'batchSize', 'slide'])
+
+/** Child-side `batch://` views — never a subflow source, only a child-internal one. */
+const BATCH_CHILD_VIEWS = new Set(['group', 'members', 'return'])
+
+/** Definition-time label of the batch form, used in every error message. */
+function batchOp(uri: string): string {
+  return `.subflow('${uri}', pipeline)`
 }
 
-/** Default namespace of an auto-published entity buffer (`chunks://` == `chunks://default`). */
-const DEFAULT_BUFFER_NAMESPACE = 'default'
-
-/** Validate the optional namespace of `.subflow('<splitter>', '<namespace>')`. */
-function normalizeBufferNamespace(namespace: string | undefined): string {
-  const value = namespace ?? DEFAULT_BUFFER_NAMESPACE
-  if (value.length === 0 || value.includes('/')) {
-    throw new Error(
-      `.subflow(splitter, namespace): namespace must be a single non-empty segment, got '${value}'`,
+/**
+ * Parse the batch subflow URI `batch://[tumbling|slide][?size=N][&slide=true|false]`
+ * into its package options. `batchSize` is accepted as an alias of `size`; an explicit
+ * `?slide=` wins over the mode segment.
+ *
+ * Everything is validated here, at pipeline-definition time: an unknown mode segment, an
+ * unknown query key, a non-positive/non-integer size or a non-boolean slide throws
+ * (`TypeError` for grammar, `RangeError` for the size) with a message naming the URI form.
+ */
+export function parseBatchUri(uri: string): Required<BatchOptions> {
+  const op = batchOp(uri)
+  const parsed = registry.parse(uri)
+  const mode = `${parsed.host}${parsed.path}`
+  if (!BATCH_MODES.has(mode)) {
+    throw new TypeError(
+      `${op}: unknown batch mode '${mode}' — use 'batch://', 'batch://tumbling' or 'batch://slide'`,
     )
   }
-  return value
+  for (const key of Object.keys(parsed.query)) {
+    if (!BATCH_QUERY_KEYS.has(key)) {
+      throw new TypeError(
+        `${op}: unknown query parameter '${key}' — allowed: size, batchSize, slide`,
+      )
+    }
+  }
+  const rawSize = parsed.query.size ?? parsed.query.batchSize
+  const size = rawSize === undefined ? DEFAULT_BATCH_SIZE : Number(rawSize)
+  if (!Number.isInteger(size) || size < 1) {
+    throw new RangeError(`${op}: size must be a positive integer, got ${rawSize ?? String(size)}`)
+  }
+  let slide = mode === 'slide'
+  const rawSlide = parsed.query.slide
+  if (rawSlide !== undefined) {
+    if (rawSlide !== 'true' && rawSlide !== 'false') {
+      throw new TypeError(`${op}: slide must be 'true' or 'false', got '${rawSlide}'`)
+    }
+    slide = rawSlide === 'true'
+  }
+  return { size, slide }
+}
+
+/**
+ * Definition-time guard for a batch child pipeline: it must be a real pipeline and must not
+ * declare a source of its own — it receives the package envelope from the parent stream.
+ * The only exception is the advanced child-side `batch://` views (`batch://group`,
+ * `batch://members`, multi-stage `.from('batch://members')` chains), which read the package
+ * or its members from the scope.
+ */
+function assertBatchPipeline(op: string, pipeline: unknown): asserts pipeline is Pipeline {
+  if (!isPipeline(pipeline)) {
+    throw new TypeError(`${op}: pipeline must be an object with a string id and a steps array`)
+  }
+  for (const step of pipeline.steps) {
+    if (step.type !== 'source') continue
+    const uri = String((step.config as { uri?: unknown }).uri ?? '')
+    let scheme = ''
+    try {
+      scheme = registry.parse(uri).scheme
+    } catch {
+      scheme = ''
+    }
+    if (scheme !== 'batch') {
+      throw new TypeError(
+        `${op}: pipeline '${pipeline.id}' must not declare its own source ('${uri}') — it receives the package from the parent stream; only batch:// views are allowed inside it`,
+      )
+    }
+  }
+}
+
+/**
+ * A batch child without its own target gets a `batch://return` target injected: the package
+ * has to be handed back to the scope so its members continue patched. The URI resolves at run
+ * time (the waypoints are registered by `@mt/waypoint`), so defining a pipeline never
+ * requires the `batch://` views to be registered.
+ */
+function withBatchReturn(pipeline: Pipeline): Pipeline {
+  if (pipeline.steps.some((step) => step.type === 'target')) return pipeline
+  return withSteps(pipeline, [
+    ...pipeline.steps,
+    { type: 'target', config: { uri: 'batch://return' } },
+  ])
+}
+
+/**
+ * Definition-time guard shared by `.fork()`/`.forkSync()` branches and split-form
+ * `.subflow('<source>', pipeline)` children: the child must be a real pipeline and must
+ * not declare its own source — it receives envelopes from the parent stream.
+ */
+function assertNestedPipeline(
+  op: string,
+  role: string,
+  pipeline: unknown,
+): asserts pipeline is Pipeline {
+  if (!isPipeline(pipeline)) {
+    throw new TypeError(`${op}: ${role} must be an object with a string id and a steps array`)
+  }
+  if (pipeline.steps.some((step) => step.type === 'source')) {
+    throw new TypeError(
+      `${op}: ${role} pipeline '${pipeline.id}' must not declare its own source (.from()) — it receives envelopes from the parent stream`,
+    )
+  }
+}
+
+/**
+ * Validate `.fork()`/`.forkSync()` branches: at least one pipeline, each passing the
+ * shared nested-pipeline guard (no own source).
+ */
+function assertForkBranches(op: string, pipelines: readonly Pipeline[]): void {
+  if (pipelines.length === 0) {
+    throw new TypeError(`${op}: at least one branch pipeline is required`)
+  }
+  for (const [index, branch] of pipelines.entries()) {
+    assertNestedPipeline(op, `branches[${index}]`, branch)
+  }
+}
+
+/**
+ * Copy of `pipeline` with its steps replaced. A `PipelineBuilder` exposes `id`, `retry`,
+ * `onError`, `steps` and `interceptors` as prototype getters, so spreading it would silently
+ * drop them — the fields are copied explicitly.
+ */
+function withSteps(pipeline: Pipeline, steps: PipelineStep[]): Pipeline {
+  return {
+    id: pipeline.id,
+    retry: pipeline.retry,
+    onError: pipeline.onError,
+    steps,
+    interceptors: pipeline.interceptors,
+    envDefaults: pipeline.envDefaults,
+  }
+}
+
+/**
+ * A split-form subflow child without its own target gets a `void://` target injected:
+ * the branch must be drained for its side effects, and `void://` discards every envelope.
+ * The URI resolves at run time (like an alias), so defining a pipeline never requires the
+ * `void://` waypoint to be registered.
+ */
+function withVoidTarget(pipeline: Pipeline): Pipeline {
+  if (pipeline.steps.some((step) => step.type === 'target')) return pipeline
+  return withSteps(pipeline, [...pipeline.steps, { type: 'target', config: { uri: 'void://' } }])
 }
 
 let warnedAboutPipelineId = false
@@ -133,7 +263,7 @@ function getCallerFileId(): string {
 /**
  * DSL builder for defining a pipeline.
  * Chain: .from(source).use(tool).to(target)
- * Also supports .fork(), .subflow(), .flatMap(), .batch(), .tap(), .log()
+ * Also supports .fork(), .subflow() (inline, split and batch forms), .flatMap(), .tap(), .log()
  * for branching, orchestration, and transformation logic.
  *
  * PipelineBuilder implements Pipeline directly — it can be used as a
@@ -281,7 +411,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   /**
    * Set the target for the pipeline.
    * Ends the stage — the builder doubles as the completed Pipeline. A further `.from()` starts
-   * the next stage (used by `.batch(opts, nested)` scopes: group stage, then members stage).
+   * the next stage (used by batch children: the group stage, then the members stage).
    *
    * @param target - Target instance OR URI string (sugar)
    *
@@ -301,135 +431,151 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this
   }
 
-  /**
-   * Group envelopes into packages of `size` (default 5), flushing the remainder at end of stream.
-   *
-   * Without `nested` the stream continues with ONE grouped envelope per package (`item` =
-   * `items[]`, members carried). With a `nested` pipeline each package runs through it (a batch
-   * SCOPE) and the outer stream continues with the original member envelopes, patched by
-   * whatever the scope committed. Inside the scope, pick the view with waypoints:
-   *
-   * - `batch://group`   source: the package as ONE exchange
-   * - `batch://members` source: every member as its own exchange
-   * - `batch://return`  target: hand a result back to the scope (group: its variable edits
-   *   reach every member; member: replaces that member by id)
-   *
-   * A scope may chain stages (`.to('batch://return').from('batch://members')...`).
-   *
-   * @param opts - Size (positive integer) or `{ size?, slide? }`; anything else throws
-   *   `RangeError` here. `slide: true` makes overlapping sliding windows (one per arrival) and
-   *   cannot be combined with a nested scope.
-   * @param nested - Pipeline run per package (defined with `definePipeline()`). `.batch(nested)`
-   *   alone uses the default size.
-   */
-  batch(nested: Pipeline<unknown, unknown>): PipelineBuilder<I[], O>
-  batch(opts?: BatchOptions | number, nested?: Pipeline<unknown, unknown>): PipelineBuilder<I[], O>
-  batch(
-    optsOrNested?: BatchOptions | number | Pipeline<unknown, unknown>,
-    maybeNested?: Pipeline<unknown, unknown>,
-  ): PipelineBuilder<I[], O> {
-    const isNested = typeof optsOrNested === 'object' && 'steps' in optsOrNested
-    const opts = isNested ? undefined : (optsOrNested as BatchOptions | number | undefined)
-    const nested = isNested ? (optsOrNested as Pipeline<unknown, unknown>) : maybeNested
-    const { size, slide } = normalizeBatchOptions(opts)
-    if (nested && slide) {
-      throw new RangeError(
-        '.batch(opts, nested): slide:true cannot be combined with a nested scope',
-      )
-    }
-    this._steps.push({
-      type: 'batch',
-      config: nested ? { size, slide, pipeline: nested } : { size, slide },
-    })
-    return this as unknown as PipelineBuilder<I[], O>
-  }
-
   flatMap<R>(fn: (item: I) => Promise<R[]>): PipelineBuilder<R, O> {
     this._steps.push({ type: 'flatmap', config: { fn } })
     return this as unknown as PipelineBuilder<R, O>
   }
 
   /**
-   * Fork the stream into a child pipeline per envelope (sequential), or into several
-   * concurrently running branches per envelope (parallel).
+   * Fork the stream into several branches that run CONCURRENTLY per envelope.
    *
-   * The sequential form is unchanged: each parent envelope runs the child pipeline and
-   * its output is merged back in arrival order. The parallel form validates `name` and
-   * `branches` at definition time; the Runner then runs every branch concurrently and
-   * merges their buffered output in branch declaration order.
+   * Every branch runs in parallel for each parent envelope (an isolated deep-cloned
+   * envelope per branch); their buffered output is merged in branch declaration order.
+   * Branches are validated at definition time: each argument must be a pipeline and must
+   * not declare its own source (`branch` receiving envelopes from the parent stream is the
+   * contract; `.from()` inside a branch is a TypeError). A branch without a target merges
+   * its output back into the parent stream; an explicit `.to()` redirects it. Accepts
+   * 1..N pipelines. For the sequential variant use {@link forkSync}.
+   *
+   * @example
+   * .fork(countBranch, reorderBranch, commasBranch)
    */
-  fork(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O>
-  fork(name: string, branches: readonly Pipeline[]): PipelineBuilder<I, O>
-  fork(
-    pipelineOrName: Pipeline<I, unknown> | string,
-    branches?: readonly Pipeline[],
-  ): PipelineBuilder<I, O> {
-    if (typeof pipelineOrName === 'string') {
-      if (pipelineOrName.trim().length === 0) {
-        throw new TypeError('.fork(name, branches): name must be a non-empty string')
-      }
-      if (!Array.isArray(branches) || branches.length === 0) {
-        throw new TypeError(
-          '.fork(name, branches): branches must be a non-empty array of pipelines',
-        )
-      }
-      for (const [index, branch] of branches.entries()) {
-        if (!isPipeline(branch)) {
-          throw new TypeError(
-            `.fork(name, branches): branches[${index}] must be an object with a string id and a steps array`,
-          )
-        }
-      }
-      this._steps.push({
-        type: 'fork',
-        config: { name: pipelineOrName, pipelines: [...branches], parallel: true },
-      })
-      return this
-    }
-    this._steps.push({ type: 'fork', config: { pipeline: pipelineOrName } })
+  fork(...pipelines: readonly Pipeline[]): PipelineBuilder<I, O> {
+    assertForkBranches('.fork(...pipelines)', pipelines)
+    this._steps.push({ type: 'fork', config: { pipelines: [...pipelines], parallel: true } })
     return this
   }
 
   /**
-   * Run an inline sub-pipeline, or split the current stream by an entity/buffer type.
+   * Sequential fork — run each branch pipeline per envelope, one branch after another.
    *
-   * Pipeline form: inline nested pipeline in the same Runner (a steps-only child is spliced
-   * into the parent stream; a child with its own source is self-contained).
+   * Pushes one sequential fork step per pipeline (chained): every parent envelope runs
+   * branch 1 to completion, then branch 2, ... and each branch's output is merged back
+   * into the parent stream in arrival order. Same definition-time validation as
+   * {@link fork}: every argument must be a pipeline without its own source.
    *
-   * String form: resolve the registered `Splitter` for that entity/buffer URI scheme and
-   * fan out 1 → N. For example `.subflow('paragraphs://')` (or `'#paragraphs'`) splits chunks
-   * into paragraphs and `.subflow('lines://')` splits paragraphs into lines. Accepts a buffer
-   * URI (`'paragraphs://'` / `'paragraphs://ladder'`) or the `#scheme` shortcut; a bare
-   * `'paragraphs'` is rejected. The splitter receives the full Exchange.
+   * @example
+   * .forkSync(countBranch, reorderBranch)
+   */
+  forkSync(...pipelines: readonly Pipeline[]): PipelineBuilder<I, O> {
+    assertForkBranches('.forkSync(...pipelines)', pipelines)
+    for (const pipeline of pipelines) {
+      this._steps.push({ type: 'fork', config: { pipeline } })
+    }
+    return this
+  }
+
+  /**
+   * Run an inline sub-pipeline, fan the stream out through a splitter, or run the stream through
+   * a batch child — one call per package.
    *
-   * When the splitter scheme names an entity buffer (`chunks`, `paragraphs`, `lines`,
-   * `words`, `tokens`, `chapters`, `batches`), the produced envelopes are also
-   * auto-published into `<scheme>://<namespace>` for the next stage. The optional second
-   * argument names that namespace; it defaults to `default`. `series` has no buffer, so it
-   * only transforms the stream.
+   * Pipeline form (`.subflow(pipeline)`): inline nested pipeline in the same Runner (a
+   * steps-only child is spliced into the parent stream; a child with its own source is
+   * self-contained and leaves the parent stream untouched).
    *
-   * `.fork()` is per-envelope child-Runner nesting (or one child per branch in the parallel
-   * form), not a split: it is too heavy for a plain 1 → N transformation.
+   * Split form (`.subflow('<source>', pipeline)`): resolve the registered `Splitter` for
+   * the source URI's scheme and fan the stream out 1 → N per envelope. For example
+   * `.subflow('paragraphs://', pipe)` splits chunks into paragraphs and runs each one
+   * through `pipe`. `'paragraphs://'` and `'#paragraphs'` are equivalent; a bare
+   * `'paragraphs'` is rejected. The splitter receives the full Exchange. The child
+   * pipeline runs synchronously and sequentially as a side branch — the PARENT stream
+   * passes through unchanged, and the children of one envelope are fully processed
+   * before the next parent envelope continues. A child with a target writes there
+   * (e.g. `.to('chunks://ladder')` fills an entity buffer); a child without one gets
+   * `void://` injected so the branch's side effects still run. Definition-time
+   * validation: unknown splitter schemes throw, the second argument must be a pipeline,
+   * and a child that declares its own source (`.from()`) is a TypeError.
+   *
+   * Batch form (`.subflow('batch://[tumbling|slide][?size=N][&slide=true|false]', pipeline)`):
+   * group the parent stream into packages of `size` (default {@link DEFAULT_BATCH_SIZE}),
+   * flushing the remainder at end of stream, and run the child ONCE per package — the fan-in
+   * twin of the split form:
+   *
+   * - the package is ONE exchange (`id = batch-<...>`, `item` = the member payloads, `items`
+   *   set, members carried in the ephemeral `batchMembers` variable) and it is handed to the
+   *   child as its input stream, so a child that starts with `.use(...)` needs no `.from()`;
+   * - a child without a target gets `batch://return` injected — it hands the patched package
+   *   back to the scope;
+   * - the parent stream continues with the ORIGINAL member envelopes (own id, meta, variables,
+   *   order). Group output: its CHANGED variables are stamped on every member and, when the
+   *   package payload is an array of the same length as the package, member `i` receives
+   *   `items[i]` (an explicit member commit by id wins over that zip); member output replaces
+   *   that member;
+   * - a child with its own `.to(<uri>)` writes there and nothing flows back — a sink, same as a
+   *   split child. The parent members still continue downstream (drained when the parent has no
+   *   target);
+   * - `slide` (`.subflow('batch://slide?size=3', pipe)`) moves one item per arrival, so
+   *   consecutive packages overlap;
+   * - the child may use the advanced views explicitly — `batch://group` (the package as one
+   *   exchange), `batch://members` (every member as its own exchange, multi-stage chains
+   *   included) and `batch://return`; those are child-side only, so they are rejected in the
+   *   subflow source position;
+   * - the checkpoint node of one package is `<stepId>/batch-<n>`. Package grouping and scope
+   *   state are in memory only: after a crash the package is re-formed from the source cursor
+   *   and the child replays for it.
+   *
+   * `.fork()` is per-envelope branch nesting (parallel or via {@link forkSync}
+   * sequential), not a split: it is too heavy for a plain 1 → N transformation.
+   *
+   * @example
+   * .subflow('batch://?size=5', definePipeline({ id: 'translate-titles' })
+   *   .use(extractTitles)     // env.item = unknown[], env.items = the same array
+   *   .use(translateTitles)   // one call for the whole package
+   *   .use(applyTitles))      // returns the patched package
    */
   subflow(pipeline: Pipeline<I, unknown>): PipelineBuilder<I, O>
-  subflow(splitterType: string, namespace?: string): PipelineBuilder<unknown, O>
-  subflow(arg: Pipeline<I, unknown> | string, namespace?: string): PipelineBuilder<unknown, O> {
+  subflow(source: `batch://${string}`, pipeline: Pipeline<unknown, unknown>): PipelineBuilder<I, O>
+  subflow(source: string, pipeline: Pipeline<unknown, unknown>): PipelineBuilder<unknown, O>
+  subflow(
+    arg: Pipeline<I, unknown> | string,
+    maybePipeline?: Pipeline<unknown, unknown>,
+  ): PipelineBuilder<unknown, O> {
     if (typeof arg === 'string') {
-      const scheme = registry.splitterScheme(arg)
-      const splitter = registry.resolveSplitter<unknown>(arg)
-      const config: Record<string, unknown> = { splitter, splitterType: arg }
-      if (registry.hasBufferWriter(scheme)) {
-        config.buffer = { scheme, namespace: normalizeBufferNamespace(namespace) }
-      } else if (namespace !== undefined) {
-        throw new Error(
-          `.subflow('${arg}', '${namespace}'): scheme '${scheme}' has no entity buffer to publish into. Known buffer schemes: ${registry.getBufferWriterSchemes().join(', ') || '(none)'}`,
-        )
+      if (registry.splitterScheme(arg) === 'batch') {
+        return this.batchSubflow(arg, maybePipeline) as unknown as PipelineBuilder<unknown, O>
       }
-      this._steps.push({ type: 'split', config })
+      const op = `.subflow('${arg}', pipeline)`
+      assertNestedPipeline(op, 'pipeline', maybePipeline)
+      const splitter = registry.resolveSplitter<unknown>(arg)
+      this._steps.push({
+        type: 'split',
+        config: { splitter, splitterType: arg, pipeline: withVoidTarget(maybePipeline) },
+      })
       return this as unknown as PipelineBuilder<unknown, O>
     }
     this._steps.push({ type: 'subflow', config: { pipeline: arg } })
     return this as unknown as PipelineBuilder<unknown, O>
+  }
+
+  /**
+   * Push one `batch` step: the parsed `batch://` options plus the child pipeline that runs
+   * once per package. The parent cardinality is unchanged — it continues with the members.
+   */
+  private batchSubflow(uri: string, pipeline: unknown): PipelineBuilder<I, O> {
+    const op = batchOp(uri)
+    const parsed = registry.parse(uri)
+    if (BATCH_CHILD_VIEWS.has(`${parsed.host}${parsed.path}`)) {
+      throw new TypeError(
+        `${op}: '${uri}' is a child-side batch view and only works INSIDE a batch child — the batch itself is .subflow('batch://?size=5', pipe)`,
+      )
+    }
+    const { size, slide } = parseBatchUri(uri)
+    assertBatchPipeline(op, pipeline)
+    this._steps.push({
+      type: 'batch',
+      config: { size, slide, pipeline: withBatchReturn(pipeline) },
+    })
+    return this
   }
 
   /**

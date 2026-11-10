@@ -71,8 +71,8 @@ export interface ToolContext {
 }
 
 /**
- * Per-group scope of `.batch(opts, nested)` (see `createBatchScope`). One group, two views,
- * one commit point.
+ * Per-package scope of a batch subflow (`.subflow('batch://...', pipe)`, see
+ * `createBatchScope`). One package, two views, one commit point.
  */
 export interface BatchScope {
   /** Id of the folded group exchange. */
@@ -83,7 +83,11 @@ export interface BatchScope {
   group(): Exchange<unknown>
   /** Every member as its own exchange (own id/meta/variables, group edits stamped on). */
   members(): Exchange<unknown>[]
-  /** Hand a result back: the group exchange (variable edits) or one member (replaces it by id). */
+  /**
+   * Hand a result back: the group exchange (its changed variables reach every member; a payload
+   * array of the package length also zips back onto them by index) or one member (replaces it
+   * by id and wins over the zip).
+   */
   commit(env: Exchange<unknown>): void
   /** The original members, patched, as the outer stream continues with them. */
   result(): Exchange<unknown>[]
@@ -109,7 +113,7 @@ export interface RunContext {
   /** Absolute path to .mt/runs/<runId>/artifacts/ — for persisting intermediate outputs */
   artifactsDir: string
   /**
-   * Set only for the nested run of `.batch(opts, nested)`: the group being processed. The
+   * Set only for the nested run of one batch package: the package being processed. The
    * `batch://members`, `batch://group` and `batch://return` waypoints work against it.
    */
   batchScope?: BatchScope

@@ -163,17 +163,16 @@ Fluent chain. The builder itself implements `Pipeline`, so it can be a `default 
 ```typescript
 definePipeline()
   .from('chunks://ladder')
-  .subflow('#paragraphs')   // 1→N split; same as 'paragraphs://' (bare 'paragraphs' is rejected)
-  .subflow('#chunks', 'ladder') // 1→N + auto-publish into chunks://ladder
+  .subflow('#paragraphs', paragraphPipe) // 1→N split; same as 'paragraphs://' (bare 'paragraphs' is rejected)
   .flatMap(async (item) => [...])
   .tap((env) => { /* logging: receives the full Exchange incl. meta + variables; async OK */ })
   .tap((ex) => log.info('msg', { key: value })) // `log` from '@mt/core': standard line, INFO default
   .log('debug')             // sugar over .tap(): '<ISO-ms> [INFO] [debug] <id> <item>'
   .use(myTool)
   .subflow(otherPipeline)   // inline nested pipeline, same Runner
-  .fork(subPipeline)        // sequential: child pipeline per envelope, checkpoint subtree
-  .fork('views', [branchA, branchB]) // parallel: branches per envelope, deterministic merge
-  .batch(5)
+  .fork(branchA, branchB, branchC) // parallel: branches per envelope, deterministic merge
+  .forkSync(subPipeline)    // sequential: child pipeline per envelope, checkpoint subtree
+  .subflow('batch://?size=5', batchPipe) // fan-in: packages of 5 run through batchPipe
   .to('md://./output.md')
 ```
 
@@ -192,10 +191,9 @@ definePipeline()
 | `.after()` | `.after((ex, ctx) => Exchange \| void \| Promise<…>)` | Register an `after` interceptor wrapping every `.use()` tool invocation. Runs after a **successful** invoke only — never when the tool or another interceptor failed (including after retries are exhausted). May return a modified exchange to pass downstream. Registrations stack, run in registration order. |
 | `.around()` | `.around((ex, ctx, next) => Promise<Exchange>)` | Register an `around` interceptor — middleware style, like koa. `next(ex)` invokes the remaining around interceptors (onion-nested, first-registered outermost) and finally the tool itself; the return value is the (possibly replaced) output exchange. Supports async work, timing, catching errors and swapping exchanges. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
-| `.batch()` | `.batch(opts?, nested?)` / `.batch(nested)` | `opts` = `number` \| `{ size?: 5, slide?: false }`. Groups items into `items[]` packages of `size`, flushing the remainder at end of stream; `slide: true` emits overlapping sliding windows instead (one per arrival). `size` must be a positive integer (`RangeError` at definition time). With `nested` (a `definePipeline()` pipeline) each package runs through it - a **batch scope**, see below. |
-| `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef, namespace?)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `chunks`, `lines`, `words`, `tokens` and `series`; `'paragraphs://ladder'` also resolves by scheme. When the scheme names an entity buffer, the produced envelopes are ALSO auto-published into `<scheme>://<namespace>` for the next stage; the optional second argument names that namespace and defaults to `default`. `series` has no buffer and only transforms the stream. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope (or one per branch in the parallel form). |
-| `.fork()` | `.fork(pipeline)` / `.fork(name, branches)` | Sequential form: runs the child pipeline per parent envelope in a child Runner — each envelope gets its own nested checkpoint node (`stepId/fork-N`) — and merges child results back into the parent stream. Parallel form: `name` must be a non-empty string and `branches` a non-empty `Pipeline[]` (validated at definition time); every branch runs concurrently per parent envelope via real `Promise.allSettled`, each on its own isolated deep-cloned envelope. One checkpoint node `${stepId}/fork-<n>/branch-<m>` is created per parent/branch in declaration order before work starts. Branch outputs are buffered and merged in declaration order (all of parent 0's branches, then parent 1's, ...); any branch failure fails the run after all branches settle, with the first failure in declaration order. |
-| `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and ends the stage → the builder, which doubles as the `Pipeline`; a further `.from()` starts the next stage (used by batch scopes). Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
+| `.subflow()` | `.subflow(pipeline)` / `.subflow(source, pipeline)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. Split form: resolve the registered `Splitter` for the source URI's scheme and fan the parent stream out 1→N; the child pipeline runs synchronously as a side branch and the PARENT stream passes through unchanged. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `chunks`, `lines`, `words`, `tokens` and `series`. Publishing into an entity buffer is an explicit target: the child writes with `.to('<scheme>://<namespace>')` (reset at stage start, append per envelope) and the next stage reads `.from('<scheme>://<namespace>')`; a child without a target gets `void://` injected. Definition-time validation: the second argument must be a pipeline and must not declare its own `.from()`. The splitter receives the full `Exchange`; one child envelope per returned entity. Batch form: `.subflow('batch://[tumbling\|slide][?size=N][&slide=true\|false]', pipeline)` groups the parent stream into `items[]` packages (default size `DEFAULT_BATCH_SIZE` = 5, remainder flushed at end) and runs the child once per package — a **batch subflow**, see below. |
+| `.fork()` / `.forkSync()` | `.fork(...pipelines)` / `.forkSync(...pipelines)` | `.fork()` runs every branch CONCURRENTLY per parent envelope via real `Promise.allSettled`, each on its own isolated deep-cloned envelope; branch outputs are buffered and merged in declaration order (all of parent 0's branches, then parent 1's, ...), and any branch failure fails the run after all branches settle with the first failure in declaration order. One checkpoint node `${stepId}/fork-<n>/branch-<m>` per parent/branch is created in declaration order before work starts. `.forkSync()` pushes one sequential fork step per branch (chained): each parent envelope runs branch 1 to completion, then branch 2, ..., each on its own nested checkpoint node (`stepId/fork-N`), merging results back in arrival order. Both forms validate at definition time: every argument must be a pipeline and must not declare its own `.from()` (branches receive envelopes from the parent stream). A branch without a target merges back into the parent stream; an explicit `.to()` redirects it. |
+| `.to()` | `.to(Target<T> \| string)` | Sets the Target (URI string or instance, like `.from()`) and ends the stage → the builder, which doubles as the `Pipeline`; a further `.from()` starts the next stage (used by batch children: the group stage, then the members stage). Optional: the builder itself implements `Pipeline`, so subflow-only orchestration exports need no `.to()`. |
 
 ### Processes
 
@@ -382,9 +380,10 @@ and `series` at module load.
 
 Entity buffers register a write side separately:
 `registerBufferWriter(scheme, factory)`, `hasBufferWriter(scheme)`,
-`resolveBufferWriter(scheme, namespace)` and `getBufferWriterSchemes()`. The string-form
-`.subflow('<splitter>', '<namespace>')` uses this to auto-publish its children into
-`<scheme>://<namespace>`; `@mt/waypoint` registers one writer per entity buffer.
+`resolveBufferWriter(scheme, namespace)` and `getBufferWriterSchemes()`. The explicit buffer
+Target that `@mt/waypoint` registers per entity scheme shares this writer, so a split-form
+subflow child publishing with `.to('<scheme>://<namespace>')` resets on open (once per
+stage) and appends per envelope.
 
 All split implementations share the `Splitter<O>` interface from `types.ts`
 (`{ name, split(env: Exchange<unknown>, ctx?: SplitterContext): O[] | Promise<O[]> }`) but keep
@@ -599,12 +598,12 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
 ## Concurrency Primitives
 
 - **In-process**: per-step limiter (`p-limit`-style), configurable via URI query param (`concurrency`), DSL, or global defaults. Tools always run in-process via `tool.invoke()`.
-- **Fork (`.fork`)**: two forms, both operating **per parent envelope**.
-  - **Sequential** (`.fork(pipeline)`): feeds the envelope into
+- **Fork (`.fork` / `.forkSync`)**: both operate **per parent envelope**.
+  - **Sequential** (`.forkSync(...pipelines)` — one chained step per branch): feeds the envelope into
     `buildStream(child.steps, [envelope], childCtx)` and merges the child's output back into the
     parent stream. One checkpoint node per envelope (`<stepId>/fork-<n>`). A `target` inside the
     child makes it a sink: results are written there and nothing flows back to the parent.
-  - **Parallel** (`.fork(name, branches)`): starts every branch concurrently for the envelope
+  - **Parallel** (`.fork(...pipelines)`): starts every branch concurrently for the envelope
     with `Promise.allSettled`, each branch draining its own cloned stream. Each branch gets a
     `structuredClone` envelope with `item` relinked to its cloned `item` variable, so in-place
     mutation cannot leak across branches. Branch outputs are buffered, then emitted in branch
@@ -619,58 +618,76 @@ The checkpoint tree is walked depth-first. Nodes marked `done` are skipped. The 
     its own data after the upstream stream is consumed; the parent stream passes through unchanged.
     Subflows therefore run in declaration order, and an orchestration-only parent (no `source` /
     `target` of its own) is valid.
-- **Subflow by entity type** — `.subflow('paragraphs://')` and `.subflow('#paragraphs')` are two
-  spellings of the same registry lookup (likewise `chunks`, `lines`, `words`, `tokens` and
-  `series`); bare `'paragraphs'` is rejected, and a URI with a path like
+- **Split-form subflow** — `.subflow('paragraphs://', pipe)` and `.subflow('#paragraphs', pipe)`
+  are two spellings of the same registry lookup (likewise `chunks`, `lines`, `words`, `tokens`
+  and `series`); bare `'paragraphs'` is rejected, and a URI with a path like
   `'paragraphs://ladder'` also resolves by scheme. The call pushes the internal `split` step:
-  inline, same Runner, 1→N. When the scheme names an entity buffer, the step also
-  auto-publishes every child into `<scheme>://<namespace>` (second argument, default `default`),
-  resetting that buffer when the stage starts so a re-run replaces the old contents. It is
-  deliberately **not** `.fork()`: a split is a transformation of the current stream, while
-  `.fork()` starts a child Runner per envelope (or one per branch in the parallel form).
+  inline, same Runner, 1→N. The child pipeline runs synchronously as a side branch — the parent
+  envelope passes downstream unchanged after its children are processed. One nested child run
+  spans the whole step, so a buffer target inside the child opens exactly once (reset at stage
+  start, append per envelope); a child without a target gets `void://` injected at definition
+  time (resolved at run time, so defining a pipeline needs no registered `void://` waypoint).
+  The checkpoint node is `<stepId>/split-branch`. It is deliberately **not** `.fork()`: a split
+  is a 1→N transformation of the current stream, while `.fork()` runs whole branches per
+  envelope. Publishing into an entity buffer is explicit: `.to('<scheme>://<namespace>')` inside
+  the child, read back with `.from('<scheme>://<namespace>')`.
   The `series` splitter is document-aware: it parses with `readChapterDoc`, emits numbered
   `ChapterDoc` parts via `writeChapterDoc` only when the chapter is large enough (or a custom
   `shouldSplit` allows it), and otherwise returns the original markdown as one item.
 
-`.batch()` groups envelopes into `items[]` (`item` holds the same array) and flushes the
-remainder at end of stream (default size 5); `{ slide: true }` slides one item per arrival, so
-consecutive groups overlap. Non-positive-integer sizes (`0`, negatives, fractions, `NaN`,
-`Infinity`) throw a `RangeError` at pipeline-definition time; the Runner-side grouping
-(`groupStream`) keeps a defensive fallback to size 1 for unchecked step configs.
+The batch subflow `.subflow('batch://[tumbling|slide][?size=N][&slide=true|false]', pipe)` is the
+fan-in twin of the split form: it groups envelopes into `items[]` packages and runs `pipe` once per
+package. Packages flush at `size` (default `DEFAULT_BATCH_SIZE` = 5) and the remainder flushes at
+end of stream; `batch://slide` (or `?slide=true`) moves one item per arrival instead, so
+consecutive packages overlap. `?slide=` wins over the mode segment, and `batchSize` is accepted as
+an alias of `size`. Everything is validated at definition time: an unknown mode segment, an unknown
+query key or a non-boolean `slide` throws `TypeError`, a non-positive/non-integer size throws
+`RangeError`. `batch://group`, `batch://members` and `batch://return` in the subflow source position
+are a `TypeError` — they are child-side views only. Grouping and the scope state live in memory
+(`groupStream` on the Runner side, `createBatchScope` in `packages/core/src/batch-scope.ts`); the
+Runner-side grouping keeps a defensive fallback to size 1 for unchecked step configs.
 
-### Batch scope: `.batch(opts, nested)`
+### Batch subflow: `.subflow('batch://...', pipe)`
 
 ```typescript
-const scope = definePipeline({ id: 'titles' })
-  .from('batch://group')            // the package as ONE exchange (item = items[])
-  .use(extractTitles).use(translate).use(parse)
-  .to('batch://return')             // commit: group variable edits reach every member
-  .from('batch://members')          // every member as its own exchange (own id/meta/variables)
-  .use(applyTitle)
-  .to('batch://return')             // commit: the patched member replaces the original (by id)
+const titles = definePipeline({ id: 'translate-titles' })
+  .use(extractTitles)        // item = the package array, items = the same array
+  .use(translateTitles)      // one call for the whole package
+  .use(applyTitles)          // returns the patched package; members patched in place
 
-definePipeline().from('md://./chapters/en').batch(scope).to('my-target://./chapters')
+definePipeline().from('md://./chapters/en')
+  .subflow('batch://?size=5', titles)
+  .to('my-target://./chapters')
 ```
 
-- The nested pipeline runs once per package (own checkpoint node `<stepId>/batch-<n>`); afterwards
-  the OUTER stream continues with the ORIGINAL member envelopes (own id/meta/variables, order kept),
-  patched by what the scope committed. `slide: true` + nested is a `RangeError`.
-- Plumbing: the Runner puts a `BatchScope` (`createBatchScope`, `packages/core/src/batch-scope.ts`)
-  on the nested `RunContext.batchScope`; the `batch://` waypoints (`packages/waypoint/src/batch-scope.ts`)
-  only talk to that object, so core never imports waypoint and there is no global buffer.
-- Commit rules: group exchange (id = package id) -> only its CHANGED variables are kept and stamped
-  on every member (payload ignored); member exchange -> replaces that member by id; anything else is
-  an error. A scope that never commits leaves members unchanged (warning logged).
-- Multi-stage choice: ONE definition with several `.from(...)...to('batch://return')` stages (hence
-  `.to()` returns the builder). Chosen over a scope-local named buffer or `.subflow()` per stage:
-  no extra namespace/cleanup, the group-stage -> member-stage hand-off is just the committed
-  group variables, and the whole flow reads top to bottom. Stages run in order, each to completion.
-- Resume: the member envelopes live in the EPHEMERAL `batchMembers` variable and the scope state is
-  in-memory, never persisted. The outer source cursor only advances on outer target writes, so after
-  a crash the package is re-formed from the source and the nested pipeline replays for it (the
-  `batch://` sources define no `resume()`). Scope work is therefore re-done, not restored.
-- A failing nested step fails the run (same policies as `.fork()`); its checkpoint node is `failed`.
-- `unbatchExchange` is internal machinery behind `batch://members`; there is no `.unbatch()` / `.window()` DSL op.
+- The package reaches the child as its INPUT stream: one exchange with `id` `batch-<...>`,
+  `item` = the member payloads, `items` set, and the original members carried in the ephemeral
+  `batchMembers` variable. A child therefore starts with `.use(...)` and must not declare its own
+  `.from()`; the only allowed source is a child-side `batch://` view.
+- A child without a target gets `.to('batch://return')` injected, so the package is handed back to
+  the scope. The URI resolves at run time, so defining a pipeline needs no registered views.
+- The OUTER stream continues with the ORIGINAL member envelopes (own id, meta, variables, order),
+  patched by what the child committed. Group output: its CHANGED variables are stamped on every
+  member; when its payload is an array of the same length as the package, member `i` receives
+  `items[i]` (zip by index). An explicit member commit by id wins over that zip. A payload of a
+  different length commits no payload. A child that never commits leaves members unchanged
+  (warning logged).
+- A child with its own `.to(<uri>)` is a sink: it writes there and nothing flows back to the
+  parent members, same as a split child. The parent stream still continues downstream (and is
+  drained when the parent has no target).
+- Advanced child-side views: `batch://group` (the package as one exchange), `batch://members`
+  (every member as its own exchange, own id/meta/variables) and `batch://return` (commit). A child
+  may chain stages, e.g. `.from('batch://group')...to('batch://return').from('batch://members')...to('batch://return')`
+  — `.to()` returns the builder for that. Commit rules: a group exchange (id = package id) keeps
+  only its changed variables and stamps them on every member (its payload is handled by the zip
+  above); a member exchange replaces that member by id; anything else is an error.
+- Checkpoint: one node `<stepId>/batch-<n>` per package; a failing child step fails the run under
+  the usual retry/error policies and marks the node `failed`.
+- Resume: package grouping, the members and the scope state are in memory only, never persisted.
+  The outer source cursor advances only on outer target writes, so after a crash the package is
+  re-formed from the source and the child replays for it — scope work is re-done, not restored.
+- `unbatchExchange` is internal machinery behind `batch://members`; there is no `.unbatch()` /
+  `.window()` DSL op.
 
 ## Retry & Error Policy
 

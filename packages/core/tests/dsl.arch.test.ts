@@ -13,7 +13,7 @@ describe('UC-02 — Author a pipeline in TS (architectural)', () => {
     expect(builder).toBeInstanceOf(PipelineBuilder)
   })
 
-  it('PipelineBuilder exposes fluent methods: from, use, to, batch, fork, tap', () => {
+  it('PipelineBuilder exposes fluent methods: from, use, to, subflow, fork, tap', () => {
     const builder = definePipeline({
       id: 'test',
       retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
@@ -22,9 +22,11 @@ describe('UC-02 — Author a pipeline in TS (architectural)', () => {
     expect(typeof builder.from).toBe('function')
     expect(typeof builder.use).toBe('function')
     expect(typeof builder.to).toBe('function')
-    expect(typeof builder.batch).toBe('function')
+    expect(typeof builder.subflow).toBe('function')
     expect(typeof builder.fork).toBe('function')
     expect(typeof builder.tap).toBe('function')
+    // no `.batch()` op: grouping is the batch form of `.subflow()`
+    expect('batch' in builder).toBe(false)
   })
 
   it('result from .to() satisfies Pipeline interface shape', () => {
@@ -126,22 +128,32 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
       onError: 'fail-run',
     })
 
-  it('.batch(size) pushes a step with type batch and config.size', () => {
+  it(".subflow('batch://?size=5', pipe) pushes a batch step with its child", () => {
+    const child = makePipeline().tap(async () => {})
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .batch(5)
+      .subflow('batch://?size=5', child)
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
     const p = pipeline as Pipeline
     const batchStep = p.steps.find((s) => s.type === 'batch')
     expect(batchStep).toBeDefined()
-    expect(batchStep?.config.size).toBe(5)
+    expect(batchStep?.config).toMatchObject({ size: 5, slide: false })
+    expect((batchStep?.config.pipeline as Pipeline | undefined)?.id).toBe(child.id)
+    // the child had no target: `batch://return` is injected so the package comes back patched
+    expect((batchStep?.config.pipeline as Pipeline | undefined)?.steps.at(-1)).toEqual({
+      type: 'target',
+      config: { uri: 'batch://return' },
+    })
   })
 
-  it('.batch({ size, slide: true }) pushes a batch step with config.slide', () => {
+  it(".subflow('batch://slide?size=3', pipe) pushes config.slide", () => {
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .batch({ size: 3, slide: true })
+      .subflow(
+        'batch://slide?size=3',
+        makePipeline().tap(async () => {}),
+      )
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
     const p = pipeline as Pipeline
@@ -150,9 +162,10 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(batchStep?.config.slide).toBe(true)
   })
 
-  it('.fork(subPipeline) pushes a step with type fork and config.pipeline', () => {
+  it('.fork(subPipeline) pushes a parallel fork step with config.pipelines', () => {
+    // branches receive envelopes from the parent stream: no own `.from()`
     const subPipeline = makePipeline()
-      .from({ uri: 'jsonl://./sub-in.jsonl' } as never)
+      .tap(async () => {})
       .to({ uri: 'jsonl://./sub-out.jsonl' } as never)
 
     const pipeline = makePipeline()
@@ -163,7 +176,7 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     const p = pipeline as Pipeline
     const forkStep = p.steps.find((s) => s.type === 'fork')
     expect(forkStep).toBeDefined()
-    expect(forkStep?.config.pipeline).toBe(subPipeline)
+    expect(forkStep?.config.pipelines).toEqual([subPipeline])
   })
 
   it('.flatMap(fn) pushes a step with type flatmap and config.fn', () => {
@@ -179,15 +192,16 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(typeof flatmapStep?.config.fn).toBe('function')
   })
 
-  it('.subflow(splitterType) resolves a registered splitter into the internal split step', () => {
+  it('.subflow(source, pipeline) resolves a registered splitter into the internal split step', () => {
     const splitter = {
       name: 'test-splitter',
       split: async () => ['a', 'b'],
     }
     registry.registerSplitter('test-entities', splitter)
+    const child = makePipeline().tap(async () => {})
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .subflow('test-entities://')
+      .subflow('test-entities://', child)
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
     const p = pipeline as Pipeline
@@ -195,6 +209,7 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(splitStep).toBeDefined()
     expect(splitStep?.config.splitter).toBe(splitter)
     expect(splitStep?.config.splitterType).toBe('test-entities://')
+    expect(splitStep?.config.pipeline).not.toBe(child)
   })
 
   it('.subflow(uri) reads the splitter type from the URI scheme', () => {
@@ -203,9 +218,10 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
       split: async () => ['a'],
     }
     registry.registerSplitter('test-uri-entities', splitter)
+    const child = makePipeline().tap(async () => {})
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .subflow('test-uri-entities://ladder')
+      .subflow('test-uri-entities://ladder', child)
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
     const p = pipeline as Pipeline
@@ -214,15 +230,16 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     expect(splitStep?.config.splitterType).toBe('test-uri-entities://ladder')
   })
 
-  it('.subflow(#splitterType) resolves the shortcut form', () => {
+  it('.subflow(#splitterType, pipeline) resolves the shortcut form', () => {
     const splitter = {
       name: 'test-splitter-shortcut',
       split: async () => ['a'],
     }
     registry.registerSplitter('test-shortcut-entities', splitter)
+    const child = makePipeline().tap(async () => {})
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .subflow('#test-shortcut-entities')
+      .subflow('#test-shortcut-entities', child)
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 
     const p = pipeline as Pipeline
@@ -232,19 +249,31 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
   })
 
   it('.subflow(bareScheme) rejects the old simple spelling', () => {
-    expect(() =>
-      makePipeline()
-        .from({ uri: 'jsonl://./in.jsonl' } as never)
-        .subflow('test-bare-entities'),
-    ).toThrow(/must be a buffer URI/)
+    // The split form requires a child pipeline, so the bare spelling is only reachable through a
+    // widened call — it must still fail at run time.
+    const widened = makePipeline().from({ uri: 'jsonl://./in.jsonl' } as never) as unknown as {
+      subflow(uri: string): unknown
+    }
+    expect(() => widened.subflow('test-bare-entities')).toThrow(/must be a buffer URI/)
   })
 
   it('.subflow(unknownType) throws with the known splitter schemes', () => {
+    const child = makePipeline().tap(async () => {})
     expect(() =>
       makePipeline()
         .from({ uri: 'jsonl://./in.jsonl' } as never)
-        .subflow('missing-entities://'),
+        .subflow('missing-entities://', child),
     ).toThrow(/No splitter registered for scheme: missing-entities.*Known splitter schemes:/)
+  })
+
+  it('.subflow(source, pipeline) rejects a child with its own source step', () => {
+    registry.registerSplitter('test-reject-source', { name: 'rs', split: () => ['a'] })
+    const withSource = makePipeline().from({ uri: 'jsonl://./other.jsonl' } as never)
+    expect(() =>
+      makePipeline()
+        .from({ uri: 'jsonl://./in.jsonl' } as never)
+        .subflow('test-reject-source://', withSource),
+    ).toThrow(TypeError)
   })
 
   it('.tap(fn) pushes a step with type tap and config.fn', () => {
@@ -388,9 +417,15 @@ describe('UC-12/UC-13/UC-14 — Batch, Window, Fork & FlatMap DSL (architectural
     registry.registerSplitter('test-union-entities', splitter)
     const pipeline = makePipeline()
       .from({ uri: 'jsonl://./in.jsonl' } as never)
-      .batch(5)
+      .subflow(
+        'batch://?size=5',
+        makePipeline().tap(async () => {}),
+      )
       .flatMap(async (item) => [item])
-      .subflow('test-union-entities://')
+      .subflow(
+        'test-union-entities://',
+        makePipeline().tap(async () => {}),
+      )
       .tap(async () => {})
       .to({ uri: 'jsonl://./out.jsonl' } as never)
 

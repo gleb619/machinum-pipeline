@@ -35,7 +35,7 @@ function fill(target: BufferWriter, items: unknown[]): void {
   for (const item of items) target.append(createExchange(item))
 }
 
-// Fake source + splitter for the auto-publish integration tests. The splitter is
+// Fake source + splitter for the split-form subflow integration tests. The splitter is
 // registered under `chunks` only in this isolated test file.
 let sourceItems: unknown[] = []
 registry.registerSource('entity-buffers-source', (uri) => ({
@@ -69,11 +69,14 @@ function globalContext(root: string): GlobalContext {
   }
 }
 
-function autoPublishPipeline(namespace?: string) {
-  const flow = definePipeline({ id: 'entity-buffers-auto-publish' }).from(
-    'entity-buffers-source://in',
+/** Split-form subflow: the child pipe publishes into the named buffer via its own target. */
+function splitPublishPipeline(namespace?: string) {
+  const child = definePipeline({ id: 'entity-buffers-chunks' }).to(
+    namespace === undefined ? 'chunks://' : `chunks://${namespace}`,
   )
-  return namespace === undefined ? flow.subflow('#chunks') : flow.subflow('#chunks', namespace)
+  return definePipeline({ id: 'entity-buffers-split-publish' })
+    .from('entity-buffers-source://in')
+    .subflow('#chunks', child)
 }
 
 describe('entity buffer schemes', () => {
@@ -89,12 +92,10 @@ describe('entity buffer schemes', () => {
     }
   })
 
-  it.each(LADDER_BUFFER_SCHEMES)('%s:// is a source-only ladder rung', (scheme) => {
+  it.each(LADDER_BUFFER_SCHEMES)('%s:// is a writable ladder rung (source + target)', (scheme) => {
     expect(registry.hasSource(scheme)).toBe(true)
-    expect(registry.hasTarget(scheme)).toBe(false)
-    expect(() => registry.resolveTarget(`${scheme}://`)).toThrow(
-      `No target registered for scheme: ${scheme}`,
-    )
+    expect(registry.hasTarget(scheme)).toBe(true)
+    expect(registry.resolveTarget(`${scheme}://x`).uri).toBe(`${scheme}://x`)
   })
 
   it.each(PACKAGE_BUFFER_SCHEMES)('%s:// stays a bidirectional package buffer', (scheme) => {
@@ -110,14 +111,14 @@ describe('entity buffer schemes', () => {
     )
   })
 
-  it('auto-publishes a splitter subflow into the default namespace', async () => {
-    await new Runner(autoPublishPipeline(), globalContext(root)).start()
+  it('publishes a split-form subflow into the default namespace', async () => {
+    await new Runner(splitPublishPipeline(), globalContext(root)).start()
 
     expect(await read('chunks://')).toEqual(['one-a', 'one-b', 'two-a', 'two-b'])
   })
 
-  it('auto-publishes a splitter subflow into an explicit namespace', async () => {
-    await new Runner(autoPublishPipeline('ladder'), globalContext(root)).start()
+  it('publishes a split-form subflow into an explicit namespace', async () => {
+    await new Runner(splitPublishPipeline('ladder'), globalContext(root)).start()
 
     expect(await read('chunks://ladder')).toEqual(['one-a', 'one-b', 'two-a', 'two-b'])
     expect(await read('chunks://')).toEqual([])
@@ -125,8 +126,8 @@ describe('entity buffer schemes', () => {
 
   it('clears the buffer when the stage runs again', async () => {
     sourceItems = ['one']
-    await new Runner(autoPublishPipeline('ladder'), globalContext(root)).start()
-    await new Runner(autoPublishPipeline('ladder'), globalContext(root)).start()
+    await new Runner(splitPublishPipeline('ladder'), globalContext(root)).start()
+    await new Runner(splitPublishPipeline('ladder'), globalContext(root)).start()
 
     expect(await read('chunks://ladder')).toEqual(['one-a', 'one-b'])
   })

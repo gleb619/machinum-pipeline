@@ -64,7 +64,7 @@ export default definePipeline()
   .use(chapterValidator)          // validate structure
   .flatMap(splitOversized)        // one chapter → many chunks
   .use(translateText)             // translate via LLM
-  .batch(5)                       // group for output
+  .subflow('batch://?size=5', batchPipe) // group for output
   .to('md://./output')            // write markdown files
 ```
 

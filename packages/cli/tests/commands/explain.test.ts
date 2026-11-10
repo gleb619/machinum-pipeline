@@ -395,7 +395,6 @@ describe('explain command', () => {
           {
             type: 'fork',
             config: {
-              name: 'views',
               parallel: true,
               pipelines: [
                 { id: 'branch-a', retry, onError: 'fail-run', steps: [toolStep('count')] },
@@ -425,7 +424,7 @@ describe('explain command', () => {
     }
     const fork = parsed.runnable.pipelines[0]?.steps[1]
     expect(fork?.type).toBe('fork')
-    expect(fork?.checkpointNode).toBe('fork-views-<seq>/fork-<parent>/branch-<branch>')
+    expect(fork?.checkpointNode).toBe('fork-fork-<seq>/fork-<parent>/branch-<branch>')
     expect(fork?.cardinality).toContain('sum of 2 branch outputs')
     expect(fork?.nested?.map((p) => p.id)).toEqual(['branch-a', 'branch-b'])
   })
@@ -612,7 +611,8 @@ describe('explain command', () => {
       checkpointNode: 'batch-batch-<seq>/batch-<n>',
       cardinality: 'N → N (members patched)',
     })
-    expect(batch?.description).toContain('every 2')
+    expect(batch?.description).toContain('batch subflow')
+    expect(batch?.description).toContain('size=2')
     expect(batch?.nested?.[0]?.id).toBe('scope-child')
     expect(batch?.nested?.[0]?.steps[0]?.stepIdPattern).toBe('tool-scope-tool-<seq>')
   })
@@ -731,7 +731,7 @@ describe('explain command', () => {
     expect(subflow?.description).toContain('parent stream continues unchanged')
   })
 
-  it('warns for a hand-built nested sliding batch and reports overlapping emissions', async () => {
+  it('describes a sliding batch subflow and reports overlapping emissions', async () => {
     const pipelinePath = join(testDir, 'pipeline.ts')
     await writeFile(pipelinePath, 'export default {}')
     vi.doMock(pipelinePath, () => ({
@@ -763,8 +763,8 @@ describe('explain command', () => {
 
     const parsed = JSON.parse(String(vi.mocked(console.log).mock.calls[0]?.[0])) as JsonExplanation
     const batch = parsed.runnable.pipelines[0]?.steps[1]
-    expect(parsed.warnings.join('\n')).toContain('slide=true')
-    expect(parsed.warnings.join('\n')).toContain('pipeline-definition time')
+    expect(batch?.description).toContain('batch://slide?size=2')
+    expect(parsed.warnings).toEqual([])
     expect(batch?.cardinality).toContain('member emissions')
     expect(batch?.cardinality).toContain('windows repeat members')
   })

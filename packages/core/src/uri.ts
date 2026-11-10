@@ -69,7 +69,8 @@ class UriRegistry {
 
   /**
    * Register a splitter for an entity/buffer URI scheme (e.g. `paragraphs`, `lines`, `series`).
-   * The scheme is the buffer type a pipeline names in `.subflow('<scheme>')`.
+   * The scheme is the buffer type a pipeline names in the split form
+   * `.subflow('<source>', pipeline)`.
    */
   registerSplitter<O>(scheme: string, splitter: Splitter<O>): void {
     this.splitters.set(scheme, splitter as Splitter<unknown>)
@@ -129,8 +130,9 @@ class UriRegistry {
   }
 
   /**
-   * Register the write side of an entity buffer. `.subflow('<splitter>', '<namespace>')`
-   * publishes into the writer registered for the splitter's scheme.
+   * Register the write side of an entity buffer. The explicit buffer Target for the
+   * scheme (registered by `@mt/waypoint`) shares this writer, so `.to('chunks://ns')`
+   * resets on open and appends per envelope.
    */
   registerBufferWriter(scheme: string, factory: BufferWriterFactory): void {
     this.bufferWriters.set(scheme, factory)

@@ -26,9 +26,10 @@ import { mockTranslate, translateChapter } from '../lib/translate.js'
  * PIPE 08 — glossary-aware EN → RU translation, offline by default.
  *
  * Default pipeline (sample4-style):
- *   chapters/en-tagged → batch(5) → titles → body line by line → parity lint → chapters/ru
+ *   chapters/en-tagged → batch of 5 → titles → body line by line → parity lint → chapters/ru
  *
- * - Titles are translated in one batch of five chapters (`createGlossaryTitleTranslator`).
+ * - The batch subflow (`batch://?size=5`) runs the child once per package of five chapters;
+ *   titles are translated in one call for that package (`createGlossaryTitleTranslator`).
  * - Every body line is one LLM call. The prompt carries only the glossary terms tagged in that
  *   line, plus the chapter summary as context. A reply that breaks line parity is a retryable
  *   error; lines that already passed are memoised, so a retry re-sends only the bad line.
@@ -56,13 +57,9 @@ function mockAnswer(req: LlmRequest): string {
 const llm = pickFor('translate', mockAnswer)
 const only = onlyChapters()
 
-export const translatePipeline = definePipeline({ id: 'pipe08-translate' })
-  .from('md://./chapters/en-tagged')
-  .flatMap(async (md: unknown) => {
-    const text = String(md)
-    return only && !only.has(chapterNumberOf(text, 0)) ? [] : [text]
-  })
-  .batch(5)
+// The translation child works per package of five chapters: it converts the package into title
+// inputs, translates the titles and then the bodies line by line, and writes the result itself.
+const translateChild = definePipeline({ id: 'pipe08-translate-child' })
   .use(chaptersToTitleInputs)
   .use(
     createTitleTranslator({
@@ -73,6 +70,14 @@ export const translatePipeline = definePipeline({ id: 'pipe08-translate' })
   .use(chapterPairsLinter)
   .use(createTranslateOutputs({ chaptersDir: CHAPTERS }))
   .to('@chapters')
+
+export const translatePipeline = definePipeline({ id: 'pipe08-translate' })
+  .from('md://./chapters/en-tagged')
+  .flatMap(async (md: unknown) => {
+    const text = String(md)
+    return only && !only.has(chapterNumberOf(text, 0)) ? [] : [text]
+  })
+  .subflow('batch://?size=5', translateChild)
 
 // --- work-mode demos on the two gallery chapters (plain | xml | properties) ----------------
 

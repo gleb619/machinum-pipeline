@@ -29,7 +29,7 @@ Check `at kanban list` first (dedupe). `docs/kanban.md` stays uncommitted like o
 checkpointable, partially out-of-process tool chains.
 
 Flow: `Source (URI) → [Tool → Tool → …] → Target (URI)`. Data travels in **Exchanges**
-`{ id, item, items?, meta, variables }`; cardinality changes only via DSL ops (`.batch()`, `.flatMap()`).
+`{ id, item, items?, meta, variables }`; cardinality changes only via DSL ops (`.flatMap()`, the batch subflow `.subflow('batch://?size=N', pipe)`).
 
 Docs: `docs/steering/` = agent-facing dev docs, `docs/guiding/` = human-facing ([layout](docs/README.md)).
 Read the relevant steering file **before editing**:
@@ -75,7 +75,7 @@ Key files in `packages/core/src/`: `domain.ts` (Sources give stable IDs, engine 
 copies), `dsl.ts` (`definePipeline()`), `uri.ts`, `engine/{runner,state-machine,checkpoint}.ts`
 (`pending → running → [checkpoint → paused → resumed →] done/failed`, crash recovery).
 
-DSL: `definePipeline().from(uri).flatMap().tap().use(tool).subflow().fork().batch(n).to(uri)`. Pipelines are real TS modules; full DSL: steering/core.md.
+DSL: `definePipeline().from(uri).flatMap().tap().use(tool).subflow().fork().subflow('batch://?size=N', pipe).to(uri)`. Pipelines are real TS modules; full DSL: steering/core.md.
 
 ## Annotations
 

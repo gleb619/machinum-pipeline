@@ -205,7 +205,8 @@ export function createMdSource<T>(uri: ParsedUri): Source<T> {
  * lands under it (`<root>/<subdir>/<filename>`). Tools never name the root.
  *
  * `?series=true` (or `?series=1`) runs each envelope through the registered `series`
- * splitter before writing, equivalent to `.subflow('#series')` followed by `.to(...)`.
+ * splitter before writing — the same split a `.subflow('series://', pipe)` side branch
+ * performs, kept inline for pipelines that never leave the md target.
  *
  * `checkpoint()` returns the envelopes durably written since `open()`. File mode keeps
  * a per-envelope byte-offset sidecar next to its staging file, so resume can truncate

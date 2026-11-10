@@ -51,13 +51,14 @@ describe('DSL', () => {
     expect(pipeline.steps[1]?.type).toBe('target')
   })
 
-  it('T002-04: supports .use() and .batch()', () => {
+  it('T002-04: supports .use() and the batch subflow', () => {
     const tool = defineTool({
       name: 'uppercase',
       version: '1.0.0',
       mdDescription: 'Test tool that converts text to uppercase.',
       invoke: async (env) => env,
     })
+    const batchChild = definePipeline({ id: 'batch-child' }).tap(async () => {})
 
     const pipeline = definePipeline({
       id: 'with-tool',
@@ -66,7 +67,7 @@ describe('DSL', () => {
     })
       .from(source('jsonl://./input.jsonl'))
       .use(tool)
-      .batch(5)
+      .subflow('batch://?size=5', batchChild)
       .to(target('jsonl://./output.jsonl'))
 
     expect(pipeline.steps.length).toBe(4)
@@ -102,14 +103,17 @@ describe('DSL', () => {
     expect(tool.cacheable).toBe(true)
   })
 
-  it('T002-01: .batch({ slide }) operator adds correct step', () => {
+  it('T002-01: batch://slide operator adds correct step', () => {
     const pipeline = definePipeline({
       id: 'slide-test',
       retry: { max: 3, backoffMs: 1000, strategy: 'exp' },
       onError: 'fail-run',
     })
       .from(source('jsonl://./input.jsonl'))
-      .batch({ size: 10, slide: true })
+      .subflow(
+        'batch://slide?size=10',
+        definePipeline({ id: 'slide-child' }).tap(async () => {}),
+      )
       .to(target('jsonl://./output.jsonl'))
 
     expect(pipeline.steps.length).toBe(3)
@@ -148,6 +152,7 @@ describe('DSL', () => {
       mdDescription: 'Test tool for operator chain tests.',
       invoke: async (env) => env,
     })
+    const batchChild = definePipeline({ id: 'chain-batch-child' }).tap(async () => {})
 
     const pipeline = definePipeline({
       id: 'full-chain-test',
@@ -156,8 +161,8 @@ describe('DSL', () => {
     })
       .from(source('jsonl://./input.jsonl'))
       .use(tool)
-      .batch(5)
-      .batch({ size: 3, slide: true })
+      .subflow('batch://?size=5', batchChild)
+      .subflow('batch://slide?size=3', batchChild)
       .to(target('jsonl://./output.jsonl'))
 
     expect(pipeline.steps.length).toBe(5)

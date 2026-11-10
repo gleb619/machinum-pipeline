@@ -213,9 +213,7 @@ const GLOSSARY_MOCK = JSON.stringify([
   { name: 'Thornhaven', category: 'place', description: 'A market town.', references: [] },
 ])
 const glossaryLlm = pickFor('glossary', () => GLOSSARY_MOCK)
-export const glossaryPipeline = definePipeline({ id: 'pipe09-glossary' })
-  .from(INPUT)
-  .batch(100)
+const glossaryChild = definePipeline({ id: 'pipe09-glossary-child' })
   .use(keepInput)
   .use(
     createGlossaryExtractor({
@@ -246,9 +244,11 @@ export const glossaryPipeline = definePipeline({ id: 'pipe09-glossary' })
   )
   .to('md://./chapters/glossary')
 
-export const statdataPipeline = definePipeline({ id: 'pipe09-statdata' })
+export const glossaryPipeline = definePipeline({ id: 'pipe09-glossary' })
   .from(INPUT)
-  .batch(100)
+  .subflow('batch://?size=100', glossaryChild)
+
+const statdataChild = definePipeline({ id: 'pipe09-statdata-child' })
   .use(keepInput)
   .use(statFreq)
   .use(createStatDict({ minCount: 2, topK: 30 }))
@@ -278,6 +278,10 @@ export const statdataPipeline = definePipeline({ id: 'pipe09-statdata' })
   )
   .to('md://./chapters/statdata')
 
+export const statdataPipeline = definePipeline({ id: 'pipe09-statdata' })
+  .from(INPUT)
+  .subflow('batch://?size=100', statdataChild)
+
 const dictLlm = pickFor('stat-dict-translate')
 const mockDict = mockLlmCall((req) => {
   const text = req.messages.at(-1)?.content ?? ''
@@ -294,9 +298,7 @@ const dictAsItem = defineTool<string, Glossary>({
   },
 })
 
-export const statDictTranslatePipeline = definePipeline({ id: 'pipe09-stat-dict-translate' })
-  .from(INPUT)
-  .batch(100)
+const statDictTranslateChild = definePipeline({ id: 'pipe09-stat-dict-translate-child' })
   .use(keepInput)
   .use(statFreq)
   .use(createStatDict({ minCount: 3, topK: 10 }))
@@ -318,6 +320,10 @@ export const statDictTranslatePipeline = definePipeline({ id: 'pipe09-stat-dict-
     }),
   )
   .to('md://./chapters/stat-dict-translate')
+
+export const statDictTranslatePipeline = definePipeline({ id: 'pipe09-stat-dict-translate' })
+  .from(INPUT)
+  .subflow('batch://?size=100', statDictTranslateChild)
 
 const proofLlm = pickFor('proofread', mockTranslate('plain'))
 export const proofreadPipeline = definePipeline({ id: 'pipe09-proofread' })

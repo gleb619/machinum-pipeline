@@ -49,14 +49,12 @@ export type BufferWriterFactory = (namespace: string) => BufferWriter
 /**
  * Config shapes carried by a `fork` step:
  *
- * - sequential `.fork(pipeline)`: `{ pipeline }`
- * - parallel `.fork(name, branches)`: `{ name, pipelines, parallel: true }`
+ * - sequential `.forkSync(...pipelines)`: one `{ pipeline }` step per branch, chained
+ * - parallel `.fork(...pipelines)`: `{ pipelines, parallel: true }`
  *
  * `PipelineStep.config` stays a plain record; this type documents the two fork variants.
  */
-export type ForkStepConfig =
-  | { pipeline: Pipeline }
-  | { name: string; pipelines: Pipeline[]; parallel: true }
+export type ForkStepConfig = { pipeline: Pipeline } | { pipelines: Pipeline[]; parallel: true }
 
 /**
  * Run state enumeration.

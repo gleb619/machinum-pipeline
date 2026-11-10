@@ -11,11 +11,15 @@ import type {
 import { registerWaypointPair } from './registration.js'
 
 /**
- * Batch-scope waypoints: the views of `.batch(opts, nested)`.
+ * Batch-scope waypoints: the views of a batch child — `.subflow('batch://?size=N', pipe)`.
  *
  *   batch://group     source  the package as ONE exchange (`item` = `items[]`, members carried)
  *   batch://members   source  every member as its own exchange (own id / meta / variables)
  *   batch://return    target  hand a result back to the enclosing scope
+ *
+ * A child that declares no `.from()` already receives the same package envelope as its input,
+ * so these views are only needed for multi-stage work; a child without a target gets
+ * `batch://return` injected at definition time.
  *
  * Unlike `batches://` (a process-global named buffer that hops a package between pipelines)
  * these are scope-LOCAL: they read/write the `RunContext.batchScope` the Runner attaches to the
@@ -29,7 +33,7 @@ const SOURCE_VIEWS = ['group', 'members'] as const
 function scopeOf(run: RunContext, uri: string): BatchScope {
   const scope = run.batchScope
   if (!scope) {
-    throw new Error(`${uri} is only valid inside a batch scope: .batch(opts, nestedPipeline)`)
+    throw new Error(`${uri} is only valid inside a batch child: .subflow('batch://?size=N', pipe)`)
   }
   return scope
 }

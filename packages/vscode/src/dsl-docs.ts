@@ -53,16 +53,8 @@ export const DSL_DOCS: Readonly<Record<string, string>> = {
 
 Terminal step — the builder doubles as the finished pipeline.`,
 
-  batch: `**.batch(opts?, nested?)** — Group envelopes into packages of \`size\` (default 5), flushing the remainder at the end of the stream.
-
-\`\`\`ts
-.batch(10)
-.batch({ size: 10, slide: true })
-\`\`\`
-
-\`opts\` is a \`number\` or \`{ size?, slide? }\`. \`size\` must be a positive integer — anything else throws a \`RangeError\` at definition time. \`slide: true\` emits overlapping sliding windows (one per arrival) and cannot be combined with \`nested\`.
-
-With \`nested\` (a \`definePipeline()\` pipeline) each package runs through it as a batch scope — pick the view with the \`batch://group\`, \`batch://members\` and \`batch://return\` waypoints.`,
+  forkSync:
+    '**.forkSync(...pipelines)** — Sequential fork: each parent envelope runs branch 1 to completion, then branch 2, ... with outputs merged back in arrival order. See `.fork()` for the parallel variant.',
 
   flatMap: `**.flatMap(fn)** — Fan out one envelope into many.
 
@@ -72,34 +64,36 @@ With \`nested\` (a \`definePipeline()\` pipeline) each package runs through it a
 
 \`fn\` receives the item and returns an array; the stream continues with its elements.`,
 
-  fork: `**.fork(pipeline)** — Run a child pipeline per envelope (sequential).
+  fork: `**.fork(...pipelines)** — Run several branches CONCURRENTLY per envelope (parallel).
 
 \`\`\`ts
-.fork(childPipeline)
+.fork(branchA, branchB, branchC)
 \`\`\`
 
-Each parent envelope runs the child in its own child Runner with a nested checkpoint node (\`<stepId>/fork-<n>\`); the child output is merged back in arrival order.
+Each branch runs on its own isolated deep-cloned envelope; buffered output merges in branch declaration order. Every argument must be a pipeline without its own \`.from()\` — otherwise a \`TypeError\` is thrown at definition time. A branch without a target merges back into the parent stream; an explicit \`.to()\` redirects it.
 
-**.fork(name, branches)** — Run several branches concurrently per envelope (parallel).
+**.forkSync(...pipelines)** — Sequential variant: each parent envelope runs branch 1 to completion, then branch 2, ... and each output merges back in arrival order.
 
 \`\`\`ts
-.fork('views', [branchA, branchB])
-\`\`\`
-
-\`name\` must be a non-empty string and \`branches\` a non-empty array of pipelines — otherwise a \`TypeError\` is thrown at definition time. Every branch runs concurrently per parent envelope; their buffered output is merged in branch declaration order.`,
+.forkSync(branchA, branchB)
+\`\`\``,
 
   subflow: `**.subflow(pipeline)** — Run an inline nested pipeline in the same Runner.
 
-**.subflow(splitterRef, namespace?)** — Split the current stream 1 → N.
+**.subflow(source, pipeline)** — Fan the current stream out 1 → N through a splitter, or run it through a batch child once per package.
 
 \`\`\`ts
-.subflow('paragraphs://')
-.subflow('paragraphs://', 'ladder')
+.subflow(inlinePipe)
+.subflow('paragraphs://', paragraphPipe)
+.subflow('batch://?size=5', titlePipe)
+.subflow('batch://slide?size=3', windowPipe)
 \`\`\`
 
-The string form resolves the registered \`Splitter\` for that entity/buffer URI scheme (\`'paragraphs://'\` and \`'#paragraphs'\` are equivalent). When the scheme names an entity buffer (\`chunks\`, \`paragraphs\`, \`lines\`, \`words\`, \`tokens\`, \`chapters\`, \`batches\`), the produced envelopes are also auto-published into \`<scheme>://<namespace>\`; \`namespace\` defaults to \`default\`.
+The split form resolves the registered \`Splitter\` for the source URI's scheme (\`'paragraphs://'\` and \`'#paragraphs'\` are equivalent). The PARENT stream passes through unchanged — the child pipeline is a synchronous side branch. Publish into an entity buffer explicitly: \`.to('chunks://ladder')\` inside the child fills the buffer the next stage reads with \`.from('chunks://ladder')\`. A child without a target gets \`void://\` injected; a child that declares its own \`.from()\` throws a \`TypeError\`.
 
-\`.subflow()\` splits the current stream — \`.fork()\` starts a child Runner per envelope.`,
+The batch form — \`batch://[tumbling|slide][?size=N][&slide=true|false]\` — groups the parent stream into packages (default size 5) and runs the child ONCE per package. The package is the child's INPUT: \`item\` and \`items\` hold the member payloads, so a child that starts with \`.use(...)\` needs no \`.from()\`. A child without a target gets \`batch://return\` injected; the parent continues with the ORIGINAL members, patched — changed group variables reach every member, and a group payload array of the package length zips back onto members by index. A child with its own \`.to()\` is a sink. \`size\` must be a positive integer (\`RangeError\` at definition time); \`slide\` makes overlapping windows. \`batch://group\`, \`batch://members\` and \`batch://return\` are child-side views only.
+
+\`.subflow()\` splits the current stream — \`.fork()\` runs whole branches per envelope.`,
 
   tap: `**.tap(fn)** — Observe every envelope; the stream passes through unchanged.
 
@@ -125,9 +119,9 @@ const BUILDER_OPS = new Set<string>([
   'use',
   'useAll',
   'to',
-  'batch',
   'flatMap',
   'fork',
+  'forkSync',
   'subflow',
   'tap',
   'log',

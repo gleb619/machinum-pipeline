@@ -43,9 +43,9 @@ export const tokenCounter = defineTool<string, string>({
 })
 
 /**
- * Batch-optimized token counter. Designed for batched envelopes (place after
- * `.batch(n)`): opens one encoder per batch invoke and frees it in `finally` —
- * exactly one create/free cycle per batch.
+ * Batch-optimized token counter. Designed for batch packages (a child of
+ * `.subflow('batch://?size=N', pipe)`): opens one encoder per package invoke and frees it in
+ * `finally` — exactly one create/free cycle per package.
  *
  * Adds `tokenCounts` (per-item) and `tokenCount` (batch total) to the meta.
  */
@@ -53,7 +53,7 @@ export const tokenCounterBatch = defineTool<string, string>({
   name: 'token-counter-batch',
   version: '1.0.0',
   mdDescription:
-    'Counts tokens for a batched envelope (`items` after `.batch(n)`) using tiktoken (cl100k_base). One encoder create/free per batch. Adds `tokenCounts` (per item) and `tokenCount` (batch total) to the envelope meta.',
+    'Counts tokens for a batch package (`items` of a batch:// child) using tiktoken (cl100k_base). One encoder create/free per package. Adds `tokenCounts` (per item) and `tokenCount` (package total) to the envelope meta.',
   annotations: [
     tool('TL243', {
       name: 'token-counter-batch',
@@ -106,7 +106,7 @@ export const tokenCounterBatchCached = defineTool<string, string>({
   name: 'token-counter-batch-cached',
   version: '1.0.0',
   mdDescription:
-    'Counts tokens for a batched envelope (`items` after `.batch(n)`) using tiktoken (cl100k_base). Reuses one encoder process-wide, freed on process exit. Adds `tokenCounts` (per item) and `tokenCount` (batch total) to the envelope meta.',
+    'Counts tokens for a batch package (`items` of a batch:// child) using tiktoken (cl100k_base). Reuses one encoder process-wide, freed on process exit. Adds `tokenCounts` (per item) and `tokenCount` (package total) to the envelope meta.',
   annotations: [
     tool('TL244', {
       name: 'token-counter-batch-cached',

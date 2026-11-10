@@ -83,9 +83,9 @@ export function buildNormalizeFlow(
 
 export const normalizePipeline = buildNormalizeFlow('jsonl://./jsonl/input.jsonl', '@en')
 
-export const analyzePipeline = definePipeline({ id: 'pipe07-analyze' })
-  .from('@en')
-  .batch(100_000)
+// One package = the whole book: the analysis tools need every chapter at once (cross-chapter
+// counts and relations). The child receives the package as its input and owns the target.
+const analyzeChild = definePipeline({ id: 'pipe07-analyze-child' })
   .use(heuristicSummaryTool)
   .use(
     createLlmSummaryWithFallback({
@@ -102,6 +102,10 @@ export const analyzePipeline = definePipeline({ id: 'pipe07-analyze' })
   .use(termTagger)
   .use(analyzeOutputs)
   .to('@chapters')
+
+export const analyzePipeline = definePipeline({ id: 'pipe07-analyze' })
+  .from('@en')
+  .subflow('batch://?size=100000', analyzeChild)
 
 /** Both stages of the lesson, in order. */
 export default definePipeline({ id: 'pipe07-normalize-analyze' })

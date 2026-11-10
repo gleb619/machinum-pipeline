@@ -123,13 +123,11 @@ export const chapterDomainPipeline = definePipeline({ id: 'pipe01-chapter-domain
 /**
  * Corpus statistics: batch the lines and let `statFreq` rank the words.
  *
- * `statFreq` is offline (no LLM): it writes a frequency report into the `statFreq` variable,
- * which the log line below prints.
+ * `.subflow('batch://?size=100', pipe)` hands the child one package of 100 lines: `statFreq` is
+ * offline (no LLM) and writes a frequency report into the `statFreq` variable, which the log line
+ * below prints. The child writes to `void://` — the report is only logged.
  */
-export const statsPipeline = definePipeline({ id: 'pipe01-stats' })
-  .from('jsonl://./jsonl/beginner.jsonl')
-  .flatMap(async (record: unknown) => [toLineText(record)])
-  .batch(100)
+const statsChild = definePipeline({ id: 'pipe01-stats-child' })
   .use(statFreq)
   .tap((env) => {
     const report = getVariable<{ totalWords?: number; uniqueWords?: number }>(env, 'statFreq')
@@ -139,6 +137,11 @@ export const statsPipeline = definePipeline({ id: 'pipe01-stats' })
     })
   })
   .to('void://')
+
+export const statsPipeline = definePipeline({ id: 'pipe01-stats' })
+  .from('jsonl://./jsonl/beginner.jsonl')
+  .flatMap(async (record: unknown) => [toLineText(record)])
+  .subflow('batch://?size=100', statsChild)
 
 /**
  * Console preview: inspect each record in the terminal as it flows through.

@@ -672,7 +672,7 @@ Assigns ordering indexes to chapters based on filename patterns.
 ### `token-counter.ts`
 Token counting via tiktoken (`cl100k_base`):
 - `tokenCounter` — counts tokens of a string envelope item, sets the `tokenCount` variable. Creates/frees the encoder on every call (clean, no shared state).
-- `tokenCounterBatch` — for batched envelopes (after `.batch(n)`): one encoder create/free per batch invoke. Adds `tokenCounts` (per item) and `tokenCount` (batch total) variables.
+- `tokenCounterBatch` — for batched envelopes (packages produced by `.subflow('batch://?size=N', pipe)`): one encoder create/free per batch invoke. Adds `tokenCounts` (per item) and `tokenCount` (batch total) variables.
 - `tokenCounterBatchCached` — same batch semantics, but reuses one process-wide cached encoder, freed via a `process.on('exit')` hook (one create/free per process). Use for large runs where encoder construction dominates.
 
 ## LLM toolkit

@@ -1,10 +1,11 @@
 import {
+  batchMembersOf,
   definePipeline,
   defineProcess,
   defineTool,
   getVariable,
+  itemsOf,
   log,
-  setVariable,
   withItem,
 } from '@mt/core'
 import {
@@ -26,7 +27,8 @@ import '@mt/waypoint'
  * (the item) and its variables.
  *
  *   Flow A  a long tool chain — six tools, one markdown chapter in, one file out
- *   Flow B  `.batch(n)` — group the stream, so a tool sees many items at once
+ *   Flow B  `.subflow('batch://...', pipe)` — group the stream, so one tool call sees the
+ *           whole package
  *   Flow C  `.subflow(...)` — compose whole pipelines, not just tools
  */
 
@@ -65,12 +67,12 @@ export const toolChainPipeline = definePipeline({ id: 'pipe03-tool-chain' })
 /**
  * Flow B — batching.
  *
- * `.batch(2)` hands the downstream tool two chapters at a time (`env.items`), so a tool that
- * needs the whole picture — like `statFreq` — can work on the corpus instead of one chapter.
+ * `.subflow('batch://?size=2', pipe)` groups the stream into packages of two and runs the child
+ * pipeline ONCE per package. The package is the child's input: `env.item` and `env.items` are the
+ * two chapters, so a tool that needs the whole picture — like `statFreq` — works on the corpus
+ * instead of one chapter. The child ends with `void://`: the statistics are only logged.
  */
-export const batchPipeline = definePipeline({ id: 'pipe03-batch' })
-  .from('jsonl://./jsonl/entities.jsonl')
-  .batch(2)
+const batchStats = definePipeline({ id: 'pipe03-batch-stats' })
   .use(statFreq)
   .tap((env) => {
     const report = getVariable<{ totalWords?: number; uniqueWords?: number }>(env, 'statFreq')
@@ -81,6 +83,10 @@ export const batchPipeline = definePipeline({ id: 'pipe03-batch' })
     })
   })
   .to('void://')
+
+export const batchPipeline = definePipeline({ id: 'pipe03-batch' })
+  .from('jsonl://./jsonl/entities.jsonl')
+  .subflow('batch://?size=2', batchStats)
 
 /**
  * Flow C — subflows.
@@ -117,46 +123,67 @@ export const toolSuite = defineProcess([toolChainPipeline, batchPipeline, subflo
 export default toolChainPipeline
 
 /**
- * Flow D — batch scope (`batch://`).
+ * Flow D — the real batch case: translating chapter titles.
  *
- * `.batch(scope)` turns the whole batch into one scope. Inside it:
- *   `batch://group`   the package as ONE exchange (`item` = all chapters)
- *   `batch://members` every member again as its own exchange, with its own id and meta
- *   `batch://return`  hands a result back; the outer stream continues with the patched chapters
+ * The child below sees one package of five chapters (`env.item` = the five payloads, `env.items`
+ * = the same array) and does the whole per-package job in three tool calls:
  *
- * The group stage records the package size as a variable (it travels to every member); the
- * member stage uppercases each `# ` heading.
+ *   collectTitles   join the five H1 titles into ONE text — the "document" a translation call
+ *                   would receive
+ *   translateTitles one text in, one text out (offline stand-in for the LLM call)
+ *   applyTitles     parse the lines back and return the patched package
+ *
+ * `applyTitles` returns an array of exactly five patched chapters, so the package payload ZIPS
+ * back onto the members by index: the parent stream continues with the original five chapter
+ * envelopes (own id, meta, variables), each with its new title.
+ *
+ * Multi-stage work can use the explicit `batch://group` (the package as one exchange) and
+ * `batch://members` (every member as its own exchange) views instead — the package input above is
+ * the same envelope, so simple cases need no `.from()` at all.
  */
-const countGroup = defineTool<unknown, unknown>({
-  name: 'pipe03-count-group',
+const titleOf = (text: string): string => text.match(/^#\s+(.+)$/m)?.[1] ?? ''
+
+const retitle = (text: string, title: string): string => text.replace(/^#\s+.+$/m, `# ${title}`)
+
+const collectTitles = defineTool<unknown, unknown>({
+  name: 'pipe03-collect-titles',
   version: '1.0.0',
-  mdDescription: 'Records the batch size in a variable (the group payload stays untouched).',
+  mdDescription: 'Joins the H1 of every package member into one text block.',
   async invoke(env) {
-    return setVariable(env, 'batchSize', (env.item as unknown[]).length)
+    return withItem(env, itemsOf<string>(env).map(titleOf).join('\n'))
   },
 })
 
-const uppercaseMemberTitle = defineTool<string, string>({
-  name: 'pipe03-uppercase-member-title',
+const translateTitles = defineTool<string, string>({
+  name: 'pipe03-translate-titles',
   version: '1.0.0',
-  mdDescription: 'Uppercases the H1 of one batch member.',
+  mdDescription: 'One text in, one text out — the offline stand-in for a translation call.',
   async invoke(env) {
-    return withItem(
-      env,
-      env.item.replace(/^#\s+(.+)$/m, (_line, title: string) => `# ${title.toUpperCase()}`),
-    )
+    return withItem(env, env.item.toUpperCase())
   },
 })
 
-const titleScope = definePipeline({ id: 'pipe03-title-scope' })
-  .from('batch://group')
-  .use(countGroup)
-  .to('batch://return')
-  .from('batch://members')
-  .use(uppercaseMemberTitle)
-  .to('batch://return')
+const applyTitles = defineTool<string, unknown>({
+  name: 'pipe03-apply-titles',
+  version: '1.0.0',
+  mdDescription: 'Parses the translated titles back into the chapter payloads (package zip).',
+  async invoke(env) {
+    const titles = String(env.item).split('\n')
+    // `withItem` clears `items`, so the package members come from the ephemeral batch variable;
+    // that keeps the original chapter texts available through scalar tool calls.
+    const sources =
+      batchMembersOf<string>(env)?.map((member) => member.item) ?? itemsOf<string>(env)
+    const patched = sources.map((text, index) => retitle(text, titles[index] ?? titleOf(text)))
+    return withItem(env, patched)
+  },
+})
+
+const titlePipe = definePipeline({ id: 'pipe03-title-pipe' })
+  .use(collectTitles)
+  .use(translateTitles)
+  .use(applyTitles) // no .to(): `batch://return` is injected and the patched package zips back
 
 export const packagedTitlesPipeline = definePipeline({ id: 'pipe03-packaged-titles' })
   .from('jsonl://./jsonl/entities.jsonl')
-  .batch(titleScope)
+  .subflow('batch://?size=5', titlePipe)
   .to('md://./chapters/packaged')

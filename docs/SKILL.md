@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.29.0 | 2026-11-10 -->
+<!-- skill-version: 1.31.0 | 2026-11-10 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -53,8 +53,8 @@ import 'mt/waypoint'                         // REQUIRED side effect: registers 
 export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 1000, strategy: 'exp' }, onError: 'fail-run' })
   .from('jsonl://./input/*.jsonl')           // Source: URI string (preferred) or instance
   .flatMap(async (item) => [item])           // 1 -> N
-  .subflow('#paragraphs')                    // 1 -> N; same as 'paragraphs://' (bare 'paragraphs' is rejected)
-  .subflow('#chunks', 'ladder')              // 1 -> N + auto-publish into chunks://ladder
+  .subflow('#paragraphs', paragraphPipe)     // 1 -> N split; child runs synchronously as a side branch
+  .subflow('#chunks', chunkPipe)             // chunkPipe writes each child with .to('chunks://ladder')
   .tap((ex) => log.info('msg', { id: ex.id })) // observe full Exchange, stream unchanged
   .log('debug')                              // sugar over .tap(): '<ISO-ms> [INFO] [debug] <id> <item>'
   .before((ex, ctx) => ex)                   // wrap every tool invoke; may swap the exchange, throw = error policy
@@ -62,12 +62,11 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .around(async (ex, ctx, next) => next(ex)) // middleware: before/after the rest of the chain + tool (onion-nested)
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
   .use(tool, (env) => withMeta(env, { k: 'v' })) // Tool step; params fn transforms the incoming exchange pre-invoke
-  .batch(5)                                  // group into items[] (default size 5; flushes remainder)
-  .batch({ size: 3, slide: true })           // sliding windows (overlapping)
-  .batch(scopePipeline)                      // packages of 5 run through a nested scope (batch://group|members|return)
+  .subflow('batch://?size=5', batchPipe)     // fan-in: packages of 5 run through batchPipe
+  .subflow('batch://slide?size=3', slidePipe) // sliding windows (overlapping)
   .subflow(otherPipeline)                    // inline nested pipeline, same Runner
-  .fork(childPipeline)                       // sequential: child Runner per envelope
-  .fork('views', [branchA, branchB])         // parallel: branches per envelope, deterministic merge
+  .fork(branchA, branchB, branchC)           // parallel: branches per envelope, deterministic merge
+  .forkSync(childPipeline)                   // sequential: child Runner per envelope
   .to('md://./out')                          // Target
 ```
 
@@ -93,16 +92,18 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   deletes it, and passes the item through with `latchFile` set. Handy for deterministic stop/resume
   demos.
 - Data carrier is the Exchange `{ id, item, items?, meta, variables }`. Cardinality changes ONLY via
-  `.batch/.flatMap`, or the string form `.subflow('<splitter>', '<namespace>?')`
+  `.flatMap`, the fan-in batch subflow `.subflow('batch://?size=N', pipe)`, or the split form
+  `.subflow('<source>', pipeline)`
   (`'paragraphs://'`, `'#paragraphs'`, or a buffer URI like `'paragraphs://ladder'`; the same
   spellings work for `chunks`, `paragraphs`, `lines`, `words`, `tokens` and `series`) which
-  resolves a registered splitter and fans out 1 -> N. When the splitter scheme is an entity
-  buffer (`chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`, `batches`), the
-  produced envelopes are also auto-published into `<scheme>://<namespace>` for the next stage;
-  the namespace is the optional second argument and defaults to `default` (`chunks://` ==
-  `chunks://default`). `series` has no buffer. Import `mt/tools` (or any `@mt/tools` symbol) to
-  register `chunks`, `paragraphs`, `lines`, `words`, `tokens` and `series`. Bare `'paragraphs'`
-  is rejected.
+  resolves a registered splitter and fans out 1 -> N; the child pipeline runs synchronously as a
+  side branch and the PARENT stream passes through unchanged. Publishing into an entity buffer is
+  an explicit target: the child writes with `.to('<scheme>://<namespace>')` (reset at stage
+  start, append per envelope) and the next stage reads `.from('<scheme>://<namespace>')`
+  (`chunks://` == `chunks://default`); a child without a target gets `void://` injected. The
+  child must not declare its own `.from()` (TypeError). `series` needs no buffer. Import
+  `mt/tools` (or any `@mt/tools` symbol) to register the splitters, and `mt/waypoint` to register
+  the buffer schemes. Bare `'paragraphs'` is rejected.
   The `series` splitter parses chapter markdown, emits numbered `ChapterDoc` parts with `series`
   frontmatter only when the chapter is large enough, and otherwise returns the original markdown
   as one unchanged item. Its size threshold is the tunable `SERIES_SPLIT_TARGET_CHARS` (see
@@ -117,12 +118,15 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   the same view under its historical node names. `opts.splitChunks` / `opts.splitParagraphs` /
   `opts.splitLines` / `opts.splitWords` / `opts.tokenize` plug in tool splitters;
   `chunk.tokens()` needs `tokenize`.
-- Use `.fork()` for per-envelope child-Runner nesting, **not** for splitting: a split is an inline
-  transformation of the current stream. `.fork(pipeline)` runs the child sequentially per envelope.
-  `.fork(name, [branchA, branchB])` runs every branch concurrently per envelope via real
-  `Promise.allSettled`, each on an isolated deep-cloned envelope, with one checkpoint node per
-  parent/branch and a deterministic declaration-order merge; a branch failure fails the run after
-  all branches settle.
+- Use `.fork(...pipelines)` for per-envelope branch nesting, **not** for splitting: a split is an
+  inline 1 -> N transformation of the current stream (`.subflow('<source>', pipe)`). `.fork()`
+  runs every branch concurrently per envelope via real `Promise.allSettled`, each on an isolated
+  deep-cloned envelope, with one checkpoint node per parent/branch and a deterministic
+  declaration-order merge; a branch failure fails the run after all branches settle.
+  `.forkSync(...pipelines)` runs the branches sequentially (one fork step per branch, chained),
+  each merging back in arrival order. Both forms validate at definition time: every branch must
+  be a pipeline without its own `.from()`; a branch without a target merges back into the parent
+  stream, an explicit `.to()` redirects it.
 - `onError`: `fail-run` (default) | `skip-item` | `dead-letter` (-> `.mt/runs/<id>/dead-letter.jsonl`).
 - Pipelines are real modules: plain `import`, `console.log`, conditionals work. No build step.
 - `id` defaults to the file name. `mt resume` refuses with `pipelineId mismatch` if it changed.
@@ -132,7 +136,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | URI | Use |
 |---|---|
 | `jsonl://./f.jsonl` | JSON lines; source accepts globs; each line `{ "item": ... }` |
-| `md://./dir` or `md://./f.md` | Markdown files / single file; source `?split=chunks\|paragraphs\|lines` fans each file out with that registered splitter; target `?series=true` runs the registered `series` splitter before writing (same as `.subflow('#series')`) |
+| `md://./dir` or `md://./f.md` | Markdown files / single file; source `?split=chunks\|paragraphs\|lines` fans each file out with that registered splitter; target `?series=true` runs the registered `series` splitter before writing (the split a `.subflow('series://', pipe)` side branch performs) |
 | `chapter://./en/` | language-folder chapter layout |
 | `book://./out/book` | book target — writes `book.md` (the book) + `book.json` (TOC + warnings); feed it the output of the `bookCompiler` tool (`mt/tools`) |
 | `hs://http://...` | HTTP source (`POST <path>` ingest). Shares the `mt serve` listener when run in the same process/port; `/health` and `/events` move under the ingest path when shared; `/api/*` ingest paths are rejected |
@@ -140,7 +144,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `mem://<name>` (alias `ephemeral://<name>`) | process-local in-memory buffer, source + target; both schemes share one key space |
 | `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
-| `chunks://<ns>` … `words://<ns>` | typed ladder buffers, source-only; fill with `.subflow('#chunks', 'ladder')` and read with `.from('chunks://ladder')` (omitted ns = `default`) |
+| `chunks://<ns>` … `words://<ns>` | typed ladder buffers, source + target; fill with a split-form subflow child writing `.to('chunks://ladder')` and read with `.from('chunks://ladder')` (omitted ns = `default`) |
 | `@name` | alias from `mt.json` `"uris": { "en": "md://./chapters/en" }` -> `.to('@en')` |
 
 Custom steps: a Tool is `{ name, version, invoke(exchange, ctx), cacheable? }`; set `cacheable: true`
@@ -515,6 +519,6 @@ Do:
 Don't:
 - Don't hand-edit `.mt/runs/*/state.json` (it holds the checkpoint tree).
 - Don't print, log, commit or echo secrets, master keys, `--reveal` output or `.env` contents.
-- Don't add `.batch/.flatMap/.subflow('<entity-type>')` casually: they change cardinality for every later step.
+- Don't add `.flatMap` or the split/batch `.subflow(...)` forms casually: they change cardinality for every later step.
 - Don't run `mt serve` bound to a non-loopback host without `MT_SERVE_TOKEN`/`--token-ref`, or `mt router` without `MT_ROUTER_TOKEN`.
 - Don't assume a flag exists: run `mt <command> --help` when unsure.

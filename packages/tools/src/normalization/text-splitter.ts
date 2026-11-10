@@ -257,8 +257,8 @@ function textItem(env: Exchange<unknown>): string {
 }
 
 /**
- * Create the chapter-document → series-parts splitter used by `.subflow('series://')` /
- * `.subflow('#series')`.
+ * Create the chapter-document → series-parts splitter used by
+ * `.subflow('series://', pipeline)` / `.subflow('#series', pipeline)`.
  *
  * The source markdown is parsed with `readChapterDoc`; each part is rebuilt as a new
  * `ChapterDoc` with a numbered title and `series` frontmatter, then serialized with

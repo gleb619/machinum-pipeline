@@ -14,7 +14,7 @@ import { writeTitles } from '../lib/outputs.js'
 /**
  * Translate the chapter titles in batches of five.
  *
- *   books/book2 → filter chapters → batch(5) → title translator → chapters/titles.json
+ *   books/book2 → filter chapters → batch of 5 → title translator → chapters/titles.json
  *
  * `chapters/titles.json` is merged chapter-by-chapter, so a partial re-run (`MT_ONLY_CHAPTERS`)
  * never drops the titles of the other chapters.
@@ -25,10 +25,7 @@ const llm = pickFor('titles', (req: LlmRequest) =>
   (req.messages.at(-1)?.content ?? '').replace(/[A-Za-z]+/g, 'слово'),
 )
 
-export default definePipeline({ id: 'practical-translate-titles' })
-  .from('@book2')
-  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
-  .batch(5)
+const titlesChild = definePipeline({ id: 'practical-translate-titles-child' })
   .use(chaptersToTitleInputs)
   .use(
     createTitleTranslator({
@@ -37,3 +34,8 @@ export default definePipeline({ id: 'practical-translate-titles' })
   )
   .use(writeTitles)
   .to('@chapters')
+
+export default definePipeline({ id: 'practical-translate-titles' })
+  .from('@book2')
+  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
+  .subflow('batch://?size=5', titlesChild)

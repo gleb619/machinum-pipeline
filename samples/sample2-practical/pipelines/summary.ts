@@ -22,10 +22,12 @@ const llm = pickFor(
   () => 'Mock summary: Nadia Okonkwo follows a recovered tape into a coastal cover-up.',
 )
 
-export default definePipeline({ id: 'practical-summary' })
-  .from('@book2')
-  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
-  .batch(100)
+const summaryChild = definePipeline({ id: 'practical-summary-child' })
   .use(createSummaryTool({ model: llm.model, call: llm.schemaCall }))
   .use(writeSummaries)
   .to('@chapters')
+
+export default definePipeline({ id: 'practical-summary' })
+  .from('@book2')
+  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
+  .subflow('batch://?size=100', summaryChild)

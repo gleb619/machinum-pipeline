@@ -84,11 +84,12 @@ export interface Splitter<O = unknown> {
 /**
  * Write side of a process-local entity buffer.
  *
- * A string-form `.subflow('<splitter>', '<namespace>')` resolves the buffer writer for
- * the splitter's scheme and publishes every child envelope it produces. The writer is a
- * plain lifecycle pair (`reset` before the stage, `append` per envelope) so `core` stays
- * independent of any concrete buffer implementation; `@mt/waypoint` registers the
- * in-memory entity buffers (`chunks://`, `paragraphs://`, ...).
+ * Publishing into a buffer is an explicit target now: a split-form subflow child writes
+ * into `<scheme>://<namespace>` with its own `.to(...)`, and the registered Target for
+ * the scheme shares this writer's lifecycle (`reset` when the target opens — once per
+ * stage — and `append` per envelope). The writer itself is a plain lifecycle pair so
+ * `core` stays independent of any concrete buffer implementation; `@mt/waypoint`
+ * registers the in-memory entity buffers (`chunks://`, `paragraphs://`, ...).
  */
 export interface BufferWriter {
   /** Start a fresh buffer: drop everything a previous run left behind. */
@@ -100,7 +101,11 @@ export interface BufferWriter {
 /**
  * A single step in a pipeline.
  *
- * Fork steps use one of the two {@link ForkStepConfig} shapes.
+ * Fork steps use one of the two {@link ForkStepConfig} shapes. A `batch` step is engine-internal:
+ * the DSL creates it only through the batch subflow form
+ * `.subflow('batch://[tumbling|slide][?size=N][&slide=true|false]', pipe)` — its config is
+ * `{ size, slide, pipeline }`, the child running once per package (`batch://group|members|return`
+ * are the child-side views).
  */
 export interface PipelineStep {
   type: 'source' | 'tool' | 'target' | 'fork' | 'batch' | 'flatmap' | 'split' | 'tap' | 'subflow'

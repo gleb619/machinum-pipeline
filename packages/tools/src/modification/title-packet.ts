@@ -19,8 +19,9 @@ import { readDoc } from './schema-doc.js'
  * patch each chapter on the `batch://members` view. All machinery is generic; only the `read`/`keyOf`/
  * `translate`/`apply` fns below are title-specific.
  *
- * A package is the envelope produced by `.batch(n)` (the `batch://group` view): `item` is `items[]` and the
- * member envelopes ride along in the ephemeral `batchMembers` variable. These tools read either
+ * A package is the input envelope of a batch child (`.subflow('batch://?size=N', pipe)`, the
+ * same envelope as the `batch://group` view): `item` is `items[]` and the member envelopes ride
+ * along in the ephemeral `batchMembers` variable. These tools read either
  * a package (all member titles in one shot) or a single chapter, and never touch the member
  * documents — so the later `batch://members` view still restores the original chapters with
  * their `meta.chapterNum` and per-item variables.

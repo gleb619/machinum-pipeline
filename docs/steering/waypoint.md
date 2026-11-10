@@ -28,7 +28,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT011 | `review://./out.md` | `review.ts` | — | ✓ | Glossary pending-proposals review queue as markdown |
 | WT012 | — | — | — | — | Retired write-side scheme: a string-form splitter subflow now auto-publishes into the matching `WT015` buffer |
 | WT013 | `ephemeral://<namespace>` / `mem://<namespace>` | `ephemeral.ts` | ✓ | ✓ | Process-local in-memory buffer; target clears on open |
-| WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ | Scope-local views of `.batch(opts, nested)` |
+| WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ | Child-side views of a batch subflow (`.subflow('batch://?size=N', pipe)`) |
 | WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | Typed entity-buffer family: `batches`, `chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`; ladder rungs are source-only |
 | WT016 | `book://./out/book` | `book.ts` | — | ✓ | Writes the assembled book: `book.md` (markdown) + `book.json` (TOC + warnings); needs the `book` variable from the `book-compiler` tool |
 
@@ -156,7 +156,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - Validation throws naming the bad component (`start`, `end`, `step`): missing `..`, non-integer,
   non-positive step
 - `lifestyle: 'resumable'`; `resume()` via `resumeFrom()` — the numeric ordering is deterministic
-  by construction. No `batchSize`: use the engine's `.batch(n)` for cardinality changes
+  by construction. No `batchSize`: use the engine's `.subflow('batch://?size=N', pipe)` for cardinality changes
 
 ### `void.ts`
 - Target-only sink: `void://` discards every envelope (open/close are no-ops)
@@ -423,7 +423,7 @@ jsonl:// → md:// → chunks:// ─┬→ paragraphs:// → lines:// → words:
 
 Each rung is a
 URI scheme plus an entity type; descending one rung is a cardinality change, so it happens through a DSL op
-(`.flatMap()` fans one envelope out into many, `.batch()` groups many into one).
+(`.flatMap()` fans one envelope out into many, `.subflow('batch://?size=N', pipe)` groups many into one).
 
 | Level | Scheme          | Entity type | Typical op             |
 |-------|-----------------|-------------|------------------------|
@@ -432,7 +432,7 @@ URI scheme plus an entity type; descending one rung is a cardinality change, so 
 | 2     | `chunks://`     | chunk       | `.subflow('#chunks')` (registered splitter; token-bounded chunks) |
 | 3     | `paragraphs://` | paragraph   | `.flatMap()` (split a chunk into paragraphs; carry `chunkId`) |
 | 4     | `lines://`      | line        | `.flatMap()` (split into lines) |
-| 5     | `words://`      | word        | `.batch()` (group words) |
+| 5     | `words://`      | word        | `.subflow('batch://?size=N', pipe)` (group words) |
 | alt   | `tokens://`     | token       | `.flatMap()` (chunk → BPE tokens; sibling of `paragraphs://`, parent `chunks://`) |
 
 **Chunks are the coarsest rung under the document.** A document is first split into token-bounded,
@@ -469,9 +469,9 @@ source-only. A string-form splitter subflow `.subflow('#<rung>', '<namespace>')`
 `.subflow('#chunks')` fills `chunks://` == `chunks://default`. Use `batches://` when a package must survive the hop
 between pipelines as one envelope (it is not a ladder rung).
 
-### Batch scope waypoints: `batch://group|members|return`
+### Batch subflow views: `batch://group|members|return`
 
-Scope-local views of `.batch(opts, nested)` (see [core.md](core.md#batch-scope-batchopts-nested)); no namespace, no global buffer - they read/write `RunContext.batchScope`.
+Child-side views of a batch subflow (`.subflow('batch://?size=N', pipe)`, see [core.md](core.md#batch-subflow-subflowbatch-pipe)); no namespace, no global buffer — they read/write `RunContext.batchScope`. They are rejected in the subflow source position.
 
 | URI | Kind | Meaning |
 |---|---|---|

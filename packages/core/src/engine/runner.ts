@@ -24,7 +24,6 @@ import {
 import { getSetting } from '../settings.js'
 import { Store } from '../store.js'
 import type {
-  BufferWriter,
   CheckpointNode,
   Envelope,
   ExchangeInput,
@@ -559,31 +558,26 @@ export class Runner {
         }
         case 'split': {
           const splitter = step.config.splitter as Splitter<unknown>
-          const buffer = step.config.buffer as { scheme: string; namespace: string } | undefined
+          const subPipeline = step.config.pipeline as Pipeline | undefined
+          if (!subPipeline) {
+            throw new Error(
+              `Step ${stepId}: split step requires a nested pipeline — use .subflow('<source>', pipeline)`,
+            )
+          }
           if (!stream && !hasSourceStep) {
             stream = emptyEnvelope()
           }
           if (!stream) {
             throw new Error('Split step requires a preceding stream or source step')
           }
-          const sourceStream = stream
-          const stepRun = this.stepRunContext(runContext, stepId)
-          stream = (async function* () {
-            // Auto-publish: a splitter bound to an entity buffer fills it for the next
-            // stage. Reset when this stage starts so a re-run replaces the old contents.
-            let writer: BufferWriter | undefined
-            if (buffer) {
-              writer = registry.resolveBufferWriter(buffer.scheme, buffer.namespace)
-              writer.reset()
-            }
-            for await (const env of sourceStream) {
-              const items = await splitter.split(env, { run: stepRun })
-              for (const child of fanOut(env, items)) {
-                writer?.append(child)
-                yield child
-              }
-            }
-          })()
+          stream = this.splitSubflowStream(
+            splitter,
+            subPipeline,
+            stream,
+            stepId,
+            runContext,
+            interceptors,
+          )
           break
         }
         case 'tap': {
@@ -641,11 +635,16 @@ export class Runner {
   }
 
   /**
-   * Batch scope — run the nested pipeline once per folded group, then continue the outer stream
-   * with the ORIGINAL member envelopes (patched by whatever the scope committed through
-   * `batch://return`). The scope state is in-memory only: after a crash the group is re-formed
-   * from the outer source cursor and the nested pipeline runs again for it. Each group gets its
-   * own checkpoint node like a fork.
+   * Batch scope — run the nested pipeline once per package, then continue the outer stream with
+   * the ORIGINAL member envelopes (patched by whatever the child committed through
+   * `batch://return`: group variable edits reach every member, a group payload array of the same
+   * length zips back onto them by index, an explicit member commit wins). The package envelope is
+   * the child's INPUT stream, so a child that starts with `.use(...)` needs no `.from()`;
+   * `batch://group` / `batch://members` are the optional explicit views for multi-stage work.
+   *
+   * The scope state is in-memory only: after a crash the package is re-formed from the outer
+   * source cursor and the nested pipeline runs again for it. Each package gets its own checkpoint
+   * node like a fork.
    */
   private batchScopeStream(
     nested: Pipeline,
@@ -666,7 +665,12 @@ export class Runner {
           batchScope: scope,
         }
         try {
-          const childStream = await runner.buildStream(nested, null, childContext, interceptors)
+          const childStream = await runner.buildStream(
+            nested,
+            singleEnvelope(folded),
+            childContext,
+            interceptors,
+          )
           if (childStream) await drainStream(childStream)
           if (scope.commits === 0) {
             runner
@@ -721,6 +725,119 @@ export class Runner {
           runner.failNested(nodeId, error as Error)
           throw error
         }
+      }
+    })()
+  }
+
+  /**
+   * Split subflow — fan the parent stream out 1 → N through a registered splitter and run
+   * the child pipeline synchronously as a side branch.
+   *
+   * For every parent envelope the splitter produces child envelopes; the child pipeline
+   * consumes them completely before the parent envelope is yielded downstream UNCHANGED
+   * (the split is a synchronous side branch — the parent's cardinality is preserved).
+   * One nested child run spans the whole step, fed by a lockstep queue: a buffer target
+   * inside the child therefore opens exactly once per stage (reset at stage start, append
+   * per envelope), and a single checkpoint node (`<stepId>/split-branch`) covers the
+   * branch, like a self-contained subflow. A child failure fails the run.
+   */
+  private splitSubflowStream(
+    splitter: Splitter<unknown>,
+    subPipeline: Pipeline,
+    sourceStream: EnvelopeStream,
+    stepId: string,
+    runContext: RunContext,
+    interceptors: readonly PipelineInterceptor[],
+  ): EnvelopeStream {
+    const runner = this
+    const stepRun = this.stepRunContext(runContext, stepId)
+    return (async function* () {
+      const nodeId = `${stepId}/split-branch`
+      const childContext = runner.enterNested(runContext, nodeId, subPipeline.id)
+      const queue: Envelope<unknown>[] = []
+      let producerDone = false
+      let childError: { error: unknown } | null = null
+      let wakeConsumer: (() => void) | null = null
+      let wakeProducer: (() => void) | null = null
+
+      // Accessor indirection: reading the failure through a function call stops TypeScript
+      // from narrowing the closure-captured `childError` to `never`.
+      const failure = (): { error: unknown } | null => childError
+      const fail = (error: unknown): void => {
+        childError = { error }
+        wakeProducer = nudge(wakeProducer)
+        wakeConsumer = nudge(wakeConsumer)
+      }
+
+      const wait = (register: (wake: () => void) => void): Promise<void> =>
+        new Promise<void>((resolve) => register(() => resolve()))
+      const nudge = (slot: (() => void) | null): (() => void) | null => {
+        slot?.()
+        return null
+      }
+
+      /**
+       * The child pipeline's input: queued child envelopes in parent order until the
+       * producer finishes (or the branch fails, which surfaces as a throw here).
+       */
+      async function* childInput(): EnvelopeStream {
+        while (true) {
+          const next = queue.shift()
+          if (next) {
+            if (queue.length === 0) wakeProducer = nudge(wakeProducer)
+            yield next
+            continue
+          }
+          const failed = failure()
+          if (producerDone || failed) {
+            if (failed) throw failed.error
+            return
+          }
+          await wait((wake) => {
+            wakeConsumer = wake
+          })
+        }
+      }
+
+      const pumping = (async () => {
+        const childStream = await runner.buildStream(
+          subPipeline,
+          childInput(),
+          childContext,
+          interceptors,
+        )
+        if (childStream) await drainStream(childStream)
+      })()
+      pumping.catch((error: unknown) => {
+        fail(error)
+      })
+
+      try {
+        for await (const env of sourceStream) {
+          const items = await splitter.split(env, { run: stepRun })
+          for (const child of fanOut(env, items)) queue.push(child)
+          wakeConsumer = nudge(wakeConsumer)
+          // Lockstep: hold the parent envelope until the branch processed its children.
+          while (queue.length > 0 && !failure()) {
+            await wait((wake) => {
+              wakeProducer = wake
+            })
+          }
+          const failed = failure()
+          if (failed) throw failed.error
+          yield env
+        }
+        producerDone = true
+        wakeConsumer = nudge(wakeConsumer)
+        await pumping
+        await runner.completeNested(nodeId)
+      } catch (error) {
+        producerDone = true
+        // Record the failure (even if the branch already failed with the same error) so the
+        // consumer's input stream stops instead of waiting forever.
+        fail(error)
+        runner.failNested(nodeId, error instanceof Error ? error : new Error(String(error)))
+        throw error
       }
     })()
   }

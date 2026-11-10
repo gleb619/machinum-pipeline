@@ -55,7 +55,7 @@ token counts, glossary, `mdOutputs` write intents); non-`ephemeral` variables ta
 (non-ephemeral only; ephemeral are in-flight too). Resume replays from the Source cursor, so `meta` is
 re-derived by the Source. See `toPersisted` in [`steering/core.md`](../steering/core.md).
 
-Cardinality changes only via DSL ops (`.batch(opts?)`, `.flatMap()`).
+Cardinality changes only via DSL ops (`.flatMap()`, the batch subflow `.subflow('batch://?size=N', pipe)`).
 
 Data descends a **Structure Ladder** from whole documents to their smallest units (`jsonl://` → `md://` → `chunks://` ─┬→ `paragraphs://` → `lines://` → `words://` / └→ `tokens://`) — see [steering/waypoint.md](../steering/waypoint.md#structure-ladder).
 
@@ -77,7 +77,7 @@ source, tool, target or hook is started.
 | **Target** | `open()` → `write()` → `close()`; URI-addressed | [`core.md`](../steering/core.md), [`waypoint.md`](../steering/waypoint.md) |
 | **Exchange** | `{ id, item, items?, meta, variables }` — `item` mirrors the `item` variable (payload history via `old`); single or batch; `Envelope` = deprecated alias | [`core.md`](../steering/core.md) |
 | **Context chain** | `GlobalContext → RunContext → ToolContext/SourceContext/TargetContext` (backrefs, never copies) | [`core.md`](../steering/core.md) |
-| **Pipeline DSL** | `defineProcess()` factory + `.from()` `.use()` `.useAll()` `.tap()` `.flatMap()` `.batch()` `.fork()` `.subflow()` `.to()` | [`core.md`](../steering/core.md#dslts--pipelinebuilder) |
+| **Pipeline DSL** | `defineProcess()` factory + `.from()` `.use()` `.useAll()` `.tap()` `.flatMap()` `.fork()` `.subflow()` `.to()` | [`core.md`](../steering/core.md#dslts--pipelinebuilder) |
 | **Run state** | `pending → running → done/failed`; pause is `running → paused → resumed → running`. `checkpoint` is allowed but not entered by the current Runner | [`core.md`](../steering/core.md) |
 | **Checkpoint tree** | Persisted depth-first replay graph; resume skips `done` nodes | [`core.md`](../steering/core.md) |
 

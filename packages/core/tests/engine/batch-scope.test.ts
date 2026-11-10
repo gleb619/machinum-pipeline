@@ -1,7 +1,7 @@
 import { mkdtemp } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { definePipeline } from '../../src/dsl.js'
 import { Runner } from '../../src/engine/runner.js'
 import {
@@ -15,7 +15,14 @@ import {
   withMeta,
 } from '../../src/exchange.js'
 import type { Pipeline, Source, Target, Tool } from '../../src/types.js'
-import type { Exchange, GlobalContext, SourceContext, TargetContext } from '../../src/types.js'
+import type {
+  Exchange,
+  GlobalContext,
+  SourceContext,
+  TargetContext,
+  ToolContext,
+} from '../../src/types.js'
+import { registry } from '../../src/uri.js'
 
 const inputs: Exchange<unknown>[] = []
 const outputs: Exchange<unknown>[] = []
@@ -36,9 +43,11 @@ const outTarget: Target<unknown> = {
   async close() {},
 }
 
-// Test stand-ins for the @mt/waypoint `batch://` views (core must not import waypoint).
+// Test stand-ins for the @mt/waypoint `batch://` views (core must not import waypoint); the URIs
+// are the real `batch://group` / `batch://members` sources, so the DSL child-source rule accepts
+// them while `@mt/waypoint` stays out of the core test run.
 const view = (kind: 'group' | 'members'): Source<unknown> => ({
-  uri: `bs-${kind}://x`,
+  uri: `batch://${kind}`,
   lifestyle: 'resumable',
   async *start(ctx: SourceContext) {
     const scope = ctx.run.batchScope
@@ -71,20 +80,28 @@ function global(root: string): GlobalContext {
 
 const tool = (
   name: string,
-  fn: (ex: Exchange<never>) => Exchange<unknown>,
+  fn: (ex: Exchange<never>, ctx: ToolContext) => Exchange<unknown>,
 ): Tool<never, unknown> => ({
   name,
   version: '1',
   mdDescription: name,
-  async invoke(ex) {
-    return fn(ex)
+  async invoke(ex, ctx) {
+    return fn(ex, ctx)
   },
 })
 
-function outer(nested: Pipeline, opts?: { size?: number }): Pipeline {
+// `@mt/core` must not import the `batch://` waypoints, so the test registers stand-ins: the
+// return target below and `bs-*` views for the explicit multi-stage form.
+beforeAll(() => {
+  registry.registerTarget('batch', () => ret)
+})
+
+function outer(nested: Pipeline, opts?: { size?: number; slide?: boolean }): Pipeline {
+  const size = opts?.size ?? 2
+  const uri = `batch://${opts?.slide ? 'slide' : ''}?size=${size}`
   return definePipeline({ id: 'outer' })
     .from(inSource)
-    .batch(opts ?? { size: 2 }, nested)
+    .subflow(uri, nested)
     .to(outTarget) as Pipeline
 }
 
@@ -114,7 +131,12 @@ describe('batch scope', () => {
       .use(
         tool('titles', (ex) => {
           groupSizes.push(itemsOf(ex).length)
-          return setVariable(withItem(ex, ['T']), 'packet', `packet-of-${groupSizes.length}`)
+          // a non-per-member payload (a packet id) is never zipped back onto the members
+          return setVariable(
+            withItem(ex, `T${groupSizes.length}`),
+            'packet',
+            `packet-of-${groupSizes.length}`,
+          )
         }),
       )
       .to(ret)
@@ -175,26 +197,93 @@ describe('batch scope', () => {
 
     const p = definePipeline({ id: 'outer-d' })
       .from(inSource)
-      .batch(undefined, nested)
+      .subflow('batch://', nested)
       .to(outTarget) as Pipeline
     await new Runner(p, global(root)).start()
     expect(sizes).toEqual([5, 2])
     expect(outputs).toHaveLength(7)
   })
 
-  it('without a nested pipeline .batch() still emits grouped items[] envelopes; slide overlaps', async () => {
-    inputs.push(...chapters(3).map((e, i) => withItem(e, i + 1)))
-    const run = async (opts: { size: number; slide?: boolean }) => {
-      outputs.length = 0
-      const p = definePipeline({ id: 'plain' }).from(inSource).batch(opts).to(outTarget) as Pipeline
-      await new Runner(p, global(root)).start()
-      return outputs.map((o) => itemsOf(o))
-    }
-    expect(await run({ size: 2 })).toEqual([[1, 2], [3]])
-    expect(await run({ size: 2, slide: true })).toEqual([
-      [1, 2],
-      [2, 3],
-    ])
+  it('a child without .from() receives the package as its input stream', async () => {
+    inputs.push(...chapters(3))
+    const seen: unknown[] = []
+    const nested = definePipeline({ id: 'nested-input' })
+      .use(
+        tool('peek', (ex) => {
+          seen.push(ex.item)
+          return ex
+        }),
+      )
+      .to(ret) as Pipeline
+
+    await new Runner(outer(nested), global(root)).start()
+
+    // size 2: package 1 = the first two payloads, package 2 = the remainder
+    expect(seen).toEqual([['text-1', 'text-2'], ['text-3']])
+    expect(outputs.map((o) => o.item)).toEqual(['text-1', 'text-2', 'text-3'])
+  })
+
+  it('a group payload array of the package length zips back onto the members by index', async () => {
+    inputs.push(...chapters(2))
+    const nested = definePipeline({ id: 'nested-zip' }).use(
+      tool('zip', (ex) => withItem(ex, ['Z1', 'Z2'])),
+    ) as Pipeline
+
+    await new Runner(outer(nested), global(root)).start()
+
+    expect(outputs.map((o) => o.item)).toEqual(['Z1', 'Z2'])
+    expect(outputs.map((o) => o.id)).toEqual(['c1', 'c2'])
+    expect(outputs.map((o) => o.meta)).toEqual([{ chapterNum: 1 }, { chapterNum: 2 }])
+    expect(outputs.map((o) => getVariable(o, 'own'))).toEqual(['v1', 'v2'])
+  })
+
+  it('a payload array of another length is not zipped', async () => {
+    inputs.push(...chapters(2))
+    const nested = definePipeline({ id: 'nested-nozip' }).use(
+      tool('one', (ex) => withItem(ex, ['only-one'])),
+    ) as Pipeline
+
+    await new Runner(outer(nested), global(root)).start()
+
+    expect(outputs.map((o) => o.item)).toEqual(['text-1', 'text-2'])
+  })
+
+  it('an explicit member commit wins over the payload zip', async () => {
+    inputs.push(...chapters(2))
+    const nested = definePipeline({ id: 'nested-pin' }).use(
+      tool('zip-then-pin', (ex, ctx) => {
+        const zipped = withItem(ex, ['Z1', 'Z2'])
+        ctx.run.batchScope?.commit(zipped)
+        const first = ctx.run.batchScope?.members()[0]
+        if (first) ctx.run.batchScope?.commit(withItem(first, 'EXPLICIT'))
+        return zipped
+      }),
+    ) as Pipeline
+
+    await new Runner(outer(nested), global(root)).start()
+
+    expect(outputs.map((o) => o.item)).toEqual(['EXPLICIT', 'Z2'])
+  })
+
+  it('slide packages overlap and every package is patched', async () => {
+    inputs.push(...chapters(3))
+    const sizes: number[] = []
+    const nested = definePipeline({ id: 'nested-slide' }).use(
+      tool('count', (ex) => {
+        const items = itemsOf(ex)
+        sizes.push(items.length)
+        return withItem(
+          ex,
+          items.map((item) => `${String(item)}+`),
+        )
+      }),
+    ) as Pipeline
+
+    await new Runner(outer(nested, { size: 2, slide: true }), global(root)).start()
+
+    // size 2 over 3 items: [1, 2] then [2, 3] — the tail is not flushed when sliding
+    expect(sizes).toEqual([2, 2])
+    expect(outputs.map((o) => o.item)).toEqual(['text-1+', 'text-2+', 'text-2+', 'text-3+'])
   })
 
   it('nested failure fails the run and marks the group node failed', async () => {

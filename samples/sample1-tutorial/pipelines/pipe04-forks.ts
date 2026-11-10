@@ -13,7 +13,7 @@ import '@mt/waypoint'
  * The parent pipeline hands every chapter to three steps-only branch pipelines:
  *
  *   jsonl://./jsonl/entities.jsonl
- *     → fork('chapter-views', [countBranch, reorderBranch, commasBranch])
+ *     → .fork(countBranch, reorderBranch, commasBranch)
  *          each branch's `.use(tool, paramsFn)` stamps `meta.chapter = "<number>-<view>"`
  *     → md://./chapters/chapter-views/   (dir mode → chapter<number>-<view>.md)
  *
@@ -128,7 +128,7 @@ const commasBranch = definePipeline({ id: 'pipe04-commas' }).use(replaceDots, (e
 
 export const parallelForksPipeline = definePipeline({ id: 'pipe04-forks' })
   .from('jsonl://./jsonl/entities.jsonl')
-  .fork('chapter-views', [countBranch, reorderBranch, commasBranch])
+  .fork(countBranch, reorderBranch, commasBranch)
   .to('md://./chapters/chapter-views/')
 
 export default parallelForksPipeline
