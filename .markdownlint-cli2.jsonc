@@ -13,5 +13,9 @@
     "MD013": false,
     "MD060": false
   },
-  "globs": ["docs/**/*.md", "README.md", "AGENTS.md", "CLAUDE.md", "samples/*/README.md"]
+  "globs": ["docs/**/*.md", "README.md", "AGENTS.md", "CLAUDE.md", "samples/*/README.md"],
+  // markdownlint-cli2 does not apply .gitignore to explicit globs, so the
+  // gitignored scratch areas must be excluded here too (tracked files inside
+  // them stay tracked, but they are not part of the docs gate).
+  "ignores": ["**/*.ignore.md", "docs/plans/**", "docs/superpowers/**", "docs/features/**"]
 }
