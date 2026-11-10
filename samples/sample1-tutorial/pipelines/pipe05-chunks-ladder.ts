@@ -135,7 +135,9 @@ const documentStage = definePipeline({ id: 'pipe05-documents' })
   .tap(countRung('records'))
   .flatMap(async (record: unknown) => {
     const { title, number, paragraphs } = record as LadderRecord
-    return [{ title, number, body: paragraphs.map((lines) => ({ lines })) }]
+    // The body is markdown: one paragraph per record paragraph, so the ladder's
+    // paragraph/line rungs keep the record structure.
+    return [{ title, number, body: paragraphs.map((lines) => lines.join('\n')).join('\n\n') }]
   })
   .use(chapterDocBuild)
   .use(chapterIndexer)
