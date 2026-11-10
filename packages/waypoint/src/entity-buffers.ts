@@ -14,7 +14,7 @@ import { annotateWaypoint } from './registration.js'
  * These are the same process-local buffers as `ephemeral://`, but named after
  * the entity the pipeline is handing off:
  *
- *   batches://<namespace>     Fixed-size packages (`.batch(n)` groups, `items[]` + members)
+ *   batches://<namespace>     Fixed-size packages (batch subflow packages, `items[]` + members)
  *   chapters://<namespace>    Chapter envelopes
  *   paragraphs://<namespace>  Paragraph envelopes
  *   chunks://<namespace>      Chunk envelopes
@@ -26,11 +26,11 @@ import { annotateWaypoint } from './registration.js'
  * terminal: a split-form subflow fills them through the matching explicit target —
  * `.subflow('chunks://', pipe)` with `.to('chunks://ladder')` inside `pipe` — and the
  * next stage reads the buffer back with `.from('chunks://ladder')`. Every entity scheme
- * is bidirectional (source + target); `batches://` additionally carries `.batch(n)`
- * packages because it is not a ladder rung.
+ * is bidirectional (source + target); `batches://` additionally carries batch-subflow
+ * packages (`.subflow('batch://?size=N', pipe)`) because it is not a ladder rung.
  *
  * Not to be confused with `batch://group|members|return` (`batch-scope.ts`): those are the
- * scope-local views of `.batch(opts, nested)` and share no global buffer.
+ * child-side views of `.subflow('batch://?size=N', pipe)` and share no global buffer.
  *
  * Omitting the namespace uses `default`: `paragraphs://` == `paragraphs://default`.
  * Every scheme gets its own key space, so `lines://` never reads a buffer that
