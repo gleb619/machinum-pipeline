@@ -40,11 +40,7 @@ export interface ChapterDoc {
 }
 
 /** Body content accepted by tools: markdown, domain chapter, or tree/body view. */
-export type ChapterBodyInput =
-  | string
-  | Chapter
-  | ChapterNode
-  | ChapterBody
+export type ChapterBodyInput = string | Chapter | ChapterNode | ChapterBody
 
 const DOC_CHAPTER_ID = 'chapter-doc'
 const DOC_BOOK_ID = 'chapter-doc'

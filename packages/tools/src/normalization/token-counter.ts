@@ -1,7 +1,7 @@
 import { category, defineTool, setVariable, setVariables, tool } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
-import { get_encoding } from 'tiktoken'
 import { TOKEN_ENCODING } from '@mt/core'
+import { get_encoding } from 'tiktoken'
 
 /** Variables written by the token counters. */
 export const VAR_TOKEN_COUNT = 'tokenCount'
