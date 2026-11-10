@@ -1,4 +1,5 @@
 # @mt/webui
+
 ← [Architecture](../guiding/architecture.md)
 
 Path: `packages/webui/`
@@ -7,7 +8,7 @@ Admin server (h3 handlers; Nitro file-routing for dev, plain h3 + `node:http` fo
 
 ## API Routes
 
-```
+```text
 packages/webui/server/routes/api/
 ├── health.ts                         # GET /api/health
 ├── pipelines.ts                      # GET /api/pipelines — list discovered pipelines
@@ -184,7 +185,7 @@ The Vue 3 components package (`@mt/components`, `vite build` -> `dist/`) is serv
 
 ## Key Files
 
-```
+```text
 packages/webui/
 ├── nitro.config.ts       # Nitro config (dev only: `pnpm dev`, `build:nitro`)
 ├── tsconfig.build.json   # builds server/standalone.ts -> dist/

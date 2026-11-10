@@ -24,7 +24,7 @@ yay -S leaf-markdown-viewer
 
 # macOS / Linux (Homebrew)
 brew install leaf
-```
+```text
 
 Compile-from-source prerequisites on Debian/Ubuntu if the build fails:
 `sudo apt install build-essential pkg-config libssl-dev`.
@@ -44,7 +44,7 @@ editor = "nvim"
 [render]
 latex = true     # LaTeX math rendering
 mermaid = true   # Mermaid diagram rendering
-```
+```text
 
 ### Usage with mt logs
 
@@ -59,7 +59,7 @@ leaf -w .mt/runs/<runId>/run.log
 mt run ./pipeline.ts 2>&1 | leaf -
 
 # Editor workflow: open log, Ctrl+E to edit in $EDITOR, save → leaf refreshes
-```
+```text
 
 Keybindings: `j`/`k` scroll, `g`/`G` top/bottom, `/` search, `n` next match, `Ctrl+E` edit, `q` quit.
 
@@ -79,7 +79,7 @@ RUN apk add --no-cache libgcc
 COPY --from=builder /usr/local/cargo/bin/leaf /usr/local/bin/leaf
 WORKDIR /workspace
 ENTRYPOINT ["leaf"]
-```
+```text
 
 ### Build & run
 
@@ -94,7 +94,7 @@ mt run ./pipeline.ts 2>&1 | docker run --rm -i leaf-renderer -
 
 # Or mount the project and pass a path
 docker run --rm -it -v "$(pwd):/workspace" leaf-renderer .mt/runs/<runId>/run.log
-```
+```text
 
 ## Handling ANSI-rendered output
 

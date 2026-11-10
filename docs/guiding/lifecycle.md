@@ -12,7 +12,7 @@
 
 ## 1. Phase map
 
-```
+```text
 BOOTSTRAP → INITIALIZATION → ENVIRONMENT PREPARED → CONTEXT PREPARED → CONTEXT LOADED
           → RUN/TOOL LIFECYCLE → STARTED/READY → WORKING → FINISH → SHUTDOWN
 ```
@@ -154,7 +154,7 @@ One function, `loadGlobalContext(projectRoot)` in `core/src/config.ts`, shared b
    cycles guarded by a `seen` set).
 2. **Settings:** `settings = { ...config.settings }`, plus `settings.uris = config.uris`.
 3. **`loadEnv(root, secrets.envFile ?? '.env')`** — parse the env file
-   (`export ` prefix, quotes, `#` comments). The result goes into `ctx.env`.
+   (`export` prefix, quotes, `#` comments). The result goes into `ctx.env`.
    `process.env` always wins and is **never written to**.
 4. **Defaults eval/validation:**
    `resolveRetry()` (max / backoffMs / strategy / maxBackoffMs) and `resolveConcurrency()`
@@ -304,7 +304,7 @@ sequenceDiagram
     R->>FS: schedulePersist() every N writes (default 50)
   end
   Note over R,G: step stream dry → emitEvent('step-done', stepId)
-  R->>G: close()  (commit; temp→rename)
+  R->>G: close()  (commit, temp→rename)
   R->>FS: step-done event + persist
 ```
 
@@ -331,7 +331,7 @@ Tools never read vault files. At invoke time an LLM tool calls
 `resolveLlmConfigFromCtx(toolCtx, { input, tool, meta })`, which reads `ctx.run.global.vault`,
 `settings`, `env`, `routerUrl` and merges layers:
 
-```
+```text
 input > tool option > exchange llm var/meta.llm > mt.json settings (llm.*)
       > vault ref (llm.use / MT_LLM_USE → vault://entry[/model]) > provider env > preset defaults > generic MT_LLM_* env
 ```

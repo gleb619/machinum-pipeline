@@ -1,9 +1,10 @@
 # Project Structure
+
 ← [Architecture](../guiding/architecture.md)
 
 ## Workspace Layout
 
-```
+```text
 machinum-pipeline/
 ├── packages/
 │   ├── core/        @mt/core    — types, DSL, engine, URI registry, built-in Sources/Targets
@@ -34,7 +35,7 @@ machinum-pipeline/
 
 ## @mt/core — Canonical Source Layout
 
-```
+```text
 packages/core/src/
 ├── types/domain.ts   # active-record entities: Book, Chapter, Chunk, Paragraph, ParagraphLine, LineWord, Token
 ├── types.ts          # Source<T>, Tool<I,O>, Target<T>, Exchange<T> (Envelope alias), Lifecycle, RunState
@@ -78,7 +79,7 @@ Details: [plan](../plans/bun-binary-and-mt-package.md).
 
 ## @mt/cli — Source Layout
 
-```
+```text
 packages/cli/src/
 ├── index.ts          # main(); arg parsing, command dispatch
 ├── commands/
@@ -140,7 +141,7 @@ All tools live in `packages/tools/src/`, each as a `defineTool()` export:
 
 Created by `mt init` in consumer projects, not part of this repo.
 
-```
+```text
 .mt/
 ├── runs/<runId>/
 │   ├── state.json        # State machine snapshot + checkpoint tree (resume source of truth)
@@ -158,7 +159,7 @@ All file writes use atomic temp-then-rename to prevent corruption on crash.
 
 ## Consumer Project Layout
 
-```
+```text
 my-book-project/
 ├── package.json     # devDependency on @mt/core, @mt/cli, @mt/waypoint
 ├── mt.json          # Project config (book metadata, pipeline paths, secrets, defaults)

@@ -21,5 +21,5 @@ index,name
 
 ```mermaid
 graph TD
-    The Duke’s Tribunal --> Next
+    Tribunal["The Duke’s Tribunal"] --> Next
 ```

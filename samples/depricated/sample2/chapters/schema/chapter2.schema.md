@@ -21,5 +21,5 @@ index,name
 
 ```mermaid
 graph TD
-    Ambush in the Darkwood --> Next
+    Ambush["Ambush in the Darkwood"] --> Next
 ```

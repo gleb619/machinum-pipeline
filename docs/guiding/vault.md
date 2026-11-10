@@ -140,12 +140,14 @@ the standalone `mt` binary stays self-contained). `keepass://<title>` is accepte
 - **Caching**: an opened database is memoized per process by path + mtime + size + credential
   fingerprint; edits to the file reload it. Decrypted entries never leave the resolver.
 - **Provisioning**:
+
   ```bash
   export MT_KEEPASS_PASSWORD='…'          # CI only; interactive commands prompt
   mt vault keepass-init                    # empty db, mode 0600
   mt vault keepass-add OpenRouter-Key --secret "$OPENROUTER_KEY" --group LLM/API
   mt vault add or --provider openrouter --api-key keepass:OpenRouter-Key
   ```
+
   KeePassXC can edit the same file; AES-KDF (KDBX 3.1) and Argon2 (KDBX 4) databases are supported.
 - **Opt-out**: `MT_KEEPASS=false` disables resolution entirely (refs pass through as-is).
 - **Errors are sanitized**: a wrong password, missing file or missing entry names the path/entry
@@ -200,60 +202,7 @@ no native addon, no external binary; `node:crypto` only. `embed://<name>` is acc
   the default cannot be opened once another source takes over - run
   `mt vault master-key generate --rekey` (or `mt vault embed-rekey`) first.
 - **Provisioning**:
-  ```bash
-  export MT_KEEPASS_PASSWORD='…'          # CI only; interactive commands prompt
-  mt vault keepass-init                    # empty db, mode 0600
-  mt vault keepass-add OpenRouter-Key --secret "$OPENROUTER_KEY" --group LLM/API
-  mt vault add or --provider openrouter --api-key keepass:OpenRouter-Key
-  ```
-  KeePassXC can edit the same file; AES-KDF (KDBX 3.1) and Argon2 (KDBX 4) databases are supported.
-- **Opt-out**: `MT_KEEPASS=false` disables resolution entirely (refs pass through as-is).
-- **Errors are sanitized**: a wrong password, missing file or missing entry names the path/entry
-  and never includes the master password or a secret value.
-- **Router**: `packages/router/server/utils/keepass.ts` is a standalone duplicate. Loading is
-  async (WebCrypto), so a changed vault with `keepass:` refs triggers a background refresh and
-  keeps serving the previous result until it completes; `startRouter()` awaits the first load.
-  Database mtime is part of the hot-reload signature.
 
-### Embedded store (embed)
-
-`packages/core/src/embed.ts` reads a small JSON file encrypted with AES-256-GCM — no dependency,
-no native addon, no external binary; `node:crypto` only. `embed://<name>` is accepted as an alias of
-`embed:<name>`.
-
-- **Terminology**: *master password* unlocks the store; *encryption key* (`kid`) is the 256-bit cipher
-  key that seals secrets; *secret* is the stored value (API key, token).
-- **Format v2 (keyring, envelope encryption)**: the file holds
-  `{ version: 2, kdf: "scrypt", n, r, p, salt, iv, tag, ciphertext, secrets }`. `ciphertext` is the
-  keyring - `{ "keys": { "<kid>": { "key": <base64 32 bytes>, "createdAt", "status": "active"|"retired",
-  "note"? } } }` - sealed under `scryptSync(masterPassword, salt, 32, { N: 16384, r: 8, p: 1,
-  maxmem: 64MiB })` with AES-256-GCM, a random 12-byte IV and AAD `mt-embed-v2-keyring`.
-  `secrets` maps `<name>` to `{ kid, iv, tag, ciphertext, createdAt, rotatedAt? }`; each secret's
-  ciphertext is `{ secret, username?, url?, notes? }` sealed with the encryption key `kid`, its own
-  random IV and AAD `mt-embed-v2-secret:<kid>:<name>` (so entries cannot be swapped between names
-  or keys). Entry names, `kid`s and timestamps are plaintext; values, usernames, URLs, notes and key
-  material are not. KDF parameters are validated against the fixed values before deriving a key.
-  Writes are atomic (temp-then-rename), mode 0600, fresh keyring salt/IV per write. Exactly one key
-  is `active`; a new store gets a generated key `k1`. v1 stores are not supported (re-create).
-- **Threat model**: the keyring limits the blast radius of a single leaked encryption key and lets you
-  rotate or retire keys (`embed-keyring rotate --reencrypt`). It does NOT protect a store opened with
-  the public built-in default password: anyone with the file can unlock the keyring. Set a private
-  master password (`embed-rekey`) first. `embed-rekey` re-wraps the keyring under the new password; if
-  the file was ever exposed under the default password, also run
-  `embed-keyring rotate --reencrypt` and remove the old key to replace the key material itself.
-- **Config**: `MT_EMBED_PATH` (default `$MT_HOME|~/.mt/secrets.embed.json`, outside any repo and
-  covered by the `*.embed.json` ignore pattern), `MT_EMBED_PASSWORD` or `MT_EMBED_PASSWORD_FILE`
-  (one trailing newline stripped). An explicitly empty password is an error. The core resolver
-  never prompts.
-- **Default password (zero-config)**: with neither variable set, the built-in
-  `DEFAULT_EMBED_PASSWORD` is used, so `embed:` works out of the box and the store file is created
-  on first `embed-add` / `mt vault add --api-key`. That password is public: the store is only
-  **obfuscated, not protected**. The first use per process emits `console.warn`
-  ("mt: embedded secret store uses the built-in default password: secrets are only obfuscated, not
-  protected. Set MT_EMBED_NEW_PASSWORD … and run `mt vault embed-rekey` …"). A store made with the default
-  cannot be opened once `MT_EMBED_PASSWORD` is set - run `mt vault embed-rekey` first (current
-  password = the default, new password via `--new-password-file`), then export the new one.
-- **Provisioning**:
   ```bash
   mt vault add or --provider openrouter --api-key "$OPENROUTER_KEY"   # -> embed:or in the vault
   # or explicitly:
@@ -261,6 +210,7 @@ no native addon, no external binary; `node:crypto` only. `embed://<name>` is acc
   mt vault embed-add OpenRouter-Key --secret "$OPENROUTER_KEY"
   mt vault add or --provider openrouter --api-key embed:OpenRouter-Key
   ```
+
 - **Caching**: the decrypted store is memoized per process by path + mtime + size + a SHA-256
   fingerprint of the password; concurrent loads share one promise and failed loads are not cached.
   The cache is cleared after writes.

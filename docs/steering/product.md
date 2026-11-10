@@ -32,7 +32,7 @@ Books are structured as `Book → Chapter → Paragraph → ParagraphLine → Li
 
 ## Data Flow
 
-```
+```text
 Source (URI) → [Tool → Tool → …] → Target (URI)
 ```
 
@@ -52,7 +52,7 @@ All data travels in Exchanges. The pipeline DSL describes the shape; the Runner 
 
 ## Execution Flow
 
-```
+```text
 mt run ./pipelines/fix-typos.ts
 → CLI loads mt.json → builds GlobalContext
 → tsx/jiti loads pipeline module (no build step)
@@ -65,7 +65,7 @@ mt run ./pipelines/fix-typos.ts
 → On success: running → done, Targets close (e.g. git commit)
 ```
 
-```
+```text
 mt resume <runId>
 → Loads state.json (checkpoint tree + source cursors) and context.json
 → Walks checkpoint tree depth-first
@@ -74,7 +74,7 @@ mt resume <runId>
 → Continues execution
 ```
 
-```
+```text
 Tool invocation (in-process)
 → Runner calls tool.invoke(env, { run, step })
 → Tool returns an Exchange

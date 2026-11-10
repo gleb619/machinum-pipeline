@@ -9,6 +9,7 @@ Keywords: WT003, http-server.ts, registerTarget, createHttpTarget, jsonl.ts, md.
 Idea: `docs/ideas/hs-target-and-localhost-translate.md` section 1b. Register `http` and `https` as **targets** (client role) next to the existing source. `hs://` stays source-only (no `registerTarget('hs')`). `.from('http://')` still listens; `.to('http://…')` sends. WT003 gets a second annotation (`direction: 'target'`) like `packages/waypoint/src/jsonl.ts` (WT001 x2). Layer: waypoint only; zero new deps (use global `fetch`).
 
 Defaults chosen for open questions (conservative):
+
 - `?capture=<variable>` is **out of scope** (terminal target, response body discarded). Note stays in idea doc.
 - `bearer=<NAME>` resolves through `process.env` / `ctx.global` secrets (same resolver tools use for `apiKey`; reuse, do not invent). Unresolvable ref = fail at `open()` with clear message. Never inline plaintext; reject values that look like a token (contain `.`/length > 64 and not an env-name pattern `^[A-Z_][A-Z0-9_]*$`).
 - Only `http:`/`https:` hosts; no redirect following to a different origin (`redirect: 'manual'`, treat 3xx as failure).

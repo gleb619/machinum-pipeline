@@ -7,7 +7,7 @@ when the main machine has no Chrome, or when many runs should share one browser 
 
 ## What runs where
 
-```
+```text
 main machine                         worker PC
 browserTranslate  --HTTP POST-->  mt-browser-translate  -->  Chrome  -->  Google Translate endpoint
      ^                                  |

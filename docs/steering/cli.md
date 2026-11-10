@@ -1,4 +1,5 @@
 # @mt/cli
+
 ← [Architecture](../guiding/architecture.md)
 
 Path: `packages/cli/`
@@ -134,9 +135,11 @@ the original file.
 ## Key Files
 
 ### `src/index.ts`
+
 Entry point: `main()` function, arg parsing, dispatch to command modules. Handles top-level errors and process exit codes.
 
 ### `src/commands/worker.ts`
+
 `mt worker` is the dial-out side of T205. It registers with `POST /api/workers`, mirrors the main
 project with `GET /api/sync/manifest?scope=project` + `GET /api/sync/files?scope=project` into
 `.mt/worker/<slug>-<hash8>/`, and consumes `GET /api/workers/:id/signals` (SSE, `Last-Event-ID`
@@ -151,6 +154,7 @@ reported as `failed` and the worker survives; `pause` sends SIGINT, `cancel` SIG
 accepting queued runs, waits for active children, then exits 0.
 
 ### `src/commands/run.ts`
+
 1. `loadGlobalContext(projectRoot)` → `GlobalContext` (from `@mt/core`; no CLI-local `mt.json` parsing)
 2. `loadRunnable(file, name?)` → `Pipeline | Process` (named export → default process → implicit process)
 3. `runLifecycleScript(ctx, 'start')` → no-op unless `scripts.start` is defined in mt.json
@@ -170,9 +174,11 @@ Hidden worker-child flags: `--run-id <id>` replays the main-minted run id into `
 follows the main SSE stream.
 
 ### `src/commands/explain.ts`
+
 `mt explain` — static declaration view. `loadRunnable()` selects and imports the runnable (top-level module code executes); `readMtConfig()` supplies URI aliases, defaults and `scripts.*`; the command renders Markdown or a stable `schemaVersion: 1` JSON object (`--json`). It never calls `Runner.start()`, `source.start()/resume()`, `tool.invoke()`, `target.open()` or a lifecycle hook, so no run id or `.mt/runs/<runId>/` directory appears. Output covers: per-pipeline dataflow and steps, cardinality, effective retry/onError (same `resolveRetryPolicy` merge as the Runner), tool-step concurrency (same `Number.parseInt` rule as `runTool`; items run through ordered `mapConcurrent`), cacheable/idempotent flags (cacheable tools later memoize under `.mt/cache/<hash>.json`; explain writes none), declared `envDefaults`, the declared `mt.json` LLM pick (env overrides noted), nested fork/subflow/batch pipelines, lifecycle hooks, state machine, event order/types, checkpoint node patterns, and every `run.log`/`logs/<stepId>.log`/`events.jsonl`/`dead-letter.jsonl`/`artifacts/` path. URI-string sources/targets are resolved through the URI registry (construction only, no I/O), so `lifestyle`/`resume()`/`checkpoint()` capabilities are reported for them too; a failed resolution becomes a warning. Warnings also cover unresolved URI aliases, distinct pipelines sharing an id, and hand-built invalid steps.
 
 ### `src/commands/info.ts`
+
 `mt info [--json] [--runs <n>]` — read-only project/state report. It imports no pipeline module and starts no Runner, source, tool, target or lifecycle hook, so it creates no run id and writes nothing under `.mt`. Output has three parts:
 
 1. **Effective `mt.json`** — `imports` deep-merged over the base config, then merged over `DEFAULT_MT_CONFIG` so defaults are visible. Credential-looking keys (`apiKey`, `apiKeys`, `token`, `secret`, `password`, `credential`, `auth`, `private-key`, `access-key`, `client-secret`) and credential-looking string values are masked as `***` recursively. `.env` and vault contents are never read; only existence booleans are reported.
@@ -182,6 +188,7 @@ follows the main SSE stream.
 `--json` writes one stable `schemaVersion: 1` document to stdout on success; `--runs <n>` limits the run list (default 10, `0` = all). `--help` wins over other flags. Invalid flags exit 1 with usage; malformed config errors are sanitized so a syntax-error excerpt cannot echo credentials. The JSON `steps` object is `{ done, events, checkpoint: { total, done, failed, inProgress, pending } }`.
 
 ### `src/commands/install.ts`
+
 `mt install` — runs the `scripts.install` pipeline from mt.json via the shared
 `commands/utils/lifecycle.ts` helper (`runLifecycleScript(ctx, name)`): resolves the script path
 inside the project root, `importPipelineModule`, `default ?? pipeline` export,
@@ -189,6 +196,7 @@ inside the project root, `importPipelineModule`, `default ?? pipeline` export,
 undefined or the script file is invalid.
 
 ### `src/commands/resume.ts`
+
 Same as `run.ts` but calls `runner.resume(runId)` instead of `runner.start()`, and runs
 `runLifecycleScript(ctx, 'resume')` before resuming. On resume failure it also runs
 `runLifecycleScript(ctx, 'error')`. `state.json` is always read for `pipelineId`; the pipeline file is
@@ -201,6 +209,7 @@ pipelines. Runs started by older versions without a recorded file get an error n
 pipeline's `id` differs from the recorded run.
 
 ### `src/commands/serve.ts`
+
 - `serveCommand()` lazy-imports `@mt/webui/standalone` and calls `startBackend()` (plain h3 on `node:http`; no Nitro
   at runtime). SIGINT/SIGTERM close the server. UI dir: `$MT_UI_DIR` > `<pkg>/dist/ui` > `packages/components/dist`;
   in the Bun binary the UI is embedded (`globalThis.__MT_UI__`).
@@ -214,6 +223,7 @@ pipeline's `id` differs from the recorded run.
   `--host` without a resolvable token refuses to start.
 
 ### `src/commands/remote.ts` + `src/utils/remote-client.ts`
+
 `mt remote sync` is a thin CLI over the reusable HTTP client (T204/T205 also call it):
 
 1. `resolveRemoteConfig(root, overrides)` reads `mt.json -> remote` (`url`, `tokenRef`, `projectId`,
@@ -235,6 +245,7 @@ pipeline's `id` differs from the recorded run.
 `writeSyncState`, `syncProjectPush` and `syncProjectPull`; the frame encoder is exported for tests.
 
 ### `src/utils/logger.ts` — `DuplexLogger`
+
 Writes to both console and `<logDir>/<runId>/run.log`; implements `Logger` from `@mt/core`. Both
 sinks use `formatLogLine()` from `@mt/core` (`<ISO-ms> [<LEVEL>] <message>`, markdown-escaped,
 CR/LF escaped as `\n`), so console and file lines are byte-identical apart from the trailing
@@ -252,6 +263,7 @@ pulls every 5 s plus a final pull, and Ctrl+C → remote pause. They return `{ r
 `mt remote sync`; no secret enters argv.
 
 ### `src/commands/router.ts`
+
 - `routerCommand()` lazy-imports `@mt/router/standalone` and calls `startRouter()`; keys come from
   `loadGlobalContext()` (`mt.json → secrets.envFile`, `process.env` wins) as `OPENROUTER_API_KEYS`;
   API-only since T197 — the UI lives in the admin components package (`mt serve`)
@@ -260,6 +272,7 @@ pulls every 5 s plus a final pull, and Ctrl+C → remote pause. They return `{ r
   non-loopback `MT_ROUTER_HOST` / `--host` without it — see [router.md](router.md#security-model-t119)
 
 ### `src/commands/vault.ts`
+
 `mt vault` — `list` / `show` / `add` / `rm` / `path` / `init` over the `@mt/core` vault. Plaintext keys are never written: `add` moves `--api-key(s)` into the embedded store (`embed:<name>`), embed commands never prompt (default password fallback + warning). Writes go
 through `saveVault` (atomic, mode 0600). Secrets are masked in every output unless `--reveal` is
 given. `--user` targets `~/.mt/vault.json`, otherwise `<project>/.mt/vault.json`; `MT_VAULT` wins
@@ -281,16 +294,20 @@ never accepted as CLI argument values and never printed. The router reads those 
 ([router.md](router.md#vault-t118)). Details: [docs/vault.md](../guiding/vault.md).
 
 ### `src/commands/skill.ts`
+
 `docs/SKILL.md` is the single source. `scripts/gen-skill.mjs` (run by `pnpm --filter=@mt/cli build` and `gen:skill`; `--check` verifies) writes the committed `src/generated/skill-content.ts` (`SKILL_MD`, `SKILL_VERSION`), so the text ships inside the npm package and the Bun binary with no runtime read of `./docs`. Editing `docs/SKILL.md` without regenerating fails `skill.test.ts`. Keep the preset table (`SKILL_TARGETS`) small.
 
 ### `src/commands/master-key.ts`
+
 `mt vault master-key generate [--user] [--path <file>] [--force] [--rekey]` / `status` / `show-path`, and `ensureProjectMasterKey()` used by `mt init`. Generate writes via core `writeMasterKeyFile` (0600, atomic); refuses to overwrite a key file without `--force`, refuses when an embed store exists unless `--rekey` (re-wraps via `rekeyEmbedStore`, key file rolled back on failure; refused when the password comes from `MT_EMBED_PASSWORD(_FILE)`) or `--force`. The key is never printed or taken as an argument. `mt init` creates `.mt/master.key` (skip: `--no-master-key`; auto-skip when a key is configured or an embed store exists), gitignored via `.mt/master.key` and `*.key`.
 
 ### `src/utils/gitignore.ts`
+
 `ensureIgnorePatterns()` — appends the missing ignore lines (`.mt/`, `vault.json`, `*.vault.json`,
 `.mt/vault*`, `*.kdbx`, `*.embed.json`, `.mt/master.key`, `*.key`) to `.gitignore`; idempotent, never duplicates a line.
 
 ### `src/utils/args.ts`
+
 `parseInitArgs()` — parses `mt init` flags (`--settings <json>`/`-s`, `--force`); unknown flags fail with usage. `--force` overwrites an existing `mt.json`/`pipelines/example.ts` (without it `initCommand` refuses, exit 1).
 
 ## Adding a New Command
@@ -302,7 +319,7 @@ never accepted as CLI argument values and never printed. The router reads those 
 
 ## Tests
 
-```
+```text
 packages/cli/tests/
 ├── index.test.ts              # Top-level dispatch
 ├── index.arch.test.ts         # Arch: all commands registered

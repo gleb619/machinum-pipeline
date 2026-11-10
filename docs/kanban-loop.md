@@ -40,11 +40,11 @@ Invoke before any work:
 
 ## State machine
 
-```
+```text
 CHECK ─► LINT ─► POLL ─► PREPARE ─► RUN ─► REVIEW ─► REPORT ─► ⏸
   │ job running  │ violations │ drained
   ▼ ⏸ one line   ▼ STOP       ▼ STOP
-```
+```text
 
 ### State: CHECK
 

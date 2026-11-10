@@ -11,6 +11,7 @@ Idea section 1a. Content-addressed rsync-style delta sync over the admin HTTP AP
 Layering (decision): sync engine (manifest build, diff, glob scope, apply) lives in **`@mt/core`** (`packages/core/src/sync/`) so webui routes and cli both use it with no cross-imports. HTTP client part for the CLI in `packages/cli/src/utils/remote-client.ts` (also reused by T204/T205). Routes in `packages/webui/server/routes/api/sync/`.
 
 Defaults chosen (open questions):
+
 - `projectId` = slug of local project dir name + 8-char hash of absolute root (stable, no secrets), overridable `mt.json -> remote.projectId`. Server mirror root: `<serveRoot>/.mt/remote/<projectId>/` sandboxed via `resolveInsideRoot` (`packages/webui/server/utils/resolve-inside-root.ts`); path traversal + symlink escape rejected; absolute/`..` paths 400.
 - Manifest entry `{ path, size, sha256, mtime }`; diff by sha256 (mtime informational). Hash cache keyed by size+mtime to avoid rehash.
 - Transfer: `PUT /api/sync/files` accepts a stream of length-prefixed JSON-header + body frames (no multipart dep); per-file cap `remote.sync.maxFileBytes` default 20 MB, total per request 64 MB, whole-project cap 500 MB; chunked by client; each file written atomic (temp-then-rename); resumable by re-diff.

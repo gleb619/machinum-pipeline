@@ -1,19 +1,17 @@
 {
   // Config for markdownlint-cli2 (`pnpm lint:md`).
   //
-  // Scope: the markdown the sample runners produce (`out/runner-report.md`).
-  // The hand-written docs and READMEs are not covered — they predate this
-  // gate and carry their own style.
+  // Scope: hand-written docs — docs/**, top-level README/AGENTS/CLAUDE, sample
+  // READMEs. Generated content (books/, samples/*/out, LLM prompt files under
+  // packages/tools/prompts, test fixtures) is deliberately not covered.
   //
-  // MD013 (line length) stays on for prose but is off for tables and code
-  // blocks: a report table and captured tool output are naturally wider than
-  // 80 columns.
+  // MD013 (line length) is off: the docs predate the 80-column rule and
+  // rewrapping every paragraph would bury real fixes in churn.
+  // MD060 (table column padding style) is off: pure formatting, no correctness
+  // impact. Every other rule stays at its default.
   "config": {
-    "MD013": {
-      "line_length": 80,
-      "tables": false,
-      "code_blocks": false
-    }
+    "MD013": false,
+    "MD060": false
   },
-  "globs": ["samples/*/out/runner-report.md"]
+  "globs": ["docs/**/*.md", "README.md", "AGENTS.md", "CLAUDE.md", "samples/*/README.md"]
 }

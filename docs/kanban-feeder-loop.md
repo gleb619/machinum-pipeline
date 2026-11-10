@@ -27,12 +27,12 @@ Invoke before any work:
 
 ## State machine
 
-```
+```text
 CHECK ─► INVESTIGATE ─► PICK ─► REGISTER ─► REPORT ─► ⏸
   │ lint fails → self-heal │ nothing good
   │ still invalid          ▼ ⏸ one line
   ▼ ⏸ one line
-```
+```text
 
 ### State: CHECK
 
@@ -83,12 +83,12 @@ at kanban add --id T### --title "<imperative, ≤ 60 chars>" --priority <High|Me
   --description "<≤ 128 chars: what + why>"
 ```
 
-3. Fill the plan file (template sections `Keywords`, `Goal`, `Time`, `Steps`, `Done when`):
+1. Fill the plan file (template sections `Keywords`, `Goal`, `Time`, `Steps`, `Done when`):
    - **Goal**: the defect or gap with `file:line`, and the intended end state.
    - **Time**: `Planned: <duration>`; each step ≥ 2m. Leave `Estimated: -`.
    - **Steps**: ordered checkboxes, each with a checkable result; start with the failing test.
    - **Done when**: runnable commands (`pnpm --filter=… exec vitest run …`, `pnpm lint && pnpm typecheck`) + expected output.
-4. `at kanban lint` must pass; else fix the plan and retry once → **REPORT**.
+2. `at kanban lint` must pass; else fix the plan and retry once → **REPORT**.
    Dependencies on other tasks: add `--blocked-by T###` instead of ordering by hand.
 
 ### State: REPORT

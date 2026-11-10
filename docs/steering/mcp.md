@@ -1,4 +1,5 @@
 # @mt/mcp
+
 ← [Architecture](../guiding/architecture.md)
 
 Path: `packages/mcp/`
@@ -66,7 +67,7 @@ directory.
 
 ## Key Files
 
-```
+```text
 packages/mcp/src/
 ├── server.ts      # startMcpServer(): reads stdin, dispatches to handlers, writes stdout
 │                  # handleRequest(): JSON-RPC message router
@@ -90,7 +91,7 @@ Each handler receives the parsed JSON-RPC params and returns a JSON-serialisable
 
 ## Tests
 
-```
+```text
 packages/mcp/tests/
 ├── server.arch.test.ts    # Arch: server exports, stdio wiring
 ├── methods.arch.test.ts   # Arch: all MCP methods implemented

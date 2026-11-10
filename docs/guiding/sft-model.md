@@ -26,7 +26,7 @@ it, and do not train for it.
 The engine never sends free-form prompts. Every LLM call is a **composed prompt
 pair** plus a **strict reply shape** that is parsed by code, not by a human:
 
-```
+```text
 system = <family>.system + llm.format.<mode> + <family>.output.<mode>
 user   = wrapPromptInput(text, mode)
 reply  = parsed by parseStructuredReply / extract*Entries / line parity
@@ -51,7 +51,7 @@ wrapped and how the reply must be shaped:
 | proofread / proofread-xml | `proofread.system`, `llm.format.*` | `<result><id/><text/><proofread/></result>`, one per paragraph, ids preserved |
 | proofread-properties | `proofread.properties.*` | `N=corrected` |
 | translate | `translate.system`, `translate.output.<mode>` | one output line per input line, then **exactly one** `<terms>[{"term","ru","type"}]</terms>` block |
-| summary / summary-notes | `summary.system`, `summary.output.bullets` | plain `- ` bullets, no numbering, no commentary |
+| summary / summary-notes | `summary.system`, `summary.output.bullets` | plain `-` bullets, no numbering, no commentary |
 | glossary (+ relations, enrich) | `glossary.*` | JSON array, field order `name`, `category`, `description`, `references`; `additionalProperties: false` |
 | schema / metadata / entities | `schema-doc` prompts | mdshape / mermaid / single row — whole-chapter, never chunked |
 
@@ -69,7 +69,7 @@ wrapped and how the reply must be shaped:
   and its `MODEL_CONTEXT_LIMITS` table, overridable with `MT_CONTEXT_LIMITS`.
 
 So the four failure classes worth training away are: **chatter**
-(preamble, ```` ``` ```` fences, ` thinking`), **structure loss** (dropped or
+(preamble, ```` ``` ```` fences, `thinking`), **structure loss** (dropped or
 merged lines, id drift, invented tags), **schema drift** (extra JSON fields,
 trailing commas, prose around JSON), and **unrequested edits** (rewriting style,
 "improving" names, inventing glossary terms).
@@ -242,7 +242,6 @@ Two published variants worth copying when the teacher is expensive:
 
 One-generation rule: synthesise **once**, from real text, and keep real targets as anchors;
 iterating synthesis on synthesis causes documented model collapse (§12.12).
-
 
 ### 5.3 Task mix (target proportions)
 
@@ -609,7 +608,7 @@ ShareGPT, 95/5 split, 6 h on a rented H200 at ~$3.80/h:
 ### 12.3 Habr: MTS on minimal resources (2 GPUs)
 
 - Data strategy: ready datasets (HF, translated) + synthetic generation from own material
-  + a small hand-made set (80 captions was enough to move the needle).
+  - a small hand-made set (80 captions was enough to move the needle).
 - **Warning about translated corpora:** machine-translated datasets are often bad
   (they saw Python code "translated" into Russian syntax). Verify adequacy or filter.
 - 8-bit LoRA trained faster in memory but **degraded grammar** and slowed training;
@@ -694,7 +693,6 @@ pairs:
 - **Evaluation:** count MQM-style major errors per segment and use a blinded judge; BLEU
   and chrF reward literal translation, which is the opposite of the literary goal.
 
-
 ### 12.8 Russian model and dataset landscape (verified by API)
 
 Checked on Hugging Face, 2026-11-08 — parameters, context and licence read from the
@@ -734,7 +732,7 @@ Verified RU datasets beyond §5.1: `Helsinki-NLP/opus-100` (en-ru subset),
 Every entry below was resolved through the GitHub / Hugging Face APIs on 2026-11-08;
 star counts and sizes are as returned.
 
-**Reusable code and configs**
+#### Reusable code and configs
 
 | Repo | What is inside | Use |
 | --- | --- | --- |
@@ -746,7 +744,7 @@ star counts and sizes are as returned.
 Frameworks named by every source, in the order they are worth trying: **Unsloth** (speed on
 one GPU), **Axolotl** (YAML configs, multi-GPU), **LLaMA-Factory** (UI + broad model support).
 
-**Collections**
+#### Collections
 
 - `stukenov/ekitil-bilingual-kazakh-russian-language-models` — 7 items: Qwen3-based
   bilingual KK-RU bases at 123 M / 300 M / 600 M, a 64 k BPE vocabulary
@@ -757,7 +755,7 @@ one GPU), **Axolotl** (YAML configs, multi-GPU), **LLaMA-Factory** (UI + broad m
   `sambanovasystems/SambaLingo-Russian-*`, `CohereLabs/aya-23-8B/35B`, llava). Treat as
   historical, not as a shortlist.
 
-**Vendor weights now open**
+#### Vendor weights now open
 
 - `yandex/AliceAI-Foundation-80B-A3B-Base` — 81.3 B total / 3 B active MoE, 262 144 ctx,
   48 layers, 2 KV heads, **Apache-2.0**, trained from scratch (announced on Habr
@@ -1403,5 +1401,3 @@ Datasets/models: `klusai/tf2-*`, `klusai/tf2-en-ro-15k`, `klusai/ds-tf1-en-3m`,
 `github.com/klusai/tinyfabulist-tf2` · `lballore/llimba-3b-instruct`, `lballore/llimba-3b-instruct-cpt`,
 `github.com/lballore/LLiMba` (★6) · the four SFT datasets and six GEC datasets named in
 §13.1 and §13.3.
-
-

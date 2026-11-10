@@ -1,4 +1,5 @@
 # @mt/tools
+
 ← [Architecture](../guiding/architecture.md)
 
 Path: `packages/tools/`
@@ -49,36 +50,42 @@ Categories are a dev marker only: grep `category([` or run
 optional — user-defined tools can omit it entirely.
 
 ### `chapter-validator.ts`
+
 - `chapterValidator` — structural markdown validation (heading hierarchy, code block languages, link integrity)
 - `forbiddenCharDetector` — finds zero-width chars, forbidden control chars
 - `typoFinder` — detects common Chinese/English typos, mixed scripts
 
 ### `chapter-doc.ts`
+
 Reads/writes chapter YAML-frontmatter documents (`.chapter-doc.yml`). Internal format for passing per-chapter metadata between tools. Exports: `readChapterDoc`, `writeChapterDoc`, `toChapterBody`, `chapterDoc` (composable tool: slots `build` + `emit` -> `chapters/en`), `ChapterDocNode`, `ChapterMetadata`.
 
 `ChapterDoc` is frontmatter (`number`, `series?`, `warnings`, `meta?`) plus one core domain entity: `chapter: Chapter` (`chapter.title` is the H1, `chapter.body` the markdown body). `ChapterBodyInput = string | Chapter | ChapterNode | ChapterBody | LegacyChapterParagraph[]`; `toChapterBody()` is the single normalization point (raw markdown, legacy `{ lines[] }[]`, domain chapter or tree view -> body text). `writeChapterDoc` emits frontmatter + `# chapter.title` + `chapter.body`; `readChapterDoc` parses frontmatter, extracts the H1 and rebuilds the body through the tree (so `---` stays a plain line).
 
 #### Chapter metadata
+
 `readChapterDoc` returns a `ChapterDocNode` (implements `ChapterDoc`) with `metadata(): ChapterMetadata`. Typed accessors mirror frontmatter `number` / `series` / `warnings`; `get` / `set` / `add` / `has` / `remove` / `keys` / `toObject` cover arbitrary keys. `add` throws when the key already exists (`set` overwrites; `undefined` removes). Unknown frontmatter keys live on `ChapterDoc.meta` and round-trip through `writeChapterDoc` (known keys first, then extras alphabetically). `chapterDocBuild` accepts optional `meta` and merges it into the `chapterDoc` variable.
 
 #### Chapter body tree
+
 `ChapterDocNode.chapterTree(opts?)` returns the mutable core `ChapterNode`; `ChapterDocNode.chapter` returns its plain `Chapter` snapshot. Mutations (`line.text`, `paragraph.setText`, `tree.title = ...`) are reflected in `doc.chapter` and in `writeChapterDoc` output. The doc has no chunk layer — the whole body is one chunk, so `---` lines stay plain lines; pass `DomainTreeOptions` (e.g. `tokenize`) to `chapterTree(opts)` to rebuild with extras.
 
 `chapter-doc-linter` (`createChapterDocLinter`, TL253) parses `{ en, ru }` chapter documents and runs `lintLineParity` on their normalized content (frontmatter dropped, `# title` + body kept); report lands in the `parity` variable, hard errors throw a retryable `LineParityError` unless `throwOnError: false`.
 
 ### `book-compiler.ts`
+
 Assembles chapters back into one book. Exports: `bookCompiler` (composable tool: slots `build` -> `validate` -> `emit`), `bookCompilerBuild`, `bookCompilerValidate`, `bookCompilerEmit`, `VAR_BOOK`.
 
 - `build` — chapter inputs (`ChapterDoc`, chapter markdown, domain `Chapter`, or a list of them) -> `BookDoc` (`{ title, chapters, toc, warnings }`); publishes the `book` variable.
 - `validate` — deterministic completeness report (no LLM): `GAP`, `DUPLICATE_NUMBER`, `OUT_OF_ORDER`, `EMPTY_BODY`, `DUPLICATE_TITLE`, `DUPLICATE_PARAGRAPH` (cross-chapter near-duplicates, 64-bit FNV-1a over normalized text). Findings are `{ code, chapterNumber?, message }`, mirroring the `chapter-doc` warning shape.
-- `emit` — pure: renders one markdown book (YAML frontmatter `title`/`chapterCount`/`wordCount`, TOC with anchor links, `---` separators, one `# ` heading per chapter, trailing newline). The `book://` waypoint target (`WT016`) does the writing.
+- `emit` — pure: renders one markdown book (YAML frontmatter `title`/`chapterCount`/`wordCount`, TOC with anchor links, `---` separators, one `#` heading per chapter, trailing newline). The `book://` waypoint target (`WT016`) does the writing.
 
 ### `schema-doc.ts` + `schema/`
+
 LLM-powered schema document generation. The mdshape document format (`SchemaDocEnvelope`, `readDoc`,
 `writeDoc`, `schemaDocWriter`) lives in `schema-doc.ts` and stays pure; the five extraction tools live in
 `packages/tools/src/schema/`, one file each:
 
-- `summary.ts` — `summaryTool` / `createSummaryTool` → `summary` variable; `notesSummaryTool` / `createNotesSummaryTool({ count })` → `summaryNotes` variable + `summary` variable (rendered `- ` bullet block). Both compose the default system prompt from the bundled `summary.system`, the global `llm.format.plain` and the `summary.output.bullets` blocks (see the prompt-block system below); the notes tool renders the bundled `summary.user` user template (see below). Both accept `SummaryChunkOptions`: `chunkMode?: 'shrink' | 'chunk' | 'auto'` (default `'shrink'`), `outputReserve`, `reserve`, `splitUnit`, and `chunkConcurrency`. When `chunkMode` is `'chunk'` or `'auto'` and the chapter body exceeds the model's per-call budget, the body is split semantically, each chunk is processed independently, and the results are merged. Chunking metadata is stored in `summaryChunks` / `summaryNotesChunks` variables.
+- `summary.ts` — `summaryTool` / `createSummaryTool` → `summary` variable; `notesSummaryTool` / `createNotesSummaryTool({ count })` → `summaryNotes` variable + `summary` variable (rendered `-` bullet block). Both compose the default system prompt from the bundled `summary.system`, the global `llm.format.plain` and the `summary.output.bullets` blocks (see the prompt-block system below); the notes tool renders the bundled `summary.user` user template (see below). Both accept `SummaryChunkOptions`: `chunkMode?: 'shrink' | 'chunk' | 'auto'` (default `'shrink'`), `outputReserve`, `reserve`, `splitUnit`, and `chunkConcurrency`. When `chunkMode` is `'chunk'` or `'auto'` and the chapter body exceeds the model's per-call budget, the body is split semantically, each chunk is processed independently, and the results are merged. Chunking metadata is stored in `summaryChunks` / `summaryNotesChunks` variables.
 - `entities.ts` — `entitiesTool` / `createEntitiesTool` → `entities` variable
 - `schema.ts` — `schemaTool` / `createSchemaTool` → `schema` variable (mermaid)
 - `metadata.ts` — `metadataTool` / `createMetadataTool` → `metadata` variable
@@ -131,6 +138,7 @@ Batched envelopes store per-item results in the `<key>ByItem` variable.
 Envelope type: `SchemaDocEnvelope`.
 
 ### `translate-text.ts`
+
 - `translateText` / `createTranslateText(opts)` — composable translation tool (slots `prepare, fit, call,
   parse, emit`). Default `call` backend POSTs `/api/translate` on the MT router proxy (legacy behaviour and
   error messages kept); `backend: 'llm'` routes through the LLM toolkit (`resolveLlmConfig` provider,
@@ -142,6 +150,7 @@ Envelope type: `SchemaDocEnvelope`.
   chunk, and merged with paragraph separators. Chunk metadata is stored in the `translateChunks` variable.
 
 ### `core/chunk-processor.ts`
+
 Shared budget-aware chunk processing used by every LLM tool listed under chunk-mode coverage below.
 
 - `resolveChunkBudget({ ctx?, input?, llmConfig? })` → `ChunkBudget | null`. Computes a per-call input budget
@@ -199,6 +208,7 @@ In glossary stages `shrink` keeps the historical `maxChars` truncation; `chunk`/
 the token budget. A fixed `userPrompt` override carries no corpus text, so those stages stay single-call.
 
 **Not chunkable (left shrink-only on purpose):**
+
 - `normalization/schema/metadata.ts` - output is one measured row (counters of the whole chapter, validated against
   ground truth); the body is not what the model produces, chunk replies could not be merged meaningfully.
 - `normalization/schema/schema.ts` - output is one whole-document mermaid diagram; merging per-chunk diagrams would
@@ -211,6 +221,7 @@ Translate-chunk dedupe stays out of scope (deliberate): chunks are joined in ord
 library.
 
 ### `modification/proofread.ts`
+
 - `proofreadTool` / `createProofreadTool(options)` — LLM proofreading of plain text; splits text into paragraphs,
   sends XML to the model, and reconstructs the corrected text. `proofreadXmlTool` / `createProofreadXmlTool(options)`
   is the lower-level sub-tool that accepts/returns the raw XML. `proofreadPropertiesTool` uses Java properties
@@ -220,6 +231,7 @@ library.
   is stored in `proofreadChunks` / `proofreadXmlChunks` variables.
 
 ### `heuristic-summary.ts` / `glossary-extractor.ts` / `term-tagger.ts`
+
 Analysis tools, all accept a single `env.item` or a batched `env.items` corpus. The glossary extractor is
 offline by default and uses an LLM backend when one is given.
 
@@ -270,6 +282,7 @@ offline by default and uses an LLM backend when one is given.
   ported from the machinum-llm `.ST` templates), loaded through `loadBundledPrompt`.
 
 ### `stat-freq.ts`
+
 Offline (no LLM) statistical frequency analyzer (T147). Accepts `env.item` (string) or a batched
 `env.items` corpus; the envelope (and its cardinality) is returned untouched.
 
@@ -285,6 +298,7 @@ Offline (no LLM) statistical frequency analyzer (T147). Accepts `env.item` (stri
 - Pure helpers: `buildStatFreqReport(texts, options)`, `splitStatSentences(text)`, `tokenizeWords(text)`.
 
 ### `stat-dict.ts`
+
 Ranked translation dictionary built from a frequency report (T148). Offline, no LLM. The envelope (and its
 cardinality) is returned untouched.
 
@@ -305,6 +319,7 @@ cardinality) is returned untouched.
   `isStatFreqReport(value)`.
 
 ### `translation-prompt.ts` / `line-parity-linter.ts`
+
 Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, line by line).
 
 - `buildTranslationPrompt({ text, glossary, summary, extraRules, mode })` — `{ systemPrompt, userPrompt, usedTerms,
@@ -347,6 +362,7 @@ Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, l
   summary / proofread / `llm.format.*` sets (not called at runtime).
 
 ### `core/wait-for-file.ts`
+
 - `waitForFile` / `createWaitForFile({ path, pollMs?, timeoutMs?, consume? })` — pipeline latch. Polls for the
   file at `path` (default `./latch/{item}.latch`) and resolves once it appears, then optionally unlinks it
   (`consume`, default `false`). `{item}` / `{id}` in the path are substituted from the exchange; relative
@@ -356,6 +372,7 @@ Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, l
   `stop-resume` pipeline to gate each item, so the run can be paused and resumed deterministically.
 
 ### Sample-stage tools (moved from the old samples, T129)
+
 Reusable glue so sample pipelines only compose package tools (no bespoke `defineTool`).
 
 - `core/llm-picker.ts` — `pickLlmTool({ env, mockSource, configPath })` / `readLlmConfig` / `LLM_TOOLS`: single LLM
@@ -393,7 +410,9 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
 - `modification/translate-outputs.ts` — `createTranslateOutputs({ chaptersDir })`: `ru/chapter<N>.md` + merged `titles.json`.
 
 ### `chapter-translator.ts`
+
 Higher-level translation tools, composable:
+
 - `titleTranslator` / `createTitleTranslator({ translate })` — slots `extract -> translate -> assemble`
   (title from frontmatter, H1, or first line).
 - `paragraphTranslator` / `createParagraphTranslator({ translate, concurrency })` — slots `split -> translate -> assemble`.
@@ -409,6 +428,7 @@ The `translate` slot defaults to the process-level pick (`resolveProcessLlm`, in
 option (any `Tool<TranslateInput, TranslateOutput>`) or per-slot via `.with({ translate })`.
 
 ### `modification/browser-translate.ts`
+
 - `browserTranslate` / `createBrowserTranslate(options?)` — browser-backed translator (TL247, category
   `translator`). Exchange types are `TranslateInput` / `TranslateOutput` from `core/translate-text.ts`, so it
   is a drop-in translator slot (e.g. `chapter-translator`). Options (`BrowserTranslateOptions`): `targetLang`,
@@ -510,7 +530,9 @@ translation. (Outbound HTTP is a different role: `.to('http://…')` is the HTTP
 Chrome; it is not a worker transport.
 
 ### `openrouter-tool.ts`
+
 LLM gates built on the LLM toolkit (see [LLM toolkit](#llm-toolkit)); I/O unchanged:
+
 - `chatCompletion` — chat completion (composable: `prepare, fit, call, parse, emit`)
 - `runPrompt` — simplified prompt runner
 - `chatCompletionSingle`, `resolveRouterUrl` — direct one-shot helper / router URL resolution
@@ -519,6 +541,7 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
 (round-robin, 429/402) is used by the `openrouter` provider.
 
 ### `openrouter-free.ts`
+
 - `openrouterFree` — free-tier gate: thin preset over `createLlmGate`. `OPENROUTER_FREE_LLM` is the
   tool-level **provider pin** only (`{ provider: 'openrouter' }` — direct OpenRouter, no MT router proxy);
   `OPENROUTER_FREE_DEFAULTS` is `llmDefaults` (`model: openrouter/free`). Keys come from the usual
@@ -531,6 +554,7 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   *below* the preset default; the **provider** stays pinned (a vault entry of another provider errors).
 
 ### `openrouter-pool-tool.ts`
+
 - `openrouterPool` / `createOpenrouterPool({ models?, strategy?, client? })` — like `openrouterFree` but with
   **sticky free-model pinning**: first call pins ONE model from `models` (default `['openrouter/free']`,
   `strategy` `first` | `random`), kept in a module-level Map keyed by baseUrl + key-set (shared across gate
@@ -546,6 +570,7 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
   (re-pin logic lives in the client wrapper, so a replaced `call` slot bypasses re-pin).
 
 ### `ollama-tool.ts`
+
 - GPU IT `tests/it/router-vault.it.test.ts` loads the router standalone runtime by relative dynamic import (test-only; no `@mt/router` dependency in `package.json`, no layer change) to prove tools -> router -> vault `ollama` entry -> ollama without any API key.
 - `ollamaTool` — gate against an ollama server: stock local by default, a remote GPU server by
   setting `MT_OLLAMA_URL` (e.g. `http://<gpu-host>:<port>/v1`; nothing host-specific is hardcoded). Thin preset over `createLlmGate`: tool layer `OLLAMA_LLM`
@@ -567,14 +592,17 @@ Default provider is the MT router proxy (`/api/chat/completions`). The key pool 
 - `ollamaApiRoot(baseUrl?)` — native API root of an Ollama base URL (drops the `/v1` suffix).
 
 ### `md-formatter.ts`
+
 - `mdFormatterTool` — reformats markdown with configurable line width. Uses remark/unified under the hood.
 
 ### `fs-read.ts` / `fs-write.ts`
+
 The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readTextFile`,
 `readTextFileSync`, `readDirectory`, `isDirectory`); `fs-write.ts` delegates atomic writes to
 `@mt/core` (`atomicWriteFile`, temp-then-rename). Everything else in `src/` goes through these two.
 
 ### `docker-compose.ts`
+
 - `dockerComposeEmitter(options)` — dev-environment generator tool: renders a `docker-compose.yml`
   (hand-rolled YAML, no yaml dep) with minimal service presets (`services: Array<'ollama' | 'qdrant' |
   'lightrag'>` — image/port/volume; the `lightrag` image is a documented placeholder) and optional
@@ -584,14 +612,17 @@ The only modules allowed to touch `node:fs`: `fs-read.ts` owns all reads (`readT
   The parent directory must already exist (same contract as `atomicWriteFile`).
 
 ### `text-splitter.ts`
+
 Splits text at paragraph boundaries respecting a token limit. Uses heuristic token counting (`heuristicTokenCount`).
 Unit helpers: `splitParagraphUnits(text)` (blank-line runs, trimmed, blanks dropped) and
 `splitLineUnits(text)` (CR/LF, trimmed, blanks dropped).
 Also hosts the series splitter (`seriesSplitter` / `seriesSplitTool`) — see below.
 
 ### `normalization/entity-splitters.ts`
+
 Reusable splitters for the entity buffers, registered at module load. All of them implement the
 single core `Splitter<O>` interface from `@mt/core` and keep their own logic:
+
 - `chunkSplitter` → registered as `chunks` — chapter-document markdown → core `Chunk[]`; ids
   `${chapterId}/chunk-N`, `chapterId` from `meta.chapterId` or `chapter-<frontmatter number>`;
   budget resolved through `resolveChunkSize` (`meta.chunkSize` → option → settings → `MT_CHUNK_SIZE`).
@@ -631,6 +662,7 @@ when possible, otherwise whole sentences — never half a sentence or word. Deco
 setting the `series` and `partCount` variables only when a split actually happened.
 
 ### `normalization/token-splitter.ts`
+
 Fixates source text into stable, token-bounded chunks joined by a `---` separator line; later runs reuse the
 separator instead of re-splitting.
 
@@ -648,6 +680,7 @@ separator instead of re-splitting.
   token); falls back to ~4-char pieces (`heuristic: true`) when the package is unavailable.
 
 ### `resolve-constants.ts` — tunable constant overrides
+
 `resolveTunedNum(name, fallback, ex?, ctx?)` / `resolveTunedStr(...)` resolve a numeric/string tuning
 constant from `@mt/core` per call, first defined wins: per-call `constants` variable
 (`{ NAME: value }`, `VAR_CONSTANTS`) > mt.json `settings.constants.<NAME>` (flat key on
@@ -664,13 +697,17 @@ Migrated call sites: `resolveChunkSize` (`DEFAULT_CHUNK_TARGET`), `series-split`
 remaining constants migrate the same way when needed.
 
 ### `word-counter.ts`
+
 - `wordCounter` — counts words in an exchange, sets the `wordCount` variable.
 
 ### `chapter-indexer.ts`
+
 Assigns ordering indexes to chapters based on filename patterns.
 
 ### `token-counter.ts`
+
 Token counting via tiktoken (`cl100k_base`):
+
 - `tokenCounter` — counts tokens of a string envelope item, sets the `tokenCount` variable. Creates/frees the encoder on every call (clean, no shared state).
 - `tokenCounterBatch` — for batched envelopes (packages produced by `.subflow('batch://?size=N', pipe)`): one encoder create/free per batch invoke. Adds `tokenCounts` (per item) and `tokenCount` (batch total) variables.
 - `tokenCounterBatchCached` — same batch semantics, but reuses one process-wide cached encoder, freed via a `process.on('exit')` hook (one create/free per process). Use for large runs where encoder construction dominates.
@@ -792,6 +829,7 @@ translators resolving the process-level LLM pick — `defineProcess().install(mo
 ## Key Patterns
 
 **Tool signature:**
+
 ```typescript
 export const myTool = defineTool<Input, Output>({
   name: 'my-tool',
@@ -805,6 +843,7 @@ export const myTool = defineTool<Input, Output>({
 ```
 
 **Composable tools / overridable parts** (`md-outputs.ts`, core `defineComposableTool`):
+
 ```typescript
 export const myDoc = defineComposableTool({
   name: 'my-doc', version: '1.0.0', mdDescription: '...',
@@ -816,10 +855,12 @@ export const myDoc = defineComposableTool({
 // pipeline author: reuse build, replace emit (any Tool or fn); original stays intact
 .use(myDoc.with({ emit: mockEmit }))
 ```
+
 `appendMdOutput(ex, entry)` is the shared non-mutating `mdOutputs` variable append; `mdOutputEmitter` supports `when()` to skip.
 New tools that write md should expose `build`/`emit` slots instead of hardcoding both. Tests: `tests/composition.test.ts`.
 
 **OpenRouter pool** (`openrouter-pool.ts`):
+
 - Round-robin across `OPENROUTER_API_KEYS` (comma-separated env var)
 - 429 → marks key exhausted until TTL
 - 402 → removes key permanently
@@ -828,6 +869,7 @@ New tools that write md should expose `build`/`emit` slots instead of hardcoding
 ## Tests
 
 Tests live in `packages/tools/tests/`:
+
 - `docker-compose.test.ts` — compose generator: service presets, `include:` block, atomic write
 - `chapter-doc.test.ts` — unit tests for doc read/write
 - `schema-doc.test.ts` — schema-doc format tests (`readDoc` / `writeDoc` round-trip)
@@ -1076,7 +1118,7 @@ The TL001–TL116 entries below are the planned-tool spec index — the full cat
 | 93    | TL093 | `detectMissingAltText`                 | `Chapter`       | `Chapter & { imagesWithoutAlt: string[] }`           | Accessibility   | Low        | Finds markdown images `![]()` missing alt text inside brackets.                                                      |
 | 94    | TL094 | `addSoftHyphens`                       | `ParagraphLine`          | `ParagraphLine`                                               | Typesetting     | Low        | Adds `&shy;` after certain syllables for better line breaking (naive).                                               |
 | 95    | TL095 | `detectURLShorteners`                  | `ParagraphLine`          | `ParagraphLine & { shortenedURLs: string[] }`                 | Security        | Low        | Flags `bit.ly`, `tinyurl`, `goo.gl` links for expansion.                                                             |
-| 96    | TL096 | `extractPullQuotes`                    | `Chapter`       | `Chapter & { pullQuotes: string[] }`                 | Extraction      | Low        | Finds sentences enclosed in `> ` blockquotes.                                                                        |
+| 96    | TL096 | `extractPullQuotes`                    | `Chapter`       | `Chapter & { pullQuotes: string[] }`                 | Extraction      | Low        | Finds sentences enclosed in `>` blockquotes.                                                                        |
 | 97    | TL097 | `checkEmojiUsage`                      | `ParagraphLine`          | `ParagraphLine & { emojis: string[] }`                        | Content         | Low        | Lists emoji characters; optionally warns if outside designated sections.                                             |
 | 98    | TL098 | `normalizeWhitespaceAroundPunctuation` | `ParagraphLine`          | `ParagraphLine`                                               | Pre‑processing  | Low        | Removes space before comma/period, adds space after comma.                                                           |
 | 99    | TL099 | `detectMicrosoftSmartTags`             | `Paragraph`     | `Paragraph & { smartTags: string[] }`                | Validation      | Low        | Finds leftover `<st1:...>` tags from Word export.                                                                    |

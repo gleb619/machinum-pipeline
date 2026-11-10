@@ -40,13 +40,14 @@ Fixed names, fixed order. Same labels in both skins.
 | 5 | **Workers** | registered `mt worker` peers: name, tags, online/lost, mirrored runs | planned (T205 API only) |
 
 Rules:
+
 - Title: `Mt — Pipeline Admin` (web `<title>` + h1; TUI header line).
 - Tab order is Pipelines, Runs, Router, Workers (then Run detail as a drill-in, not a tab). Default screen on open: **Pipelines**.
 - No extra top-level screens without adding a row here first.
 
 ## 3. Page skeleton
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────┐
 │ Mt — Pipeline Admin         [Pipelines]  [Runs]  [Router]    │  header: title left, tabs right
 ├──────────────────────────────────────────────────────────────┤
@@ -73,17 +74,20 @@ Width: web content column max `max-w-4xl` centered, `px-4 py-8`. TUI uses full t
 
 Every list row has the same anatomy: **identity block on the left, actions on the right**.
 
-**Pipeline row**
+### Pipeline row
+
 - Left: `declared` (monospace, primary text) over `path` (dim, truncated).
 - Right: `▶ Run` button (green).
 
-**Router panel**
+### Router panel
+
 - Token field: `Router token` (password input); stored in `sessionStorage` under `mt-router-token`, header-only, never in the URL.
 - Cards: `Today`, `Month`, `Daily budget`; each shows USD cost and calls/remaining.
 - Pool block: `Pool`, mock badge `MOCK`, active/total keys, rate-limited/blocked counts, upstream names.
 - Log block: `Recent calls`; rows show model, optional client, time, tokens and cost.
 
-**Run row**
+### Run row
+
 - Left: `id` (monospace) + `STATE` badge (uppercase, state colour) on one line; `started` (dim) below if present.
 - Right (state-dependent, at most one button):
   - `running` → `⏸ Pause` (yellow)

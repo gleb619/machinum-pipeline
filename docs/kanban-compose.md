@@ -12,7 +12,7 @@ The board has **no** time columns. Time lives in each task's plan file, in a `##
 
 Planned: 45m      <- the planning agent's commitment (45m, 2h, 1h30m)
 Estimated: 52m    <- written by `at`, never by hand
-```
+```text
 
 * `Planned` is set by the agent that writes the plan. `Estimated` = `Planned` × a calibration factor —
   the median actual÷planned of Done tasks with recorded runs (clamped 0.25–4; fewer than 3 samples → factor 1).
@@ -36,7 +36,7 @@ first. On an existing plan without keywords the section is inserted after the ti
 
 ```bash
 at kanban add --id T61 --title "login flow" --keywords "auth, jwt, src/auth/login.ts"
-```
+```text
 
 `at kanban lint` checks every plan file it can find (absent/gitignored plans are skipped). `Done` tasks are exempt (legacy).
 
@@ -72,11 +72,11 @@ at compose --loop --follow 60        # board drained? sleep 60s and poll again (
 at compose --loop --max-tasks 3      # cap an unattended run
 at compose --loop --worktree --merge --follow --background   # detached, survives the terminal
 at compose jobs | logs <name> | stop <name>                  # manage background jobs
-```
+```text
 
 ### Follow flow (poll → take → work → repeat)
 
-```
+```text
 at kanban next [--json]        POLL   first unblocked task: In Progress wins, else Backlog by priority then ID
         │                              (read-only, free; exit 0 + "no executable task" when drained)
         ▼
@@ -88,7 +88,7 @@ single implementer + --test-cmd gate  WORK   cwd = the task worktree
         │  --merge (DONE only): scripts/merge-worktree.sh = rebase + ff-merge + cleanup
         ▼
 next claim … drained → exit, or with --follow sleep + poll again
-```
+```text
 
 * **Poll** = `at kanban next` (same `nextExecutable` rule the loop uses, one selection rule for both).
   `Blocked By` ids must be `Done`; unknown blocker ids are ignored.

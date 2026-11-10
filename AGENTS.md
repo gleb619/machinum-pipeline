@@ -57,6 +57,7 @@ Other: docs/guiding/{architecture,installation,samples,adding-a-sample,mock-tool
 
 ```bash
 pnpm install | build | lint | format | typecheck   # Biome only
+pnpm lint:md                                       # markdownlint docs gate + mermaid render check
 pnpm test                                          # workspace + sample IT
 pnpm test --filter=@mt/tools                       # one package
 pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts   # one file
@@ -125,7 +126,7 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 Every runtime log line (Runner, CLI lifecycle, tools, sources, targets) = exactly one line via `formatLogLine`
 from `@mt/core`:
 
-```
+```text
 <ISO-8601 UTC ms timestamp> [<LEVEL>] <message>[ <compact-json-meta>]
 ```
 

@@ -9,6 +9,7 @@ Keywords: mt run --remote, mt resume --remote, projectId, /api/runs/start, artif
 Idea section 1 user story. `mt run translate.ts --remote http://remote:7777`: (1) health/version/capability check, (2) sync push (T203), (3) start run on the remote by `projectId`, (4) stream `/api/runs/:id/events` SSE into the local `DuplexLogger`, (5) on terminal state pull artifacts back, (6) Ctrl+C = remote pause. `mt resume <runId> --remote URL` re-attaches. Remote runs are detached from the CLI process.
 
 Defaults chosen (open questions):
+
 - CLI shape: flags on existing commands (`mt run --remote <url>`, `mt resume --remote <url>`); `remote.url` / `remote.tokenRef` in `mt.json` act as default only when `--remote` is passed without value. Plain `mt run` never goes remote implicitly. Explicit-only keeps local behaviour unchanged. `mt remote ...` subcommands (T203) remain for sync/status.
 - Start API: `POST /api/runs/start` body gains optional `projectId` (+ `pipeline` relative path, `pipelineName?`); when `projectId` given, `process.cwd()`/`loadGlobalContext` root becomes the mirror `.mt/remote/<projectId>/` (replace the hard-coded `process.cwd()` in `packages/webui/server/routes/api/runs/start.ts` with a root resolver; confinement via `resolveInsideRoot` against the mirror). Without `projectId` behaviour is unchanged. Concurrency: one active run per projectId by default (409), TTL cleanup of idle mirrors: out of scope (documented).
 - Secrets never shipped; remote resolves own vault refs. Remote missing a ref -> run fails with message surfaced through SSE.

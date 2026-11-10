@@ -3,7 +3,7 @@
 > **Scope:** Vision, data flow, module map, and pointers to deep detail.
 > **Status:** Draft v1 · **Full spec:** `docs/tdd.md` · **Module detail:** `docs/steering/*.md`
 
-← [Steering Index](#details-index) · [Back to docs/steering/](../steering/)
+← [Steering Index](#7-details-index) · [Back to docs/steering/](../steering/)
 
 ---
 
@@ -12,6 +12,7 @@
 **MT** (`machinum-pipeline`, package `@mt/core`) is a TypeScript ETL engine for long-form text (primarily books). It runs as a dev dependency in a consumer project: the user writes real `.ts` pipeline modules using a thin DSL, declares metadata in `mt.json`, and executes via the `mt` CLI. The engine produces artifacts (`jsonl`, `md`, `pdf`, `epub`) and persists all run state under `.mt/`.
 
 Primary goals:
+
 - **Pluggable** — Sources, Tools, Targets are interfaces; tools always run in-process via `tool.invoke()`.
 - **Resumable** — Per-Run state machine with checkpoint tree; crash recovery to the last completed step.
 - **Parallel by design** — Fork-join over Chapters/Paragraphs/Lines; batching and windowing built in.
@@ -27,7 +28,7 @@ For full product overview (what it is / is not, core concepts, services), see [`
 
 ## 2. Data Flow
 
-```
+```text
 Source (URI) → [Tool → Tool → …] → Target (URI)
 ```
 
@@ -101,6 +102,7 @@ source, tool, target or hook is started.
 | `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens | [`extensions.md`](../steering/extensions.md) |
 
 Import layer rules:
+
 - `cli/` → `core/` only (never reverse)
 - `webui/`, `mcp/` call `core/` programmatically; `webui/` may import `router/` (T197)
 - `components/` → `webui/` API only (no direct `core` import); `tui/` HTTP-only
@@ -143,7 +145,7 @@ under its own `kid`. Keys rotate with `mt vault embed-keyring …`, the master p
 
 The router is the inverse arrangement — a **gateway that holds the keys** so clients never need them:
 
-```
+```text
    pipeline (provider "router")                   any OpenAI client
                  |                                              |
                  |  no upstream key                             |  Authorization: Bearer $MT_ROUTER_TOKEN
@@ -169,7 +171,7 @@ other OpenAI-compatible server. Details: [steering/router.md](../steering/router
 
 ## 6. `.mt/` Runtime State (Summary)
 
-```
+```text
 .mt/
 ├── runs/<runId>/
 │   ├── state.json             # state machine snapshot + checkpoint tree (resume source of truth)
@@ -205,7 +207,7 @@ server↔server sync (`GET /api/sync/manifest`, `GET/PUT /api/sync/files`).
 
 `mt run --remote` and `mt resume --remote` compose the sync API with the run API:
 
-```
+```text
 local CLI                       remote mt serve
    | GET /api/health  -----------> version, syncVersion, capabilities
    | PUT /api/sync/files --------> .mt/remote/<projectId>/ (push)

@@ -1,4 +1,5 @@
 # Tech Stack & Code Style
+
 ← [Architecture](../guiding/architecture.md)
 
 ## Runtime & Toolchain
@@ -59,7 +60,7 @@ Run `pnpm lint` to check, `pnpm format` to auto-fix.
 
 ## Import Layer Rules (enforced)
 
-```
+```text
 cli/ → core/, waypoint/ (URI registration side effect),
        webui/standalone (lazy, only for `mt serve`)
 webui/ → core/, router/standalone (only; router mounted for `mt serve`)
@@ -78,6 +79,9 @@ Enforced by architecture tests: `packages/{cli,webui,router,mcp}/tests/layers.ar
 pnpm install            # Install all deps
 pnpm build              # Build all packages (Turborepo)
 pnpm lint               # Biome lint check
+pnpm lint:md            # Markdown gate: docs correctness rules (.markdownlint-cli2.jsonc),
+                        # sample runner reports (.markdownlint-cli2.reports.jsonc, MD013 on),
+                        # mermaid render check (scripts/lint-mermaid.ts, renders every ```mermaid block)
 pnpm format             # Biome auto-fix
 pnpm typecheck          # tsc across workspace
 pnpm test               # All tests (Vitest)

@@ -1,4 +1,5 @@
 # @mt/router
+
 ← [Architecture](../guiding/architecture.md)
 
 Path: `packages/router/`
@@ -22,7 +23,7 @@ OpenAI-compatible upstreams (Ollama, vLLM, …). Runs on a configurable port (de
 
 ## Gateway Topology
 
-```
+```text
    pipeline / @mt/tools (provider "router")       any OpenAI client
                    |                                            |
                    |  no upstream key                           |  optional: Bearer $MT_ROUTER_TOKEN
@@ -47,7 +48,7 @@ end-to-end flows.
 
 ## Server Routes
 
-```
+```text
 packages/router/server/routes/api/
 ├── chat/completions.ts     # POST /api/chat/completions — OpenAI-compatible proxy endpoint
 ├── translate.ts            # POST /api/translate — translation shortcut, routed via upstream registry
@@ -162,20 +163,24 @@ Arch tests pin this model: [packages/router/tests/gateway.arch.test.ts](../../pa
 ## Key Utilities
 
 ### `server/utils/openrouter-pool.ts`
+
 Router-local key pool (`OpenRouterPool` + `OpenRouterPoolSupplier`): round-robin, 429 block, 402 disable, TTL recreate.
 Deliberate copy of the same half of `packages/tools/src/core/openrouter-pool.ts` — the standalone rule beats
 single-sourcing it, so keep both in sync when pool semantics change.
 
 ### `server/utils/openrouter-pool-supplier.ts`
+
 Wraps the router-local pool for use inside Nitro context, building clients from the effective router config
 (`getRouterConfig().apiKeys`) so CLI flags and `secrets.envFile` reach the pool. Returns the shared pool singleton.
 
 ### `server/utils/router-config.ts`
+
 Effective config: explicit `startRouter()` overrides (CLI flags) win, otherwise the environment. Fields: `port`, `host`,
 `token`, `mock`, `logDir`, `dailyBudget`, `retentionDays`, `apiKeys`, `upstreams`, `vault`. The environment alone is a
 valid configuration — no build-time injected config.
 
 ### `server/utils/cost-tracker.ts`
+
 - `logCall(model, usage, cost)` — appends to rolling log files under `<logDir>/<YYYY-MM-DD>/log.jsonl`
   (`logDir` = `$MT_HOME/router`, default `~/.mt/router`; `mt router --log-dir` overrides)
 - `getMonthlyCost()` / `getDailyCost()` — aggregate cost summaries. The monthly total spans the **UTC**
@@ -183,16 +188,20 @@ valid configuration — no build-time injected config.
 - Rolling logs: 5 MB max, retained N days
 
 ### `server/utils/log-rotator.ts`
+
 - `rotateLogs()` — removes old log files beyond retention window
 
 ### `server/plugins/mock-mode.ts`
+
 - `isMockMode()` — true when `MT_ROUTER_MOCK=true` (or `mt router --mock`)
 - `mockModePlugin` — intercepts OpenRouter calls with deterministic responses
 
 ### `server/plugins/log-rotation.ts`
+
 - `logRotationPlugin` — runs `rotateLogs()` on server start
 
 ### `server/middleware/rate-limit.ts`
+
 - Daily spend budget on `POST /api/chat/completions`: over budget -> 429 with `retryAfter`
   (`getSecondsUntilMidnight()`), always `X-RateLimit-Remaining` on the response
 - No per-IP or per-minute limit; per-client budget trusts the self-declared `X-MT-Client` header (cost control, not authentication)
@@ -255,7 +264,7 @@ URL, query, hash, or logs.
 
 ## Tests
 
-```
+```text
 packages/router/tests/
 ├── upstream-registry.test.ts # resolve() + handler routing vs fake upstream
 ├── vault-upstreams.test.ts # vault reader, entry mapping, hot reload, no-leak

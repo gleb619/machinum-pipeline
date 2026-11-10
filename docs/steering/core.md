@@ -9,6 +9,7 @@ Core is the engine library — it contains all types, the DSL, the URI registry,
 ## Public API (`src/index.ts`)
 
 Re-exports everything needed by consumers:
+
 - `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`, `defineProcess` (DSL builders; `defineProcess(pipelines, ...)` = process form, see [Processes](#processes))
 - `isPipeline`, `isProcess` (type guards; see [Processes](#processes))
 - `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
@@ -26,6 +27,7 @@ Re-exports everything needed by consumers:
 ## Key Modules
 
 ### `types/domain.ts` — active-record entities
+
 Classes, not bare interfaces. Every entity has a stable `id` (a filename for persisted entities) and its own text field; the descent methods live on the entities, so a pipeline can walk the Structure Ladder without adapters:
 
 ```ts
@@ -43,17 +45,21 @@ chapter.chunks()[0].paragraphs()[0].lines[0].words()[0].text
 - Round-trip is best-effort: CRLF, leading/trailing whitespace and separator-line style are normalised; frontmatter/`ChapterDoc` metadata stay in `@mt/tools`.
 
 ### `domain-tree.ts` — fluent view aliases
+
 `chapterTree(chapter, opts?)` / `parseChapterTree(markdown, { id, meta }, opts?)` normalize a `Chapter` (or constructor input) into `ChapterNode`; the node classes (`ChapterNode`, `ChunkNode`, `ParagraphNode`, `LineNode`, `WordNode`, `TokenNode`) are thin subclasses of the domain classes, kept for the fluent entry point and markdown adapters. `ChapterBody` remains the scenario-agnostic read view (`value()` = full markdown, `title()` = H1, `content()` = below-H1 descent); `chapterBody(chapter)` / `chapterBodyFromMarkdown(markdown, { id, meta })` adapt a `Chapter` or markdown into it. Tools that accept "some chapter body" normalize through this seam instead of inventing private paragraph shapes.
 
 ### `exchange.ts`
+
 The data unit is a Camel-style **Exchange** (replaces the bare Envelope; `Envelope<T>` stays as a
 deprecated alias of `Exchange<T>`). Modeled on the Java `FlowContext` / `FlowArgument`:
+
 ```typescript
 type Qualifier = 'new' | 'old' | 'copy' | 'alt'
 interface Variable<U> { id; name; qualifier: Qualifier; value: U; timestamp: string; ephemeral: boolean }
 interface Exchange<T> { id: string; item: T /* materialized copy of the `item` variable */; items?: T[]; meta: { chapterId?; paragraphId?; lineId?; [k]: unknown }; variables: Variable[] }
 interface ExchangeInput<T> { id?; item: T; items?; meta?; variables? }   // loose shape Sources may yield
 ```
+
 An Exchange is a **plain JSON-serializable object**; all operations are pure free functions returning a NEW exchange:
 `createExchange`, `toExchange` (normalizer), `withItem` (derive output from input; pushes the `item` variable), `itemOf` / `oldItemOf` / `itemsOf` (accessors), `withMeta`,
 `variable`, `getVariable` / `findVariable` / `getOldVariable` / `hasVariable`, `setVariable(s)`,
@@ -63,6 +69,7 @@ the value becomes `new`; Java `push`/`rearrange`), `copyVariable`, `withoutEphem
 empty array (`isEmptyValue`).
 
 Conventions:
+
 - **`meta` is identity/provenance only** (`chapterId`, `paragraphId`, `lineId`, `chapterNum`,
   `lang`, `filePath`, `parentId`, ...) - things Sources stamp. Anything a tool *computes* (llm config,
   token counts, glossary, summary, `mdOutputs` write intents, ...) is a **variable** with a constant
@@ -99,7 +106,9 @@ Conventions:
   variables (`id` and ephemeral variables excluded). Dead-letter writes the full exchange.
 
 ### `types.ts`
+
 Core interface shapes (`I`/`O` are **payload** types wrapped in an Exchange):
+
 ```typescript
 interface Source<T> { uri: string; lifestyle: Lifecycle; start(ctx): AsyncIterable<ExchangeInput<T>>; resume?(ctx, cursor) }
 interface Target<T> { uri: string; open(ctx): Promise<void>; write(ex: Exchange<T>, ctx): Promise<void>; close(ctx): Promise<void>; checkpoint?(ctx): Promise<number | undefined> }
@@ -107,12 +116,15 @@ interface Tool<I, O> { name: string; version: string; mdDescription: string; inv
 ```
 
 ### `contexts.ts`
+
 Three-level chain. Each context holds a backref to its parent — never a copy. Do not spread or clone contexts.
+
 - `GlobalContext` — mt.json config, store root, logger
 - `RunContext` — runId, pipeline ref, extends GlobalContext
 - `ToolContext` / `SourceContext` / `TargetContext` — step-level, extends RunContext
 
 ### `config.ts` — `loadGlobalContext(projectRoot)`
+
 The only `GlobalContext` builder: `mt.json` merged over `DEFAULT_MT_CONFIG`, top-level `uris` copied to
 `settings.uris`, and `secrets.envFile` (default `.env`) read into `env`. Missing `mt.json` yields defaults;
 a malformed one throws naming the file path. `env` never overrides a key already set in `process.env` and never
@@ -160,7 +172,9 @@ Defaults and safety rules:
 - `syncVersion` is `1` (`SYNC_PROTOCOL_VERSION`); the CLI refuses a remote `major.minor` mismatch.
 
 ### `dsl.ts` — `PipelineBuilder`
+
 Fluent chain. The builder itself implements `Pipeline`, so it can be a `default export` without calling `.to()`.
+
 ```typescript
 definePipeline()
   .from('chunks://ladder')
@@ -236,18 +250,22 @@ immutably (default `'sync'`). Full contract in [Processes](#processes). `process
 `dsl.ts`.
 
 **Tool composition** (all optional; plain `Tool`s and `.use()` unchanged):
+
 - `chain(name, ...tools)` — one `Tool` running tools sequentially (output envelope feeds next).
 - `builder.useAll(a, b, c)` — sugar for `.use(a).use(b).use(c)`.
 - `defineComposableTool({ name, version, mdDescription, slots })` — tool built from named, ordered slots
   (object key order = run order), each slot itself a `Tool`. `tool.with({ slot: Tool | fn })` returns a NEW
   tool (immutable; the default export is never mutated); unknown slot names throw.
+
 ```typescript
 .use(schemaDocWriter.with({ emit: myMockEmit }))   // keep build, swap emit
 ```
+
 Slot rule: put pure build logic in one slot and I/O/emit (e.g. the `mdOutputs` variable) in another so authors can swap either.
 
 **Waypoint composition** (`defineWaypoint(base, hooks)`) — wrap an existing Source/Target (instance or URI string) with
 lifecycle/filter hooks, no engine changes:
+
 - Source hooks: `onStart(ctx)`, `filter(env)` (return false to drop), `onItem(env)` (kept envelopes only).
   `resume` exists on the wrapper only if the inner source has one; same filter applies on resume.
 - Target hooks: `onOpen(ctx)`, `filter(env)` (false skips the inner write), `onWrite(env)` (written ones only), `onClose(ctx)`.
@@ -255,6 +273,7 @@ lifecycle/filter hooks, no engine changes:
 - `uri`/`lifestyle` pass through unchanged. Hook errors propagate.
 - Pass INSTANCES (e.g. `defineTarget('md://…')`) as the base for a real run: `.from()`/`.to()` carry
   Source/Target instances through to the Runner instead of re-resolving the URI from the registry.
+
 ```typescript
 // Source: keep only items matching a predicate
 const filtered = defineWaypoint<Chapter>('jsonl://./chapters.jsonl', {
@@ -364,6 +383,7 @@ export const chapterValidator = defineTool({
   `mt` binary) lists the registry; package tests enforce coverage and ID uniqueness.
 
 ### `uri.ts` — `UriRegistry`
+
 Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.
 Composite schemes (e.g. `git://`) wrap another scheme. Named URI aliases from mt.json (`"uris": { "en": "md://./chapters/en" }`)
 expand `'@name'` strings (e.g. `.to('@en')`) at resolution time (in `resolveSource`/`resolveTarget` via optional settings, and in the
@@ -407,6 +427,7 @@ pathname; `addRoute('*', handler)` is the fallback (`mt serve` mounts its h3 app
   `@mt/webui` (`mt serve`) use it without either importing the other.
 
 ### `engine/runner.ts` — `Runner`
+
 Main execution loop. Methods: `start()`, `pause()`, `resume()`, `unpause()`. Manages state machine, checkpoint writes, event log, dead-letter.
 
 The constructor takes optional `RunnerOptions`: `pipelineFile` (the source file relative to the
@@ -418,7 +439,7 @@ started with.
 
 One recursive builder drives every level of nesting:
 
-```
+```text
 buildStream(pipeline, input, runContext) → AsyncIterable<Exchange>
 ```
 
@@ -473,7 +494,7 @@ never affects the run. The console copy of the message is unaffected.
 **Log line format (`src/logging.ts`)** — every human-readable runtime log line (console,
 `run.log`, `logs/<stepId>.log`) is built by `formatLogLine()`:
 
-```
+```text
 <ISO-8601 UTC timestamp with ms> [<LEVEL>] <message>[ <compact-json-meta>]
 2026-11-03T11:23:29.471Z [INFO] md target 'md://./chapters' wrote 1 file(s)
 ```
@@ -556,9 +577,11 @@ binary works and a broken native addon is non-fatal). This is the one deliberate
 - Env var precedence: `process.env` wins over mt.json `env` (same as the rest of the engine).
 
 ### `engine/checkpoint.ts`
+
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
 
 ### Mid-run persist and durable cursors (UC015/UC016)
+
 `persistState()` runs at start/pause/unpause/done/fail **and** mid-run: after every
 `runner.persist.every` target writes (mt.json, default 50), at each target-step boundary, and on
 pause. Mid-run persists are throttled through a single in-flight write plus a dirty flag
@@ -584,6 +607,7 @@ committed in its current open session. `Target.checkpoint?()` is optional:
   the hook; the engine keeps their cursors at the pre-run position and resume replays.
 
 ### Source cursor (`CheckpointNode.cursor`)
+
 Each pipeline level keeps its source position on its own checkpoint node (root for the
 top-level pipeline, `<stepId>/fork-<n>` / `<stepId>/subflow` for a nested one). The Runner counts
 envelopes **as the target accepts them** (`writeTarget` → `recordCursor`) — never as the source
@@ -611,6 +635,7 @@ before the inner factory is invoked. Absolute inner paths pass through unchanged
 The engine never calls `process.chdir`; concurrent worktree writes are safe.
 
 ### `engine/state-machine.ts` — `RunStateMachine`
+
 State transitions: `pending → running → checkpoint → paused → resumed → done / failed`.
 Use `canTransition()` before `transition()`.
 
@@ -619,9 +644,11 @@ error is re-thrown — `mt run` / `mt resume` then exit non-zero. `failed → ru
 out of `failed`: `resume()` re-drives a failed run from its first non-done checkpoint node.
 
 ### `engine/cache.ts` — `Cache`
+
 Content-hash keyed memoisation. `computeKey(tool, exchange)` (id + ephemeral variables excluded) → `has/get/set/delete/clear`.
 
 ### `store.ts` — `Store`
+
 Atomic file I/O under `.mt/`. All writes: write to temp file → `fs.rename()`. `readJson/writeJson/append/exists/ensureDir`.
 
 ## Adding a New Built-in Source

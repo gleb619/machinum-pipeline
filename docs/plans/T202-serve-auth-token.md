@@ -11,6 +11,7 @@ Idea "Gaps: Auth". Admin API (`packages/webui/server/routes/api/**`) has no auth
 Layer rule: router is standalone (zero `@mt/*`), so **copy** the small loopback/bind guard into `packages/webui/server/utils/` (do not import router). Token resolution reuses the core vault ref machinery (`vlt:`/`keepass:`/`embed:`; find resolver via `packages/core/src/config.ts` + vault code) so `MT_SERVE_TOKEN=embed:serve-token` works; plain env also fine.
 
 Defaults chosen (open questions):
+
 - Token source order: `startBackend({ token })` (from CLI) > `MT_SERVE_TOKEN` env > `mt.json -> serve.tokenRef` (a ref, never plaintext). CLI flag `--token-ref <ENV_OR_REF>`; NO `--token <plaintext>` flag (shell history / process list leak).
 - Loopback host + no token = open (back-compat). Non-loopback + no token = startup error.
 - Exempt: static UI GETs (non-`/api/`) and `GET /api/health` (returns only `{status:'ok'}` unauthenticated; richer payload in T203 only when authenticated).

@@ -108,6 +108,7 @@ Query params (all optional):
 | `header.<Name>` | — | extra static header (non-secret) |
 
 Behaviour:
+
 - Body = JSON `Exchange` (`id`, `item`/`items`, `meta`, `variables`) by default; sends
   `X-MT-Exchange-Id` as the idempotency key.
 - 2xx = success; response body is discarded (terminal target). Optional `?capture=<variable>` stores

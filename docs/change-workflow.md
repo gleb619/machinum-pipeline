@@ -4,7 +4,7 @@ By default every code change follows this lifecycle. **Explicit user override:**
 work in the current worktree / `main` checkout, do not create a worktree or feature branch — make the
 change and commit directly on `main`.
 
-```
+```text
 NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMIT ──► SAMPLES IT ──► FF-MERGE ──► CLEANUP
                                         │ fail           │ fail           │ fail
                                         ▼                ▼                ▼
@@ -37,10 +37,12 @@ NEW WORKTREE ──► BRANCH ──► CODE ──► TEST/LINT ──► COMMI
    offline + hardlinked and builds are turbo-cached, so a real per-worktree install is cheap and safe.
 
    Manual fallback when `at` is unavailable:
+
    ```bash
    git worktree add -b feat/<id> ../<repo>-<id>
    cp .ollama-remote.md ../<repo>-<id>/
    ```
+
    then run the same bootstrap.
 
 2. **Code** — do the change, scoped to the task.
@@ -69,6 +71,7 @@ message** — that failure is reported, never silently skipped: a skipped or unr
 merge, and the merge report must state the `pnpm test:gpu` result (or why it could not run).
 
 **wrkflw guard (`pnpm ci:local`, `scripts/wrkflw-guard.sh`)** — proves a change will not break `main` CI.
+
 - `pnpm ci:check` (`--quick`): `wrkflw validate` only, no Docker, <1s. Fast loop while editing workflows; not the gate.
 - `pnpm ci:local`: pre-merge gate. Validate + `wrkflw run --runtime docker` for `skill-drift` + `actionlint` (local or
   `rhysd/actionlint`; catches unknown keys / bad `${{ }}` that `wrkflw validate` misses) + stand-ins for
@@ -84,7 +87,8 @@ merge, and the merge report must state the `pnpm test:gpu` result (or why it cou
 `samples/*/out/`). Never `git add -A` / `git add .`: stage explicit paths and check `git status`
 first. Pre-existing lint errors on `main` are not caused by your worktree; do not fix unrelated files.
 
-**First-try checklist**
+## First-try checklist
+
 1. `at worktree-new <id> --copy .ollama-remote.md` -> `cd` into it
 2. `pnpm install --offline --frozen-lockfile && pnpm build && pnpm install --offline --frozen-lockfile`
 3. Export `MT_OLLAMA_URL`/`MT_OLLAMA_MODEL` from `.ollama-remote.md`

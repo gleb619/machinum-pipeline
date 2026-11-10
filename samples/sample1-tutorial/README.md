@@ -25,7 +25,7 @@ by `prepare-input.ts`; the HTTP pipe and the gallery use the real `books/book1` 
 
 ## Directory layout
 
-```
+```text
 samples/sample1-tutorial/
 ├── pipelines/pipe01-…pipe10-….ts   # the lesson
 ├── lib/                            # fixtures, LLM pick, report/translate helpers

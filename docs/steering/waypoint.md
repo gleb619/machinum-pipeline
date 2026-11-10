@@ -1,4 +1,5 @@
 # @mt/waypoint
+
 ← [Architecture](../guiding/architecture.md)
 
 Path: `packages/waypoint/`
@@ -130,6 +131,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 ## Key Implementation Details
 
 ### `jsonl.ts`
+
 - Source: streams lines from `.jsonl` file, supports glob patterns and a position cursor for resume
 - Each line must be a JSON object with an `item` property or an `item` variable (`{ id?, item, meta?, variables? }`; the `jsonl://` target writes the persisted form `{ id, items?, variables }` where the payload is only the `item` variable); a missing `meta`
   defaults to `{}`, `variables` to `[]`, and a missing `id` to the stable `<file>#<line-index>`. Malformed JSON or a missing/invalid `item`/`meta` throws with a `file:line`
@@ -148,6 +150,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - `isGlobPattern()` / `isGlobCursor()` helpers for glob vs direct path detection
 
 ### `range.ts`
+
 - Source-only integer generator: `range://<start>..<end>` yields `{ item: n, meta: {} }` per number
   from `start` to `end` inclusive (`uri.path || uri.host` carries the range; the parser puts `1..10`
   in the host for `range://1..10`)
@@ -159,11 +162,13 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
   by construction. No `batchSize`: use the engine's `.subflow('batch://?size=N', pipe)` for cardinality changes
 
 ### `void.ts`
+
 - Target-only sink: `void://` discards every envelope (open/close are no-ops)
 - `checkpoint()` counts the envelopes handed over, so a resume does not replay work whose only
   effect was discarding it. Nothing is stored, so the count itself is not crash-durable
 
 ### `console.ts`
+
 - Target-only terminal sink: `console://[?format=auto|json|pretty][&prefix=<text>][&envelope=true|1][&stream=stdout|stderr]`;
   registered as a built-in in `packages/waypoint/src/console.ts` (`createConsoleTarget`,
   `renderConsoleExchange`) with no source registration (`resolveSource` throws)
@@ -186,6 +191,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 | `stream` | `stdout`, `stderr` | `stdout` | Destination stream |
 
 ### `review.ts`
+
 - Target-only glossary review queue (T140): `review://./glossary.review.md` renders the pending
   proposals (`term.pending`) of the glossary envelope as a markdown worksheet, plus a locked-terms
   section; the last glossary envelope wins and every write publishes atomically (temp + rename)
@@ -195,6 +201,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
 - `checkpoint()` counts the rendered worksheets written so far
 
 ### `http-server.ts`
+
 - `Lifecycle: 'long-lived'` — persists across pauses/resumes
 - Listener comes from `@mt/core`'s refcounted registry (`acquireListener`), so several `hs://`
   sources and a running `mt serve` share one `http.Server` per `host:port`; the server closes only
@@ -219,6 +226,7 @@ append-only line logs, never re-read whole, so it uses `fs.appendFile` rather th
   teardown with `DELETE /api/ingest/register`
 
 ### `http-target.ts`
+
 - Target-only HTTP client: `http://` and `https://` are registered as targets, `hs://` stays
   source-only — the role is positional, `.from('http://…')` still listens, `.to('http://…')` sends
 - One request per exchange. The response body is discarded (terminal target): 2xx means "accepted"
@@ -280,6 +288,7 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
 `events://default?<qualifier>`.
 
 ### `git-worktree.ts`
+
 - `GitWorktreeSource` / `GitWorktreeTarget` — use `createWorktree()` / `removeWorktree()` from `@mt/core/engine/git-worktree`
 - Target calls `autoCommit()` in `close()` when `commit` query param is set
 - On close with `commit=on-close`, `mergeWorktreeToMain()` rebases the worktree branch onto the
@@ -290,6 +299,7 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   merge leaves the mt branch unmerged and surfaces a run warning (`logger.warn`) naming it (T170)
 
 ### Runner auto-commit (`commit=on-close`)
+
 - On Target close the Runner calls `autoCommit(projectRoot, undefined, [outputPath])` — it
   stages **only the target's output path** (git pathspec commit), never `git add -A`, so
   unrelated WIP edits and untracked files (e.g. `.env`) stay out of the commit (T169)
@@ -299,10 +309,12 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
 - Both implement `lifestyle: 'resumable'`
 
 ### `schema-doc.ts`
+
 - Parses/serialises custom schema-doc format (YAML + CSV sections)
 - `parseSchemaDoc()` / `extractTextContent()` helpers
 
 ### `chapter-output.ts`
+
 - Writes `<base-dir>/<lang>/chapter<num>.md` per envelope (lang optional → `<base-dir>/chapter<num>.md`)
 - Path-safety (mirrors the `md://` intent rules): `meta.lang` must match `/^[\p{L}\p{N}_-]+$/u`
   (single segment — no separators, no `..`); `meta.chapterNum` (or legacy `chapter`) must be a
@@ -311,6 +323,7 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   `baseDir` via `relative()` (no `..` prefix) as defence in depth
 
 ### `book.ts`
+
 - Target only: `book://<dir>` resolves `<dir>` against `project.root` (bare name -> `project.root/<name>`)
 - Writes `book.md` (the markdown item) and `book.json` (`{ title, toc, warnings }`) with `atomicWriteFile`
 - The `book` variable (published by the `book-compiler` tool) carries the TOC and the warnings; a
@@ -318,6 +331,7 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   leaves no partial book behind
 
 ### `md.ts`
+
 - Source query `?split=chunks|paragraphs|lines` reads each markdown file, resolves the
   registered splitter (`#chunks`, `#paragraphs`, `#lines`) and emits one envelope per split
   entity instead of one envelope per file. Without the parameter the source is unchanged.
@@ -332,6 +346,7 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   `@mt/tools` to register the `series` splitter; a missing splitter throws a clear error.
 
 ### `settings.ts`
+
 - `getWaypointSetting(key)` — reads from `mt.json` waypoint section
 - `resolveWaypointPath(uri, scheme, settings, projectRoot)` — the single resolver for all
   waypoint paths: absolute URI paths are returned unchanged, every relative path (including glob
@@ -371,7 +386,7 @@ layouts. `md://<file>` single-file mode ignores `mdOutputs` entirely.
 
 ## Tests
 
-```
+```text
 packages/waypoint/tests/builtins/
 ├── jsonl.test.ts          # JSONL read/write, glob source
 ├── md.test.ts             # Markdown source/target
@@ -432,7 +447,7 @@ The WP001–WP013 entries below are the planned-scheme spec index for the waypoi
 The **Structure Ladder** is the descent from a whole document to its smallest units. It is a tree: below
 `chunks://` it branches into the text descent and the token descent.
 
-```
+```text
 jsonl:// → md:// → chunks:// ─┬→ paragraphs:// → lines:// → words://
                               └→ tokens://
 ```

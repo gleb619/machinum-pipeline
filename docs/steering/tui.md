@@ -1,4 +1,5 @@
 # @mt/tui
+
 ← [Architecture](../guiding/architecture.md)
 
 Path: `packages/tui/`

@@ -16,7 +16,7 @@ Check the binary first: `mt --version`. On Linux `/usr/bin/mt` is the tape tool,
 
 ## Project layout
 
-```
+```text
 mt.json              project config (committed)
 mt.local.json        optional, gitignored; pulled in via "imports": ["./mt.local.json"]
 .env                 secrets.envFile (gitignored); process.env always wins over it
@@ -31,7 +31,7 @@ pipelines/*.ts       pipeline modules (default export = the pipeline)
                                 (remote run starts here; projectId is mandatory)
   workers/<workerId>.json       main-side mt worker registration (T205)
   worker/<mainId>/              worker-side project mirror (T205)
-```
+```text
 
 `mt init` scaffolds `mt.json`, `.mt/`, `.gitignore` entries and `.mt/master.key`.
 
@@ -68,7 +68,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .fork(branchA, branchB, branchC)           // parallel: branches per envelope, deterministic merge
   .forkSync(childPipeline)                   // sequential: child Runner per envelope
   .to('md://./out')                          // Target
-```
+```text
 
 - `log` (import from `'mt'` / `'@mt/core'`) — process-level console logger emitting the standard
   line (`<ISO-ms> [LEVEL] msg[ {meta}]`). `log(message, meta?)` is INFO; `log.info/warn/error/debug`
@@ -191,7 +191,7 @@ annotate(myWaypointFactory, waypoint('WT900', { meta: { schemes: ['mine'], direc
 
 annotationsOf(myTool)            // annotations on one value
 listAnnotations('useCase')       // process-wide registry, optionally filtered by kind
-```
+```text
 
 - `annotate(target, ...annotations)` returns the same value; at most one annotation per kind.
 - `tool(id, spec?)`, `waypoint(id, spec?)`, `useCase(id, spec?)` validate the ID (`^PREFIX\d{3,}$`)
@@ -241,7 +241,7 @@ echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipel
 mt remote sync --push --dry-run               # sync plan against remote.url from mt.json
 mt remote sync --push --watch                 # mirror local edits to the remote
 mt remote sync --pull --run <runId>           # pull target outputs + run state locally
-```
+```text
 
 ### Project sync with a remote `mt serve` (T203)
 
@@ -256,7 +256,7 @@ resolves its own secrets. Caps: 20 MB/file, 64 MB/request, 500 MB/project. Write
 { "remote": { "url": "http://gpu-box:7777", "tokenRef": "env:MT_SERVE_TOKEN",
               "projectId": "my-book", "sync": { "include": ["pipelines/**", "chapters/**"],
               "exclude": ["tmp/**"], "maxFileBytes": 20971520 } } }
-```
+```text
 
 - `--push` (default) sends sources; `--pull` sends target outputs + `.mt/runs/<runId>/` (pass
   `--run` for one run). `--prune` deletes removed files; `--force` overwrites a both-changed file.
@@ -333,7 +333,7 @@ sh install.sh --dry-run                         # read the plan first
 sh install.sh --user-master-key                 # released binary -> ~/.local/bin/mt (verified sha256)
 sh install.sh --docker --yes                    # wrapper around ghcr.io/gleb619/machinum-pipeline
 sh install.sh --name mt-cli                     # Linux: avoid /usr/bin/mt (tape tool)
-```
+```text
 
 Docker by hand: `docker run --rm -v "$PWD":/work -v ~/.mt:/home/mt/.mt ghcr.io/gleb619/machinum-pipeline run ./pipelines/p.ts`.
 Never `sudo` the installer; never pipe it to a shell without reading it. Full guide: `docs/guiding/installation.md`.
@@ -347,7 +347,7 @@ mt skill --install --target claude        # .claude/skills/mt/SKILL.md
 mt skill --install ~/proj/.codex/skills/mt  # explicit dir
 mt skill --out ./SKILL.md [--force]       # atomic write, refuses to overwrite without --force
 mt skill --path                           # skill-version and where the embedded copy came from
-```
+```text
 
 Presets: `agents` (`.agent/skills/mt/`, default), `claude` (`.claude/skills/mt/`),
 `codex` (`.codex/skills/mt/`), `opencode` (`.opencode/skills/mt/`). Re-run after upgrading `mt`.
@@ -388,7 +388,7 @@ mt vault embed-rotate <name> [--value-file f]          # replace a secret value,
 mt vault embed-keyring generate|add|list|use|retire|rm|rotate [--kid k] [--reencrypt] [--force]
 mt vault keepass-init | keepass-add <title> --secret v | keepass-list | keepass-status
 mt vault vlt-install | vlt-status
-```
+```text
 
 `mt vault add --user` targets `~/.mt/vault.json`; default is `<project>/.mt/vault.json`; `MT_VAULT=<path>`
 overrides both. Project entries override user entries by name. Entry names contain no `/`.
@@ -399,7 +399,7 @@ Losing `master.key` makes embedded secrets unrecoverable.
 ```jsonc
 // mt.json
 { "settings": { "llm": { "use": "vault://my-openrouter/openai/gpt-4o-mini" } } }
-```
+```text
 
 `vault://<entry>[/<model>]` (alias `@vault/<entry>[/<model>]`). Model may contain `:` and `/`; it defaults
 to the entry's `defaultModel`. Same via env `MT_LLM_USE` (mt.json wins). Refs resolve lazily at tool
@@ -536,6 +536,7 @@ const off = subscribeEvent('chapterReady', (event) => log.info('got', event))
 ## Do / Don't
 
 Do:
+
 - Use `mt explain <pipeline.ts>` to inspect the declared flow, effective policy and output paths before a real run.
 - Use `mt info` to check the effective config and state-dir size before/after runs.
 - Read `mt.json` and an existing pipeline before writing a new one; copy its imports.
@@ -545,6 +546,7 @@ Do:
 - After a failure, `mt inspect <id>` then `mt resume <id>`; do not delete `.mt/runs`.
 
 Don't:
+
 - Don't hand-edit `.mt/runs/*/state.json` (it holds the checkpoint tree).
 - Don't print, log, commit or echo secrets, master keys, `--reveal` output or `.env` contents.
 - Don't add `.flatMap` or the split/batch `.subflow(...)` forms casually: they change cardinality for every later step.

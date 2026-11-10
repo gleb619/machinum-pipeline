@@ -9,6 +9,7 @@ Keywords: mt worker, /api/workers, signals SSE, Last-Event-ID, max-runs, drain, 
 Idea section 1c. Worker process on the remote dials out to main `mt serve`: register, mirror project (T203 pull direction), hold SSE control channel, spawn one child `mt` processor per `run` signal, report events back, `drain` finishes then exits. Main side creates the run record and mirrors state/events so `mt ls runs`, `mt inspect`, webui, TUI work unchanged. Data ingress is declared by the pipe only (workers open no listener by default).
 
 Defaults chosen (open questions):
+
 - Default mode: worker/pull is the default remote story; push (T203/T204) stays for dev loop.
 - Worker trust: per-worker token = the shared `MT_SERVE_TOKEN` in phase 1 (simple); `--allow-pipeline <glob>` (repeatable) on `mt worker` restricts runnable pipeline paths, default allow `pipelines/**`. Per-worker tokens + main-side allow-list = follow-up, noted.
 - Transport: SSE `GET /api/workers/:id/signals` (+ 25 s heartbeat comment, `Last-Event-ID` replay from an in-memory ring of 200 signals), long-poll fallback `GET /api/workers/:id/signals?wait=25` for proxies. Worker->main events: `POST /api/runs/:id/events` batches (NDJSON, <=500 lines / 1 s) written by main into its own `.mt/runs/<id>/events.jsonl` so existing tail/SSE works. Targets written on worker pulled by main via T203 pull scope.

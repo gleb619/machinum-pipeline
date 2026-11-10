@@ -11,6 +11,7 @@ Idea section 1d. Today `createHttpSource` does `createServer().listen(port, '127
 Layer problem (decision): waypoint must not import webui (and webui must not import waypoint beyond what layers allow; check `packages/webui/tests/layers.arch.test.ts`, `docs/steering/structure.md`). So the registry lives in **`@mt/core`** (`packages/core/src/http-listener.ts`, exported): `acquireListener(host, port, factory?) -> { server, release(), addRoute(path, handler) }`. waypoint and webui both depend on core already. Confirm with arch tests before coding.
 
 Defaults chosen for open questions:
+
 - Phase scope: in-process sharing + route mount on `mt serve` (steps 1-5). Cross-process forwarding via **parent HTTP reverse-proxy route** (`POST /api/ingest/register {path, runId, targetUrl}`, parent forwards body to child's loopback port) — chosen over IPC/unix socket (works the same under Node and Bun binary, testable with plain http). Implement as last step; may be split to a follow-up task if it grows.
 - Host match: same port and (hosts equal OR existing bound to `0.0.0.0`/`::` covering a loopback request). Different explicit interfaces on one port stay separate; mismatch -> own listener, as today.
 - Ingest paths colliding with `/api/*` are rejected at `open()` with a clear message. Ingest mounts under the pipeline-declared path only (default `/ingest`).

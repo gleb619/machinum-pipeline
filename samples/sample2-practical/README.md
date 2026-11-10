@@ -70,7 +70,7 @@ Per-tool model overrides are available as `MT_LLM_MODEL_<TOOL>` or `settings["ll
 
 ## Outputs
 
-```
+```text
 chapters/
 ├── en/chapter<N>.md            # extracted source
 ├── ru/chapter<N>.md            # translated chapters

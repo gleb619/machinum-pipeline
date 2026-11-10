@@ -1,4 +1,5 @@
 # Extensions
+
 ← [Architecture](../guiding/architecture.md)
 
 ## Chrome Extension
@@ -8,7 +9,7 @@ Manifest V3. Scrapes chapters from web editor tabs and auto-uploads them to a ru
 
 ### Architecture
 
-```
+```text
 packages/chrome/src/
 ├── background/
 │   └── background.ts   # Service worker: handles messages from popup/content, manages upload state
@@ -27,6 +28,7 @@ packages/chrome/src/
 4. Status shown in popup via `setStatus()`
 
 ### `messages.ts`
+
 Typed message shapes for cross-context messaging. Always use these types — never raw `chrome.runtime.sendMessage` with untyped payloads.
 
 ### Key Constraints
@@ -43,7 +45,7 @@ Typed message shapes for cross-context messaging. Always use these types — nev
 
 ### Tests
 
-```
+```text
 packages/chrome/tests/
 └── manifest.arch.test.ts   # Validates manifest.json shape and required permissions
 ```
@@ -59,9 +61,9 @@ Uses `packages/chrome/vitest.config.ts` for tests only. Extension is loaded unpa
 Path: `packages/vscode/`  
 Provides `mt.json` JSON schema validation, DSL hover information, and a "Run pipeline" code lens.
 
-### Architecture
+### Architecture (VS Code)
 
-```
+```text
 packages/vscode/src/
 ├── extension.ts          # activate()/deactivate() — registers providers
 ├── codelens-provider.ts  # CodeLensProvider — adds "Run pipeline" above definePipeline() calls
@@ -72,10 +74,12 @@ packages/vscode/src/
 ### Features
 
 **JSON Schema** (`packages/vscode/schemas/`):
+
 - `mt.json` schema — validates `mt.json` project config files
 - Registered via `contributes.jsonValidation` in `package.json`
 
 **Hover Provider** (`hover-provider.ts` + `dsl-docs.ts`):
+
 - `provideHover()` — resolves the word under the cursor via `document.getText(wordRange)`
 - `docsFor(word, precedingChar)` (`dsl-docs.ts`) — builder ops resolve only when the word is a
   method call (preceded by `.`); `definePipeline` resolves as a plain identifier; anything else
@@ -85,24 +89,25 @@ packages/vscode/src/
 - `dsl-docs.ts` is a pure module (no `vscode` import) so the lookup is unit-testable
 
 **Code Lens Provider** (`codelens-provider.ts`):
+
 - `provideCodeLenses()` — scans for `definePipeline()` calls
 - Adds "▶ Run pipeline" code lens above each pipeline definition
 - Command: triggers `mt run <file>` in terminal
 
-### Key Constraints
+### Key Constraints (VS Code)
 
 - VS Code extension API only — no Node.js fs direct access, use `vscode.workspace.fs`
 - Does **not** import from any `@mt/*` package (VS Code extension environment)
 - Communication with running `mt` processes is via terminal commands, not direct process spawning
 
-### Tests
+### Tests (VS Code)
 
-```
+```text
 packages/vscode/tests/
 ├── package.arch.test.ts   # Validates extension manifest, activationEvents, contributes
 └── hover-docs.test.ts     # Hover doc lookup — every op documented, unknown words not
 ```
 
-### Build
+### Build (VS Code)
 
 VS Code extensions use `vsce` for packaging. During development, load the extension via "Extension Development Host" in VS Code (F5).

@@ -21,5 +21,5 @@ index,name
 
 ```mermaid
 graph TD
-    The Road from Thornhaven --> Next
+    Road["The Road from Thornhaven"] --> Next
 ```

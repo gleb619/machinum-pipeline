@@ -10,7 +10,7 @@ duplicating a table here. Shared sample data: `books/book1/chapter-N.en.md` and 
 
 ## Layout
 
-```
+```text
 samples/sampleN/
 ├── package.json        # scripts + workspace deps
 ├── mt.json             # project config (skip for init-style samples)
@@ -36,6 +36,7 @@ samples/sampleN/
 4. **`mt.json`** — `{ "project": { "name": "sampleN" }, "defaults": { retry, onError, concurrency } }` (copy `sample1-tutorial`).
 5. **`vitest.config.ts`** — `include: ['tests/**/*.test.ts']`, `fileParallelism: false`, timeouts 15–20s.
 6. **Pipeline** in `pipelines/`: string URIs preferred, `import '@mt/waypoint'` for side-effect scheme registration.
+
    ```ts
    import { definePipeline } from '@mt/core'
    import '@mt/waypoint'
@@ -44,6 +45,7 @@ samples/sampleN/
      .from('jsonl://./jsonl/input.jsonl')
      .to('md://./chapters/en')
    ```
+
    Extra pipelines → named exports; run with `mt run <file> --pipeline <name>`.
 7. **Input data** — reuse `books/book1` / `books/book2`, either directly through `md://../../books/book2` (as `sample2-practical` does) or via a `prepare-input.ts` fixture writer (`sample1-tutorial`) / HTTP client script (`simulate-book1.ts`).
    Never commit generated output; commit `.gitkeep` for runtime dirs.

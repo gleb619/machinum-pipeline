@@ -8,7 +8,7 @@
     "dev": "turbo dev",
     "annotations": "tsx scripts/annotations.ts",
     "lint": "biome check .",
-    "lint:md": "markdownlint-cli2",
+    "lint:md": "markdownlint-cli2 --config .markdownlint-cli2.jsonc && markdownlint-cli2 --config .markdownlint-cli2.reports.jsonc && tsx scripts/lint-mermaid.ts",
     "format": "biome check --write .",
     "typecheck": "pnpm --filter @mt/core build && tsc -p packages/tools/tsconfig.json --noEmit && turbo typecheck",
     "build:bin": "turbo build --filter=mt && pnpm --filter=mt run build:bin",
@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@mermaid-js/mermaid-cli": "^12.2.0",
     "markdownlint-cli2": "^0.24.0",
     "tsx": "^4.19.0",
     "turbo": "^2.3.0",

@@ -24,7 +24,7 @@ docker run --rm akitaonrails/ai-memory:3.4.4 generate-auth-token   # paste into 
 mkdir -p data && docker compose up -d
 curl -s localhost:49375/healthz            # {"status":"ok"}
 cd ../.. && scripts/journal-seed.sh        # ~11 pages from the repo's own docs
-```
+```text
 
 `data/` must be writable by uid 1000 (the image's user, normally you). If Docker created the
 empty directory as root, delete it and make it yourself before the first `up` — otherwise the
