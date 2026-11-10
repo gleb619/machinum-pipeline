@@ -108,6 +108,66 @@ export interface PipelineStep {
 }
 
 /**
+ * `before` pipeline interceptor — runs before a tool step invocation.
+ * May return a (possibly modified) exchange to feed the tool instead of the incoming one,
+ * or void to keep the current exchange. Throwing skips the tool invoke; the error follows
+ * the step's normal retry/error policy.
+ */
+// `void` means "return nothing, keep the exchange" (mirrors `.tap()`'s callback contract).
+export type BeforeInterceptor = (
+  ex: Exchange<unknown>,
+  ctx: ToolContext,
+  // biome-ignore lint/suspicious/noConfusingVoidType: explicit "return nothing" contract
+) => Exchange<unknown> | void | Promise<Exchange<unknown> | undefined>
+
+/**
+ * `after` pipeline interceptor — runs after a successful tool invocation only (never on
+ * error, including after retries are exhausted). May return a (possibly modified) exchange
+ * to pass downstream, or void to keep the tool's output.
+ */
+export type AfterInterceptor = (
+  ex: Exchange<unknown>,
+  ctx: ToolContext,
+  // biome-ignore lint/suspicious/noConfusingVoidType: explicit "return nothing" contract
+) => Exchange<unknown> | void | Promise<Exchange<unknown> | undefined>
+
+/**
+ * Per-`.use()` params function — transforms the incoming exchange (e.g. `withMeta`) just
+ * before the tool's `invoke`. Runs inside the step's retry/error policy, with the same
+ * `ToolContext` the tool receives; a `void` (or omitted) return keeps the incoming exchange.
+ */
+export type ToolParams<I = unknown> = (
+  env: Exchange<I>,
+  ctx: ToolContext,
+  // biome-ignore lint/suspicious/noConfusingVoidType: a `void` (or omitted) return keeps the incoming exchange
+) => Exchange<I> | void | Promise<Exchange<I> | void>
+
+/** Continuation passed to an {@link AroundInterceptor}; invokes the rest of the chain. */
+export type AroundNext = (ex: Exchange<unknown>) => Promise<Exchange<unknown>>
+
+/**
+ * `around` pipeline interceptor — middleware-style wrapper around a tool invocation.
+ * `next` invokes the remaining around interceptors (in registration order, onion-nested)
+ * and finally the tool itself; the result must be the (possibly replaced) output exchange.
+ * Async, time measurement, error catching and exchange swapping are all supported.
+ */
+export type AroundInterceptor = (
+  ex: Exchange<unknown>,
+  ctx: ToolContext,
+  next: AroundNext,
+) => Promise<Exchange<unknown>>
+
+/**
+ * One registered pipeline interceptor. Registrations stack on the builder and run in
+ * registration order (`before`/`after`); `around` interceptors nest like onion middleware
+ * with the first-registered outermost.
+ */
+export type PipelineInterceptor =
+  | { kind: 'before'; fn: BeforeInterceptor }
+  | { kind: 'after'; fn: AfterInterceptor }
+  | { kind: 'around'; fn: AroundInterceptor }
+
+/**
  * Pipeline definition — the result of definePipeline().
  */
 export interface Pipeline<_I = unknown, _O = unknown> {
@@ -115,6 +175,13 @@ export interface Pipeline<_I = unknown, _O = unknown> {
   retry: RetryPolicy
   onError: 'fail-run' | 'skip-item' | 'dead-letter'
   steps: PipelineStep[]
+  /**
+   * Tool-invocation interceptors registered via `.before()`/`.after()`/`.around()`.
+   * The Runner wraps every `.use()` tool invoke with them. Fork/subflow child pipelines
+   * without their own interceptors inherit the parent's (nested pipelines included).
+   * Absent (`undefined`) means "not overridden" — children inherit, the top level uses none.
+   */
+  interceptors?: readonly PipelineInterceptor[]
   /**
    * Pipeline-scoped env defaults (from `defineProcess().config({ env })`), merged into the
    * run env by the Runner for keys not already set in `process.env` or the mt.json env.

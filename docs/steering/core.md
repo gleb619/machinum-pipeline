@@ -17,6 +17,8 @@ Re-exports everything needed by consumers:
 - `UriRegistry`, `registry`, `Splitter`, `registerSource`, `registerTarget`, `registerSplitter`, `resolveSource`, `resolveTarget`, `resolveSplitter`, `hasSplitter` (URI + splitter registry)
 - `acquireListener`, `ListenerLease`, `HttpRouteHandler` (refcounted shared HTTP listener registry)
 - `Runner`, `Store`, `Cache`
+- Metrics: `MetricsEvent`, `MetricsRunSummary`, `MetricsRecorder`, `MetricsStore`, `SqliteMetricsStore`,
+  `createMetricsRecorder`, `BufferedMetricsRecorder`, `metricsEnabled`, `defaultMetricsDbPath`
 
 ## Key Modules
 
@@ -180,10 +182,13 @@ definePipeline()
 | `definePipeline()` | `definePipeline({ id?, retry?, onError? }?)` | Entry point — creates the builder. `id` defaults to the pipeline filename (parent dir for `index.ts`/`pipeline.ts`); defaults: `retry { max: 3, backoffMs: 1000, strategy: 'exp' }`, `onError: 'fail-run'`. |
 | `defineProcess()` (process form) | `defineProcess(pipelines, { id?, mode? }?)` | Wraps pipelines into a runnable process (`mode` defaults to `'sync'`); call `await proc.run()`. `.parallel(true\|false)` returns a copy with the mode switched. |
 | `.from()` | `.from(Source<T> \| string)` | Sets the Source. URI string (resolved via the registry; a named `mt.json` alias defers to the Runner at run time) or instance (carried through as-is — what lets `defineWaypoint` wrappers reach the run). |
-| `.use()` | `.use(tool, { retry?, onError? }?)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. |
+| `.use()` | `.use(tool)` / `.use(tool, { retry?, onError? })` / `.use(tool, paramsFn)` | Appends a tool step; the tool's output feeds the next step. Per-step `retry`/`onError` overrides beat pipeline + `mt.json` defaults. A `paramsFn` (`(env, ctx) => Exchange \| void \| Promise<…>`, second argument when it is a function) transforms the incoming exchange (e.g. `withMeta`) just before the tool's `invoke` — applied first, then the pipeline's interceptors; it runs inside the step's retry/error policy with the tool's `ToolContext`, and returning void keeps the incoming exchange. |
 | `.useAll()` | `.useAll(...tools)` | Sugar for `.use(a).use(b).use(c)` in order. |
 | `.tap()` | `.tap((ex) => void \| Promise<void>)` | Observing side-effect (logging, metrics). Receives the full `Exchange` (meta + variables); the stream passes through unchanged. |
 | `.log()` | `.log(label?, { level? }?)` | Console-logging sugar over `.tap()`. Emits one standard log line per envelope: `<ISO-ms> [<LEVEL>] [<label>] <exchange id> <item>`; `label` defaults to the pipeline id. DSL level `'log'` maps to severity `info`; `'info'`/`'warn'`/`'error'`/`'debug'` map to themselves. String items pass through truncation (`truncate: true` default); non-string items render single-line (primitives via `String()`, objects via compact `JSON.stringify` with a `String()` fallback). Stream unchanged. |
+| `.before()` | `.before((ex, ctx) => Exchange \| void \| Promise<…>)` | Register a `before` interceptor wrapping every `.use()` tool invocation. Runs before the tool invoke; return a (possibly modified) exchange to feed the tool instead of the incoming one, or void/omitted to keep it. Throwing skips the tool invoke — the error follows the step's normal retry/error policy. Registrations stack, run in registration order. |
+| `.after()` | `.after((ex, ctx) => Exchange \| void \| Promise<…>)` | Register an `after` interceptor wrapping every `.use()` tool invocation. Runs after a **successful** invoke only — never when the tool or another interceptor failed (including after retries are exhausted). May return a modified exchange to pass downstream. Registrations stack, run in registration order. |
+| `.around()` | `.around((ex, ctx, next) => Promise<Exchange>)` | Register an `around` interceptor — middleware style, like koa. `next(ex)` invokes the remaining around interceptors (onion-nested, first-registered outermost) and finally the tool itself; the return value is the (possibly replaced) output exchange. Supports async work, timing, catching errors and swapping exchanges. |
 | `.flatMap()` | `.flatMap(async (item) => R[])` | Fan-out: one item → many downstream items. Cardinality 1→N. |
 | `.batch()` | `.batch(opts?, nested?)` / `.batch(nested)` | `opts` = `number` \| `{ size?: 5, slide?: false }`. Groups items into `items[]` packages of `size`, flushing the remainder at end of stream; `slide: true` emits overlapping sliding windows instead (one per arrival). `size` must be a positive integer (`RangeError` at definition time). With `nested` (a `definePipeline()` pipeline) each package runs through it - a **batch scope**, see below. |
 | `.subflow()` | `.subflow(pipeline)` / `.subflow(splitterRef, namespace?)` | Pipeline form: inline nested pipeline, same Runner. A steps-only child has its steps spliced into the parent stream (inline transform); a child with its own `source` is self-contained — it runs once after the upstream drains and leaves the parent stream untouched. String form: resolve the registered `Splitter` for an entity/buffer URI scheme and fan out 1→N as an inline split. `'paragraphs://'` and `'#paragraphs'` are equivalent (bare `'paragraphs'` is rejected), likewise for `chunks`, `lines`, `words`, `tokens` and `series`; `'paragraphs://ladder'` also resolves by scheme. When the scheme names an entity buffer, the produced envelopes are ALSO auto-published into `<scheme>://<namespace>` for the next stage; the optional second argument names that namespace and defaults to `default`. `series` has no buffer and only transforms the stream. The splitter receives the full `Exchange`; one child envelope per returned entity. A split is an inline 1→N transformation of the current stream, so `.subflow` is the right operator — `.fork()` would spawn a nested Runner per envelope (or one per branch in the parallel form). |
@@ -426,6 +431,36 @@ argument; the `log` singleton (same module) is the process-level equivalent for 
 tools, sources/targets, `.log()` and the CLI lifecycle lines all share this formatter; do not
 hand-build `[timestamp] [LEVEL]` strings.
 
+### `metrics.ts` / `metrics-store.ts` — run metrics (SQLite, WAL)
+
+Per-run timing metrics for step invocations, persisted to SQLite (`better-sqlite3` under Node,
+`bun:sqlite` under Bun — same dynamic-require driver trick as the webui backend, so the single-file
+binary works and a broken native addon is non-fatal). This is the one deliberate exception to the
+"core has zero external runtime dependencies" rule; the driver is loaded lazily at open time.
+
+- **Event shape** (`MetricsEvent`, exporter-facing — Prometheus/OTel consumers read this, not SQL):
+  `{ runId, pipelineId, stepType, stepName (engine step id), toolName, exchangeId, startedAt (ISO),
+  durationMs, outcome: 'ok'|'error', errorMessage? }`. Only `'tool'` steps are measured today.
+- **Where it hooks in**: the Runner creates a recorder in `start()`/`resume()` and closes it on
+  `done`/`failed`. Each tool invoke inside `withRetry` is timed (params + interceptors + invoke +
+  retries); cached invocations return before timing, so only real work is measured. Works with zero
+  user-registered interceptors.
+- **Recorder** (`BufferedMetricsRecorder` via `createMetricsRecorder`): events buffer in memory and
+  flush in batches — the driver is sync, so a flush yields once through `setImmediate` to collapse
+  bursts, runs on a 1s unref'd timer, at a 500-event high-water mark, and always on `close()`.
+  Flush/close failures are warn-logged and dropped; metrics never fail or block a run. On close a
+  run summary (`metrics_runs`: counts + wall duration) is upserted.
+- **Store** (`SqliteMetricsStore.open(dbPath)`): `PRAGMA journal_mode=WAL`, `synchronous=NORMAL`,
+  `CREATE TABLE IF NOT EXISTS` at open. Tables: `metrics_events` (one row per event, indexes on
+  `run_id`, `tool_name`, `started_at`) and `metrics_runs` (per-run aggregate, PK `run_id`). Each
+  batch insert is one transaction. Read path: `queryEvents({runId?, toolName?, outcome?, limit?})`,
+  `getRunSummary(runId)`, `journalMode()`.
+- **DB location**: `MT_METRICS_DB`, default `<projectRoot>/.mt/metrics.db`.
+- **Disable**: `MT_METRICS=false`. If the DB cannot be opened (missing/broken native addon, bad
+  path), exactly one WARN line is logged (`Metrics disabled: ...`) and the run proceeds without
+  metrics.
+- Env var precedence: `process.env` wins over mt.json `env` (same as the rest of the engine).
+
 ### `engine/checkpoint.ts`
 Checkpoint tree walker. Key functions: `createRootCheckpoint()`, `walkTree()`, `findFirstNonDone()`, `markDone()`, `markFailed()`, `addChild()`.
 
@@ -504,7 +539,9 @@ Atomic file I/O under `.mt/`. All writes: write to temp file → `fs.rename()`. 
 
 ## Dependency Rule
 
-`core/` has **zero** external runtime dependencies beyond Node.js stdlib. No `axios`, no `zod`, no framework deps.
+`core/` has **zero** external runtime dependencies beyond Node.js stdlib — the one exception is
+`better-sqlite3` for the metrics store (optional at runtime, lazily loaded, `bun:sqlite` under Bun);
+see [metrics.ts / metrics-store.ts](#metricsts--metrics-storets--run-metrics-sqlite-wal). No `axios`, no `zod`, no framework deps.
 
 ---
 

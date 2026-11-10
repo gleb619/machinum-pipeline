@@ -15,6 +15,12 @@ import {
   withBatchMembers,
 } from '../exchange.js'
 import { formatLogLine } from '../logging.js'
+import {
+  type MetricsRecorder,
+  createMetricsRecorder,
+  defaultMetricsDbPath,
+  metricsEnabled,
+} from '../metrics.js'
 import { getSetting } from '../settings.js'
 import { Store } from '../store.js'
 import type {
@@ -26,6 +32,7 @@ import type {
   Logger,
   ParsedUri,
   Pipeline,
+  PipelineInterceptor,
   PipelineStep,
   RetryPolicy,
   RunContext,
@@ -41,6 +48,8 @@ import type {
   StepInfo,
   Target,
   Tool,
+  ToolContext,
+  ToolParams,
 } from '../types.js'
 import { registry } from '../uri.js'
 import { Cache } from './cache.js'
@@ -56,6 +65,7 @@ import {
 } from './checkpoint.js'
 import { writeDeadLetter } from './dead-letter.js'
 import { autoCommit } from './git.js'
+import { invokeWithInterceptors } from './interceptors.js'
 import type { PartialRetryPolicy } from './retry.js'
 import { resolveRetryPolicy, withRetry } from './retry.js'
 import { RunStateMachine } from './state-machine.js'
@@ -257,6 +267,8 @@ export class Runner {
   private writesSincePersist = 0
   /** Target writes between mid-run persists — `runner.persist.every` in mt.json, default 50. */
   private readonly persistEvery: number
+  /** Per-run metrics recorder; `null` when disabled (`MT_METRICS=false`) or the DB failed to open. */
+  private metrics: MetricsRecorder | null = null
   /**
    * Read-only subscription facade handed to source/target contexts — exposes `subscribe`
    * only, never the Runner itself.
@@ -287,8 +299,7 @@ export class Runner {
 
     const runContext = this.createRunContext()
     this.runContext = runContext
-
-    // Persist initial state
+    await this.setupMetrics(this.runId)
     await this.persistState()
     await this.emitEvent('started')
 
@@ -354,6 +365,7 @@ export class Runner {
 
     const runContext = this.createRunContext()
     this.runContext = runContext
+    await this.setupMetrics(runId)
 
     // Transition to resumed
     if (this.stateMachine.canTransition('resumed')) {
@@ -396,6 +408,7 @@ export class Runner {
     this.stateMachine.transition('done')
     await this.persistState()
     await this.flushPersists()
+    await this.closeMetrics()
     await this.emitEvent('done')
   }
 
@@ -427,9 +440,14 @@ export class Runner {
     pipeline: Pipeline,
     input: EnvelopeStream | null,
     runContext: RunContext,
+    inheritedInterceptors: readonly PipelineInterceptor[] = [],
   ): Promise<EnvelopeStream | null> {
     let stream = input
     let hasSourceStep = false
+    // Interceptors wrapping every tool invoke of this pipeline level: the pipeline's own
+    // registrations win; without any (`undefined`), the parent's are inherited — so
+    // fork/subflow children (and nested pipelines) wrap tool steps with the parent chain.
+    const interceptors = pipeline.interceptors ?? inheritedInterceptors
     // Source position of this pipeline level, kept on its own checkpoint node: the root for
     // the top-level pipeline, the nested node for a fork/subflow child.
     const cursorNode = this.cursorNode(runContext)
@@ -498,7 +516,7 @@ export class Runner {
           if (!stream) {
             throw new Error('Tool step requires a preceding stream or source step')
           }
-          stream = this.runTool(step, stream, stepId, pipeline, runContext)
+          stream = this.runTool(step, stream, stepId, pipeline, runContext, interceptors)
           break
         }
         case 'target': {
@@ -517,7 +535,9 @@ export class Runner {
           }
           const nested = step.config.pipeline as Pipeline | undefined
           const grouped = groupStream(stream, size, step.config.slide === true)
-          stream = nested ? this.batchScopeStream(nested, grouped, stepId, runContext) : grouped
+          stream = nested
+            ? this.batchScopeStream(nested, grouped, stepId, runContext, interceptors)
+            : grouped
           break
         }
         case 'flatmap': {
@@ -597,12 +617,13 @@ export class Runner {
                   stream,
                   stepId,
                   runContext,
+                  interceptors,
                 )
-              : this.forkStream(step, stream, stepId, runContext)
+              : this.forkStream(step, stream, stepId, runContext, interceptors)
           break
         }
         case 'subflow': {
-          stream = await this.subflowStream(step, stream, stepId, runContext)
+          stream = await this.subflowStream(step, stream, stepId, runContext, interceptors)
           break
         }
         default:
@@ -631,6 +652,7 @@ export class Runner {
     grouped: EnvelopeStream,
     stepId: string,
     runContext: RunContext,
+    interceptors: readonly PipelineInterceptor[],
   ): EnvelopeStream {
     const runner = this
     let groupIndex = 0
@@ -644,7 +666,7 @@ export class Runner {
           batchScope: scope,
         }
         try {
-          const childStream = await runner.buildStream(nested, null, childContext)
+          const childStream = await runner.buildStream(nested, null, childContext, interceptors)
           if (childStream) await drainStream(childStream)
           if (scope.commits === 0) {
             runner
@@ -670,6 +692,7 @@ export class Runner {
     sourceStream: EnvelopeStream | null,
     stepId: string,
     runContext: RunContext,
+    interceptors: readonly PipelineInterceptor[],
   ): EnvelopeStream {
     const subPipeline = step.config.pipeline as Pipeline
     const runner = this
@@ -686,6 +709,7 @@ export class Runner {
             subPipeline,
             singleEnvelope(env),
             childContext,
+            interceptors,
           )
           if (childStream) {
             for await (const out of childStream) {
@@ -721,6 +745,7 @@ export class Runner {
     sourceStream: EnvelopeStream | null,
     stepId: string,
     runContext: RunContext,
+    interceptors: readonly PipelineInterceptor[],
   ): EnvelopeStream {
     const runner = this
     let parentIndex = 0
@@ -751,6 +776,7 @@ export class Runner {
             branch.branch,
             singleEnvelope(isolatedEnvelope),
             branch.childContext,
+            interceptors,
           )
           if (childStream) {
             for await (const output of childStream) outputs.push(output)
@@ -800,6 +826,7 @@ export class Runner {
     upstream: EnvelopeStream | null,
     stepId: string,
     runContext: RunContext,
+    interceptors: readonly PipelineInterceptor[],
   ): Promise<EnvelopeStream | null> {
     const subPipeline = step.config.pipeline as Pipeline
     const nodeId = `${stepId}/subflow`
@@ -807,7 +834,7 @@ export class Runner {
 
     if (!selfContained) {
       const childContext = this.enterNested(runContext, nodeId, subPipeline.id)
-      const childStream = await this.buildStream(subPipeline, upstream, childContext)
+      const childStream = await this.buildStream(subPipeline, upstream, childContext, interceptors)
       return this.trackNested(nodeId, childStream)
     }
 
@@ -827,7 +854,7 @@ export class Runner {
 
       const childContext = runner.enterNested(runContext, nodeId, subPipeline.id)
       try {
-        const childStream = await runner.buildStream(subPipeline, null, childContext)
+        const childStream = await runner.buildStream(subPipeline, null, childContext, interceptors)
         if (childStream) {
           await drainStream(childStream)
         }
@@ -850,6 +877,8 @@ export class Runner {
     toolContext: Record<string, unknown> | undefined,
     retryPolicy: RetryPolicy,
     onError: ErrorPolicy,
+    interceptors: readonly PipelineInterceptor[],
+    params: ToolParams | undefined,
   ): Promise<Envelope<O> | undefined> {
     const stepInfo: StepInfo = { stepId, name: tool.name, type: 'tool', index: 0 }
     const cache = this.cache
@@ -863,15 +892,30 @@ export class Runner {
     }
 
     let output: Envelope<O> | undefined
+    const startedAt = new Date()
     try {
       output = await withRetry(
-        async () => toExchange(await tool.invoke(env, { run: runContext, step: stepInfo })),
+        async () => {
+          const toolCtx: ToolContext = { run: runContext, step: stepInfo }
+          // Params first, then the interceptor chain: a transformed exchange feeds the tool.
+          let incoming = env
+          if (params) {
+            const transformed = await params(env, toolCtx)
+            if (transformed !== undefined && transformed !== null) {
+              incoming = transformed as Envelope<I>
+            }
+          }
+          return toExchange(
+            await invokeWithInterceptors(tool, incoming, toolCtx, interceptors),
+          ) as Envelope<O>
+        },
         retryPolicy,
         (err, attempt) => {
           logger.warn(`Tool ${tool.name} failed (attempt ${attempt + 1}): ${err}`)
         },
       )
     } catch (error) {
+      this.recordToolMetric(runContext, stepId, tool.name, env.id, startedAt, 'error', error)
       logger.error(`Tool ${tool.name} failed after retries: ${error}`)
       if (onError === 'fail-run') {
         throw error
@@ -885,6 +929,8 @@ export class Runner {
       }
       return undefined
     }
+
+    this.recordToolMetric(runContext, stepId, tool.name, env.id, startedAt, 'ok')
 
     if (cacheKey && output !== undefined) {
       try {
@@ -903,6 +949,67 @@ export class Runner {
       }
     }
     return output
+  }
+
+  /**
+   * Create the per-run metrics recorder. Disabled by `MT_METRICS=false`; the DB
+   * path is `MT_METRICS_DB` or `<root>/.mt/metrics.db`. A failure to open the DB
+   * is logged once by the factory and the run continues without metrics.
+   */
+  private async setupMetrics(runId: string): Promise<void> {
+    const env: Record<string, string | undefined> = { ...this.globalContext.env, ...process.env }
+    if (!metricsEnabled(env)) return
+    const dbPath = env.MT_METRICS_DB ?? defaultMetricsDbPath(this.globalContext.project.root)
+    this.metrics = await createMetricsRecorder({
+      runId,
+      pipelineId: this.pipeline.id,
+      dbPath,
+      logger: this.logger(),
+    })
+  }
+
+  /**
+   * Flush and close the metrics recorder. Never fails the run.
+   */
+  private async closeMetrics(): Promise<void> {
+    const metrics = this.metrics
+    this.metrics = null
+    if (!metrics) return
+    try {
+      await metrics.close()
+    } catch (error) {
+      this.logger().warn(`Failed to flush metrics, run state is unaffected: ${error}`)
+    }
+  }
+
+  /**
+   * Record one tool-invocation metric event. No-op when metrics are disabled.
+   * Cached invocations return before timing, so only real invokes are measured.
+   */
+  private recordToolMetric(
+    runContext: RunContext,
+    stepId: string,
+    toolName: string,
+    exchangeId: string,
+    startedAt: Date,
+    outcome: 'ok' | 'error',
+    error?: unknown,
+  ): void {
+    if (!this.metrics) return
+    const errorMessage =
+      error === undefined ? undefined : error instanceof Error ? error.message : String(error)
+    this.metrics.record({
+      runId: runContext.runId,
+      pipelineId: runContext.pipelineId,
+      stepType: 'tool',
+      stepName: stepId,
+      toolName,
+      exchangeId,
+      startedAt: startedAt.toISOString(),
+      durationMs: Date.now() - startedAt.getTime(),
+      outcome,
+      ...(errorMessage !== undefined ? { errorMessage } : {}),
+    })
   }
 
   /**
@@ -951,6 +1058,7 @@ export class Runner {
     stepId: string,
     pipeline: Pipeline,
     runContext: RunContext,
+    interceptors: readonly PipelineInterceptor[],
   ): EnvelopeStream {
     const tool = step.config.tool as Tool<unknown, unknown> | undefined
     if (!tool) return sourceStream
@@ -976,6 +1084,7 @@ export class Runner {
       pipeline.onError ??
       this.globalContext.defaults.onError
     const toolContext = step.config.context as Record<string, unknown> | undefined
+    const params = step.config.params as ToolParams | undefined
     // The tool logs through `ctx.run.logger` — bind it to this step so those lines
     // land in the step's log file next to the engine's own lines.
     const stepRun = this.stepRunContext(runContext, stepId)
@@ -984,7 +1093,17 @@ export class Runner {
       sourceStream,
       concurrency,
       async (env) =>
-        this.runToolItem(tool, env, stepId, stepRun, toolContext, retryPolicy, onError),
+        this.runToolItem(
+          tool,
+          env,
+          stepId,
+          stepRun,
+          toolContext,
+          retryPolicy,
+          onError,
+          interceptors,
+          params,
+        ),
       { ordered: true },
     )
   }
@@ -1236,6 +1355,7 @@ export class Runner {
       // A storage failure must not mask the error that actually failed the run.
       console.error(formatLogLine('error', `Failed to persist failed run state: ${persistError}`))
     }
+    await this.closeMetrics()
   }
 
   /**

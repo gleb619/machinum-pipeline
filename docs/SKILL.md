@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.27.0 | 2026-11-08 -->
+<!-- skill-version: 1.29.0 | 2026-11-10 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -57,7 +57,11 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   .subflow('#chunks', 'ladder')              // 1 -> N + auto-publish into chunks://ladder
   .tap((ex) => log.info('msg', { id: ex.id })) // observe full Exchange, stream unchanged
   .log('debug')                              // sugar over .tap(): '<ISO-ms> [INFO] [debug] <id> <item>'
+  .before((ex, ctx) => ex)                   // wrap every tool invoke; may swap the exchange, throw = error policy
+  .after((ex, ctx) => ex)                    // after successful tool invoke only; may swap the output
+  .around(async (ex, ctx, next) => next(ex)) // middleware: before/after the rest of the chain + tool (onion-nested)
   .use(chapterDoc, { onError: 'skip-item' }) // Tool step; per-step retry/onError override
+  .use(tool, (env) => withMeta(env, { k: 'v' })) // Tool step; params fn transforms the incoming exchange pre-invoke
   .batch(5)                                  // group into items[] (default size 5; flushes remainder)
   .batch({ size: 3, slide: true })           // sliding windows (overlapping)
   .batch(scopePipeline)                      // packages of 5 run through a nested scope (batch://group|members|return)
@@ -71,6 +75,19 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   line (`<ISO-ms> [LEVEL] msg[ {meta}]`). `log(message, meta?)` is INFO; `log.info/warn/error/debug`
   mirror it (debug gated on `MT_DEBUG`). Prefer it over `console.log` in pipeline code, e.g.
   `.tap((ex) => log.info('msg', { key: value }))`.
+- `.use(tool, paramsFn?)` — optional per-step params fn `(env, ctx) => Exchange | void | Promise<…>`
+  transforms the incoming exchange (e.g. `withMeta`) just before the tool's `invoke` — applied
+  first, then the pipeline's interceptors. It runs inside the step's retry/error policy with the
+  same `ToolContext` the tool gets; returning void keeps the incoming exchange. The second
+  argument may instead be the `{ retry?, onError? }` overrides object (a function = params, an
+  object = overrides).
+- `.before()`/`.after()`/`.around()` — user-facing interceptors wrapping every `.use()` tool
+  invocation (same `ToolContext` the tool gets; registrations stack in registration order).
+  `before` runs pre-invoke, may swap the exchange, a throw skips the tool and follows the
+  step's retry/error policy. `after` runs post-success only (never on error), may swap the
+  output. `around(ex, ctx, next)` is onion-style middleware — `next` invokes the remaining
+  arounds + the tool; first registered is outermost. Fork/subflow/batch children without
+  their own interceptors inherit the parent's chain.
 - `waitForFile` / `createWaitForFile({ path, pollMs?, timeoutMs?, consume? })` (`mt/tools`) — latch
   step: polls for a file (default `./latch/{item}.latch`; `{item}`/`{id}` interpolated), optionally
   deletes it, and passes the item through with `latchFile` set. Handy for deterministic stop/resume

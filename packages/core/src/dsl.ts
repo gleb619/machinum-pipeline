@@ -6,13 +6,17 @@ import { toExchange } from './exchange.js'
 import { type LogSeverity, createConsoleLogger, log } from './logging.js'
 import type { ProcessMode } from './process.js'
 import type {
+  AfterInterceptor,
+  AroundInterceptor,
   BatchOptions,
+  BeforeInterceptor,
   ComposableTool,
   Exchange,
   ExchangeInput,
   GlobalContext,
   LogOptions,
   Pipeline,
+  PipelineInterceptor,
   PipelineStep,
   Process,
   ProcessConfig,
@@ -25,6 +29,7 @@ import type {
   TargetContext,
   Tool,
   ToolContext,
+  ToolParams,
   WaypointSourceHooks,
   WaypointTargetHooks,
 } from './types.js'
@@ -175,6 +180,7 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   private readonly _retry: RetryPolicy
   private readonly _onError: 'fail-run' | 'skip-item' | 'dead-letter'
   private readonly _steps: PipelineStep[] = []
+  private readonly _interceptors: PipelineInterceptor[] = []
   /** Set by `defineProcess().config({ env }).pipeline(...)` — pipeline-scoped env defaults. */
   envDefaults?: Record<string, string>
 
@@ -189,6 +195,13 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
   }
   get steps(): PipelineStep[] {
     return this._steps
+  }
+  /**
+   * Registered tool-invocation interceptors, or `undefined` when none were registered —
+   * the Runner then inherits the parent pipeline's interceptors (nested pipelines included).
+   */
+  get interceptors(): readonly PipelineInterceptor[] | undefined {
+    return this._interceptors.length > 0 ? this._interceptors : undefined
   }
 
   constructor(config: {
@@ -227,19 +240,37 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
     return this as unknown as PipelineBuilder<unknown, O>
   }
 
+  /**
+   * Append a tool step. The optional second argument is either a params function or a
+   * per-step overrides object.
+   *
+   * A params function transforms the incoming exchange (e.g. attaching meta via
+   * `withMeta`) just before the tool's `invoke` — applied first, then the pipeline's
+   * interceptors. It runs inside the step's retry/error policy with the same
+   * `ToolContext` the tool receives; returning void keeps the incoming exchange.
+   *
+   * @example
+   * .use(replaceDots, (env) => withMeta(env, { chapter: routeKey(meta.number, 'commas') }))
+   * .use(myTool, { retry: { backoffMs: 50 }, onError: 'skip-item' })
+   */
   use<T, R>(
     tool: Tool<T, R>,
-    overrides?: {
-      retry?: Partial<RetryPolicy>
-      onError?: 'fail-run' | 'skip-item' | 'dead-letter'
-    },
+    paramsOrOverrides?:
+      | ToolParams<T>
+      | {
+          retry?: Partial<RetryPolicy>
+          onError?: 'fail-run' | 'skip-item' | 'dead-letter'
+        },
   ): PipelineBuilder<R, O> {
+    const params = typeof paramsOrOverrides === 'function' ? paramsOrOverrides : undefined
+    const overrides = typeof paramsOrOverrides === 'object' ? paramsOrOverrides : undefined
     this._steps.push({
       type: 'tool',
       config: {
         name: tool.name,
         version: tool.version,
         tool,
+        params,
         retry: overrides?.retry,
         onError: overrides?.onError,
       },
@@ -409,6 +440,41 @@ export class PipelineBuilder<I, O> implements Pipeline<I, O> {
    */
   tap(fn: (ex: Exchange<I>) => void | Promise<void>): PipelineBuilder<I, O> {
     this._steps.push({ type: 'tap', config: { fn } })
+    return this
+  }
+
+  /**
+   * Register a `before` interceptor: runs before every `.use()` tool invocation in this
+   * pipeline (and its fork/subflow children, unless they register their own). May return a
+   * (possibly modified) exchange to feed the tool instead of the incoming one, or void to
+   * keep it. Throwing skips the tool invoke; the error follows the step's retry/error policy.
+   * Registrations stack and run in registration order.
+   */
+  before(fn: BeforeInterceptor): PipelineBuilder<I, O> {
+    this._interceptors.push({ kind: 'before', fn })
+    return this
+  }
+
+  /**
+   * Register an `after` interceptor: runs after every successful `.use()` tool invocation
+   * only — never when the tool (or a `before`/`around` interceptor) failed, including after
+   * retries are exhausted. May return a (possibly modified) exchange to pass downstream,
+   * or void to keep the tool's output. Registrations stack and run in registration order.
+   */
+  after(fn: AfterInterceptor): PipelineBuilder<I, O> {
+    this._interceptors.push({ kind: 'after', fn })
+    return this
+  }
+
+  /**
+   * Register an `around` interceptor: middleware-style wrapper around every `.use()` tool
+   * invocation. `next` invokes the remaining around interceptors (onion-nested, the
+   * first-registered is outermost) and finally the tool itself; the interceptor must return
+   * the (possibly replaced) output exchange. Supports async work, timing, catching errors
+   * and swapping exchanges. Registrations stack.
+   */
+  around(fn: AroundInterceptor): PipelineBuilder<I, O> {
+    this._interceptors.push({ kind: 'around', fn })
     return this
   }
 

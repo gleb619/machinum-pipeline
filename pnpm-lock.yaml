@@ -102,6 +102,10 @@ importers:
         version: 3.3.13(typescript@5.9.3)
 
   packages/core:
+    dependencies:
+      better-sqlite3:
+        specifier: ^9.6.0
+        version: 9.6.0
     devDependencies:
       '@types/node':
         specifier: ^20.14.0

@@ -28,6 +28,23 @@ export { acquireListener, hostsShareListener } from './http-listener.js'
 export type { ListenerFactory } from './http-listener.js'
 export { Store } from './store.js'
 export {
+  BufferedMetricsRecorder,
+  createMetricsRecorder,
+  defaultMetricsDbPath,
+  metricsEnabled,
+} from './metrics.js'
+export type {
+  CreateMetricsRecorderOptions,
+  MetricsEvent,
+  MetricsOutcome,
+  MetricsRecorder,
+  MetricsRunSummary,
+  MetricsStepType,
+  MetricsStore,
+} from './metrics.js'
+export { SqliteMetricsStore } from './metrics-store.js'
+export type { MetricsDatabase, MetricsQuery, MetricsStatement } from './metrics-store.js'
+export {
   atomicWriteFile,
   AtomicStreamWriter,
   pathExists,
@@ -104,12 +121,15 @@ export { getSetting } from './settings.js'
 export * from './types/domain.js'
 export type {
   AddEmbedKeyOptions,
+  AfterInterceptor,
   Annotation,
   AnnotationFactories,
   AnnotationKind,
   AnnotationKindFactory,
   AnnotationRecord,
   AnnotationSpec,
+  AroundInterceptor,
+  AroundNext,
   AtomicStreamWriterOptions,
   AtomicWriteOptions,
   BalancedLineStrategyOptions,
@@ -117,6 +137,7 @@ export type {
   BatchMembers,
   BatchOptions,
   BatchScope,
+  BeforeInterceptor,
   BufferWriter,
   BufferWriterFactory,
   BuildManifestOptions,
@@ -159,6 +180,7 @@ export type {
   ParsedUri,
   PersistedExchange,
   Pipeline,
+  PipelineInterceptor,
   PipelineStep,
   Process,
   ProcessConfig,
@@ -202,6 +224,7 @@ export type {
   TokenSplitStrategy,
   Tool,
   ToolContext,
+  ToolParams,
   UriAliases,
   Variable,
   VariableOptions,

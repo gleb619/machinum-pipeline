@@ -14,17 +14,25 @@ import '@mt/waypoint'
  *
  *   jsonl://./jsonl/entities.jsonl
  *     → fork('chapter-views', [countBranch, reorderBranch, commasBranch])
- *          each branch stamps `meta.chapter = "<number>-<view>"`
+ *          each branch's `.use(tool, paramsFn)` stamps `meta.chapter = "<number>-<view>"`
  *     → md://./chapters/chapter-views/   (dir mode → chapter<number>-<view>.md)
  *
  * The runner owns the fork contract: an isolated envelope clone per branch, concurrent
  * execution, a checkpoint per parent/branch, and buffered output in declaration order.
  * A branch is a normal pipeline — the only difference is that it starts with `.use(...)`.
+ * The routing meta is stamped by the per-`.use()` params fn (it sees the incoming
+ * exchange, and `withItem` inside the tool carries meta through), so the tool bodies
+ * stay pure renderers.
  */
 
 /** Routing key for the dir-mode filename `chapter<meta.chapter>.md`. */
 function routeKey(number: number | undefined, view: string): string {
   return `${number ?? 'x'}-${view}`
+}
+
+/** Chapter number from a chapter doc's metadata, for the `routeKey` stamp. */
+function chapterNumber(text: string): number | undefined {
+  return readChapterDoc(text).metadata().number
 }
 
 const renderStats = defineTool<MarkdownStatsOutput, string>({
@@ -50,7 +58,7 @@ const renderStats = defineTool<MarkdownStatsOutput, string>({
       `number: ${meta.number ?? 'none'} · series: ${meta.series ?? 'none'}` +
       `${reviewer !== undefined ? ` · reviewer: ${reviewer}` : ''}\n`
 
-    return withMeta(withItem(env, rendered), { chapter: routeKey(meta.number, 'counts') })
+    return withItem(env, rendered)
   },
 })
 
@@ -73,7 +81,7 @@ const reorderLines = defineTool<string, string>({
       })
 
     const rendered = `## lines reordered\n\nlineOrder: ${meta.get('lineOrder')}\n\n${paragraphs.join('\n\n')}\n`
-    return withMeta(withItem(env, rendered), { chapter: routeKey(meta.number, 'reordered') })
+    return withItem(env, rendered)
   },
 })
 
@@ -102,13 +110,21 @@ const replaceDots = defineTool<string, string>({
     meta.add('dotsReplaced', dotsReplaced)
 
     const rendered = `## dots replaced with commas\n\ndotsReplaced: ${meta.get('dotsReplaced')}\n\n${body}\n`
-    return withMeta(withItem(env, rendered), { chapter: routeKey(meta.number, 'commas') })
+    return withItem(env, rendered)
   },
 })
 
-const countBranch = definePipeline({ id: 'pipe04-counts' }).use(markdownStatsTool).use(renderStats)
-const reorderBranch = definePipeline({ id: 'pipe04-line-order' }).use(reorderLines)
-const commasBranch = definePipeline({ id: 'pipe04-commas' }).use(replaceDots)
+const countBranch = definePipeline({ id: 'pipe04-counts' })
+  .use(markdownStatsTool)
+  .use(renderStats, (env) =>
+    withMeta(env, { chapter: routeKey(chapterNumber(env.item.text), 'counts') }),
+  )
+const reorderBranch = definePipeline({ id: 'pipe04-line-order' }).use(reorderLines, (env) =>
+  withMeta(env, { chapter: routeKey(chapterNumber(env.item), 'reordered') }),
+)
+const commasBranch = definePipeline({ id: 'pipe04-commas' }).use(replaceDots, (env) =>
+  withMeta(env, { chapter: routeKey(chapterNumber(env.item), 'commas') }),
+)
 
 export const parallelForksPipeline = definePipeline({ id: 'pipe04-forks' })
   .from('jsonl://./jsonl/entities.jsonl')

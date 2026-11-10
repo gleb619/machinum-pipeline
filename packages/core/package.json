@@ -52,6 +52,9 @@
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist .turbo"
   },
+  "dependencies": {
+    "better-sqlite3": "^9.6.0"
+  },
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@vitest/coverage-v8": "^2.1.0",

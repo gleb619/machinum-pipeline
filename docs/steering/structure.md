@@ -170,7 +170,7 @@ my-book-project/
 
 ## Key Architecture Rules
 
-- `core/` has zero external runtime dependencies beyond TypeScript stdlib
+- `core/` has zero external runtime dependencies beyond TypeScript stdlib (sole exception: `better-sqlite3` for the metrics store — lazily loaded, optional at runtime; see [core.md](steering/core.md#metricsts--metrics-storets--run-metrics-sqlite-wal))
 - `cli/` imports from `core/` and `waypoint/` only — never the reverse (sole exception: `mt serve` imports `@mt/webui/standalone`, lazily, so the CLI starts without h3/SQLite)
 - `tui/` is HTTP-only — it talks to `mt serve` over `/api/*` and imports no `@mt/*` package (see [tui.md](tui.md) and [../layout.md](../layout.md))
 - `router/` is standalone — zero `@mt/*` imports and zero `@mt/*` deps in its `package.json` (enforced by `packages/router/tests/layers.arch.test.ts`); the OpenRouter key pool is therefore a deliberate copy of `packages/tools/src/core/openrouter-pool.ts`, kept in sync by hand. The one allowed cross-package direction is `webui/ → router/`: `mt serve` mounts the router API on its port via the `@mt/router` embeddable builder (T197); the router imports nothing back

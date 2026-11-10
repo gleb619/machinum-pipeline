@@ -145,6 +145,8 @@ bun packages/mt/scripts/build-bin.ts --target bun-linux-arm64   # cross build ->
 | `MT_BROWSER_TRANSLATE_TOKEN` | — | Bearer token for the remote browser-translate worker; also the default worker token |
 | `MT_CONST_<NAME>` | built-in constant | Tunable-constant override (`NAME` = the `constants.ts` export name, e.g. `MT_CONST_DEFAULT_CHUNK_TARGET`). Chain: per-call `constants` variable > mt.json `settings.constants.<NAME>` > this env var > the constant; invalid values throw citing the source (`resolve-constants.ts`) |
 | `MT_LOG_LEVEL` | `info` | Logging verbosity |
+| `MT_METRICS` | `true` | Run metrics (`@mt/core`): `false` disables recording entirely — no DB file is created |
+| `MT_METRICS_DB` | `<projectRoot>/.mt/metrics.db` | SQLite metrics DB path (WAL mode); see [core.md](core.md#metricsts--metrics-storets--run-metrics-sqlite-wal) |
 | `MT_DEBUG` | `false` | Verbose checkpoint debug output |
 | `MT_VAULT` | — | Path to a single vault file; when set, user/project vaults are ignored ([vault.md](../guiding/vault.md)) |
 | `MT_VLT` | `true` | Vault `vlt:<name>` secret refs: `false` disables vlt resolution entirely ([vault.md](../guiding/vault.md)) |
