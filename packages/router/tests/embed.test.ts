@@ -163,7 +163,7 @@ describe('router embed', () => {
   })
 
   it('reads a store written, re-keyed and rotated by core (shared v2 format)', async () => {
-    const core = await import('../../core/src/embed.js')
+    const core = await import('../../core/src/secrets.js')
     const coreEnv = { MT_EMBED_PATH: storePath, MT_EMBED_PASSWORD: MASTER }
     const NEW = 'router-compat-new-master'
     await rm(storePath)
