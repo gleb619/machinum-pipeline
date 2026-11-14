@@ -17,7 +17,7 @@ Also here: [install.sh](install.sh) — installer (binary / `--docker` / `--from
 
 Everything else in this directory:
 
-- Flow docs (repo root): [kanban.md](kanban.md) (task board), [kanban-loop.md](kanban-loop.md), [kanban-compose.md](kanban-compose.md), [kanban-feeder-loop.md](kanban-feeder-loop.md) (automated loops), [change-workflow.md](change-workflow.md) (worktree → branch → gates → FF-merge lifecycle).
+- Flow docs (repo root): [kanban.md](kanban.md) (task board), [kanban-loop.md](kanban-loop.md), [kanban-compose.md](kanban-compose.md), [kanban-feeder-loop.md](kanban-feeder-loop.md) (automated loops), [change-workflow.md](change-workflow.md) (worktree → branch → gates → FF-merge lifecycle), [roadmap.md](roadmap.md) (book-processing pipeline roadmap for `samples/sample2-practical`: stages, reuse map, free-model budget, gates).
 - Remote browser translation: [guiding/remote-browser-translate.md](guiding/remote-browser-translate.md) — run one Chrome worker on a remote PC and call it from `browserTranslate` (bin, SSH tunnel, systemd, cache/concurrency, security).
 - Remote run: [guiding/remote-run.md](guiding/remote-run.md) — `mt run --remote` / `mt resume --remote` over the T203 sync API and T204 run API (push, SSE, artifact pull, pause, trust model).
 - Model preparation: [guiding/sft-model.md](guiding/sft-model.md) — the LLM protocol the engine speaks (plain/xml/properties modes, per-family reply shapes), text-only target model profile, KV/VRAM math at 128 K, SFT dataset construction from this repo's prompt logs, and the cost comparison in §11.

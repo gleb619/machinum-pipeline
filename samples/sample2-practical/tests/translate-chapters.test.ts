@@ -96,4 +96,21 @@ describe('translate-chapters', () => {
     const prompts = (await readFile(PROMPT_LOG, 'utf-8')).trim().split('\n')
     expect(prompts.length).toBeGreaterThan(3)
   }, 60_000)
+
+  it('translates the whole book in block mode within the request budget', async () => {
+    await clean(RU_DIR, TITLES, PROMPT_LOG, EN_DIR, join(SAMPLE_DIR, '.mt'))
+    run('extract-en.ts', { timeout: 120_000 })
+    run('translate-chapters.ts', {
+      env: {
+        MT_TRANSLATE_BLOCK_LINES: '40',
+        MT_TRANSLATE_SLOTS: 'glossary',
+        MT_TRANSLATE_PROMPT_LOG: PROMPT_LOG,
+      },
+      timeout: 120_000,
+    })
+    const calls = (await readFile(PROMPT_LOG, 'utf-8')).trim().split('\n').filter(Boolean).length
+    expect(calls).toBeLessThanOrEqual(30)
+    const result = lintParity(EN_DIR, RU_DIR)
+    expect(result.status, result.stdout).toBe(0)
+  }, 180_000)
 })

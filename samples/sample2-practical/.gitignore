@@ -1,7 +1,10 @@
 chapters/en/*.md
 chapters/ru/*.md
 chapters/schema/*.md
+chapters/schema/*.json
 chapters/book/
+chapters/split/
+chapters/clean/
 chapters/titles.json
 chapters/glossary.json
 chapters/glossary.graph.json

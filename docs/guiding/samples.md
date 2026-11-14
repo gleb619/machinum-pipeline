@@ -20,6 +20,59 @@ test gates.
 
 Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 
+## sample2-practical book flow
+
+`pnpm run runner` chains the whole book workflow in dependency order. Every stage writes one
+artefact under `chapters/`; later stages read the earlier artefacts, so the order is part of the
+contract (`split` reads `schema/stats.json`, `preprocess` reads `schema/quality.json`).
+
+| Stage | Pipeline | Artefact | Backend |
+|---|---|---|---|
+| Extract EN | `pipelines/extract-en.ts` | `chapters/en/chapter<N>.md` | CPU |
+| Stats | `pipelines/stats.ts` | `chapters/schema/stats.json` | CPU |
+| Split | `pipelines/split.ts` | `chapters/schema/chapter-map.json` (+ `chapters/split/` only when a chapter is oversized) | CPU |
+| Summary | `pipelines/summary.ts` | `chapters/schema/chapter<N>.summary.md` | LLM |
+| NER | `pipelines/ner.ts` | `chapters/schema/entities.json` + `chapters/schema/chapter<N>.entities.json` | LLM |
+| Vocabulary | `pipelines/vocabulary.ts` | `chapters/schema/vocabulary.json` | CPU |
+| Quality gate | `pipelines/quality.ts` | `chapters/schema/quality.json` (verdict `translate` or `preprocess`) | CPU |
+| Preprocess | `pipelines/preprocess.ts` | `chapters/clean/chapter<N>.md` + `chapters/schema/preprocess-report.json` | LLM (only on the `preprocess` branch; a `translate` verdict makes it a no-op) |
+| Titles | `pipelines/translate-titles.ts` | `chapters/titles.json` | LLM |
+| Body | `pipelines/translate-chapters.ts` | `chapters/ru/chapter<N>.md` | LLM (block mode) |
+| Assemble | `pipelines/assemble.ts` | `chapters/book/book.md` + `book.json` | CPU |
+
+Environment knobs:
+
+- `MT_LLM_TOOL` — backend; default `mock` (offline). Real runs use `router`.
+- `MT_LLM_USE=vault://openrouter-loop/<id>` — select a vault-stored credential set.
+- `MT_LLM_MODEL_<STAGE>` — per-stage model override (`SUMMARY`, `NER`, `PREPROCESS`, `TRANSLATE`, …).
+- `MT_TRANSLATE_SLOTS` — comma list of `summary,glossary,ner,vocab`; absent = all four.
+- `MT_TRANSLATE_SLOTS_STRICT=1` — a missing slot artefact throws instead of warning.
+- `MT_TRANSLATE_BLOCK_LINES` — body lines per request; default 40.
+- `MT_TRANSLATE_MAX_TOKENS` — per-request output budget; default 2048, capped at 8192.
+- `MT_ONLY_CHAPTERS=1,2` — narrow every stage to the listed chapters.
+- `MT_FORCE_BRANCH=translate|preprocess` — override the quality verdict.
+
+### Free-models-only budget
+
+Real backends must use an OpenRouter id ending in `:free`; `lib/llm.ts` refuses anything else
+unless `MT_ALLOW_PAID=1` is set deliberately. The binding limit is the free-tier **request
+quota**, not money.
+
+| Path | Requests for book2 (21 chapters) |
+|---|---|
+| summary | ≈21 |
+| NER | 1–8 |
+| titles | ≈5 |
+| translate (block mode) | ≈26 |
+| preprocess (dirty branch only) | 0 clean / ≈21–42 dirty |
+| retries/overhead | ≈0–5 |
+| **total (clean branch)** | **≈55–65** |
+| translate (per-line mode, rejected) | ≈310 |
+
+Keep `MT_LLM_CACHE=1` so a 429 stop resumes without re-sending finished requests. Per-line mode
+costs ~310 calls for book2 and must not be used against the free tier; block mode with per-line
+fallback only for failed lines is the supported path.
+
 ## Tutorial pipe map
 
 | Pipe | Lesson |

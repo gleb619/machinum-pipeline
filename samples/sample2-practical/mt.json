@@ -20,6 +20,7 @@
   },
   "settings": {
     "llm.tool": "mock",
-    "llm.model": ""
+    "llm.model": "",
+    "llm.cache": true
   }
 }
