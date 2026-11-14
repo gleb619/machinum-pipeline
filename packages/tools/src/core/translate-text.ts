@@ -107,6 +107,8 @@ export function translateNormalize(targetLangDefault?: string) {
         sourceLang: i.sourceLang ?? 'the source language',
         // the bundled translate.system template composes these optional blocks
         glossaryBlock: '',
+        entityBlock: '',
+        vocabBlock: '',
         summaryBlock: '',
         extraRules: '',
       },

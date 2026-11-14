@@ -344,6 +344,16 @@ Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, l
   id/key, requiring contiguous 1..N — missing/duplicate ids/keys throw a retryable `TranslationReplyParseError`
   (a thin wrapper over the shared `StructuredReplyParseError` from `core/prompt-blocks.ts`; same retry contract
   as `LineParityError`).
+- Prompt context slots (roadmap step 8): `buildTranslationPrompt({ entities, vocabulary })` takes pre-rendered EN
+  text and injects it as `{{entityBlock}}` / `{{vocabBlock}}` in `translate.system` — glossary, entities, recurring
+  terms, the `<terms>` report rule, then the summary; empty/absent text renders an empty block. `translation-stage.ts`
+  fills them from `schema/chapter<N>.entities.json` (`Named entities in this chapter (keep spelling and gender
+  consistent):` + `- Name (kind; aliases: a, b)` lines, cap 1500 chars) and `schema/vocabulary.json`
+  (`Recurring terms (translate the same way every time):` + `term (kind, ×count)` lines for the terms whose
+  `chapters[]` contains N, cap 800 chars). `MT_TRANSLATE_SLOTS` (comma list of `summary|glossary|ner|vocab`, an
+  unknown value throws) selects a subset; a missing slot file renders `''` with one `[WARN]`, while
+  `MT_TRANSLATE_SLOTS_STRICT=1` turns that warn into a throw. `createChapterBodyTranslator({ slots })` defaults to
+  all four.
 - `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,
   cyrillicSeverity })` — `{ en, ru }` item in/out, `parity` variable = `{ ok, enLines, ruLines, errors, warnings,
   cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,

@@ -30,6 +30,10 @@ export interface TranslationPromptInput {
   glossary: Glossary
   /** Chapter summary (EN). Context only, never translated. */
   summary?: string
+  /** Pre-rendered named-entity block (EN). Context only; empty/absent renders `''`. */
+  entities?: string
+  /** Pre-rendered recurring-term block. Context only; empty/absent renders `''`. */
+  vocabulary?: string
   sourceLang?: string
   targetLang?: string
   /** Extra rules appended to the rule list (e.g. title-specific hints). */
@@ -136,6 +140,8 @@ export const TRANSLATE_TEMPLATE_VARS = [
   'targetLang',
   'text',
   'glossaryBlock',
+  'entityBlock',
+  'vocabBlock',
   'summaryBlock',
   'extraRules',
 ] as const
@@ -159,6 +165,8 @@ function translateTemplateVars(
     targetLang: to,
     text: input.text,
     glossaryBlock,
+    entityBlock: input.entities?.trim() ?? '',
+    vocabBlock: input.vocabulary?.trim() ?? '',
     summaryBlock,
     extraRules: (input.extraRules ?? []).map((r) => `- ${r}`).join('\n'),
     mode,
@@ -321,6 +329,8 @@ function buildHandBuiltSystemPrompt(
   if (flipNotes.length > 0) {
     parts.push('Gender notes for this chapter:', ...flipNotes)
   }
+  if (input.entities?.trim()) parts.push(input.entities.trim())
+  if (input.vocabulary?.trim()) parts.push(input.vocabulary.trim())
   parts.push(
     'After the translated lines, append exactly one <terms>[...]</terms> block: a JSON array of ' +
       `{"term","ru","type"} objects for English names or terms in the source that are NOT in the ` +

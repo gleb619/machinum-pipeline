@@ -30,7 +30,10 @@ import {
 import { chapterPairsLinter } from '../src/verification/chapter-pairs-linter.js'
 import { LineParityError } from '../src/verification/line-parity-linter.js'
 
-const ctx = { run: { global: {} } } as unknown as ToolContext
+const noop = () => {}
+const ctx = {
+  run: { global: {}, logger: { info: noop, warn: noop, error: noop, debug: noop } },
+} as unknown as ToolContext
 const reply = (content: string) => async () => ({
   content,
   model: 'm',

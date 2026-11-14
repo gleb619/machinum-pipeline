@@ -77,6 +77,230 @@ export async function loadChapterSummary(chaptersDir: string, n: number): Promis
   }
 }
 
+/** Prompt-context slots the chapter body translator can inject. */
+export type TranslateSlot = 'summary' | 'glossary' | 'ner' | 'vocab'
+
+/** Every slot, in prompt order (the order the blocks appear in `translate.system`). */
+export const TRANSLATE_SLOTS: readonly TranslateSlot[] = ['summary', 'glossary', 'ner', 'vocab']
+
+/**
+ * Parsed `MT_TRANSLATE_SLOTS` (comma list, e.g. `summary,ner`); empty/absent = all slots.
+ * An unknown name throws: a typo must not silently drop a slot from every prompt.
+ */
+export function translateSlots(
+  env: Record<string, string | undefined> = process.env,
+): TranslateSlot[] {
+  const raw = (env.MT_TRANSLATE_SLOTS ?? '').trim()
+  if (raw === '') return [...TRANSLATE_SLOTS]
+  const out: TranslateSlot[] = []
+  for (const part of raw.split(',')) {
+    const name = part.trim()
+    if (name === '') continue
+    const slot = TRANSLATE_SLOTS.find((s) => s === name)
+    if (slot === undefined) {
+      throw new Error(
+        `unknown MT_TRANSLATE_SLOTS value '${name}': expected ${TRANSLATE_SLOTS.join('|')}`,
+      )
+    }
+    if (!out.includes(slot)) out.push(slot)
+  }
+  return out
+}
+
+/** `MT_TRANSLATE_SLOTS_STRICT=1`: a missing slot artefact is an error instead of a warning. */
+export function translateSlotsStrict(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.MT_TRANSLATE_SLOTS_STRICT === '1'
+}
+
+/** Hard cap of the rendered entity block (roadmap step 8). */
+export const ENTITY_BLOCK_CAP = 1500
+/** Hard cap of the rendered recurring-term block. */
+export const VOCAB_BLOCK_CAP = 800
+/** Book-wide fallback size for vocabulary terms that carry no `chapters[]`. */
+export const VOCAB_BOOK_TOP = 20
+
+export const ENTITY_BLOCK_HEADER =
+  'Named entities in this chapter (keep spelling and gender consistent):'
+export const VOCAB_BLOCK_HEADER = 'Recurring terms (translate the same way every time):'
+
+/** Minimal entity shape the block renderer needs (the stage artefact carries more). */
+export interface SlotEntity {
+  name: string
+  kind: string
+  aliases?: string[]
+}
+
+/** Minimal vocabulary-term shape the block renderer needs. */
+export interface SlotVocabTerm {
+  term: string
+  kind: string
+  count: number
+  chapters?: number[]
+}
+
+/** Renders entities in artefact order (rank), dropping whole lines past `cap` characters. */
+export function renderEntityBlock(
+  entities: readonly SlotEntity[],
+  cap: number = ENTITY_BLOCK_CAP,
+): string {
+  const lines = [ENTITY_BLOCK_HEADER]
+  let size = ENTITY_BLOCK_HEADER.length
+  for (const entity of entities) {
+    const aliases = (entity.aliases ?? []).map((a) => a.trim()).filter((a) => a !== '')
+    const meta = aliases.length > 0 ? `${entity.kind}; aliases: ${aliases.join(', ')}` : entity.kind
+    const line = `- ${entity.name} (${meta})`
+    if (size + 1 + line.length > cap) break
+    lines.push(line)
+    size += 1 + line.length
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Renders the recurring terms of chapter `chapter` in artefact order, dropping whole lines past
+ * `cap`. A term without `chapters[]` is book-wide: it participates through the book top-N.
+ */
+export function renderVocabBlock(
+  terms: readonly SlotVocabTerm[],
+  chapter: number,
+  cap: number = VOCAB_BLOCK_CAP,
+): string {
+  const bookTop = new Set(
+    terms
+      .filter((t) => t.chapters === undefined || t.chapters.length === 0)
+      .slice()
+      .sort((a, b) => b.count - a.count)
+      .slice(0, VOCAB_BOOK_TOP)
+      .map((t) => t.term),
+  )
+  const lines = [VOCAB_BLOCK_HEADER]
+  let size = VOCAB_BLOCK_HEADER.length
+  for (const term of terms) {
+    if (!(term.chapters?.includes(chapter) || bookTop.has(term.term))) continue
+    const line = `${term.term} (${term.kind}, ×${term.count})`
+    if (size + 1 + line.length > cap) break
+    lines.push(line)
+    size += 1 + line.length
+  }
+  return lines.join('\n')
+}
+
+/** Reads a slot artefact: absent = `''` + one warn (strict: throw); unreadable/unparsable: throw. */
+async function readSlotFile(
+  path: string,
+  slot: TranslateSlot,
+  chapter: number,
+  ctx: ToolContext,
+  env: Record<string, string | undefined>,
+): Promise<string | undefined> {
+  try {
+    return await readFile(path, 'utf-8')
+  } catch (err) {
+    if ((err as { code?: string }).code !== 'ENOENT') {
+      throw new Error(
+        `failed to read ${slot} slot ${path}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      )
+    }
+    const message = `[translate] chapter ${chapter}: missing ${slot} slot file ${path}, injecting an empty block`
+    if (translateSlotsStrict(env)) throw new Error(message)
+    ctx.run.logger.warn(message)
+    return undefined
+  }
+}
+
+function parseSlotJson(text: string, path: string, slot: TranslateSlot): unknown {
+  try {
+    return JSON.parse(text)
+  } catch (err) {
+    throw new Error(
+      `failed to parse ${slot} slot ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
+    )
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+function stringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.filter((v): v is string => typeof v === 'string')
+}
+
+function numberList(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.filter((v): v is number => typeof v === 'number')
+}
+
+/**
+ * Named-entity block of a chapter (`chaptersDir/schema/chapter<N>.entities.json`). The file is
+ * absent before the NER stage: the block degrades to `''` with one warning (strict: throw).
+ */
+export async function loadChapterEntities(
+  chaptersDir: string,
+  n: number,
+  ctx: ToolContext,
+  env: Record<string, string | undefined> = process.env,
+): Promise<string> {
+  const path = join(chaptersDir, 'schema', `chapter${n}.entities.json`)
+  const text = await readSlotFile(path, 'ner', n, ctx, env)
+  if (text === undefined) return ''
+  const raw = asRecord(parseSlotJson(text, path, 'ner'))?.entities
+  if (!Array.isArray(raw)) {
+    throw new Error(`failed to parse ner slot ${path}: expected {"entities": [...]}`)
+  }
+  const entities: SlotEntity[] = []
+  for (const item of raw) {
+    const rec = asRecord(item)
+    const name = typeof rec?.name === 'string' ? rec.name.trim() : ''
+    if (name === '') continue
+    entities.push({
+      name,
+      kind: typeof rec?.kind === 'string' ? rec.kind : 'entity',
+      aliases: stringList(rec?.aliases),
+    })
+  }
+  return renderEntityBlock(entities)
+}
+
+/**
+ * Recurring-term block of a chapter (`chaptersDir/schema/vocabulary.json`), restricted to the
+ * terms whose `chapters[]` contains `n`. Absent file = `''` + one warning (strict: throw).
+ */
+export async function loadChapterVocabulary(
+  chaptersDir: string,
+  n: number,
+  ctx: ToolContext,
+  env: Record<string, string | undefined> = process.env,
+): Promise<string> {
+  const path = join(chaptersDir, 'schema', 'vocabulary.json')
+  const text = await readSlotFile(path, 'vocab', n, ctx, env)
+  if (text === undefined) return ''
+  const raw = asRecord(parseSlotJson(text, path, 'vocab'))?.terms
+  if (!Array.isArray(raw)) {
+    throw new Error(`failed to parse vocab slot ${path}: expected {"terms": [...]}`)
+  }
+  const terms: SlotVocabTerm[] = []
+  for (const item of raw) {
+    const rec = asRecord(item)
+    const term = typeof rec?.term === 'string' ? rec.term.trim() : ''
+    if (term === '') continue
+    terms.push({
+      term,
+      kind: typeof rec?.kind === 'string' ? rec.kind : 'term',
+      count: typeof rec?.count === 'number' ? rec.count : 0,
+      chapters: numberList(rec?.chapters),
+    })
+  }
+  return renderVocabBlock(terms, n)
+}
+
 /**
  * One LLM call for a (system, user) prompt pair. `mode: 'plain'` (default) returns the cleaned
  * reply as before; other modes parse the structured reply (xml/properties) and join the
@@ -190,6 +414,10 @@ export function titleOf(text: string): string {
 export interface TranslateLinesOptions {
   glossary: Glossary
   summary: string
+  /** Pre-rendered named-entity block; empty = no block. */
+  entities?: string
+  /** Pre-rendered recurring-term block; empty = no block. */
+  vocabulary?: string
   /** Chapter number of `tagged`: term state (ru/gender timelines) resolves at this chapter. */
   chapter?: number
   /** Translated `# ` heading text (without the `# `). */
@@ -240,6 +468,8 @@ export async function translateTaggedChapter(
       text: job.text,
       glossary: opts.glossary,
       summary: opts.summary,
+      entities: opts.entities,
+      vocabulary: opts.vocabulary,
       mode: opts.mode,
       chapter: opts.chapter,
     })
@@ -268,7 +498,7 @@ export async function translateTaggedChapter(
 
 export interface ChapterBodyTranslatorOptions {
   call: SchemaDocLlmCall
-  /** Directory with `glossary.json` and `schema/chapter<N>.summary.md`. */
+  /** Directory with `glossary.json` and `schema/{chapter<N>.summary.md, chapter<N>.entities.json, vocabulary.json}`. */
   chaptersDir: string
   /** Paragraph concurrency. Default: `MT_TRANSLATE_CONCURRENCY` (1). */
   concurrency?: number
@@ -276,6 +506,11 @@ export interface ChapterBodyTranslatorOptions {
   log?: boolean
   /** Work mode of the translation prompt. Default: `'plain'` (backward compatible). */
   mode?: TranslateWorkMode
+  /**
+   * Prompt-context slots to inject. Default: `MT_TRANSLATE_SLOTS`, else all four
+   * ({@link TRANSLATE_SLOTS}). Disabled slots are neither read nor rendered.
+   */
+  slots?: TranslateSlot[]
 }
 
 /**
@@ -296,7 +531,10 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
       // titleTranslator's assemble slot returns a batch as `item: [...]` (no `items`)
       const outs = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])
       const titles = outs.map((t) => titleOf(t.text))
-      const glossary = await loadGlossaryOrEmpty(options.chaptersDir)
+      const slots = new Set(options.slots ?? translateSlots())
+      const glossary = slots.has('glossary')
+        ? await loadGlossaryOrEmpty(options.chaptersDir)
+        : { terms: [] }
       const concurrency = options.concurrency ?? translateConcurrency()
       const pairs: LineParityInput[] = []
       const nums: number[] = []
@@ -305,7 +543,13 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
         const t0 = Date.now()
         const ru = await translateTaggedChapter(tagged, {
           glossary,
-          summary: await loadChapterSummary(options.chaptersDir, n),
+          summary: slots.has('summary') ? await loadChapterSummary(options.chaptersDir, n) : '',
+          entities: slots.has('ner')
+            ? await loadChapterEntities(options.chaptersDir, n, ctx)
+            : undefined,
+          vocabulary: slots.has('vocab')
+            ? await loadChapterVocabulary(options.chaptersDir, n, ctx)
+            : undefined,
           chapter: n,
           titleRu: titles[i] ?? '',
           concurrency,

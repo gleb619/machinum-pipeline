@@ -17,6 +17,8 @@ const vars = {
   targetLang: 'ru',
   sourceLang: 'en',
   glossaryBlock: '',
+  entityBlock: '',
+  vocabBlock: '',
   summaryBlock: '',
   extraRules: '',
 }
