@@ -4,6 +4,14 @@ import { DEFAULT_CHUNK_TARGET, heuristicTokenCount } from '@mt/core'
 import { describe, expect, it } from 'vitest'
 import { VAR_CONSTANTS } from '../resolve-constants.js'
 import {
+  balanceText,
+  createTokenSplitter,
+  rebalance,
+  rebalanceLines,
+  splitReadableParts,
+  splitSentenceUnits,
+} from './text-splitter.js'
+import {
   DEFAULT_CHUNK_SEPARATOR,
   VAR_CHUNK_COUNT,
   VAR_CHUNK_SEPARATOR,
@@ -248,5 +256,99 @@ describe('chunkSplit DEFAULT_CHUNK_TARGET overrides', () => {
     const ctx = ctxStub({ 'constants.DEFAULT_CHUNK_TARGET': 250 })
     const out = await chunkSplit.invoke(ex, ctx)
     expect(getVariable(out, VAR_CHUNK_COUNT)).toBe(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// token-splitter tool (normalization/text-splitter.ts) fallback chain
+// ---------------------------------------------------------------------------
+
+/** Ten 6-word sentences on one line: no blank lines, ~60 tokens by the BPE counter. */
+function unparagraphedProse(): string {
+  return Array.from({ length: 10 }, (_, i) => `Sentence number ${i} has six short words.`).join(' ')
+}
+
+describe('createTokenSplitter fallback', () => {
+  it('splits an oversized paragraph that has no blank lines', async () => {
+    const splitter = createTokenSplitter({ maxTokens: 10 })
+    const input = unparagraphedProse()
+    const out = await splitter.invoke(createExchange(input), ctxStub())
+
+    expect(out.item.length).toBeGreaterThan(1)
+    for (const chunk of out.item) {
+      expect(heuristicTokenCount(chunk)).toBeLessThanOrEqual(10)
+      expect(chunk).toMatch(/[.!?]$/)
+    }
+    expect(collapse(out.item.join(' '))).toBe(collapse(input))
+    expect(getVariable(out, 'split')).toBe(true)
+    expect(getVariable(out, 'chunkCount')).toBe(out.item.length)
+    expect(getVariable(out, 'strategy')).toBe('paragraph+sentence')
+  })
+
+  it('falls back to word boundaries when there are no sentence terminators', async () => {
+    const splitter = createTokenSplitter({ maxTokens: 10 })
+    const input = Array.from({ length: 60 }, (_, i) => `word${i}`).join(' ')
+    const out = await splitter.invoke(createExchange(input), ctxStub())
+
+    expect(out.item.length).toBeGreaterThan(1)
+    for (const chunk of out.item) {
+      expect(heuristicTokenCount(chunk)).toBeLessThanOrEqual(10)
+    }
+    expect(collapse(out.item.join(' '))).toBe(collapse(input))
+    expect(getVariable(out, 'split')).toBe(true)
+    expect(getVariable(out, 'strategy')).toBe('paragraph+whitespace')
+  })
+})
+
+describe('splitSentenceUnits', () => {
+  it('keeps the terminator with its sentence', () => {
+    expect(splitSentenceUnits('One. Two! Three?')).toEqual(['One.', 'Two!', 'Three?'])
+  })
+
+  it('keeps trailing text without a terminator as a final unit', () => {
+    expect(splitSentenceUnits('Done. Not done')).toEqual(['Done.', 'Not done'])
+  })
+
+  it('returns no units for whitespace-only text', () => {
+    expect(splitSentenceUnits('  \n ')).toEqual([])
+  })
+})
+
+describe('splitReadableParts', () => {
+  it('never cuts a sentence', () => {
+    const text = 'First sentence. Second sentence! Third sentence?'
+    const parts = splitReadableParts(text, 5)
+    expect(parts.length).toBeGreaterThan(1)
+    for (const part of parts) {
+      expect(part).toMatch(/[.!?]$/)
+    }
+    expect(parts.join(' ')).toBe(text)
+  })
+
+  it('returns fewer parts when the text has too few sentences', () => {
+    expect(splitReadableParts('Only one sentence.', 5)).toEqual(['Only one sentence.'])
+  })
+
+  it('keeps whole paragraphs and their order', () => {
+    const text = 'alpha\n\nbravo\n\ncharlie'
+    const parts = splitReadableParts(text, 2)
+    expect(parts.join('\n\n')).toBe(text)
+  })
+})
+
+describe('balance/rebalance invariants', () => {
+  it('balanceText preserves line order', () => {
+    const text = Array.from({ length: 12 }, (_, i) => `line ${i}`).join('\n')
+    expect(balanceText(text, 3).join('\n')).toBe(text)
+  })
+
+  it('rebalance preserves the overall character order', () => {
+    const input = ['abcdefgh', '12', '3456']
+    expect(rebalance(input).join('')).toBe(input.join(''))
+  })
+
+  it('rebalanceLines preserves line order', () => {
+    const chunks = ['l1\nl2\nl3\nl4', 'l5', 'l6\nl7']
+    expect(rebalanceLines(chunks).join('\n')).toBe(chunks.join('\n'))
   })
 })

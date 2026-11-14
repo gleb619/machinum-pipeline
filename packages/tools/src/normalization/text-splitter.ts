@@ -1,11 +1,14 @@
 import { category, defineTool, registry, setVariables, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, Splitter, SplitterContext, Tool, ToolContext } from '@mt/core'
 import {
+  CHARS_PER_TOKEN_HEURISTIC,
   type TokenCountFn,
   type TokenSplitStrategy,
   heuristicTokenCount,
   paragraphStrategy,
+  sentenceStrategy,
   splitReadableParts,
+  whitespaceStrategy,
 } from '@mt/core'
 import { DEFAULT_MAX_TOKENS, SERIES_SPLIT_TARGET_CHARS } from '@mt/core'
 import {
@@ -62,6 +65,70 @@ export interface TokenSplitterOptions {
   maxTokens?: number
 }
 
+interface FallbackLevel {
+  name: string
+  split(text: string): string[] | Promise<string[]>
+}
+
+/**
+ * Finer-grained passes applied to a chunk a strategy left above the limit, in order.
+ * A level makes no progress when it returns the chunk unchanged; the next one runs then.
+ * `sentenceStrategy` is char-based, so the token budget is converted with the same
+ * heuristic the built-in strategies use for their default counters.
+ */
+function fallbackLevels(limit: number): FallbackLevel[] {
+  return [
+    { name: 'paragraph', split: (text) => paragraphStrategy({ targetTokens: limit }).split(text) },
+    {
+      name: 'sentence',
+      split: (text) =>
+        sentenceStrategy({ maxChars: limit * CHARS_PER_TOKEN_HEURISTIC }).split(text),
+    },
+    { name: 'whitespace', split: (text) => whitespaceStrategy({ maxTokens: limit }).split(text) },
+  ]
+}
+
+/**
+ * Re-split an over-limit chunk through `levels`, keeping the first level that makes
+ * progress and repeating the finer levels on its output. A single word wider than the
+ * limit is the only piece allowed to stay over it.
+ */
+async function refineOversizedChunk(
+  chunk: string,
+  limit: number,
+  levels: FallbackLevel[],
+  used: Set<string>,
+): Promise<string[]> {
+  let pieces = [chunk]
+
+  for (const level of levels) {
+    const next: string[] = []
+    let progressed = false
+    let allFit = true
+
+    for (const piece of pieces) {
+      if ((await countTokens(piece)) <= limit) {
+        next.push(piece)
+        continue
+      }
+      allFit = false
+      const parts = await level.split(piece)
+      if (parts.length > 1) {
+        progressed = true
+        next.push(...parts)
+      } else {
+        next.push(piece)
+      }
+    }
+
+    pieces = next
+    if (progressed) used.add(level.name)
+    if (allFit) break
+  }
+
+  return pieces
+}
+
 export interface TokenSplitter extends Tool<string, string[]> {
   with(overrides: Partial<TokenSplitterOptions>): TokenSplitter
 }
@@ -74,7 +141,7 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
     name: 'token-splitter',
     version: '1.0.0',
     mdDescription:
-      'Splits text into chunks using a pluggable TokenSplitStrategy. Default strategy splits at paragraph boundaries respecting a token limit.',
+      'Splits text into chunks using a pluggable TokenSplitStrategy. Default strategy splits at paragraph boundaries respecting a token limit. Any chunk a strategy leaves above the limit is re-split with a finer built-in fallback chain (paragraph → sentence → whitespace); the `strategy` variable records the path actually used (e.g. `paragraph+sentence`).',
     annotations: [
       tool('TL106', {
         name: 'token-splitter',
@@ -88,15 +155,21 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
       const inputs = env.items ?? [env.item]
       const allChunks: string[] = []
       const limit = maxTokens ?? resolveTunedNum('DEFAULT_MAX_TOKENS', DEFAULT_MAX_TOKENS, env, ctx)
+      const levels = fallbackLevels(limit)
+      const used = new Set<string>()
 
       for (const input of inputs) {
-        const tokenCount = await countTokens(input)
-        if (tokenCount <= limit) {
+        if ((await countTokens(input)) <= limit) {
           allChunks.push(input)
-        } else {
-          const chunks = await strategy.split(input)
-          for (const chunk of chunks) {
+          continue
+        }
+
+        used.add(strategy.name)
+        for (const chunk of await strategy.split(input)) {
+          if ((await countTokens(chunk)) <= limit) {
             allChunks.push(chunk)
+          } else {
+            allChunks.push(...(await refineOversizedChunk(chunk, limit, levels, used)))
           }
         }
       }
@@ -104,7 +177,7 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
       return setVariables(withItem(env, allChunks), {
         split: allChunks.length > inputs.length,
         chunkCount: allChunks.length,
-        strategy: strategy.name,
+        strategy: used.size > 0 ? [...used].join('+') : strategy.name,
       })
     },
   })
