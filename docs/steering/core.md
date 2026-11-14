@@ -802,7 +802,7 @@ When `tool.cacheable === true`, output is memoised by `hash(toolName + version +
 
 ## Vault
 
-`vault.ts`: gitignored store of LLM endpoints/keys (`~/.mt/vault.json` + `<root>/.mt/vault.json`, or only `MT_VAULT`).
+`vault.ts`: gitignored store of LLM endpoints/keys (`~/.mt/vault.json`, then `<dir>/.mt/vault.json` from the git top-level down to the run root — nearer wins — or only `MT_VAULT`).
 `loadVault` (rejects plaintext `apiKey`/`apiKeys[]`), `isSecretRef`/`findPlaintextKeys`, `maskVault` (refs stay visible), `parseVaultRef`/`resolveVaultRef` (`vault://entry/model`, `@vault/entry/model`), atomic 0600 `saveVault`.
 `loadGlobalContext` attaches it as non-enumerable `GlobalContext.vault` - never serialized. Details: [../guiding/vault.md](../guiding/vault.md).
 

@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { atomicWriteFile } from './atomic.js'
 import { readJsonOrThrow } from './json-file.js'
 import { isEmbedRef, resolveEmbedValue } from './secrets.js'
@@ -7,8 +8,9 @@ import type { LoadVaultOptions, ResolvedVaultRef, Vault, VaultEntry, VaultRef } 
 
 /**
  * Vault — gitignored store of sensitive LLM endpoint data (URLs, keys, headers).
- * Loaded from `~/.mt/vault.json` and `<project>/.mt/vault.json`; never serialized
- * into checkpoints, meta or logs. Error messages never echo secret values.
+ * Loaded from `~/.mt/vault.json`, then `<dir>/.mt/vault.json` for the run root and every
+ * ancestor up to the git top-level; never serialized into checkpoints, meta or logs.
+ * Error messages never echo secret values.
  *
  * `apiKey` / `apiKeys[]` values must be secret references, never plaintext:
  * `vlt:<name>` (vlt CLI), `keepass:<title|uuid>` (KeePass database) or `embed:<name>`
@@ -64,12 +66,42 @@ export function emptyVault(): Vault {
   return { version: 1, entries: {} }
 }
 
-/** Candidate vault file paths in load order (later overrides earlier). */
+/**
+ * Candidate vault file paths in load order (later overrides earlier): the user vault first,
+ * then project vaults from the git top-level down to the run root. A nested run root
+ * (`samples/<name>`) therefore sees the repository vault while a nearer project vault wins.
+ */
 export function vaultPaths(projectRoot: string, env: Record<string, string | undefined>): string[] {
   const override = env.MT_VAULT
   if (override) return [resolve(override)]
   const mtHome = env.MT_HOME || join(env.HOME || homedir(), '.mt')
-  return [join(mtHome, 'vault.json'), join(resolve(projectRoot), '.mt', 'vault.json')]
+  const root = resolve(projectRoot)
+  const project = searchDirs(root).map((dir) => join(dir, '.mt', 'vault.json'))
+  return [...new Set([join(mtHome, 'vault.json'), ...project])]
+}
+
+/** Git top-level of `root`, or undefined when no ancestor holds a `.git` entry. */
+function gitTopLevel(root: string): string | undefined {
+  let dir = root
+  for (;;) {
+    if (existsSync(join(dir, '.git'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) return undefined
+    dir = parent
+  }
+}
+
+/** `root` and its ancestors up to the git top-level, farthest first (nearest wins on merge). */
+function searchDirs(root: string): string[] {
+  const dirs = [root]
+  const top = gitTopLevel(root)
+  if (top === undefined || top === root) return dirs
+  let dir = root
+  while (dir !== top) {
+    dir = dirname(dir)
+    dirs.push(dir)
+  }
+  return dirs.reverse()
 }
 
 const SECRET_REF_PREFIXES = ['vlt:', 'keepass:', 'embed:'] as const
@@ -93,16 +125,26 @@ function plaintextMessage(name: string, fields: string[]): string {
   return `entry "${name}": plaintext ${fields.join(', ')} is not allowed (value not shown). Store the key in the embedded store and reference it as "embed:<name>" (or "vlt:<name>" / "keepass:<title>"), e.g. via \`mt vault add ${name} --api-key <key>\`.`
 }
 
+/** Paths `loadVault` searched, kept beside the vault (not serialized, lost on copies). */
+const searchedVaultPaths = new WeakMap<Vault, string[]>()
+
+/** Vault files consulted for this vault instance; empty for hand-built vaults. */
+function vaultSearchedPaths(vault: Vault): string[] {
+  return searchedVaultPaths.get(vault) ?? []
+}
+
 export async function loadVault(
   projectRoot: string,
   env: Record<string, string | undefined> = process.env,
   options: LoadVaultOptions = {},
 ): Promise<Vault> {
+  const paths = vaultPaths(projectRoot, env)
   const vault = emptyVault()
-  for (const path of vaultPaths(projectRoot, env)) {
+  for (const path of paths) {
     const file = await readVaultFile(path)
     if (file) Object.assign(vault.entries, file.entries)
   }
+  searchedVaultPaths.set(vault, paths)
   if (options.resolveRefs !== false && options.resolveVlt !== false) {
     await resolveSecretRefs(vault, {
       ...env,
@@ -298,10 +340,11 @@ export function resolveVaultRef(vault: Vault, ref: string): ResolvedVaultRef {
   const found = Object.hasOwn(vault.entries, parsed.entry) ? vault.entries[parsed.entry] : undefined
   if (!found) {
     const names = Object.keys(vault.entries)
+    const searched = vaultSearchedPaths(vault)
     throw new Error(
       `Vault ref "${ref}": unknown entry "${parsed.entry}". Available entries: ${
         names.length ? names.join(', ') : '(none)'
-      }`,
+      }.${searched.length ? ` Searched: ${searched.join(', ')}.` : ''}`,
     )
   }
   const model = parsed.model ?? found.defaultModel

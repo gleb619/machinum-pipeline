@@ -76,8 +76,14 @@ changes nothing.
 ## Precedence
 
 1. `MT_VAULT=<path>` set: only that file.
-2. Otherwise user `~/.mt/vault.json` (`$MT_HOME/vault.json` when `MT_HOME` set), then project
-   `<root>/.mt/vault.json`. Project entries override user entries by name (whole entry, no field merge).
+2. Otherwise, in load order (later overrides earlier):
+   1. user `~/.mt/vault.json` (`$MT_HOME/vault.json` when `MT_HOME` set);
+   2. `<dir>/.mt/vault.json` for the git top-level down to the run root (`process.cwd()`), so a
+      nearer directory wins over a farther one. `mt run` roots the project at the pipeline's own
+      directory: a repository-level vault is found from `samples/<name>/`, while
+      `<sample>/.mt/vault.json` overrides it.
+
+   Project entries override user entries by name (whole entry, no field merge).
 
 Missing file = empty vault. Malformed JSON / bad entry = error naming file + entry, never the secret.
 

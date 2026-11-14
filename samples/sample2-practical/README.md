@@ -68,6 +68,11 @@ Or put the same keys in `settings` of a gitignored `mt.local.json` (imported by 
 `lib/llm.ts` is the single backend pick (`pickLlmTool({ configPath: mt.json, mockSource })`).
 Per-tool model overrides are available as `MT_LLM_MODEL_<TOOL>` or `settings["llm.model.<tool>"]`.
 
+The endpoint can also come from a vault entry (`MT_LLM_USE` / `settings.llm.use` =
+`vault://<entry>[/<model>]`). `mt run` searches this directory and its ancestors up to the git
+top-level, so the entry can live in the repository's `.mt/vault.json`; it does not need to be
+copied to `~/.mt/`. A `samples/sample2-practical/.mt/vault.json` would override the repository one.
+
 ## Outputs
 
 ```text

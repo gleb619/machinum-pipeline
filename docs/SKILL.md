@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.33.1 | 2026-11-14 -->
+<!-- skill-version: 1.33.2 | 2026-11-14 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -391,7 +391,9 @@ mt vault vlt-install | vlt-status
 ```text
 
 `mt vault add --user` targets `~/.mt/vault.json`; default is `<project>/.mt/vault.json`; `MT_VAULT=<path>`
-overrides both. Project entries override user entries by name. Entry names contain no `/`.
+overrides both. Load order is the user vault, then `<dir>/.mt/vault.json` from the git top-level down to the
+run root (nearer wins), so a sample run finds the repository vault. Project entries override user entries by
+name. Entry names contain no `/`.
 Losing `master.key` makes embedded secrets unrecoverable.
 
 ### Use a vault entry for the LLM

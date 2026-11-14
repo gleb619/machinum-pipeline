@@ -170,7 +170,7 @@ flowchart TD
   S[loadVault root, process.env] --> P{MT_VAULT set?}
   P -- yes --> F1[read that single file]
   P -- no --> F2["read ~/.mt/vault.json  (user, MT_HOME aware)"]
-  F2 --> F3["read ./.mt/vault.json  (project)"]
+  F2 --> F3["read <dir>/.mt/vault.json for git top-level → run root<br/>(nearer wins)"]
   F3 --> M["Object.assign entries:<br/>project overrides user by entry name"]
   M --> C{"plaintext apiKey / apiKeys?"}
   F1 --> C

@@ -67,6 +67,64 @@ describe('vault', () => {
     expect(v.entries.b?.provider).toBe('openai')
   })
 
+  describe('ancestor vaults (nested run root)', () => {
+    const sampleLayout = async (): Promise<{ repo: string; run: string }> => {
+      const repo = join(dir, 'repo')
+      const run = join(repo, 'samples', 'sample2-practical')
+      await mkdir(join(repo, '.git'), { recursive: true })
+      await mkdir(join(repo, '.mt'), { recursive: true })
+      await mkdir(join(run, '.mt'), { recursive: true })
+      return { repo, run }
+    }
+
+    it('finds the repository vault from a nested run root', async () => {
+      const { repo, run } = await sampleLayout()
+      await write(join(repo, '.mt', 'vault.json'), {
+        gpu: { provider: 'ollama', baseUrl: 'http://gpu' },
+      })
+      const v = await loadVault(run, env)
+      expect(v.entries.gpu?.baseUrl).toBe('http://gpu')
+    })
+
+    it('nearer project vault beats a farther one; project beats user', async () => {
+      const { repo, run } = await sampleLayout()
+      await write(join(home, 'vault.json'), {
+        a: { provider: 'ollama', baseUrl: 'http://user' },
+        b: { provider: 'ollama', baseUrl: 'http://user' },
+        c: { provider: 'ollama', baseUrl: 'http://user' },
+      })
+      await write(join(repo, '.mt', 'vault.json'), {
+        a: { provider: 'ollama', baseUrl: 'http://repo' },
+        b: { provider: 'ollama', baseUrl: 'http://repo' },
+      })
+      await write(join(run, '.mt', 'vault.json'), {
+        a: { provider: 'ollama', baseUrl: 'http://run' },
+      })
+      const v = await loadVault(run, env)
+      expect(v.entries.a?.baseUrl).toBe('http://run')
+      expect(v.entries.b?.baseUrl).toBe('http://repo')
+      expect(v.entries.c?.baseUrl).toBe('http://user')
+    })
+
+    it('unknown entry error names the searched paths', async () => {
+      const { repo, run } = await sampleLayout()
+      await write(join(repo, '.mt', 'vault.json'), { gpu: { provider: 'ollama' } })
+      const v = await loadVault(run, env)
+      const err = (() => {
+        try {
+          resolveVaultRef(v, 'vault://missing')
+        } catch (e) {
+          return e as Error
+        }
+        return undefined
+      })()
+      expect(err?.message).toContain('Available entries: gpu')
+      expect(err?.message).toContain(join(home, 'vault.json'))
+      expect(err?.message).toContain(join(repo, '.mt', 'vault.json'))
+      expect(err?.message).toContain(join(run, '.mt', 'vault.json'))
+    })
+  })
+
   it('MT_VAULT overrides everything', async () => {
     await write(join(home, 'vault.json'), { a: { provider: 'ollama' } })
     const custom = join(dir, 'custom.json')
