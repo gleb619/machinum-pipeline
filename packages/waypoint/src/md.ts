@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs'
 import { copyFile, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, join } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative } from 'node:path'
 import type { SourceContext, TargetContext } from '@mt/core'
 import {
   BATCH_MEMBERS_VARIABLE,
@@ -19,7 +19,13 @@ import type {
 } from '@mt/core'
 import type { ParsedUri } from '@mt/core'
 import { atomicWriteFile, pathExists, registry, tmpPathFor } from '@mt/core'
-import { seedAutoIndex, writeChapterFile } from './chapter-files.js'
+import {
+  assertChapterKey,
+  assertChapterNum,
+  chapterFileName,
+  seedAutoIndex,
+  writeChapterFile,
+} from './chapter-files.js'
 import { exchangeField } from './fields.js'
 import { walkFiles } from './file-walk.js'
 import { mdOutputsRejectionError } from './md-outputs.js'
@@ -227,6 +233,8 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
   /** Envelope boundaries produced by this session (appended to `baseOffsets`). */
   let newOffsets: number[] = []
   let sidecarPath = ''
+  /** Chapter file paths written by this session → the envelope id that wrote them. */
+  const writtenChapters = new Map<string, string>()
   const seriesEnabled = uri.query.series === 'true' || uri.query.series === '1'
 
   async function appendFileValue(value: unknown): Promise<void> {
@@ -237,18 +245,46 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
   }
 
   /**
-   * Write one envelope as `chapterN.md`. Series parts always take the next auto index:
-   * reusing `meta.chapterNum` for every part would overwrite the same file.
+   * Write one envelope as `chapter<key>.md`. Series parts always take the next auto
+   * index: reusing `meta.chapterNum` for every part would overwrite the same file.
+   *
+   * `meta` is untyped, so the key is validated before it reaches a file name:
+   * `meta.chapterNum` must be a non-negative integer (a bad value throws instead of
+   * being silently rewritten, and `0` survives — the fallback uses `??`, never `||`),
+   * and the legacy `meta.chapter` routing key must be a number under the same rule or
+   * one safe path segment. The resolved path must stay inside the target root, and two
+   * envelopes may not target the same chapter file — the second throws instead of
+   * overwriting the first.
    */
   async function writeChapterValue(
     env: Exchange<T>,
     value: unknown,
     autoNumber = false,
   ): Promise<void> {
-    const chapterNum = (
-      autoNumber ? ++autoIndex : env.meta.chapterNum || env.meta.chapter || ++autoIndex
-    ) as number
-    await writeChapterFile(filePath, chapterNum, value)
+    const meta = (env.meta ?? {}) as Record<string, unknown>
+    let chapterKey: number | string
+    if (!autoNumber && meta.chapterNum !== undefined && meta.chapterNum !== null) {
+      assertChapterNum(meta.chapterNum, 'md target')
+      chapterKey = meta.chapterNum
+    } else if (!autoNumber && meta.chapter !== undefined && meta.chapter !== null) {
+      assertChapterKey(meta.chapter, 'md target')
+      chapterKey = meta.chapter
+    } else {
+      chapterKey = ++autoIndex
+    }
+    const outPath = join(filePath, chapterFileName(chapterKey))
+    const rel = relative(filePath, outPath)
+    if (rel.startsWith('..') || isAbsolute(rel)) {
+      throw new Error(`md target '${uri.raw}': output path escapes the target root: '${rel}'`)
+    }
+    if (writtenChapters.has(outPath)) {
+      throw new Error(
+        `md target '${uri.raw}': chapter '${chapterKey}' targets ${outPath}, already written by ` +
+          `envelope '${writtenChapters.get(outPath)}'; duplicate chapter numbers overwrite content`,
+      )
+    }
+    writtenChapters.set(outPath, env.id)
+    await writeChapterFile(filePath, chapterKey, value)
     writtenFiles += 1
   }
 
@@ -267,6 +303,7 @@ export function createMdTarget<T>(uri: ParsedUri): Target<T> {
       baseOffsets = []
       newOffsets = []
       sidecarPath = ''
+      writtenChapters.clear()
       seriesSplitter = null
       staged = null
       filePath = resolveUriInContext(uri, 'md', ctx)

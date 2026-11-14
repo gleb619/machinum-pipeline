@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Exchange, SourceContext, TargetContext } from '@mt/core'
@@ -349,6 +357,129 @@ describe('md target', () => {
     expect(readFileSync(join(baseDir, 'intro.md'), 'utf-8')).toBe('# Custom Intro')
     expect(readFileSync(join(baseDir, 'outro.md'), 'utf-8')).toBe('# Custom Outro')
     expect(() => readFileSync(join(baseDir, 'chapter1.md'), 'utf-8')).toThrow()
+  })
+})
+
+describe('md target — chapter number validation', () => {
+  let tempDir: string
+  let ctx: TargetContext
+
+  const uri = (path: string): ParsedUri => ({
+    raw: `md://${path}`,
+    host: path,
+    path,
+    query: {},
+  })
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'md-chapnum-'))
+    ctx = {
+      run: {
+        runId: 'run-1',
+        global: { project: { name: 'test', root: tempDir }, settings: {} },
+      },
+    } as unknown as TargetContext
+  })
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  it('rejects a chapterNum that would escape the target root', async () => {
+    const dir = join(tempDir, 'chapters')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+    await expect(
+      target.write({ item: 'x', meta: { chapterNum: 'a/../../outside/pwned' } }, ctx),
+    ).rejects.toThrow(/meta\.chapterNum/)
+    await target.close(ctx)
+
+    expect(existsSync(join(tempDir, 'outside', 'pwned.md'))).toBe(false)
+    expect(existsSync(join(tempDir, 'outside'))).toBe(false)
+  })
+
+  it('keeps chapterNum 0 instead of falling back to auto-numbering', async () => {
+    const dir = join(tempDir, 'zero')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+    await target.write({ item: '# Zero', meta: { chapterNum: 0 } }, ctx)
+    await target.write({ item: '# One', meta: {} }, ctx)
+    await target.close(ctx)
+
+    expect(readFileSync(join(dir, 'chapter0.md'), 'utf-8')).toBe('# Zero')
+    expect(readFileSync(join(dir, 'chapter1.md'), 'utf-8')).toBe('# One')
+  })
+
+  it('rejects a duplicate chapterNum instead of overwriting the first chapter', async () => {
+    const dir = join(tempDir, 'dup')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+    await target.write({ item: '# First', meta: { chapterNum: 7 } }, ctx)
+    await expect(target.write({ item: '# Second', meta: { chapterNum: 7 } }, ctx)).rejects.toThrow(
+      /duplicate chapter numbers/,
+    )
+    await target.close(ctx)
+
+    expect(readFileSync(join(dir, 'chapter7.md'), 'utf-8')).toBe('# First')
+  })
+
+  it.each([
+    ['negative', -1],
+    ['fractional', 1.5],
+    ['string', 'abc'],
+    ['NaN', Number.NaN],
+  ])('rejects a %s chapterNum', async (_label, chapterNum) => {
+    const dir = join(tempDir, 'invalid')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+    await expect(target.write({ item: 'x', meta: { chapterNum } }, ctx)).rejects.toThrow(
+      /meta\.chapterNum must be a non-negative integer/,
+    )
+    await target.close(ctx)
+
+    expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([])
+  })
+
+  it('falls back to the legacy chapter key and validates it too', async () => {
+    const dir = join(tempDir, 'legacy')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+    await target.write({ item: '# Legacy', meta: { chapter: 4 } }, ctx)
+    await expect(target.write({ item: 'x', meta: { chapter: -2 } }, ctx)).rejects.toThrow(
+      /meta\.chapter must be a non-negative integer/,
+    )
+    await target.close(ctx)
+
+    expect(readFileSync(join(dir, 'chapter4.md'), 'utf-8')).toBe('# Legacy')
+  })
+
+  it('keeps a string meta.chapter as the routing key it has always been', async () => {
+    const dir = join(tempDir, 'views')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+    await target.write({ item: '# Counts', meta: { chapter: '1-counts' } }, ctx)
+    await target.write({ item: '# Commas', meta: { chapter: '1-commas' } }, ctx)
+    await target.close(ctx)
+
+    expect(readFileSync(join(dir, 'chapter1-counts.md'), 'utf-8')).toBe('# Counts')
+    expect(readFileSync(join(dir, 'chapter1-commas.md'), 'utf-8')).toBe('# Commas')
+  })
+
+  it.each([
+    ['a traversal', '../../pwned'],
+    ['a separator', 'a/b'],
+    ['an empty string', ''],
+  ])('rejects a meta.chapter routing key with %s', async (_label, chapter) => {
+    const dir = join(tempDir, 'routes')
+    const target = createMdTarget<string>(uri(dir))
+    await target.open(ctx)
+    await expect(target.write({ item: 'x', meta: { chapter } }, ctx)).rejects.toThrow(
+      /meta\.chapter must be/,
+    )
+    await target.close(ctx)
+
+    expect(existsSync(join(tempDir, 'pwned.md'))).toBe(false)
+    expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([])
   })
 })
 

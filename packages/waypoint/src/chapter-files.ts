@@ -7,9 +7,12 @@ import { walkFiles } from './file-walk.js'
 /** Chapter file base names look like `chapter42.md`. */
 const CHAPTER_FILE_RE = /^chapter(\d+)\.md$/i
 
-/** File name of the chapter with the given number. */
-export function chapterFileName(chapterNum: number): string {
-  return `chapter${chapterNum}.md`
+/**
+ * File name of the chapter with the given number, or of the given routing key
+ * (`chapter1-counts.md` for the legacy `meta.chapter` form).
+ */
+export function chapterFileName(chapterKey: number | string): string {
+  return `chapter${chapterKey}.md`
 }
 
 /**
@@ -80,14 +83,14 @@ export async function discoverChapterFiles(dir: string): Promise<ChapterFile[]> 
   return results
 }
 
-/** Write one chapter file (`chapter<N>.md`) into `dir` atomically. */
+/** Write one chapter file (`chapter<key>.md`) into `dir` atomically. */
 export async function writeChapterFile(
   dir: string,
-  chapterNum: number,
+  chapterKey: number | string,
   content: unknown,
 ): Promise<void> {
   mkdirSync(dir, { recursive: true })
-  await atomicWriteFile(join(dir, chapterFileName(chapterNum)), String(content))
+  await atomicWriteFile(join(dir, chapterFileName(chapterKey)), String(content))
 }
 
 /**
@@ -98,6 +101,37 @@ export function assertChapterNum(chapterNum: unknown, label: string): asserts ch
   if (typeof chapterNum !== 'number' || !Number.isInteger(chapterNum) || chapterNum < 0) {
     throw new Error(
       `${label}: meta.chapterNum must be a non-negative integer, got ${JSON.stringify(chapterNum)}`,
+    )
+  }
+}
+
+/**
+ * Safe single path segment for the legacy `meta.chapter` routing key
+ * (`chapter1-counts.md`). Separators and `..` would escape the target root.
+ */
+const CHAPTER_KEY_RE = /^[\p{L}\p{N}_-]+$/u
+
+/**
+ * Validate a legacy `meta.chapter` routing key. A number is held to the same
+ * contract as `meta.chapterNum`; a string must be one safe path segment.
+ */
+export function assertChapterKey(
+  chapterKey: unknown,
+  label: string,
+): asserts chapterKey is number | string {
+  if (typeof chapterKey === 'number') {
+    if (!Number.isInteger(chapterKey) || chapterKey < 0) {
+      throw new Error(
+        `${label}: meta.chapter must be a non-negative integer when numeric, got ` +
+          `${JSON.stringify(chapterKey)}`,
+      )
+    }
+    return
+  }
+  if (typeof chapterKey !== 'string' || !CHAPTER_KEY_RE.test(chapterKey)) {
+    throw new Error(
+      `${label}: meta.chapter must be a non-negative integer or one safe path segment ` +
+        `(letters, digits, '_' or '-'), got ${JSON.stringify(chapterKey)}`,
     )
   }
 }

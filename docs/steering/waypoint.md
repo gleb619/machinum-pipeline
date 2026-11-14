@@ -344,6 +344,22 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
   mode appends each part; dir mode without `mdOutputs` writes `chapterN.md` per part. Combining it
   with `mdOutputs` intents throws, because there is no unambiguous filename for a part. Import
   `@mt/tools` to register the `series` splitter; a missing splitter throws a clear error.
+- Dir mode chapter numbering is validated before any write, because `meta` arrives uncast from
+  sources/LLMs/flatMaps (`chapter-files.ts` owns the rules, `assertChapterNum` / `assertChapterKey`):
+  - `meta.chapterNum` is the chapter number and must be a non-negative integer: `-1`, `1.5`,
+    `'abc'` and `'a/../../x'` throw an error naming `meta.chapterNum` instead of becoming
+    `chapter-1.md` / `chapter1.5.md` / `chapterabc.md` / an escaped path. `0` is honoured (the
+    fallback tests `undefined`, never `||` — the old `||` swallowed `0` into `chapter1.md`);
+  - the legacy `meta.chapter` key is a **routing key**, not only a number: a number follows the
+    `meta.chapterNum` rule, a string must be one safe path segment (`^[\p{L}\p{N}_-]+$`, so
+    `chapter1-counts.md` keeps working while `a/b` or `../../pwned` throw). Absent both keys, the
+    implicit auto-increment is used and is always safe;
+  - the resolved path is asserted inside the target root via `relative()` (no `..` prefix, not
+    absolute) as defence in depth, before `mkdirSync` / `atomicWriteFile`;
+  - two envelopes may not target the same chapter file: the second write throws (naming the path and
+    the envelope that wrote it) instead of silently overwriting the first chapter. The guard is
+    per-session; `?series=true` parts are exempt because they always take the next auto index.
+  `md://<file>` single-file mode has no chapter numbering and is unaffected.
 
 ### `settings.ts`
 
@@ -389,7 +405,7 @@ layouts. `md://<file>` single-file mode ignores `mdOutputs` entirely.
 ```text
 packages/waypoint/tests/builtins/
 ├── jsonl.test.ts          # JSONL read/write, glob source
-├── md.test.ts             # Markdown source/target
+├── md.test.ts             # Markdown source/target + dir-mode chapterNum validation
 ├── chapter-output.test.ts # lang/chapterNum path-validation rejections + happy path
 ├── http-server.test.ts    # HTTP source (real Fastify server)
 ├── http-target.test.ts    # HTTP target (local node:http server on an ephemeral port)

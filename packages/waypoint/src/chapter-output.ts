@@ -25,14 +25,16 @@ import { resolveUriInContext } from './settings.js'
  * Output path: <base-dir>/<lang>/chapter<num>.md
  * If lang is not provided, writes directly to <base-dir>/chapter<num>.md
  *
- * Path-safety contract (mirrors md.ts T087): `meta` arrives uncast from
+ * Path-safety contract (shared with md.ts dir mode T207): `meta` arrives uncast from
  * sources/LLMs/flatMaps, so both keys are validated before any mkdir —
  * violations throw a descriptive error naming the key, never silently
  * rewritten:
  *   - lang must be a single safe path segment: /^[\p{L}\p{N}_-]+$/u
  *     (no separators, no '..', so it cannot escape <base-dir>)
- *   - chapterNum (or legacy chapter) must be a non-negative integer;
- *     the auto-increment fallback is always safe
+ *   - chapterNum (or legacy chapter) must be a non-negative integer,
+ *     resolved with `??` so 0 is kept rather than replaced by the auto
+ *     number; the auto-increment fallback is always safe (`assertChapterNum`
+ *     in chapter-files.ts)
  * The final path is additionally asserted inside <base-dir> (no '..'
  * prefix) as defence in depth.
  *
