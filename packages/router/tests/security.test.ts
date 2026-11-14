@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { type IncomingHttpHeaders, type Server, createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -143,6 +143,35 @@ describe('keyless gateway security (live, fake upstream)', () => {
     expect(text).not.toContain(UPSTREAM_KEY)
     expect(text).toContain('***')
     expect(res.headers.get('x-ratelimit-remaining')).not.toBeNull()
+  })
+
+  const getLogs = (query: string) =>
+    fetch(`${url}/api/logs?${query}`, { headers: { authorization: `Bearer ${ROUTER_TOKEN}` } })
+
+  it('rejects a traversal date and never reads outside logDir', async () => {
+    await mkdir(join(dir, 'outside'), { recursive: true })
+    await writeFile(
+      join(dir, 'outside', 'log.jsonl'),
+      `${JSON.stringify({ timestamp: '2026-10-26T00:00:00.000Z', model: 'OUTSIDE_MARKER' })}\n`,
+    )
+    for (const query of ['date=../outside', 'date=../../outside']) {
+      const res = await getLogs(query)
+      expect(res.status).toBe(400)
+      expect(await res.text()).not.toContain('OUTSIDE_MARKER')
+    }
+  })
+
+  it('rejects dates that are not real calendar days', async () => {
+    for (const date of ['2026-13-45', '2026-02-30', 'yesterday', '2026-10-26/../x']) {
+      const res = await getLogs(`date=${encodeURIComponent(date)}`)
+      expect(res.status).toBe(400)
+    }
+  })
+
+  it('serves a valid date', async () => {
+    const res = await getLogs('date=2026-10-26')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ entries: [] })
   })
 
   it('log output carries no key values', async () => {

@@ -26,11 +26,28 @@ export interface DailyUsage {
   clients: Record<string, { calls: number; cost: number }>
 }
 
+const LOG_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Reject anything but a real `YYYY-MM-DD` calendar day. `getLogPath` builds a filesystem path from
+ * the date, so a raw query value like `../../x` would otherwise read outside the log directory.
+ */
+export function assertLogDate(date: string): void {
+  if (!LOG_DATE_RE.test(date)) {
+    throw new Error(`Invalid log date: ${date}`)
+  }
+  const parsed = new Date(`${date}T00:00:00.000Z`)
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+    throw new Error(`Invalid log date: ${date}`)
+  }
+}
+
 function getLogDir(): string {
   return getRouterConfig().logDir
 }
 
 export function getLogPath(date: string): string {
+  assertLogDate(date)
   return join(getLogDir(), date, 'log.jsonl')
 }
 
