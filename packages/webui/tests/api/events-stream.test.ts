@@ -64,6 +64,68 @@ describe('SSE events tailing (T132)', () => {
     }
   })
 
+  it('ends the stream immediately when replaying an already finished run', async () => {
+    await mkdir(join(dir, '.mt', 'runs', 'done-run'), { recursive: true })
+    await writeFile(
+      join(dir, '.mt', 'runs', 'done-run', 'events.jsonl'),
+      '{"type":"started"}\n{"type":"done"}\n',
+    )
+
+    const body = await (
+      await fetch(`${handle.url}/api/runs/done-run/events?stream=true`, {
+        signal: AbortSignal.timeout(3000),
+      })
+    ).text()
+
+    expect(body).toContain('event: done')
+    expect(body).toContain('event: end')
+  })
+
+  it('ends the stream when a done line is appended to a running log', async () => {
+    // The shared ru-run log is still open; the append below terminates it.
+    const eventsFile = join(dir, '.mt', 'runs', 'ru-run', 'events.jsonl')
+    const started = Date.now()
+    const res = await fetch(`${handle.url}/api/runs/ru-run/events?stream=true`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.body) throw new Error('response has no body')
+
+    await appendFile(eventsFile, '{"type":"done"}\n')
+    const body = await res.text()
+
+    expect(body).toContain('event: done')
+    expect(body).toContain('event: end')
+    expect(Date.now() - started).toBeLessThan(2000)
+  })
+
+  it('does not end the stream on a paused event', async () => {
+    await mkdir(join(dir, '.mt', 'runs', 'paused-run'), { recursive: true })
+    await writeFile(
+      join(dir, '.mt', 'runs', 'paused-run', 'events.jsonl'),
+      '{"type":"started"}\n{"type":"paused"}\n',
+    )
+
+    const res = await fetch(`${handle.url}/api/runs/paused-run/events?stream=true`)
+    if (!res.body) throw new Error('response has no body')
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let received = ''
+    try {
+      while (!received.includes('event: paused')) {
+        const { done, value } = await reader.read()
+        if (done) throw new Error('stream closed on a paused event')
+        received += decoder.decode(value, { stream: true })
+      }
+      const next = await Promise.race([
+        reader.read(),
+        new Promise<'open'>((resolve) => setTimeout(() => resolve('open'), 1200)),
+      ])
+      expect(next).toBe('open')
+    } finally {
+      await reader.cancel()
+    }
+  })
+
   it('replays a >64 KB event line intact', async () => {
     await mkdir(join(dir, '.mt', 'runs', 'big-run'), { recursive: true })
     const big = JSON.stringify({ type: 'big', text: 'ж'.repeat(100_000) })

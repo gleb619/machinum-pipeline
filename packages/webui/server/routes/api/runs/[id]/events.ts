@@ -66,17 +66,33 @@ export default defineEventHandler(async (event) => {
     event.node.res.write(`data: ${data}\n\n`)
   }
 
+  let finished = false
+  let ended = false
+
   const sendLines = (lines: string[], startOffset: number) => {
     let offset = startOffset
     for (const line of lines) {
       try {
         offset += Buffer.byteLength(line, 'utf8') + 1
-        sendEvent(JSON.parse(line), offset)
+        const evt = JSON.parse(line)
+        sendEvent(evt, offset)
+        const type = (evt as { type?: string }).type
+        if (type === 'done' || type === 'failed') finished = true
       } catch {
         // skip invalid lines
       }
     }
     return offset
+  }
+
+  let timer: NodeJS.Timeout | undefined
+  const endStream = () => {
+    if (ended) return
+    ended = true
+    if (timer) clearTimeout(timer)
+    if (event.node.res.writableEnded || event.node.res.destroyed) return
+    event.node.res.write('event: end\ndata: {}\n\n')
+    event.node.res.end()
   }
 
   const lastEventId = Number(getHeader(event, 'last-event-id'))
@@ -90,24 +106,39 @@ export default defineEventHandler(async (event) => {
 
   if (streamMode) {
     const pollInterval = 500
-    let timer: NodeJS.Timeout | undefined
 
     const poll = async () => {
-      if (event.node.req.closed) return
+      if (event.node.req.closed || event.node.res.writableEnded || event.node.res.destroyed) return
       try {
         const { lines, nextOffset } = await readNewLines(eventsPath, lastPosition)
         sendLines(lines, lastPosition)
         lastPosition = nextOffset
-      } catch {
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          endStream()
+          return
+        }
         // file may be mid-rename; retry on the next tick
+      }
+      if (finished) {
+        endStream()
+        return
       }
       timer = setTimeout(poll, pollInterval)
     }
 
+    // A replayed finished run must close right away, like a live one.
+    if (finished) {
+      endStream()
+      return
+    }
+
     timer = setTimeout(poll, pollInterval)
-    event.node.req.on('close', () => {
+    const stop = () => {
       if (timer) clearTimeout(timer)
-    })
+    }
+    event.node.req.on('close', stop)
+    event.node.res.on('close', stop)
   } else {
     event.node.res.write('event: done\ndata: {}\n\n')
     event.node.res.end()

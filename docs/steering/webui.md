@@ -38,6 +38,8 @@ packages/webui/server/routes/api/
 
 Tails `.mt/runs/<runId>/events.jsonl` using file watching. Sends each appended JSON line as an SSE `data:` message with an `id:` byte offset. A reconnecting client sends `Last-Event-ID`; the route starts reading at that byte offset, so events are not replayed or duplicated. `?projectId=` resolves the run under the T203 mirror root instead of the serve root.
 
+With `?stream=true` the response stays open and polls every 500 ms (so a run started in another process still streams). After a `done` or `failed` event is sent — including one found in the initial replay — the route writes `event: end\ndata: {}\n\n`, clears the poll timer and ends the response; a `paused` event does not close it. A vanished events file (`ENOENT`) or a closed client also stops the poll.
+
 ## Worker mode (T205)
 
 `server/utils/worker-registry.ts` holds online workers in memory plus an atomic
