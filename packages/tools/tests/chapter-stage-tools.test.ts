@@ -27,6 +27,7 @@ import {
   translateConcurrency,
   translateTaggedChapter,
 } from '../src/normalization/translation-stage.js'
+import type { TranslateChapterStats } from '../src/normalization/translation-stage.js'
 import { chapterPairsLinter } from '../src/verification/chapter-pairs-linter.js'
 import { LineParityError } from '../src/verification/line-parity-linter.js'
 
@@ -351,5 +352,275 @@ describe('translation stage', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mt-glossary-'))
     writeFileSync(join(dir, 'glossary.json'), '{ not json')
     await expect(loadGlossaryOrEmpty(dir)).rejects.toThrow(/glossary\.json/)
+  })
+})
+
+const xmlReply = (lines: readonly string[]): string =>
+  lines
+    .map((ru, i) => `<result><id>${i + 1}</id><translated>${ru}</translated></result>`)
+    .join('\n')
+
+const originCount = (user: string): number => [...user.matchAll(/<origin>/g)].length
+
+describe('block translation', () => {
+  const glossary = { terms: [] }
+  const SIX_LINES = [
+    'First line of the chapter.',
+    'Second line of the chapter.',
+    'Third line of the chapter.',
+    'Fourth line of the chapter.',
+    'Fifth line of the chapter.',
+    'Sixth line of the chapter.',
+  ]
+
+  it('6 lines with blockLines 3 make 2 requests and keep the 1:1 mapping', async () => {
+    const calls: string[] = []
+    let stats: TranslateChapterStats | undefined
+    const ru = await translateTaggedChapter(['# Chapter 1', '', ...SIX_LINES].join('\n'), {
+      glossary,
+      summary: '',
+      titleRu: 'Глава 1',
+      concurrency: 1,
+      blockLines: 3,
+      ask: async () => {
+        throw new Error('per-line request sent for a healthy block')
+      },
+      askRaw: async (_s, user) => {
+        calls.push(user)
+        const n = originCount(user)
+        return xmlReply(Array.from({ length: n }, (_, i) => `Блок ${calls.length}-${i + 1}`))
+      },
+      onStats: (s) => {
+        stats = s
+      },
+    })
+    expect(calls).toHaveLength(2)
+    expect(stats).toEqual({ lines: 6, calls: 2, fallbackLines: 0 })
+    expect(ru.split('\n').slice(0, 2)).toEqual(['# Глава 1', ''])
+    expect(ru.split('\n').slice(2)).toEqual([
+      'Блок 1-1',
+      'Блок 1-2',
+      'Блок 1-3',
+      'Блок 2-1',
+      'Блок 2-2',
+      'Блок 2-3',
+    ])
+  })
+
+  it('falls back per line for exactly the dropped id: 2 blocks + 1 retry + 1 line', async () => {
+    const blockCalls: string[] = []
+    const lineCalls: string[] = []
+    let stats: TranslateChapterStats | undefined
+    const ru = await translateTaggedChapter(['# Chapter 1', '', ...SIX_LINES].join('\n'), {
+      glossary,
+      summary: '',
+      titleRu: 'Глава 1',
+      concurrency: 1,
+      blockLines: 3,
+      ask: async (_s, user) => {
+        lineCalls.push(user)
+        return 'Отдельный перевод'
+      },
+      askRaw: async (_s, user) => {
+        blockCalls.push(user)
+        // the first block keeps dropping id 2 on both attempts
+        if (user.includes('First line of the chapter.')) {
+          return [1, 3]
+            .map((id) => `<result><id>${id}</id><translated>Блок ${id}</translated></result>`)
+            .join('\n')
+        }
+        return xmlReply(['Блок 1', 'Блок 2', 'Блок 3'])
+      },
+      onStats: (s) => {
+        stats = s
+      },
+    })
+    expect(blockCalls).toHaveLength(3) // block 1, its retry, block 2
+    expect(lineCalls).toHaveLength(1)
+    expect(lineCalls[0]).toContain('Second line of the chapter.')
+    expect(lineCalls[0]).not.toContain('<context>')
+    expect(stats).toEqual({ lines: 6, calls: 4, fallbackLines: 1 })
+    expect(ru.split('\n').slice(2, 5)).toEqual(['Блок 1', 'Отдельный перевод', 'Блок 3'])
+    expect(ru.split('\n').slice(5)).toEqual(['Блок 1', 'Блок 2', 'Блок 3'])
+  })
+
+  it('parses a block reply with a trailing <terms> report block', async () => {
+    const ru = await translateTaggedChapter('# Chapter 1\n\nHello there.\nGoodbye now.', {
+      glossary,
+      summary: '',
+      titleRu: 'Глава 1',
+      concurrency: 1,
+      blockLines: 2,
+      ask: async () => {
+        throw new Error('unexpected per-line request')
+      },
+      askRaw: async () =>
+        `${xmlReply(['Привет', 'Пока'])}\n<terms>[{"term":"Arin","ru":"Арин","type":"character"}]</terms>`,
+    })
+    expect(ru).toBe('# Глава 1\n\nПривет\nПока')
+  })
+
+  it('keeps numerals and [bracketed] markers from a block reply', async () => {
+    const ru = await translateTaggedChapter('# Chapter 12\n\nChapter 12 begins [here].\n[Note 3]', {
+      glossary,
+      summary: '',
+      titleRu: 'Глава 12',
+      concurrency: 1,
+      blockLines: 2,
+      ask: async () => {
+        throw new Error('unexpected per-line request')
+      },
+      askRaw: async () => xmlReply(['Глава 12 начинается [здесь].', '[Примечание 3]']),
+    })
+    expect(ru).toBe('# Глава 12\n\nГлава 12 начинается [здесь].\n[Примечание 3]')
+    expect(ru).toContain('12')
+  })
+
+  it('maps a reply with a duplicated id by id, so the later lines keep their place', async () => {
+    const lineCalls: string[] = []
+    const ru = await translateTaggedChapter(
+      ['# Chapter 1', '', ...SIX_LINES.slice(0, 3)].join('\n'),
+      {
+        glossary,
+        summary: '',
+        titleRu: 'Глава 1',
+        concurrency: 1,
+        blockLines: 3,
+        ask: async (_s, user) => {
+          lineCalls.push(user)
+          return 'Отдельный перевод'
+        },
+        askRaw: async () =>
+          [
+            '<result><id>1</id><translated>Первый</translated></result>',
+            '<result><id>2</id><translated>Второй</translated></result>',
+            '<result><id>2</id><translated>Второй повтор</translated></result>',
+            '<result><id>3</id><translated>Третий</translated></result>',
+          ].join('\n'),
+      },
+    )
+    expect(lineCalls).toHaveLength(1)
+    expect(lineCalls[0]).toContain('Second line of the chapter.')
+    expect(ru).toBe('# Глава 1\n\nПервый\nОтдельный перевод\nТретий')
+  })
+
+  it('rejects a candidate with an embedded newline and recovers it per line', async () => {
+    const lineCalls: string[] = []
+    const ru = await translateTaggedChapter(
+      '# Chapter 1\n\nFirst line of the chapter.\nSecond line of the chapter.\nThird line of the chapter.',
+      {
+        glossary,
+        summary: '',
+        titleRu: 'Глава 1',
+        concurrency: 1,
+        blockLines: 3,
+        ask: async (_s, user) => {
+          lineCalls.push(user)
+          return 'Первый отдельно'
+        },
+        askRaw: async () =>
+          [
+            '<result><id>1</id><translated>Первый\nи лишняя строка</translated></result>',
+            '<result><id>2</id><translated>Второй</translated></result>',
+            '<result><id>3</id><translated>Третий</translated></result>',
+          ].join('\n'),
+      },
+    )
+    expect(lineCalls).toHaveLength(1)
+    expect(lineCalls[0]).toContain('First line of the chapter.')
+    // the merged entry must not add a chapter line nor swallow its neighbours
+    expect(ru.split('\n')).toHaveLength(5)
+    expect(ru).toBe('# Глава 1\n\nПервый отдельно\nВторой\nТретий')
+  })
+
+  it('keeps the line order when the reply entries arrive out of order', async () => {
+    const ru = await translateTaggedChapter(
+      ['# Chapter 1', '', ...SIX_LINES.slice(0, 3)].join('\n'),
+      {
+        glossary,
+        summary: '',
+        titleRu: 'Глава 1',
+        concurrency: 1,
+        blockLines: 3,
+        ask: async () => {
+          throw new Error('unexpected per-line request')
+        },
+        askRaw: async () =>
+          [
+            '<result><id>3</id><translated>Третий</translated></result>',
+            '<result><id>1</id><translated>Первый</translated></result>',
+            '<result><id>2</id><translated>Второй</translated></result>',
+          ].join('\n'),
+      },
+    )
+    expect(ru).toBe('# Глава 1\n\nПервый\nВторой\nТретий')
+  })
+
+  it('treats an empty reply as a retryable error instead of a blank line', async () => {
+    let calls = 0
+    const body = createChapterBodyTranslator({
+      call: (async () => {
+        calls += 1
+        return {
+          content: '',
+          model: 'm',
+          tokens: 0,
+          promptTokens: 0,
+          completionTokens: 0,
+          finishReason: 'stop',
+        }
+      }) as never,
+      chaptersDir: chaptersDir(),
+      log: false,
+      blockLines: 2,
+    })
+    await expect(
+      body.invoke(
+        {
+          ...createExchange(
+            { text: '# Глава 1' },
+            { variables: [variable('chapters', ['# Chapter 1\n\nHello there.'])] },
+          ),
+          items: [{ text: '# Глава 1' }],
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({
+      retryable: true,
+      message: expect.stringContaining('empty translation reply'),
+    })
+    expect(calls).toBeGreaterThan(0)
+  })
+
+  it('passes maxTokens through to the request', async () => {
+    const seen: Array<number | undefined> = []
+    const call = async (input: { maxTokens?: number }) => {
+      seen.push(input.maxTokens)
+      return {
+        content: xmlReply(['Привет']),
+        model: 'm',
+        tokens: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+      }
+    }
+    const body = createChapterBodyTranslator({
+      call: call as never,
+      chaptersDir: chaptersDir(),
+      log: false,
+      blockLines: 2,
+      maxTokens: 4096,
+    })
+    await body.invoke(
+      {
+        ...createExchange(
+          { text: '# Глава 1' },
+          { variables: [variable('chapters', ['# Chapter 1\n\nHello there.'])] },
+        ),
+        items: [{ text: '# Глава 1' }],
+      },
+      ctx,
+    )
+    expect(seen).toEqual([4096])
   })
 })

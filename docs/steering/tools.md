@@ -354,6 +354,14 @@ Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, l
   unknown value throws) selects a subset; a missing slot file renders `''` with one `[WARN]`, while
   `MT_TRANSLATE_SLOTS_STRICT=1` turns that warn into a throw. `createChapterBodyTranslator({ slots })` defaults to
   all four.
+- Block translation (roadmap step 9): `createChapterBodyTranslator({ blockLines, maxTokens })` sends `blockLines`
+  consecutive body lines per `xml` request (reply `<result><id>N</id><translated>…</translated></result>`);
+  default `blockLines: 1` keeps the historical per-line path. A block is tried twice; lines still missing or
+  failing the single-line parity check then get one per-line request each (`fallbackLines` in the stats line).
+  Passed replies are memoised under the per-line prompt key, so resumed runs re-send nothing. `maxTokens`
+  defaults to 2048 and caps the output: a reply with `finishReason: 'length'` throws a retryable `LlmError`.
+  The sample sets both with `MT_TRANSLATE_BLOCK_LINES` (default 40) and `MT_TRANSLATE_MAX_TOKENS` (default 2048,
+  max 8192).
 - `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,
   cyrillicSeverity })` — `{ en, ru }` item in/out, `parity` variable = `{ ok, enLines, ruLines, errors, warnings,
   cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,

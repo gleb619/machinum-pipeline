@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
@@ -12,6 +13,7 @@ import {
 } from '@mt/core'
 import type { Tool, ToolContext } from '@mt/core'
 import { LlmError } from '../core/llm-errors.js'
+import { extractXmlResultEntries } from '../core/prompt-blocks.js'
 import type { TranslateInput, TranslateOutput } from '../core/translate-text.js'
 import { LineParityError, lintLineParity } from '../verification/line-parity-linter.js'
 import type { LineParityInput } from '../verification/line-parity-linter.js'
@@ -301,6 +303,61 @@ export async function loadChapterVocabulary(
   return renderVocabBlock(terms, n)
 }
 
+/** Output budget of a translation request when the caller sets none. */
+const DEFAULT_TRANSLATE_MAX_TOKENS = 2048
+
+/**
+ * One LLM call for a (system, user) prompt pair, returning the raw model content. A reply cut
+ * off at `maxTokens` throws a retryable {@link LlmError}; thinking models need a larger budget.
+ */
+async function askRawContent(
+  call: SchemaDocLlmCall,
+  system: string,
+  user: string,
+  ctx: ToolContext,
+  maxTokens: number = DEFAULT_TRANSLATE_MAX_TOKENS,
+): Promise<string> {
+  const res = await call(
+    {
+      systemPrompt: system,
+      messages: [{ role: 'user', content: user }],
+      temperature: 0.2,
+      maxTokens,
+    },
+    ctx,
+  )
+  if (res.finishReason === 'length' || res.content.trim() === '') {
+    debugDump(
+      undefined,
+      'llm-meta',
+      JSON.stringify({
+        finishReason: res.finishReason ?? null,
+        contentLength: res.content.length,
+        promptTokens: res.promptTokens,
+        completionTokens: res.completionTokens,
+        maxTokens,
+        systemChars: system.length,
+        userChars: user.length,
+      }),
+    )
+  }
+  if (res.finishReason === 'length') {
+    throw new LlmError('translation reply truncated at maxTokens (finishReason: length)', {
+      retryable: true,
+    })
+  }
+  // A thinking model that spends its whole budget on reasoning returns an empty `content` with
+  // a normal stop reason. Treating that as a successful reply produced a blank "translation"
+  // that only surfaced later as a confusing line-parity error.
+  if (res.content.trim() === '') {
+    throw new LlmError(
+      `empty translation reply (finishReason: ${res.finishReason ?? 'unknown'}, completionTokens: ${res.completionTokens})`,
+      { retryable: true },
+    )
+  }
+  return res.content
+}
+
 /**
  * One LLM call for a (system, user) prompt pair. `mode: 'plain'` (default) returns the cleaned
  * reply as before; other modes parse the structured reply (xml/properties) and join the
@@ -313,23 +370,11 @@ async function ask(
   user: string,
   ctx: ToolContext,
   mode: TranslateWorkMode = 'plain',
+  maxTokens: number = DEFAULT_TRANSLATE_MAX_TOKENS,
 ): Promise<string> {
-  const res = await call(
-    {
-      systemPrompt: system,
-      messages: [{ role: 'user', content: user }],
-      temperature: 0.2,
-      maxTokens: 2048,
-    },
-    ctx,
-  )
-  if (res.finishReason === 'length') {
-    throw new LlmError('translation reply truncated at maxTokens (finishReason: length)', {
-      retryable: true,
-    })
-  }
-  if (mode === 'plain') return cleanTranslation(res.content)
-  return parseTranslationReply(res.content, mode).lines.join('\n')
+  const content = await askRawContent(call, system, user, ctx, maxTokens)
+  if (mode === 'plain') return cleanTranslation(content)
+  return parseTranslationReply(content, mode).lines.join('\n')
 }
 
 export const TITLE_RULES = [
@@ -411,6 +456,22 @@ export function titleOf(text: string): string {
   return (heading ?? text).trim()
 }
 
+/** One non-blank body line of a chapter, with its index in the source line array. */
+interface LineJob {
+  index: number
+  text: string
+}
+
+/** Per-chapter request accounting (logged as `translate chapter=… lines=… calls=…`). */
+export interface TranslateChapterStats {
+  /** Non-blank body lines of the chapter (the heading and fenced code excluded). */
+  lines: number
+  /** LLM requests actually sent: memo hits, skipped and replayed lines are not counted. */
+  calls: number
+  /** Lines recovered with a per-line request after their block failed. */
+  fallbackLines: number
+}
+
 export interface TranslateLinesOptions {
   glossary: Glossary
   summary: string
@@ -425,20 +486,239 @@ export interface TranslateLinesOptions {
   concurrency: number
   /** Sends one prompt, returns the cleaned reply. */
   ask: (system: string, user: string) => Promise<string>
+  /**
+   * Sends one prompt, returns the raw model content (no clean/parse). Block mode needs the raw
+   * structured reply to recover the lines a partial reply did produce; it falls back to `ask`
+   * when absent, which only works if `ask` returns that raw reply.
+   */
+  askRaw?: (system: string, user: string) => Promise<string>
   /** Per-line memo of replies that already passed the line check (retry skips them). */
   memo?: Map<string, string>
-  /** Work mode of the translation prompt. Default: `'plain'` (backward compatible). */
+  /** Work mode of the per-line translation prompt. Default: `'plain'` (backward compatible). */
   mode?: TranslateWorkMode
+  /**
+   * Consecutive body lines per LLM request in `xml` mode. Default `1` = one request per line
+   * (historical behaviour). A failed block is retried once; its still-failing lines then fall
+   * back to per-line requests, so a chapter keeps its 1:1 line mapping either way.
+   */
+  blockLines?: number
+  /** Output budget of every request. Default 2048; raise it for thinking models. */
+  maxTokens?: number
+  /** Called once per chapter, also when a line fails (the engine then retries the step). */
+  onStats?: (stats: TranslateChapterStats) => void
 }
 
 async function* lines<T>(xs: readonly T[]): AsyncIterable<T> {
   yield* xs
 }
 
+function chunk<T>(xs: readonly T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < xs.length; i += size) out.push(xs.slice(i, i + size))
+  return out
+}
+
+/** Root of the `MT_TRANSLATE_DEBUG=1` dumps (block prompt, raw reply, parsed candidates). */
+const DEBUG_DIR = '/tmp/mt-translate-debug'
+let debugSeq = 0
+
 /**
- * Translates a `<term>`-tagged EN chapter line by line. Blank lines and fenced code are kept,
- * the first `# ` heading becomes `# <titleRu>`, every other line is one LLM call. A reply that
- * fails the single-line parity check throws a retryable {@link LineParityError}.
+ * Writes one debugging artefact to `/tmp/mt-translate-debug/<chapter>/<seq>-<name>.txt`.
+ * `MT_TRANSLATE_DEBUG=1` only; never throws (a failed dump must not fail a translation).
+ */
+function debugDump(chapter: number | undefined, name: string, text: string): void {
+  if (process.env.MT_TRANSLATE_DEBUG !== '1') return
+  try {
+    const dir = join(DEBUG_DIR, String(chapter ?? 0))
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, `${String(++debugSeq).padStart(3, '0')}-${name}.txt`), text)
+  } catch {
+    // diagnostics only
+  }
+}
+
+function linePrompt(job: LineJob, opts: TranslateLinesOptions) {
+  return buildTranslationPrompt({
+    text: job.text,
+    glossary: opts.glossary,
+    summary: opts.summary,
+    entities: opts.entities,
+    vocabulary: opts.vocabulary,
+    mode: opts.mode,
+    chapter: opts.chapter,
+  })
+}
+
+function promptKey(prompt: { systemPrompt: string; userPrompt: string }): string {
+  return JSON.stringify([prompt.systemPrompt, prompt.userPrompt])
+}
+
+/** Translates one body line (plain single-line request), reusing the per-line memo. */
+async function translateLine(
+  job: LineJob,
+  opts: TranslateLinesOptions,
+  stats: TranslateChapterStats,
+): Promise<string> {
+  const prompt = linePrompt(job, opts)
+  const key = promptKey(prompt)
+  const hit = opts.memo?.get(key)
+  if (hit !== undefined) return hit
+  stats.calls += 1
+  // plain mode: the model sometimes splits a long line: join it back (empty/bracket/other
+  // faults still fail); other modes already return exactly one line per input line
+  const reply = await opts.ask(prompt.systemPrompt, prompt.userPrompt)
+  // The prompt asks for the translation plus one trailing `<terms>` report block, and the
+  // model obeys literally: without this cleanup the block lands in the chapter text.
+  const clean = cleanTranslation(reply)
+  const ru = opts.mode === undefined || opts.mode === 'plain' ? joinReplyLines(clean) : clean
+  // parity is checked against the source line, not the (mode-wrapped) user prompt
+  const verdict = lintLineParity(stripTerms(job.text), ru, {
+    cyrillicSeverity: 'warn',
+    untranslatedSeverity: 'error',
+  })
+  if (!verdict.ok) {
+    debugDump(
+      opts.chapter,
+      `line-${job.index + 1}-fail`,
+      `${verdict.issues.map((i) => `${i.severity} ${i.code}: ${i.message}`).join('\n')}\n--- src ---\n${job.text}\n--- ru ---\n${ru}\n`,
+    )
+    throw new LineParityError(verdict, `chapter line ${job.index + 1}`)
+  }
+  opts.memo?.set(key, ru)
+  return ru
+}
+
+/**
+ * One reply value as a candidate line: `undefined` when it is empty or spans several lines.
+ * A value carrying an embedded newline means the model merged or split source lines; keeping it
+ * would either add a chapter line or silently swallow the neighbouring one, so the line is left
+ * to the per-line fallback instead.
+ */
+function candidateLine(value: string): string | undefined {
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed.includes('\n')) return undefined
+  return trimmed
+}
+
+/**
+ * Extracts the `<id>…<translated>` pairs of an `xml` block reply, keyed by the id the reply
+ * carries (never by document position, so a reordered, duplicated or missing entry cannot shift
+ * the later lines). A reply with no `<id>` at all falls back to document order. Missing,
+ * duplicated and multi-line entries stay `undefined` so the other lines of a partial reply can
+ * still be kept.
+ */
+function blockCandidates(reply: string, count: number): Array<string | undefined> {
+  const cleaned = cleanTranslation(reply)
+  const entries = extractXmlResultEntries(cleaned, 'translated')
+  const byId = new Map<number, string>()
+  const duplicate = new Set<number>()
+  for (const entry of entries) {
+    if (byId.has(entry.key)) duplicate.add(entry.key)
+    else byId.set(entry.key, entry.value)
+  }
+  const positional =
+    entries.length === 0
+      ? [...cleaned.matchAll(/<translated>([\s\S]*?)<\/translated>/g)].map((m) => m[1] ?? '')
+      : undefined
+  return Array.from({ length: count }, (_, i) => {
+    const id = i + 1
+    const raw = positional === undefined ? byId.get(id) : positional[i]
+    if (raw === undefined || duplicate.has(id)) return undefined
+    return candidateLine(raw)
+  })
+}
+
+/** Lines of a block reply that are present and pass the single-line parity check. */
+function passingBlockLines(block: readonly LineJob[], reply: string): Map<number, string> {
+  const candidates = blockCandidates(reply, block.length)
+  const passed = new Map<number, string>()
+  block.forEach((job, i) => {
+    const ru = candidates[i]
+    if (ru === undefined) return
+    const verdict = lintLineParity(stripTerms(job.text), ru, {
+      cyrillicSeverity: 'warn',
+      untranslatedSeverity: 'error',
+    })
+    if (verdict.ok) passed.set(job.index, ru)
+  })
+  return passed
+}
+
+/**
+ * Translates one block of consecutive lines in `xml` mode. One retry of the whole block, then a
+ * per-line request for every line the block still did not return; lines that passed are kept.
+ * A line whose per-line reply also fails parity throws the retryable {@link LineParityError}.
+ */
+async function translateBlock(
+  block: readonly LineJob[],
+  opts: TranslateLinesOptions,
+  stats: TranslateChapterStats,
+): Promise<Map<number, string>> {
+  const send = opts.askRaw ?? opts.ask
+  const prompt = buildTranslationPrompt({
+    text: block.map((job) => job.text).join('\n'),
+    glossary: opts.glossary,
+    summary: opts.summary,
+    entities: opts.entities,
+    vocabulary: opts.vocabulary,
+    mode: 'xml',
+    chapter: opts.chapter,
+  })
+  const passed = new Map<number, string>()
+  const attempt = async () => {
+    stats.calls += 1
+    debugDump(
+      opts.chapter,
+      'block-prompt',
+      `${prompt.systemPrompt}\n\n===== USER =====\n\n${prompt.userPrompt}`,
+    )
+    const reply = await send(prompt.systemPrompt, prompt.userPrompt)
+    debugDump(opts.chapter, 'block-reply', reply)
+    debugDump(
+      opts.chapter,
+      'block-candidates',
+      JSON.stringify(
+        { block: block.map((job) => job.text), candidates: blockCandidates(reply, block.length) },
+        null,
+        2,
+      ),
+    )
+    for (const [index, ru] of passingBlockLines(block, reply)) {
+      if (!passed.has(index)) passed.set(index, ru)
+    }
+  }
+  // A truncated reply throws LlmError, a garbled one yields no/missing ids: retry the block once
+  // before paying for per-line requests.
+  try {
+    await attempt()
+  } catch {
+    // the retry below decides whether this is recoverable
+  }
+  if (passed.size < block.length) {
+    try {
+      await attempt()
+    } catch {
+      // still failing: per-line fallback below recovers the lines one by one
+    }
+  }
+  // Memoise block results under the ordinary per-line key, so a resumed run re-sends nothing.
+  for (const job of block) {
+    const ru = passed.get(job.index)
+    if (ru !== undefined) opts.memo?.set(promptKey(linePrompt(job, opts)), ru)
+  }
+  for (const job of block) {
+    if (passed.has(job.index)) continue
+    stats.fallbackLines += 1
+    passed.set(job.index, await translateLine(job, opts, stats))
+  }
+  return passed
+}
+
+/**
+ * Translates a `<term>`-tagged EN chapter. Blank lines and fenced code are kept, the first `# `
+ * heading becomes `# <titleRu>`. With the default `blockLines: 1` every other line is one LLM
+ * call; `blockLines > 1` groups consecutive lines into `xml`-mode requests of that size, keeps
+ * the 1:1 line mapping, and falls back to per-line requests for lines a block cannot deliver.
  */
 export async function translateTaggedChapter(
   tagged: string,
@@ -447,7 +727,7 @@ export async function translateTaggedChapter(
   const src = tagged.split('\n')
   let fence = false
   let headingDone = false
-  const jobs: Array<{ index: number; text: string }> = []
+  const jobs: LineJob[] = []
   const out = [...src]
   src.forEach((line, index) => {
     if (/^\s*(```|~~~)/.test(line)) {
@@ -463,36 +743,37 @@ export async function translateTaggedChapter(
     jobs.push({ index, text: line })
   })
 
-  const done = mapConcurrent(lines(jobs), opts.concurrency, async (job) => {
-    const prompt = buildTranslationPrompt({
-      text: job.text,
-      glossary: opts.glossary,
-      summary: opts.summary,
-      entities: opts.entities,
-      vocabulary: opts.vocabulary,
-      mode: opts.mode,
-      chapter: opts.chapter,
-    })
-    const key = JSON.stringify([prompt.systemPrompt, prompt.userPrompt])
-    const hit = opts.memo?.get(key)
-    if (hit !== undefined) return { index: job.index, ru: hit }
-    // plain mode: the model sometimes splits a long line: join it back (empty/bracket/other
-    // faults still fail); other modes already return exactly one line per input line
-    const reply = await opts.ask(prompt.systemPrompt, prompt.userPrompt)
-    // The prompt asks for the translation plus one trailing `<terms>` report block, and the
-    // model obeys literally: without this cleanup the block lands in the chapter text.
-    const clean = cleanTranslation(reply)
-    const ru = opts.mode === undefined || opts.mode === 'plain' ? joinReplyLines(clean) : clean
-    // parity is checked against the source line, not the (mode-wrapped) user prompt
-    const verdict = lintLineParity(stripTerms(job.text), ru, {
-      cyrillicSeverity: 'warn',
-      untranslatedSeverity: 'error',
-    })
-    if (!verdict.ok) throw new LineParityError(verdict, `chapter line ${job.index + 1}`)
-    opts.memo?.set(key, ru)
-    return { index: job.index, ru }
-  })
-  for await (const { index, ru } of done) out[index] = ru
+  const stats: TranslateChapterStats = { lines: jobs.length, calls: 0, fallbackLines: 0 }
+  const blockLines = Math.max(1, Math.floor(opts.blockLines ?? 1))
+  try {
+    if (blockLines <= 1) {
+      const done = mapConcurrent(lines(jobs), opts.concurrency, async (job) => ({
+        index: job.index,
+        ru: await translateLine(job, opts, stats),
+      }))
+      for await (const { index, ru } of done) out[index] = ru
+    } else {
+      const pending: LineJob[] = []
+      for (const job of jobs) {
+        const hit = opts.memo?.get(promptKey(linePrompt(job, opts)))
+        if (hit !== undefined) out[job.index] = hit
+        else pending.push(job)
+      }
+      const done = mapConcurrent(lines(chunk(pending, blockLines)), opts.concurrency, (block) =>
+        translateBlock(block, opts, stats),
+      )
+      for await (const results of done) {
+        for (const [index, ru] of results) out[index] = ru
+      }
+    }
+  } catch (err) {
+    const numbered = (ls: readonly string[]) => ls.map((l, i) => `${i + 1}|${l}`).join('\n')
+    debugDump(opts.chapter, 'chapter-src', numbered(src))
+    debugDump(opts.chapter, 'chapter-partial', numbered(out))
+    throw err
+  } finally {
+    opts.onStats?.(stats)
+  }
   return out.join('\n')
 }
 
@@ -502,7 +783,7 @@ export interface ChapterBodyTranslatorOptions {
   chaptersDir: string
   /** Paragraph concurrency. Default: `MT_TRANSLATE_CONCURRENCY` (1). */
   concurrency?: number
-  /** Log per-chapter timing. Default: true. */
+  /** Log one request-accounting line per chapter. Default: true. */
   log?: boolean
   /** Work mode of the translation prompt. Default: `'plain'` (backward compatible). */
   mode?: TranslateWorkMode
@@ -511,6 +792,13 @@ export interface ChapterBodyTranslatorOptions {
    * ({@link TRANSLATE_SLOTS}). Disabled slots are neither read nor rendered.
    */
   slots?: TranslateSlot[]
+  /**
+   * Consecutive body lines per LLM request (`xml` mode). Default `1` = one request per line.
+   * Block mode cuts the free-tier request count by ~10× while keeping per-line verification.
+   */
+  blockLines?: number
+  /** Output budget of every request. Default 2048; raise it for thinking models. */
+  maxTokens?: number
 }
 
 /**
@@ -540,7 +828,6 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
       const nums: number[] = []
       for (const [i, tagged] of chapters.entries()) {
         const n = chapterNumberOf(tagged, i + 1)
-        const t0 = Date.now()
         const ru = await translateTaggedChapter(tagged, {
           glossary,
           summary: slots.has('summary') ? await loadChapterSummary(options.chaptersDir, n) : '',
@@ -555,11 +842,19 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
           concurrency,
           memo,
           mode: options.mode,
-          ask: (system, user) => ask(options.call, system, user, ctx, options.mode),
+          blockLines: options.blockLines,
+          maxTokens: options.maxTokens,
+          ask: (system, user) =>
+            ask(options.call, system, user, ctx, options.mode, options.maxTokens),
+          askRaw: (system, user) =>
+            askRawContent(options.call, system, user, ctx, options.maxTokens),
+          onStats: (stats) => {
+            if (options.log === false) return
+            ctx.run.logger.info(
+              `[translate] chapter=${n} lines=${stats.lines} calls=${stats.calls} fallbackLines=${stats.fallbackLines}`,
+            )
+          },
         })
-        if (options.log !== false) {
-          ctx.run.logger.info(`[translate] chapter ${n}: ${Date.now() - t0} ms`)
-        }
         pairs.push({ en: stripTerms(tagged), ru })
         nums.push(n)
       }

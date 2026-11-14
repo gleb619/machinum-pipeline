@@ -201,6 +201,9 @@ async function callGate(
     tokens: out.tokens,
     promptTokens: out.promptTokens,
     completionTokens: out.completionTokens,
+    // Dropping this made every truncation look like a clean answer with empty content: the
+    // callers' `finishReason === 'length'` guard could never fire through the picked gate.
+    finishReason: out.finishReason,
   }
 }
 
