@@ -940,6 +940,10 @@ export {
 export {
   onlyChapters,
   translateConcurrency,
+  DEFAULT_TRANSLATE_BLOCK_LINES,
+  TRANSLATE_BLOCK_LINES_SAFE_MAX,
+  translateBlockLines,
+  translateBlockLinesWarning,
   loadGlossaryOrEmpty,
   loadChapterSummary,
   createGlossaryTitleTranslator,

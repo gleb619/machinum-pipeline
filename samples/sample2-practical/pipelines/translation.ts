@@ -15,6 +15,7 @@ import {
   renderPriorTerms,
   sortChapters,
   tagWithGlossary,
+  translateBlockLines,
   translateConcurrency,
   writeTitles,
 } from '@mt/tools'
@@ -34,7 +35,7 @@ function positiveInt(raw: string | undefined, fallback: number, max = Number.MAX
 }
 
 /** Consecutive body lines per request; titles stay per-chapter. */
-const blockLines = positiveInt(process.env.MT_TRANSLATE_BLOCK_LINES, 40)
+const blockLines = translateBlockLines()
 const maxTokens = positiveInt(
   process.env.MT_TRANSLATE_MAX_TOKENS,
   blockLines > 1 ? 8192 : 2048,

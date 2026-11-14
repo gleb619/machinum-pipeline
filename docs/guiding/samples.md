@@ -82,7 +82,7 @@ Environment knobs:
 - `MT_LLM_MODEL_<STAGE>` — per-stage model override (`SUMMARY`, `NER`, `PREPROCESS`, `TRANSLATE`, …).
 - `MT_TRANSLATE_SLOTS` — comma list of `summary,glossary,ner,vocab`; absent = all four.
 - `MT_TRANSLATE_SLOTS_STRICT=1` — a missing slot artefact throws instead of warning.
-- `MT_TRANSLATE_BLOCK_LINES` — body lines per request; default 40.
+- `MT_TRANSLATE_BLOCK_LINES` — body lines per request; default 6.
 - `MT_TRANSLATE_MAX_TOKENS` — per-request output budget; default 2048, capped at 8192.
 - `MT_ONLY_CHAPTERS=1,2` — narrow every stage to the listed chapters.
 - `MT_FORCE_BRANCH=translate|preprocess` — override the quality verdict.
@@ -154,6 +154,13 @@ pnpm run runner:normalization
 pnpm run runner:preparation
 pnpm run runner:translation
 ```
+
+Body translation env knobs:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `MT_TRANSLATE_BLOCK_LINES` | `6` | Prose lines per body request. Measured on `books/book2` with `particle-ai/particle-1:free`: `40` drifts on structure (dropped/duplicated blank lines), falls back to per-line requests (7-14 calls per 16-line chapter) and breaks parity; `6` gives 3 calls per chapter with no fallback. Raise only after a parity run proves the model holds structure; values above `8` log one `warn`. |
+| `MT_TRANSLATE_CONCURRENCY` | `1` | Chapters translated in parallel. |
 
 ## Running a sample
 

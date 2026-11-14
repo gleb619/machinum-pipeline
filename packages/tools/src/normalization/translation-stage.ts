@@ -54,6 +54,28 @@ export function translateConcurrency(env: Record<string, string | undefined> = p
   return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1
 }
 
+/** Lines per body-translation request (`MT_TRANSLATE_BLOCK_LINES`, default 6). */
+export const DEFAULT_TRANSLATE_BLOCK_LINES = 6
+
+/**
+ * Largest block a free-tier model was measured to hold without structural drift. Above it the
+ * model drops or duplicates lines, the whole block fails the line check and every block falls
+ * back to per-line requests (7-14 calls per 16-line chapter instead of 3).
+ */
+export const TRANSLATE_BLOCK_LINES_SAFE_MAX = 8
+
+/** Body-translation block size (`MT_TRANSLATE_BLOCK_LINES`, default 6). */
+export function translateBlockLines(env: Record<string, string | undefined> = process.env) {
+  const n = Number(env.MT_TRANSLATE_BLOCK_LINES)
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : DEFAULT_TRANSLATE_BLOCK_LINES
+}
+
+/** One `warn` for a block size the free tier cannot hold; `undefined` when the size is safe. */
+export function translateBlockLinesWarning(blockLines: number): string | undefined {
+  if (blockLines <= TRANSLATE_BLOCK_LINES_SAFE_MAX) return undefined
+  return `blockLines=${blockLines} exceeds the measured safe size ${TRANSLATE_BLOCK_LINES_SAFE_MAX}: free-tier models drop or duplicate lines, so every block falls back to per-line requests (7-14 calls per 16-line chapter instead of 3)`
+}
+
 /**
  * `chaptersDir/glossary.json`, or an empty glossary only when the file does not exist. A file
  * that exists but cannot be read or parsed throws: silently translating a whole book without
@@ -858,6 +880,8 @@ export interface ChapterBodyTranslatorOptions {
   /**
    * Consecutive body lines per LLM request (`xml` mode). Default `1` = one request per line.
    * Block mode cuts the free-tier request count by ~10× while keeping per-line verification.
+   * Above {@link TRANSLATE_BLOCK_LINES_SAFE_MAX} the step logs one `warn`: free-tier models
+   * drift on structure, so the size is a measured trade-off, not a free win.
    */
   blockLines?: number
   /** Output budget of every request. Default 2048; raise it for thinking models. */
@@ -877,11 +901,12 @@ export interface ChapterBodyTranslatorOptions {
  */
 export function createChapterBodyTranslator(options: ChapterBodyTranslatorOptions) {
   const memo = new Map<string, string>() // survives engine retries of this step
+  let warnedBlockLines = false
   return defineTool<{ text: string }, LineParityInput>({
     name: 'chapter-body-translator',
-    version: '1.2.0',
+    version: '1.3.0',
     description:
-      'Translates each tagged chapter line by line (glossary + summary injection, optional work mode).',
+      'Translates each tagged chapter line by line, or in measured blocks (glossary + summary injection, optional work mode).',
     async invoke(env, ctx) {
       const call = options.call ?? resolveProcessLlm()?.schemaCall
       if (call === undefined) {
@@ -898,6 +923,14 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
         ? await loadGlossaryOrEmpty(options.chaptersDir)
         : { terms: [] }
       const concurrency = options.concurrency ?? translateConcurrency()
+      const blockLines = Math.max(1, Math.floor(options.blockLines ?? 1))
+      if (!warnedBlockLines) {
+        const warning = translateBlockLinesWarning(blockLines)
+        if (warning) {
+          warnedBlockLines = true
+          ctx.run.logger.warn(`[translate] ${warning}`)
+        }
+      }
       const pinned = pinnedTerms(glossary).length
       const pairs: LineParityInput[] = []
       const nums: number[] = []
@@ -922,7 +955,7 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
           terms: translateTermsEnabled(),
           memo,
           mode: options.mode,
-          blockLines: options.blockLines,
+          blockLines,
           maxTokens: options.maxTokens,
           ask: (system, user) => ask(call, system, user, ctx, options.mode, options.maxTokens),
           askRaw: (system, user) => askRawContent(call, system, user, ctx, options.maxTokens),

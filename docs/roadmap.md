@@ -117,7 +117,7 @@ Same prompt to N candidates, score them, keep the winner. Off by default (`MT_SC
 | `MT_ALLOW_MOCK` | unset | `1` = deliberate offline run (the only way past the mock guard) |
 | `MT_TRANSLATE_SLOTS` | all four | `summary,glossary,ner,vocab` |
 | `MT_TRANSLATE_SLOTS_STRICT` | unset | `1` = a missing slot artefact throws instead of warning |
-| `MT_TRANSLATE_BLOCK_LINES` | 40 | body lines per request — measured best is 6 (T233/T263) |
+| `MT_TRANSLATE_BLOCK_LINES` | 6 | body lines per request — measured best is 6 (T233/T263) |
 | `MT_TRANSLATE_MAX_TOKENS` | 2048 (cap 8192) | per-request output budget |
 | `MT_TRANSLATE_TERMS` | on | ask the model for the `<terms>` table — undocumented (T254) |
 | `MT_PRIOR_TERMS` | on | `=0` disables the prior-terms block — unmeasured (T265) |

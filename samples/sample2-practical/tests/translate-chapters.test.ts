@@ -1,6 +1,6 @@
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { lintLineParity } from '@mt/tools'
+import { lintLineParity, translateBlockLines } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { CHAPTERS, SAMPLE_DIR, clean, lintParity, run } from './helpers.js'
 
@@ -116,4 +116,23 @@ describe('translate-chapters', () => {
     const result = lintParity(EN_DIR, RU_DIR)
     expect(result.status, result.stdout).toBe(0)
   }, 180_000)
+
+  it('defaults the body block size to 6 and lets an explicit env override win', () => {
+    expect(translateBlockLines({})).toBe(6)
+    expect(translateBlockLines({ MT_TRANSLATE_BLOCK_LINES: '3' })).toBe(3)
+  })
+
+  it('warns once when the block size exceeds the measured safe size', async () => {
+    await clean(RU_DIR, TITLES, PROMPT_LOG, join(SAMPLE_DIR, '.mt'))
+    run('translation.ts', {
+      pipeline: 'translateChapters',
+      env: { MT_ONLY_CHAPTERS: '1', MT_TRANSLATE_BLOCK_LINES: '9' },
+    })
+    const runsDir = join(SAMPLE_DIR, '.mt', 'runs')
+    const files = (await readdir(runsDir, { recursive: true })).filter((file) =>
+      file.endsWith('.log'),
+    )
+    const logs = await Promise.all(files.map((file) => readFile(join(runsDir, file), 'utf-8')))
+    expect(logs.join('\n').match(/blockLines=9/g) ?? []).toHaveLength(1)
+  }, 60_000)
 })

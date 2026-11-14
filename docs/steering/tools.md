@@ -413,8 +413,8 @@ Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, l
   failing the single-line parity check then get one per-line request each (`fallbackLines` in the stats line).
   Passed replies are memoised under the per-line prompt key, so resumed runs re-send nothing. `maxTokens`
   defaults to 2048 and caps the output: a reply with `finishReason: 'length'` throws a retryable `LlmError`.
-  The sample sets both with `MT_TRANSLATE_BLOCK_LINES` (default 40) and `MT_TRANSLATE_MAX_TOKENS` (default 2048,
-  max 8192).
+  The sample sets both with `MT_TRANSLATE_BLOCK_LINES` (default 6, via `translateBlockLines()`) and
+  `MT_TRANSLATE_MAX_TOKENS` (default 2048, max 8192).
 - `lintLineParity(en, ru, opts)` (pure) / `lineParityLinter` / `createLineParityLinter({ throwOnError, minCyrillicRatio,
   cyrillicSeverity })` — `{ en, ru }` item in/out, `parity` variable = `{ ok, enLines, ruLines, errors, warnings,
   cyrillicRatio, issues[] }`. Hard errors: `line-count`, `empty-line-position`, `bracket-line-position`,
@@ -489,10 +489,15 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
 - `modification/analyze-outputs.ts` — `analyzeOutputs` / `createAnalyzeOutputs({ summaryDir, taggedDir, glossaryFile })`:
   `mdOutputs` variable for `schema/chapter<N>.summary.md`, `en-tagged/chapter<N>.md`, `glossary.json`.
 - `normalization/translation-stage.ts` — `onlyChapters()` (`MT_ONLY_CHAPTERS`), `translateConcurrency()`
-  (`MT_TRANSLATE_CONCURRENCY`), `chaptersToTitleInputs`, `createGlossaryTitleTranslator({ call, chaptersDir, mode })` (slot for
-  `createTitleTranslator`), `createChapterBodyTranslator({ call, chaptersDir, mode })` (per-line translate with glossary +
-  summary injection and retry memo; `mode` selects the `TranslateWorkMode`, default `'plain'` = unchanged behaviour),
-  `translateTaggedChapter`, `titleOf`. Non-plain replies are parsed with `parseTranslationReply` (retryable parse
+  (`MT_TRANSLATE_CONCURRENCY`), `translateBlockLines()` / `translateBlockLinesWarning()`
+  (`MT_TRANSLATE_BLOCK_LINES`, default 6; above `TRANSLATE_BLOCK_LINES_SAFE_MAX` = 8 the body tool logs one
+  `warn`), `chaptersToTitleInputs`, `createGlossaryTitleTranslator({ call, chaptersDir, mode })` (slot for
+  `createTitleTranslator`), `createChapterBodyTranslator({ call, chaptersDir, mode, blockLines })` (per-line or
+  block translate with glossary + summary injection and retry memo; `mode` selects the `TranslateWorkMode`,
+  default `'plain'` = unchanged behaviour; `blockLines` default 1 = one call per line),
+  `translateTaggedChapter`, `titleOf`. A block whose reply does not mirror the source line count or fails the
+  per-line parity check falls back to per-line requests (logged as a `warn`); every passed line is memoised.
+  Non-plain replies are parsed with `parseTranslationReply` (retryable parse
   error on missing/duplicate ids/keys); the line-parity check compares against the source line. `chaptersDir` holds
   `glossary.json` and `schema/chapter<N>.summary.md`.
 - `verification/chapter-pairs-linter.ts` — `chapterPairsLinter`: `lineParityLinter` over each `{ en, ru }` pair,
