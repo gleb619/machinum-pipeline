@@ -32,6 +32,14 @@ afterEach(() => {
 
 const UNAVAILABLE = () => installRouter([{ status: 503, body: 'no keys left' }])
 
+/** The shape a real model returns when the default prompt asks for a `- ` bullet list. */
+const BULLET_REPLY = [
+  '- Sir Aldric rides out of Thornhaven at dawn with his grey mare.',
+  '- The road into the Darkwood narrows until the trees close in.',
+  '- Aldric counts his coins and thinks of the Duke’s tribunal in Thornhaven.',
+  '- He promised the miller’s daughter he would return before the harvest festival.',
+].join('\n')
+
 function envelopeOf(item: string, fields: Record<string, unknown> = {}) {
   return exchangeOf(item, fields)
 }
@@ -75,7 +83,7 @@ describe('summaryTool (LLM)', () => {
     const system = router.calls[0]?.messages[0]?.content ?? ''
     expect(system).toContain('Web Novel Summary Notes Generator')
     expect(system).toContain('Input format (plain mode)')
-    expect(system).toContain('Output contract (bullet-list mode)')
+    expect(system).toContain('Output contract (brief bullet-list mode)')
   })
 
   it('retries with feedback when the answer is rejected, then accepts', async () => {
@@ -87,6 +95,17 @@ describe('summaryTool (LLM)', () => {
     expect(getVariable(result, 'summaryLlm')).toMatchObject({ attempts: 2, fallbackUsed: false })
     expect(router.calls).toHaveLength(2)
     expect(router.lastPrompt()).toContain('rejected (attempt 1 of 3)')
+  })
+
+  it('accepts the pure bullet-list reply its default prompt asks for', async () => {
+    router = installRouter([BULLET_REPLY])
+
+    const result = await summaryTool.invoke(envelopeOf(CHAPTER), toolContext())
+
+    expect(getVariable(result, 'summaryLlm')).toMatchObject({ attempts: 1, fallbackUsed: false })
+    expect(getVariable(result, 'summary')).toBe(
+      BULLET_REPLY.replace(/^- /gm, '').replace(/\n/g, ' '),
+    )
   })
 
   it('retries when the summary omits the chapter content', async () => {

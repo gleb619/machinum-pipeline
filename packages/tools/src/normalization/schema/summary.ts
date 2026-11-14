@@ -34,13 +34,19 @@ export const SUMMARY_SYSTEM_PROMPT =
 export const SUMMARY_USER_PROMPT = 'Summarise this chapter.\n\n# {{title}}\n\n{{body}}'
 
 /**
- * Default system prompt of the summary family: the bundled `summary.system` block + the global
- * `llm.format.plain` input block + the `summary.output.bullets` output contract (see
- * `packages/tools/prompts/*.md`). Falls back to the legacy inline {@link SUMMARY_SYSTEM_PROMPT}
- * when a block template is missing.
+ * Output contract of the summary tool: a brief bullet list (the chapter summary is context, not
+ * a deliverable). The notes tool keeps the exhaustive `summary.output.bullets` contract.
  */
-export function defaultSummarySystemPrompt(): string {
-  const composed = composePromptBlocks('summary', 'plain', {}, { output: 'summary.output.bullets' })
+const SUMMARY_OUTPUT_BLOCK = 'summary.output.brief'
+
+/**
+ * Default system prompt of the summary family: the bundled `summary.system` block + the global
+ * `llm.format.plain` input block + an output contract from `packages/tools/prompts/*.md`
+ * (`summary.output.brief` by default). Falls back to the legacy inline
+ * {@link SUMMARY_SYSTEM_PROMPT} when a block template is missing.
+ */
+export function defaultSummarySystemPrompt(output = SUMMARY_OUTPUT_BLOCK): string {
+  const composed = composePromptBlocks('summary', 'plain', {}, { output })
   return composed.complete ? composed.systemPrompt : SUMMARY_SYSTEM_PROMPT
 }
 
@@ -51,7 +57,28 @@ export type SummaryChunkMode = ChunkMode
 /** The chunk options every summary tool accepts. */
 export type SummaryChunkOptions = ChunkModeOptions
 
-function validateSummary(content: string, source: ChapterSource): PromptValidation<string> {
+const SUMMARY_BULLET_LINE = /^-\s+\S/
+
+/**
+ * The reply as the `summary` variable stores it: a plain paragraph. The default prompt asks
+ * for a `- ` bullet list, which mdshape's `section('Summary').paragraph()` rejects, so a pure
+ * bullet list is detected (every non-empty line a `- ` bullet, optionally fenced) and its
+ * items are joined into one paragraph. Any other shape is returned untouched and goes through
+ * the schema-doc round-trip, which rejects it.
+ */
+function normalizeSummaryReply(content: string): string {
+  const lines = stripCodeFence(content)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+  if (lines.length === 0 || !lines.every((line) => SUMMARY_BULLET_LINE.test(line))) {
+    return content
+  }
+  return lines.map((line) => line.replace(/^-\s+/, '').trim()).join(' ')
+}
+
+function validateSummary(raw: string, source: ChapterSource): PromptValidation<string> {
+  const content = normalizeSummaryReply(raw)
   const parseIssue = roundTripIssue(
     { ...source.doc, summary: content },
     (doc) => doc.summary,
@@ -107,8 +134,10 @@ function summaryConcurrency(env: Exchange<string>, ctx: ToolContext): number | u
 }
 
 /**
- * The summary tool: one flowing paragraph per chapter. The chunk modes split the body and
- * join the per-chunk summaries; the loop guard falls back to the chapter body.
+ * The summary tool: one flowing paragraph per chapter. The default prompt asks for a `- `
+ * bullet list, so {@link validateSummary} joins a pure bullet reply into that paragraph; the
+ * chunk modes split the body and join the per-chunk summaries; the loop guard falls back to
+ * the chapter body when the reply is neither a paragraph nor a bullet list.
  */
 const SUMMARY_SPEC: ExtractorSpec<string> = {
   key: 'summary',
@@ -147,12 +176,13 @@ export function createSummaryTool(options?: SchemaDocLlmOptions & SummaryChunkOp
 
   return defineTool<string, string>({
     name: 'summary',
-    version: '1.2.0',
+    version: '1.2.1',
     mdDescription:
       'Summarises the chapter with an LLM through the OpenRouter proxy (configurable prompts, ' +
       'loop-guarded retries, deterministic schema-doc parse as fallback). The default system ' +
-      'prompt is composed from the bundled summary.* blocks (plain input + bullet-list output). ' +
-      'Supports shrink/chunk/auto modes. Stores variable `summary`.',
+      'prompt is composed from the bundled summary.* blocks (plain input + brief bullet-list ' +
+      'output); a pure bullet reply is joined into the stored paragraph. Supports shrink/chunk/auto ' +
+      'modes. Stores variable `summary`.',
     annotations: [
       tool('TL034', {
         name: 'summary',
@@ -250,7 +280,7 @@ function createNotesSpec(noteCount: number): ExtractorSpec<string[], NotesState>
   return {
     key: 'summaryNotes',
     defaults: () => ({
-      systemPrompt: defaultSummarySystemPrompt(),
+      systemPrompt: defaultSummarySystemPrompt('summary.output.bullets'),
       ...NOTES_DEFAULTS,
     }),
     createState: () => ({ count: noteCount }),
