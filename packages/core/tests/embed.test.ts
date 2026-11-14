@@ -29,7 +29,12 @@ describe('embed backend', () => {
   beforeEach(async () => {
     dir = await mkdtemp(join(tmpdir(), 'mt-embed-'))
     storePath = join(dir, 'secrets.embed.json')
-    env = { MT_EMBED_PATH: storePath, MT_EMBED_PASSWORD: MASTER }
+    env = {
+      MT_EMBED_PATH: storePath,
+      MT_EMBED_PASSWORD: MASTER,
+      MT_HOME: join(dir, 'home'),
+      MT_PROJECT_ROOT: join(dir, 'proj'),
+    }
     resetEmbedCache()
   })
 
@@ -227,7 +232,11 @@ describe('embed backend', () => {
   })
 
   describe('default password', () => {
-    const defEnv = (): Record<string, string> => ({ MT_EMBED_PATH: storePath })
+    const defEnv = (): Record<string, string> => ({
+      MT_EMBED_PATH: storePath,
+      MT_HOME: join(dir, 'home'),
+      MT_PROJECT_ROOT: join(dir, 'proj'),
+    })
 
     beforeEach(() => {
       resetEmbedDefaultWarning()

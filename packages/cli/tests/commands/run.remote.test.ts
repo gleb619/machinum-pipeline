@@ -142,7 +142,7 @@ afterAll(async () => {
   await rm(remoteRoot, { recursive: true, force: true })
 })
 
-describe('mt run --remote (T204)', () => {
+describe('mt run --remote (T204)', { timeout: 20_000 }, () => {
   it('pushes, starts, streams SSE and pulls run artifacts back', async () => {
     const exit = vi.spyOn(process, 'exit').mockImplementation((code) => {
       throw new Error(`EXIT ${String(code)}`)

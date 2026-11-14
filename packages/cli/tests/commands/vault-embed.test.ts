@@ -26,11 +26,15 @@ describe('vault embed subcommands', () => {
       'MT_EMBED_PASSWORD',
       'MT_EMBED_PASSWORD_FILE',
       'MT_VAULT',
+      'MT_HOME',
+      'MT_PROJECT_ROOT',
     ]) {
       saved[key] = process.env[key]
     }
     process.env.MT_EMBED_PATH = storePath
     process.env.MT_EMBED_PASSWORD = MASTER
+    process.env.MT_HOME = join(dir, 'home')
+    process.env.MT_PROJECT_ROOT = dir
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null) => {
