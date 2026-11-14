@@ -1,8 +1,19 @@
+import { Cache } from '@mt/core'
 import type { ToolContext } from '@mt/core'
 import { describe, expect, it, vi } from 'vitest'
 import type { LlmClient, LlmRequest, LlmResponse } from '../src/core/llm-client.js'
 import { createLlmGate, mockLlmCall } from '../src/core/llm-gate.js'
 import { varsOf } from './helpers/llm-vars.js'
+
+// The only transport with real streaming is the SDK one; `createLlmClient` builds it from config.
+const openAiCreate = vi.hoisted(() => vi.fn())
+
+vi.mock('openai', () => {
+  class MockOpenAI {
+    chat = { completions: { create: openAiCreate } }
+  }
+  return { default: MockOpenAI }
+})
 
 const ctx = {} as ToolContext
 
@@ -93,5 +104,74 @@ describe('gate stream option', () => {
       .with({ call: mockLlmCall(['answer']) })
       .invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, ctx)
     expect(out.item).toMatchObject({ content: 'answer' })
+  })
+})
+
+describe('gate stream option through createLlmClient (decorators)', () => {
+  // `createLlmClient` is the only client real pipelines build: the decorators must not drop
+  // `chatCompletionStream`, otherwise `stream: true` silently degrades to a buffered call.
+  const sdkCfg = {
+    llm: { provider: 'openai' as const, apiKey: 'sk-test', transport: 'sdk' as const },
+  }
+
+  const streamChunks = () =>
+    (async function* () {
+      yield { choices: [{ delta: { content: 'Hel' } }] }
+      yield { choices: [{ delta: { content: 'lo' } }] }
+      yield { choices: [{ finish_reason: 'stop' }], usage: { prompt_tokens: 1, total_tokens: 3 } }
+    })()
+
+  it('stream: true reaches the SDK transport and fires onDelta', async () => {
+    openAiCreate.mockReset()
+    openAiCreate.mockResolvedValueOnce(streamChunks())
+    const deltas: string[] = []
+    const gate = createLlmGate<{ prompt: string }, unknown>({
+      name: 'create-client-stream-gate',
+      ...sdkCfg,
+      stream: true,
+      onDelta: (d) => deltas.push(d),
+    })
+    const out = await gate.invoke(
+      { id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} },
+      ctx,
+    )
+    expect(deltas).toEqual(['Hel', 'lo'])
+    expect(out.item).toMatchObject({ content: 'Hello', tokens: 3 })
+    const params = openAiCreate.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(params.stream).toBe(true)
+  })
+
+  it('a cached stream replays the stored answer through onDelta', async () => {
+    openAiCreate.mockReset()
+    openAiCreate.mockResolvedValueOnce(streamChunks())
+    const store = new Map<string, unknown>()
+    const core = new Cache('/nonexistent')
+    const cache = {
+      computeKey: (o: { toolName: string; version: string; input: unknown }) => core.computeKey(o),
+      get: async <T>(k: string) => store.get(k) as T | undefined,
+      set: async (k: string, _o: unknown, v: unknown) => {
+        store.set(k, v)
+      },
+    }
+    const gate = createLlmGate<{ prompt: string }, unknown>({
+      name: 'create-client-cached-stream-gate',
+      ...sdkCfg,
+      llm: { ...sdkCfg.llm, cache: true },
+      cache,
+      stream: true,
+    })
+    await gate.invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, ctx)
+    const deltas: string[] = []
+    const replay = await createLlmGate<{ prompt: string }, unknown>({
+      name: 'create-client-cached-stream-gate',
+      ...sdkCfg,
+      llm: { ...sdkCfg.llm, cache: true },
+      cache,
+      stream: true,
+      onDelta: (d) => deltas.push(d),
+    }).invoke({ id: 'ex-test', variables: [], item: { prompt: 'hi' }, meta: {} }, ctx)
+    expect(openAiCreate).toHaveBeenCalledTimes(1)
+    expect(deltas).toEqual(['Hello'])
+    expect(replay.item).toMatchObject({ content: 'Hello' })
   })
 })

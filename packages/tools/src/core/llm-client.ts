@@ -418,7 +418,13 @@ export function createLlmClient(
   })
   if (cfg.cache) {
     const cache = deps.cache ?? new Cache(`${readCtx(ctx).projectRoot}/.mt`)
-    client = withCache(client, cache, { namespace: cfg.provider })
+    client = withCache(client, cache, {
+      namespace: cfg.provider,
+      onCacheError: (err, op) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        readCtx(ctx).logger?.warn(`[llm] cache ${op} failed (ignored): ${msg}`)
+      },
+    })
   }
   return client
 }

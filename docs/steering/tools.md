@@ -752,7 +752,11 @@ at both levels instead of burning `max` backoffs each. A 429 waits the server's 
 `RetryPolicy.maxBackoffMs` (default 60s).
 
 `LlmClient.chatCompletionStream?(req, onDelta?)` optionally aggregates content deltas (final usage included);
-the non-streaming `chatCompletion` path is unchanged.
+the non-streaming `chatCompletion` path is unchanged. Every decorator forwards the method when the adapter has
+it: `withTimeout` guards it with the same timeout/abort race, `withLlmRetry` retries only while no delta has
+reached `onDelta` (afterwards a retry would duplicate text, so the error surfaces), and `withCache` shares the
+buffered call's key — a hit replays the stored content through `onDelta` once. Cache `get`/`set` failures are
+swallowed (`onCacheError` warns) because a broken cache must never discard a paid response.
 
 ### LLM config precedence (`resolveLlmConfig`, pure)
 
@@ -904,7 +908,10 @@ Tests live in `packages/tools/tests/`:
   (explicit arg > `MT_LLM_TOOL` real backend > installed mock > default), invoke-time factory fallback
 - `llm-sdk-transports.test.ts` — official-SDK adapters (vi.mock'd `openai` / `@anthropic-ai/sdk`): error mapping, retry-after, pool block/disable, lazy load, cache skip
 - `llm-context-limits.test.ts` — model context-limit table matching + `MT_CONTEXT_LIMITS` overrides
-- `llm-stream.test.ts` — gate `stream: true` delta aggregation
+- `llm-stream.test.ts` — gate `stream: true` delta aggregation, including through `createLlmClient`'s
+  decorator chain
+- `llm-decorators.test.ts` — streaming through `withTimeout` / `withLlmRetry` / `withCache` (abort, no retry
+  after a delta, cache replay) and best-effort cache failures
 
 The schema-doc tests stub `globalThis.fetch`, so they need neither a running router nor
 `OPENROUTER_API_KEYS`; `translate-text.test.ts` is skipped unless that env var is set.
