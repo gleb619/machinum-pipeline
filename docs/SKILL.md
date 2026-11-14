@@ -2,8 +2,8 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.33.2 | 2026-11-14 -->
-<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
+<!-- skill-version: 1.33.3 | 2026-11-14 -->
+<!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree, tool-cli), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
 
@@ -153,6 +153,9 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 
 Custom steps: a Tool is `{ name, version, invoke(exchange, ctx), cacheable? }`; set `cacheable: true`
 for content-hash memoization in `.mt/cache/`. Use `defineWaypoint` for custom Sources/Targets.
+Publish a tool as a standalone CLI with `runToolCli(tool)` from `mt`: the bin script is
+`#!/usr/bin/env node` + `process.exitCode = await runToolCli(tool)`; it reads one JSON exchange on
+stdin and writes the persisted envelope as one stdout JSON line (errors on stderr, exit 1).
 
 ### Runtime annotations
 

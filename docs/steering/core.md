@@ -15,6 +15,7 @@ Re-exports everything needed by consumers:
 - `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
+- `runToolCli` (`ToolCliOptions`) — expose a `Tool` as a standalone stdin/stdout JSON CLI (UC011, see [tool-cli.ts](#tool-clits--runtoolclitool-options))
 - `UriRegistry`, `registry`, `Splitter`, `registerSource`, `registerTarget`, `registerSplitter`, `resolveSource`, `resolveTarget`, `resolveSplitter`, `hasSplitter` (URI + splitter registry)
 - `acquireListener`, `ListenerLease`, `HttpRouteHandler` (refcounted shared HTTP listener registry)
 - `Runner`, `Store`, `Cache`
@@ -144,6 +145,31 @@ hook pipelines: paths to pipeline module files (relative to the project root) ru
 `mt install` runs `scripts.install`; `mt run` runs `scripts.start` before and `scripts.end` after the run, plus `scripts.error` on failure, `scripts.stop` on SIGINT pause, and `scripts.exit` before process exit; `mt resume` runs `scripts.resume` before resuming;
 main pipeline. The raw config (incl. `scripts`) is read with `readMtConfig(projectRoot)` — no merging
 over defaults, missing file yields `{}`.
+
+### `tool-cli.ts` — `runToolCli(tool, options?)`
+
+The UC011 adapter: a published tool becomes a standalone CLI without the CLI package. `runToolCli`
+reads one JSON exchange on stdin (same contract `mt tool` accepts — `{ id?, item, items?, meta?, variables? }`,
+normalized by `toExchange`), builds a minimal `RunContext`/`ToolContext` over `loadGlobalContext(projectRoot)`
+with a `tool-<uuid>` run id and a `standalone` checkpoint id, calls `tool.invoke` and writes the
+**persisted** envelope (`toPersisted`, so `meta` and ephemeral variables are dropped) as one stdout
+JSON line. Diagnostics and log lines go to stderr; nothing else is written to stdout.
+
+```ts
+#!/usr/bin/env node
+import { runToolCli } from '@mt/core'
+import { myTool } from './tool.js'
+process.exitCode = await runToolCli(myTool)
+```
+
+- Returns the exit code (`0` ok, `1` bad/empty stdin, bad JSON, project-context failure, or a failed
+  invoke) — it never calls `process.exit`, so a bin script sets `process.exitCode`.
+- `options` injects every seam: `input` (stdin text; default fd 0, with a TTY usage hint),
+  `projectRoot` (default `process.cwd()`), `stdout`/`stderr` line sinks (default the process streams).
+- A TTY stdin gets the usage hint instead of hanging; an empty payload is an error, like `mt tool`.
+
+Example bin: `samples/sample1-tutorial/tools/markdown-stats-cli.ts`
+(`echo '{"item":"# T\\n\\nHi."}' | tsx tools/markdown-stats-cli.ts`).
 
 ### `sync/` — project sync primitives (T203)
 
