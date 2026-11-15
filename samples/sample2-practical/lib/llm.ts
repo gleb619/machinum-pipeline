@@ -43,6 +43,20 @@ export function assertFreeModel(backend: string, model: string, envHint = 'MT_LL
   )
 }
 
+/**
+ * A silent `mock` backend makes a whole book out of fake text while the run still exits 0 —
+ * the worst failure for this sample, where two real runs are compared. Refuse it unless the
+ * caller asked for offline output or this is the test suite (which relies on mock).
+ */
+export function assertRealBackend(tool: string, backend: string): void {
+  if (backend !== 'mock') return
+  if (process.env.MT_ALLOW_MOCK === '1') return
+  if (process.env.VITEST) return
+  throw new Error(
+    `[${tool}] backend is 'mock': every stage would emit fake text and the run would still exit 0. Fix: set settings."llm.tool" in samples/sample2-practical/mt.local.json (e.g. "router" plus a ":free" llm.model.<stage> id), or set MT_ALLOW_MOCK=1 for a deliberate offline run.`,
+  )
+}
+
 /** Per-tool model: `MT_LLM_MODEL_<TOOL>` env, else mt.json `settings["llm.model.<tool>"]`. */
 function modelOverride(tool: string): string | undefined {
   const fromEnv = process.env[modelEnvVar(tool)]?.trim()
@@ -112,6 +126,7 @@ export function pickFor(tool: string, mockSource?: PickLlmToolOptions['mockSourc
   if (config.tool === 'mock') {
     const llm = offlineChoice(model ?? 'mock', mockSource ?? ['mock'])
     assertFreeModel(llm.tool, llm.model, modelEnvVar(tool))
+    assertRealBackend(tool, llm.tool)
     logger.info(`[${tool}] backend=${llm.tool} model=${llm.model}`)
     return llm
   }
@@ -121,6 +136,7 @@ export function pickFor(tool: string, mockSource?: PickLlmToolOptions['mockSourc
     ...(mockSource ? { mockSource } : {}),
   })
   assertFreeModel(llm.tool, llm.model, modelEnvVar(tool))
+  assertRealBackend(tool, llm.tool)
   logger.info(`[${tool}] backend=${llm.tool} model=${llm.model}`)
   return llm
 }

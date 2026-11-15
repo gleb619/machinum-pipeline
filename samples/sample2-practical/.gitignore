@@ -7,8 +7,11 @@ chapters/split/
 chapters/clean/
 chapters/titles.json
 chapters/glossary.json
+chapters/glossary-index.json
 chapters/glossary.graph.json
 .mt/
 .mt-translate-prompts.jsonl
 out/
+runs/
+reports/
 mt.local.json

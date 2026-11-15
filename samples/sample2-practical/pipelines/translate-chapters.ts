@@ -10,6 +10,12 @@ import {
   translateConcurrency,
 } from '@mt/tools'
 import '@mt/waypoint'
+import {
+  GLOSSARY_INDEX_FILE,
+  priorTermsEnabled,
+  readGlossaryIndex,
+  renderPriorTerms,
+} from '../lib/glossary-index.js'
 import { bookSource, chapterOnly } from '../lib/input.js'
 import { ROOT, pickFor } from '../lib/llm.js'
 import { tagWithGlossary } from '../lib/outputs.js'
@@ -33,6 +39,16 @@ import { createBatchTitleTranslator } from '../lib/titles.js'
  * is the offline mock.
  */
 const CHAPTERS = join(ROOT, 'chapters')
+
+/**
+ * "Terms so far" block for chapter N from `chapters/glossary-index.json` (absent index = no
+ * block; `MT_PRIOR_TERMS=0` disables it). Chapter 1 has no prior terms.
+ */
+const priorIndex = priorTermsEnabled()
+  ? readGlossaryIndex(join(CHAPTERS, GLOSSARY_INDEX_FILE))
+  : undefined
+const priorTerms = (chapter: number): string =>
+  priorIndex === undefined ? '' : renderPriorTerms(priorIndex, chapter)
 
 function positiveInt(raw: string | undefined, fallback: number, max = Number.MAX_SAFE_INTEGER) {
   const n = Number(raw)
@@ -92,6 +108,7 @@ const translateChild = definePipeline({ id: 'practical-translate-chapters-child'
       concurrency: translateConcurrency(),
       blockLines: BLOCK_LINES,
       maxTokens: MAX_TOKENS,
+      priorTerms,
     }),
   )
   .use(chapterPairsLinter)

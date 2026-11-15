@@ -1,22 +1,60 @@
-import { existsSync } from 'node:fs'
-import { readFile, readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, relative, resolve } from 'node:path'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { type StatsArtifact, bodyCharsOf } from '../lib/stats.js'
-import { CHAPTERS, SAMPLE_DIR, clean, run } from './helpers.js'
+import { SAMPLE_DIR, run, writeFileAt } from './helpers.js'
 
-const SCHEMA_DIR = join(CHAPTERS, 'schema')
-const STATS_FILE = join(SCHEMA_DIR, 'stats.json')
-const BOOK_DIR = join(SAMPLE_DIR, '..', '..', 'books', 'book2')
+const BOOK_DIR = resolve(SAMPLE_DIR, '..', '..', 'books', 'book2')
 const CHAPTER_COUNT = 21
 
 let hasFailure = false
+let projectRoot = ''
+let statsFile = ''
 let firstRun = ''
 
+/**
+ * A throwaway project root with the same `@book2` / `@schema` aliases as the sample, so the
+ * stats run cannot read or write the shared `chapters/` tree (which may hold a finished book).
+ */
+async function buildProject(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'mt-stats-'))
+  await mkdir(join(root, 'chapters', 'schema'), { recursive: true })
+  await symlink(join(SAMPLE_DIR, 'node_modules'), join(root, 'node_modules'), 'dir')
+  await writeFileAt(
+    join(root, 'mt.json'),
+    `${JSON.stringify(
+      {
+        project: { name: 'stats-test' },
+        uris: {
+          book2: `md://${BOOK_DIR}`,
+          schema: `md://${join(root, 'chapters', 'schema')}`,
+        },
+        settings: { 'llm.tool': 'mock' },
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  return root
+}
+
+/** Files under `dir`, relative to it, for the "wrote nothing else" assertion. */
+async function filesUnder(dir: string, base = dir): Promise<string[]> {
+  const files: string[] = []
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) files.push(...(await filesUnder(path, base)))
+    else files.push(relative(base, path))
+  }
+  return files.sort()
+}
+
 beforeAll(async () => {
-  await clean(STATS_FILE, join(SAMPLE_DIR, '.mt'))
-  run('stats.ts', { timeout: 120_000 })
-  firstRun = await readFile(STATS_FILE, 'utf-8')
+  projectRoot = await buildProject()
+  statsFile = join(projectRoot, 'chapters', 'schema', 'stats.json')
+  run('stats.ts', { cwd: projectRoot, timeout: 120_000 })
+  firstRun = await readFile(statsFile, 'utf-8')
 }, 120_000)
 
 afterEach(({ task }) => {
@@ -24,7 +62,9 @@ afterEach(({ task }) => {
 })
 
 afterAll(async () => {
-  if (!hasFailure) await clean(STATS_FILE, join(SAMPLE_DIR, '.mt'))
+  if (!hasFailure && projectRoot !== '') {
+    await rm(projectRoot, { recursive: true, force: true })
+  }
 })
 
 function parse(): StatsArtifact {
@@ -67,19 +107,11 @@ describe('stats', () => {
   })
 
   it('is byte-identical on a second run', async () => {
-    run('stats.ts', { timeout: 120_000 })
-    expect(await readFile(STATS_FILE, 'utf-8')).toBe(firstRun)
+    run('stats.ts', { cwd: projectRoot, timeout: 120_000 })
+    expect(await readFile(statsFile, 'utf-8')).toBe(firstRun)
   })
 
   it('writes only chapters/schema/stats.json', async () => {
-    expect(existsSync(STATS_FILE)).toBe(true)
-    const schemaFiles = (await readdir(SCHEMA_DIR)).filter((file) => file !== '.gitkeep').sort()
-    expect(schemaFiles).toEqual(['stats.json'])
-    const ruFiles = (await readdir(join(CHAPTERS, 'ru')).catch(() => [])).filter((file) =>
-      file.endsWith('.md'),
-    )
-    expect(ruFiles).toEqual([])
-    expect(existsSync(join(CHAPTERS, 'book'))).toBe(false)
-    expect(existsSync(join(CHAPTERS, 'titles.json'))).toBe(false)
+    expect(await filesUnder(join(projectRoot, 'chapters'))).toEqual(['schema/stats.json'])
   })
 })

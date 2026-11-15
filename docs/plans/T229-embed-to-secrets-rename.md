@@ -175,4 +175,4 @@ Estimated: -
 - `mt skill` matches `docs/SKILL.md` (drift test green).
 - No `embed` in the repo outside the documented exemptions in scope section 7.
 
-<!-- provenance: row=b9cb9f84e72d layout=fb348817cbf5 -->
+<!-- provenance: row=b9cb9f84e72d layout=347ba342e2da -->

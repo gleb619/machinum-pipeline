@@ -16,11 +16,13 @@ export const BASE_ENV = {
 export interface RunOptions {
   env?: Record<string, string>
   timeout?: number
+  /** Project root to run in (default: the sample itself). */
+  cwd?: string
 }
 
 export function run(file: string, options: RunOptions = {}): string {
-  return execFileSync(MT_BIN, ['run', `./pipelines/${file}`], {
-    cwd: SAMPLE_DIR,
+  return execFileSync(MT_BIN, ['run', join(SAMPLE_DIR, 'pipelines', file)], {
+    cwd: options.cwd ?? SAMPLE_DIR,
     encoding: 'utf-8',
     stdio: 'pipe',
     env: { ...BASE_ENV, ...options.env },

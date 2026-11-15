@@ -38,3 +38,4 @@ Planned: 6h
 - New test proves per-stage interception on chapter-doc; no regressions.
 
 <!-- provenance: row=T225 -->
+<!-- provenance: row=89ca1125f9a9 layout=347ba342e2da -->

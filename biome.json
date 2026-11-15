@@ -51,7 +51,17 @@
       ".turbo",
       ".mt",
       "sandbox/results",
-      "samples/depricated"
+      "samples/depricated",
+      "**/chapters/schema",
+      "**/chapters/glossary.json",
+      "**/chapters/glossary.graph.json",
+      "**/chapters/titles.json",
+      "samples/sample2-practical/runs",
+      "runs",
+      "samples/sample2-practical/reports",
+      "reports",
+      "samples/sample2-practical/out",
+      "out"
     ]
   }
 }

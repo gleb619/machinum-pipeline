@@ -34,11 +34,21 @@ contract (`split` reads `schema/stats.json`, `preprocess` reads `schema/quality.
 | Summary | `pipelines/summary.ts` | `chapters/schema/chapter<N>.summary.md` | LLM |
 | NER | `pipelines/ner.ts` | `chapters/schema/entities.json` + `chapters/schema/chapter<N>.entities.json` | LLM |
 | Vocabulary | `pipelines/vocabulary.ts` | `chapters/schema/vocabulary.json` | CPU |
+| Glossary | `pipelines/glossary.ts` | `chapters/glossary.json` | LLM |
 | Quality gate | `pipelines/quality.ts` | `chapters/schema/quality.json` (verdict `translate` or `preprocess`) | CPU |
 | Preprocess | `pipelines/preprocess.ts` | `chapters/clean/chapter<N>.md` + `chapters/schema/preprocess-report.json` | LLM (only on the `preprocess` branch; a `translate` verdict makes it a no-op) |
 | Titles | `pipelines/translate-titles.ts` | `chapters/titles.json` | LLM |
 | Body | `pipelines/translate-chapters.ts` | `chapters/ru/chapter<N>.md` | LLM (block mode) |
 | Assemble | `pipelines/assemble.ts` | `chapters/book/book.md` + `book.json` | CPU |
+
+`glossary` now runs before the quality gate and before `translate-chapters`: `lib/quality.ts`
+reads the glossary as a proper-noun allowlist, and the translator pins every `ru` it finds. The
+extractor alone is not enough — it proposes non-names (`March`, `Lock`) and leaves `ru` empty, so
+the model invents a render per paragraph. `scripts/apply-names.ts` (run by `pnpm run book` right
+after the `glossary` stage, or manually with `--dry-run` first) rewrites every entry against the
+editorial `chapters/names.json` table, uses its `gen` for possessives, marks everything else
+`ignored`, and adds table names the extractor missed. Two real runs of `book2` with an empty
+glossary produced three spellings of the same names; the table keeps one.
 
 Environment knobs:
 
@@ -124,6 +134,31 @@ pnpm run example
 
 `pnpm run info` (both samples) prints the effective `mt.json` with secrets masked, plus `.mt` state
 sizes, run statuses and timings.
+
+Generated artefacts (`chapters/`, `runs/`, `reports/`, `out/`) are machine output, so they sit
+outside the lint scope.
+
+## Comparing two runs
+
+`pnpm run book` runs the whole chain, records wall time per stage in `runs/<label>/timings.json`
+after every stage (so a crash keeps the measurements) and freezes the artefacts with
+`runs/<label>/meta.json` (config, counts, timings). `pnpm run compare` then builds a read-only
+markdown report from two frozen runs.
+
+```bash
+pnpm run book -- --label A
+pnpm run book -- --label B
+pnpm run compare A B            # writes reports/compare-A-vs-B.md
+```
+
+The report holds the git HEADs and timings, the resolved model per stage, a config diff (only
+knobs that differ), a per-stage time table with the delta and `ms per chapter`, and a per-chapter
+quality table side by side: EN/RU line counts, parity errors, Cyrillic share, RU/EN length ratio,
+foreign-script hits and metadata leaks. A Names section compares each run's RU text against
+`chapters/names.json`, listing pinned-name hits and drifting variants such as `Надия` for `Надя`.
+The verdict names the quality and speed winner; the command exits 1 when either run has a hard
+defect (parity error, foreign-script hit or metadata leak). Name variants are a quality signal
+only and never change the exit code.
 
 ## Running manually (packed local deps)
 

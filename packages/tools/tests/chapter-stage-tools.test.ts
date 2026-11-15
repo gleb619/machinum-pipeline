@@ -623,4 +623,99 @@ describe('block translation', () => {
     )
     expect(seen).toEqual([4096])
   })
+
+  it('keeps the glossary and entity blocks in a retried block and its per-line fallback', async () => {
+    const pinnedGlossary = {
+      terms: [
+        {
+          id: 'arin',
+          term: 'Arin',
+          type: 'character' as const,
+          count: 2,
+          firstChapter: 1,
+          ru: 'Арин',
+          aliases: [],
+        },
+      ],
+    }
+    const entities = [
+      'Named entities in this chapter (keep spelling and gender consistent):',
+      '- Arin (character)',
+    ].join('\n')
+    const systems: string[] = []
+    const users: string[] = []
+    let blockAttempts = 0
+    const ru = await translateTaggedChapter(
+      '# Chapter 1\n\n<term id="arin">Arin</term> left.\nGoodbye now.',
+      {
+        glossary: pinnedGlossary,
+        summary: '',
+        entities,
+        titleRu: 'Глава 1',
+        concurrency: 1,
+        blockLines: 2,
+        ask: async (system, user) => {
+          systems.push(system)
+          users.push(user)
+          return 'Арин ушёл'
+        },
+        askRaw: async (system, user) => {
+          systems.push(system)
+          users.push(user)
+          blockAttempts += 1
+          return ''
+        },
+      },
+    )
+    expect(blockAttempts).toBe(2) // the block failed twice, then the lines fell back
+    expect(systems).toHaveLength(4)
+    for (const system of systems) {
+      expect(system).toContain('Named entities in this chapter')
+      expect(system).toContain('- Arin (character)')
+    }
+    const withTerm = users.filter((user) => user.includes('Arin'))
+    expect(withTerm).toHaveLength(3) // both block attempts + the Arin line
+    users.forEach((user, i) => {
+      if (user.includes('Arin')) expect(systems[i]).toContain('Arin = Арин')
+    })
+    // the retried block reuses the exact same prompt inputs as the first attempt
+    expect(systems[1]).toBe(systems[0])
+    expect(users[1]).toBe(users[0])
+    expect(ru).toBe('# Глава 1\n\nАрин ушёл\nАрин ушёл')
+  })
+
+  it('refuses an untagged chapter when the glossary has pinned terms', async () => {
+    const pinnedGlossary = {
+      terms: [
+        {
+          id: 'arin',
+          term: 'Arin',
+          type: 'character' as const,
+          count: 1,
+          firstChapter: 1,
+          ru: 'Арин',
+          aliases: [],
+        },
+      ],
+    }
+    await expect(
+      translateTaggedChapter('# Chapter 1\n\nArin left.', {
+        glossary: pinnedGlossary,
+        summary: '',
+        titleRu: 'Глава 1',
+        concurrency: 1,
+        ask: async () => 'Арин ушёл',
+      }),
+    ).rejects.toThrow(/not tagged/)
+    // an untagged chapter without any pinned occurrence is still translated
+    await expect(
+      translateTaggedChapter('# Chapter 1\n\nNobody here.', {
+        glossary: pinnedGlossary,
+        summary: '',
+        titleRu: 'Глава 1',
+        concurrency: 1,
+        ask: async () => 'Никого',
+      }),
+    ).resolves.toBe('# Глава 1\n\nНикого')
+  })
 })

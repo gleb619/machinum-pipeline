@@ -79,6 +79,24 @@ describe('translation prompt slots', () => {
     expect(p.systemPrompt).not.toContain('Recurring terms')
   })
 
+  it('places the prior-terms block between vocabulary and the terms request', () => {
+    const PRIOR = 'Terms already established in earlier chapters:\n- Arin → Арин'
+    const p = buildTranslationPrompt({
+      text: '<term id="arin">Arin</term> left.',
+      glossary,
+      vocabulary: VOCAB,
+      priorTerms: PRIOR,
+    })
+    const s = p.systemPrompt
+    expect(s.indexOf(PRIOR)).toBeGreaterThan(s.indexOf(VOCAB))
+    expect(s.indexOf('<terms>[...]</terms>')).toBeGreaterThan(s.indexOf(PRIOR))
+  })
+
+  it('renders no prior-terms block when absent or blank', () => {
+    const p = buildTranslationPrompt({ text: 'Plain line.', glossary, priorTerms: '  ' })
+    expect(p.systemPrompt).not.toContain('Terms already established in earlier chapters')
+  })
+
   it('mirrors both blocks in the hand-built fallback prompt', () => {
     const original = getDefaultPrompt('translate.system')
     registerPrompt({ name: 'translate.system', template: '' })
@@ -284,7 +302,11 @@ describe('chapter body translator slots', () => {
     return dir
   }
 
-  function bodyRun(dir: string, slots: ('summary' | 'glossary' | 'ner' | 'vocab')[]) {
+  function bodyRun(
+    dir: string,
+    slots: ('summary' | 'glossary' | 'ner' | 'vocab' | 'priorTerms')[],
+    priorTerms?: (chapter: number) => string,
+  ) {
     const systems: string[] = []
     const call = async (input: { systemPrompt: string }) => {
       systems.push(input.systemPrompt)
@@ -295,6 +317,7 @@ describe('chapter body translator slots', () => {
       chaptersDir: dir,
       log: false,
       slots,
+      ...(priorTerms ? { priorTerms } : {}),
     })
     const env = {
       ...createExchange(
@@ -319,6 +342,20 @@ describe('chapter body translator slots', () => {
     expect(systems[0]).toContain('Short.')
     expect(systems[0]).not.toContain('Named entities')
     expect(systems[0]).not.toContain('Recurring terms')
+  })
+
+  it('renders the prior-terms block of the chapter when the slot is enabled', async () => {
+    const systems = await bodyRun(
+      slotDir(),
+      [...TRANSLATE_SLOTS],
+      (chapter) => `Terms so far for chapter ${chapter}:\n- Arin → Арин`,
+    )
+    expect(systems[0]).toContain('Terms so far for chapter 1:')
+  })
+
+  it('slots: [summary] excludes the prior-terms block', async () => {
+    const systems = await bodyRun(slotDir(), ['summary'], () => 'Terms so far')
+    expect(systems[0]).not.toContain('Terms so far')
   })
 })
 
