@@ -46,8 +46,10 @@ describe('composePromptBlocks', () => {
       glossaryBlock: '',
       entityBlock: '',
       vocabBlock: '',
+      priorTermsBlock: '',
       summaryBlock: '',
       extraRules: '',
+      termsBlock: '',
       mode: 'plain',
     })
     expect(plain.complete).toBe(true)
@@ -63,8 +65,10 @@ describe('composePromptBlocks', () => {
       glossaryBlock: '',
       entityBlock: '',
       vocabBlock: '',
+      priorTermsBlock: '',
       summaryBlock: '',
       extraRules: '',
+      termsBlock: '',
       mode: 'xml',
     })
     expect(xml.complete).toBe(true)
@@ -119,8 +123,10 @@ describe('composePromptBlocks', () => {
         glossaryBlock: '',
         entityBlock: '',
         vocabBlock: '',
+        priorTermsBlock: '',
         summaryBlock: '',
         extraRules: '',
+        termsBlock: '',
         mode: 'properties',
       },
     })

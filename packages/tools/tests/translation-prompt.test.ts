@@ -1,11 +1,15 @@
-import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { getDefaultPrompt, renderTemplate } from '../src/core/llm-prompts.js'
 import type { Glossary } from '../src/normalization/term-tagger.js'
 import {
   buildTranslationPrompt,
   cleanTranslation,
   joinReplyLines,
   termIdsIn,
+  translateTermsEnabled,
+  translateTermsInstruction,
 } from '../src/normalization/translation-prompt.js'
 
 const glossary: Glossary = {
@@ -214,5 +218,148 @@ describe('joinReplyLines', () => {
   it('joins split replies into one line', () => {
     expect(joinReplyLines('Первая часть.\n\n Вторая часть.\n')).toBe('Первая часть. Вторая часть.')
     expect(joinReplyLines('Одна строка.')).toBe('Одна строка.')
+  })
+})
+
+describe('MT_TRANSLATE_TERMS switch', () => {
+  const paragraph = translateTermsInstruction('English')
+
+  it('keeps the default render byte-identical to the pre-switch prompt', () => {
+    const template = getDefaultPrompt('translate.system')?.template ?? ''
+    const rendered = renderTemplate(
+      template,
+      {
+        sourceLang: 'English',
+        targetLang: 'Russian',
+        text: '',
+        glossaryBlock: '',
+        entityBlock: '',
+        vocabBlock: '',
+        priorTermsBlock: '',
+        summaryBlock: '',
+        extraRules: '',
+        termsBlock: paragraph,
+        mode: 'plain',
+      },
+      'translate.system',
+    ).trim()
+    // Snapshot of the bundled prompt with the literal paragraph, before {{termsBlock}} split it
+    // out. The 1752-char / 55e12372 snapshot from the brief predates {{entityBlock}} /
+    // {{vocabBlock}} and {{priorTermsBlock}}: those empty slots add newlines (recorded 2026-11-15).
+    expect(rendered).toHaveLength(1758)
+    expect(createHash('sha256').update(rendered).digest('hex')).toBe(
+      '743d266698de22e8a485e34f2f211c645334ffef25461fa8318b842e3cadd2db',
+    )
+  })
+
+  it('defaults to on', () => {
+    const implicit = buildTranslationPrompt({ text: '', glossary: { terms: [] } }).systemPrompt
+    const explicit = buildTranslationPrompt({
+      text: '',
+      glossary: { terms: [] },
+      terms: true,
+    }).systemPrompt
+    expect(implicit).toBe(explicit)
+    expect(implicit).toContain('<terms>[...]</terms>')
+  })
+
+  it('off removes exactly the paragraph and its blank-line separator', () => {
+    const input = { text: '', glossary: { terms: [] }, summary: 'A short summary.' }
+    const on = buildTranslationPrompt(input).systemPrompt
+    const off = buildTranslationPrompt({ ...input, terms: false }).systemPrompt
+    expect(on).toContain(`\n\n${paragraph}\n\n`)
+    expect(off).not.toContain('<terms>')
+    expect(off).toBe(on.replace(`\n\n${paragraph}\n\n`, '\n\n'))
+  })
+
+  it('off in the empty-blocks case leaves no trailing newline run', () => {
+    const on = buildTranslationPrompt({ text: '', glossary: { terms: [] } }).systemPrompt
+    const off = buildTranslationPrompt({
+      text: '',
+      glossary: { terms: [] },
+      terms: false,
+    }).systemPrompt
+    expect(on).toContain(paragraph)
+    expect(off).not.toContain('<terms>')
+    expect(off).not.toMatch(/\n{3,}$/)
+  })
+
+  it('unknown, empty and unset values mean on', () => {
+    expect(translateTermsEnabled({ MT_TRANSLATE_TERMS: 'maybe' })).toBe(true)
+    expect(translateTermsEnabled({ MT_TRANSLATE_TERMS: '' })).toBe(true)
+    expect(translateTermsEnabled({})).toBe(true)
+    expect(translateTermsEnabled({ MT_TRANSLATE_TERMS: 'ON' })).toBe(true)
+  })
+
+  it('is off only for off, case-insensitively', () => {
+    expect(translateTermsEnabled({ MT_TRANSLATE_TERMS: 'off' })).toBe(false)
+    expect(translateTermsEnabled({ MT_TRANSLATE_TERMS: ' OFF ' })).toBe(false)
+  })
+
+  it('the switch value feeds the builder', () => {
+    const maybe = translateTermsEnabled({ MT_TRANSLATE_TERMS: 'maybe' })
+    const off = translateTermsEnabled({ MT_TRANSLATE_TERMS: 'off' })
+    const make = (terms: boolean) =>
+      buildTranslationPrompt({ text: '', glossary: { terms: [] }, terms }).systemPrompt
+    expect(make(maybe)).toContain(paragraph)
+    expect(make(off)).not.toContain(paragraph)
+  })
+})
+
+describe('MT_TRANSLATE_TERMS is the default when terms is absent', () => {
+  const paragraph = translateTermsInstruction('English')
+  const input = { text: '', glossary: { terms: [] } }
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('renders no <terms> instruction when the env is off and terms is absent', () => {
+    vi.stubEnv('MT_TRANSLATE_TERMS', 'off')
+    const prompt = buildTranslationPrompt(input).systemPrompt
+    expect(prompt).not.toContain('<terms>')
+    expect(prompt).not.toContain(paragraph)
+  })
+
+  it('is byte-identical to the pre-switch ON render when the env is unset', () => {
+    vi.stubEnv('MT_TRANSLATE_TERMS', undefined)
+    const implicit = buildTranslationPrompt(input).systemPrompt
+    const explicitOn = buildTranslationPrompt({ ...input, terms: true }).systemPrompt
+    expect(implicit).toBe(explicitOn)
+
+    const template = getDefaultPrompt('translate.system')?.template ?? ''
+    const rendered = renderTemplate(
+      template,
+      {
+        sourceLang: 'English',
+        targetLang: 'Russian',
+        text: '',
+        glossaryBlock: '',
+        entityBlock: '',
+        vocabBlock: '',
+        priorTermsBlock: '',
+        summaryBlock: '',
+        extraRules: '',
+        termsBlock: paragraph,
+        mode: 'plain',
+      },
+      'translate.system',
+    ).trim()
+    expect(rendered).toHaveLength(1758)
+    expect(createHash('sha256').update(rendered).digest('hex')).toBe(
+      '743d266698de22e8a485e34f2f211c645334ffef25461fa8318b842e3cadd2db',
+    )
+  })
+
+  it('an explicit terms: true overrides an off environment', () => {
+    vi.stubEnv('MT_TRANSLATE_TERMS', 'off')
+    const prompt = buildTranslationPrompt({ ...input, terms: true }).systemPrompt
+    expect(prompt).toContain(paragraph)
+  })
+
+  it('an explicit terms: false overrides an unset environment', () => {
+    vi.stubEnv('MT_TRANSLATE_TERMS', undefined)
+    const prompt = buildTranslationPrompt({ ...input, terms: false }).systemPrompt
+    expect(prompt).not.toContain('<terms>')
   })
 })

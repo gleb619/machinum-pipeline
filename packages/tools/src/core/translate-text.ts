@@ -16,7 +16,11 @@ import {
   TRANSLATE_SYSTEM_FALLBACK_TOKENS,
 } from '@mt/core'
 import { countTextTokens } from '../normalization/token-counter.js'
-import { cleanTranslation } from '../normalization/translation-prompt.js'
+import {
+  cleanTranslation,
+  translateTermsEnabled,
+  translateTermsInstruction,
+} from '../normalization/translation-prompt.js'
 import { resolveTunedNum } from '../resolve-constants.js'
 import {
   type ChunkBudget,
@@ -98,19 +102,22 @@ export function translateNormalize(targetLangDefault?: string) {
     if (!targetLang) {
       throw new Error('translate: targetLang is required (input.targetLang or tool option)')
     }
+    const sourceLang = i.sourceLang ?? 'the source language'
     return {
       systemPromptName: 'translate.system',
       promptName: 'translate.user',
       vars: {
         text: i.text,
         targetLang,
-        sourceLang: i.sourceLang ?? 'the source language',
+        sourceLang,
         // the bundled translate.system template composes these optional blocks
         glossaryBlock: '',
         entityBlock: '',
         vocabBlock: '',
+        priorTermsBlock: '',
         summaryBlock: '',
         extraRules: '',
+        termsBlock: translateTermsEnabled() ? translateTermsInstruction(sourceLang) : '',
       },
       model: i.model,
     }

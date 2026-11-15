@@ -19,8 +19,10 @@ const vars = {
   glossaryBlock: '',
   entityBlock: '',
   vocabBlock: '',
+  priorTermsBlock: '',
   summaryBlock: '',
   extraRules: '',
+  termsBlock: '',
 }
 
 describe('renderTemplate', () => {

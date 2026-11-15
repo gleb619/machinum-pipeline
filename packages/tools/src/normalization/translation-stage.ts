@@ -20,10 +20,16 @@ import type { LineParityInput } from '../verification/line-parity-linter.js'
 import { exField } from './fields.js'
 import { chapterNumberOf, parseGlossary } from './glossary-extractor.js'
 import type { SchemaDocLlmCall } from './schema/llm.js'
-import { stripTerms, tagTerms } from './term-tagger.js'
-import type { Glossary } from './term-tagger.js'
+import { countTerms, stripTerms, tagTerms } from './term-tagger.js'
+import type { Glossary, GlossaryTerm } from './term-tagger.js'
 import type { TranslateWorkMode } from './translation-prompt.js'
-import { buildTranslationPrompt, cleanTranslation, joinReplyLines } from './translation-prompt.js'
+import {
+  buildTranslationPrompt,
+  cleanTranslation,
+  joinReplyLines,
+  termIdsIn,
+  translateTermsEnabled,
+} from './translation-prompt.js'
 import { TranslationReplyParseError } from './translation-reply.js'
 import { parseTranslationReply } from './translation-reply.js'
 
@@ -80,10 +86,16 @@ export async function loadChapterSummary(chaptersDir: string, n: number): Promis
 }
 
 /** Prompt-context slots the chapter body translator can inject. */
-export type TranslateSlot = 'summary' | 'glossary' | 'ner' | 'vocab'
+export type TranslateSlot = 'summary' | 'glossary' | 'ner' | 'vocab' | 'priorTerms'
 
 /** Every slot, in prompt order (the order the blocks appear in `translate.system`). */
-export const TRANSLATE_SLOTS: readonly TranslateSlot[] = ['summary', 'glossary', 'ner', 'vocab']
+export const TRANSLATE_SLOTS: readonly TranslateSlot[] = [
+  'summary',
+  'glossary',
+  'ner',
+  'vocab',
+  'priorTerms',
+]
 
 /**
  * Parsed `MT_TRANSLATE_SLOTS` (comma list, e.g. `summary,ner`); empty/absent = all slots.
@@ -412,6 +424,7 @@ export function createGlossaryTitleTranslator(
         glossary,
         extraRules: options.rules ?? TITLE_RULES,
         mode: options.mode,
+        terms: translateTermsEnabled(),
       })
       const ru = await ask(options.call, prompt.systemPrompt, prompt.userPrompt, ctx, options.mode)
       const verdict = lintLineParity(title, ru, { cyrillicSeverity: 'error' })
@@ -475,10 +488,17 @@ export interface TranslateChapterStats {
 export interface TranslateLinesOptions {
   glossary: Glossary
   summary: string
+  /**
+   * Ask the model for the `<terms>[]</terms>` report. Default: `translateTermsEnabled()`
+   * (`MT_TRANSLATE_TERMS=off` disables).
+   */
+  terms?: boolean
   /** Pre-rendered named-entity block; empty = no block. */
   entities?: string
   /** Pre-rendered recurring-term block; empty = no block. */
   vocabulary?: string
+  /** Pre-rendered "terms established in earlier chapters" block; empty = no block. */
+  priorTerms?: string
   /** Chapter number of `tagged`: term state (ru/gender timelines) resolves at this chapter. */
   chapter?: number
   /** Translated `# ` heading text (without the `# `). */
@@ -544,8 +564,10 @@ function linePrompt(job: LineJob, opts: TranslateLinesOptions) {
     summary: opts.summary,
     entities: opts.entities,
     vocabulary: opts.vocabulary,
+    priorTerms: opts.priorTerms,
     mode: opts.mode,
     chapter: opts.chapter,
+    terms: opts.terms,
   })
 }
 
@@ -661,8 +683,10 @@ async function translateBlock(
     summary: opts.summary,
     entities: opts.entities,
     vocabulary: opts.vocabulary,
+    priorTerms: opts.priorTerms,
     mode: 'xml',
     chapter: opts.chapter,
+    terms: opts.terms,
   })
   const passed = new Map<number, string>()
   const attempt = async () => {
@@ -714,6 +738,27 @@ async function translateBlock(
   return passed
 }
 
+/** Terms a prompt can pin: entries carrying a RU rendering. */
+export function pinnedTerms(glossary: Glossary): GlossaryTerm[] {
+  return glossary.terms.filter((t) => t.ru !== null && t.ru.trim() !== '')
+}
+
+/**
+ * Fails loudly when a chapter with pinned glossary terms reaches the translator untagged: the
+ * prompt would carry an empty glossary block and the model would transliterate on its own
+ * (`Надия`, `Дойл`) instead of using the pinned forms (`Надя`, `Доул`). A chapter with no
+ * occurrence of any pinned term is still fine untagged.
+ */
+function assertGlossaryTags(tagged: string, glossary: Glossary): void {
+  const pinned = pinnedTerms(glossary)
+  if (pinned.length === 0 || termIdsIn(tagged).length > 0) return
+  const occurrences = countTerms(stripTerms(tagged), { terms: pinned })
+  if (occurrences.size === 0) return
+  throw new Error(
+    `translate: ${occurrences.size} pinned glossary term(s) occur in the chapter text but no <term> tag is present; the chapter was not tagged before translation (glossary has ${pinned.length} pinned term(s))`,
+  )
+}
+
 /**
  * Translates a `<term>`-tagged EN chapter. Blank lines and fenced code are kept, the first `# `
  * heading becomes `# <titleRu>`. With the default `blockLines: 1` every other line is one LLM
@@ -724,6 +769,7 @@ export async function translateTaggedChapter(
   tagged: string,
   opts: TranslateLinesOptions,
 ): Promise<string> {
+  assertGlossaryTags(tagged, opts.glossary)
   const src = tagged.split('\n')
   let fence = false
   let headingDone = false
@@ -799,6 +845,11 @@ export interface ChapterBodyTranslatorOptions {
   blockLines?: number
   /** Output budget of every request. Default 2048; raise it for thinking models. */
   maxTokens?: number
+  /**
+   * Renders the "terms established in earlier chapters" block for the chapter being translated.
+   * Absent = no block (default behaviour).
+   */
+  priorTerms?: (chapter: number) => string
 }
 
 /**
@@ -824,10 +875,14 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
         ? await loadGlossaryOrEmpty(options.chaptersDir)
         : { terms: [] }
       const concurrency = options.concurrency ?? translateConcurrency()
+      const pinned = pinnedTerms(glossary).length
       const pairs: LineParityInput[] = []
       const nums: number[] = []
       for (const [i, tagged] of chapters.entries()) {
         const n = chapterNumberOf(tagged, i + 1)
+        if (options.log !== false) {
+          ctx.run.logger.info(`[translate] chapter=${n} terms=${pinned}`)
+        }
         const ru = await translateTaggedChapter(tagged, {
           glossary,
           summary: slots.has('summary') ? await loadChapterSummary(options.chaptersDir, n) : '',
@@ -837,9 +892,11 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
           vocabulary: slots.has('vocab')
             ? await loadChapterVocabulary(options.chaptersDir, n, ctx)
             : undefined,
+          priorTerms: slots.has('priorTerms') ? (options.priorTerms?.(n) ?? '') : undefined,
           chapter: n,
           titleRu: titles[i] ?? '',
           concurrency,
+          terms: translateTermsEnabled(),
           memo,
           mode: options.mode,
           blockLines: options.blockLines,

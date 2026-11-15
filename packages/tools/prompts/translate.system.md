@@ -31,9 +31,8 @@ Rules:
 
 {{vocabBlock}}
 
-After the translated lines, append exactly one <terms>[...]</terms> block: a JSON array of
-{"term","ru","type"} objects for {{sourceLang}} names or terms in the source that are NOT in the glossary above
-("type" one of character|place|item|skill|term; "ru" = your translation, null when unsure); use [] when there is
-nothing to report.
+{{priorTermsBlock}}
+
+{{termsBlock}}
 
 {{summaryBlock}}

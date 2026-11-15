@@ -34,6 +34,11 @@ export interface TranslationPromptInput {
   entities?: string
   /** Pre-rendered recurring-term block. Context only; empty/absent renders `''`. */
   vocabulary?: string
+  /**
+   * Pre-rendered "terms established in earlier chapters" block (EN → RU). Context only;
+   * empty/absent renders `''`.
+   */
+  priorTerms?: string
   sourceLang?: string
   targetLang?: string
   /** Extra rules appended to the rule list (e.g. title-specific hints). */
@@ -52,6 +57,12 @@ export interface TranslationPromptInput {
    * announced with their verbatim source evidence.
    */
   chapter?: number
+  /**
+   * Include the `<terms>[]</terms>` reporting request (the `{{termsBlock}}` slot). When absent,
+   * the default comes from {@link translateTermsEnabled} (`MT_TRANSLATE_TERMS`), so a caller that
+   * passes nothing still honours the switch. An explicit value overrides the environment.
+   */
+  terms?: boolean
 }
 
 export interface TranslationPrompt {
@@ -134,6 +145,8 @@ export function termIdsIn(text: string): string[] {
 /**
  * `{{var}}` placeholders the bundled translate.* templates may use. {@link buildTranslationPrompt}
  * renders every block with this full var set, so a block only needs the vars it actually uses.
+ * `termsBlock` is declared here so the prompt linter accepts it, but it is filled from the
+ * `MT_TRANSLATE_TERMS` switch rather than from a caller-supplied slot.
  */
 export const TRANSLATE_TEMPLATE_VARS = [
   'sourceLang',
@@ -142,8 +155,10 @@ export const TRANSLATE_TEMPLATE_VARS = [
   'glossaryBlock',
   'entityBlock',
   'vocabBlock',
+  'priorTermsBlock',
   'summaryBlock',
   'extraRules',
+  'termsBlock',
 ] as const
 
 /** `{{var}}` names accepted by the translate.* templates: the builder vars plus `{{mode}}`. */
@@ -159,6 +174,7 @@ function translateTemplateVars(
   to: string,
   glossaryBlock: string,
   summaryBlock: string,
+  termsBlock: string,
 ): Record<string, string> {
   return {
     sourceLang: from,
@@ -167,10 +183,37 @@ function translateTemplateVars(
     glossaryBlock,
     entityBlock: input.entities?.trim() ?? '',
     vocabBlock: input.vocabulary?.trim() ?? '',
+    priorTermsBlock: input.priorTerms?.trim() ?? '',
     summaryBlock,
     extraRules: (input.extraRules ?? []).map((r) => `- ${r}`).join('\n'),
+    termsBlock,
     mode,
   }
+}
+
+/**
+ * The `<terms>[...]</terms>` reporting paragraph of the bundled `translate.system` template,
+ * verbatim (including its line breaks) for `sourceLang`. This is the block the model spends
+ * 24–40 % of its output tokens on and `cleanTranslation` deletes afterwards.
+ */
+export function translateTermsInstruction(sourceLang: string): string {
+  return [
+    'After the translated lines, append exactly one <terms>[...]</terms> block: a JSON array of',
+    `{"term","ru","type"} objects for ${sourceLang} names or terms in the source that are NOT in the glossary above`,
+    '("type" one of character|place|item|skill|term; "ru" = your translation, null when unsure); use [] when there is',
+    'nothing to report.',
+  ].join('\n')
+}
+
+/**
+ * `<terms>` request switch (`MT_TRANSLATE_TERMS`): `off` (case-insensitive, surrounding
+ * whitespace ignored) disables it. Unset, empty and every unrecognised value mean on, so a typo
+ * cannot silently change the product prompt.
+ */
+export function translateTermsEnabled(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.MT_TRANSLATE_TERMS?.trim().toLowerCase() !== 'off'
 }
 
 /**
@@ -234,6 +277,7 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
   const from = input.sourceLang ?? 'English'
   const to = input.targetLang ?? 'Russian'
   const mode = input.mode ?? 'plain'
+  const termsEnabled = input.terms ?? translateTermsEnabled()
   const { glossary, flips } = resolveGlossaryAndFlips(input)
   const byId = new Map(glossary.terms.map((t) => [t.id, t]))
   const usedTerms = termIdsIn(input.text)
@@ -270,11 +314,13 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
     ? `Chapter summary (context only, do not translate or repeat it):\n${input.summary.trim()}`
     : ''
 
-  const vars = translateTemplateVars(mode, input, from, to, glossaryBlock, summaryBlock)
+  const termsBlock = termsEnabled ? translateTermsInstruction(from) : ''
+  const vars = translateTemplateVars(mode, input, from, to, glossaryBlock, summaryBlock, termsBlock)
   const composed = composePromptBlocks('translate', mode, vars)
-  const systemPrompt = composed.complete
+  const rawPrompt = composed.complete
     ? composed.systemPrompt
-    : buildHandBuiltSystemPrompt(input, from, to)
+    : buildHandBuiltSystemPrompt(input, from, to, termsEnabled)
+  const systemPrompt = termsEnabled ? rawPrompt : dropEmptyTermsSlot(rawPrompt, summaryBlock)
   return {
     systemPrompt,
     userPrompt: wrapPromptInput(stripTerms(input.text), mode),
@@ -284,11 +330,24 @@ export function buildTranslationPrompt(input: TranslationPromptInput): Translati
   }
 }
 
+/**
+ * Removes the blank-line separator the empty `{{termsBlock}}` slot leaves behind. The template
+ * has `{{termsBlock}}\n\n{{summaryBlock}}`, so the separator to drop is the `\n\n` directly
+ * before the summary block; blank runs produced by other empty slots are today's behaviour and
+ * stay untouched. With no summary the leftover separator is trailing whitespace.
+ */
+function dropEmptyTermsSlot(prompt: string, summaryBlock: string): string {
+  if (summaryBlock === '') return prompt.trimEnd()
+  const at = prompt.lastIndexOf(`\n\n${summaryBlock}`)
+  return at < 0 ? prompt : `${prompt.slice(0, at)}${prompt.slice(at + 2)}`
+}
+
 /** Previous hand-built system prompt; used only when a bundled translate.* template is missing. */
 function buildHandBuiltSystemPrompt(
   input: TranslationPromptInput,
   from: string,
   to: string,
+  termsEnabled: boolean,
 ): string {
   const { glossary, flips } = resolveGlossaryAndFlips(input)
   const byId = new Map(glossary.terms.map((t) => [t.id, t]))
@@ -305,7 +364,11 @@ function buildHandBuiltSystemPrompt(
   const parts = [
     `You are a professional literary translator. Translate the user text from ${from} to ${to}.`,
     'Rules:',
-    '- Output exactly one translated line per input line; do not add, merge or drop lines (the single trailing <terms> block below is metadata, not a translation line).',
+    `- Output exactly one translated line per input line; do not add, merge or drop lines${
+      termsEnabled
+        ? ' (the single trailing <terms> block below is metadata, not a translation line)'
+        : ''
+    }.`,
     '- Never split a long line into several lines: keep each input line as ONE output line.',
     '- Keep [bracketed] system messages bracketed.',
     '- Output only the translation: no notes, no quotes around it, no explanations, no <think> blocks.',
@@ -331,12 +394,15 @@ function buildHandBuiltSystemPrompt(
   }
   if (input.entities?.trim()) parts.push(input.entities.trim())
   if (input.vocabulary?.trim()) parts.push(input.vocabulary.trim())
-  parts.push(
-    'After the translated lines, append exactly one <terms>[...]</terms> block: a JSON array of ' +
-      `{"term","ru","type"} objects for English names or terms in the source that are NOT in the ` +
-      `glossary above ("type" one of character|place|item|skill|term; "ru" = your translation, ` +
-      'null when unsure); use [] when there is nothing to report.',
-  )
+  if (input.priorTerms?.trim()) parts.push(input.priorTerms.trim())
+  if (termsEnabled) {
+    parts.push(
+      'After the translated lines, append exactly one <terms>[...]</terms> block: a JSON array of ' +
+        `{"term","ru","type"} objects for English names or terms in the source that are NOT in the ` +
+        `glossary above ("type" one of character|place|item|skill|term; "ru" = your translation, ` +
+        'null when unsure); use [] when there is nothing to report.',
+    )
+  }
   if (input.summary?.trim()) {
     parts.push(
       'Chapter summary (context only, do not translate or repeat it):',
