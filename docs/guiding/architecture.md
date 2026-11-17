@@ -96,10 +96,10 @@ source, tool, target or hook is started.
 | `@mt/webui` | h3 admin API + SSE event stream + SQLite indicator; serves the admin UI (Nitro in dev only) | [`webui.md`](../steering/webui.md) |
 | `@mt/components` | Vue 3 + Tailwind admin UI (bundled into webui) | [`structure.md`](../steering/structure.md) |
 | `@mt/router` | Standalone Nuxt: keyless LLM gateway, API-only — OpenRouter proxy, upstream routing, key pool, cost tracking, mock mode; embedded in `mt serve` (T197) | [`router.md`](../steering/router.md) |
-| `@mt/tui` | Terminal UI (skeleton) — HTTP-only client of `mt serve`; layout contract in [`docs/layout.md`](../layout.md) | [`structure.md`](../steering/structure.md) |
+| `@mt/tui` | Terminal UI (skeleton) — HTTP-only client of `mt serve`; layout contract in [`layout.md`](../steering/layout.md) | [`structure.md`](../steering/structure.md) |
 | `@mt/mcp` | MCP server over stdio; wraps core/cli — no HTTP | [`mcp.md`](../steering/mcp.md) |
 | `chrome-extension` | MV3 — scrape chapters, auto-upload to web editors | [`extensions.md`](../steering/extensions.md) |
-| `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens | [`extensions.md`](../steering/extensions.md) |
+| `vscode-extension` | JSON schema for `mt.json`, DSL hover, "Run pipeline" code lens; planned: shared Vue UI in a webview | [`extensions.md`](../steering/extensions.md) |
 
 Import layer rules:
 
@@ -247,7 +247,7 @@ Every topic below links to the steering file that holds the full specification, 
 | Tools catalogue (`validator`, `splitter`, `translator`, `schema-doc`, `md-formatter`, `openrouter-tool`) | [`tools.md`](../steering/tools.md) |
 | URI schemes (`jsonl`, `md`, `http`, `chapter`, `schema-doc`, `git`, `range`, `void`) | [`waypoint.md`](../steering/waypoint.md) |
 | Webui (Nuxt): routes, SSE, SQLite, runner registry, UI integration | [`webui.md`](../steering/webui.md) |
-| TUI (skeleton): terminal skin of the admin UI, HTTP-only | [`tui.md`](../steering/tui.md), [`../layout.md`](../layout.md) |
+| TUI (skeleton): terminal skin of the admin UI, HTTP-only | [`tui.md`](../steering/tui.md), [`layout.md`](../steering/layout.md) |
 | Router (standalone Nuxt): keyless gateway, upstream routing, vault-fed keys, pool, cost tracking, mock mode, logs | [`router.md`](../steering/router.md) |
 | Vault: gitignored secret store, refs (`llm.use`), `mt vault` CLI | [`vault.md`](vault.md), [`router.md`](../steering/router.md) |
 | MCP server (stdio): methods, handlers, test shape | [`mcp.md`](../steering/mcp.md) |

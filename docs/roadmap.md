@@ -1,49 +1,143 @@
 # Roadmap — book processing pipeline (sample2-practical)
 
-Status: active. Started 2026-11-13. Owner: controller (Hermes) + `at` agents; design reviewed by
-`claude -p --permission-mode plan` (plan kept outside the repo, summary in §Design inputs).
-Source of truth for *what* to build; execution log lives in the loop journal, not here.
+Book-flow plan for `samples/sample2-practical` (EN→RU over `books/book2`, 21 chapters). Task state
+lives on the board (`docs/kanban.md`, machine-mutated by `at kanban`); this file maps the pipeline
+steps to board rows and keeps the anchors other files cite (`step 8`, `step 9`, `R4`,
+`§Request budget`) resolvable.
 
-## Goal
+Flow: `books/book2 → stats → split → summary → ner → vocabulary → glossary → glossary-index →
+quality → (preprocess) → titles → chapters → assemble`
 
-Turn `samples/sample2-practical` into a real book-processing flow over `books/book2`:
+## Legend
 
-1. chapter-size statistics and splitting of chapters larger than 1.5× the mean;
-2. bullet summary per chapter (LLM);
-3. NER — LLM extraction of main entities (characters, places, organisations, assets) per chapter and
-   book-wide, with aliases and first appearance (priority 1 of the analysis stages);
-4. vocabulary — statistical 4/3/2/1-gram keyword extraction, no LLM (priority 2);
-5. **no diagram stage** (deferred);
-6. quality gate → branch: well-written book ⇒ translation; poor book ⇒ preprocessing (typo fix,
-   proofreading, gender/sex normalisation of main characters) ⇒ translation;
-7. translation with slots: summary, NER, vocabulary (and glossary) injected as prompt context.
-
-Constraint: **reuse the existing tools**; new `Tool` definitions in `packages/` are a last resort.
-Two edits to existing library code are planned (`translateTaggedChapter` block mode, two new prompt
-vars) — everything else is sample-local glue (`samples/sample2-practical/lib/*.ts`).
-
-## Hard budget rule: free models only
-
-The GPU box is unavailable and the budget is minimal. Every stage runs on OpenRouter ids ending in
-`:free` (price 0). Credentials live in the vault entry `openrouter-loop`; a run selects them with:
-
-```bash
-MT_LLM_TOOL=router MT_LLM_USE=vault://openrouter-loop/<free-model-id>
-```
-
-Never read, print or commit a key; never re-create `docs/ideas/openrouter-key.json`.
-
-Probe of the 15 `:free` models available on 2026-11-13 (one tiny Russian request each):
-
-| Result | Models |
+| Column | Meaning |
 |---|---|
-| answer in `content` | `nvidia/nemotron-3-ultra-550b-a55b:free`, `particle-ai/particle-1:free`, `cohere/north-mini-code:free` |
-| `content` empty, `reasoning` filled at `max_tokens=40` (thinking models — need a larger budget and a probe before use) | `baidu/ernie-5.5-flash-preview:free`, `dots-studio/dots-3-note-preview:free`, `nvidia/nemotron-3.5-super-vl:free`, `nvidia/nemotron-3.5-lightning:free`, `recursive/flint-v1.0:free`, `apodex/apodex-1.1-mini:free`, `liquid/lfm-3-1.7b:free`, `liquid/lfm-2.5-2.6b:free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` |
-| unusable | `google/gemma-4-31b-it:free`, `google/gemma-4-26b-a4b-it:free` (429 provider), `thinkingmachines/inkling-2-small:free` (403, agentic harnesses only) |
+| Step | Stable id — code and docs cite it (`translation-stage.ts` → step 8/9, `lib/vocab.ts` → R4) |
+| Stage | Pipeline stage and the files that implement it |
+| Status | `Shipped` on `main` with a green gate · `Partial` shipped, a measured defect is still open · `Unmerged` done on a branch, not on `main` · `Open` board row not started |
+| Gate | The check that closes the row |
+| Board | `at` kanban rows — `at kanban show T###` |
+| Evidence | Where it lives in the tree |
 
-The binding limit is the free-tier **request quota**, not money: a per-line translation design costs
-~310 calls for book2 and is a defect. Target ≈55–65 calls for the clean branch and ≈100–110 with
-preprocessing (see §Request budget).
+Rules of the road:
+
+- The board is authoritative: move a row with `at kanban status T### Done`, then update this table.
+  `docs/kanban.md` is never hand-edited.
+- Gate for every step: `pnpm lint && pnpm typecheck && pnpm test --filter=sample2-practical`;
+  `pnpm ci:local` before any FF-merge. `pnpm test:gpu` is reported, never assumed — it is RED while
+  the GPU box reloads the model per request (T246).
+- Steps that touch `packages/` use a worktree + branch; sample-only steps stay on the current branch.
+- Free models only: every real backend uses an OpenRouter id ending `:free`; `MT_ALLOW_PAID=1` is
+  the deliberate escape hatch. Keys live in the vault entry `openrouter-loop` — never read, print or
+  commit a key, never re-create `docs/ideas/openrouter-key.json`.
+
+## Pipeline steps
+
+| Step | Stage | Status | Gate | Board | Evidence |
+|---|---|---|---|---|---|
+| 1 | Free-model guard + model probe | Shipped · gap T249 | `tests/llm-guard.test.ts` rejects a paid id and a silent `mock` backend; `check-llm` prints one probed row per stage model | T249 | `lib/llm.ts`, `check-llm.ts` |
+| 2 | Stats (chapter size) | Shipped | `schema/stats.json`: 21 rows, `oversize: []`, mean/median/threshold | — | `pipelines/stats.ts`, `lib/stats.ts`, `tests/stats.test.ts` |
+| 3 | Summary fix (G1) | Shipped | `tests/summary.test.ts`: 21 non-empty, distinct bullet blocks | — | `pipelines/summary.ts`, `f4cd37f` |
+| 4 | Split + stable ids (G4) | Shipped · path unexercised | book2 ⇒ identity `chapter-map.json`; 3× fixture ⇒ `oversize:[21]`, ≥2 parts, byte-identical rerun | T240 | `pipelines/split.ts`, `lib/split-map.ts`, `tests/split.test.ts` |
+| 5 | Quality gate (G7) | Shipped · calibration open | book2 ⇒ `translate`; dirty fixture ⇒ `preprocess` with named `reasons[]`; `quality.json` stable-ordered | T238 | `lib/quality.ts`, `pipelines/quality.ts`, `tests/quality.test.ts` |
+| 6 | NER | Shipped · descriptions empty | mock run writes `entities.json` + 21 per-chapter files, every entity `count>=1`, ≤8 scripted calls | T236 | `pipelines/ner.ts`, `lib/ner.ts`, `tests/ner.test.ts` |
+| 7 | Vocabulary (G6) | Shipped · noise open | 4-grams present, every term has `chapters[]`, second run identical bytes, LLM counter = 0 | T237 | `pipelines/vocabulary.ts`, `lib/vocab.ts`, `tests/vocabulary.test.ts` |
+| 8 | Prompt slots (G3) | Shipped · priorTerms unmeasured | prompt tests green (present/absent/strict); entity+vocab blocks land between glossary and summary | T254, T265 | `packages/tools/src/normalization/translation-prompt.ts`, `tests/translate-chapters.test.ts` |
+| 9 | Block translation (G2) | Shipped · defaults wrong · retune unmerged | mock run ≤30 calls for 21 chapters; `pnpm run lint:parity` clean; a dropped id falls back per line | T233, T248, T251, T252, T263 | `packages/tools/src/normalization/translation-stage.ts`, `pipelines/translate-chapters.ts` |
+| 10 | Preprocess branch | Shipped · never run on real data | `MT_FORCE_BRANCH=preprocess` writes `chapters/clean/` with equal line counts and digit multisets; verdict `translate` ⇒ 0 calls | T239 | `pipelines/preprocess.ts`, `lib/preprocess.ts`, `tests/preprocess.test.ts` |
+| 11 | Wire + docs + `docs/SKILL.md` drift | Partial | `pnpm --filter sample2-practical run runner` (mock) exits 0 with all artefacts; `pnpm ci:local` green | T213, T231, T232, T254, T255 | `scripts/run-book.ts`, `docs/guiding/samples.md` |
+| 12 | Free run, chapter-narrowed (1,2) | Shipped · smoke gate open | `check-llm` green first; `chapters/ru/chapter1.md` + `2.md`; `lint:parity` clean; ≤10 requests; no paid id | T244 | `samples/sample2-practical/reports/compare-*.md` |
+| 13 | Full book across days | Partial | forced 429 stop ⇒ re-run makes 0 repeat calls for finished chapters; `chapters/book/` assembled; total ≤ budget | T241, T242, T243, T245, T261, T262, T264 | `chapters/book/book.md` (733 lines, 14 712 words) |
+
+## Landed since the last roadmap rewrite
+
+| Board | What landed | Where |
+|---|---|---|
+| T230 | Events-bus gates: lint/test green, `ci:local` GREEN, `build:bin` + `smoke` GREEN, `test:gpu` RED on server latency | `08af9dc` |
+| T233 | Block-size retune: 40 drifts on free models, 6 is clean | branch `feat/t233` (`e826de9`) — **not on `main`** |
+| T234 | `mt run` loses the project `.mt/vault.json` (project root = sample dir) | `7059e1b` |
+| T235 | Free-tier flow fixes split into reviewable commits | `4114d1d`, `f4cd37f`, `abef859`, `b66d0e6` |
+
+## Open board work — book flow
+
+| Board | Pri | Issue | Plan | Step |
+|---|---|---|---|---|
+| T248 | High | Title batch: reasoning eats the 2048-token budget, chapter titles come back empty | — | 9 |
+| T249 | High | Config `llm.use` outranks `MT_LLM_TOOL`, so a run silently hits a paid router | — | 1 |
+| T261 | High | Two live runs overwrite each other's chapters — no run lock | `docs/plans/T261-run-lock-two-live-runs-silently-overwrit.md` | 13 |
+| T262 | High | LLM cache key must include backend + model | `docs/plans/T262-llm-cache-key-must-include-backend-and-m.md` | 13 |
+| T213 | Medium | sample2 intermediate: share one pipeline run, raise exec timeout | — | 11 |
+| T236 | Medium | NER entity descriptions empty under `enrich:false` (slot pins spelling only) | `docs/plans/T236-ner-entity-descriptions-empty-under-enri.md` | 6 |
+| T237 | Medium | Vocabulary: fold possessives, merge aliases, tighten proper/rare-repeat | `docs/plans/T237-vocabulary-fold-possessives-merge-aliase.md` | 7 |
+| T238 | Medium | Quality gate: calibrate against a genuinely bad book (fixture matrix) | `docs/plans/T238-quality-gate-calibrate-against-a-genuine.md` | 5 |
+| T239 | Medium | Preprocess branch never run end-to-end on real data | `docs/plans/T239-preprocess-branch-never-run-end-to-end-o.md` | 10 |
+| T240 | Medium | Chapter split path unexercised: book2 has no oversize chapter | `docs/plans/T240-chapter-split-path-unexercised-book2-has.md` | 4 |
+| T241 | Medium | `lint:parity` cannot verify a book translated straight from `books/book2` | `docs/plans/T241-lint-parity-cannot-verify-a-book-transla.md` | 13 |
+| T246 | Medium | GPU box borispc3 ~80 s per chat request vs 30 s IT timeout | — | gates |
+| T247 | Medium | `ChapterBody.terms()`: expose the parsed `<terms>` table | `docs/plans/chapter-terms-api.md` | 9 |
+| T250 | Medium | Eval fixtures: two-paragraph narration→dialogue that catch a merged line | — | 9 |
+| T251 | Medium | `cleanTranslation`: an unclosed `<terms>` silently deletes the rest | — | 9 |
+| T252 | Medium | Glossary/termConsistency scoring misses inflected forms | — | 9 |
+| T253 | Medium | Eval fixtures: long chapters (10–17 lines), one 400+ char line | — | 9 |
+| T263 | Medium | Translate defaults (block 40, concurrency 1, terms on) contradict the measured best (6 / 3 / off) | `docs/plans/T263-translate-defaults-contradict-the-measur.md` | 9 |
+| T264 | Medium | `cleanup` script must refuse while a run is live and require `--force` | `docs/plans/T264-cleanup-script-must-refuse-while-a-run-i.md` | 13 |
+| T265 | Medium | Eval: prove the `priorTermsBlock` actually reduces name drift | `docs/plans/T265-eval-prove-the-priortermsblock-actually-.md` | 8 |
+| T231 | Low | Lint: 3 biome errors in tools after the constants rollout | — | 11 |
+| T232 | Low | router vault-secrets arch test red: sample2 `.gitkeep` ENOENT | — | 11 |
+| T242 | Low | Per-stage LLM request accounting for quota planning | `docs/plans/T242-per-stage-llm-request-accounting-for-quo.md` | 13 |
+| T243 | Low | Free-tier quota guard before a long book run | `docs/plans/T243-free-tier-quota-guard-before-a-long-book.md` | 13 |
+| T244 | Low | Opt-in real-model smoke gate (1 chapter) against mock-only blind spots | `docs/plans/T244-opt-in-real-model-smoke-gate-1-chapter-a.md` | 12 |
+| T245 | Low | Assert `book.md` frontmatter `wordCount` against the assembled chapters | `docs/plans/T245-assert-book-md-frontmatter-wordcount-aga.md` | 13 |
+| T254 | Low | Document `MT_TRANSLATE_TERMS` and cover every prompt caller with a switch test | — | 8, 11 |
+| T255 | Low | Sample `md://` path resolution breaks on a copied sample | — | 11 |
+
+## New initiative — scored candidates
+
+Same prompt to N candidates, score them, keep the winner. Off by default (`MT_SCORED=1`).
+
+| Board | Pri | What | Plan |
+|---|---|---|---|
+| T256 | High | Scorer core: hard gates + soft heuristics + `pickBest` + per-call candidate report | `docs/plans/T256-scored-candidates-scorer-core-heuristics.md` |
+| T257 | High | Fan-out wrapper behind `MT_SCORED=1` | `docs/plans/T257-scored-candidates-fan-out-wrapper-behind.md` |
+| T258 | Medium | Config surface `llm.candidates.<stage>` + `check-llm` | `docs/plans/T258-scored-candidates-config-surface-llm-can.md` |
+| T259 | Medium | Export chosen/rejected pairs for SFT and DPO | `docs/plans/T259-scored-candidates-export-chosen-rejected.md` |
+| T260 | Low | Experimental router + remote ollama `machinum:4b` profile | `docs/plans/T260-scored-candidates-experimental-router-re.md` |
+
+## Run knobs
+
+| Knob | Default | Meaning |
+|---|---|---|
+| `MT_LLM_TOOL` | `mock` (offline) | backend — `router` for real runs |
+| `MT_LLM_USE` | — | `vault://openrouter-loop/<id>` credential set; config `llm.use` currently outranks the env (T249) |
+| `MT_LLM_MODEL_<STAGE>` | per `mt.local.json` | per-stage model override (`SUMMARY`, `NER`, `PREPROCESS`, `TRANSLATE`) |
+| `MT_ALLOW_PAID` | unset | `1` = deliberate paid run (the only way past the `:free` guard) |
+| `MT_ALLOW_MOCK` | unset | `1` = deliberate offline run (the only way past the mock guard) |
+| `MT_TRANSLATE_SLOTS` | all four | `summary,glossary,ner,vocab` |
+| `MT_TRANSLATE_SLOTS_STRICT` | unset | `1` = a missing slot artefact throws instead of warning |
+| `MT_TRANSLATE_BLOCK_LINES` | 40 | body lines per request — measured best is 6 (T233/T263) |
+| `MT_TRANSLATE_MAX_TOKENS` | 2048 (cap 8192) | per-request output budget |
+| `MT_TRANSLATE_TERMS` | on | ask the model for the `<terms>` table — undocumented (T254) |
+| `MT_PRIOR_TERMS` | on | `=0` disables the prior-terms block — unmeasured (T265) |
+| `MT_PRIOR_TERMS_MAX` | 40 | cap on the injected prior terms |
+| `MT_ONLY_CHAPTERS` | all | `1,2` narrows every stage |
+| `MT_FORCE_BRANCH` | verdict | `translate` \| `preprocess` overrides the quality gate |
+| `MT_LLM_CACHE` | off | `MT_LLM_CACHE=1` (or `llm.cache:true` in `mt.local.json`) — keeps a 429 stop resumable at zero cost |
+
+## Request budget (book2, 21 chapters, 17.4k words)
+
+| Stage | clean | preprocess | measured (free tier, 2026-11-14) |
+|---|---|---|---|
+| 1 stats/split, 4 vocabulary, 6 gate | 0 | 0 | 0 |
+| 2 summary | ≈21 | ≈21 | ≈21 |
+| 3 NER | 1–8 | 1–8 | 1–8 |
+| 6b typo/gender | 0 | ≈21–42 | skipped — verdict `translate` |
+| 7 translate (block mode) | ≈26 | ≈26 | ≈26 (block 6 ⇒ 3 requests per 16-line chapter) |
+| titles | ≈5 | ≈5 | ≈5 |
+| **total** | **≈55–65** | **≈100–110** | **≈129 incl. retries** |
+| rejected baseline: per-line translate | ≈310 | ≈310 | ≈310 |
+
+Measured best config (T263): block 6, concurrency 3, `MT_TRANSLATE_TERMS=off` — 649 s against
+1581 s for the shipped defaults. Keep `MT_LLM_CACHE=1` so a quota stop is resumable.
 
 ## Design inputs (verified facts the plan depends on)
 
@@ -53,133 +147,8 @@ preprocessing (see §Request budget).
 | Glossary corpus is truncated to 12k chars, book2 is 92k ⇒ default shrink mode sees ~13 % of the book; NER/glossary need `chunkMode:'auto'` | `packages/core/src/constants.ts:53`, `normalization/glossary-llm.ts:169-175` |
 | LLM reply cache is off by default; resume after a quota stop needs it on | `packages/tools/src/core/llm-config.ts:147,169,390` |
 | The DSL has no conditional branch (`fork` runs all branches) ⇒ the branch decision is data (`quality.json`) consumed by `lib/input.ts` | `packages/core/src/dsl.ts:453,470`, `docs/steering/core.md:209-210` |
-| Body translation is one LLM call per non-blank line (~310 for book2) | `normalization/translation-stage.ts:215-266` |
-| Suspected bug: `pipelines/summary.ts` uses `createSummaryTool` but `writeSummaries` reads `summaryByItem` ⇒ real-LLM summaries may be empty | `samples/sample2-practical/pipelines/summary.ts:24-33`, `samples/sample2-practical/lib/outputs.ts`, `normalization/heuristic-summary.ts:100`, `normalization/llm-summary.ts:34` |
-| On LLM failure `createSummaryTool` falls back to the whole chapter body (silent garbage) | `normalization/schema/summary.ts:~120` |
-| The series splitter keeps the same chapter `number` on every part ⇒ id collisions | `normalization/text-splitter.ts:~239` |
-| `router` defaults to the paid `openai/gpt-4o-mini` when no model is set ⇒ an unset model silently spends money | `packages/tools/src/core/llm-picker.ts:~49` |
 | `stat-freq` already does offline n-gram counting (`maxNgram`, top-K, min word length) — the vocabulary stage is CPU-only | `normalization/stat-freq.ts:41,78-96,208,297` |
-
-## Flow
-
-```text
-books/book2
-  → 1 stats + split            chapters/split + schema/stats.json + schema/chapter-map.json   (0 req)
-  → 2 summary                  schema/chapter<N>.summary.md                                 (≈21 req)
-  → 3 NER                      schema/entities.json + schema/chapter<N>.entities.json       (1–8 req)
-  → 4 vocabulary               schema/vocabulary.json                                       (0 req)
-  → 6 quality gate             schema/quality.json  ── verdict ─┐                            (0 req)
-                                                              ├ translate  → 7
-                                                              └ preprocess → chapters/clean → 7
-  → 7 translate with slots     chapters/ru/chapter<N>.md + titles.json                     (≈26 req)
-  → 8 assemble                 chapters/book/
-```
-
-Artefacts live under `samples/sample2-practical/chapters/` only; `.mt/` holds run state. Stage files
-follow the existing pipeline pattern (`pipelines/glossary.ts:36-56`).
-
-## Stages
-
-### 1. Stats + series split — `pipelines/stats.ts`, `pipelines/split.ts`, `lib/stats.ts`, `lib/split-map.ts`
-
-Tools: `chapterIndexer`, `wordCounter`, `tokenCounterBatchCached`, `createSeriesSplitTool`.
-`stats.json`: `{version, unit:"bodyChars", factor:1.5, book:{chapters,totalWords,totalTokens,mean,median,threshold}, chapters:[{n,id,words,bodyChars,tokens,ratioToMean,oversize}], oversize:[n…]}`.
-Rule: `threshold = 1.5 × meanBodyChars`; oversize chapters are split with
-`createSeriesSplitTool({targetChars: floor(threshold)})`. Because the splitter reuses `number`, glue
-renumbers the whole book sequentially and writes `chapter-map.json` (`{ "<id>": {orig, part, of} }`),
-so integer-keyed tooling keeps working. book2 ⇒ identity map, zero splits; a synthetic 3× chapter
-proves the rule.
-
-### 2. Summary — `pipelines/summary.ts` (exists; fix first)
-
-`createSummaryTool` (or `createLlmSummaryWithFallback`), out `schema/chapter<N>.summary.md` — a
-`## Summary` heading followed by dash-bulleted lines, which the translator already loads as context.
-Fix G1 before trusting any output.
-
-### 3. NER — `pipelines/ner.ts`, `lib/ner.ts`
-
-Book-wide LLM pass: `createGlossaryExtractor({chunkMode:'auto', minCount:2, relations:false, enrich:false})`;
-per-chapter projection with `compileTermMatcher`/`countTerms` (0 requests); terms with `count==0` are
-dropped (anti-hallucination). `GlossaryTermType` has no `organization`: glue maps `item`→asset and
-`term`+description match→organisation (no core type change). Out `schema/entities.json` +
-`schema/chapter<N>.entities.json`, ordered kind → `-count` → name.
-
-### 4. Vocabulary — `pipelines/vocabulary.ts`, `lib/vocab.ts`
-
-`defineStatFreq({maxNgram:4, minWordLen:3, topK:2000})` for the book plus `buildStatFreqReport` per
-chapter; `defineStatDict` only for candidate ranking. Glue adds what `StatFreqNgram` lacks:
-`chapters[]`, `df`, `capRatio` (proper-noun signal), and a phrase filter against top-100 unigrams.
-No LLM.
-
-### 6. Quality gate — `lib/quality.ts`, `pipelines/quality.ts`
-
-Computed on the EN source, offline: typo density (`typoFinder`, glossary names subtracted),
-control/zero-width chars (`forbiddenCharDetector`), structure (`chapterValidator`), metadata/markup
-leaks (regex), foreign-script ratio, dialogue-quote integrity, token/word ratio, size outlier.
-Verdict `translate` iff ≥90 % chapters pass and no chapter fails a hard signal, else `preprocess`.
-Written to `schema/quality.json`; `lib/input.ts bookSource()` reads it (`MT_FORCE_BRANCH` overrides).
-Thresholds are calibrated against book2 (`translate`) and a synthetic dirty copy (`preprocess`).
-
-### 7. Translate with slots — `pipelines/translate-chapters.ts` (exists), `translation-prompt.ts`, `translate.system.md`
-
-Body translation goes per **block** (chapter-sized, cap 40 lines) with per-line fallback for lines
-that fail parity — this is the quota fix. Slots: `{{{entityBlock}}}` and `{{{vocabBlock}}}` are added
-next to the existing `glossaryBlock`/`summaryBlock`; `MT_TRANSLATE_SLOTS` selects a subset, missing
-slot files degrade to `''` with one `[WARN]` line (strict mode throws). Budget per request:
-summary ≤1200 chars, entities ≤1500, vocab ≤800. Out `chapters/ru/chapter<N>.md`, `titles.json`.
-
-### 6b. Preprocess (branch B) — `pipelines/preprocess.ts`
-
-Only chapters that failed the gate: `createLlmTypoFix({chunkMode:'auto'})` for typos/proofreading and a
-gender/sex normalisation prompt that pins pronouns from `genderTimeline`/`ruGrammar` for glossary
-`character` terms. Line-count-changing replies are rejected and the original kept. Out
-`chapters/clean/chapter<N>.md` + `schema/preprocess-report.json` (`digitsEqual`, `linesChanged`).
-
-## Request budget (book2, 21 chapters, 17.4k words)
-
-| Stage | clean | preprocess |
-|---|---|---|
-| 1 stats/split, 4 vocabulary, 6 gate | 0 | 0 |
-| 2 summary | ≈21 | ≈21 |
-| 3 NER | 1–8 | 1–8 |
-| 6b typo/gender | 0 | ≈21–42 |
-| 7 translate (block mode) | ≈26 | ≈26 |
-| **total** | **≈55–65** | **≈100–110** |
-| (rejected baseline: per-line translate) | ≈340 | ≈340 |
-
-Narrow any run with `MT_ONLY_CHAPTERS=1,2`; keep `MT_LLM_CACHE=1` so a 429 stop is resumable at zero
-cost; `concurrency:1` for the free-tier RPM.
-
-## Model selection
-
-`lib/llm.ts` already resolves `MT_LLM_MODEL_<TOOL>` → `settings["llm.model.<tool>"]` → `MT_LLM_MODEL`,
-keyed by pipe name (`pickFor('summary')`, `'ner'`, `'preprocess'`, `'translate'`). Add a guard:
-non-`mock` backends must use a `:free` id unless `MT_ALLOW_PAID=1`. `check-llm.ts` is extended to
-list `:free` ids and probe each configured stage model with `max_tokens ≥ 512`, requiring non-empty
-`content` — thinking models that only fill `reasoning` must fail the probe, not the pipeline.
-
-## Roadmap steps
-
-Gate for every step: `pnpm lint && pnpm typecheck && pnpm test --filter=sample2-practical`;
-`pnpm ci:local` before any FF-merge. `pnpm test:gpu` cannot run while the GPU box is unavailable —
-report it as not run, never as a pass. Steps that touch `packages/` use a worktree+branch; sample-only
-steps stay on the current branch.
-
-| # | Step | Done when |
-|---|---|---|
-| 1 | Free guard + model probe (G5, G8): `lib/llm.ts` `:free` guard, `mt.json` `llm.cache:true`, extend `check-llm.ts` | `vitest run tests/check-llm.test.ts` green incl. "rejects `openai/gpt-4o-mini`"; `check-llm` prints one passing row per stage model |
-| 2 | Stats stage (G-stats) | `mt run ./pipelines/stats.ts` writes `schema/stats.json` with 21 rows, `oversize: []`, mean/median; test asserts max `ratioToMean < 1.5` |
-| 3 | Summary fix (G1), failing test first | `tests/summary.test.ts`: 21 non-empty distinct bullet blocks under a scripted mock |
-| 4 | Split + stable ids (G4) | book2 ⇒ identity `chapter-map.json`, 0 splits; 3× fixture ⇒ `oversize:[21]`, ≥2 parts, contiguous ids, rerun byte-identical (sha256) |
-| 5 | Quality gate (G7) + calibration fixtures | book2 ⇒ `translate`; dirty fixture ⇒ `preprocess` with named `reasons[]`; `quality.json` stable-ordered |
-| 6 | NER stage | mock run writes `entities.json` + 21 per-chapter files; every entity `count>=1`; scripted calls ≤8 |
-| 7 | Vocabulary stage (G6) | 4-grams present, every term has `chapters[]`, second run identical bytes, LLM call counter = 0 |
-| 8 | Slots in the prompt (G3) | prompt unit tests green (present/absent/strict); `MT_TRANSLATE_PROMPT_LOG` shows entity+vocab blocks between glossary and summary; prompt-linter green |
-| 9 | Block translation (G2) | mock run ≤30 LLM calls for 21 chapters; `pnpm run lint:parity` clean; dropped-id reply triggers per-line fallback for exactly that line |
-| 10 | Preprocess branch | `MT_FORCE_BRANCH=preprocess` writes `chapters/clean/` with equal line counts and digit multisets; verdict `translate` ⇒ 0 LLM calls |
-| 11 | Wire + docs + `docs/SKILL.md` drift | `pnpm --filter sample2-practical run runner` (mock) exits 0 with all artefacts; `pnpm ci:local` green |
-| 12 | OpenRouter free run, chapter-narrowed (1,2) | `check-llm` green first; `chapters/ru/chapter1.md`+`2.md`, `lint:parity` clean, ≤10 requests in the log, no paid id |
-| 13 | Full book across days | after a forced 429 stop, re-run makes 0 repeat calls for finished chapters; `chapters/book/` assembled; total ≤ budget table |
+| On LLM failure `createSummaryTool` falls back to the whole chapter body (silent garbage) | `normalization/schema/summary.ts:~120` |
 
 ## Risks → cheap assertions
 
@@ -198,33 +167,20 @@ steps stay on the current branch.
 | R11 | Renumbering desyncs titles/glossary `firstChapter` | `chapter-map.json` round-trip test; `assemble` sorts by id |
 | R12 | `typoFinder` flags proper nouns ⇒ false `preprocess` | subtract glossary/NER names; calibrate on the dirty fixture |
 
-## Open questions (to settle while executing, not before)
+## Free-model probe (2026-11-13)
 
-- Free-tier daily ceiling for this account (probe with a counted run; the budget table assumes 50/day
-  worst case, 1000/day with ≥$10 credit).
-- Whether the LLM path honours `Retry-After` (`packages/tools/src/core/http-retry.ts` exists; usage in
-  `llm-client` unconfirmed).
-- Title translator request count per book (batch size 5 in `translate-chapters.ts:68`).
-- Semantics of `chapterNumberOf` for non-integer chapter ids after the split.
+| Result | Models |
+|---|---|
+| answer in `content` | `nvidia/nemotron-3-ultra-550b-a55b:free`, `particle-ai/particle-1:free`, `cohere/north-mini-code:free` |
+| `content` empty, `reasoning` filled at `max_tokens=40` (thinking models — need a larger budget and a probe before use) | `baidu/ernie-5.5-flash-preview:free`, `dots-studio/dots-3-note-preview:free`, `nvidia/nemotron-3.5-super-vl:free`, `nvidia/nemotron-3.5-lightning:free`, `recursive/flint-v1.0:free`, `apodex/apodex-1.1-mini:free`, `liquid/lfm-3-1.7b:free`, `liquid/lfm-2.5-2.6b:free`, `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` |
+| unusable | `google/gemma-4-31b-it:free`, `google/gemma-4-26b-a4b-it:free` (429 provider), `thinkingmachines/inkling-2-small:free` (403, agentic harnesses only) |
 
-## Status — book2 end-to-end, free tier
+## Open questions
 
-Measured on `books/book2` (21 chapters) with `particle-ai/particle-1:free` (zero cost):
-
-- stages 1-11 run in one chain: `en → stats → split → summary → ner → vocabulary → quality →
-  preprocess → titles → chapters → assemble`, rc=0, 11 pipelines;
-- translation: block mode with `MT_TRANSLATE_BLOCK_LINES=6`, 3 requests per 16-line chapter,
-  `fallbackLines=0`; the whole book took ~129 LLM requests including summaries, titles and retries
-  (per-line mode would have been ~310 for the body alone);
-- `lint:parity`: **21/21 chapters**, 1:1 line mapping, Cyrillic ratio 0.99-1.00, 0 errors;
-- `chapters/book/book.md`: 733 lines, 14 712 words, Russian table of contents;
-- quality gate verdict `translate` (passRate 1, no hard signals), so the preprocess branch correctly
-  skipped; it is exercised only via `MT_FORCE_BRANCH=preprocess` and the dirty-fixture test.
-
-Fixes this run forced (all in the tree, uncommitted): vault entry promoted to `~/.mt/vault.json`
-(`mt run` roots the project at the sample dir), bullet summaries accepted by the summary tool,
-`nemotron-3-ultra:free` dropped for NER (120 s timeout on a book-wide chunk), block replies parsed by
-`<id>` instead of position.
-
-Not covered yet: human read of the Russian book for fluency drift, vocabulary alias/possessive folding,
-and the GPU gate (`pnpm test:gpu`) which cannot run while the remote box is busy.
+| Question | Why it matters | Where it lands |
+|---|---|---|
+| Free-tier daily ceiling for this account | the budget table assumes 50/day worst case | T243 |
+| Whether the LLM path honours `Retry-After` (`packages/tools/src/core/http-retry.ts` exists; usage in `llm-client` unconfirmed) | quota stops decide whether a day of work resumes or restarts | T242 |
+| Title translator request count per book (batch size 5 in `translate-chapters.ts:68`) | the title batch already loses its budget to reasoning | T248 |
+| Semantics of `chapterNumberOf` for non-integer chapter ids after the split | integer-keyed tooling must keep working | T240 |
+| Does the `<terms>` table reduce name drift? | the slot is wired but unmeasured | T265 |

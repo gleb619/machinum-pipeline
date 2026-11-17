@@ -48,7 +48,7 @@ Read the relevant steering file **before editing**:
 | [tui.md](docs/steering/tui.md) | `packages/tui/` terminal UI (HTTP-only) |
 | [mcp.md](docs/steering/mcp.md) | `packages/mcp/` MCP server |
 | [extensions.md](docs/steering/extensions.md) | `packages/chrome/`, `packages/vscode/` |
-| [layout.md](docs/layout.md) | UI layout contract (`components/` + `tui/`) |
+| [layout.md](docs/steering/layout.md) | UI layout contract (`components/` + `tui/`) |
 
 Other: docs/guiding/{architecture,installation,samples,adding-a-sample,mock-tools}.md, docs/SKILL.md (printed by
 `mt skill`), docs/change-workflow.md, docs/kanban.md (via `at kanban`; plans in `docs/plans/`).
@@ -69,7 +69,7 @@ pnpm build:bin                                     # standalone `mt` binary (Bun
 
 `@mt/core` (types, DSL, Runner) → `@mt/cli` (binary) + `@mt/webui`/`@mt/mcp`; `@mt/tools` (chapter tools);
 `@mt/waypoint` (URI Sources/Targets, registered by `import '@mt/waypoint'`); `@mt/router` (standalone proxy);
-`@mt/components` (admin UI); `@mt/tui` (HTTP-only); `chrome/` + `vscode/` extensions.
+`@mt/components` (admin UI, shared with the VS Code webview); `@mt/tui` (HTTP-only); `chrome/` + `vscode/` extensions.
 
 Key files in `packages/core/src/`: `domain.ts` (Sources give stable IDs, engine never mints), `exchange.ts`,
 `types.ts` (`Source`/`Tool`/`Target`), `contexts.ts` (`GlobalContext → RunContext → ToolContext`, backrefs not
@@ -96,7 +96,7 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 - **`at` feedback is for `at` itself only.** Log every bug/friction/idea about the `at` agent tool via `at feedback add -k bug|improvement "<text>" -T <tags>` (tags AFTER the text; variadic `-T` swallows it), one entry per issue, with evidence (command, output, error string). File immediately, never ask permission. Suspicion is enough — no reproduction or root cause needed; do not investigate or patch. Check `at feedback list` first to update an existing entry instead of duplicating. Filing is not a deliverable: it never replaces your own task.
 - **Project improvements go to kanban.** If you see a way to improve machinum-pipeline (code, docs, process, decisions), register a kanban task via the `at` kanban feature — not in `at feedback`. Self-improvement loop: notice → register → keep working; never silently work around or leave it unrecorded.
 - Minimal texting, save tokens.
-- **Work in English.** Code, comments, commit messages, docs, reports and conversation stay in English. Use another language only when the user explicitly instructs it. 
+- **Work in English.** Code, comments, commit messages, docs, reports and conversation stay in English. Use another language only when the user explicitly instructs it.
 - Web fetch / external facts: run the tunnelstack WebBridge CLI — `python3 ~/tunnelstack/src/webbridge.py sites` to list sites, then `ask|search|extract <site> "<arg>" [--json]` (path override: `AT_WEBBRIDGE`). Prefer api/rss-backed sites (github, habr, hf — no browser needed); chat sites (google-ai, deepseek, qwen) drive the owner's logged-in Chrome, use sparingly. Exit 1 = run failed, continue on your own knowledge.
 - **Push only a working main** - `main` reaches the remote only when it is verified on that exact
   commit: typecheck clean, `pnpm test` green, `pnpm ci:local` green (plus `packages/tools` project

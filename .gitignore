@@ -41,6 +41,10 @@ build
 .codegraph/
 .cursor/
 /.kiro/
+.commandcode/
+.agents/
+.codex/
+
 /docs/kanban.md
 /docs/superpowers/
 /docs/plans/*

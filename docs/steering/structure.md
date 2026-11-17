@@ -14,11 +14,11 @@ machinum-pipeline/
 │   ├── mt/          mt          — publishable umbrella: `import … from 'mt'`, `mt/tools`, `mt/waypoint`; bin `mt`; Bun binary build
 │   ├── router/      @mt/router  — standalone Nuxt: OpenRouter proxy, key pool, cost tracking
 │   ├── webui/       @mt/webui   — admin API (h3), SSE, SQLite indicator; Nitro for dev
-│   ├── components/  @mt/components — Vue 3 + Tailwind admin UI (bundled into webui)
-│   ├── tui/         @mt/tui     — terminal UI skeleton (HTTP-only client of `mt serve`; layout contract in [docs/layout.md](../layout.md))
+│   ├── components/  @mt/components — Vue 3 + Tailwind admin UI (bundled into webui; also built as a VS Code webview bundle — [layout.md](layout.md) §11)
+│   ├── tui/         @mt/tui     — terminal UI skeleton (HTTP-only client of `mt serve`; layout contract in [layout.md](layout.md))
 │   ├── mcp/         @mt/mcp    — MCP server over stdio
 │   ├── chrome/                 — MV3 Chrome extension
-│   └── vscode/                 — VS Code extension (JSON schema + code lens)
+│   └── vscode/                 — VS Code extension (JSON schema + code lens; hosts the shared components webview, planned)
 ├── samples/
 │   ├── sample1-tutorial/  — ten numbered pipes, simple → complex
 │   └── sample2-practical/ — real book2 EN→RU translation prep
@@ -173,7 +173,7 @@ my-book-project/
 
 - `core/` has zero external runtime dependencies beyond TypeScript stdlib (sole exception: `better-sqlite3` for the metrics store — lazily loaded, optional at runtime; see [core.md](steering/core.md#metricsts--metrics-storets--run-metrics-sqlite-wal))
 - `cli/` imports from `core/` and `waypoint/` only — never the reverse (sole exception: `mt serve` imports `@mt/webui/standalone`, lazily, so the CLI starts without h3/SQLite)
-- `tui/` is HTTP-only — it talks to `mt serve` over `/api/*` and imports no `@mt/*` package (see [tui.md](tui.md) and [../layout.md](../layout.md))
+- `tui/` is HTTP-only — it talks to `mt serve` over `/api/*` and imports no `@mt/*` package (see [tui.md](tui.md) and [layout.md](layout.md))
 - `router/` is standalone — zero `@mt/*` imports and zero `@mt/*` deps in its `package.json` (enforced by `packages/router/tests/layers.arch.test.ts`); the OpenRouter key pool is therefore a deliberate copy of `packages/tools/src/core/openrouter-pool.ts`, kept in sync by hand. The one allowed cross-package direction is `webui/ → router/`: `mt serve` mounts the router API on its port via the `@mt/router` embeddable builder (T197); the router imports nothing back
 - `waypoint/` sources/targets register themselves via URI registry side-effects
 - Sources provide stable IDs — engine never mints domain entity IDs

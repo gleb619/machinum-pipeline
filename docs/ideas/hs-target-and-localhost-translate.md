@@ -73,7 +73,7 @@ mt run p.ts --remote URL
 - **Where heavy tools run**: nothing special — they run wherever the Runner runs. The remote needs
   Chrome (`browserTranslate`), Docker, Playwright installed; `mt` could print a capability list at
   `GET /api/health` so the CLI fails fast if a tool's prerequisite is missing remotely.
-- **UI**: webui/TUI (`docs/layout.md`) show remote runs for free once they list from the remote
+- **UI**: webui/TUI (`docs/steering/layout.md`) show remote runs for free once they list from the remote
   `mt serve`; the TUI/web `baseUrl` already points at any `mt serve`.
 
 ### 1b. `http://` / `https://` as target (`?method=`) — Implemented 2026-11-04 (T200)
@@ -179,7 +179,7 @@ Two separate concerns — **mode of work** (what the process is) and **pipe logi
 Lifecycle of the worker:
 
 1. **Register** — `POST /api/workers {name, tags, mtVersion, capabilities}` on main; main lists workers
-   in the webui/TUI (new "Workers" view in `docs/layout.md` if built).
+   in the webui/TUI (new "Workers" view in `docs/steering/layout.md` if built).
 2. **Pull** — worker constantly mirrors the project from main using the manifest diff of 1a, in the pull
    direction (`GET /api/sync/manifest` → fetch changed files). Triggers: on connect, on a `project-changed`
    signal, and a slow poll as fallback. Mirror lives in `.mt/worker/<mainId>/`; same scope/exclude rules,

@@ -83,7 +83,7 @@ runs). See [docs/guiding/samples.md](docs/guiding/samples.md) to run them, and
 - [docs/steering/tools.md](docs/steering/tools.md) — tool catalogue
 - [docs/SKILL.md](docs/SKILL.md) — agent skill for projects that *use* `mt` (`mt skill` prints it)
 - [docs/kanban.md](docs/kanban.md) — roadmap / task board
-- [docs/leaf-log-rendering.md](docs/leaf-log-rendering.md) — render `mt` logs in the terminal with
+- [docs/ideas/leaf-log-rendering-ideas.ignore.md](docs/ideas/leaf-log-rendering-ideas.ignore.md) — render `mt` logs in the terminal with
   [`leaf`](https://github.com/rivolink/leaf) (native or Docker)
 - [AGENTS.md](AGENTS.md) — rules for AI coding agents working in this repo
 

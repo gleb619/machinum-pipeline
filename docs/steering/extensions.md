@@ -59,7 +59,7 @@ Uses `packages/chrome/vitest.config.ts` for tests only. Extension is loaded unpa
 ## VS Code Extension
 
 Path: `packages/vscode/`  
-Provides `mt.json` JSON schema validation, DSL hover information, and a "Run pipeline" code lens.
+Provides `mt.json` JSON schema validation, DSL hover information, and a "Run pipeline" code lens. Planned: hosts the shared `@mt/components` Vue UI (graph, runs, router) in a webview, so pipeline `.ts` files are worked on locally in VS Code with the same components as the web admin — contract in [layout.md §11](layout.md).
 
 ### Architecture (VS Code)
 
@@ -94,11 +94,20 @@ packages/vscode/src/
 - Adds "▶ Run pipeline" code lens above each pipeline definition
 - Command: triggers `mt run <file>` in terminal
 
+### Planned: shared Vue UI in a webview
+
+- `packages/components` builds a webview bundle (`dist-webview/`, no Monaco, no CDN); `packages/vscode` copies it to
+  `media/` at package time and serves it from a `WebviewPanel`/`WebviewViewProvider` with a nonce CSP.
+- Components talk to the host through `HostAdapter` (`vscode-host.ts` = `postMessage` bridge). The editor is the
+  native VS Code editor, not Monaco; the graph (Vue Flow) opens beside it and refreshes on save via `mt explain --json`.
+- Full split of responsibilities, message protocol rules and delivery order: [layout.md §11](layout.md).
+- Workspace trust is required before running `mt explain` (it executes the pipeline module).
+
 ### Key Constraints (VS Code)
 
 - VS Code extension API only — no Node.js fs direct access, use `vscode.workspace.fs`
-- Does **not** import from any `@mt/*` package (VS Code extension environment)
-- Communication with running `mt` processes is via terminal commands, not direct process spawning
+- Does **not** import from any `@mt/*` package at runtime (VS Code extension environment); the only allowed coupling is the prebuilt `@mt/components` webview bundle copied into `media/` at build time
+- Communication with running `mt` processes is via terminal commands, not direct process spawning; the graph webview is the exception: it may run `mt explain --json` (read-only, workspace-trust gated)
 
 ### Tests (VS Code)
 

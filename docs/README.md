@@ -9,7 +9,7 @@ Two audiences, two doc sets:
 
 Also here: [SKILL.md](SKILL.md) — the agent skill for projects that *use* `mt` (embedded in the binary; `mt skill` prints/installs it). Keep it in sync with big changes (see AGENTS.md hard rules).
 
-Also here: [layout.md](layout.md) — shared UI layout contract for the webui (`packages/components/`) and the TUI: screens, names, button locations, state colours, key bindings. Change both skins together.
+Also here: [layout.md](steering/layout.md) — shared UI layout contract for the webui (`packages/components/`) and the TUI: screens, names, button locations, state colours, key bindings. Change both skins together.
 
 Also here: [memory.md](memory.md) — the project **journal**: an ai-memory wiki on `127.0.0.1:49375` (client: `scripts/memory.sh`), holding decisions with the alternative they rejected, traps as symptom → cause → fix, and measured numbers. Read it at the start of a task (`scripts/memory.sh briefing`); write one page at the end. It is isolated from machinum-sft's journal on `:49374`.
 
@@ -17,7 +17,7 @@ Also here: [install.sh](install.sh) — installer (binary / `--docker` / `--from
 
 Everything else in this directory:
 
-- Flow docs (repo root): [kanban.md](kanban.md) (task board), [kanban-loop.md](kanban-loop.md), [kanban-compose.md](kanban-compose.md), [kanban-feeder-loop.md](kanban-feeder-loop.md) (automated loops), [change-workflow.md](change-workflow.md) (worktree → branch → gates → FF-merge lifecycle), [roadmap.md](roadmap.md) (book-processing pipeline roadmap for `samples/sample2-practical`: stages, reuse map, free-model budget, gates).
+- Flow docs (repo root): [kanban.md](kanban.md) (task board), [kanban-loop.md](kanban-loop.md), [kanban-compose.md](kanban-compose.md), [kanban-feeder-loop.md](kanban-feeder-loop.md) (automated loops), [change-workflow.md](change-workflow.md) (worktree → branch → gates → FF-merge lifecycle), [roadmap.md](roadmap.md) (book-processing pipeline roadmap for `samples/sample2-practical`: pipeline steps mapped to `at` kanban rows, request budget, risks).
 - Remote browser translation: [guiding/remote-browser-translate.md](guiding/remote-browser-translate.md) — run one Chrome worker on a remote PC and call it from `browserTranslate` (bin, SSH tunnel, systemd, cache/concurrency, security).
 - Remote run: [guiding/remote-run.md](guiding/remote-run.md) — `mt run --remote` / `mt resume --remote` over the T203 sync API and T204 run API (push, SSE, artifact pull, pause, trust model).
 - Model preparation: [guiding/sft-model.md](guiding/sft-model.md) — the LLM protocol the engine speaks (plain/xml/properties modes, per-family reply shapes), text-only target model profile, KV/VRAM math at 128 K, SFT dataset construction from this repo's prompt logs, and the cost comparison in §11.
