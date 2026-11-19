@@ -11,6 +11,8 @@ Also here: [SKILL.md](SKILL.md) — the agent skill for projects that *use* `mt`
 
 Also here: [layout.md](steering/layout.md) — shared UI layout contract for the webui (`packages/components/`) and the TUI: screens, names, button locations, state colours, key bindings. Change both skins together.
 
+Also here: [colors.md](steering/colors.md) — Tailwind colour/shadow/theme override contract: class names stay stock (`gray-900`, `shadow-sm`), values are ours; TUI ANSI and VS Code `--vscode-*` mappings.
+
 Also here: [memory.md](memory.md) — the project **journal**: an ai-memory wiki on `127.0.0.1:49375` (client: `scripts/memory.sh`), holding decisions with the alternative they rejected, traps as symptom → cause → fix, and measured numbers. Read it at the start of a task (`scripts/memory.sh briefing`); write one page at the end. It is isolated from machinum-sft's journal on `:49374`.
 
 Also here: [install.sh](install.sh) — installer (binary / `--docker` / `--from-source`; see [guiding/installation.md](guiding/installation.md)). Repo-root `Dockerfile` + `docker/entrypoint.sh` build the image; `.github/workflows/{ci,release}.yml` run CI and releases.
