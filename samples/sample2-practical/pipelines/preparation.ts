@@ -8,12 +8,9 @@ import {
 import '@mt/waypoint'
 import {
   type PreprocessPlan,
-  SKIP_LOG,
   VOCAB_MAX_NGRAM,
   VOCAB_MIN_WORD_LEN,
   VOCAB_TOP_K,
-  chapterDocs,
-  chaptersDirOf,
   collectProperNouns,
   createCollectChapterQuality,
   createEmitCleanChapter,
@@ -21,19 +18,22 @@ import {
   createPreprocessChapterTool,
   createWritePreprocessReport,
   createWriteQualityTool,
-  defineChapterPipeline,
-  properNounSourcesOf,
-  qualityRootUri,
-  qualitySourceUri,
-  readPreprocessPlan,
-  readRatioToMean,
   writeEntities,
   writeGlossary,
   writeSummaries,
   writeVocabulary,
-} from '@mt/bookkit'
-import { BOOK_OPTIONS } from '../lib/config.js'
+} from '@mt/tools'
+import {
+  chapterDocs,
+  chaptersDirOf,
+  defineChapterPipeline,
+  properNounSources,
+  qualityRootUri,
+  qualitySourceUri,
+  readRatioToMean,
+} from '../lib/config.js'
 import { installSampleMock } from '../lib/mock-llm.js'
+import { SKIP_LOG, readPreprocessPlan } from '../lib/preprocess.js'
 
 /**
  * Phase 2 — preparation: every artefact the translator needs, derived from the EN book.
@@ -99,8 +99,8 @@ export const glossary = defineChapterPipeline('practical-glossary').subflow(BATC
 
 /** CPU-only: project `glossary.json` onto the chapters where each term occurs. */
 const glossaryIndexChild = definePipeline({ id: 'practical-glossary-index-child' })
-  .use(createGlossaryIndexTool({ chaptersDir: chaptersDirOf(BOOK_OPTIONS) }))
-  .to('void://')
+  .use(createGlossaryIndexTool({ chaptersDir: chaptersDirOf() }))
+  .to('@chapters')
 
 export const glossaryIndex = defineChapterPipeline(
   'practical-glossary-index',
@@ -110,14 +110,14 @@ export const glossaryIndex = defineChapterPipeline(
 /** Quality gate (CPU only): per-chapter signals aggregated into `schema/quality.json`. */
 let qualityNamesCache: ReadonlySet<string> | undefined
 function qualityNames(): ReadonlySet<string> {
-  qualityNamesCache ??= collectProperNouns(properNounSourcesOf(BOOK_OPTIONS))
+  qualityNamesCache ??= collectProperNouns(properNounSources())
   return qualityNamesCache
 }
 
 const collectChapterQuality = createCollectChapterQuality({ names: qualityNames })
 const writeQuality = createWriteQualityTool({
-  source: () => qualitySourceUri(BOOK_OPTIONS),
-  ratioToMean: () => readRatioToMean(BOOK_OPTIONS),
+  source: () => qualitySourceUri(),
+  ratioToMean: () => readRatioToMean(),
 })
 
 const qualityChild = definePipeline({ id: 'practical-quality-child' })
@@ -131,10 +131,10 @@ const qualityAggregateChild = definePipeline({ id: 'practical-quality-aggregate'
   .to('batch://return')
 
 export const quality = annotate(
-  defineChapterPipeline('practical-quality', qualitySourceUri(BOOK_OPTIONS))
+  defineChapterPipeline('practical-quality', qualitySourceUri())
     .subflow(BATCH, qualityChild)
     .subflow(BATCH, qualityAggregateChild)
-    .to(qualityRootUri(BOOK_OPTIONS)),
+    .to(qualityRootUri()),
   useCase('UC057', { name: 'Collect chapter quality warnings' }),
 )
 
@@ -144,7 +144,7 @@ export const quality = annotate(
  */
 let preprocessPlanCache: PreprocessPlan | undefined
 function preprocessPlan(): PreprocessPlan {
-  preprocessPlanCache ??= readPreprocessPlan(BOOK_OPTIONS)
+  preprocessPlanCache ??= readPreprocessPlan()
   return preprocessPlanCache
 }
 
@@ -170,17 +170,19 @@ const preprocessReportChild = definePipeline({ id: 'practical-preprocess-report'
 
 export const preprocess = annotate(
   definePipeline({ id: 'practical-preprocess' })
-    .from(qualitySourceUri(BOOK_OPTIONS))
+    .from(qualitySourceUri())
     .flatMap(async (markdown) => preprocessDocs(markdown))
     .subflow(BATCH, preprocessChapterChild)
     .subflow(BATCH, preprocessReportChild)
     .use(createEmitCleanChapter())
-    .to(qualityRootUri(BOOK_OPTIONS)),
+    .to(qualityRootUri()),
   useCase('UC058', { name: 'Auto-fix chapter text issues' }),
 )
 
 /** summary → NER → vocabulary → glossary → glossary-index → quality → preprocess. */
 export default defineProcess(
   [summary, ner, vocabulary, glossary, glossaryIndex, quality, preprocess],
-  { id: 'practical-preparation' },
+  {
+    id: 'practical-preparation',
+  },
 ).install(installSampleMock())

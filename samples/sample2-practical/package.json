@@ -34,7 +34,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@mt/bookkit": "workspace:*",
     "@mt/cli": "workspace:*",
     "@mt/core": "workspace:*",
     "@mt/tools": "workspace:*",

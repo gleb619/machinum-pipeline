@@ -1,9 +1,9 @@
 import { readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { assertSummaryIsShort, summaryBullets, writeSummaries } from '@mt/bookkit'
-import { chapterBody } from '@mt/bookkit'
 import { getVariable } from '@mt/core'
 import type { ToolContext } from '@mt/core'
+import { assertSummaryIsShort, summaryBullets, writeSummaries } from '@mt/tools'
+import { chapterBodyOf } from '@mt/tools'
 import { createSummaryTool } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { CHAPTERS, SAMPLE_DIR, clean, run } from './helpers.js'
@@ -74,7 +74,7 @@ describe('summary', () => {
       blocks.add(text)
 
       const markdown = await readFile(join(BOOK_DIR, `chapter-${number}.en.md`), 'utf-8')
-      const bodyWords = words(chapterBody(markdown))
+      const bodyWords = words(chapterBodyOf(markdown))
       const summaryWords = words(text)
       expect(summaryWords, `chapter ${number}`).toBeLessThanOrEqual(bodyWords * 0.25)
     }
@@ -125,7 +125,7 @@ describe('real-model reply shape', () => {
     expect(lines.length).toBeGreaterThan(0)
     for (const line of lines) expect(line.startsWith('- ')).toBe(true)
 
-    const bodyWords = words(chapterBody(markdown))
+    const bodyWords = words(chapterBodyOf(markdown))
     expect(words(block)).toBeLessThanOrEqual(bodyWords * 0.25)
     expect(block).not.toContain('The rain came off the bay all morning')
   })

@@ -1,21 +1,30 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createExchange, getVariable } from '@mt/core'
+import type { MdOutputEntry, ToolContext } from '@mt/core'
+import { MD_OUTPUTS_VARIABLE } from '@mt/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  GLOSSARY_INDEX_FILE,
   type GlossaryIndexInput,
   PRIOR_TERMS_HEADER,
   PRIOR_TERMS_MAX,
   buildGlossaryIndex,
+  createGlossaryIndexTool,
   indexableTerms,
   priorTermsEnabled,
   priorTermsMax,
   renderPriorTerms,
+  serializeGlossaryIndex,
 } from './glossary-index.js'
 
 const tempDirs: string[] = []
 
-function fixture(): { chaptersDir: string; glossary: GlossaryIndexInput } {
+function fixture(withGlossary = true): {
+  chaptersDir: string
+  glossary: GlossaryIndexInput
+} {
   const chaptersDir = mkdtempSync(join(tmpdir(), 'mt-glossary-index-'))
   tempDirs.push(chaptersDir)
   mkdirSync(join(chaptersDir, 'en'), { recursive: true })
@@ -25,59 +34,70 @@ function fixture(): { chaptersDir: string; glossary: GlossaryIndexInput } {
   )
   writeFileSync(join(chaptersDir, 'en', 'chapter2.md'), '# Chapter 2\n\nArin met Bren.\n')
   writeFileSync(join(chaptersDir, 'en', 'chapter3.md'), '# Chapter 3\n\nCora found Bren.\n')
-  return {
-    chaptersDir,
-    glossary: {
-      terms: [
-        {
-          id: 'arin',
-          term: 'Arin',
-          type: 'character',
-          count: 3,
-          firstChapter: 1,
-          ru: 'Арин',
-          aliases: [],
-        },
-        {
-          id: 'bren',
-          term: 'Bren',
-          type: 'character',
-          count: 2,
-          firstChapter: 2,
-          ru: 'Брен',
-          aliases: [],
-        },
-        {
-          id: 'cora',
-          term: 'Cora',
-          type: 'place',
-          count: 1,
-          firstChapter: 3,
-          ru: 'Кора',
-          aliases: [],
-        },
-        {
-          id: 'ghost',
-          term: 'Ghost',
-          type: 'character',
-          count: 0,
-          firstChapter: null,
-          ru: 'Призрак',
-          aliases: [],
-        },
-        {
-          id: 'ash',
-          term: 'Ash',
-          type: 'character',
-          count: 1,
-          firstChapter: 1,
-          ru: 'Эш',
-          aliases: [],
-          ignored: true,
-        },
-      ],
-    },
+  const glossary: GlossaryIndexInput = {
+    terms: [
+      {
+        id: 'arin',
+        term: 'Arin',
+        type: 'character',
+        count: 3,
+        firstChapter: 1,
+        ru: 'Арин',
+        aliases: [],
+      },
+      {
+        id: 'bren',
+        term: 'Bren',
+        type: 'character',
+        count: 2,
+        firstChapter: 2,
+        ru: 'Брен',
+        aliases: [],
+      },
+      {
+        id: 'cora',
+        term: 'Cora',
+        type: 'place',
+        count: 1,
+        firstChapter: 3,
+        ru: 'Кора',
+        aliases: [],
+      },
+      {
+        id: 'ghost',
+        term: 'Ghost',
+        type: 'character',
+        count: 0,
+        firstChapter: null,
+        ru: 'Призрак',
+        aliases: [],
+      },
+      {
+        id: 'ash',
+        term: 'Ash',
+        type: 'character',
+        count: 1,
+        firstChapter: 1,
+        ru: 'Эш',
+        aliases: [],
+        ignored: true,
+      },
+    ],
   }
+  if (withGlossary) {
+    writeFileSync(join(chaptersDir, 'glossary.json'), JSON.stringify(glossary, null, 2))
+  }
+  return { chaptersDir, glossary }
+}
+
+function ctxStub(logs: string[] = []): ToolContext {
+  const push = (message: string) => logs.push(message)
+  return {
+    run: {
+      global: { env: {}, settings: {} },
+      logger: { info: push, debug: push, warn: push, error: push },
+    },
+  } as unknown as ToolContext
 }
 
 afterEach(() => {
@@ -181,5 +201,53 @@ describe('prior-terms env', () => {
   it('lets MT_PRIOR_TERMS=0 disable the block', () => {
     expect(priorTermsEnabled({})).toBe(true)
     expect(priorTermsEnabled({ MT_PRIOR_TERMS: '0' })).toBe(false)
+  })
+})
+
+describe('serializeGlossaryIndex', () => {
+  it('keeps short chapter arrays inline and ends with one newline', async () => {
+    const { chaptersDir, glossary } = fixture()
+    const index = await buildGlossaryIndex({ chaptersDir, glossary })
+    const json = serializeGlossaryIndex(index)
+    expect(json).toContain('"chapters": [1, 2]')
+    expect(json.endsWith('\n')).toBe(true)
+  })
+})
+
+describe('createGlossaryIndexTool', () => {
+  it('emits the index as an md output instead of writing a file', async () => {
+    const { chaptersDir } = fixture()
+    const tool = createGlossaryIndexTool({ chaptersDir })
+    const out = await tool.invoke(createExchange<unknown>(''), ctxStub())
+    const outputs = getVariable<MdOutputEntry[]>(out, MD_OUTPUTS_VARIABLE) ?? []
+    expect(outputs).toHaveLength(1)
+    expect(outputs[0]).toMatchObject({
+      name: 'glossary-index',
+      subdir: '',
+      filename: GLOSSARY_INDEX_FILE,
+    })
+    const parsed = JSON.parse(outputs[0]?.content ?? '{}')
+    expect(parsed.terms.map((term: { term: string }) => term.term)).toEqual([
+      'Arin',
+      'Bren',
+      'Cora',
+    ])
+  })
+
+  it('honours a custom index filename', async () => {
+    const { chaptersDir } = fixture()
+    const tool = createGlossaryIndexTool({ chaptersDir, indexFile: 'terms.json' })
+    const out = await tool.invoke(createExchange<unknown>(''), ctxStub())
+    const outputs = getVariable<MdOutputEntry[]>(out, MD_OUTPUTS_VARIABLE) ?? []
+    expect(outputs[0]?.filename).toBe('terms.json')
+  })
+
+  it('logs and emits nothing when glossary.json is missing', async () => {
+    const { chaptersDir } = fixture(false)
+    const logs: string[] = []
+    const tool = createGlossaryIndexTool({ chaptersDir })
+    const out = await tool.invoke(createExchange<unknown>(''), ctxStub(logs))
+    expect(logs).toContain('index: no glossary')
+    expect(getVariable(out, MD_OUTPUTS_VARIABLE)).toBeUndefined()
   })
 })

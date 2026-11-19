@@ -1,14 +1,14 @@
-import type { Glossary } from '@mt/tools'
 import { describe, expect, it } from 'vitest'
 import {
   type ChapterEntities,
   type EntitiesArtifact,
-  type NerChapter,
+  type ProjectionChapter,
   entityKind,
   projectEntities,
   serializeChapterEntities,
   serializeEntities,
-} from './entities.js'
+} from './entity-projection.js'
+import type { Glossary } from './term-tagger.js'
 
 const GLOSSARY: Glossary = {
   terms: [
@@ -62,7 +62,7 @@ const GLOSSARY: Glossary = {
   ],
 }
 
-const CHAPTERS: NerChapter[] = [
+const CHAPTERS: ProjectionChapter[] = [
   { n: 1, text: 'Arin walked to Marrow Bay. Arin rested there.' },
   { n: 2, text: 'Arin met the Pelargic crew. The Wreck stayed.' },
 ]

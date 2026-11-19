@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   type Exchange,
   type ToolContext,
@@ -11,27 +10,26 @@ import {
   setVariable,
   tool,
 } from '@mt/core'
+import { LlmError } from '../core/llm-errors.js'
+import { resolveProcessLlm } from '../core/llm-install.js'
+import { appendMdOutput } from '../core/md-outputs.js'
+import { LLM_TYPO_FIX_PROMPT, createLlmTypoFix } from '../normalization/llm-typo-fix.js'
+import type { RuGender } from '../normalization/ru-grammar.js'
+import type { SchemaDocLlmCall } from '../normalization/schema/llm.js'
 import {
   type Glossary,
   type GlossaryTerm,
-  LLM_TYPO_FIX_PROMPT,
-  LlmError,
-  type RuGender,
-  type SchemaDocLlmCall,
-  appendMdOutput,
   compileTermMatcher,
   countTerms,
-  createLlmTypoFix,
-  resolveProcessLlm,
-} from '@mt/tools'
-import { type BookPathsOptions, type Branch, envOf, rootPathOf } from './paths.js'
+} from '../normalization/term-tagger.js'
 
 /**
  * Book preprocess stage: typos, proofreading, character gender.
  *
- * The decision is data: `<chapters>/schema/quality.json` says which chapters failed the gate.
- * `MT_FORCE_BRANCH=preprocess` processes every chapter (tests, manual overrides); a
- * `translate` verdict without the override is a no-op (no LLM call, no file).
+ * The decision is data: the quality artefact (`schema/quality.json`, path supplied by the
+ * caller) says which chapters failed the gate. `{ force: true }` processes every chapter
+ * (tests, manual overrides); a `translate` verdict without the override is a no-op (no LLM
+ * call, no file).
  *
  * Chapter text is cleaned with the shipped `createLlmTypoFix` tool (`chunkMode:'auto'`, its
  * line-count guard is reused as-is: a reply with a different line count is rejected and the
@@ -46,14 +44,7 @@ export const PREPROCESS_VERSION = 1
 /** Variable carrying one chapter's report row (and its cleaned text) between the stages. */
 export const VAR_PREPROCESS_ROW = 'preprocessRow'
 
-/** The single log line of the no-op branch. */
-export const SKIP_LOG = 'preprocess skipped verdict=translate'
-
-/** Env var forcing the preprocess branch (mirrors the sample; overridable per entry point). */
-const FORCE_BRANCH_ENV = 'MT_FORCE_BRANCH'
-
-/** Entry-point options: project root plus the usual path/env seams. */
-export interface PreprocessOptions extends BookPathsOptions {}
+type Branch = 'translate' | 'preprocess'
 
 export interface PreprocessChapterReport {
   n: number
@@ -79,7 +70,7 @@ export interface PreprocessRow extends PreprocessChapterReport {
 export interface PreprocessPlan {
   /** Verdict read from `quality.json` (`translate` when the file is absent/unreadable). */
   verdict: Branch
-  /** `MT_FORCE_BRANCH=preprocess` overrides the verdict for the whole book. */
+  /** `force` overrides the verdict for the whole book. */
   forced: boolean
   /** True when the stage must do nothing at all. */
   skip: boolean
@@ -108,26 +99,28 @@ export interface PreprocessChapterToolOptions {
   glossary?: () => Glossary
 }
 
+export interface ReadPreprocessPlanOptions {
+  /** Force the preprocess branch for the whole book. Default: false. */
+  force?: boolean
+}
+
 interface QualityLike {
   verdict?: unknown
   chapters?: { n?: unknown; pass?: unknown }[]
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-/** Reads the branch decision and the per-chapter verdicts from `quality.json`. */
-export function readPreprocessPlan(options: PreprocessOptions): PreprocessPlan {
-  const env = envOf(options)
-  const forced = env[options.forceBranchEnv ?? FORCE_BRANCH_ENV]?.trim() === 'preprocess'
-  const file = join(rootPathOf(options), 'schema', 'quality.json')
+/** Reads the branch decision and the per-chapter verdicts from the quality artefact. */
+export function readPreprocessPlan(
+  qualityPath: string,
+  options: ReadPreprocessPlanOptions = {},
+): PreprocessPlan {
+  const forced = options.force === true
   const chapters = new Map<number, boolean>()
   let verdict: Branch = 'translate'
 
-  if (existsSync(file)) {
+  if (existsSync(qualityPath)) {
     try {
-      const artifact = JSON.parse(readFileSync(file, 'utf-8')) as QualityLike
+      const artifact = JSON.parse(readFileSync(qualityPath, 'utf-8')) as QualityLike
       verdict = artifact.verdict === 'preprocess' ? 'preprocess' : 'translate'
       for (const row of artifact.chapters ?? []) {
         if (typeof row.n !== 'number' || !Number.isFinite(row.n)) continue
@@ -150,19 +143,6 @@ export function readPreprocessPlan(options: PreprocessOptions): PreprocessPlan {
 export function chapterNeedsWork(plan: PreprocessPlan, n: number): boolean {
   if (plan.forced) return true
   return plan.chapters.get(n) !== true
-}
-
-/** Reads `glossary.json` under `root`; a missing/invalid file means "no glossary" (typos only). */
-export function loadPreprocessGlossary(root: string): Glossary {
-  const file = join(root, 'glossary.json')
-  if (!existsSync(file)) return { terms: [] }
-  try {
-    const parsed = JSON.parse(readFileSync(file, 'utf-8')) as unknown
-    if (isRecord(parsed) && Array.isArray(parsed.terms)) return parsed as unknown as Glossary
-  } catch {
-    return { terms: [] }
-  }
-  return { terms: [] }
 }
 
 const GENDER_LABEL: Record<RuGender, string> = {

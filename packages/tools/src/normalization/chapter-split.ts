@@ -1,8 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
-  type Exchange,
-  type ToolContext,
   batchMembersOf,
   category,
   defineTool,
@@ -11,9 +8,10 @@ import {
   tool,
   withItem,
 } from '@mt/core'
-import { appendMdOutput, createSeriesSplitTool } from '@mt/tools'
-import { type BookPathsOptions, envOf, rootUriOf, uriPath } from './paths.js'
-import type { StatsArtifact } from './stats.js'
+import type { Exchange, ToolContext } from '@mt/core'
+import { appendMdOutput } from '../core/md-outputs.js'
+import type { StatsArtifact } from './chapter-stats.js'
+import { createSeriesSplitTool } from './text-splitter.js'
 
 /**
  * Split oversized chapters and give every part a stable book-wide sequential id.
@@ -23,31 +21,6 @@ import type { StatsArtifact } from './stats.js'
  * Identity case: when nothing is oversized no chapter files are written and downstream keeps
  * reading the source directory.
  */
-
-/** Test seam: source book directory URI (default `@book2`). */
-export const SOURCE_ENV = 'MT_SPLIT_BOOK'
-/** Test seam: output root URI (default `@chapters`). */
-export const ROOT_ENV = 'MT_SPLIT_ROOT'
-
-export interface SplitPathsOptions extends BookPathsOptions {
-  /** Source book URI when no env override is set. */
-  sourceUri?: string
-  /** Output root URI when no env override is set. */
-  rootUri?: string
-}
-
-export function splitSourceUri(options: SplitPathsOptions): string {
-  return envOf(options)[SOURCE_ENV]?.trim() || options.sourceUri || options.bookUri || '@book2'
-}
-
-export function splitRootUri(options: SplitPathsOptions): string {
-  return envOf(options)[ROOT_ENV]?.trim() || options.rootUri || rootUriOf(options)
-}
-
-/** Default stats artefact: `<output root>/schema/stats.json`. */
-export function statsPath(options: SplitPathsOptions): string {
-  return join(uriPath(splitRootUri(options), options), 'schema', 'stats.json')
-}
 
 export function readStats(path: string): StatsArtifact {
   const stats = JSON.parse(readFileSync(path, 'utf-8')) as StatsArtifact
@@ -141,8 +114,8 @@ export function serializeChapterMap(map: ChapterMap): string {
 export const VAR_SPLIT_UNIT = 'splitUnit'
 
 export interface SplitChapterToolOptions {
-  /** Stats artefact path; read lazily at the first invoke. */
-  statsPath: () => string
+  /** Stats artefact path, resolved lazily at the first invoke (string or thunk). */
+  statsPath: string | (() => string)
 }
 
 /**
@@ -150,10 +123,12 @@ export interface SplitChapterToolOptions {
  * `{ orig, title, parts }`.
  */
 export function createSplitChapterTool(options: SplitChapterToolOptions) {
+  const resolveStatsPath = (): string =>
+    typeof options.statsPath === 'function' ? options.statsPath() : options.statsPath
   let cachedSplitter: ReturnType<typeof createSeriesSplitTool> | undefined
   const splitter = (): ReturnType<typeof createSeriesSplitTool> => {
     cachedSplitter ??= createSeriesSplitTool({
-      targetChars: Math.floor(readStats(options.statsPath()).book.threshold),
+      targetChars: Math.floor(readStats(resolveStatsPath()).book.threshold),
     })
     return cachedSplitter
   }
@@ -230,32 +205,18 @@ export const writeSplitOutputs = defineTool<unknown, unknown>({
   },
 })
 
-interface ChapterMapLike {
-  [id: string]: { orig: number; part: number; of: number }
-}
-
-/** Reads `schema/chapter-map.json`; `undefined` when absent or invalid. */
-export function readChapterMap(options: SplitPathsOptions): ChapterMapLike | undefined {
-  const file = join(uriPath(splitRootUri(options), options), 'schema', 'chapter-map.json')
-  if (!existsSync(file)) return undefined
+/** Reads a `chapter-map.json` file; `undefined` when absent or invalid. */
+export function readChapterMap(path: string): ChapterMap | undefined {
+  if (!existsSync(path)) return undefined
   try {
-    return JSON.parse(readFileSync(file, 'utf-8')) as ChapterMapLike
+    return JSON.parse(readFileSync(path, 'utf-8')) as ChapterMap
   } catch {
     return undefined
   }
 }
 
 /** True when the split stage wrote renumbered parts (any source chapter became >1 part). */
-export function splitProduced(options: SplitPathsOptions): boolean {
-  const map = readChapterMap(options)
+export function splitProduced(map: ChapterMap | undefined): boolean {
   if (!map) return false
   return Object.values(map).some((entry) => entry.of > 1)
-}
-
-/** Split directory URI for an output root: `@chapters` -> `md://./chapters/split`. */
-export function splitUriFor(options: SplitPathsOptions): string {
-  const rootUri = splitRootUri(options)
-  if (rootUri === '@chapters') return 'md://./chapters/split'
-  if (rootUri.startsWith('md://')) return `${rootUri.replace(/\/$/, '')}/split`
-  return `md://${join(uriPath(rootUri, options), 'split')}`
 }

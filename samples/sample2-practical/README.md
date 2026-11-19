@@ -10,14 +10,16 @@ the test suite needs `MT_ALLOW_MOCK=1`. Switch to a real model with environment 
 `mt.local.json`.
 
 Reusable stages (stats, split, quality gate, glossary index, vocabulary, entities, output
-emitters, preprocess, batch titles, LLM picker) live in [`@mt/bookkit`](../../packages/bookkit/README.md).
+emitters, preprocess, batch titles, LLM picker) live in [`@mt/tools`](../../packages/tools/).
 This sample keeps only `books/book2` paths, the book source, mock LLM answers and the
 `MT_ALLOW_MOCK` / `MT_ALLOW_PAID` policy in `lib/`.
 
-Each phase file ends with `installSampleMock(defineProcess([...], { id: 'practical-<phase>' }))`. When
-the resolved backend is `mock`, that installs one scripted provider process-wide
-(`lib/mock-llm.ts`); otherwise it is a no-op. Stage factories resolve the backend at invoke time,
-so the named stage exports stay plain pipelines with no per-stage `call` or mock callbacks.
+Each phase file ends with
+`defineProcess([...], { id: 'practical-<phase>' }).install(installSampleMock())`.
+`installSampleMock()` returns a `ProcessInstall` and is a no-op unless the resolved backend is
+`mock`; when it is, it installs one scripted provider process-wide (`lib/mock-llm.ts`). Stage
+factories resolve the backend at invoke time, so the named stage exports stay plain pipelines with
+no per-stage `call` or mock callbacks.
 
 ## Pipes
 
@@ -99,7 +101,7 @@ Or put the same keys in `settings` of a gitignored `mt.local.json` (imported by 
 Backend resolution happens at invoke time, first match wins: an explicit `call` / `translate`
 passed to a factory, then `MT_LLM_TOOL` / mt.json naming a real backend, then the process-level
 mock installed by `installSampleMock`, then the factory default. `lib/llm.ts` keeps the sample
-policy over the `@mt/bookkit` picker: the free-model guard (`MT_ALLOW_PAID`) and the mock guard
+policy over `@mt/tools`: the free-model guard (`MT_ALLOW_PAID`) and the mock guard
 (`MT_ALLOW_MOCK`, relaxed under `VITEST`), plus `modelEnvVar` / `gateLayer`. The scripted answers
 and the install hook live in `lib/mock-llm.ts`; both files read the same `mt.json` (with its
 imported `mt.local.json`).

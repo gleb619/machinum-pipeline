@@ -13,7 +13,7 @@ process.stdout.on('error', (error: NodeJS.ErrnoException) => {
 
 const USAGE = `Usage: pnpm tools [--json]
 
-Prints a tool catalogue for packages/{tools,bookkit}/dist modules and samples/*/pipelines, samples/*/lib.
+Prints a tool catalogue for packages/tools/dist modules and samples/*/pipelines, samples/*/lib.
 Run \`pnpm build\` first.
 
 Print a Markdown table (default), or JSON with --json.
@@ -25,7 +25,6 @@ Options:
 
 const TOOL_PACKAGES = [
   { dist: join('packages', 'tools', 'dist'), src: join('packages', 'tools', 'src') },
-  { dist: join('packages', 'bookkit', 'dist'), src: join('packages', 'bookkit', 'src') },
 ] as const
 const SKIP_SUFFIXES = ['.test.js', '.d.ts', '.map']
 

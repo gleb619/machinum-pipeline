@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
-import { type StatsArtifact, bodyCharsOf } from '@mt/bookkit'
+import { type StatsArtifact, bodyCharsOf } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { SAMPLE_DIR, run, writeFileAt } from './helpers.js'
 

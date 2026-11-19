@@ -21,7 +21,7 @@ test gates.
 `sample2-practical` keeps only sample-specific glue in `lib/` (LLM/mock configuration and
 `books/book2` paths). Every reusable stage — stats, split, quality gate, glossary index,
 vocabulary, entities, output emitters, preprocess, batch titles, LLM picker — comes from
-[`@mt/bookkit`](../../packages/bookkit/README.md), so the next book project imports the package
+[`@mt/tools`](../../packages/tools/), so the next book project imports the package
 instead of copying `lib/`.
 
 Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
@@ -59,11 +59,11 @@ context).
 | `translation.ts#translateChapters` | `chapters/ru/chapter<N>.md` | LLM (block mode) |
 | `translation.ts#assemble` | `chapters/book/book.md` + `book.json` | CPU |
 
-The preparation process builds the `@mt/bookkit` preprocess stage at start-up, but the stage reads
+The preparation process builds the `@mt/tools` preprocess stage at start-up, but the stage reads
 the quality verdict lazily at run time: `quality` runs earlier in the same process, so the branch
 decision is current and the no-op path stays free of LLM calls and output files.
 
-`glossary` runs before the quality gate and before `translate-chapters`: the `@mt/bookkit` quality
+`glossary` runs before the quality gate and before `translate-chapters`: the `@mt/tools` quality
 stage reads `chapters/names.json`, the NER entities and the glossary as a proper-noun allowlist,
 and the translator pins every `ru` it finds. The extractor alone is not enough — it proposes
 non-names (`March`, `Lock`) and leaves `ru` empty, so the model invents a render per paragraph.
@@ -132,9 +132,10 @@ because pipes share the sample directory.
 
 Stage tools take no `call` / `translate` by default: they resolve the backend at invoke time
 (explicit factory argument > `MT_LLM_TOOL` / mt.json real backend > installed process mock >
-factory default). Each sample2 phase file wraps its `defineProcess([...])` in
-`installSampleMock(...)`, which installs one scripted provider (`lib/mock-llm.ts`) only when the
-resolved backend is `mock`; the named stage exports therefore look exactly like real-LLM pipes.
+factory default). Each sample2 phase file ends with
+`defineProcess([...]).install(installSampleMock())`, which installs one scripted provider
+(`lib/mock-llm.ts`) only when the resolved backend is `mock`; the named stage exports therefore
+look exactly like real-LLM pipes.
 
 - `MT_LLM_TOOL` = `router` | `openrouter-free` | `openrouter-pool` | `ollama` | `mock`
   (default `mock` — offline, no API key, no network; `MT_ALLOW_MOCK=1` is required outside
@@ -200,7 +201,7 @@ only and never change the exit code.
 cd samples/sample2-practical
 pnpm -C ../../packages/core pack --pack-destination ./vendor
 pnpm -C ../../packages/cli pack --pack-destination ./vendor
-pnpm -C ../../packages/bookkit pack --pack-destination ./vendor
+pnpm -C ../../packages/tools pack --pack-destination ./vendor
 npm install --no-audit --no-fund
 MT_ALLOW_MOCK=1 pnpm run runner
 ```

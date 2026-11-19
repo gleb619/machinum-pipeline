@@ -1,12 +1,8 @@
 import { category, defineTool, getVariable, tool, withItem } from '@mt/core'
-import {
-  type Glossary,
-  type GlossaryTermType,
-  appendMdOutput,
-  chapterNumberOf,
-  compileTermMatcher,
-  countTerms,
-} from '@mt/tools'
+import { appendMdOutput } from '../core/md-outputs.js'
+import { chapterNumberOf } from './glossary-extractor.js'
+import { compileTermMatcher, countTerms } from './term-tagger.js'
+import type { Glossary, GlossaryTermType } from './term-tagger.js'
 
 /**
  * Main entities (characters, places, organisations, assets) from the book-wide glossary
@@ -25,7 +21,11 @@ const ORGANISATION = /organi[sz]ation|authority|company|agency|crew/i
 
 const VERSION = 1
 
-export interface NerEntity {
+/**
+ * One projected entity. Named `ProjectedEntity` (not `NerEntity`) because the root barrel
+ * already exports the text-level `NerEntity` of `named-entity-recognizer.ts`.
+ */
+export interface ProjectedEntity {
   id: string
   name: string
   kind: EntityKind
@@ -52,17 +52,17 @@ export interface ChapterEntities {
 /** `chapters/schema/entities.json` (stable key order, no timestamps). */
 export interface EntitiesArtifact {
   version: number
-  entities: NerEntity[]
+  entities: ProjectedEntity[]
 }
 
 /** One chapter of the analysed corpus. */
-export interface NerChapter {
+export interface ProjectionChapter {
   n: number
   text: string
 }
 
-export interface NerProjection {
-  entities: NerEntity[]
+export interface EntityProjection {
+  entities: ProjectedEntity[]
   chapters: ChapterEntities[]
   /** Terms the projection never found: the model's hallucinated entries (R3). */
   dropped: number
@@ -99,7 +99,10 @@ function byCodePoint(left: string, right: string): number {
  * per-chapter list. A term the projection never finds (count 0) is dropped - a model-proposed
  * name that does not occur in the corpus never reaches `entities.json` (R3).
  */
-export function projectEntities(glossary: Glossary, inputs: readonly NerChapter[]): NerProjection {
+export function projectEntities(
+  glossary: Glossary,
+  inputs: readonly ProjectionChapter[],
+): EntityProjection {
   const chapters = [...inputs].sort((left, right) => left.n - right.n)
   const matcher = compileTermMatcher(glossary)
   const perChapter = chapters.map(({ n, text }) => ({
@@ -113,7 +116,7 @@ export function projectEntities(glossary: Glossary, inputs: readonly NerChapter[
   }
 
   let dropped = 0
-  const entities: NerEntity[] = []
+  const entities: ProjectedEntity[] = []
   for (const term of glossary.terms) {
     const count = totals.get(term.id) ?? 0
     if (count === 0) {
@@ -183,7 +186,7 @@ function numberArray(values: readonly number[], indent: number): string {
   return `[\n${lines.map((text) => pad + text).join(',\n')}\n${' '.repeat(indent)}]`
 }
 
-export function serializeEntities(entities: readonly NerEntity[]): string {
+export function serializeEntities(entities: readonly ProjectedEntity[]): string {
   const artifact: EntitiesArtifact = { version: VERSION, entities: [...entities] }
   const json = JSON.stringify(artifact, null, 2).replace(
     /^( *)"chapters": \[\n([\s\S]*?)\n\1\](,?)/gm,

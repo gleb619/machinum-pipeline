@@ -3,9 +3,9 @@ import { join } from 'node:path'
 import {
   type ChapterEntities,
   type EntitiesArtifact,
-  type NerEntity,
+  type ProjectedEntity,
   entityKind,
-} from '@mt/bookkit'
+} from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { MOCK_NER_HALLUCINATION, MOCK_NER_NAMES } from '../lib/mock-ner.js'
 import { CHAPTERS, SAMPLE_DIR, clean, run } from './helpers.js'
@@ -119,8 +119,8 @@ describe('ner', () => {
       expect(typeof entity.description).toBe('string')
     }
     for (let index = 1; index < artifact.entities.length; index++) {
-      const prev = artifact.entities[index - 1] as NerEntity
-      const cur = artifact.entities[index] as NerEntity
+      const prev = artifact.entities[index - 1] as ProjectedEntity
+      const cur = artifact.entities[index] as ProjectedEntity
       const kindOrder = rank.indexOf(prev.kind) - rank.indexOf(cur.kind)
       const byCount = prev.count - cur.count
       const byName = prev.name < cur.name ? -1 : prev.name > cur.name ? 1 : 0

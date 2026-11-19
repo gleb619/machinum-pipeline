@@ -9,7 +9,7 @@ import {
   type VocabKind,
   type VocabTerm,
   type VocabularyArtifact,
-} from '@mt/bookkit'
+} from '@mt/tools'
 import { buildStatFreqReport } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { CHAPTERS, SAMPLE_DIR, clean, run } from './helpers.js'

@@ -1,29 +1,25 @@
 import { join } from 'node:path'
-import { annotate, definePipeline, defineProcess, useCase } from '@mt/core'
+import { annotate, definePipeline, defineProcess, useCase, withItem } from '@mt/core'
 import {
+  GLOSSARY_INDEX_FILE,
   bookCompiler,
   chapterPairsLinter,
   chaptersToTitleInputs,
+  createBatchTitleTranslator,
   createChapterBodyTranslator,
   createGlossaryTitleTranslator,
   createTitleTranslator,
   createTranslateOutputs,
-  translateConcurrency,
-} from '@mt/tools'
-import '@mt/waypoint'
-import {
-  GLOSSARY_INDEX_FILE,
-  createBatchTitleTranslator,
-  defineChapterPipeline,
   priorTermsEnabled,
   readGlossaryIndex,
   renderPriorTerms,
   sortChapters,
   tagWithGlossary,
-  withBookTitle,
+  translateConcurrency,
   writeTitles,
-} from '@mt/bookkit'
-import { CHAPTERS_DIR } from '../lib/config.js'
+} from '@mt/tools'
+import '@mt/waypoint'
+import { CHAPTERS_DIR, defineChapterPipeline } from '../lib/config.js'
 import { bookSource } from '../lib/input.js'
 import { installSampleMock } from '../lib/mock-llm.js'
 
@@ -103,8 +99,9 @@ export const translateChapters = annotate(
 /** Assemble: numeric chapter order + frontmatter/TOC → `chapters/book/book.md`. */
 const assembleChild = definePipeline({ id: 'practical-assemble-child' })
   .use(sortChapters)
-  .use(withBookTitle('The Quiet Frequency — Russian draft'))
-  .use(bookCompiler)
+  .use(bookCompiler, (env) =>
+    withItem(env, { title: 'The Quiet Frequency — Russian draft', chapters: env.item }),
+  )
   .to('book://./chapters/book')
 
 export const assemble = defineChapterPipeline('practical-assemble', '@ru').subflow(

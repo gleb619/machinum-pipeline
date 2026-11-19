@@ -1,14 +1,14 @@
 import { category, defineTool, getVariable, tool, withItem } from '@mt/core'
 import type { Exchange } from '@mt/core'
+import { compactArrays } from '../core/json-format.js'
+import { appendMdOutput } from '../core/md-outputs.js'
+import { chapterNumberOf } from './glossary-extractor.js'
 import {
   type StatFreqReport,
-  appendMdOutput,
   buildStatFreqReport,
-  chapterNumberOf,
   cmpTerm,
   splitStatSentences,
-} from '@mt/tools'
-import { compactArrays } from './json.js'
+} from './stat-freq.js'
 
 /**
  * Statistical vocabulary (CPU only, no LLM).

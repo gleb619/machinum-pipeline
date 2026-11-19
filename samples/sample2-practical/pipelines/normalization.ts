@@ -1,17 +1,16 @@
+import { annotate, definePipeline, defineProcess, useCase } from '@mt/core'
 import {
+  chapterIndexer,
   collectChapterStats,
   createSplitChapterTool,
-  defineChapterPipeline,
-  splitRootUri,
-  splitSourceUri,
-  statsPath,
+  mdOutputEmitter,
+  tokenCounterBatchCached,
+  wordCounter,
   writeSplitOutputs,
   writeStats,
-} from '@mt/bookkit'
-import { annotate, definePipeline, defineProcess, useCase } from '@mt/core'
-import { chapterIndexer, mdOutputEmitter, tokenCounterBatchCached, wordCounter } from '@mt/tools'
+} from '@mt/tools'
 import '@mt/waypoint'
-import { BOOK_OPTIONS } from '../lib/config.js'
+import { defineChapterPipeline, splitRootUri, splitSourceUri, statsPath } from '../lib/config.js'
 
 /**
  * Phase 1 — normalization: raw book → stable numbered chapters. CPU only, no LLM.
@@ -51,7 +50,7 @@ export const stats = defineChapterPipeline('practical-stats')
   .to('@schema')
 
 /** Split oversized chapters and assign stable book-wide ids → `schema/chapter-map.json`. */
-const splitChapter = createSplitChapterTool({ statsPath: () => statsPath(BOOK_OPTIONS) })
+const splitChapter = createSplitChapterTool({ statsPath })
 
 const splitChild = definePipeline({ id: 'practical-split-child' })
   .from('batch://members')
@@ -64,10 +63,10 @@ const splitAggregateChild = definePipeline({ id: 'practical-split-aggregate' })
   .to('batch://return')
 
 export const split = annotate(
-  defineChapterPipeline('practical-split', splitSourceUri(BOOK_OPTIONS))
+  defineChapterPipeline('practical-split', splitSourceUri())
     .subflow(BATCH, splitChild)
     .subflow(BATCH, splitAggregateChild)
-    .to(splitRootUri(BOOK_OPTIONS)),
+    .to(splitRootUri()),
   useCase('UC056', { name: 'Split large chapters by token count' }),
 )
 

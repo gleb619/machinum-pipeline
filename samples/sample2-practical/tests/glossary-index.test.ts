@@ -8,7 +8,7 @@ import {
   buildGlossaryIndex,
   priorTermsMax,
   renderPriorTerms,
-} from '@mt/bookkit'
+} from '@mt/tools'
 import { describe, expect, it } from 'vitest'
 
 function fixture(): { chaptersDir: string; glossary: GlossaryIndexInput } {

@@ -7,8 +7,7 @@ Path: `packages/tools/`
 **Package ownership (hard rule).** Reusable `defineTool()` implementations live only here, in
 `packages/tools/src`. Samples may keep tiny one-off glue; anything reusable (including a glossary index, stats
 or book-stage helper) is promoted here with tests and docs. Enforced by `pnpm lint:ownership`
-(`scripts/package-ownership.test.ts`). `@mt/bookkit` is a temporary grandfather being migrated here
-(`docs/plans/bookkit-to-tools.md`).
+(`scripts/package-ownership.test.ts`).
 
 Chapter processing tools for validation, translation, schema extraction, and formatting. All tools are `defineTool()` instances exported from `src/index.ts`. Tools operate on `Exchange<Chapter>` or domain-specific payload types.
 
@@ -1249,7 +1248,7 @@ another shipped tool (TL002, TL011, TL016, TL062, TL071). The remaining 91 are u
 
 ## Implemented tool index (TL201+)
 
-IDs TL201–TL260 are allocated to implemented tools that had no clear match in the
+IDs TL201–TL279 are allocated to implemented tools that had no clear match in the
 TL001–TL116 planned-tool spec. The ID is stable per exported tool value; aliases share one
 annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 
@@ -1319,40 +1318,34 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 
 Offline regression harness under `tests/eval/`: fixtures (3 chapters + glossary), recordings (canned title/paragraph replies), `score.ts` (pure metrics via existing `lintLineParity` / `checkTermConsistency` / `checkTranslatedShare`, plus length ratio and recording parse-failure rate), `baseline.json` (recorded values + per-metric tolerances), and `eval.test.ts`. Run `pnpm --filter=@mt/tools run eval`; it prints the metric table and exits non-zero when any metric leaves its tolerance. A degraded recording (dropped line, blank slot, or untranslated paragraph) fails with the offending metric named. The opt-in live mode (`pnpm --filter=@mt/tools run eval:live`, the `--live` path) runs the same corpus through `createChapterBodyTranslator` against `MT_OLLAMA_URL`, reports metrics without gating, and is not part of `pnpm test:gpu`.
 
-## @mt/bookkit — reusable book stages
+## Book-stage tools (moved from sample2)
 
-`packages/bookkit/` (`@mt/bookkit`) holds the pipeline glue extracted from
-`sample2-practical`. It depends only on `@mt/core` and `@mt/tools`; consumer book projects
-import the stages instead of copying a `lib/` directory.
-
-Root-dependent stages take `BookPathsOptions` (`root`, `bookUri`, `chaptersDir`, `env`,
-`rootEnv`, `bookEnv`, `forceBranchEnv`). There is no module-level project root. The split
-stage keeps the compatibility env vars `MT_SPLIT_BOOK` / `MT_SPLIT_ROOT`; the generic seams are
-`MT_BOOK`, `MT_CHAPTERS_ROOT` and `MT_FORCE_BRANCH`.
+The former `@mt/bookkit` package is folded into this package: its tool implementations and pure
+helpers live in `normalization/`, `verification/` and `modification/`, and the sample-specific
+path/branch/LLM policy lives in `samples/sample2-practical/lib/`. No separate package remains.
 
 | TL ID | Exports | Tool name | UCs | Module |
 |---|---|---|---|---|
-| TL261 | `createGlossaryIndexTool`, `writeGlossaryIndexTool` | `write-glossary-index` | UC084 | `glossary-index.ts` |
-| TL262 | `collectChapterStats` | `collect-chapter-stats` | — | `stats.ts` |
-| TL263 | `writeStats` | `write-stats` | UC056 | `stats.ts` |
-| TL264 | `createSplitChapterTool` | `split-chapter` | UC056 | `split.ts` |
-| TL265 | `writeSplitOutputs` | `write-split-outputs` | UC056 | `split.ts` |
-| TL266 | `createCollectChapterQuality`, `collectChapterQuality` | `collect-chapter-quality` | UC057 | `quality.ts` |
-| TL267 | `createWriteQualityTool` | `write-quality` | UC057 | `quality.ts` |
-| TL268 | `writeSummaries` | `write-summaries` | — | `outputs.ts` |
-| TL269 | `writeGlossary` | `write-glossary` | — | `outputs.ts` |
-| TL270 | `writeTitles` | `write-titles` | UC059 | `outputs.ts` |
-| TL271 | `tagWithGlossary` | `tag-with-glossary` | UC060 | `outputs.ts` |
-| TL272 | `sortChapters` | `sort-chapters` | — | `outputs.ts` |
-| TL273 | `withBookTitle` | `with-book-title` | — | `outputs.ts` |
-| TL274 | `writeEntities` | `write-entities` | — | `entities.ts` |
-| TL275 | `writeVocabulary` | `write-vocabulary` | — | `vocabulary.ts` |
-| TL276 | `createPreprocessChapterTool` | `preprocess-chapter` | UC058 | `preprocess.ts` |
-| TL277 | `createEmitCleanChapter` | `emit-clean-chapter` | UC058 | `preprocess.ts` |
-| TL278 | `createWritePreprocessReport` | `write-preprocess-report` | UC058 | `preprocess.ts` |
-| TL279 | `createBatchTitleTranslator` | `batch-title-translator` | UC059 | `titles.ts` |
+| TL261 | `createGlossaryIndexTool`, `writeGlossaryIndexTool` | `write-glossary-index` | UC084 | `normalization/glossary-index.ts` |
+| TL262 | `collectChapterStats` | `collect-chapter-stats` | — | `normalization/chapter-stats.ts` |
+| TL263 | `writeStats` | `write-stats` | UC056 | `normalization/chapter-stats.ts` |
+| TL264 | `createSplitChapterTool` | `split-chapter` | UC056 | `normalization/chapter-split.ts` |
+| TL265 | `writeSplitOutputs` | `write-split-outputs` | UC056 | `normalization/chapter-split.ts` |
+| TL266 | `createCollectChapterQuality`, `collectChapterQuality` | `collect-chapter-quality` | UC057 | `verification/chapter-quality.ts` |
+| TL267 | `createWriteQualityTool` | `write-quality` | UC057 | `verification/chapter-quality.ts` |
+| TL268 | `writeSummaries` | `write-summaries` | — | `modification/book-outputs.ts` |
+| TL269 | `writeGlossary` | `write-glossary` | — | `modification/book-outputs.ts` |
+| TL270 | `writeTitles` | `write-titles` | UC059 | `modification/book-outputs.ts` |
+| TL271 | `tagWithGlossary` | `tag-with-glossary` | UC060 | `modification/book-outputs.ts` |
+| TL272 | `sortChapters` | `sort-chapters` | — | `modification/book-outputs.ts` |
+| TL274 | `writeEntities` | `write-entities` | — | `normalization/entity-projection.ts` |
+| TL275 | `writeVocabulary` | `write-vocabulary` | — | `normalization/vocabulary-report.ts` |
+| TL276 | `createPreprocessChapterTool` | `preprocess-chapter` | UC058 | `modification/preprocess.ts` |
+| TL277 | `createEmitCleanChapter` | `emit-clean-chapter` | UC058 | `modification/preprocess.ts` |
+| TL278 | `createWritePreprocessReport` | `write-preprocess-report` | UC058 | `modification/preprocess.ts` |
+| TL279 | `createBatchTitleTranslator` | `batch-title-translator` | UC059 | `modification/batch-title-translator.ts` |
 
 Pure helpers (`buildStats`, `planSplit`, `buildQuality`, `buildGlossaryIndex`,
-`renderPriorTerms`, `buildVocabularyReport`, `projectEntities`, `readPreprocessPlan`,
-`createBookSource`, `createBookLlmPicker`) carry no TL id and are exported for tests and
-custom pipelines. See [structure.md](structure.md#mtbookkit--reusable-book-stages).
+`renderPriorTerms`, `buildVocabularyReport`, `projectEntities`, `readPreprocessPlan`) are
+exported for tests and custom pipelines. `withBookTitle`/TL273 was removed: `bookCompiler`
+takes `{ title, chapters }` directly.

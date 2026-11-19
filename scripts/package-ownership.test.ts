@@ -18,10 +18,8 @@ interface Violation {
 /**
  * Temporary grandfathers, keyed by `<package dir>:<rule>`. Keep this list as small as possible.
  *
- * TODO(docs/plans/bookkit-to-tools.md): move the `defineTool` implementations out of
- * `packages/bookkit/src` into `packages/tools/src`, then delete `bookkit:defineTool`.
  */
-const KNOWN_VIOLATIONS = new Set<string>(['bookkit:defineTool'])
+const KNOWN_VIOLATIONS = new Set<string>()
 
 const TOOL_CALL = /\bdefineTool\b\s*(?:<[^(;]*>\s*)?\(/g
 const WAYPOINT_CALL =
@@ -50,9 +48,6 @@ const KNOWN_MT_PACKAGES = new Set([
   '@mt/chrome-extension',
   '@mt/plugins',
 ])
-
-/** Transitional package the guard tolerates until its tools move into `@mt/tools`. */
-const GRANDFATHERED_PACKAGES = new Set(['@mt/bookkit'])
 
 function collectTsFiles(dir: string): string[] {
   const files: string[] = []

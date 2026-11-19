@@ -1,9 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { readFile, readdir, rename, writeFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { category, defineTool, tool } from '@mt/core'
-import type { Glossary, GlossaryTerm, GlossaryTermType } from '@mt/tools'
-import { cmpTerm, compileTermMatcher, countTerms } from '@mt/tools'
+import { appendMdOutput } from '../core/md-outputs.js'
+import { cmpTerm } from './stat-freq.js'
+import {
+  type Glossary,
+  type GlossaryTerm,
+  type GlossaryTermType,
+  compileTermMatcher,
+  countTerms,
+} from './term-tagger.js'
 
 /**
  * Book-wide term index derived from `chapters/en` and `chapters/glossary.json` (no LLM).
@@ -189,7 +196,7 @@ export function readGlossaryIndex(path: string): GlossaryIndex | undefined {
 }
 
 /** Biome keeps a numeric array on the attribute line while it fits (lineWidth 100). */
-function serializeGlossaryIndex(index: GlossaryIndex): string {
+export function serializeGlossaryIndex(index: GlossaryIndex): string {
   const json = JSON.stringify(index, null, 2).replace(
     /^( {6})"chapters": \[\n([\s\S]*?)\n\1\]/gm,
     (match, indent: string, body: string) => {
@@ -201,23 +208,17 @@ function serializeGlossaryIndex(index: GlossaryIndex): string {
   return `${json}\n`
 }
 
-/** Temp-then-rename so a crash never leaves a half-written index. */
-export async function writeGlossaryIndexFile(path: string, index: GlossaryIndex): Promise<void> {
-  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`
-  await writeFile(tmp, serializeGlossaryIndex(index), 'utf-8')
-  await rename(tmp, path)
-}
-
 export interface CreateGlossaryIndexToolOptions {
   chaptersDir: string
-  /** Index filename under `chaptersDir`; default {@link GLOSSARY_INDEX_FILE}. */
+  /** Index filename under the md target root; default {@link GLOSSARY_INDEX_FILE}. */
   indexFile?: string
 }
 
 /**
- * Pipeline step: builds the index from the chapter files and the glossary. A missing
- * `glossary.json` is not an error (the chain may run before the first extraction): it logs
- * `index: no glossary` and writes nothing.
+ * Pipeline step: builds the index from the chapter files and the glossary and appends it to the
+ * `mdOutputs` write intents (the `md://` target owns the destination). A missing `glossary.json`
+ * is not an error (the chain may run before the first extraction): it logs `index: no glossary`
+ * and emits nothing.
  */
 export function createGlossaryIndexTool(options: CreateGlossaryIndexToolOptions) {
   const chaptersDir = options.chaptersDir
@@ -247,10 +248,14 @@ export function createGlossaryIndexTool(options: CreateGlossaryIndexToolOptions)
         throw new Error(`failed to parse glossary ${glossaryPath}: expected {"terms": [...]}`)
       }
       const index = await buildGlossaryIndex({ chaptersDir, glossary })
-      await writeGlossaryIndexFile(join(chaptersDir, indexFile), index)
       const multiChapter = index.terms.filter((term) => term.chapters.length > 1).length
       ctx.run.logger.info(`index terms=${index.terms.length} multi-chapter=${multiChapter}`)
-      return env
+      return appendMdOutput(env, {
+        name: 'glossary-index',
+        subdir: '',
+        filename: indexFile,
+        content: serializeGlossaryIndex(index),
+      })
     },
   })
 }

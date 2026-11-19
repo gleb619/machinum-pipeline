@@ -8,7 +8,7 @@ import {
   withItem,
 } from '@mt/core'
 import type { Exchange } from '@mt/core'
-import { appendMdOutput } from '@mt/tools'
+import { appendMdOutput } from '../core/md-outputs.js'
 
 /**
  * Chapter measurement and the deterministic `schema/stats.json` artefact.
@@ -18,13 +18,13 @@ import { appendMdOutput } from '@mt/tools'
  */
 
 /** Chapter body = the markdown with the leading `# ` H1 line removed. */
-export function chapterBody(markdown: string): string {
+export function chapterBodyOf(markdown: string): string {
   return markdown.replace(/^#[ \t]+[^\r\n]*(?:\r?\n|$)/, '')
 }
 
-/** Character length of {@link chapterBody}. */
+/** Character length of {@link chapterBodyOf}. */
 export function bodyCharsOf(markdown: string): number {
-  return chapterBody(markdown).length
+  return chapterBodyOf(markdown).length
 }
 
 /** Variable carrying one chapter's measured row between the two glue stages. */

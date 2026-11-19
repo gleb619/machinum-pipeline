@@ -1,15 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Glossary, GlossaryTerm } from '@mt/tools'
-import { inferRuGrammar } from '@mt/tools'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { inferRuGrammar } from '../normalization/ru-grammar.js'
+import type { Glossary, GlossaryTerm } from '../normalization/term-tagger.js'
 import {
   type PreprocessReport,
   chapterNeedsWork,
   digitMultiset,
   genderPins,
-  loadPreprocessGlossary,
   pinnedGender,
   readPreprocessPlan,
   serializePreprocessReport,
@@ -17,17 +16,17 @@ import {
 
 let root: string
 
-function chaptersDir(): string {
-  return join(root, 'chapters')
+function qualityPath(): string {
+  return join(root, 'chapters', 'schema', 'quality.json')
 }
 
 function writeQuality(value: unknown): void {
-  mkdirSync(join(chaptersDir(), 'schema'), { recursive: true })
-  writeFileSync(join(chaptersDir(), 'schema', 'quality.json'), JSON.stringify(value), 'utf-8')
+  mkdirSync(join(root, 'chapters', 'schema'), { recursive: true })
+  writeFileSync(qualityPath(), JSON.stringify(value), 'utf-8')
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'bookkit-preprocess-'))
+  root = mkdtempSync(join(tmpdir(), 'mt-tools-preprocess-'))
 })
 
 afterEach(() => {
@@ -36,7 +35,7 @@ afterEach(() => {
 
 describe('readPreprocessPlan', () => {
   it('defaults to a translate no-op when quality.json is missing', () => {
-    const plan = readPreprocessPlan({ root, env: {} })
+    const plan = readPreprocessPlan(qualityPath())
     expect(plan).toMatchObject({ verdict: 'translate', forced: false, skip: true })
     expect(plan.chapters.size).toBe(0)
   })
@@ -46,7 +45,7 @@ describe('readPreprocessPlan', () => {
       verdict: 'preprocess',
       chapters: [{ n: 1, pass: true }, { n: 2, pass: false }, { n: 3 }],
     })
-    const plan = readPreprocessPlan({ root, env: {} })
+    const plan = readPreprocessPlan(qualityPath())
     expect(plan).toMatchObject({ verdict: 'preprocess', forced: false, skip: false })
     expect([...plan.chapters.entries()]).toEqual([
       [1, true],
@@ -55,27 +54,16 @@ describe('readPreprocessPlan', () => {
     ])
   })
 
-  it('honours MT_FORCE_BRANCH=preprocess even on a translate verdict', () => {
+  it('honours the explicit force flag even on a translate verdict', () => {
     writeQuality({ verdict: 'translate', chapters: [{ n: 1, pass: true }] })
-    const plan = readPreprocessPlan({ root, env: { MT_FORCE_BRANCH: 'preprocess' } })
+    const plan = readPreprocessPlan(qualityPath(), { force: true })
     expect(plan).toMatchObject({ verdict: 'translate', forced: true, skip: false })
   })
 
-  it('honours a custom forceBranchEnv option', () => {
-    writeQuality({ verdict: 'translate' })
-    const plan = readPreprocessPlan({
-      root,
-      env: { MY_FORCE: 'preprocess' },
-      forceBranchEnv: 'MY_FORCE',
-    })
-    expect(plan.forced).toBe(true)
-    expect(plan.skip).toBe(false)
-  })
-
   it('falls back to translate when the file is unreadable JSON', () => {
-    mkdirSync(join(chaptersDir(), 'schema'), { recursive: true })
-    writeFileSync(join(chaptersDir(), 'schema', 'quality.json'), '{not json', 'utf-8')
-    const plan = readPreprocessPlan({ root, env: {} })
+    mkdirSync(join(root, 'chapters', 'schema'), { recursive: true })
+    writeFileSync(qualityPath(), '{not json', 'utf-8')
+    const plan = readPreprocessPlan(qualityPath())
     expect(plan).toMatchObject({ verdict: 'translate', skip: true })
   })
 })
@@ -95,23 +83,6 @@ describe('chapterNeedsWork', () => {
     expect(chapterNeedsWork(plan, 2)).toBe(true)
     expect(chapterNeedsWork(plan, 3)).toBe(true)
     expect(chapterNeedsWork({ ...plan, forced: true }, 1)).toBe(true)
-  })
-})
-
-describe('loadPreprocessGlossary', () => {
-  it('returns an empty glossary when the file is missing or invalid', () => {
-    expect(loadPreprocessGlossary(root)).toEqual({ terms: [] })
-    writeFileSync(join(root, 'glossary.json'), '[]', 'utf-8')
-    expect(loadPreprocessGlossary(root)).toEqual({ terms: [] })
-  })
-
-  it('reads terms from glossary.json', () => {
-    writeFileSync(
-      join(root, 'glossary.json'),
-      JSON.stringify({ terms: [{ id: 'nadia' }] }),
-      'utf-8',
-    )
-    expect(loadPreprocessGlossary(root).terms).toHaveLength(1)
   })
 })
 

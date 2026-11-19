@@ -110,8 +110,7 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 - **Package ownership** - reusable Tool implementations live only in `packages/tools/src`; Source/Target/URI-scheme
   implementations live only in `packages/waypoint/src`. `packages/core` defines the primitives. Do not add a new
   package for pipeline glue or a tool collection. Samples may keep tiny one-off glue; reusable code is promoted to
-  the owning package with tests and docs. Enforced by `pnpm lint:ownership`; `@mt/bookkit` is a temporary
-  grandfather tracked in `docs/plans/bookkit-to-tools.md`.
+  the owning package with tests and docs. Enforced by `pnpm lint:ownership`.
 - **API-change gate** - adding or moving a public API (DSL op, tool, URI scheme, exported type, package boundary)
   requires a design under `docs/plans/` and explicit user approval before implementation.
 - **Atomic writes** (temp-then-rename); checkpoint tree is the only resume mechanism.

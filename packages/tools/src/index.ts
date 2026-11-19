@@ -1061,3 +1061,16 @@ export {
   type DatasetCardStats,
   type ResolvedDatasetCardStats,
 } from './modification/dataset-card.js'
+
+// Book-stage tools and pure helpers (moved from the former @mt/bookkit package).
+export * from './core/json-format.js'
+export * from './normalization/chapter-stats.js'
+export * from './normalization/chapter-split.js'
+export * from './normalization/glossary-index.js'
+export * from './normalization/vocabulary-report.js'
+export * from './normalization/entity-projection.js'
+export * from './normalization/summary-bullets.js'
+export * from './verification/chapter-quality.js'
+export * from './modification/book-outputs.js'
+export * from './modification/preprocess.js'
+export * from './modification/batch-title-translator.js'

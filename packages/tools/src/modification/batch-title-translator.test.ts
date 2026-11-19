@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type ToolContext, createExchange } from '@mt/core'
-import type { SchemaDocLlmCall } from '@mt/tools'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createBatchTitleTranslator } from './titles.js'
+import type { SchemaDocLlmCall } from '../normalization/schema/llm.js'
+import { createBatchTitleTranslator } from './batch-title-translator.js'
 
 interface TitleInput {
   text: string
@@ -16,7 +16,7 @@ const ctx = {} as ToolContext
 
 let chaptersDir: string
 beforeAll(() => {
-  chaptersDir = mkdtempSync(join(tmpdir(), 'mt-bookkit-titles-'))
+  chaptersDir = mkdtempSync(join(tmpdir(), 'mt-tools-titles-'))
 })
 afterAll(() => {
   rmSync(chaptersDir, { recursive: true, force: true })

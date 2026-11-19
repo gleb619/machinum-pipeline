@@ -1,6 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   type Exchange,
   type ToolContext,
@@ -12,31 +10,19 @@ import {
   setVariable,
   tool,
 } from '@mt/core'
-import {
-  appendMdOutput,
-  chapterValidator,
-  countTextTokens,
-  forbiddenCharDetector,
-  typoFinder,
-} from '@mt/tools'
-import { compactArrays } from './json.js'
-import { DEFAULT_BOOK_ENV, bookUriOf, chaptersDirOf, envOf, uriPath } from './paths.js'
-import { type SplitPathsOptions, splitProduced, splitRootUri, splitUriFor } from './split.js'
-import { chapterBody } from './stats.js'
+import { spellCheckDocument } from 'cspell-lib'
+import { compactArrays } from '../core/json-format.js'
+import { appendMdOutput } from '../core/md-outputs.js'
+import { countTextTokens } from '../normalization/token-counter.js'
+import { chapterValidator, forbiddenCharDetector, typoFinder } from './chapter-validator.js'
 
 /**
  * Offline quality gate behind the translate/preprocess branch.
  *
- * The DSL has no conditional branch (`fork` runs every child), so the decision is data:
- * this stage writes `schema/quality.json` and the consumer reads it (`createBookSource` in
- * `input.ts`). Every signal is offline and runs on the English source; no LLM is resolved or
- * called.
- *
- * The package never guesses a project root: every filesystem entry point takes
- * {@link QualityOptions} and resolves paths through `./paths.js` and `./split.js`.
+ * Every signal is offline and runs on the English source; no LLM is resolved or called. The
+ * stage writes a `schema/quality.json` artefact and the consumer reads it; paths and the
+ * proper-noun corpus are the caller's policy, not this module's.
  */
-
-export { compactArrays } from './json.js'
 
 /** Thresholds of the gate. Percent values are 0..100, ratios are tokens per word. */
 export const THRESHOLDS = {
@@ -115,7 +101,6 @@ export interface QualityArtifact {
 export const VAR_CHAPTER_QUALITY = 'chapterQuality'
 
 const VERSION = 1
-const CTX = {} as ToolContext
 
 /** Round to two decimals so a rerun serializes byte-identically. */
 function round2(value: number): number {
@@ -130,77 +115,22 @@ function thresholdsOf(overrides?: Partial<QualityThresholds>): QualityThresholds
   return { ...THRESHOLDS, ...overrides }
 }
 
-// ---------------------------------------------------------------------------
-// Filesystem seams
-// ---------------------------------------------------------------------------
-
-export interface QualityOptions extends SplitPathsOptions {}
-
-/** Output root URI of the quality stage: the split root, so both artefacts share one tree. */
-export function qualityRootUri(options: QualityOptions): string {
-  return splitRootUri(options)
-}
-
-/** Filesystem path of {@link qualityRootUri}. */
-export function qualityRootPath(options: QualityOptions): string {
-  return uriPath(qualityRootUri(options), options)
-}
-
-/** The analysed source: explicit book override, else the split output, else the book URI. */
-export function qualitySourceUri(options: QualityOptions): string {
-  const override = envOf(options)[options.bookEnv ?? DEFAULT_BOOK_ENV]?.trim()
-  if (override) return override
-  return splitProduced(options) ? splitUriFor(options) : bookUriOf(options)
-}
-
-interface StatsLike {
-  chapters: { n: number; ratioToMean: number }[]
+/** Chapter body = the markdown with the leading `# ` H1 line removed. */
+function chapterBody(markdown: string): string {
+  return markdown.replace(/^#[ \t]+[^\r\n]*(?:\r?\n|$)/, '')
 }
 
 /**
- * `stats.json` ratios. A size outlier is strictly informational: it is measured and exposed to
- * {@link buildQuality} but never turns into a fail reason (a long chapter is not a bad one).
+ * The validators below ignore their context (pure string checks). A standalone call may omit
+ * it; a pipeline call always passes the real `ToolContext`.
  */
-export function readRatioToMean(options: QualityOptions): Map<number, number> {
-  const file = join(qualityRootPath(options), 'schema', 'stats.json')
-  if (!existsSync(file)) {
-    throw new Error(`quality: ${file} missing — run the stats stage first`)
-  }
-  const stats = JSON.parse(readFileSync(file, 'utf-8')) as StatsLike
-  return new Map(stats.chapters.map((chapter) => [chapter.n, chapter.ratioToMean]))
+function contextOf(ctx?: ToolContext): ToolContext {
+  return ctx ?? ({} as ToolContext)
 }
 
 // ---------------------------------------------------------------------------
-// Proper nouns (glossary / NER names and aliases are not typos)
+// Proper nouns
 // ---------------------------------------------------------------------------
-
-export interface ProperNounSources {
-  entities?: string
-  glossary?: string
-  names?: string
-}
-
-/** Default corpus sources under one project: NER entities, glossary terms, editorial names. */
-export function properNounSourcesOf(options: QualityOptions): ProperNounSources {
-  return {
-    entities: join(qualityRootPath(options), 'schema', 'entities.json'),
-    glossary: join(chaptersDirOf(options), 'glossary.json'),
-    names: join(chaptersDirOf(options), 'names.json'),
-  }
-}
-
-function readJson(path: string | undefined): unknown {
-  if (!path || !existsSync(path)) return undefined
-  try {
-    return JSON.parse(readFileSync(path, 'utf-8')) as unknown
-  } catch {
-    return undefined
-  }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 /**
  * Lower-case name surface plus its possessive base and capitalised tokens. A proper noun is not
@@ -218,7 +148,29 @@ function addName(target: Set<string>, name: string): void {
   }
 }
 
-/** Every proper noun the corpus knows about: NER entities, glossary terms, editorial names. */
+export interface ProperNounSources {
+  entities?: string
+  glossary?: string
+  names?: string
+}
+
+function readJson(path: string | undefined): unknown {
+  if (!path || !existsSync(path)) return undefined
+  try {
+    return JSON.parse(readFileSync(path, 'utf-8')) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Every proper noun the corpus knows about: NER entities, glossary terms and editorial names.
+ * The caller passes the file paths; which files form the corpus is project policy.
+ */
 export function collectProperNouns(sources: ProperNounSources = {}): Set<string> {
   const names = new Set<string>()
 
@@ -273,84 +225,38 @@ interface CspellIssue {
   issueType?: number
 }
 
-interface CspellModule {
-  spellCheckDocument: (
-    document: { uri: string; text: string; languageId: string; locale: string },
-    options: { generateSuggestions: boolean },
-    settings: { suggestionsTimeout: number },
-  ) => Promise<{ issues: CspellIssue[] }>
-}
-
-/** Find `node_modules/cspell-lib` by walking up from the `@mt/tools` package root. */
-function findCspellPackage(toolsRoot: string): string | undefined {
-  let dir = toolsRoot
-  for (;;) {
-    const candidate = join(dir, 'node_modules', 'cspell-lib', 'package.json')
-    if (existsSync(candidate)) return candidate
-    const parent = dirname(dir)
-    if (parent === dir) return undefined
-    dir = parent
-  }
-}
-
 /**
  * `typoFinder` filters on `issueType === 0`, but cspell-lib 8.19 only sets `issueType` on
- * directive issues, so the tool always returns no issues here. The fallback imports the same
- * cspell-lib instance `@mt/tools` uses (no new dependency) and applies the identical
- * "spelling issue with a suggestion" rule, so the signal still measures the real text.
+ * directive issues, so the tool can return no issues here. The fallback calls the same engine
+ * (`cspell-lib` is a direct dependency) and applies the identical "spelling issue with a
+ * suggestion" rule, so the signal still measures the real text.
  */
-async function cspellModule(): Promise<CspellModule | null> {
-  try {
-    const toolsEntry = import.meta.resolve('@mt/tools')
-    const toolsRoot = dirname(dirname(fileURLToPath(toolsEntry)))
-    const pkgPath = findCspellPackage(toolsRoot)
-    if (!pkgPath) return null
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as {
-      exports?: Record<string, { import?: string }>
-      module?: string
-      main?: string
-    }
-    const entry = pkg.exports?.['.']?.import ?? pkg.module ?? pkg.main
-    if (!entry) return null
-    const mod = (await import(
-      pathToFileURL(join(dirname(pkgPath), entry)).href
-    )) as Partial<CspellModule>
-    return typeof mod.spellCheckDocument === 'function' ? (mod as CspellModule) : null
-  } catch {
-    return null
-  }
-}
-
-let cspellPromise: Promise<CspellModule | null> | undefined
-
-function spellCheck(text: string): Promise<CspellIssue[]> {
-  cspellPromise ??= cspellModule()
-  return cspellPromise.then(async (cspell) => {
-    if (!cspell) return []
-    const result = await cspell.spellCheckDocument(
-      { uri: 'input.txt', text, languageId: 'plaintext', locale: 'en' },
-      { generateSuggestions: true },
-      { suggestionsTimeout: 2000 },
-    )
-    return result.issues.filter(
+async function spellCheck(text: string): Promise<string[]> {
+  const result = await spellCheckDocument(
+    { uri: 'input.txt', text, languageId: 'plaintext', locale: 'en' },
+    { generateSuggestions: true },
+    { suggestionsTimeout: 2000 },
+  )
+  const issues = result.issues as CspellIssue[]
+  return issues
+    .filter(
       (issue) =>
         issue.text &&
         issue.suggestions?.length &&
         (issue.issueType === undefined || issue.issueType === 0),
     )
-  })
+    .map((issue) => issue.text as string)
 }
 
 /** Typo issues as plain words: the tool first, the same engine when the tool reports none. */
-export async function findTypos(text: string): Promise<string[]> {
-  const result = await typoFinder.invoke(createExchange({ text }), CTX)
+export async function findTypos(text: string, ctx?: ToolContext): Promise<string[]> {
+  const result = await typoFinder.invoke(createExchange({ text }), contextOf(ctx))
   if (result.item.issues.length > 0) {
     return result.item.issues
       .map((issue) => /`([^`]+)`/.exec(issue.text)?.[1])
       .filter((word): word is string => typeof word === 'string')
   }
-  const issues = await spellCheck(text)
-  return issues.map((issue) => issue.text as string)
+  return spellCheck(text)
 }
 
 const LEAK_LINE = /^(?:TL;DR|Translator'?s? note|Source:|https?:\/\/)/i
@@ -398,8 +304,8 @@ export function quotePct(text: string): number {
   return (flawed / paragraphs.length) * 100
 }
 
-async function structureErrors(text: string): Promise<number> {
-  const out = await chapterValidator.invoke(createExchange(text), CTX)
+async function structureErrors(text: string, ctx?: ToolContext): Promise<number> {
+  const out = await chapterValidator.invoke(createExchange(text), contextOf(ctx))
   if (getVariable<boolean>(out, 'valid') !== false) return 0
   return getVariable<string[]>(out, 'errors')?.length ?? 1
 }
@@ -428,17 +334,18 @@ function reasonsOf(
 export async function analyzeChapter(
   text: string,
   names: ReadonlySet<string> = new Set<string>(),
+  ctx?: ToolContext,
 ): Promise<ChapterSignals> {
   const body = chapterBody(text)
   const words = wordsOf(body)
 
-  const typoWords = (await findTypos(text)).filter((word) => !isProperNoun(word, names))
+  const typoWords = (await findTypos(text, ctx)).filter((word) => !isProperNoun(word, names))
   const per1kTyposRaw = words > 0 ? (typoWords.length / words) * 1000 : 0
 
-  const forbiddenOut = await forbiddenCharDetector.invoke(createExchange(text), CTX)
+  const forbiddenOut = await forbiddenCharDetector.invoke(createExchange(text), contextOf(ctx))
   const forbidden = getVariable<unknown[]>(forbiddenOut, 'forbidden')?.length ?? 0
 
-  const structure = await structureErrors(text)
+  const structure = await structureErrors(text, ctx)
   const leaks = leakLines(text)
   const foreignRaw = foreignScriptPct(text)
   const quoteRaw = quotePct(text)
@@ -479,9 +386,9 @@ function withThresholds(chapter: ChapterQuality, thresholds: QualityThresholds):
 /**
  * Deterministic artifact from the measured rows; chapter order is ascending `n`.
  *
- * `input.ratioToMean` is read (and stats.json is therefore a hard prerequisite for the write
- * tool) but deliberately never reaches `pass`/`reasons`: a chapter larger than 1.5x the mean is
- * informational, not bad.
+ * `input.ratioToMean` is read (and a stats artefact is therefore a hard prerequisite for the
+ * write tool) but deliberately never reaches `pass`/`reasons`: a chapter larger than 1.5x the
+ * mean is informational, not bad.
  */
 export function buildQuality(input: BuildQualityInput): QualityArtifact {
   const thresholds = thresholdsOf(input.thresholds)
@@ -527,10 +434,10 @@ export function createCollectChapterQuality(options: { names?: () => ReadonlySet
       }),
       category(['validator']),
     ],
-    async invoke(env: Exchange<string>) {
+    async invoke(env: Exchange<string>, ctx: ToolContext) {
       const n = Number(env.meta.chapterNum ?? 0)
       const names = options.names?.()
-      const signals = await analyzeChapter(env.item, names)
+      const signals = await analyzeChapter(env.item, names, ctx)
       return setVariable(env, VAR_CHAPTER_QUALITY, { n, ...signals } satisfies ChapterQuality)
     },
   })

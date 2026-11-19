@@ -3,14 +3,14 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { ChapterMapEntry } from '@mt/bookkit'
+import type { ChapterMapEntry } from '@mt/tools'
 import {
   type ChapterMeasure,
   type StatsArtifact,
   bodyCharsOf,
   buildStats,
-  chapterBody,
-} from '@mt/bookkit'
+  chapterBodyOf,
+} from '@mt/tools'
 import { chapterNumberOf } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { CHAPTERS, SAMPLE_DIR, clean, run, writeFileAt } from './helpers.js'
@@ -98,7 +98,7 @@ async function buildFixture(): Promise<number> {
   }
 
   const third = await readFile(join(BOOK_DIR, 'chapter-3.en.md'), 'utf-8')
-  const tripled = [chapterBody(third), chapterBody(third), chapterBody(third)].join('\n\n')
+  const tripled = [chapterBodyOf(third), chapterBodyOf(third), chapterBodyOf(third)].join('\n\n')
   const giant = `# Chapter ${FIXTURE_ORIG}: Giant\n\n${tripled}\n`
   await writeFileAt(join(fixtureBook, `chapter${FIXTURE_ORIG}.en.md`), giant)
   measures.push(measure(FIXTURE_ORIG, giant))

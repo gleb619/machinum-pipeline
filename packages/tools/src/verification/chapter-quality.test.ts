@@ -1,32 +1,15 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
   type ChapterQuality,
   THRESHOLDS,
   buildQuality,
-  compactArrays,
   flawedQuoteParagraph,
   foreignScriptPct,
+  isProperNoun,
   leakLines,
   quotePct,
-  readRatioToMean,
   serializeQuality,
-} from './quality.js'
-
-const roots: string[] = []
-
-async function tempRoot(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), 'mt-bookkit-quality-'))
-  roots.push(root)
-  return root
-}
-
-async function writeJson(path: string, value: unknown): Promise<void> {
-  await mkdir(join(path, '..'), { recursive: true })
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf-8')
-}
+} from './chapter-quality.js'
 
 function chapter(n: number, overrides: Partial<ChapterQuality> = {}): ChapterQuality {
   return {
@@ -43,10 +26,6 @@ function chapter(n: number, overrides: Partial<ChapterQuality> = {}): ChapterQua
     ...overrides,
   }
 }
-
-afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
-})
 
 describe('pure quality signals', () => {
   it('counts only non-Latin letters as foreign script', () => {
@@ -82,6 +61,18 @@ describe('pure quality signals', () => {
     expect(quotePct('“Good.”\n\n“Bad.')).toBe(50)
     expect(quotePct('')).toBe(0)
     expect(quotePct('“Good.”\n\n“Also good.”')).toBe(0)
+  })
+})
+
+describe('proper nouns', () => {
+  it('matches names case-insensitively and ignores punctuation and possessives', () => {
+    const names = new Set(['kestrel point', 'kestrel'])
+
+    expect(isProperNoun('Kestrel', names)).toBe(true)
+    expect(isProperNoun("Kestrel's", names)).toBe(true)
+    expect(isProperNoun('kestrel,', names)).toBe(true)
+    expect(isProperNoun('harbour', names)).toBe(false)
+    expect(isProperNoun('', names)).toBe(false)
   })
 })
 
@@ -141,14 +132,6 @@ describe('buildQuality', () => {
 })
 
 describe('serialization', () => {
-  it('inlines short arrays and keeps long ones multiline', () => {
-    const short = compactArrays(JSON.stringify({ a: [1, 2, 3] }, null, 2))
-    expect(short).toContain('[1, 2, 3]')
-
-    const long = compactArrays(JSON.stringify({ a: ['x'.repeat(60), 'y'.repeat(60)] }, null, 2))
-    expect(long).toContain('[\n')
-  })
-
   it('serializes a byte-stable artifact with a trailing newline', () => {
     const artifact = buildQuality({
       chapters: [chapter(1, { reasons: [] })],
@@ -160,26 +143,13 @@ describe('serialization', () => {
     expect(JSON.parse(text)).toEqual(artifact)
     expect(serializeQuality(artifact)).toBe(text)
   })
-})
 
-describe('readRatioToMean', () => {
-  it('reads ratios from <root>/chapters/schema/stats.json', async () => {
-    const root = await tempRoot()
-    await writeJson(join(root, 'chapters', 'schema', 'stats.json'), {
-      chapters: [
-        { n: 1, ratioToMean: 0.75 },
-        { n: 2, ratioToMean: 1.25 },
-      ],
+  it('keeps short chapter arrays inline', () => {
+    const artifact = buildQuality({
+      chapters: [chapter(1), chapter(2)],
+      source: 'md://book',
     })
-
-    expect([...readRatioToMean({ root })]).toEqual([
-      [1, 0.75],
-      [2, 1.25],
-    ])
-  })
-
-  it('fails loudly when the stats stage has not run', async () => {
-    const root = await tempRoot()
-    expect(() => readRatioToMean({ root })).toThrow(/stats\.json missing/)
+    expect(serializeQuality(artifact)).toContain('[\n')
+    expect(serializeQuality({ ...artifact, chapters: [] })).not.toContain('"chapters": [\n')
   })
 })

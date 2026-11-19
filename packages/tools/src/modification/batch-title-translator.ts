@@ -1,15 +1,11 @@
 import { annotate, category, defineTool, tool, withItem } from '@mt/core'
-import {
-  LineParityError,
-  LlmError,
-  TITLE_RULES,
-  buildTranslationPrompt,
-  lintLineParity,
-  loadGlossaryOrEmpty,
-  parseTranslationReply,
-  resolveProcessLlm,
-} from '@mt/tools'
-import type { SchemaDocLlmCall } from '@mt/tools'
+import { LlmError } from '../core/llm-errors.js'
+import { resolveProcessLlm } from '../core/llm-install.js'
+import type { SchemaDocLlmCall } from '../normalization/schema/llm.js'
+import { buildTranslationPrompt } from '../normalization/translation-prompt.js'
+import { parseTranslationReply } from '../normalization/translation-reply.js'
+import { TITLE_RULES, loadGlossaryOrEmpty } from '../normalization/translation-stage.js'
+import { LineParityError, lintLineParity } from '../verification/line-parity-linter.js'
 
 export interface BatchTitleTranslatorOptions {
   /**

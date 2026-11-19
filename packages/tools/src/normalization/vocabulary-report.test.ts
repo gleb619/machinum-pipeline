@@ -1,5 +1,7 @@
-import { buildStatFreqReport } from '@mt/tools'
+import { MD_OUTPUTS_VARIABLE, createExchange, getVariable, setVariable } from '@mt/core'
+import type { MdOutputEntry, ToolContext } from '@mt/core'
 import { describe, expect, it } from 'vitest'
+import { buildStatFreqReport } from './stat-freq.js'
 import {
   VOCAB_MAX_DF,
   VOCAB_MAX_NGRAM,
@@ -10,7 +12,10 @@ import {
   buildVocabularyReport,
   classifyTerm,
   stopwordSet,
-} from './vocabulary.js'
+  writeVocabulary,
+} from './vocabulary-report.js'
+
+const CTX = { run: { global: { env: {}, settings: {} }, logger: { info() {}, debug() {} } } }
 
 const CHAPTERS: VocabChapter[] = [
   {
@@ -128,5 +133,39 @@ describe('buildVocabularyReport', () => {
     const ordered = buildVocabularyReport(book, CHAPTERS)
     const reversed = buildVocabularyReport(book, [...CHAPTERS].reverse())
     expect(reversed).toEqual(ordered)
+  })
+})
+
+describe('writeVocabulary', () => {
+  it('emits schema/vocabulary.json as an md output', async () => {
+    const texts = CHAPTERS.map((chapter) => `# Chapter ${chapter.n}\n\n${chapter.text}`)
+    const env = setVariable(
+      createExchange<string[]>(texts, { items: texts }),
+      'statFreq',
+      bookReport(),
+    )
+    const out = await writeVocabulary.invoke(env, CTX as unknown as ToolContext)
+    const outputs = getVariable<MdOutputEntry[]>(out, MD_OUTPUTS_VARIABLE) ?? []
+    expect(outputs).toHaveLength(1)
+    expect(outputs[0]).toMatchObject({
+      name: 'vocabulary',
+      subdir: '',
+      filename: 'vocabulary.json',
+    })
+    const parsed = JSON.parse(outputs[0]?.content ?? '{}')
+    expect(parsed.terms.map((term: { term: string }) => term.term)).toEqual([
+      'arin',
+      'bay',
+      'bren',
+      'marrow',
+    ])
+    expect(outputs[0]?.content).toContain('"chapters": [1, 2]')
+  })
+
+  it('fails loudly when the statFreq report is missing', async () => {
+    const env = createExchange<string[]>(['# Chapter 1\n\nArin.\n'], { items: [] })
+    await expect(writeVocabulary.invoke(env, CTX as unknown as ToolContext)).rejects.toThrow(
+      /`statFreq` variable is missing/,
+    )
   })
 })
