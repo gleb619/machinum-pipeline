@@ -3,7 +3,6 @@ import {
   definePipeline,
   defineProcess,
   defineTool,
-  emitEvent,
   log,
   withItem,
   withMeta,
@@ -143,22 +142,32 @@ export const parallelForksPipeline = definePipeline({ id: 'pipe04-forks' })
 /**
  * PIPE 04 (events) — a publisher and a subscriber in one process.
  *
- * The publisher announces every chapter on the `chapterReady` channel with a SMALL payload
- * (the chapter number and title — not the whole envelope), the subscriber listens to that
- * channel and logs what arrives. Both pipelines run in ONE process, so they share the
- * process-wide event bus.
+ * The publisher writes to the built-in `emit://chapterReady` target; each envelope becomes a
+ * custom event on the `chapterReady` channel. The subscriber reads `events://chapterReady` and
+ * logs what arrives. Both pipelines run in ONE process, so they share the process-wide event
+ * bus. The `emit://` target is not a source: it only publishes — the matching source scheme is
+ * `events://`.
  *
  * The subscriber ends on its own: the publisher's run ends, the channel closes, and the
  * subscriber's live stream finishes.
  */
+// Reduce a chapter to the small payload announced on the bus: the `emit://` target
+// publishes the item of every envelope, so keep it small (number + title) instead of
+// shipping the whole chapter markdown.
+const announceChapter = defineTool<string, { chapter: number; title: string }>({
+  name: 'pipe04-announce-chapter',
+  version: '1.0.0',
+  description: 'Reduces a chapter to the payload announced on the event bus.',
+  async invoke(env) {
+    const doc = readChapterDoc(env.item)
+    return withItem(env, { chapter: doc.metadata().number ?? 0, title: doc.chapter.title })
+  },
+})
+
 const eventsPublisher = definePipeline({ id: 'pipe04-events-publisher' })
   .from('jsonl://./jsonl/entities.jsonl')
-  .tap((env) => {
-    if (typeof env.item !== 'string') return
-    const doc = readChapterDoc(env.item)
-    emitEvent('chapterReady', { chapter: doc.metadata().number ?? 0, title: doc.chapter.title })
-  })
-  .to('void://')
+  .use(announceChapter)
+  .to('emit://chapterReady')
 
 const eventsSubscriber = definePipeline({ id: 'pipe04-events-subscriber' })
   .from('events://chapterReady')

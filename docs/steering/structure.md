@@ -114,6 +114,7 @@ Import `'@mt/waypoint'` as a side-effect to register all URI schemes:
 | `void://` | `void.ts` | Discard-everything target sink |
 | `console://` | `console.ts` | Terminal target sink (stdout/stderr), per-envelope, target-only |
 | `review://` | `review.ts` | Glossary pending-change review-queue target (markdown worksheet) |
+| `emit://` | `emit.ts` | Process-wide event-bus publisher target; consumed by an `events://` source |
 | (ephemeral) | `ephemeral.ts` | In-memory source/target for tests |
 
 ## @mt/tools — Tool Catalogue

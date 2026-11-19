@@ -26,6 +26,12 @@ export {
 } from './entity-buffers.js'
 export { createBatchScopeSource, createBatchReturnTarget } from './batch-scope.js'
 export { createEventsSource, createEventsTarget } from './events.js'
+export {
+  createEmitTarget,
+  emitPayload,
+  type EmitPayload,
+  type EmitTargetOptions,
+} from './emit.js'
 export { createRangeSource } from './range.js'
 export { createVoidTarget } from './void.js'
 export { createReviewTarget, renderGlossaryReview } from './review.js'
@@ -56,6 +62,7 @@ import './chapter-output.js'
 import './ephemeral.js'
 import './entity-buffers.js'
 import './events.js'
+import './emit.js'
 import './range.js'
 import './void.js'
 import './review.js'

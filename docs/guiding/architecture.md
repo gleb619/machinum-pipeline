@@ -120,7 +120,7 @@ For full workspace layout, see [`structure.md`](../steering/structure.md).
 - **HTTP listeners**: `hs://` sources and `mt serve` share one refcounted `http.Server` per compatible `host:port` (`acquireListener` in `@mt/core`); route collision with admin `/api/*` is rejected, and a foreign process on the port still fails with a clear `EADDRINUSE` error.
 - **Retry & error**: `RetryPolicy` (`fixed` | `linear` | `exp`); `ErrorPolicy` (`fail-run` | `skip-item` | `dead-letter`). Merge order: tool step > pipeline > global (`mt.json`). Dead-letter writes to `.mt/runs/<id>/dead-letter.jsonl`.
 - **Caching**: When `cacheable === true`, output is memoised by content hash at `.mt/cache/<hash>.json`. Replay short-circuits the tool; cache is never required for correctness.
-- **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://` (source), `http://`/`https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`.
+- **URI schemes** (registered by `@mt/waypoint` as side-effects): `jsonl://`, `md://`, `http://`/`hs://` (source), `http://`/`https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `console://`, `events://`, `emit://`.
 
 ### Secrets & the Keyless Gateway
 

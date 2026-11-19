@@ -402,6 +402,8 @@ The `events://` **source** is the URI front of the bus: `events://<channel>` sub
 channel, `events://started` (and the other lifecycle names) subscribes to that lifecycle event,
 `?only=a,b` filters lifecycle types, and `?limit=N` / `?timeout=<ms>` end the stream. The
 `events://` **target** stays run-scoped — it logs the lifecycle lines of its own run.
+To publish custom events without a `.tap()`, write `.to('emit://<channel>')`; the
+`emit://` target is the write-side counterpart of the `events://` source.
 
 ### No target? `void://`
 

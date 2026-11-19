@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.34.0 | 2026-11-19 -->
+<!-- skill-version: 1.34.1 | 2026-11-19 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree, tool-cli), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -150,6 +150,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `schema-doc://`, `range://`, `void://` | schema docs, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
 | `events://<channel>` | source: live subscription to the process-wide event bus — a custom channel (published with `emitEvent()`) or a lifecycle type (`events://started`); `?only=a,b` filters lifecycle types, `?limit=N` / `?timeout=<ms>` end the stream. target: run-scoped lifecycle log |
+| `emit://<channel>` | target: publishes one custom event per envelope on the process-wide bus (`?payload=item\|items\|envelope\|meta`, default `item`); an `events://<channel>` source in the same process receives it. Target-only |
 | `chunks://<ns>` … `words://<ns>` | typed ladder buffers, source + target; fill with a split-form subflow child writing `.to('chunks://ladder')` and read with `.from('chunks://ladder')` (omitted ns = `default`) |
 | `@name` | alias from `mt.json` `"uris": { "en": "md://./chapters/en" }` -> `.to('@en')` |
 
@@ -521,6 +522,7 @@ const off = subscribeEvent('chapterReady', (event) => log.info('got', event))
   process — a lifecycle subscriber can never wait for its own `done`.
 - A failing subscriber is logged, never propagated to the publisher.
 - `.from('events://chapterReady')` yields `{ id, item: BusEvent, meta: { eventName, eventTs, eventRunId } }`.
+- `.to('emit://chapterReady')` is the built-in publisher: one custom event per envelope, `item` as the payload by default (`?payload=meta|envelope|items`). It needs no `.tap()`; the matching subscriber is `events://chapterReady`.
 - Publisher and subscriber must share a process (one `defineProcess([...]).parallel(true)` or one
   `mt run`) — the bus is not shared across processes.
 

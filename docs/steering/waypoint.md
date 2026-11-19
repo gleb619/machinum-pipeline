@@ -10,7 +10,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `mem://` (alias of `ephemeral://`), `console://`, `review://`, `events://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `mem://` (alias of `ephemeral://`), `console://`, `review://`, `events://`, `emit://`.
 
 ## Contents
 
@@ -23,7 +23,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
   - [`jsonl.ts`](#jsonlts), [`range.ts`](#rangets), [`void.ts`](#voidts), [`console.ts`](#consolets)
   - [`review.ts`](#reviewts), [`http-server.ts`](#http-serverts), [`http-target.ts`](#http-targetts)
   - [`git-worktree.ts`](#git-worktreets), [`schema-doc.ts`](#schema-docts), [`chapter-output.ts`](#chapter-outputts)
-  - [`book.ts`](#bookts), [`md.ts`](#mdts), [`settings.ts`](#settingsts)
+  - [`book.ts`](#bookts), [`emit.ts`](#emitts), [`md.ts`](#mdts), [`settings.ts`](#settingsts)
 - [Listening to run lifecycle](#listening-to-run-lifecycle)
 - [`md://` dir mode — write intents](#md-dir-mode--write-intents)
 - [Adding a New URI Scheme](#adding-a-new-uri-scheme)
@@ -53,6 +53,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ | Child-side views of a batch subflow (`.subflow('batch://?size=N', pipe)`) |
 | WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | Typed entity-buffer family: `batches`, `chapters`, `paragraphs`, `chunks`, `tokens`, `lines`, `words`; ladder rungs are source-only |
 | WT016 | `book://./out/book` | `book.ts` | — | ✓ | Writes the assembled book: `book.md` (markdown) + `book.json` (TOC + warnings); needs the `book` variable from the `book-compiler` tool |
+| WT017 | `emit://<channel>` | `emit.ts` | — | ✓ | Publishes each envelope as a custom bus event; `?payload=item\|items\|envelope\|meta`. Consumed by an `events://<channel>` source |
 
 ## Annotations
 
@@ -306,7 +307,8 @@ The `events://` scheme (`packages/waypoint/src/events.ts`) is asymmetric on purp
   logs `[lifecycle] <type>` lines. A target belongs to one run, so it never watches the bus.
 
 The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer to
-`events://default?<qualifier>`.
+`events://default?<qualifier>`. To publish custom events from a pipeline without a `.tap()`,
+use the `emit://<channel>` target (WT017): it is the write-side counterpart of this source.
 
 ### `git-worktree.ts`
 
@@ -352,6 +354,23 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
 - The `book` variable (published by the `book-compiler` tool) carries the TOC and the warnings; a
   missing variable or a non-string item throws before anything is written, so a rejected envelope
   leaves no partial book behind
+
+### `emit.ts`
+
+- Target-only bus publisher: `emit://<channel>[?payload=item|items|envelope|meta]` publishes
+  one custom event per envelope with `emitEvent(channel, payload)`; default payload is
+  `env.item`, `envelope` sends `{ id, item, items?, meta, variables }`
+- The counterpart is the `events://<channel>` **source**; both ends must share a process
+  (one `defineProcess([...]).parallel(true)` or one `mt run`). `emitEvent()` marks the run as
+  the channel's emitter, so the channel closes when the run ends and a subscriber's live
+  stream finishes on its own
+- `emit://` with no channel, an unknown `payload`, or a lifecycle name (`started`, `step-done`,
+  `paused`, `resumed`, `done`, `failed`) throws at factory time — lifecycle names belong to the
+  Runner
+- `checkpoint()` counts published envelopes. The bus is process-local and not durable: a crash
+  replay may publish the same event again (at-least-once)
+- Demonstrated by `sample1-tutorial` (`pipe04`): the publisher writes `.to('emit://chapterReady')`
+  and the subscriber reads `.from('events://chapterReady')`
 
 ### `md.ts`
 
@@ -436,6 +455,7 @@ packages/waypoint/tests/builtins/
 ├── range.test.ts / range.arch.test.ts   # integer generator: directions, step, validation, resume skip
 ├── void.test.ts / void.arch.test.ts     # sink no-ops; source-side resolution must throw
 ├── console.test.ts / console.arch.test.ts # terminal sink formatting, prefix/envelope/stream, target-only registration
+├── emit.test.ts / emit.arch.test.ts     # bus publishing, payload modes, end-to-end events:// subscription
 ├── review.test.ts / review.arch.test.ts # glossary review queue render + atomic write; target-only registration
 ├── entity-buffers.test.ts # entity buffer schemes: source-only rungs, auto-publish, namespace isolation
 └── settings.test.ts
@@ -475,6 +495,7 @@ T218 (highest existing id is `UC081`) — so those cells are marked *planned*.
 | —     | WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ (`return` only) | resumable | buffer | UC013 | sample1-tutorial, sample2-practical |
 | WP011 | WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | resumable | buffer | UC082 (planned) | sample1-tutorial (`pipe05`: `paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`) |
 | —     | WT016 | `book://` | `book.ts` | — | ✓ | — | storage | UC082 (planned) | sample2-practical (`assemble`) |
+| —     | WT017 | `emit://` | `emit.ts` | — | ✓ | — | events | UC082 (planned) | sample1-tutorial (`pipe04`: `emit://chapterReady`) |
 
 `WT015` covers the seven entity-buffer schemes (`batches`, `chapters`, `paragraphs`, `chunks`, `tokens`,
 `lines`, `words`). All but `batches` are source-only ladder rungs; `batches` is the non-ladder package
