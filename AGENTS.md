@@ -107,6 +107,13 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 - **Import layers** - `cli/`/`webui/`/`mcp/` → `core/` only, never reverse (`cli/` may also import `waypoint/` and
   lazy `webui/standalone` for `mt serve`; `webui/` may import `router/`); `components/` → webui API only;
   `router/` zero `@mt/*` deps; `tui/` HTTP-only; extensions via HTTP/MCP. See steering/structure.md.
+- **Package ownership** - reusable Tool implementations live only in `packages/tools/src`; Source/Target/URI-scheme
+  implementations live only in `packages/waypoint/src`. `packages/core` defines the primitives. Do not add a new
+  package for pipeline glue or a tool collection. Samples may keep tiny one-off glue; reusable code is promoted to
+  the owning package with tests and docs. Enforced by `pnpm lint:ownership`; `@mt/bookkit` is a temporary
+  grandfather tracked in `docs/plans/bookkit-to-tools.md`.
+- **API-change gate** - adding or moving a public API (DSL op, tool, URI scheme, exported type, package boundary)
+  requires a design under `docs/plans/` and explicit user approval before implementation.
 - **Atomic writes** (temp-then-rename); checkpoint tree is the only resume mechanism.
 - **Agent skill current** - update `docs/SKILL.md` in same change for any new/changed/removed CLI command or flag,
   DSL op, URI scheme, tool category, vault/secret handling, config key, lifecycle change, install path. Bump

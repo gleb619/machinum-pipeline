@@ -1,11 +1,11 @@
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { type QualityArtifact, THRESHOLDS } from '@mt/bookkit'
+import { type ChapterMeasure, bodyCharsOf, buildStats } from '@mt/bookkit'
 import type { Logger } from '@mt/core'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { bookSource } from '../lib/input.js'
-import { type QualityArtifact, THRESHOLDS } from '../lib/quality.js'
-import { type ChapterMeasure, bodyCharsOf, buildStats } from '../lib/stats.js'
 import { CHAPTERS, SAMPLE_DIR, clean, run, writeFileAt } from './helpers.js'
 
 const SCHEMA_DIR = join(CHAPTERS, 'schema')

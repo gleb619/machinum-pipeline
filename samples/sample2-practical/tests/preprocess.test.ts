@@ -2,6 +2,15 @@ import { existsSync } from 'node:fs'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  type PreprocessReport,
+  SKIP_LOG,
+  digitMultiset,
+  genderPins,
+  pinnedGender,
+  preprocessSystemPrompt,
+  preprocessText,
+} from '@mt/bookkit'
+import {
   type ChatCompletionInput,
   type ChatCompletionOutput,
   type Glossary,
@@ -11,15 +20,6 @@ import {
   inferRuGrammar,
 } from '@mt/tools'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import {
-  type PreprocessReport,
-  SKIP_LOG,
-  digitMultiset,
-  genderPins,
-  pinnedGender,
-  preprocessSystemPrompt,
-  preprocessText,
-} from '../lib/preprocess.js'
 import { CHAPTERS, SAMPLE_DIR, clean, run } from './helpers.js'
 
 const SCHEMA_DIR = join(CHAPTERS, 'schema')

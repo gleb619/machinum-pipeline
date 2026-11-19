@@ -7,11 +7,16 @@ import {
   lintLineParity,
   loadGlossaryOrEmpty,
   parseTranslationReply,
+  resolveProcessLlm,
 } from '@mt/tools'
 import type { SchemaDocLlmCall } from '@mt/tools'
 
 export interface BatchTitleTranslatorOptions {
-  call: SchemaDocLlmCall
+  /**
+   * Backend for the batch request. Precedence: this option > process-level installed
+   * provider / picked backend (`resolveProcessLlm().schemaCall`) > error at invoke.
+   */
+  call?: SchemaDocLlmCall
   /** Directory with `glossary.json`. */
   chaptersDir: string
   /** Output budget of the single batch request. Default 2048. */
@@ -38,6 +43,12 @@ export function createBatchTitleTranslator(options: BatchTitleTranslatorOptions)
       description:
         'Translates a batch of chapter titles with one xml request (title rules + glossary).',
       async invoke(env, ctx) {
+        const call = options.call ?? resolveProcessLlm()?.schemaCall
+        if (!call) {
+          throw new LlmError(
+            'batch-title-translator: no LLM backend available; pass options.call or install/configure a process-level LLM provider',
+          )
+        }
         const inputs = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])
         // `chaptersToTitleInputs` emits the whole `# heading` line; the translator sees the title
         // without the markdown marker (same as `titleExtract` does for the per-title tool).
@@ -49,7 +60,7 @@ export function createBatchTitleTranslator(options: BatchTitleTranslatorOptions)
           extraRules: TITLE_RULES,
           mode: 'xml',
         })
-        const res = await options.call(
+        const res = await call(
           {
             systemPrompt: prompt.systemPrompt,
             messages: [{ role: 'user', content: prompt.userPrompt }],

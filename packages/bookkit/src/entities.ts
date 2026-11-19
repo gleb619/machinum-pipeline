@@ -1,4 +1,4 @@
-import { defineTool, getVariable, withItem } from '@mt/core'
+import { category, defineTool, getVariable, tool, withItem } from '@mt/core'
 import {
   type Glossary,
   type GlossaryTermType,
@@ -9,9 +9,9 @@ import {
 } from '@mt/tools'
 
 /**
- * Stage 3 of the book flow: main entities (characters, places, organisations, assets) from the
- * book-wide glossary extractor, projected back onto chapters with the tagger's own matching
- * rules. Projection is pure and LLM-free; only the glossary pass talks to a model.
+ * Main entities (characters, places, organisations, assets) from the book-wide glossary
+ * extractor, projected back onto chapters with the tagger's own matching rules. Projection is
+ * pure and LLM-free; only the glossary pass talks to a model.
  */
 
 /** Kinds of the NER stage. `organisations` are derived: `GlossaryTermType` has no such type. */
@@ -199,37 +199,6 @@ export function serializeChapterEntities(chapter: ChapterEntities): string {
   return `${JSON.stringify(chapter, null, 2)}\n`
 }
 
-/** Names the offline mock proposes; the hallucination never occurs in book2 (R3 fixture). */
-export const MOCK_NER_NAMES = ['Nadia Okonkwo', 'Emeka Okonkwo', 'Marrow Bay']
-export const MOCK_NER_HALLUCINATION = 'Zephyr Quillon'
-
-export const MOCK_NER_ANSWER = JSON.stringify([
-  {
-    name: 'Nadia Okonkwo',
-    category: 'Character',
-    description: 'An audio archivist searching for her missing brother.',
-    references: [],
-  },
-  {
-    name: 'Emeka Okonkwo',
-    category: 'Character',
-    description: 'Nadia’s brother, missing since the Pelargic sank.',
-    references: [],
-  },
-  {
-    name: 'Marrow Bay',
-    category: 'Location',
-    description: 'The coastal town where the archive sits.',
-    references: [],
-  },
-  {
-    name: MOCK_NER_HALLUCINATION,
-    category: 'Character',
-    description: 'An invented archivist who never appears in the book.',
-    references: [],
-  },
-])
-
 /**
  * Emits `chapters/schema/entities.json` (book-wide, ordered kind -> `-count` -> name) and one
  * `chapters/schema/chapter<N>.entities.json` for every batched chapter, even when the chapter
@@ -240,6 +209,15 @@ export const writeEntities = defineTool<unknown, string>({
   version: '1.0.0',
   description:
     'Projects the `glossary` variable onto the batched chapters and emits schema/entities.json plus schema/chapter<N>.entities.json.',
+  annotations: [
+    tool('TL274', {
+      name: 'write-entities',
+      description:
+        'Projects glossary terms onto chapters and emits the book-wide and per-chapter entity artefacts.',
+      refs: [],
+    }),
+    category(['extractor']),
+  ],
   async invoke(env, ctx) {
     const glossary = getVariable<Glossary>(env, 'glossary')
     if (!glossary) {

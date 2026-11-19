@@ -73,6 +73,11 @@ pnpm test                           # all samples still green
 ## Rules
 
 - Samples compose package tools: no bespoke `defineTool` in sample pipelines except tiny glue (prefer the DSL: `.flatMap`, `.tap`, `.batch`, `mt.json`); reusable tools go to the packages (`@mt/tools`) with tests and docs.
+- Package ownership: reusable Tool implementations belong in `@mt/tools`; Source/Target/URI schemes belong in
+  `@mt/waypoint`. Do not add a package or a sample `lib/` for shared pipeline glue; promote it to the owning
+  package with tests and docs. Enforced by `pnpm lint:ownership`.
+- Public API changes (new DSL op, tool, URI scheme, package boundary) need a design in `docs/plans/` and explicit
+  user approval before implementation.
 - Sample = teaching material: small, readable, one idea, comments only where the DSL isn't obvious.
 - No secrets / API keys; no external services in tests.
 - Output dirs must be wiped by `cleanup` script and test `cleanup()`.

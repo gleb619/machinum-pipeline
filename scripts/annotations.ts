@@ -9,7 +9,7 @@ process.stdout.on('error', (error: NodeJS.ErrnoException) => {
 
 const USAGE = `Usage: pnpm annotations [options]
 
-Lists annotations registered by built @mt/core, @mt/waypoint and @mt/tools output.
+Lists annotations registered by built @mt/core, @mt/waypoint, @mt/tools and @mt/bookkit output.
 Run \`pnpm build\` first.
 
 Print a Markdown table (default), or JSON with --json.
@@ -76,6 +76,7 @@ async function main(): Promise<void> {
   // Import for side effects: register every tool and waypoint annotation.
   await import('../packages/waypoint/dist/index.js')
   await import('../packages/tools/dist/index.js')
+  await import('../packages/bookkit/dist/index.js')
 
   const parseKind = (value: string | undefined): AnnotationKind => {
     if (!value) {

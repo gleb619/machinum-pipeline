@@ -1,7 +1,7 @@
 {
   "name": "sample2-practical",
   "version": "1.0.0",
-  "description": "Machinum Pipeline practical sample — prepare a real EN→RU book translation (titles, glossary, summaries, chapters, assembled book)",
+  "description": "Machinum Pipeline practical sample \u2014 prepare a real EN\u2192RU book translation (titles, glossary, summaries, chapters, assembled book)",
   "type": "module",
   "scripts": {
     "runner:normalization": "NODE_OPTIONS='--import tsx' mt run ./pipelines/normalization.ts",
@@ -34,6 +34,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mt/bookkit": "workspace:*",
     "@mt/cli": "workspace:*",
     "@mt/core": "workspace:*",
     "@mt/tools": "workspace:*",

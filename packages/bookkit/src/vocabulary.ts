@@ -1,4 +1,5 @@
-import { type Exchange, defineTool, getVariable, withItem } from '@mt/core'
+import { category, defineTool, getVariable, tool, withItem } from '@mt/core'
+import type { Exchange } from '@mt/core'
 import {
   type StatFreqReport,
   appendMdOutput,
@@ -7,10 +8,10 @@ import {
   cmpTerm,
   splitStatSentences,
 } from '@mt/tools'
-import { compactArrays } from './quality.js'
+import { compactArrays } from './json.js'
 
 /**
- * Stage 4 of the book flow: statistical vocabulary (CPU only, no LLM).
+ * Statistical vocabulary (CPU only, no LLM).
  *
  * The book-wide candidate ranking comes from the `stat-freq` tool; per-chapter counts come from
  * its exported pure `buildStatFreqReport`, so a term gets `chapters[]` and a document frequency.
@@ -320,6 +321,15 @@ export const writeVocabulary = defineTool<unknown, unknown>({
   version: '1.0.0',
   description:
     'Emits schema/vocabulary.json (4/3/2/1-grams with chapters, df and capRatio) from the `statFreq` report and the batched chapters.',
+  annotations: [
+    tool('TL275', {
+      name: 'write-vocabulary',
+      description:
+        'Ranks proper nouns, rare repeats and phrases with chapter frequencies and emits schema/vocabulary.json.',
+      refs: [],
+    }),
+    category(['statistics']),
+  ],
   async invoke(env: Exchange<unknown>, ctx) {
     const report = getVariable<StatFreqReport>(env, 'statFreq')
     if (!report) {

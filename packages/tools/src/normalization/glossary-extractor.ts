@@ -8,6 +8,7 @@ import {
   GLOSSARY_MIN_COUNT,
 } from '@mt/core'
 import type { ChunkModeOptions } from '../core/chunk-processor.js'
+import { resolveProcessLlm } from '../core/llm-install.js'
 import { buildGlossaryGraph, serializeGlossaryGraph } from './glossary-graph.js'
 import type { GlossaryGraph } from './glossary-graph.js'
 import {
@@ -618,6 +619,10 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
         text,
       }))
       const existing = await options.load?.()
+      // Explicit `call` wins; otherwise reuse the process-level provider installed via
+      // `defineProcess().install(...)` (or picked from `MT_LLM_TOOL`). Without one the
+      // extractor stays fully heuristic.
+      const call = options.call ?? resolveProcessLlm()?.schemaCall
 
       // --- candidates: heuristic scan + NER seeding -------------------------------------
       const ignored = [...new Set([...(existing?.ignored ?? []), ...(options.ignored ?? [])])]
@@ -646,9 +651,9 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
       // --- LLM extraction (optional) ----------------------------------------------------
       let entries: LlmGlossaryEntry[] = []
       let llmMeta: LlmAttemptMeta | undefined
-      if (options.call) {
+      if (call) {
         const result = await extractGlossaryWithLlm(ctx, {
-          call: options.call,
+          call,
           model: options.model,
           temperature: options.temperature,
           maxTokens: options.maxTokens,
@@ -680,12 +685,12 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
       }
 
       // The relations of the terms the model did not relate yet (NameRelations prompt).
-      if (options.call && options.relations?.enabled) {
+      if (call && options.relations?.enabled) {
         const maxTerms = options.relations.maxTerms ?? 8
         const pending = glossary.terms.filter((t) => !relations.has(t.term)).slice(0, maxTerms)
         for (const term of pending) {
           const result = await relateTermWithLlm(ctx, {
-            call: options.call,
+            call,
             model: options.model,
             temperature: options.temperature,
             maxTokens: options.maxTokens,
@@ -716,14 +721,14 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
       glossary = applyRelations(glossary, relations)
 
       // --- enrichment ---------------------------------------------------------------------
-      if (options.call && options.enrich?.enabled) {
+      if (call && options.enrich?.enabled) {
         const maxTerms = options.enrich.maxTerms ?? 5
         const pending = glossary.terms
           .filter((t) => !protectedIds.has(t.id) && !t.description)
           .slice(0, maxTerms)
         for (const term of pending) {
           const result = await enrichTermWithLlm(ctx, {
-            call: options.call,
+            call,
             model: options.model,
             temperature: options.temperature,
             maxTokens: options.maxTokens,

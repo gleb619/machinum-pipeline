@@ -10,6 +10,7 @@ machinum-pipeline/
 │   ├── core/        @mt/core    — types, DSL, engine, URI registry, built-in Sources/Targets
 │   ├── cli/         @mt/cli     — `mt` binary; pipeline loader, all CLI commands
 │   ├── tools/       @mt/tools   — chapter processing tools (validator, splitter, translator, …)
+│   ├── bookkit/     @mt/bookkit — reusable book-pipeline stages (stats, split, quality, glossary index, …)
 │   ├── waypoint/    @mt/waypoint — Source/Target implementations; URI scheme registrations (side-effects)
 │   ├── mt/          mt          — publishable umbrella: `import … from 'mt'`, `mt/tools`, `mt/waypoint`; bin `mt`; Bun binary build
 │   ├── router/      @mt/router  — standalone Nuxt: OpenRouter proxy, key pool, cost tracking
@@ -138,6 +139,28 @@ All tools live in `packages/tools/src/`, each as a `defineTool()` export:
 | `stat-dict.ts` | `statDict`, `defineStatDict` | Ranked translation dictionary from a frequency report, merged into an existing glossary (offline) |
 | `chapter-indexer.ts` | (internal) | Chapter indexing/ordering |
 
+## @mt/bookkit — Reusable Book Stages
+
+`packages/bookkit/` holds the pipeline glue that used to be copied into each book sample.
+It depends on `@mt/core` + `@mt/tools` and never on a sample.
+
+| File | Exports | Purpose |
+|---|---|---|
+| `paths.ts` | `BookPathsOptions`, `uriPath`, `rootUriOf`, `cleanUriFor`, `Branch` | Root/URI seams; no module-level project root |
+| `stats.ts` | `buildStats`, `collectChapterStats`, `writeStats`, `bodyCharsOf` | Chapter measurement + `schema/stats.json` |
+| `split.ts` | `planSplit`, `createSplitChapterTool`, `writeSplitOutputs`, `splitProduced`, `statsPath` | Oversized-chapter split + book-wide renumbering |
+| `quality.ts` | `analyzeChapter`, `buildQuality`, `createWriteQualityTool`, `qualitySourceUri` | Offline quality gate + verdict artefact |
+| `input.ts` | `chapterOnly`, `createBookSource` | Quality-gated source selection |
+| `glossary-index.ts` | `buildGlossaryIndex`, `renderPriorTerms`, `createGlossaryIndexTool` | Per-chapter term occurrence index |
+| `vocabulary.ts` | `buildVocabularyReport`, `writeVocabulary` | Statistical 4/3/2/1-gram vocabulary |
+| `entities.ts` | `projectEntities`, `writeEntities` | Glossary-to-chapter NER projection |
+| `outputs.ts` | `writeSummaries`, `writeGlossary`, `writeTitles`, `sortChapters`, `withBookTitle` | Deterministic emitters |
+| `preprocess.ts` | `readPreprocessPlan`, `preprocessText`, `createPreprocessChapterTool` | Conditional typo/proofread/gender branch |
+| `titles.ts` | `createBatchTitleTranslator` | One-request title batches |
+| `llm.ts` | `createBookLlmPicker` | LLM selection with optional free-model/real-backend guards |
+
+See [tools.md](tools.md#mtbookkit--reusable-book-stages) for the annotated tool catalogue.
+
 ## Runtime State Directory (`.mt/`)
 
 Created by `mt init` in consumer projects, not part of this repo.
@@ -177,6 +200,12 @@ my-book-project/
 - `tui/` is HTTP-only — it talks to `mt serve` over `/api/*` and imports no `@mt/*` package (see [tui.md](tui.md) and [layout.md](layout.md))
 - `router/` is standalone — zero `@mt/*` imports and zero `@mt/*` deps in its `package.json` (enforced by `packages/router/tests/layers.arch.test.ts`); the OpenRouter key pool is therefore a deliberate copy of `packages/tools/src/core/openrouter-pool.ts`, kept in sync by hand. The one allowed cross-package direction is `webui/ → router/`: `mt serve` mounts the router API on its port via the `@mt/router` embeddable builder (T197); the router imports nothing back
 - `waypoint/` sources/targets register themselves via URI registry side-effects
+- `tools/` owns every reusable Tool implementation (`defineTool`); `waypoint/` owns every Source/Target/URI
+  scheme (`defineSource`/`defineTarget`/`defineWaypoint`/`registerSource`/`registerTarget`); `core/` only defines
+  the primitives. No new package for pipeline glue or tool collections. Enforced by `pnpm lint:ownership`
+  (`scripts/package-ownership.test.ts`).
+- `@mt/bookkit` is a temporary grandfather for tools that belong in `@mt/tools`; migration is tracked in
+  `docs/plans/bookkit-to-tools.md`. Do not add new tools or URI schemes to it.
 - Sources provide stable IDs — engine never mints domain entity IDs
 - Pipelines loaded at runtime via `tsx`/`jiti` — no consumer build step
 - All file writes are atomic (write temp → rename) — no partial state on crash

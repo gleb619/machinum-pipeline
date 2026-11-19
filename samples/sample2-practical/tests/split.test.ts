@@ -3,16 +3,16 @@ import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { chapterNumberOf } from '@mt/tools'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import type { ChapterMapEntry } from '../lib/split-map.js'
+import type { ChapterMapEntry } from '@mt/bookkit'
 import {
   type ChapterMeasure,
   type StatsArtifact,
   bodyCharsOf,
   buildStats,
   chapterBody,
-} from '../lib/stats.js'
+} from '@mt/bookkit'
+import { chapterNumberOf } from '@mt/tools'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { CHAPTERS, SAMPLE_DIR, clean, run, writeFileAt } from './helpers.js'
 
 const SCHEMA_DIR = join(CHAPTERS, 'schema')

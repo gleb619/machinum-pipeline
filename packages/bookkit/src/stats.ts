@@ -1,11 +1,23 @@
-import { type Exchange, batchMembersOf, defineTool, getVariable, setVariable } from '@mt/core'
+import {
+  batchMembersOf,
+  category,
+  defineTool,
+  getVariable,
+  setVariable,
+  tool,
+  withItem,
+} from '@mt/core'
+import type { Exchange } from '@mt/core'
 import { appendMdOutput } from '@mt/tools'
 
 /**
- * Chapter body = the markdown with the leading `# ` H1 line removed (the heading line and the
- * newline that ends it). `bodyChars` is the character length of that remainder. The test imports
- * {@link bodyCharsOf} so both sides use this one definition.
+ * Chapter measurement and the deterministic `schema/stats.json` artefact.
+ *
+ * `bodyChars` excludes the leading `# ` H1 line. The artefact has a stable key order and rounds
+ * ratios to four decimals, so a rerun is byte-identical.
  */
+
+/** Chapter body = the markdown with the leading `# ` H1 line removed. */
 export function chapterBody(markdown: string): string {
   return markdown.replace(/^#[ \t]+[^\r\n]*(?:\r?\n|$)/, '')
 }
@@ -111,6 +123,14 @@ export const collectChapterStats = defineTool<string, string>({
   version: '1.0.0',
   description:
     'Stores the chapter number, words, body characters and tokens of one batch member as `chapterStats`.',
+  annotations: [
+    tool('TL262', {
+      name: 'collect-chapter-stats',
+      description: 'Measures one chapter (words, body characters, tokens).',
+      refs: [],
+    }),
+    category(['statistics']),
+  ],
   async invoke(env) {
     const n = Number(env.meta.chapterNum ?? 0)
     const measure: ChapterMeasure = {
@@ -133,13 +153,21 @@ export const writeStats = defineTool<unknown, unknown>({
   version: '1.0.0',
   description:
     'Emits schema/stats.json from the `chapterStats` rows of every member of the batch package.',
-  async invoke(env) {
+  annotations: [
+    tool('TL263', {
+      name: 'write-stats',
+      description: 'Emits the deterministic book chapter-size artefact.',
+      refs: ['UC056'],
+    }),
+    category(['statistics']),
+  ],
+  async invoke(env: Exchange<unknown>) {
     const members = batchMembersOf<unknown>(env) ?? []
     const measures = members
-      .map((member: Exchange<unknown>) => getVariable<ChapterMeasure>(member, VAR_CHAPTER_STATS))
+      .map((member) => getVariable<ChapterMeasure>(member, VAR_CHAPTER_STATS))
       .filter((measure): measure is ChapterMeasure => measure !== undefined)
     const artifact = buildStats(measures)
-    return appendMdOutput(env, {
+    return appendMdOutput(withItem(env, ''), {
       name: 'stats',
       subdir: '',
       filename: 'stats.json',

@@ -1,7 +1,6 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
 import {
   type GlossaryIndexInput,
   PRIOR_TERMS_HEADER,
@@ -9,7 +8,8 @@ import {
   buildGlossaryIndex,
   priorTermsMax,
   renderPriorTerms,
-} from '../lib/glossary-index.js'
+} from '@mt/bookkit'
+import { describe, expect, it } from 'vitest'
 
 function fixture(): { chaptersDir: string; glossary: GlossaryIndexInput } {
   const chaptersDir = mkdtempSync(join(tmpdir(), 'mt-glossary-index-'))

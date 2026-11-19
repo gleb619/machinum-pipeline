@@ -30,6 +30,28 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.17)(terser@5.46.2)
 
+  packages/bookkit:
+    dependencies:
+      '@mt/core':
+        specifier: workspace:*
+        version: link:../core
+      '@mt/tools':
+        specifier: workspace:*
+        version: link:../tools
+    devDependencies:
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.39
+      '@vitest/coverage-v8':
+        specifier: ^2.1.0
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(terser@5.46.2))
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@20.19.39)(terser@5.46.2)
+
   packages/chrome:
     devDependencies:
       '@types/chrome':
@@ -491,6 +513,9 @@ importers:
 
   samples/sample2-practical:
     dependencies:
+      '@mt/bookkit':
+        specifier: workspace:*
+        version: link:../../packages/bookkit
       '@mt/cli':
         specifier: workspace:*
         version: link:../../packages/cli

@@ -271,8 +271,7 @@ export const chapterValidator = defineTool<string, string>({
 export const typoFinder = defineTool<FinderInput, FinderOutput>({
   name: 'typo-finder',
   version: '2.0.0',
-  description:
-    'Detects spelling typos using cspell-lib. Reports suggestions in envelope metadata.',
+  description: 'Detects spelling typos using cspell-lib. Reports suggestions in envelope metadata.',
 
   annotations: [
     tool('TL004', {

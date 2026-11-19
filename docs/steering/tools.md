@@ -4,6 +4,12 @@
 
 Path: `packages/tools/`
 
+**Package ownership (hard rule).** Reusable `defineTool()` implementations live only here, in
+`packages/tools/src`. Samples may keep tiny one-off glue; anything reusable (including a glossary index, stats
+or book-stage helper) is promoted here with tests and docs. Enforced by `pnpm lint:ownership`
+(`scripts/package-ownership.test.ts`). `@mt/bookkit` is a temporary grandfather being migrated here
+(`docs/plans/bookkit-to-tools.md`).
+
 Chapter processing tools for validation, translation, schema extraction, and formatting. All tools are `defineTool()` instances exported from `src/index.ts`. Tools operate on `Exchange<Chapter>` or domain-specific payload types.
 
 **Exchange contract.** A tool receives `Exchange<I>` and returns `Exchange<O>` *derived from the input*
@@ -467,8 +473,10 @@ Reusable glue so sample pipelines only compose package tools (no bespoke `define
 - `core/llm-install.ts` — process-level mock install (`defineProcess().install(mockLlm({ source }))`):
   a module registry holding the installed `LlmChoice` provider. LLM-backed factories
   (`createSummaryTool` family via `runPromptWithRetry`, `createTitleTranslator` /
-  `createParagraphTranslator` via the default `translate` slot) call `resolveProcessLlm()` **at invoke
-  time** when no explicit `call`/`translate` was passed: explicit arg > `MT_LLM_TOOL` / mt.json naming a
+  `createParagraphTranslator` via the default `translate` slot, plus `createGlossaryExtractor`,
+  `createBatchTitleTranslator`, `createPreprocessChapterTool` and the translation-stage
+  translators) call `resolveProcessLlm()` **at invoke time** when no explicit
+  `call`/`translate` was passed: explicit arg > `MT_LLM_TOOL` / mt.json naming a
   real backend (lazy `pickLlmTool()`) > installed mock (pick = `mock`, the default) > factory default.
   Helpers: `installLlmProvider` / `uninstallLlmProvider` / `getInstalledLlmProvider` / `resetProcessLlm`
   (tests). Full write-up incl. the planned router-backed stub mode: [../guiding/mock-tools.md](../guiding/mock-tools.md).
@@ -1310,3 +1318,41 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 ## Translation eval harness (`tests/eval/`)
 
 Offline regression harness under `tests/eval/`: fixtures (3 chapters + glossary), recordings (canned title/paragraph replies), `score.ts` (pure metrics via existing `lintLineParity` / `checkTermConsistency` / `checkTranslatedShare`, plus length ratio and recording parse-failure rate), `baseline.json` (recorded values + per-metric tolerances), and `eval.test.ts`. Run `pnpm --filter=@mt/tools run eval`; it prints the metric table and exits non-zero when any metric leaves its tolerance. A degraded recording (dropped line, blank slot, or untranslated paragraph) fails with the offending metric named. The opt-in live mode (`pnpm --filter=@mt/tools run eval:live`, the `--live` path) runs the same corpus through `createChapterBodyTranslator` against `MT_OLLAMA_URL`, reports metrics without gating, and is not part of `pnpm test:gpu`.
+
+## @mt/bookkit — reusable book stages
+
+`packages/bookkit/` (`@mt/bookkit`) holds the pipeline glue extracted from
+`sample2-practical`. It depends only on `@mt/core` and `@mt/tools`; consumer book projects
+import the stages instead of copying a `lib/` directory.
+
+Root-dependent stages take `BookPathsOptions` (`root`, `bookUri`, `chaptersDir`, `env`,
+`rootEnv`, `bookEnv`, `forceBranchEnv`). There is no module-level project root. The split
+stage keeps the compatibility env vars `MT_SPLIT_BOOK` / `MT_SPLIT_ROOT`; the generic seams are
+`MT_BOOK`, `MT_CHAPTERS_ROOT` and `MT_FORCE_BRANCH`.
+
+| TL ID | Exports | Tool name | UCs | Module |
+|---|---|---|---|---|
+| TL261 | `createGlossaryIndexTool`, `writeGlossaryIndexTool` | `write-glossary-index` | UC084 | `glossary-index.ts` |
+| TL262 | `collectChapterStats` | `collect-chapter-stats` | — | `stats.ts` |
+| TL263 | `writeStats` | `write-stats` | UC056 | `stats.ts` |
+| TL264 | `createSplitChapterTool` | `split-chapter` | UC056 | `split.ts` |
+| TL265 | `writeSplitOutputs` | `write-split-outputs` | UC056 | `split.ts` |
+| TL266 | `createCollectChapterQuality`, `collectChapterQuality` | `collect-chapter-quality` | UC057 | `quality.ts` |
+| TL267 | `createWriteQualityTool` | `write-quality` | UC057 | `quality.ts` |
+| TL268 | `writeSummaries` | `write-summaries` | — | `outputs.ts` |
+| TL269 | `writeGlossary` | `write-glossary` | — | `outputs.ts` |
+| TL270 | `writeTitles` | `write-titles` | UC059 | `outputs.ts` |
+| TL271 | `tagWithGlossary` | `tag-with-glossary` | UC060 | `outputs.ts` |
+| TL272 | `sortChapters` | `sort-chapters` | — | `outputs.ts` |
+| TL273 | `withBookTitle` | `with-book-title` | — | `outputs.ts` |
+| TL274 | `writeEntities` | `write-entities` | — | `entities.ts` |
+| TL275 | `writeVocabulary` | `write-vocabulary` | — | `vocabulary.ts` |
+| TL276 | `createPreprocessChapterTool` | `preprocess-chapter` | UC058 | `preprocess.ts` |
+| TL277 | `createEmitCleanChapter` | `emit-clean-chapter` | UC058 | `preprocess.ts` |
+| TL278 | `createWritePreprocessReport` | `write-preprocess-report` | UC058 | `preprocess.ts` |
+| TL279 | `createBatchTitleTranslator` | `batch-title-translator` | UC059 | `titles.ts` |
+
+Pure helpers (`buildStats`, `planSplit`, `buildQuality`, `buildGlossaryIndex`,
+`renderPriorTerms`, `buildVocabularyReport`, `projectEntities`, `readPreprocessPlan`,
+`createBookSource`, `createBookLlmPicker`) carry no TL id and are exported for tests and
+custom pipelines. See [structure.md](structure.md#mtbookkit--reusable-book-stages).

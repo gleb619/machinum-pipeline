@@ -37,4 +37,3 @@ annotateWaypoint(createGitWorktreeTarget, {
 
 registry.registerSource('git', createGitWorktreeSource)
 registry.registerTarget('git', createGitWorktreeTarget)
-

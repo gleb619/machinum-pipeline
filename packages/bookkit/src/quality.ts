@@ -1,14 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   type Exchange,
   type ToolContext,
   batchMembersOf,
+  category,
   createExchange,
   defineTool,
   getVariable,
   setVariable,
+  tool,
 } from '@mt/core'
 import {
   appendMdOutput,
@@ -17,25 +19,24 @@ import {
   forbiddenCharDetector,
   typoFinder,
 } from '@mt/tools'
+import { compactArrays } from './json.js'
+import { DEFAULT_BOOK_ENV, bookUriOf, chaptersDirOf, envOf, uriPath } from './paths.js'
+import { type SplitPathsOptions, splitProduced, splitRootUri, splitUriFor } from './split.js'
 import { chapterBody } from './stats.js'
 
 /**
- * Stage 5 of the book flow: the quality gate behind the translate/preprocess branch.
+ * Offline quality gate behind the translate/preprocess branch.
  *
  * The DSL has no conditional branch (`fork` runs every child), so the decision is data:
- * this stage writes `chapters/schema/quality.json` and `lib/input.ts bookSource()` reads it.
- * Every signal is offline and runs on the English source; no LLM is resolved or called.
+ * this stage writes `schema/quality.json` and the consumer reads it (`createBookSource` in
+ * `input.ts`). Every signal is offline and runs on the English source; no LLM is resolved or
+ * called.
+ *
+ * The package never guesses a project root: every filesystem entry point takes
+ * {@link QualityOptions} and resolves paths through `./paths.js` and `./split.js`.
  */
 
-export const ROOT = resolve(import.meta.dirname, '..')
-
-/** The real book of this sample (same URI as `lib/input.ts BOOK2`). */
-export const BOOK2_URI = 'md://../../books/book2'
-
-/** Test seam: output root (default `@chapters`), also read for `schema/stats.json` + map. */
-export const ROOT_ENV = 'MT_QUALITY_ROOT'
-/** Test seam: source book directory URI (default: split dir, else `books/book2`). */
-export const BOOK_ENV = 'MT_QUALITY_BOOK'
+export { compactArrays } from './json.js'
 
 /** Thresholds of the gate. Percent values are 0..100, ratios are tokens per word. */
 export const THRESHOLDS = {
@@ -100,7 +101,7 @@ export interface QualitySummary {
   hard: number[]
 }
 
-/** `chapters/schema/quality.json` (stable key order, no timestamps). */
+/** `schema/quality.json` (stable key order, no timestamps). */
 export interface QualityArtifact {
   version: number
   verdict: 'translate' | 'preprocess'
@@ -125,65 +126,31 @@ function wordsOf(text: string): number {
   return text.split(/\s+/).filter(Boolean).length
 }
 
+function thresholdsOf(overrides?: Partial<QualityThresholds>): QualityThresholds {
+  return { ...THRESHOLDS, ...overrides }
+}
+
 // ---------------------------------------------------------------------------
 // Filesystem seams
 // ---------------------------------------------------------------------------
 
-const ALIASES: Record<string, string> = {
-  '@chapters': join(ROOT, 'chapters'),
-  '@schema': join(ROOT, 'chapters', 'schema'),
-  '@book2': resolve(ROOT, '../../books/book2'),
+export interface QualityOptions extends SplitPathsOptions {}
+
+/** Output root URI of the quality stage: the split root, so both artefacts share one tree. */
+export function qualityRootUri(options: QualityOptions): string {
+  return splitRootUri(options)
 }
 
-/** Filesystem path of a project URI (`@alias`, `md://` relative or an absolute path). */
-export function uriPath(uri: string): string {
-  const raw = uri.replace(/^md:\/\//, '').trim()
-  const alias = ALIASES[raw]
-  if (alias) return alias
-  return isAbsolute(raw) ? raw : resolve(ROOT, raw)
+/** Filesystem path of {@link qualityRootUri}. */
+export function qualityRootPath(options: QualityOptions): string {
+  return uriPath(qualityRootUri(options), options)
 }
 
-export function qualityRootUri(): string {
-  return process.env[ROOT_ENV]?.trim() || '@chapters'
-}
-
-export function qualityRootPath(): string {
-  return uriPath(qualityRootUri())
-}
-
-interface ChapterMapLike {
-  [id: string]: { orig: number; part: number; of: number }
-}
-
-function readChapterMap(root = qualityRootPath()): ChapterMapLike | undefined {
-  const file = join(root, 'schema', 'chapter-map.json')
-  if (!existsSync(file)) return undefined
-  try {
-    return JSON.parse(readFileSync(file, 'utf-8')) as ChapterMapLike
-  } catch {
-    return undefined
-  }
-}
-
-/** True when the split stage wrote renumbered parts (any source chapter became >1 part). */
-export function splitProduced(root = qualityRootPath()): boolean {
-  const map = readChapterMap(root)
-  if (!map) return false
-  return Object.values(map).some((entry) => entry.of > 1)
-}
-
-/** Split directory URI for an output root: `@chapters` -> `md://./chapters/split`. */
-export function splitUriFor(rootUri = qualityRootUri()): string {
-  if (rootUri === '@chapters') return 'md://./chapters/split'
-  if (rootUri.startsWith('md://')) return `${rootUri.replace(/\/$/, '')}/split`
-  return `md://${join(uriPath(rootUri), 'split')}`
-}
-
-/** The analysed source: explicit override, else the split output when it exists, else book2. */
-export function qualitySourceUri(): string {
-  const override = process.env[BOOK_ENV]?.trim()
+/** The analysed source: explicit book override, else the split output, else the book URI. */
+export function qualitySourceUri(options: QualityOptions): string {
+  const override = envOf(options)[options.bookEnv ?? DEFAULT_BOOK_ENV]?.trim()
   if (override) return override
-  return splitProduced() ? splitUriFor() : BOOK2_URI
+  return splitProduced(options) ? splitUriFor(options) : bookUriOf(options)
 }
 
 interface StatsLike {
@@ -194,10 +161,10 @@ interface StatsLike {
  * `stats.json` ratios. A size outlier is strictly informational: it is measured and exposed to
  * {@link buildQuality} but never turns into a fail reason (a long chapter is not a bad one).
  */
-export function readRatioToMean(root = qualityRootPath()): Map<number, number> {
-  const file = join(root, 'schema', 'stats.json')
+export function readRatioToMean(options: QualityOptions): Map<number, number> {
+  const file = join(qualityRootPath(options), 'schema', 'stats.json')
   if (!existsSync(file)) {
-    throw new Error(`quality: ${file} missing — run runner:stats first`)
+    throw new Error(`quality: ${file} missing — run the stats stage first`)
   }
   const stats = JSON.parse(readFileSync(file, 'utf-8')) as StatsLike
   return new Map(stats.chapters.map((chapter) => [chapter.n, chapter.ratioToMean]))
@@ -213,11 +180,12 @@ export interface ProperNounSources {
   names?: string
 }
 
-function defaultProperNounSources(root = qualityRootPath()): ProperNounSources {
+/** Default corpus sources under one project: NER entities, glossary terms, editorial names. */
+export function properNounSourcesOf(options: QualityOptions): ProperNounSources {
   return {
-    entities: join(root, 'schema', 'entities.json'),
-    glossary: join(ROOT, 'chapters', 'glossary.json'),
-    names: join(ROOT, 'chapters', 'names.json'),
+    entities: join(qualityRootPath(options), 'schema', 'entities.json'),
+    glossary: join(chaptersDirOf(options), 'glossary.json'),
+    names: join(chaptersDirOf(options), 'names.json'),
   }
 }
 
@@ -251,9 +219,7 @@ function addName(target: Set<string>, name: string): void {
 }
 
 /** Every proper noun the corpus knows about: NER entities, glossary terms, editorial names. */
-export function collectProperNouns(
-  sources: ProperNounSources = defaultProperNounSources(),
-): Set<string> {
+export function collectProperNouns(sources: ProperNounSources = {}): Set<string> {
   const names = new Set<string>()
 
   const entities = readJson(sources.entities)
@@ -289,13 +255,6 @@ export function collectProperNouns(
   return names
 }
 
-let cachedNames: Set<string> | undefined
-
-function properNouns(): Set<string> {
-  cachedNames ??= collectProperNouns()
-  return cachedNames
-}
-
 export function isProperNoun(word: string, names: ReadonlySet<string>): boolean {
   const surface = word
     .toLowerCase()
@@ -322,6 +281,18 @@ interface CspellModule {
   ) => Promise<{ issues: CspellIssue[] }>
 }
 
+/** Find `node_modules/cspell-lib` by walking up from the `@mt/tools` package root. */
+function findCspellPackage(toolsRoot: string): string | undefined {
+  let dir = toolsRoot
+  for (;;) {
+    const candidate = join(dir, 'node_modules', 'cspell-lib', 'package.json')
+    if (existsSync(candidate)) return candidate
+    const parent = dirname(dir)
+    if (parent === dir) return undefined
+    dir = parent
+  }
+}
+
 /**
  * `typoFinder` filters on `issueType === 0`, but cspell-lib 8.19 only sets `issueType` on
  * directive issues, so the tool always returns no issues here. The fallback imports the same
@@ -330,13 +301,10 @@ interface CspellModule {
  */
 async function cspellModule(): Promise<CspellModule | null> {
   try {
-    const nodeModule = (await import('node:module')) as {
-      findPackageJSON?: (specifier: string, base: string | URL) => string | undefined
-    }
-    const toolsPackage = join(ROOT, '../../packages/tools/package.json')
-    const found = nodeModule.findPackageJSON?.('cspell-lib', pathToFileURL(toolsPackage))
-    const pkgPath = found ?? join(ROOT, '../../packages/tools/node_modules/cspell-lib/package.json')
-    if (!existsSync(pkgPath)) return null
+    const toolsEntry = import.meta.resolve('@mt/tools')
+    const toolsRoot = dirname(dirname(fileURLToPath(toolsEntry)))
+    const pkgPath = findCspellPackage(toolsRoot)
+    if (!pkgPath) return null
     const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as {
       exports?: Record<string, { import?: string }>
       module?: string
@@ -375,9 +343,9 @@ function spellCheck(text: string): Promise<CspellIssue[]> {
 
 /** Typo issues as plain words: the tool first, the same engine when the tool reports none. */
 export async function findTypos(text: string): Promise<string[]> {
-  const tool = await typoFinder.invoke(createExchange({ text }), CTX)
-  if (tool.item.issues.length > 0) {
-    return tool.item.issues
+  const result = await typoFinder.invoke(createExchange({ text }), CTX)
+  if (result.item.issues.length > 0) {
+    return result.item.issues
       .map((issue) => /`([^`]+)`/.exec(issue.text)?.[1])
       .filter((word): word is string => typeof word === 'string')
   }
@@ -436,10 +404,30 @@ async function structureErrors(text: string): Promise<number> {
   return getVariable<string[]>(out, 'errors')?.length ?? 1
 }
 
-/** One-offline-pass signals for one chapter on the English source. */
+function reasonsOf(
+  signals: ChapterSignals,
+  thresholds: QualityThresholds = THRESHOLDS,
+): QualityReason[] {
+  const reasons: QualityReason[] = []
+  if (signals.per1kTypos > thresholds.typosPer1k) reasons.push('typos')
+  if (signals.forbidden > 0) reasons.push('forbidden')
+  if (signals.structure > 0) reasons.push('structure')
+  if (signals.leaks > 0) reasons.push('leaks')
+  if (signals.foreignPct > thresholds.foreignPct) reasons.push('foreign')
+  if (signals.quotePct > thresholds.quotePct) reasons.push('quotes')
+  if (
+    signals.tokPerWord < thresholds.tokPerWordMin ||
+    signals.tokPerWord > thresholds.tokPerWordMax
+  ) {
+    reasons.push('tokens')
+  }
+  return reasons.sort((left, right) => REASON_ORDER.indexOf(left) - REASON_ORDER.indexOf(right))
+}
+
+/** One offline pass of signals for one chapter on the English source. */
 export async function analyzeChapter(
   text: string,
-  names: ReadonlySet<string> = properNouns(),
+  names: ReadonlySet<string> = new Set<string>(),
 ): Promise<ChapterSignals> {
   const body = chapterBody(text)
   const words = wordsOf(body)
@@ -456,19 +444,7 @@ export async function analyzeChapter(
   const quoteRaw = quotePct(text)
   const tokPerWordRaw = words > 0 ? countTextTokens(body) / words : 0
 
-  const reasons: QualityReason[] = []
-  if (per1kTyposRaw > THRESHOLDS.typosPer1k) reasons.push('typos')
-  if (forbidden > 0) reasons.push('forbidden')
-  if (structure > 0) reasons.push('structure')
-  if (leaks > 0) reasons.push('leaks')
-  if (foreignRaw > THRESHOLDS.foreignPct) reasons.push('foreign')
-  if (quoteRaw > THRESHOLDS.quotePct) reasons.push('quotes')
-  if (tokPerWordRaw < THRESHOLDS.tokPerWordMin || tokPerWordRaw > THRESHOLDS.tokPerWordMax) {
-    reasons.push('tokens')
-  }
-  reasons.sort((left, right) => REASON_ORDER.indexOf(left) - REASON_ORDER.indexOf(right))
-
-  return {
+  const signals = {
     per1kTypos: round2(per1kTyposRaw),
     forbidden,
     structure,
@@ -476,9 +452,10 @@ export async function analyzeChapter(
     foreignPct: round2(foreignRaw),
     quotePct: round2(quoteRaw),
     tokPerWord: round2(tokPerWordRaw),
-    pass: reasons.length === 0,
-    reasons,
   }
+  const reasons = reasonsOf({ ...signals, pass: false, reasons: [] })
+
+  return { ...signals, pass: reasons.length === 0, reasons }
 }
 
 // ---------------------------------------------------------------------------
@@ -490,88 +467,122 @@ export interface BuildQualityInput {
   source: string
   /** Informational only: an outlier is measured, never a fail reason. */
   ratioToMean?: ReadonlyMap<number, number>
+  /** Overrides for the recorded thresholds; reasons are recomputed from the signals. */
+  thresholds?: Partial<QualityThresholds>
+}
+
+function withThresholds(chapter: ChapterQuality, thresholds: QualityThresholds): ChapterQuality {
+  const reasons = reasonsOf(chapter, thresholds)
+  return { ...chapter, pass: reasons.length === 0, reasons }
 }
 
 /**
  * Deterministic artifact from the measured rows; chapter order is ascending `n`.
  *
- * `input.ratioToMean` is read (and stats.json is therefore a hard prerequisite) but deliberately
- * never reaches `pass`/`reasons`: a chapter larger than 1.5x the mean is informational, not bad.
+ * `input.ratioToMean` is read (and stats.json is therefore a hard prerequisite for the write
+ * tool) but deliberately never reaches `pass`/`reasons`: a chapter larger than 1.5x the mean is
+ * informational, not bad.
  */
 export function buildQuality(input: BuildQualityInput): QualityArtifact {
-  const chapters = [...input.chapters].sort((left, right) => left.n - right.n)
+  const thresholds = thresholdsOf(input.thresholds)
+  const chapters = [...input.chapters]
+    .sort((left, right) => left.n - right.n)
+    .map((chapter) => withThresholds(chapter, thresholds))
   const hard = chapters
     .filter((chapter) => chapter.reasons.some((reason) => HARD_REASONS.includes(reason)))
     .map((chapter) => chapter.n)
   const passing = chapters.filter((chapter) => chapter.pass).length
   const passRate = chapters.length > 0 ? passing / chapters.length : 0
-  const verdict = passRate >= THRESHOLDS.passRate && hard.length === 0 ? 'translate' : 'preprocess'
+  const verdict = passRate >= thresholds.passRate && hard.length === 0 ? 'translate' : 'preprocess'
 
   return {
     version: VERSION,
     verdict,
     source: input.source,
-    thresholds: { ...THRESHOLDS },
+    thresholds,
     summary: { passRate: round2(passRate), hard },
     chapters,
   }
 }
 
 /**
- * JSON in the repo formatter's shape: Biome keeps short arrays inline (the same reason
- * `lib/ner.ts` has a custom `numberArray`). Long `chapters`/`reasons` stay one value per line.
+ * JSON in the repo formatter's shape: Biome keeps short arrays inline. Long `chapters`/`reasons`
+ * stay one value per line.
  */
-export function compactArrays(json: string): string {
-  return json.replace(/\[\n([^[\]]*?)\n(\s*)\]/g, (match, body: string, indent: string) => {
-    const values = body
-      .split(/,\n/)
-      .map((value) => value.trim())
-      .filter((value) => value !== '')
-    const inline = `[${values.join(', ')}]`
-    return indent.length + inline.length <= 100 ? inline : match
-  })
-}
-
 export function serializeQuality(artifact: QualityArtifact): string {
   return `${compactArrays(JSON.stringify(artifact, null, 2))}\n`
 }
 
 /** Stage A: measure one batch member and stash its row on the envelope. */
-export const collectChapterQuality = defineTool<string, string>({
-  name: 'collect-chapter-quality',
-  version: '1.0.0',
-  description: 'Measures the offline quality signals of one chapter.',
-  async invoke(env: Exchange<string>) {
-    const n = Number(env.meta.chapterNum ?? 0)
-    const signals = await analyzeChapter(env.item)
-    return setVariable(env, VAR_CHAPTER_QUALITY, { n, ...signals } satisfies ChapterQuality)
-  },
-})
+export function createCollectChapterQuality(options: { names?: () => ReadonlySet<string> } = {}) {
+  return defineTool<string, string>({
+    name: 'collect-chapter-quality',
+    version: '1.0.0',
+    description: 'Measures the offline quality signals of one chapter.',
+    annotations: [
+      tool('TL266', {
+        name: 'collect-chapter-quality',
+        description: 'Measures one chapter’s offline quality signals.',
+        refs: ['UC057'],
+      }),
+      category(['validator']),
+    ],
+    async invoke(env: Exchange<string>) {
+      const n = Number(env.meta.chapterNum ?? 0)
+      const names = options.names?.()
+      const signals = await analyzeChapter(env.item, names)
+      return setVariable(env, VAR_CHAPTER_QUALITY, { n, ...signals } satisfies ChapterQuality)
+    },
+  })
+}
+
+/** Stage A with no project-specific proper-noun corpus. */
+export const collectChapterQuality = createCollectChapterQuality()
+
+export interface WriteQualityToolOptions {
+  /** Analysed source URI recorded in the artefact. */
+  source: () => string
+  /** `stats.json` ratios; read lazily so the stats stage may run first. */
+  ratioToMean: () => Map<number, number>
+  /** Overrides for the recorded thresholds; reasons are recomputed from the signals. */
+  thresholds?: Partial<QualityThresholds>
+}
 
 /** Stage B: aggregate the rows, log the verdict and emit `schema/quality.json`. */
-export const writeQuality = defineTool<unknown, unknown>({
-  name: 'write-quality',
-  version: '1.0.0',
-  description:
-    'Emits schema/quality.json from the measured chapter rows and logs the translate/preprocess verdict.',
-  async invoke(env, ctx) {
-    const members = batchMembersOf<unknown>(env) ?? []
-    const chapters = members
-      .map((member) => getVariable<ChapterQuality>(member, VAR_CHAPTER_QUALITY))
-      .filter((chapter): chapter is ChapterQuality => chapter !== undefined)
-    const artifact = buildQuality({
-      chapters,
-      source: qualitySourceUri(),
-      ratioToMean: readRatioToMean(),
-    })
-    ctx.run.logger.info(
-      `quality verdict=${artifact.verdict} passRate=${artifact.summary.passRate} hard=${artifact.summary.hard.length}`,
-    )
-    return appendMdOutput(env, {
-      name: 'quality',
-      subdir: 'schema',
-      filename: 'quality.json',
-      content: serializeQuality(artifact),
-    })
-  },
-})
+export function createWriteQualityTool(options: WriteQualityToolOptions) {
+  return defineTool<unknown, unknown>({
+    name: 'write-quality',
+    version: '1.0.0',
+    description:
+      'Emits schema/quality.json from the measured chapter rows and logs the translate/preprocess verdict.',
+    annotations: [
+      tool('TL267', {
+        name: 'write-quality',
+        description: 'Aggregates chapter quality rows and records the branch verdict.',
+        refs: ['UC057'],
+      }),
+      category(['analyzer']),
+    ],
+    async invoke(env, ctx) {
+      const members = batchMembersOf<unknown>(env) ?? []
+      const chapters = members
+        .map((member) => getVariable<ChapterQuality>(member, VAR_CHAPTER_QUALITY))
+        .filter((chapter): chapter is ChapterQuality => chapter !== undefined)
+      const artifact = buildQuality({
+        chapters,
+        source: options.source(),
+        ratioToMean: options.ratioToMean(),
+        thresholds: options.thresholds,
+      })
+      ctx.run.logger.info(
+        `quality verdict=${artifact.verdict} passRate=${artifact.summary.passRate} hard=${artifact.summary.hard.length}`,
+      )
+      return appendMdOutput(env, {
+        name: 'quality',
+        subdir: 'schema',
+        filename: 'quality.json',
+        content: serializeQuality(artifact),
+      })
+    },
+  })
+}

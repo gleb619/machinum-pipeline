@@ -1,8 +1,6 @@
 import { existsSync } from 'node:fs'
 import { readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { buildStatFreqReport } from '@mt/tools'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
   VOCAB_MAX_NGRAM,
   VOCAB_MIN_COUNT,
@@ -11,7 +9,9 @@ import {
   type VocabKind,
   type VocabTerm,
   type VocabularyArtifact,
-} from '../lib/vocab.js'
+} from '@mt/bookkit'
+import { buildStatFreqReport } from '@mt/tools'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { CHAPTERS, SAMPLE_DIR, clean, run } from './helpers.js'
 
 const SCHEMA_DIR = join(CHAPTERS, 'schema')

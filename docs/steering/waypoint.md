@@ -4,6 +4,11 @@
 
 Path: `packages/waypoint/`
 
+**Package ownership (hard rule).** All Source/Target/URI-scheme implementations live only here, in
+`packages/waypoint/src`: `defineSource`/`defineTarget`/`defineWaypoint` factories and
+`registerSource`/`registerTarget` calls. Samples may alias an existing factory but must not define a reusable
+scheme elsewhere. Enforced by `pnpm lint:ownership` (`scripts/package-ownership.test.ts`).
+
 Source and Target implementations for the URI registry. Import as a **side-effect** to register all schemes:
 
 ```typescript

@@ -1,4 +1,4 @@
-import { defineTool, getVariable, withItem } from '@mt/core'
+import { category, defineTool, getVariable, tool, withItem } from '@mt/core'
 import {
   type TitleTranslatorOutput,
   appendMdOutput,
@@ -73,6 +73,14 @@ export const writeSummaries = defineTool<unknown, string>({
   version: '1.1.0',
   description:
     'Emits schema/chapter<N>.summary.md from the `summaryByItem` variable (or `summary` for one chapter).',
+  annotations: [
+    tool('TL268', {
+      name: 'write-summaries',
+      description: 'Emits one schema/chapter<N>.summary.md per chapter.',
+      refs: [],
+    }),
+    category(['serializer']),
+  ],
   async invoke(env) {
     const chapters = (env.items ?? [env.item]).flat() as string[]
     const perItem = getVariable<string[]>(env, 'summaryByItem')
@@ -100,6 +108,14 @@ export const writeGlossary = defineTool<unknown, string>({
   name: 'write-glossary',
   version: '1.0.0',
   description: 'Emits glossary.json from the `glossaryJson` variable.',
+  annotations: [
+    tool('TL269', {
+      name: 'write-glossary',
+      description: 'Emits the editable glossary.json.',
+      refs: ['UC060'],
+    }),
+    category(['serializer']),
+  ],
   async invoke(env) {
     return appendMdOutput(withItem(env, ''), {
       name: 'glossary',
@@ -115,6 +131,14 @@ export const writeTitles = defineTool<unknown, string>({
   name: 'write-titles',
   version: '1.0.0',
   description: 'Emits titles.json from the translated title batch and the `chapters` variable.',
+  annotations: [
+    tool('TL270', {
+      name: 'write-titles',
+      description: 'Emits titles.json from the translated title batch.',
+      refs: ['UC059'],
+    }),
+    category(['serializer']),
+  ],
   async invoke(env) {
     const chapters = getVariable<string[]>(env, 'chapters') ?? []
     const outputs = (env.items ?? (Array.isArray(env.item) ? env.item : [env.item])) as
@@ -144,6 +168,14 @@ export function tagWithGlossary(glossaryDir: string) {
     name: 'tag-with-glossary',
     version: '1.0.0',
     description: 'Wraps glossary terms of every batched chapter in <term> tags.',
+    annotations: [
+      tool('TL271', {
+        name: 'tag-with-glossary',
+        description: 'Wraps glossary terms of every chapter in <term> tags.',
+        refs: ['UC060'],
+      }),
+      category(['translator']),
+    ],
     async invoke(env) {
       const glossary = await loadGlossaryOrEmpty(glossaryDir)
       const tag = (markdown: string) => tagTerms(markdown, glossary)
@@ -167,6 +199,14 @@ export const sortChapters = defineTool<unknown, string[]>({
   name: 'sort-chapters',
   version: '1.0.0',
   description: 'Sorts batched chapter markdown by chapter number.',
+  annotations: [
+    tool('TL272', {
+      name: 'sort-chapters',
+      description: 'Sorts batched chapter markdown by chapter number.',
+      refs: [],
+    }),
+    category(['pipeline']),
+  ],
   async invoke(env) {
     const chapters = (env.items ?? [env.item]).flat() as string[]
     const sorted = [...chapters].sort((left, right) => headingNumber(left) - headingNumber(right))
@@ -180,6 +220,14 @@ export function withBookTitle(title: string) {
     name: 'with-book-title',
     version: '1.0.0',
     description: 'Sets the compiled book title.',
+    annotations: [
+      tool('TL273', {
+        name: 'with-book-title',
+        description: 'Sets the compiled book title on the chapter list.',
+        refs: [],
+      }),
+      category(['pipeline']),
+    ],
     async invoke(env) {
       return withItem(env, { title, chapters: env.item })
     },

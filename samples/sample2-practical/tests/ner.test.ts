@@ -1,14 +1,13 @@
 import { readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import {
   type ChapterEntities,
   type EntitiesArtifact,
-  MOCK_NER_HALLUCINATION,
-  MOCK_NER_NAMES,
   type NerEntity,
   entityKind,
-} from '../lib/ner.js'
+} from '@mt/bookkit'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { MOCK_NER_HALLUCINATION, MOCK_NER_NAMES } from '../lib/mock-ner.js'
 import { CHAPTERS, SAMPLE_DIR, clean, run } from './helpers.js'
 
 const SCHEMA_DIR = join(CHAPTERS, 'schema')

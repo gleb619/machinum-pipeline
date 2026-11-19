@@ -13,6 +13,7 @@ import {
 } from '@mt/core'
 import type { Tool, ToolContext } from '@mt/core'
 import { LlmError } from '../core/llm-errors.js'
+import { resolveProcessLlm } from '../core/llm-install.js'
 import { extractXmlResultEntries } from '../core/prompt-blocks.js'
 import type { TranslateInput, TranslateOutput } from '../core/translate-text.js'
 import { LineParityError, lintLineParity } from '../verification/line-parity-linter.js'
@@ -395,7 +396,12 @@ export const TITLE_RULES = [
 ]
 
 export interface GlossaryTitleTranslatorOptions {
-  call: SchemaDocLlmCall
+  /**
+   * LLM backend. Optional: an explicit `call` always wins; when omitted, the process-level
+   * pick is used at invoke time (`resolveProcessLlm()?.schemaCall`), exactly like
+   * {@link runPromptWithRetry}. Without either the tool throws instead of falling back.
+   */
+  call?: SchemaDocLlmCall
   /** Directory with `glossary.json`. */
   chaptersDir: string
   /** Extra prompt rules. Default: {@link TITLE_RULES}. */
@@ -417,6 +423,12 @@ export function createGlossaryTitleTranslator(
     description:
       'Translates a chapter title through the picked LLM with glossary hints (optional work mode).',
     async invoke(env, ctx) {
+      const call = options.call ?? resolveProcessLlm()?.schemaCall
+      if (call === undefined) {
+        throw new Error(
+          'createGlossaryTitleTranslator: no LLM backend - pass `call` or install a process LLM provider',
+        )
+      }
       const title = env.item.text
       const glossary = await loadGlossaryOrEmpty(options.chaptersDir)
       const prompt = buildTranslationPrompt({
@@ -426,7 +438,7 @@ export function createGlossaryTitleTranslator(
         mode: options.mode,
         terms: translateTermsEnabled(),
       })
-      const ru = await ask(options.call, prompt.systemPrompt, prompt.userPrompt, ctx, options.mode)
+      const ru = await ask(call, prompt.systemPrompt, prompt.userPrompt, ctx, options.mode)
       const verdict = lintLineParity(title, ru, { cyrillicSeverity: 'error' })
       if (!verdict.ok) throw new LineParityError(verdict)
       return withItem(env, { translatedText: ru })
@@ -824,7 +836,12 @@ export async function translateTaggedChapter(
 }
 
 export interface ChapterBodyTranslatorOptions {
-  call: SchemaDocLlmCall
+  /**
+   * LLM backend. Optional: an explicit `call` always wins; when omitted, the process-level
+   * pick is used at invoke time (`resolveProcessLlm()?.schemaCall`), exactly like
+   * {@link runPromptWithRetry}. Without either the tool throws instead of falling back.
+   */
+  call?: SchemaDocLlmCall
   /** Directory with `glossary.json` and `schema/{chapter<N>.summary.md, chapter<N>.entities.json, vocabulary.json}`. */
   chaptersDir: string
   /** Paragraph concurrency. Default: `MT_TRANSLATE_CONCURRENCY` (1). */
@@ -866,6 +883,12 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
     description:
       'Translates each tagged chapter line by line (glossary + summary injection, optional work mode).',
     async invoke(env, ctx) {
+      const call = options.call ?? resolveProcessLlm()?.schemaCall
+      if (call === undefined) {
+        throw new Error(
+          'createChapterBodyTranslator: no LLM backend - pass `call` or install a process LLM provider',
+        )
+      }
       const chapters = exField<string[]>(env, 'chapters') ?? []
       // titleTranslator's assemble slot returns a batch as `item: [...]` (no `items`)
       const outs = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])
@@ -901,10 +924,8 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
           mode: options.mode,
           blockLines: options.blockLines,
           maxTokens: options.maxTokens,
-          ask: (system, user) =>
-            ask(options.call, system, user, ctx, options.mode, options.maxTokens),
-          askRaw: (system, user) =>
-            askRawContent(options.call, system, user, ctx, options.maxTokens),
+          ask: (system, user) => ask(call, system, user, ctx, options.mode, options.maxTokens),
+          askRaw: (system, user) => askRawContent(call, system, user, ctx, options.maxTokens),
           onStats: (stats) => {
             if (options.log === false) return
             ctx.run.logger.info(

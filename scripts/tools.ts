@@ -13,7 +13,7 @@ process.stdout.on('error', (error: NodeJS.ErrnoException) => {
 
 const USAGE = `Usage: pnpm tools [--json]
 
-Prints a tool catalogue for packages/tools/dist modules and samples/*/pipelines, samples/*/lib.
+Prints a tool catalogue for packages/{tools,bookkit}/dist modules and samples/*/pipelines, samples/*/lib.
 Run \`pnpm build\` first.
 
 Print a Markdown table (default), or JSON with --json.
@@ -23,8 +23,10 @@ Options:
   -h, --help      Show this help
 `
 
-const TOOLS_DIST = join('packages', 'tools', 'dist')
-const ROOT_BARREL = join('packages', 'tools', 'dist', 'index.js')
+const TOOL_PACKAGES = [
+  { dist: join('packages', 'tools', 'dist'), src: join('packages', 'tools', 'src') },
+  { dist: join('packages', 'bookkit', 'dist'), src: join('packages', 'bookkit', 'src') },
+] as const
 const SKIP_SUFFIXES = ['.test.js', '.d.ts', '.map']
 
 /** Minimal runtime view of a tool: named object with an invoke function. */
@@ -99,28 +101,30 @@ function walkJsModules(dir: string): string[] {
   return found.sort()
 }
 
-/** Repo-relative `packages/tools/src/<same relative path>.ts` for a dist module. */
-function packageSourceOf(modulePath: string): string {
-  const rel = relative(TOOLS_DIST, modulePath).replaceAll('\\', '/')
-  return `packages/tools/src/${rel.replace(/\.js$/, '.ts')}`
+/** Repo-relative `<pkg.src>/<same relative path>.ts` for a dist module. */
+function packageSourceOf(modulePath: string, pkg: (typeof TOOL_PACKAGES)[number]): string {
+  const rel = relative(pkg.dist, modulePath).replaceAll('\\', '/')
+  return `${pkg.src.replaceAll('\\', '/')}/${rel.replace(/\.js$/, '.ts')}`
 }
 
-const ROOT_BARREL_SOURCE = packageSourceOf(ROOT_BARREL)
-
 async function collectPackageTools(seen: Map<ToolView, ToolFound>): Promise<void> {
-  for (const modulePath of walkJsModules(TOOLS_DIST)) {
-    const mod = await import(pathToFileURL(resolve(modulePath)).href)
-    for (const [exportName, value] of Object.entries(mod)) {
-      if (!isTool(value)) continue
-      const found = seen.get(value)
-      if (found) {
-        // The root barrel only re-exports tools; prefer the defining module's source path.
-        if (found.source === ROOT_BARREL_SOURCE && modulePath !== ROOT_BARREL) {
-          seen.set(value, { source: packageSourceOf(modulePath), exportName })
+  for (const pkg of TOOL_PACKAGES) {
+    const rootBarrel = join(pkg.dist, 'index.js')
+    const rootBarrelSource = packageSourceOf(rootBarrel, pkg)
+    for (const modulePath of walkJsModules(pkg.dist)) {
+      const mod = await import(pathToFileURL(resolve(modulePath)).href)
+      for (const [exportName, value] of Object.entries(mod)) {
+        if (!isTool(value)) continue
+        const found = seen.get(value)
+        if (found) {
+          // The root barrel only re-exports tools; prefer the defining module's source path.
+          if (found.source === rootBarrelSource && modulePath !== rootBarrel) {
+            seen.set(value, { source: packageSourceOf(modulePath, pkg), exportName })
+          }
+          continue
         }
-        continue
+        seen.set(value, { source: packageSourceOf(modulePath, pkg), exportName })
       }
-      seen.set(value, { source: packageSourceOf(modulePath), exportName })
     }
   }
 }

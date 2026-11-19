@@ -18,6 +18,12 @@ test gates.
 | sample1-tutorial | `samples/sample1-tutorial` | Ten numbered pipes, simple → complex: `from → use → to`, HTTP source + URI aliases + a custom waypoint, multi-tool chains/subflows/batch, `.fork()` branches, chunking + the structure ladder, stop/resume, normalize + analyze (summaries/glossary/`<term>` tagging), line-by-line EN→RU translation with parity lint, the LLM tool gallery, and the secret-backend demo. Input: `books/book1` plus deterministic lorem-ipsum fixtures. |
 | sample2-practical | `samples/sample2-practical` | Real book translation prep against `books/book2` (21 chapters): extract EN chapters, batch-translate titles, extract a glossary, summarize each chapter for context, translate the body line by line with parity lint, and assemble the result with `bookCompiler` → `book://`. Output under `chapters/ru/` and `chapters/book/`. |
 
+`sample2-practical` keeps only sample-specific glue in `lib/` (LLM/mock configuration and
+`books/book2` paths). Every reusable stage — stats, split, quality gate, glossary index,
+vocabulary, entities, output emitters, preprocess, batch titles, LLM picker — comes from
+[`@mt/bookkit`](../../packages/bookkit/README.md), so the next book project imports the package
+instead of copying `lib/`.
+
 Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 
 ## sample2-practical book flow
@@ -53,22 +59,25 @@ context).
 | `translation.ts#translateChapters` | `chapters/ru/chapter<N>.md` | LLM (block mode) |
 | `translation.ts#assemble` | `chapters/book/book.md` + `book.json` | CPU |
 
-The preparation process imports `preprocess.ts` at start-up, but the stage reads the quality
-verdict lazily at run time: `quality` runs earlier in the same process, so the branch decision is
-current and the no-op path stays free of LLM calls and output files.
+The preparation process builds the `@mt/bookkit` preprocess stage at start-up, but the stage reads
+the quality verdict lazily at run time: `quality` runs earlier in the same process, so the branch
+decision is current and the no-op path stays free of LLM calls and output files.
 
-`glossary` runs before the quality gate and before `translate-chapters`: `lib/quality.ts` reads
-the glossary as a proper-noun allowlist, and the translator pins every `ru` it finds. The
-extractor alone is not enough — it proposes non-names (`March`, `Lock`) and leaves `ru` empty, so
-the model invents a render per paragraph. `scripts/apply-names.ts` (run by `pnpm run book` right
-after the `glossary` stage, or manually with `--dry-run` first) rewrites every entry against the
+`glossary` runs before the quality gate and before `translate-chapters`: the `@mt/bookkit` quality
+stage reads `chapters/names.json`, the NER entities and the glossary as a proper-noun allowlist,
+and the translator pins every `ru` it finds. The extractor alone is not enough — it proposes
+non-names (`March`, `Lock`) and leaves `ru` empty, so the model invents a render per paragraph.
+`scripts/apply-names.ts` (run by `pnpm run book` right after the `glossary` stage, or manually
+with `--dry-run` first) rewrites every entry against the
 editorial `chapters/names.json` table, uses its `gen` for possessives, marks everything else
 `ignored`, and adds table names the extractor missed. Two real runs of `book2` with an empty
 glossary produced three spellings of the same names; the table keeps one.
 
 Environment knobs:
 
-- `MT_LLM_TOOL` — backend; default `mock` (offline). Real runs use `router`.
+- `MT_LLM_TOOL` — backend (`router`, `openrouter-free`, `openrouter-pool`, `ollama`, `mock`);
+  mt.json `settings.llm.tool` is the file fallback. The default `mock` needs
+  `MT_ALLOW_MOCK=1` outside the test suite. Real runs use `router`.
 - `MT_LLM_USE=vault://openrouter-loop/<id>` — select a vault-stored credential set.
 - `MT_LLM_MODEL_<STAGE>` — per-stage model override (`SUMMARY`, `NER`, `PREPROCESS`, `TRANSLATE`, …).
 - `MT_TRANSLATE_SLOTS` — comma list of `summary,glossary,ner,vocab`; absent = all four.
@@ -121,12 +130,16 @@ because pipes share the sample directory.
 
 ## LLM backend
 
-Every LLM-backed pipe goes through one pick (`pickLlmTool` from `@mt/tools`, wrapped by the
-sample's `lib/llm.ts`):
+Stage tools take no `call` / `translate` by default: they resolve the backend at invoke time
+(explicit factory argument > `MT_LLM_TOOL` / mt.json real backend > installed process mock >
+factory default). Each sample2 phase file wraps its `defineProcess([...])` in
+`installSampleMock(...)`, which installs one scripted provider (`lib/mock-llm.ts`) only when the
+resolved backend is `mock`; the named stage exports therefore look exactly like real-LLM pipes.
 
 - `MT_LLM_TOOL` = `router` | `openrouter-free` | `openrouter-pool` | `ollama` | `mock`
-  (default `mock` — offline, no API key, no network).
-- `MT_LLM_MODEL` selects the model.
+  (default `mock` — offline, no API key, no network; `MT_ALLOW_MOCK=1` is required outside
+  tests, which run under `VITEST`).
+- `MT_LLM_MODEL` selects the model; `MT_LLM_MODEL_<STAGE>` overrides it per stage.
 - `mt.json` → `settings.llm.tool` / `settings.llm.model` are the file fallback; env wins. A
   gitignored `mt.local.json` imported by `mt.json` can hold local settings.
 
@@ -150,7 +163,7 @@ pnpm run example
 pnpm run cleanup
 
 cd ../sample2-practical
-pnpm run example
+MT_ALLOW_MOCK=1 pnpm run example
 ```
 
 `pnpm run info` (both samples) prints the effective `mt.json` with secrets masked, plus `.mt` state
@@ -187,6 +200,7 @@ only and never change the exit code.
 cd samples/sample2-practical
 pnpm -C ../../packages/core pack --pack-destination ./vendor
 pnpm -C ../../packages/cli pack --pack-destination ./vendor
+pnpm -C ../../packages/bookkit pack --pack-destination ./vendor
 npm install --no-audit --no-fund
-pnpm run runner
+MT_ALLOW_MOCK=1 pnpm run runner
 ```

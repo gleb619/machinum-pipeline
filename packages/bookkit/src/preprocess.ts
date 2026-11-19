@@ -4,37 +4,40 @@ import {
   type Exchange,
   type ToolContext,
   batchMembersOf,
+  category,
   createExchange,
   defineTool,
   getVariable,
   setVariable,
+  tool,
 } from '@mt/core'
 import {
   type Glossary,
   type GlossaryTerm,
   LLM_TYPO_FIX_PROMPT,
+  LlmError,
   type RuGender,
   type SchemaDocLlmCall,
   appendMdOutput,
   compileTermMatcher,
   countTerms,
   createLlmTypoFix,
+  resolveProcessLlm,
 } from '@mt/tools'
-import { type Branch, FORCE_BRANCH_ENV } from './input.js'
-import { qualityRootPath } from './quality.js'
+import { type BookPathsOptions, type Branch, envOf, rootPathOf } from './paths.js'
 
 /**
- * Stage 6b of the book flow: the preprocess branch (typos, proofreading, character gender).
+ * Book preprocess stage: typos, proofreading, character gender.
  *
- * The decision is data, again: `chapters/schema/quality.json` says which chapters failed the
- * gate. `MT_FORCE_BRANCH=preprocess` processes every chapter (tests, manual overrides); a
+ * The decision is data: `<chapters>/schema/quality.json` says which chapters failed the gate.
+ * `MT_FORCE_BRANCH=preprocess` processes every chapter (tests, manual overrides); a
  * `translate` verdict without the override is a no-op (no LLM call, no file).
  *
  * Chapter text is cleaned with the shipped `createLlmTypoFix` tool (`chunkMode:'auto'`, its
  * line-count guard is reused as-is: a reply with a different line count is rejected and the
  * original kept). Gender normalisation is merged into the same system prompt, so a chapter
- * costs one request (one per chunk only when the chapter exceeds the model budget) instead of
- * two. `chapters/clean/chapter<N>.md` receives every chapter - a byte-identical copy when the
+ * costs one request (one per chunk only when the chapter exceeds the model budget).
+ * `chapters/clean/chapter<N>.md` receives every chapter - a byte-identical copy when the
  * chapter did not need work - so downstream always reads one directory.
  */
 
@@ -45,6 +48,12 @@ export const VAR_PREPROCESS_ROW = 'preprocessRow'
 
 /** The single log line of the no-op branch. */
 export const SKIP_LOG = 'preprocess skipped verdict=translate'
+
+/** Env var forcing the preprocess branch (mirrors the sample; overridable per entry point). */
+const FORCE_BRANCH_ENV = 'MT_FORCE_BRANCH'
+
+/** Entry-point options: project root plus the usual path/env seams. */
+export interface PreprocessOptions extends BookPathsOptions {}
 
 export interface PreprocessChapterReport {
   n: number
@@ -78,7 +87,10 @@ export interface PreprocessPlan {
   chapters: Map<number, boolean>
 }
 
-/** Everything the per-chapter stage needs; built once per run. */
+/**
+ * Explicit preprocess backend. `call` maps to `LlmChoice.schemaCall` when the process-level
+ * provider is used instead.
+ */
 export interface PreprocessLlm {
   call: SchemaDocLlmCall
   model?: string
@@ -87,8 +99,11 @@ export interface PreprocessLlm {
 export interface PreprocessChapterToolOptions {
   /** Resolved at invoke time so a combined phase sees the quality gate that ran earlier. */
   plan: () => PreprocessPlan
-  /** Lazy backend: never resolved on the no-op branch. */
-  llm: () => PreprocessLlm
+  /**
+   * Explicit backend override. Precedence: this option > process-level installed provider /
+   * picked backend > error. Resolved lazily at invoke time, never on the no-op branch.
+   */
+  llm?: () => PreprocessLlm
   /** Lazy glossary: never read when no chapter is processed. */
   glossary?: () => Glossary
 }
@@ -103,9 +118,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Reads the branch decision and the per-chapter verdicts from `quality.json`. */
-export function readPreprocessPlan(root = qualityRootPath()): PreprocessPlan {
-  const forced = process.env[FORCE_BRANCH_ENV]?.trim() === 'preprocess'
-  const file = join(root, 'schema', 'quality.json')
+export function readPreprocessPlan(options: PreprocessOptions): PreprocessPlan {
+  const env = envOf(options)
+  const forced = env[options.forceBranchEnv ?? FORCE_BRANCH_ENV]?.trim() === 'preprocess'
+  const file = join(rootPathOf(options), 'schema', 'quality.json')
   const chapters = new Map<number, boolean>()
   let verdict: Branch = 'translate'
 
@@ -136,8 +152,8 @@ export function chapterNeedsWork(plan: PreprocessPlan, n: number): boolean {
   return plan.chapters.get(n) !== true
 }
 
-/** Reads `chapters/glossary.json`; a missing/invalid file means "no glossary" (typos only). */
-export function loadPreprocessGlossary(root = qualityRootPath()): Glossary {
+/** Reads `glossary.json` under `root`; a missing/invalid file means "no glossary" (typos only). */
+export function loadPreprocessGlossary(root: string): Glossary {
   const file = join(root, 'glossary.json')
   if (!existsSync(file)) return { terms: [] }
   try {
@@ -309,14 +325,27 @@ export function createPreprocessChapterTool(options: PreprocessChapterToolOption
     version: '1.0.0',
     description:
       'Cleans one failed chapter with the merged typo/proofread/gender prompt; copies a passing chapter byte-identically.',
+    annotations: [
+      tool('TL276', {
+        name: 'preprocess-chapter',
+        description: 'Cleans one failed chapter with the merged typo/proofread/gender prompt.',
+        refs: ['UC058'],
+      }),
+      category(['normalizer']),
+    ],
     async invoke(env, ctx) {
       const n = Number(env.meta.chapterNum ?? 0)
       if (!chapterNeedsWork(options.plan(), n)) return passThrough(env, n)
-      const llm = options.llm()
+      const llm = options.llm?.() ?? resolveProcessLlm()
+      if (!llm) {
+        throw new LlmError(
+          'preprocess-chapter: no LLM backend available; pass options.llm or install/configure a process-level LLM provider',
+        )
+      }
       const row = await preprocessText({
         n,
         markdown: env.item,
-        call: llm.call,
+        call: 'call' in llm ? llm.call : llm.schemaCall,
         ...(llm.model ? { model: llm.model } : {}),
         glossary: options.glossary?.() ?? { terms: [] },
         ctx,
@@ -332,6 +361,14 @@ export function createEmitCleanChapter() {
     name: 'emit-clean-chapter',
     version: '1.0.0',
     description: 'Writes the cleaned text of one chapter to chapters/clean/chapter<N>.md.',
+    annotations: [
+      tool('TL277', {
+        name: 'emit-clean-chapter',
+        description: 'Writes one cleaned chapter to chapters/clean/.',
+        refs: ['UC058'],
+      }),
+      category(['serializer']),
+    ],
     async invoke(env) {
       const row = getVariable<PreprocessRow>(env, VAR_PREPROCESS_ROW)
       if (!row) return env
@@ -351,6 +388,14 @@ export function createWritePreprocessReport(plan: () => PreprocessPlan) {
     name: 'write-preprocess-report',
     version: '1.0.0',
     description: 'Writes schema/preprocess-report.json from the measured chapter rows.',
+    annotations: [
+      tool('TL278', {
+        name: 'write-preprocess-report',
+        description: 'Emits the deterministic preprocess report for every chapter.',
+        refs: ['UC058'],
+      }),
+      category(['analyzer']),
+    ],
     async invoke(env, ctx) {
       const members = batchMembersOf<unknown>(env) ?? []
       const rows = members

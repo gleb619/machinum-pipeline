@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative, resolve } from 'node:path'
+import { type StatsArtifact, bodyCharsOf } from '@mt/bookkit'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { type StatsArtifact, bodyCharsOf } from '../lib/stats.js'
 import { SAMPLE_DIR, run, writeFileAt } from './helpers.js'
 
 const BOOK_DIR = resolve(SAMPLE_DIR, '..', '..', 'books', 'book2')

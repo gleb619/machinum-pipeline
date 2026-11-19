@@ -1,8 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { readFile, readdir, rename, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { createConsoleLogger, defineTool } from '@mt/core'
+import { join } from 'node:path'
+import { category, defineTool, tool } from '@mt/core'
 import type { Glossary, GlossaryTerm, GlossaryTermType } from '@mt/tools'
 import { cmpTerm, compileTermMatcher, countTerms } from '@mt/tools'
 
@@ -209,17 +208,34 @@ export async function writeGlossaryIndexFile(path: string, index: GlossaryIndex)
   await rename(tmp, path)
 }
 
+export interface CreateGlossaryIndexToolOptions {
+  chaptersDir: string
+  /** Index filename under `chaptersDir`; default {@link GLOSSARY_INDEX_FILE}. */
+  indexFile?: string
+}
+
 /**
  * Pipeline step: builds the index from the chapter files and the glossary. A missing
  * `glossary.json` is not an error (the chain may run before the first extraction): it logs
  * `index: no glossary` and writes nothing.
  */
-export function writeGlossaryIndexTool(chaptersDir: string) {
+export function createGlossaryIndexTool(options: CreateGlossaryIndexToolOptions) {
+  const chaptersDir = options.chaptersDir
+  const indexFile = options.indexFile ?? GLOSSARY_INDEX_FILE
   return defineTool<unknown, unknown>({
     name: 'write-glossary-index',
     version: '1.0.0',
     description:
       'Emits glossary-index.json (per-term occurrence chapters) from chapters/en and glossary.json; no LLM.',
+    annotations: [
+      tool('TL261', {
+        name: 'write-glossary-index',
+        description:
+          'Emits a per-term chapter occurrence index from the glossary and chapter files.',
+        refs: ['UC084'],
+      }),
+      category(['analyzer']),
+    ],
     async invoke(env, ctx) {
       const glossaryPath = join(chaptersDir, 'glossary.json')
       if (!existsSync(glossaryPath)) {
@@ -231,7 +247,7 @@ export function writeGlossaryIndexTool(chaptersDir: string) {
         throw new Error(`failed to parse glossary ${glossaryPath}: expected {"terms": [...]}`)
       }
       const index = await buildGlossaryIndex({ chaptersDir, glossary })
-      await writeGlossaryIndexFile(join(chaptersDir, GLOSSARY_INDEX_FILE), index)
+      await writeGlossaryIndexFile(join(chaptersDir, indexFile), index)
       const multiChapter = index.terms.filter((term) => term.chapters.length > 1).length
       ctx.run.logger.info(`index terms=${index.terms.length} multi-chapter=${multiChapter}`)
       return env
@@ -239,33 +255,7 @@ export function writeGlossaryIndexTool(chaptersDir: string) {
   })
 }
 
-interface CliArgs {
-  chaptersDir: string
-  out: string
-}
-
-function parseArgs(argv: string[]): CliArgs {
-  const root = resolve(import.meta.dirname, '..')
-  let chaptersDir = resolve(root, 'chapters')
-  let out = ''
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]
-    if (arg === '--chapters') chaptersDir = resolve(argv[++i] ?? chaptersDir)
-    else if (arg === '--out') out = resolve(argv[++i] ?? '')
-  }
-  return { chaptersDir, out: out === '' ? join(chaptersDir, GLOSSARY_INDEX_FILE) : out }
-}
-
-if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  const logger = createConsoleLogger()
-  const args = parseArgs(process.argv.slice(2))
-  const glossaryPath = join(args.chaptersDir, 'glossary.json')
-  if (!existsSync(glossaryPath)) {
-    logger.info('index: no glossary')
-  } else {
-    const glossary = JSON.parse(await readFile(glossaryPath, 'utf-8')) as Glossary
-    const index = await buildGlossaryIndex({ chaptersDir: args.chaptersDir, glossary })
-    await writeGlossaryIndexFile(args.out, index)
-    logger.info(`index: wrote ${args.out} terms=${index.terms.length}`)
-  }
+/** Back-compat wrapper: index under the default {@link GLOSSARY_INDEX_FILE}. */
+export function writeGlossaryIndexTool(chaptersDir: string) {
+  return createGlossaryIndexTool({ chaptersDir })
 }
