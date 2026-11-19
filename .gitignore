@@ -97,6 +97,7 @@ build
 /samples/sample1-tutorial/chapters/glossary.graph.json
 /samples/sample1-tutorial/chapters/titles.json
 /samples/sample1-tutorial/chapters/waypoint-log.jsonl
+/samples/sample1-tutorial/chapters/verified/
 /samples/sample1-tutorial/.mt-translate-prompts.jsonl
 /samples/sample1-tutorial/mt.local.json
 /samples/sample1-tutorial/.demo/*

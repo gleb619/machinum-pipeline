@@ -83,15 +83,14 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 
 - **Default: use native subagents** (architect, coder, qa via the Agent tool) for nearly every task; coordinate them yourself.
 - Only use `at` when the user explicitly asks for it or names `at`; if you'd reach for `at`, check native subagents first.
-- **You are not alone.** Focus on your task and ignore other agents' errors — but never silently: register each observed error/broken test as a kanban task via the `at` kanban feature (`at kanban add --title "..." --description "..."`) for the owner, and keep working on your own slice.
+- **You are not alone.** Other agents may work here concurrently; focus on your task and ignore other agents' errors — but never silently: register each observed error/broken test as a kanban task via the `at` kanban feature (`at kanban add --title "..." --description "..."`) for the owner, and keep working on your own slice.
 - **`at` feedback is for `at` itself only.** Log every bug/friction/idea about the `at` agent tool via `at feedback add -k bug|improvement "<text>" -T <tags>` (tags AFTER the text; variadic `-T` swallows it), one entry per issue, with evidence (command, output, error string). File immediately, never ask permission. Suspicion is enough — no reproduction or root cause needed; do not investigate or patch. Check `at feedback list` first to update an existing entry instead of duplicating. Filing is not a deliverable: it never replaces your own task.
 - **Project improvements go to kanban.** If you see a way to improve machinum-pipeline (code, docs, process, decisions), register a kanban task via the `at` kanban feature — not in `at feedback`. Self-improvement loop: notice → register → keep working; never silently work around or leave it unrecorded.
-- Minimal texting, save tokens.
 - **Work in English.** Code, comments, commit messages, docs, reports and conversation stay in English. Use another language only when the user explicitly instructs it.
 - Web fetch / external facts: run the tunnelstack WebBridge CLI — `python3 ~/tunnelstack/src/webbridge.py sites` to list sites, then `ask|search|extract <site> "<arg>" [--json]` (path override: `AT_WEBBRIDGE`). Prefer api/rss-backed sites (github, habr, hf — no browser needed); chat sites (google-ai, deepseek, qwen) drive the owner's logged-in Chrome, use sparingly. Exit 1 = run failed, continue on your own knowledge.
 - **Push only a working main** - `main` reaches the remote only when it is verified on that exact
-  commit: typecheck clean, `pnpm test` green, `pnpm ci:local` green (plus `packages/tools` project
-  typecheck, which the root `tsc` sweep skips). Never push first and repair afterwards, never leave
+  commit (all merge gates green: typecheck, `pnpm test`, `pnpm ci:local` — plus `packages/tools` project
+  typecheck, which the root `tsc` sweep skips; see GPU gate / wrkflw guard below). Never push first and repair afterwards, never leave
   a red `main` on the remote: everyone else branches from it. A branch may be pushed for review;
   `main` may not be. Force-push only to replace a broken remote `main` with a verified local one,
   and only with `--force-with-lease`.
@@ -99,6 +98,13 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
   onto `main` → `git merge --ff-only` → cleanup. **Simple tasks (tweak, sample edit, doc fix, single commit): stay
   put**, commit on current branch (usually `main`). **Explicit user override** (work in current worktree/`main`)
   wins. **Merge commits forbidden** (`--no-ff`, merge without rebase). State machine: docs/change-workflow.md.
+- **Worktree state machine** - create the worktree ONLY via `at worktree-new <id> --copy .ollama-remote.md`
+  (last stdout line = worktree path; `--json` for scripting). No hand-rolled `git worktree add` (fallback in
+  docs/change-workflow.md). Bootstrap inside it: `pnpm install --offline --frozen-lockfile && pnpm build &&
+  pnpm install --offline --frozen-lockfile`. Never symlink `node_modules` or `packages/*/dist` (clobbers main
+  checkout). Export GPU env from `.ollama-remote.md` (`MT_OLLAMA_URL`/`MT_OLLAMA_MODEL`). Before merge: all merge
+  gates green (see GPU gate / wrkflw guard below), then `git rebase main`, then from the
+  main checkout `git merge --ff-only feat/<id>`, then `at worktree-remove <id> --force`.
 - **GPU gate** - before any FF-merge run `pnpm test:gpu` (`packages/tools/tests/it/`, real ollama at
   `MT_OLLAMA_URL`; host-specific commands live in a gitignored local note) and report result.
   Excluded from `pnpm test`. Unreachable server **fails loudly** - report it, never skip silently or claim pass.
@@ -146,8 +152,7 @@ from `@mt/core`:
 
 ## Communication
 
-- Other agents may work here concurrently; ignore unrelated errors.
-- Caveman/ultra-brief. ADHD-friendly (`i-have-adhd`): lead with next action; number multi-step work; restate state
+- Caveman/ultra-brief, minimal texting, save tokens. ADHD-friendly (`i-have-adhd`): lead with next action; number multi-step work; restate state
   across turns; specific time estimates; matter-of-fact errors (cause + fix); cap lists ~5 items; no preamble,
   recap, or closing pleasantries.
 
