@@ -20,7 +20,7 @@ afterAll(async () => {
 
 describe('extract-en', () => {
   it('extracts all 21 chapter documents and skips index/plot', async () => {
-    run('stages/extract-en.ts')
+    run('normalization.ts', { pipeline: 'extractEn' })
     const files = (await readdir(EN_DIR)).filter((file) => file.endsWith('.md')).sort()
     expect(files).toHaveLength(21)
     expect(files).toContain('chapter1.md')

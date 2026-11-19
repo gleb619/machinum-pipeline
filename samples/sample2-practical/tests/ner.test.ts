@@ -63,7 +63,7 @@ async function snapshot(): Promise<Record<string, string>> {
 beforeAll(async () => {
   await cleanEntities()
   await clean(join(SAMPLE_DIR, '.mt'))
-  output = run('stages/ner.ts', { timeout: 180_000 })
+  output = run('preparation.ts', { pipeline: 'ner', timeout: 180_000 })
   artifact = JSON.parse(await readFile(ENTITIES, 'utf-8')) as EntitiesArtifact
   chapterFiles = (await readdir(SCHEMA_DIR)).filter((name) => CHAPTER_FILE.test(name))
   chapterEntities = await readChapterEntities(chapterFiles)
@@ -173,7 +173,7 @@ describe('ner', () => {
 
   it('reruns byte-identically', async () => {
     const before = await snapshot()
-    run('stages/ner.ts', { timeout: 180_000 })
+    run('preparation.ts', { pipeline: 'ner', timeout: 180_000 })
     expect(await snapshot()).toEqual(before)
   })
 })

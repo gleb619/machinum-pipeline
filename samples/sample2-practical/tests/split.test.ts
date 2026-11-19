@@ -111,7 +111,8 @@ async function buildFixture(): Promise<number> {
 }
 
 function runFixture(): void {
-  run('stages/split.ts', {
+  run('normalization.ts', {
+    pipeline: 'split',
     env: {
       MT_SPLIT_BOOK: `md://${fixtureBook}`,
       MT_SPLIT_ROOT: `md://${fixtureOut}`,
@@ -122,8 +123,8 @@ function runFixture(): void {
 
 beforeAll(async () => {
   await clean(STATS_FILE, MAP_FILE, SPLIT_DIR, join(SAMPLE_DIR, '.mt'))
-  run('stages/stats.ts', { timeout: 120_000 })
-  run('stages/split.ts', { timeout: 120_000 })
+  run('normalization.ts', { pipeline: 'stats', timeout: 120_000 })
+  run('normalization.ts', { pipeline: 'split', timeout: 120_000 })
   identityMap = await readFile(MAP_FILE, 'utf-8')
 
   await buildFixture()
@@ -150,7 +151,7 @@ describe('split', () => {
   })
 
   it('reruns byte-identically', async () => {
-    run('stages/split.ts', { timeout: 120_000 })
+    run('normalization.ts', { pipeline: 'split', timeout: 120_000 })
     expect(await readFile(MAP_FILE, 'utf-8')).toBe(identityMap)
     expect(existsSync(SPLIT_DIR)).toBe(false)
   })

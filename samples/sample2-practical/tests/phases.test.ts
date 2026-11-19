@@ -1,5 +1,8 @@
+import { readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { isProcess } from '@mt/core'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { SAMPLE_DIR } from './helpers.js'
 
 let normalization: unknown
 let preparation: unknown
@@ -23,6 +26,13 @@ afterAll(() => {
 })
 
 describe('pipeline phases', () => {
+  it('keeps exactly three pipeline entry points', async () => {
+    const files = (await readdir(join(SAMPLE_DIR, 'pipelines'))).filter((file) =>
+      file.endsWith('.ts'),
+    )
+    expect(files.sort()).toEqual(['normalization.ts', 'preparation.ts', 'translation.ts'])
+  })
+
   it('groups the book flow into normalization, preparation and translation', () => {
     expect(pipelineIds(normalization)).toEqual([
       'practical-extract-en',

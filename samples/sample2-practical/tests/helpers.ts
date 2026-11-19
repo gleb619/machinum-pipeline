@@ -14,6 +14,8 @@ export const BASE_ENV = {
 }
 
 export interface RunOptions {
+  /** Named export to run inside a phase file (default: its process). */
+  pipeline?: string
   env?: Record<string, string>
   timeout?: number
   /** Project root to run in (default: the sample itself). */
@@ -21,7 +23,9 @@ export interface RunOptions {
 }
 
 export function run(file: string, options: RunOptions = {}): string {
-  return execFileSync(MT_BIN, ['run', join(SAMPLE_DIR, 'pipelines', file)], {
+  const args = ['run', join(SAMPLE_DIR, 'pipelines', file)]
+  if (options.pipeline) args.push('--pipeline', options.pipeline)
+  return execFileSync(MT_BIN, args, {
     cwd: options.cwd ?? SAMPLE_DIR,
     encoding: 'utf-8',
     stdio: 'pipe',

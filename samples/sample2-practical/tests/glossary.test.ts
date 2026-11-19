@@ -8,7 +8,7 @@ let hasFailure = false
 
 beforeAll(async () => {
   await clean(GLOSSARY, join(CHAPTERS, 'glossary.graph.json'), join(SAMPLE_DIR, '.mt'))
-  run('stages/glossary.ts', { env: { MT_ONLY_CHAPTERS: '1,2' } })
+  run('preparation.ts', { pipeline: 'glossary', env: { MT_ONLY_CHAPTERS: '1,2' } })
 }, 60_000)
 
 afterEach(({ task }) => {

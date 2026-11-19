@@ -10,30 +10,30 @@ network. Switch to a real model with environment variables or `mt.local.json`.
 
 ## Pipes
 
-Three runnable processes mirror the three phases. Each process keeps its own per-stage runs and
-checkpoints; the stage modules live under `pipelines/stages/` and can still be run alone.
+Exactly three pipeline modules. Each module exports its individual stages as named pipelines and a
+default process that runs them in order; the process keeps one run/checkpoint per stage.
 
-| Phase | Entry point | Stages |
+| Phase | Entry point | Stages (named exports) |
 |---|---|---|
-| Normalization | `pipelines/normalization.ts` | `extract-en` → `stats` → `split` |
-| Preparation | `pipelines/preparation.ts` | `summary` → `ner` → `vocabulary` → `glossary` → `glossary-index` → `quality` → `preprocess` |
-| Translation | `pipelines/translation.ts` | `translate-titles` → `translate-chapters` → `assemble` |
+| Normalization | `pipelines/normalization.ts` | `extractEn` → `stats` → `split` |
+| Preparation | `pipelines/preparation.ts` | `summary` → `ner` → `vocabulary` → `glossary` → `glossaryIndex` → `quality` → `preprocess` |
+| Translation | `pipelines/translation.ts` | `translateTitles` → `translateChapters` → `assemble` |
 
-| Stage | Job |
+| Stage export | Job |
 |---|---|
-| `stages/extract-en.ts` | `books/book2` → `chapters/en/chapter<N>.md` (skips `index.md` / `plot.md`) |
-| `stages/stats.ts` | measure every chapter → `chapters/schema/stats.json` |
-| `stages/split.ts` | split oversized chapters → `chapters/schema/chapter-map.json` (+ `chapters/split/`) |
-| `stages/summary.ts` | per-chapter summary → `chapters/schema/chapter<N>.summary.md` (prompt context only) |
-| `stages/ner.ts` | book entities → `chapters/schema/entities.json` + per-chapter projections |
-| `stages/vocabulary.ts` | statistical n-grams → `chapters/schema/vocabulary.json` |
-| `stages/glossary.ts` | cross-chapter term extraction → `chapters/glossary.json` |
-| `stages/glossary-index.ts` | project the glossary onto the chapters where it occurs |
-| `stages/quality.ts` | offline quality gate → `chapters/schema/quality.json` |
-| `stages/preprocess.ts` | conditional typo/proofread/gender pass → `chapters/clean/` |
-| `stages/translate-titles.ts` | batch titles of five chapters → `chapters/titles.json` |
-| `stages/translate-chapters.ts` | glossary-tagged body, one LLM call per line/block, summary injection, parity lint → `chapters/ru/chapter<N>.md` |
-| `stages/assemble.ts` | numeric chapter sort → `bookCompiler` → `chapters/book/book.md` + `book.json` |
+| `normalization.ts#extractEn` | `books/book2` → `chapters/en/chapter<N>.md` (skips `index.md` / `plot.md`) |
+| `normalization.ts#stats` | measure every chapter → `chapters/schema/stats.json` |
+| `normalization.ts#split` | split oversized chapters → `chapters/schema/chapter-map.json` (+ `chapters/split/`) |
+| `preparation.ts#summary` | per-chapter summary → `chapters/schema/chapter<N>.summary.md` (prompt context only) |
+| `preparation.ts#ner` | book entities → `chapters/schema/entities.json` + per-chapter projections |
+| `preparation.ts#vocabulary` | statistical n-grams → `chapters/schema/vocabulary.json` |
+| `preparation.ts#glossary` | cross-chapter term extraction → `chapters/glossary.json` |
+| `preparation.ts#glossaryIndex` | project the glossary onto the chapters where it occurs |
+| `preparation.ts#quality` | offline quality gate → `chapters/schema/quality.json` |
+| `preparation.ts#preprocess` | conditional typo/proofread/gender pass → `chapters/clean/` |
+| `translation.ts#translateTitles` | batch titles of five chapters → `chapters/titles.json` |
+| `translation.ts#translateChapters` | glossary-tagged body, one LLM call per line/block, summary injection, parity lint → `chapters/ru/chapter<N>.md` |
+| `translation.ts#assemble` | numeric chapter sort → `bookCompiler` → `chapters/book/book.md` + `book.json` |
 
 Order matters: `normalization` writes the size and split artefacts; `preparation` builds the
 prompt context and the translate/preprocess verdict; `translation` consumes both and assembles

@@ -30,27 +30,28 @@ Adding a new sample: see [adding-a-sample.md](adding-a-sample.md).
 | Preparation | `pipelines/preparation.ts` | `summary` → `ner` → `vocabulary` → `glossary` → `glossary-index` → `quality` → `preprocess` | summaries, entities, vocabulary, glossary, index, quality verdict, conditional `chapters/clean/` |
 | Translation | `pipelines/translation.ts` | `translate-titles` → `translate-chapters` → `assemble` | `chapters/titles.json`, `chapters/ru/`, `chapters/book/` |
 
-The stage modules live under `pipelines/stages/`; each can still be run alone for iteration
-(`pnpm run runner:summary`, `pnpm run runner:chapters`, …). Every stage writes one artefact under
-`chapters/`; later phases read the earlier artefacts, so the phase order is part of the contract
-(`split` reads `schema/stats.json`; `quality` reads the glossary; `preprocess` reads
-`schema/quality.json`; `translate-chapters` reads the prepared context).
+Each phase file exports every stage as a named pipeline (`--pipeline <export>`), so one stage can
+still be run alone for iteration (`pnpm run runner:summary`, `pnpm run runner:chapters`, …).
+Every stage writes one artefact under `chapters/`; later phases read the earlier artefacts, so the
+phase order is part of the contract (`split` reads `schema/stats.json`; `quality` reads the
+glossary; `preprocess` reads `schema/quality.json`; `translate-chapters` reads the prepared
+context).
 
-| Stage | Artefact | Backend |
+| Stage export | Artefact | Backend |
 |---|---|---|
-| `stages/extract-en.ts` | `chapters/en/chapter<N>.md` | CPU |
-| `stages/stats.ts` | `chapters/schema/stats.json` | CPU |
-| `stages/split.ts` | `chapters/schema/chapter-map.json` (+ `chapters/split/` only when a chapter is oversized) | CPU |
-| `stages/summary.ts` | `chapters/schema/chapter<N>.summary.md` | LLM |
-| `stages/ner.ts` | `chapters/schema/entities.json` + `chapters/schema/chapter<N>.entities.json` | LLM |
-| `stages/vocabulary.ts` | `chapters/schema/vocabulary.json` | CPU |
-| `stages/glossary.ts` | `chapters/glossary.json` | LLM |
-| `stages/glossary-index.ts` | `chapters/glossary-index.json` | CPU |
-| `stages/quality.ts` | `chapters/schema/quality.json` (verdict `translate` or `preprocess`) | CPU |
-| `stages/preprocess.ts` | `chapters/clean/chapter<N>.md` + `chapters/schema/preprocess-report.json` | LLM (only on the `preprocess` branch; a `translate` verdict makes it a no-op) |
-| `stages/translate-titles.ts` | `chapters/titles.json` | LLM |
-| `stages/translate-chapters.ts` | `chapters/ru/chapter<N>.md` | LLM (block mode) |
-| `stages/assemble.ts` | `chapters/book/book.md` + `book.json` | CPU |
+| `normalization.ts#extractEn` | `chapters/en/chapter<N>.md` | CPU |
+| `normalization.ts#stats` | `chapters/schema/stats.json` | CPU |
+| `normalization.ts#split` | `chapters/schema/chapter-map.json` (+ `chapters/split/` only when a chapter is oversized) | CPU |
+| `preparation.ts#summary` | `chapters/schema/chapter<N>.summary.md` | LLM |
+| `preparation.ts#ner` | `chapters/schema/entities.json` + `chapters/schema/chapter<N>.entities.json` | LLM |
+| `preparation.ts#vocabulary` | `chapters/schema/vocabulary.json` | CPU |
+| `preparation.ts#glossary` | `chapters/glossary.json` | LLM |
+| `preparation.ts#glossaryIndex` | `chapters/glossary-index.json` | CPU |
+| `preparation.ts#quality` | `chapters/schema/quality.json` (verdict `translate` or `preprocess`) | CPU |
+| `preparation.ts#preprocess` | `chapters/clean/chapter<N>.md` + `chapters/schema/preprocess-report.json` | LLM (only on the `preprocess` branch; a `translate` verdict makes it a no-op) |
+| `translation.ts#translateTitles` | `chapters/titles.json` | LLM |
+| `translation.ts#translateChapters` | `chapters/ru/chapter<N>.md` | LLM (block mode) |
+| `translation.ts#assemble` | `chapters/book/book.md` + `book.json` | CPU |
 
 The preparation process imports `preprocess.ts` at start-up, but the stage reads the quality
 verdict lazily at run time: `quality` runs earlier in the same process, so the branch decision is

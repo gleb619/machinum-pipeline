@@ -8,7 +8,7 @@ let hasFailure = false
 
 beforeAll(async () => {
   await clean(TITLES, join(SAMPLE_DIR, '.mt'))
-  run('stages/translate-titles.ts', { env: { MT_ONLY_CHAPTERS: '1,2' } })
+  run('translation.ts', { pipeline: 'translateTitles', env: { MT_ONLY_CHAPTERS: '1,2' } })
 }, 60_000)
 
 afterEach(({ task }) => {
