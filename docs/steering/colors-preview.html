@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folio — machinum-pipeline colour preview</title>
+<style>
+:root{
+  --gray-50:#f7f3ec; --gray-100:#fffdf8; --gray-200:#f2ece1; --gray-300:#ded4c5;
+  --gray-400:#8f8070; --gray-500:#756a5c; --gray-600:#6b6157; --gray-700:#514a42;
+  --gray-800:#3a342d; --gray-900:#1f1b16; --gray-950:#0f0d0a;
+  --blue-50:#f2f5f5; --blue-100:#e9efef; --blue-200:#d7e2e1; --blue-300:#c0d2d1;
+  --blue-400:#1f5f5b; --blue-500:#1b5450; --blue-600:#184845; --blue-700:#143d3a;
+  --blue-800:#10312f; --blue-900:#0c2624; --blue-950:#091b19;
+  --green-50:#f3f7f4; --green-100:#eaf2ed; --green-200:#dae8df; --green-300:#c5dbce;
+  --green-400:#2f7d4f; --green-500:#296e46; --green-600:#245f3c; --green-700:#1e5033;
+  --green-800:#184129; --green-900:#133220; --green-950:#0d2316;
+  --yellow-50:#f9f6f1; --yellow-100:#f5efe7; --yellow-200:#ece3d4; --yellow-300:#e2d3bc;
+  --yellow-400:#97610f; --yellow-500:#85550d; --yellow-600:#734a0b; --yellow-700:#613e0a;
+  --yellow-800:#4f3208; --yellow-900:#3c2706; --yellow-950:#2a1b04;
+  --red-50:#faf3f3; --red-100:#f6ebea; --red-200:#efdcda; --red-300:#e6c8c6;
+  --red-400:#a63a32; --red-500:#92332c; --red-600:#7e2c26; --red-700:#6a2520;
+  --red-800:#561e1a; --red-900:#421714; --red-950:#2e100e;
+  --mt-shadow-sm:0 1px 2px rgba(59,47,34,.10), inset 0 1px 0 rgba(255,255,255,.55);
+  --mt-shadow-md:0 2px 6px -1px rgba(59,47,34,.12), 0 1px 0 rgba(255,255,255,.6);
+  --mt-shadow-lg:0 12px 32px -8px rgba(59,47,34,.18), 0 2px 8px -2px rgba(59,47,34,.12);
+  --mt-shadow-xl:0 24px 64px -12px rgba(59,47,34,.22), 0 4px 12px -4px rgba(59,47,34,.14);
+}
+[data-theme="dark"]{
+  --gray-50:#14120f; --gray-100:#1c1916; --gray-200:#26221d; --gray-300:#3a332b;
+  --gray-400:#756857; --gray-500:#9a8e7f; --gray-600:#b3a897; --gray-700:#cfc5b6;
+  --gray-800:#e3dbcf; --gray-900:#f2ece1; --gray-950:#fbf7f0;
+  --blue-50:#16201d; --blue-100:#172824; --blue-200:#19322f; --blue-300:#1a3d3a;
+  --blue-400:#6fb3ad; --blue-500:#50827f; --blue-600:#3a726f; --blue-700:#1f5f5b;
+  --blue-800:#1a514d; --blue-900:#164442; --blue-950:#133937;
+  --green-50:#19251b; --green-100:#1c3021; --green-200:#1f3f2a; --green-300:#234e33;
+  --green-400:#61b97f; --green-500:#5d9a76; --green-600:#488d64; --green-700:#2f7d4f;
+  --green-800:#286a43; --green-900:#225a39; --green-950:#1c4b2f;
+  --yellow-50:#2c200f; --yellow-100:#39280f; --yellow-200:#4b330f; --yellow-300:#5d3e0f;
+  --yellow-400:#d9a441; --yellow-500:#ae8444; --yellow-600:#a3742c; --yellow-700:#97610f;
+  --yellow-800:#80520d; --yellow-900:#6d460b; --yellow-950:#5b3a09;
+  --red-50:#2e1915; --red-100:#3d1d19; --red-200:#51231e; --red-300:#662823;
+  --red-400:#e0736a; --red-500:#ba655f; --red-600:#b1524b; --red-700:#a63a32;
+  --red-800:#8d312a; --red-900:#782a24; --red-950:#64231e;
+  --mt-shadow-sm:0 1px 2px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.04);
+  --mt-shadow-md:0 2px 6px -1px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.05);
+  --mt-shadow-lg:0 12px 32px -8px rgba(0,0,0,.7), 0 2px 8px -2px rgba(0,0,0,.55);
+  --mt-shadow-xl:0 24px 64px -12px rgba(0,0,0,.8), 0 4px 12px -4px rgba(0,0,0,.65);
+}
+*{box-sizing:border-box}
+html{background:var(--gray-50);color-scheme:light}
+[data-theme="dark"]{color-scheme:dark}
+body{margin:0;background:var(--gray-50);color:var(--gray-900);
+  font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.dim{color:var(--gray-500)} .muted{color:var(--gray-600)} .small{font-size:12px}
+.wrap{max-width:1160px;margin:0 auto;padding:0 28px}
+header.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
+  padding:14px 28px;background:color-mix(in srgb,var(--gray-50) 88%,transparent);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--gray-300)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.mark{display:grid;place-items:center;width:26px;height:26px;border-radius:6px;
+  background:var(--gray-900);color:var(--gray-50);font-family:Georgia,serif;font-size:16px}
+.sep{color:var(--gray-400);font-weight:400}
+.switch{display:flex;gap:2px;padding:3px;border:1px solid var(--gray-300);border-radius:8px;background:var(--gray-100)}
+.switch button{border:0;background:transparent;color:var(--gray-600);padding:6px 14px;border-radius:6px;
+  font:inherit;font-size:13px;cursor:pointer}
+.switch button[aria-pressed="true"]{background:var(--gray-200);color:var(--gray-900);box-shadow:var(--mt-shadow-sm)}
+.hero{display:grid;grid-template-columns:1.25fr .75fr;gap:56px;align-items:center;
+  padding:64px 0 44px;border-bottom:1px solid var(--gray-300)}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gray-600);margin:0 0 14px}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:500;font-size:52px;line-height:1.06;
+  letter-spacing:-.02em;margin:0 0 18px}
+.lede{font-size:17px;line-height:1.6;color:var(--gray-700);max-width:56ch;margin:0}
+.spines{display:flex;gap:8px;height:230px;align-items:flex-end}
+.spine{flex:1;border-radius:4px 4px 2px 2px;position:relative;box-shadow:var(--mt-shadow-md);
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px}
+.spine span{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--gray-50);opacity:.85}
+section{padding:52px 0;border-bottom:1px solid var(--gray-300)}
+h2{font-family:Georgia,serif;font-weight:500;font-size:30px;letter-spacing:-.01em;margin:0 0 6px}
+.sub{margin:0 0 28px;color:var(--gray-600);max-width:78ch}
+h3{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-600);margin:34px 0 12px}
+.card{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:10px;box-shadow:var(--mt-shadow-sm)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{ text-align:left;font-weight:500;color:var(--gray-600);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--gray-300)}
+td{padding:9px 12px;border-bottom:1px solid var(--gray-300)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--gray-200)}
+.dot{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid color-mix(in srgb,var(--gray-900) 12%,transparent)}
+.hex{color:var(--gray-600);font-size:12px}
+[data-theme="dark"] .l{display:none} .d{display:none} [data-theme="dark"] .d{display:inline}
+.ramp{margin-top:26px}
+.ramp-head{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+.ramp-grid{display:grid;grid-template-columns:repeat(11,1fr);gap:6px}
+.sw .chip{height:52px;border-radius:6px;border:1px solid color-mix(in srgb,var(--gray-900) 10%,transparent);box-shadow:var(--mt-shadow-sm)}
+.step{font-size:11px;color:var(--gray-600);margin-top:6px}
+.sw .hex{font-size:10px}
+.app{margin-top:26px;border:1px solid var(--gray-300);border-radius:12px;overflow:hidden;
+  box-shadow:var(--mt-shadow-lg);background:var(--gray-50)}
+.app-toolbar{display:flex;align-items:center;gap:12px;padding:8px 12px;background:var(--gray-100);border-bottom:1px solid var(--gray-300)}
+.app-title{font-weight:600;font-size:13px;display:flex;align-items:center;gap:8px}
+.crumb{color:var(--gray-600);font-size:12px}
+.spacer{flex:1}
+.btn{border:1px solid transparent;border-radius:6px;padding:5px 11px;font:inherit;font-size:12px;cursor:pointer}
+.btn-run{background:var(--green-400);color:var(--gray-50)}
+.btn-pause{background:var(--yellow-400);color:var(--gray-50)}
+.btn-stop{background:var(--red-400);color:var(--gray-50)}
+.btn-ghost{background:var(--gray-200);color:var(--gray-800);border-color:var(--gray-300)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.tabs{display:flex;align-items:center;background:var(--gray-50);border-bottom:1px solid var(--gray-300);font-size:12px}
+.tab{display:flex;align-items:center;gap:8px;padding:8px 13px;color:var(--gray-600);border-right:1px solid var(--gray-300);white-space:nowrap}
+.tab.active{background:var(--gray-100);color:var(--gray-900);box-shadow:inset 0 2px 0 var(--blue-400)}
+.tab .x{color:var(--gray-500);font-size:11px}
+.tab.preview .name{font-style:italic}
+.state-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.06em;color:var(--green-400)}
+.shell{display:grid;grid-template-columns:46px 218px 1fr;min-height:396px}
+.rail{background:var(--gray-100);border-right:1px solid var(--gray-300);padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.rail .ic{width:32px;height:32px;border-radius:7px;display:grid;place-items:center;color:var(--gray-600);font-size:14px}
+.rail .ic.on{background:var(--gray-200);color:var(--gray-900);box-shadow:inset 2px 0 0 var(--blue-400)}
+.rail .grow{flex:1}
+.side{background:var(--gray-100);border-right:1px solid var(--gray-300);padding:12px 10px}
+.side h4{margin:0 0 10px 4px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-600)}
+.pipe{padding:8px 9px;border-radius:7px;border:1px solid transparent;margin-bottom:2px}
+.pipe:hover{background:var(--gray-200);border-color:var(--gray-300)}
+.pipe .n{font-size:12px;font-weight:500}
+.pipe .p{font-size:10.5px;color:var(--gray-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pane{padding:14px 16px;min-width:0}
+.pane-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.pane-title{font-weight:600;font-size:14px}
+.runmeta{font-size:11px;color:var(--gray-600);display:flex;gap:12px;flex-wrap:wrap}
+.split{display:grid;grid-template-columns:1.05fr .95fr;gap:12px}
+.panel{background:var(--gray-100);border:1px solid var(--gray-300);border-radius:8px;overflow:hidden}
+.panel-h{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;
+  border-bottom:1px solid var(--gray-300);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gray-600)}
+.steps{list-style:none;margin:0;padding:4px 0}
+.steps li{display:grid;grid-template-columns:16px 1fr auto;gap:8px;align-items:center;
+  padding:6px 10px;font-size:12px;border-left:2px solid transparent}
+.steps li.sel{background:var(--gray-200);border-left-color:var(--blue-400)}
+.steps .t{color:var(--gray-500);font-size:10.5px}
+.ok{color:var(--green-400)} .warn{color:var(--yellow-400)} .bad{color:var(--red-400)} .act{color:var(--blue-400)}
+.log{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.75;padding:8px 10px;margin:0;color:var(--gray-700)}
+.log .ts{color:var(--gray-500)} .log .i{color:var(--blue-400)} .log .w{color:var(--yellow-400)}
+.log .e{color:var(--red-400)} .log .d{color:var(--gray-500)}
+.logbar{display:flex;justify-content:space-between;padding:6px 10px;border-top:1px solid var(--gray-300);font-size:10.5px;color:var(--gray-600)}
+.toast{display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--green-50);
+  border-bottom:1px solid var(--green-300);color:var(--green-400);font-size:12px}
+.toast .x{margin-left:auto;color:var(--green-400);opacity:.7}
+.status{display:flex;align-items:center;gap:14px;padding:5px 12px;background:var(--gray-100);
+  border-top:1px solid var(--gray-300);font-size:10.5px;color:var(--gray-600)}
+.status .right{margin-left:auto;display:flex;gap:14px}
+.states{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:18px}
+.state{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--gray-100);
+  border:1px solid var(--gray-300);border-radius:8px}
+.state .mono{white-space:nowrap}
+.sdot{font-size:15px;line-height:1}
+.slabel{font-size:11px;letter-spacing:.08em;font-weight:600}
+.shadows{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:10px}
+.shadowcard{height:118px;border-radius:10px;background:var(--gray-100);border:1px solid var(--gray-300);
+  display:flex;flex-direction:column;justify-content:flex-end;padding:14px}
+.shadowcard b{font-size:12px;font-weight:600}
+.shadowcard span{font-size:11px;color:var(--gray-600)}
+.tui{background:#0c0c0c;color:#d8d8d8;border-radius:10px;padding:18px 20px;overflow:auto;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.55;
+  border:1px solid #2a2a2a;box-shadow:var(--mt-shadow-lg)}
+.tui pre{margin:0}
+.g{color:#4ee07a} .y{color:#e8c15a} .c{color:#6fd7d7} .r{color:#ff7b72} .k{color:#8b8b8b}
+.note{font-size:12px;color:var(--gray-600);margin-top:16px}
+footer{padding:36px 0 60px;color:var(--gray-600);font-size:12px}
+a{color:var(--blue-400);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--blue-400) 40%,transparent)}
+a:hover{border-bottom-color:var(--blue-400)}
+@media (max-width:900px){.hero{grid-template-columns:1fr;gap:32px}.shell{grid-template-columns:44px 1fr}
+ .side{display:none}.split{grid-template-columns:1fr}.states{grid-template-columns:1fr 1fr}.shadows{grid-template-columns:1fr 1fr}
+ .ramp-grid{gap:3px}.sw .hex{display:none}h1{font-size:40px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="mark">m</span> machinum <span class="sep">/</span> Folio</div>
+  <div class="switch" role="group" aria-label="Theme">
+    <button type="button" data-theme-set="light" aria-pressed="true">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero" style="border-bottom:1px solid var(--gray-300)">
+    <div>
+      <p class="eyebrow">Palette proposal · light default · draft</p>
+      <h1>Paper, ink, and<br>one quiet signal.</h1>
+      <p class="lede">Folio is built for long sessions over long books: warm paper instead of white, ink instead of
+      black, and a single verdigris accent for links and focus. Machine state — running, paused, failed — is the only
+      thing allowed to raise its voice.</p>
+    </div>
+    <div class="spines" aria-hidden="true">
+      <div class="spine" style="background:var(--gray-50);height:100%;border:1px solid var(--gray-300)"><span style="color:var(--gray-700)">page</span></div>
+      <div class="spine" style="background:var(--gray-900);height:88%"><span>text</span></div>
+      <div class="spine" style="background:var(--blue-400);height:76%"><span>accent</span></div>
+      <div class="spine" style="background:var(--green-400);height:64%"><span>run</span></div>
+      <div class="spine" style="background:var(--yellow-400);height:52%"><span>pause</span></div>
+      <div class="spine" style="background:var(--red-400);height:40%"><span>fail</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>1 · Roles, not shades</h2>
+    <p class="sub">Stock Tailwind names, re-pointed at a role. In dark the physical lightness inverts: the class string
+    never changes, only the value behind it.</p>
+    <div class="card" style="overflow:hidden">
+      <table>
+        <thead><tr><th></th><th>Token</th><th>Role</th><th>Class</th><th>Light / dark</th></tr></thead>
+        <tbody>
+<tr><td><span class="dot" style="background:var(--gray-50)"></span></td><td class="mono">gray-50</td><td>page background</td><td class="mono dim">bg-gray-50</td><td class="hex"><span class="l">#f7f3ec</span><span class="d">#14120f</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-100)"></span></td><td class="mono">gray-100</td><td>surface / card / tab</td><td class="mono dim">bg-gray-100</td><td class="hex"><span class="l">#fffdf8</span><span class="d">#1c1916</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-200)"></span></td><td class="mono">gray-200</td><td>raised / hover row</td><td class="mono dim">bg-gray-200</td><td class="hex"><span class="l">#f2ece1</span><span class="d">#26221d</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-300)"></span></td><td class="mono">gray-300</td><td>separator border</td><td class="mono dim">border-gray-300</td><td class="hex"><span class="l">#ded4c5</span><span class="d">#3a332b</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-400)"></span></td><td class="mono">gray-400</td><td>control border</td><td class="mono dim">border-gray-400</td><td class="hex"><span class="l">#8f8070</span><span class="d">#756857</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-500)"></span></td><td class="mono">gray-500</td><td>dim text / paths</td><td class="mono dim">text-gray-500</td><td class="hex"><span class="l">#756a5c</span><span class="d">#9a8e7f</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-600)"></span></td><td class="mono">gray-600</td><td>muted / inactive tab</td><td class="mono dim">text-gray-600</td><td class="hex"><span class="l">#6b6157</span><span class="d">#b3a897</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-700)"></span></td><td class="mono">gray-700</td><td>secondary text</td><td class="mono dim">text-gray-700</td><td class="hex"><span class="l">#514a42</span><span class="d">#cfc5b6</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-800)"></span></td><td class="mono">gray-800</td><td>strong secondary</td><td class="mono dim">text-gray-800</td><td class="hex"><span class="l">#3a342d</span><span class="d">#e3dbcf</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-900)"></span></td><td class="mono">gray-900</td><td>primary text</td><td class="mono dim">text-gray-900</td><td class="hex"><span class="l">#1f1b16</span><span class="d">#f2ece1</span></td></tr>
+<tr><td><span class="dot" style="background:var(--gray-950)"></span></td><td class="mono">gray-950</td><td>max emphasis / on signal</td><td class="mono dim">text-gray-950</td><td class="hex"><span class="l">#0f0d0a</span><span class="d">#fbf7f0</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Ramps</h2>
+    <p class="sub">Eleven steps per family, generated in SCSS from two or three anchors. <span class="mono">400</span>
+    is the signal step: the only one used for status text and dots. Steps 50–300 are tinted fills; 500–950 are deeper
+    variants for pressed states and strong fills.</p>
+<div class="ramp"><div class="ramp-head"><span class="mono">gray</span><span class="muted small">stock class name, our values</span></div><div class="ramp-grid"><div class="sw"><div class="chip" style="background:var(--gray-50)"></div><div class="step">50</div><div class="hex"><span class="l">#f7f3ec</span><span class="d">#14120f</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-100)"></div><div class="step">100</div><div class="hex"><span class="l">#fffdf8</span><span class="d">#1c1916</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-200)"></div><div class="step">200</div><div class="hex"><span class="l">#f2ece1</span><span class="d">#26221d</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-300)"></div><div class="step">300</div><div class="hex"><span class="l">#ded4c5</span><span class="d">#3a332b</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-400)"></div><div class="step">400</div><div class="hex"><span class="l">#8f8070</span><span class="d">#756857</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-500)"></div><div class="step">500</div><div class="hex"><span class="l">#756a5c</span><span class="d">#9a8e7f</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-600)"></div><div class="step">600</div><div class="hex"><span class="l">#6b6157</span><span class="d">#b3a897</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-700)"></div><div class="step">700</div><div class="hex"><span class="l">#514a42</span><span class="d">#cfc5b6</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-800)"></div><div class="step">800</div><div class="hex"><span class="l">#3a342d</span><span class="d">#e3dbcf</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-900)"></div><div class="step">900</div><div class="hex"><span class="l">#1f1b16</span><span class="d">#f2ece1</span></div></div><div class="sw"><div class="chip" style="background:var(--gray-950)"></div><div class="step">950</div><div class="hex"><span class="l">#0f0d0a</span><span class="d">#fbf7f0</span></div></div></div></div>
+<div class="ramp"><div class="ramp-head"><span class="mono">blue</span><span class="muted small">stock class name, our values</span></div><div class="ramp-grid"><div class="sw"><div class="chip" style="background:var(--blue-50)"></div><div class="step">50</div><div class="hex"><span class="l">#f2f5f5</span><span class="d">#16201d</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-100)"></div><div class="step">100</div><div class="hex"><span class="l">#e9efef</span><span class="d">#172824</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-200)"></div><div class="step">200</div><div class="hex"><span class="l">#d7e2e1</span><span class="d">#19322f</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-300)"></div><div class="step">300</div><div class="hex"><span class="l">#c0d2d1</span><span class="d">#1a3d3a</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-400)"></div><div class="step">400</div><div class="hex"><span class="l">#1f5f5b</span><span class="d">#6fb3ad</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-500)"></div><div class="step">500</div><div class="hex"><span class="l">#1b5450</span><span class="d">#50827f</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-600)"></div><div class="step">600</div><div class="hex"><span class="l">#184845</span><span class="d">#3a726f</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-700)"></div><div class="step">700</div><div class="hex"><span class="l">#143d3a</span><span class="d">#1f5f5b</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-800)"></div><div class="step">800</div><div class="hex"><span class="l">#10312f</span><span class="d">#1a514d</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-900)"></div><div class="step">900</div><div class="hex"><span class="l">#0c2624</span><span class="d">#164442</span></div></div><div class="sw"><div class="chip" style="background:var(--blue-950)"></div><div class="step">950</div><div class="hex"><span class="l">#091b19</span><span class="d">#133937</span></div></div></div></div>
+<div class="ramp"><div class="ramp-head"><span class="mono">green</span><span class="muted small">stock class name, our values</span></div><div class="ramp-grid"><div class="sw"><div class="chip" style="background:var(--green-50)"></div><div class="step">50</div><div class="hex"><span class="l">#f3f7f4</span><span class="d">#19251b</span></div></div><div class="sw"><div class="chip" style="background:var(--green-100)"></div><div class="step">100</div><div class="hex"><span class="l">#eaf2ed</span><span class="d">#1c3021</span></div></div><div class="sw"><div class="chip" style="background:var(--green-200)"></div><div class="step">200</div><div class="hex"><span class="l">#dae8df</span><span class="d">#1f3f2a</span></div></div><div class="sw"><div class="chip" style="background:var(--green-300)"></div><div class="step">300</div><div class="hex"><span class="l">#c5dbce</span><span class="d">#234e33</span></div></div><div class="sw"><div class="chip" style="background:var(--green-400)"></div><div class="step">400</div><div class="hex"><span class="l">#2f7d4f</span><span class="d">#61b97f</span></div></div><div class="sw"><div class="chip" style="background:var(--green-500)"></div><div class="step">500</div><div class="hex"><span class="l">#296e46</span><span class="d">#5d9a76</span></div></div><div class="sw"><div class="chip" style="background:var(--green-600)"></div><div class="step">600</div><div class="hex"><span class="l">#245f3c</span><span class="d">#488d64</span></div></div><div class="sw"><div class="chip" style="background:var(--green-700)"></div><div class="step">700</div><div class="hex"><span class="l">#1e5033</span><span class="d">#2f7d4f</span></div></div><div class="sw"><div class="chip" style="background:var(--green-800)"></div><div class="step">800</div><div class="hex"><span class="l">#184129</span><span class="d">#286a43</span></div></div><div class="sw"><div class="chip" style="background:var(--green-900)"></div><div class="step">900</div><div class="hex"><span class="l">#133220</span><span class="d">#225a39</span></div></div><div class="sw"><div class="chip" style="background:var(--green-950)"></div><div class="step">950</div><div class="hex"><span class="l">#0d2316</span><span class="d">#1c4b2f</span></div></div></div></div>
+<div class="ramp"><div class="ramp-head"><span class="mono">yellow</span><span class="muted small">stock class name, our values</span></div><div class="ramp-grid"><div class="sw"><div class="chip" style="background:var(--yellow-50)"></div><div class="step">50</div><div class="hex"><span class="l">#f9f6f1</span><span class="d">#2c200f</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-100)"></div><div class="step">100</div><div class="hex"><span class="l">#f5efe7</span><span class="d">#39280f</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-200)"></div><div class="step">200</div><div class="hex"><span class="l">#ece3d4</span><span class="d">#4b330f</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-300)"></div><div class="step">300</div><div class="hex"><span class="l">#e2d3bc</span><span class="d">#5d3e0f</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-400)"></div><div class="step">400</div><div class="hex"><span class="l">#97610f</span><span class="d">#d9a441</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-500)"></div><div class="step">500</div><div class="hex"><span class="l">#85550d</span><span class="d">#ae8444</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-600)"></div><div class="step">600</div><div class="hex"><span class="l">#734a0b</span><span class="d">#a3742c</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-700)"></div><div class="step">700</div><div class="hex"><span class="l">#613e0a</span><span class="d">#97610f</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-800)"></div><div class="step">800</div><div class="hex"><span class="l">#4f3208</span><span class="d">#80520d</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-900)"></div><div class="step">900</div><div class="hex"><span class="l">#3c2706</span><span class="d">#6d460b</span></div></div><div class="sw"><div class="chip" style="background:var(--yellow-950)"></div><div class="step">950</div><div class="hex"><span class="l">#2a1b04</span><span class="d">#5b3a09</span></div></div></div></div>
+<div class="ramp"><div class="ramp-head"><span class="mono">red</span><span class="muted small">stock class name, our values</span></div><div class="ramp-grid"><div class="sw"><div class="chip" style="background:var(--red-50)"></div><div class="step">50</div><div class="hex"><span class="l">#faf3f3</span><span class="d">#2e1915</span></div></div><div class="sw"><div class="chip" style="background:var(--red-100)"></div><div class="step">100</div><div class="hex"><span class="l">#f6ebea</span><span class="d">#3d1d19</span></div></div><div class="sw"><div class="chip" style="background:var(--red-200)"></div><div class="step">200</div><div class="hex"><span class="l">#efdcda</span><span class="d">#51231e</span></div></div><div class="sw"><div class="chip" style="background:var(--red-300)"></div><div class="step">300</div><div class="hex"><span class="l">#e6c8c6</span><span class="d">#662823</span></div></div><div class="sw"><div class="chip" style="background:var(--red-400)"></div><div class="step">400</div><div class="hex"><span class="l">#a63a32</span><span class="d">#e0736a</span></div></div><div class="sw"><div class="chip" style="background:var(--red-500)"></div><div class="step">500</div><div class="hex"><span class="l">#92332c</span><span class="d">#ba655f</span></div></div><div class="sw"><div class="chip" style="background:var(--red-600)"></div><div class="step">600</div><div class="hex"><span class="l">#7e2c26</span><span class="d">#b1524b</span></div></div><div class="sw"><div class="chip" style="background:var(--red-700)"></div><div class="step">700</div><div class="hex"><span class="l">#6a2520</span><span class="d">#a63a32</span></div></div><div class="sw"><div class="chip" style="background:var(--red-800)"></div><div class="step">800</div><div class="hex"><span class="l">#561e1a</span><span class="d">#8d312a</span></div></div><div class="sw"><div class="chip" style="background:var(--red-900)"></div><div class="step">900</div><div class="hex"><span class="l">#421714</span><span class="d">#782a24</span></div></div><div class="sw"><div class="chip" style="background:var(--red-950)"></div><div class="step">950</div><div class="hex"><span class="l">#2e100e</span><span class="d">#64231e</span></div></div></div></div>
+  </section>
+
+  <section>
+    <h2>3 · In the product</h2>
+    <p class="sub">The same markup in both themes. Toolbar, tab strip, rail, sidebar, run detail, toast, status bar —
+    every colour comes from the ramps above.</p>
+
+    <div class="app">
+      <div class="app-toolbar">
+        <div class="app-title"><span class="mark" style="width:22px;height:22px;font-size:13px">m</span>
+          <span>machinum</span> <span class="crumb">▸ books.ts</span></div>
+        <div class="spacer"></div>
+        <button class="btn btn-run">▶ Run</button>
+        <button class="btn btn-pause">⏸ Pause</button>
+        <button class="btn btn-stop" disabled>■ Stop</button>
+        <button class="btn btn-ghost">Auto-layout</button>
+        <button class="btn btn-ghost">Save</button>
+      </div>
+      <div class="tabs">
+        <div class="tab active"><span>books.ts</span><span class="state-badge" style="color:var(--green-400)">● RUNNING</span><span class="x">×</span></div>
+        <div class="tab">pipelines<span class="x">×</span></div>
+        <div class="tab">runs<span class="x">×</span></div>
+        <div class="tab preview"><span class="name">glossary.ts</span><span class="x">×</span></div>
+        <div class="tab">router<span class="x">×</span></div>
+      </div>
+      <div class="toast"><span>✓</span><span>Run started: 8f3a2c</span><span class="x">×</span></div>
+      <div class="shell">
+        <nav class="rail" aria-label="Screens">
+          <div class="ic on" title="Pipelines">▤</div>
+          <div class="ic" title="Runs">◷</div>
+          <div class="ic" title="Router">◎</div>
+          <div class="ic" title="Workers">⌂</div>
+          <div class="grow"></div>
+          <div class="ic" title="Settings">⚙</div>
+        </nav>
+        <aside class="side">
+          <h4>Pipelines</h4>
+          <div class="pipe"><div class="n">books</div><div class="p">pipelines/books.ts</div></div>
+          <div class="pipe"><div class="n">chapters</div><div class="p">pipelines/chapters.ts</div></div>
+          <div class="pipe" style="background:var(--gray-200);border-color:var(--gray-300)"><div class="n">glossary</div><div class="p">pipelines/glossary.ts</div></div>
+          <h4 style="margin-top:18px">Runs</h4>
+          <div class="pipe"><div class="n"><span class="ok">●</span> 8f3a2c</div><div class="p">running · books</div></div>
+          <div class="pipe"><div class="n"><span class="act">✓</span> 7c11d0</div><div class="p">done · chapters</div></div>
+          <div class="pipe"><div class="n"><span class="bad">✕</span> 6a90e2</div><div class="p">failed · glossary</div></div>
+        </aside>
+        <div class="pane">
+          <div class="pane-head">
+            <div>
+              <div class="pane-title">run 8f3a2c</div>
+              <div class="runmeta"><span>books.ts</span><span>started 12:04</span><span>3m 12s</span><span>120 items</span></div>
+            </div>
+            <div class="spacer"></div>
+            <button class="btn btn-pause">⏸ Pause</button>
+          </div>
+          <div class="split">
+            <div class="panel">
+              <div class="panel-h"><span>Steps</span><span>3 / 7</span></div>
+              <ul class="steps">
+                <li><span class="ok">✓</span><span>parse</span><span class="t">tool · 1.2s</span></li>
+                <li><span class="ok">✓</span><span>chunk</span><span class="t">tool · 0.4s</span></li>
+                <li class="sel"><span class="act">●</span><span>translate</span><span class="t">tool · 2.8s · 810 t</span></li>
+                <li><span class="dim">○</span><span class="dim">validate</span><span class="t">—</span></li>
+                <li><span class="dim">○</span><span class="dim">assemble</span><span class="t">—</span></li>
+                <li><span class="dim">○</span><span class="dim">write</span><span class="t">—</span></li>
+                <li><span class="dim">○</span><span class="dim">summary</span><span class="t">—</span></li>
+              </ul>
+            </div>
+            <div class="panel">
+              <div class="panel-h"><span>Events</span><span class="dim">follow ●</span></div>
+<pre class="log"><span class="ts">12:04:11</span> <span class="i">INFO</span>  started
+<span class="ts">12:04:12</span> <span class="i">INFO</span>  step parse
+<span class="ts">12:04:13</span> <span class="i">INFO</span>  step chunk
+<span class="ts">12:04:16</span> <span class="w">WARN</span>  retry 2/3 model
+<span class="ts">12:04:18</span> <span class="i">INFO</span>  step translate
+<span class="ts">12:04:18</span> <span class="d">DEBUG</span> batch 120 → 118
+<span class="ts">12:04:21</span> <span class="e">ERROR</span> timeout, backing off
+<span class="ts">12:04:24</span> <span class="i">INFO</span>  resumed</pre>
+              <div class="logbar"><span>ALL · DEBUG · INFO · WARN · ERROR</span><span>/ search · f follow</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="status"><span class="ok">●</span><span>RUNNING</span><span class="mono">8f3a2c</span><span>step 3/7</span><span>items 120</span>
+        <span class="right"><span>router $0.42</span><span>SSE ●</span><span class="mono">Ln 4, Col 18</span></span></div>
+    </div>
+
+    <div class="states">
+<div class="state"><span class="sdot" style="color:var(--green-400)">●</span><span class="slabel" style="color:var(--green-400)">RUNNING</span><span class="mono dim small">text-green-400</span></div>
+<div class="state"><span class="sdot" style="color:var(--yellow-400)">⏸</span><span class="slabel" style="color:var(--yellow-400)">PAUSED</span><span class="mono dim small">text-yellow-400</span></div>
+<div class="state"><span class="sdot" style="color:var(--blue-400)">✓</span><span class="slabel" style="color:var(--blue-400)">DONE</span><span class="mono dim small">text-blue-400</span></div>
+<div class="state"><span class="sdot" style="color:var(--red-400)">✕</span><span class="slabel" style="color:var(--red-400)">FAILED</span><span class="mono dim small">text-red-400</span></div>
+<div class="state"><span class="sdot" style="color:var(--gray-600)">○</span><span class="slabel" style="color:var(--gray-600)">PENDING</span><span class="mono dim small">text-gray-600</span></div>
+    </div>
+    <p class="note">Status is always glyph + uppercase label + colour. Colour alone never carries meaning.</p>
+  </section>
+
+  <section>
+    <h2>4 · Shadows</h2>
+    <p class="sub">Generated by an SCSS function per theme: warm ink shadows in light, deep black in dark, plus a 1 px
+    white inset for the lit edge. <span class="mono">shadow-focus</span> is the only ring used for keyboard focus.</p>
+    <div class="shadows">
+      <div class="shadowcard" style="box-shadow:var(--mt-shadow-sm)"><b>shadow-sm</b><span>rows, inputs</span></div>
+      <div class="shadowcard" style="box-shadow:var(--mt-shadow-md)"><b>shadow-md</b><span>cards, active tab</span></div>
+      <div class="shadowcard" style="box-shadow:var(--mt-shadow-lg)"><b>shadow-lg</b><span>popovers, menus</span></div>
+      <div class="shadowcard" style="box-shadow:var(--mt-shadow-xl)"><b>shadow-xl</b><span>modals only</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>5 · Same contract in the terminal</h2>
+    <p class="sub">The TUI never uses truecolour: state is mapped to the nearest bright ANSI colour, dimensions are
+    rules instead of shadows, and the label carries the meaning when <span class="mono">NO_COLOR</span> is set.</p>
+    <div class="tui"><pre><span class="k">┌</span> Views <span class="k">──────────────┬</span> run 8f3a · <span class="g">● RUNNING</span> <span class="k">─────────────────────────────┐</span>
+<span class="k">│</span> <span class="c">▾ Pipelines</span>         <span class="k">│</span> state <span class="g">RUNNING</span>  step 3/7  items 120          <span class="k">│</span>
+<span class="k">│</span>   ▸ Runs            <span class="k">│</span> <span class="k">──────────────────────────────────────────</span> <span class="k">│</span>
+<span class="k">│</span>   ▸ books.ts        <span class="k">│</span> <span class="g">✓</span> parse     tool  1.2s      0 t          <span class="k">│</span>
+<span class="k">│</span>   ▸ run 8f3a        <span class="k">│</span> <span class="g">✓</span> chunk     tool  0.4s      0 t          <span class="k">│</span>
+<span class="k">│</span>   ▸ run 7c11        <span class="k">│</span> <span class="c">●</span> translate tool  2.8s    810 t          <span class="k">│</span>
+<span class="k">│</span>                     <span class="k">│</span> <span class="k">○</span> validate  tool  —          —            <span class="k">│</span>
+<span class="k">└─────────────────────┴────────────────────────────────────────────┘</span>
+ 1 Pipelines  2 Runs  3 Router  4 Workers   ↑↓ select   <span class="y">r</span> run   <span class="y">f</span> follow   <span class="y">q</span> quit</pre></div>
+  </section>
+
+  <section>
+    <h2>6 · Contrast</h2>
+    <p class="sub">Measured on the generated values. Body text targets 4.5:1; 3:1 is reserved for non-text UI.
+    <span class="mono">gray-500</span> (dim) stays at 4.5:1, so it remains readable for paths and timestamps.</p>
+    <div class="card" style="overflow:hidden">
+      <table>
+        <thead><tr><th>Pair</th><th>Light</th><th>Dark</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">gray-900</span> on <span class="mono">gray-50</span> · body</td><td>15.5:1</td><td>15.9:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">gray-700</span> on <span class="mono">gray-100</span> · secondary</td><td>6.1:1</td><td>10.3:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">gray-600</span> on <span class="mono">gray-100</span> · muted</td><td>5.9:1</td><td>7.5:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">gray-500</span> on <span class="mono">gray-50</span> · dim</td><td>4.8:1</td><td>5.8:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">gray-400</span> on <span class="mono">gray-100</span> · control edge</td><td>3.8:1</td><td>3.2:1</td><td>≥ 3</td></tr>
+          <tr><td><span class="mono">green-400</span> on <span class="mono">gray-50</span> · running</td><td>4.6:1</td><td>7.8:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">yellow-400</span> on <span class="mono">gray-50</span> · paused</td><td>4.7:1</td><td>8.3:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">red-400</span> on <span class="mono">gray-50</span> · failed</td><td>5.8:1</td><td>6.1:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">blue-400</span> on <span class="mono">gray-50</span> · link</td><td>6.7:1</td><td>7.8:1</td><td>≥ 4.5</td></tr>
+          <tr><td><span class="mono">gray-50</span> on <span class="mono">green-400</span> · solid button</td><td>4.6:1</td><td>7.8:1</td><td>≥ 4.5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section style="border-bottom:0">
+    <h2>7 · Hosts</h2>
+    <p class="sub"><b>Web + TUI:</b> Folio, as above. <b>VS Code webview:</b> the exception — colours follow
+    <span class="mono">--vscode-*</span> so the panel matches the editor, and shadows collapse to borders.
+    The class contract is identical; a bridge converts VS Code hex values to the RGB triplets Tailwind expects.</p>
+    <p class="note">Light is the default theme; dark is opt-in via <span class="mono">html[data-theme="dark"]</span>.
+    Full contract: <a href="colors.md">colors.md</a> · layout: <a href="layout.md">layout.md</a>.
+    This page is a static draft — no build step, no external assets.</p>
+  </section>
+</main>
+
+<footer class="wrap">machinum-pipeline · Folio palette proposal · preview only, nothing shipped yet</footer>
+
+<script>const root = document.documentElement
+for (const b of document.querySelectorAll('[data-theme-set]')) {
+  b.setAttribute('aria-pressed', String(b.dataset.themeSet === root.dataset.theme))
+  b.addEventListener('click', () => {
+    const t = b.dataset.themeSet
+    root.dataset.theme = t
+    for (const x of document.querySelectorAll('[data-theme-set]')) x.setAttribute('aria-pressed', String(x === b))
+  })
+}
+</script>
+</body>
+</html>
