@@ -6,7 +6,7 @@ second naming scheme, no `dark:` variants. The palette is written once in SCSS, 
 onto the stock `gray/blue/green/yellow/red` ramps in `tailwind.config.js`.
 
 Live preview: [colors-preview.html](colors-preview.html) — light and dark, tokens, ramps, product mock, shadows.
-Status: **draft**; nothing here is implemented until the palette is accepted.
+Status: **accepted** (2026-11-19): Folio palette, light-first. Implementation pending — see §10.
 
 ## 1. Decisions (locked)
 
@@ -36,8 +36,12 @@ and **one** quiet accent; status colours are the only loud pixels. Three candida
 | Midnight Library | indigo-slate `#171a24` / `#e8e6f0` | brass `#a9772f` | late-night reading room | weak as a **light** default; brass needs dark to glow |
 
 Chosen: **Folio**. Verdigris is far enough from the run green and the fail red, warm neutrals separate the admin UI
-from the code editor, and the palette survives both themes from the same anchors. Typography is part of the proposal:
-serif display headings (system `Georgia` stack), sans UI, mono for ids/URIs — book feel without a webfont.
+from the code editor, and the palette survives both themes from the same anchors.
+
+**Typography decision.** Serif is brand-level only: app wordmark, document/marketing headings, empty-state titles.
+Every dense surface — toolbar, tabs, sidebar, panels, tables, buttons, event log — is sans. Ids, URIs and counts
+are mono. System stacks only (`Georgia`/`Times` for display, `ui-sans-serif` for UI, `ui-monospace` for ids); no
+webfonts, so the VS Code webview stays offline. Never set a serif heading inside the app chrome.
 
 ### 2.1 One accent, three semantic families
 
@@ -323,9 +327,14 @@ Measured on the generated values (WCAG 2.1):
 5. Move leftover hex/`rgb()` literals (Vue `style=` blocks, Vue Flow overrides) to the semantic variables.
 6. TUI: implement `packages/tui/src/theme.ts` from §7 (no raw escapes in widgets); VS Code: `theme-bridge.ts` (§8).
 
-## 11. Open questions
+## 11. Decisions (closed)
 
-1. **Palette option** — confirm Folio, or switch to Vellum / Midnight Library (§2). Everything below assumes Folio.
-2. **Typography** — is serif display for headings part of the product, or should UI stay sans-only?
-3. **Signal steps** — keep the 400-is-signal rule, or also generate `-fg`/`-bg` aliases later if the class contract
-   starts to strain?
+| Decision | Outcome |
+|---|---|
+| Palette | **Folio** — warm paper/ink neutrals, verdigris accent |
+| Theme | light default; dark is a value flip behind the same classes |
+| Typography | serif brand-only, sans UI, mono ids/URIs, system stacks only |
+| Signal step | **`400` is the only status step** for text/dots/borders; `50–300` are fills, `500+` are pressed/deep variants |
+| Naming | stock Tailwind shade names permanently; `theme.colors` override |
+
+No open colour questions. Next step is implementation per §10, after the preview is signed off.
