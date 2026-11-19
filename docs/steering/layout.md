@@ -13,7 +13,37 @@ Source of truth today: `packages/components/src/App.vue`. §10 describes the tar
 layout); until it lands, §1–§9 describe the shipped tabbed shell. Where this file differs from `App.vue`, `App.vue` is a bug
 to fix (or this file is stale — fix one of them).
 
+Colour, shadow and theme token values live in [colors.md](colors.md); this contract only says which token applies
+where.
+
+## Status legend
+
+| Status | Meaning |
+|---|---|
+| `shipped` | implemented in the current skin; the section describes reality |
+| `planned` | specced here, not built yet |
+| `API needed` | blocked on a backend/HTTP surface that does not exist |
+
+Every top-level section states its status directly under the heading. A section status wins over the matrix.
+
+## Implementation matrix
+
+| Surface | Web (`webui`) | TUI | API | Owner |
+|---|---|---|---|---|
+| Pipelines list (§1–§4) | `shipped` | `shipped` | `shipped` (`/api/pipelines`) | `@mt/components`, `@mt/tui` |
+| Runs list + Pause/Resume (§4) | `shipped` | `shipped` | `shipped` (`/api/runs`) | `@mt/components`, `@mt/tui` |
+| Router panel (§4) | `shipped` | `shipped` | `shipped` (`/api/dashboard`, `/api/pool`, `/api/logs`) | `@mt/components`, `@mt/tui` |
+| Workers (§2) | `planned` | `planned` | `shipped` (`/api/workers`) | `@mt/components`, `@mt/tui` |
+| Run detail tab (§10.10) | `planned` | `planned` | `shipped` (`/api/runs/:id`, `/items`, `/events`) | `@mt/components`, `@mt/tui` |
+| Studio shell: sidebar, toolbar, splitter, status bar (§10.1–§10.8) | `planned` | `planned` (phase 3) | — | `@mt/components`, `@mt/tui` |
+| Workspace tabs / accordion, deep links, restore (§10.9) | `planned` | `planned` (phase 3) | — | `@mt/components`, `@mt/tui` |
+| Stop run (§10.3) | `planned` | `planned` | `API needed` | `@mt/webui` |
+| Save editor buffer (§10.3–§10.4) | `planned` | — | `API needed` | `@mt/webui` |
+| State colours / theme tokens (§5, [colors.md](colors.md)) | `shipped` | `shipped` | — | `@mt/components` |
+
 ## 1. Data source
+
+**Status: shipped.**
 
 | What | Endpoint | Used by |
 |---|---|---|
@@ -22,7 +52,7 @@ to fix (or this file is stale — fix one of them).
 | Start | `POST /api/runs/start` `{ pipeline: declared }` → `{ runId }` | `Run` button |
 | Pause | `POST /api/runs/:id/pause` | `Pause` button |
 | Resume | `POST /api/runs/:id/resume` | `Resume` button |
-| Run detail | `GET /api/runs/:id`, `/items`, `/events` (SSE) | Run detail screen (planned) |
+| Run detail | `GET /api/runs/:id`, `/items`, `/events` (SSE) | Run detail tab (§10.10, planned) |
 | Workers | `GET /api/workers` → `{ id, name, tags, status, lastSeen, runs }[]` | Workers screen (planned) |
 | Router cost | `GET /api/dashboard` | Router screen |
 | Router pool | `GET /api/pool` | Router screen |
@@ -34,15 +64,17 @@ process", show it as an error toast, not a crash.
 
 ## 2. Screens and names
 
+**Status: shipped** (Workers and Run detail `planned`).
+
 Fixed names, fixed order. Same labels in both skins.
 
 | # | Name | Content | Status |
 |---|---|---|---|
-| 1 | **Pipelines** | list of discovered pipelines | done |
-| 2 | **Runs** | list of all runs + state | done |
-| 3 | **Router** | cost totals, pool status, recent calls (same-origin embedded router) | done |
-| 4 | **Run detail** | one run: metadata, steps, live events | planned (UC029) |
-| 5 | **Workers** | registered `mt worker` peers: name, tags, online/lost, mirrored runs | planned (T205 API only) |
+| 1 | **Pipelines** | list of discovered pipelines | shipped |
+| 2 | **Runs** | list of all runs + state | shipped |
+| 3 | **Router** | cost totals, pool status, recent calls (same-origin embedded router) | shipped |
+| 4 | **Run detail** | one run: metadata, steps, live events (§10.10) | planned |
+| 5 | **Workers** | registered `mt worker` peers: name, tags, online/lost, mirrored runs | planned (API shipped) |
 
 Rules:
 
@@ -53,6 +85,9 @@ Rules:
 - No extra top-level screens without adding a row here first.
 
 ## 3. Page skeleton
+
+**Status: shipped legacy; replaced by §10.9 in the Studio shell.** These header tabs are the shipped tab bar. The
+toast row moves with them: under the header here, under the tab strip in §10.1.
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
@@ -69,7 +104,8 @@ Rules:
 
 Zones, top to bottom, identical in both skins:
 
-1. **Header** — title left, tab switcher right. Active tab = bright/bold; inactive = blue link colour.
+1. **Header** — title left, tab switcher right. Active tab = bright/bold; inactive = blue link colour. The tab
+   switcher is shipped legacy; §10.9 owns the target tab model.
 2. **Toast** — one row under the header, only when a message exists; dismiss with `×` (web click, TUI `Esc`).
    Success = green; message starting `Error` = red. One toast at a time; a new action clears the old one.
 3. **Body** — scrollable list for the active screen.
@@ -78,6 +114,8 @@ Zones, top to bottom, identical in both skins:
 Width: web content column max `max-w-4xl` centered, `px-4 py-8`. TUI uses full terminal width, 1-col padding.
 
 ## 4. Rows
+
+**Status: shipped.**
 
 Every list row has the same anatomy: **identity block on the left, actions on the right**.
 
@@ -106,7 +144,10 @@ them to the left. Buttons stay at the row's right edge.
 
 ## 5. State colours
 
-One mapping, both skins (`stateColor()` in `App.vue`).
+**Status: shipped.**
+
+One mapping, both skins (`stateColor()` in `App.vue`). Values here are semantic tokens; concrete colour, shadow and
+theme definitions live in [colors.md](colors.md).
 
 | State | Web (Tailwind) | TUI (ANSI) |
 |---|---|---|
@@ -118,12 +159,15 @@ One mapping, both skins (`stateColor()` in `App.vue`).
 
 Palette (web base): page `bg-gray-900 text-gray-100`; row `border-gray-800 bg-gray-800/50`, hover `border-gray-700`;
 dim text `text-gray-600`; link `text-blue-400`. TUI maps to the nearest 16-colour ANSI; no truecolour required.
-Dark theme only for now.
+Dark theme only for now. Light/high-contrast arrive through [colors.md](colors.md) tokens and the VS Code host
+mapping (§11.1), not by adding new ad-hoc classes.
 
 Button colours: green = start/resume, yellow = pause. Red is reserved for errors/failed — no destructive button
 exists yet; when one is added it is red, last in the row, and confirms first.
 
 ## 6. Empty, loading, error
+
+**Status: shipped.**
 
 Same text in both skins.
 
@@ -144,30 +188,43 @@ any run is `running`/`paused`; the TUI follows the same cadence (3s active, 30s 
 
 ## 7. Interaction mapping
 
-Web = mouse first. TUI = keyboard first. Every web action has one fixed key.
+**Status: shipped** (browser-safe tab keys and the Studio chords are `planned`).
 
-| Action | Web | TUI key |
-|---|---|---|
-| Open/focus screen tab | click tab / rail icon | `1` Pipelines · `2` Runs · `3` Router · `4` Workers |
-| Cycle open tabs | `Ctrl+Tab` / `Ctrl+Shift+Tab` | `Tab` / `Shift+Tab` |
-| Close tab | `×` / middle-click / `Ctrl+W` | `x` / `Ctrl+W` |
-| Quick open | `Ctrl+K P` | `Ctrl+P` |
-| Move selection | hover | `↑`/`↓` or `k`/`j` |
-| Run selected pipeline | `▶ Run` | `r` or `Enter` |
-| Pause selected run | `⏸ Pause` | `p` |
-| Resume selected run | `▶ Resume` | `p` (toggle: same key, state decides) |
-| Retry failed load | `Retry` link | `R` |
-| Dismiss toast | `×` | `Esc` |
-| Open run detail | click row | `Enter` on a run |
-| Back | browser back / tab | `Esc` / `Backspace` |
-| Quit | close tab | `q` / `Ctrl+C` |
+Web = mouse first. TUI = keyboard first. Keys are per host: a browser owns its chrome, the VS Code host owns its tab
+controls, the TUI owns the terminal. Every action has one fixed key per host; a host may drop a shortcut it cannot
+bind (hide it or show it disabled), never rebind it to a different action.
+
+Browser-reserved keys (`Ctrl+W`, `Ctrl+Tab`, `Ctrl+1…9`, `Ctrl+P`, `Alt+…`) must never appear in the web column. Tab
+actions on web use the `g` chord or the `Ctrl+K` chord; both are unclaimed in current browsers.
+
+| Action | Web (plain browser) | VS Code webview | TUI key |
+|---|---|---|---|
+| Open/focus screen tab | `g` then `p` Pipelines · `r` Runs · `t` Router · `w` Workers | native editor/tab controls (host-owned) | `1` Pipelines · `2` Runs · `3` Router · `4` Workers |
+| Cycle open tabs | `Ctrl+K` `N` / `Ctrl+K` `P` | host-owned | `Tab` / `Shift+Tab` |
+| Close tab | `×` only | host-owned | `x` / `Ctrl+W` |
+| Quick open | `Ctrl+K` `O` | host-owned (`Ctrl+P` belongs to the editor) | `Ctrl+P` |
+| Move selection | hover | hover | `↑`/`↓` or `k`/`j` |
+| Run selected pipeline | `▶ Run` | `▶ Run` | `r` or `Enter` |
+| Pause selected run | `⏸ Pause` | `⏸ Pause` | `p` |
+| Resume selected run | `▶ Resume` | `▶ Resume` | `p` (toggle: same key, state decides) |
+| Retry failed load | `Retry` link | `Retry` link | `R` |
+| Dismiss toast | `×` | `×` | `Esc` |
+| Open run detail | click row | click row | `Enter` on a run |
+| Back | browser back | host back | `Esc` / `Backspace` |
+| Quit | close tab | close window | `q` / `Ctrl+C` |
+
+The `g` chord is prefix-based: `g` arms navigation for 1 s, the next key picks the screen, anything else cancels.
+VS Code rows are deliberately "host-owned": the webview never promises a shortcut it does not implement.
 
 TUI footer shows the keys valid for the current screen, e.g. `1 Pipelines  2 Runs  3 Router  ↑↓ select  r run  q quit`.
 Keys never change meaning between screens: `Esc` always backs out one level.
 
 ## 8. Implementation notes
 
-- Webui: Vue 3 SFC + Tailwind 3 (`packages/components/`). Reuse the class strings in §5 verbatim.
+**Status: shipped.**
+
+- Webui: Vue 3 SFC + Tailwind 3 (`packages/components/`). Reuse the class strings in §5 verbatim; theme tokens come
+  from [colors.md](colors.md) via the Tailwind config, not from per-component colours.
 - TUI: `@mt/tui` (`packages/tui/`, skeleton — no screens yet). Build the screens with OpenTUI + **SolidJS** (`@opentui/solid`; never React) via the
   OpenTUI skill (`opentui`); the package fetches the API over HTTP only (no `@mt/*` imports).
 - Share, don't copy: pure helpers (state → colour name, labels, toast text) should live in one tiny module both
@@ -176,16 +233,18 @@ Keys never change meaning between screens: `Esc` always backs out one level.
 
 ## 9. Change checklist
 
+**Status: applies to both skins** (`shipped` and `planned` work alike).
+
 1. Change screen/button/label/colour/navigation → edit this file first (§10.9 for tabs/accordion/sidebar).
 2. Update webui **and** TUI (or open a kanban row for the skin not yet built).
 3. Update [guiding/uc.md](../guiding/uc.md) if a user-visible capability changes.
 4. `pnpm lint && pnpm typecheck`.
 
-## 10. Studio shell (target layout, planned)
+## 10. Studio shell (target layout)
 
-Conceptually VS Code: code on the left, graph on the right, collapsible activity sidebar, toolbar on top, status bar
-at the bottom. Web only first; the TUI keeps §3 (no editor/graph). §1–§9 stay valid: screens, labels, colours and
-states are reused inside the new shell.
+**Status: planned.** Web ships first; the TUI adopts the same workspace tabs/accordion contract in phase 3 (§10.8,
+§10.9) — the shell is not web-only. The TUI has no editor or graph pane, so §10.4–§10.6 apply to web only. §1–§9
+stay valid: screens, labels, colours and states are reused inside the new shell.
 
 ### 10.1 Skeleton
 
@@ -195,6 +254,8 @@ VS Code UI; the graph pane is the shared component ([§11](#11-hosts-web-and-vs-
 ```text
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ Mt  ▸ pipeline.ts      [▶ Run] [⏸ Pause] [■ Stop]  [Auto-layout] [Save]    │ toolbar
+├────────────────────────────────────────────────────────────────────────────┤
+│ ▎pipeline.ts × │ run 8f3a × │ pipelines × │ …                       ⌄      │ tab strip
 ├──┬─────────────────────────────┬─┬───────────────────────────────────────┤
 │☰ │ editor tab: pipeline.ts     │ │ ┌─ Source ─▶ Tool ─▶ Target ─┐        │
 │📁│ ┌─────────────────────────┐ │▮│ │  (Vue Flow, read-only v1)   │ [mini] │
@@ -213,14 +274,17 @@ Zones (names fixed, same wording in code and docs):
 | Zone | Name | Content |
 |---|---|---|
 | top | **Toolbar** | title/breadcrumb left, run controls centre, graph/editor actions right |
+| under toolbar | **Tab strip** | workspace tabs (§10.9); one strip per window |
+| under tab strip | **Toast** | optional one-line message, same text/colours as §3 |
 | left | **Sidebar** | activity rail + collapsible panel (§10.2) |
 | centre-left | **Editor pane** | Monaco, pipeline module source |
 | centre-right | **Graph pane** | Vue Flow view of the pipeline steps |
 | middle | **Splitter** | draggable divider between editor and graph |
 | bottom | **Status bar** | run state, step, counts, router cost, cursor position |
 
-The §3 toast row sits just under the toolbar. Header tabs from §2 become **workspace tabs** (§10.9): each screen is one
-singleton view tab and the sidebar rail is a shortcut that opens-or-focuses it. The sidebar panel lists documents
+The §3 toast row sits just under the tab strip, above the panes; in the shipped §3 shell it stays under the header.
+Header tabs from §2 become **workspace tabs** (§10.9): each screen is one singleton view tab and the sidebar rail is
+a shortcut that opens-or-focuses it. The sidebar panel lists documents
 (pipelines, runs); clicking a row opens a document tab. Run detail is a document tab too. Default view on open:
 Pipelines tab active, sidebar expanded, first pipeline loaded.
 
@@ -248,8 +312,13 @@ Pipelines tab active, sidebar expanded, first pipeline loaded.
 | Auto-layout | `Auto-layout` | neutral | re-run dagre on the graph |
 | Save | `Save` | neutral | write editor text back to the pipeline file (needs write API) |
 
-Labels are literal, same rule as §4. Buttons disabled (not hidden) when the state does not allow them. Keys:
-`Ctrl+Enter` run, `Ctrl+S` save, `Ctrl+B` sidebar, `Ctrl+J` focus graph, `Ctrl+K Z` swap panes (optional).
+Labels are literal, same rule as §4. Buttons disabled (not hidden) when the state does not allow them.
+
+**Target rule.** Toolbar buttons act on the **active tab's** run or pipeline only — never on a row, node or selection
+in another panel. A `view:` tab resolves the pipeline from its breadcrumb; a `run:` tab resolves the run from its
+tab id. Hovering a row somewhere else does not retarget the toolbar.
+
+Keys: `Ctrl+Enter` run, `Ctrl+S` save, `Ctrl+B` sidebar, `Ctrl+J` focus graph, `Ctrl+K Z` swap panes (optional).
 
 ### 10.4 Editor pane
 
@@ -300,6 +369,8 @@ then right-aligned: connection (`SSE ● / ○`), cursor `Ln, Col`. Empty state 
 3. Graph API (`/graph`) + Vue Flow read-only render + dagre layout.
 4. Run wiring: toolbar buttons, node run-state via SSE, status bar, stop endpoint.
 5. Save/edit loop and node↔editor reveal; label tests per §8.
+6. **TUI parity (phase 3).** Views column + accordion (§10.9), Run detail panes (§10.10), toolbar actions bound to
+   the §7 keys.
 
 Pitfalls: tab ids derived from the click instead of the target (duplicate tabs); `activeTab` state duplicated per
 screen instead of one workspace store; Monaco worker config in production builds; `fitView` before nodes are measured; re-layout on every
@@ -309,6 +380,8 @@ state persisted in `localStorage` must tolerate it being unavailable.
 Reference docs: [Vue Flow guide](https://vueflow.dev/guide/) (getting started, nodes, `useVueFlow`, utils).
 
 ### 10.9 Workspace: tabs, accordion, and the sidebar
+
+**Status: planned** (web in §10.8 step 1, TUI in step 6 / phase 3).
 
 One navigation state for both skins. The web renders it as a horizontal **tab strip**, the TUI as a vertical
 **accordion**. They are the same `tabs[] + activeId`, so no screen gets a "web-only" or "sidebar-only" home.
@@ -332,7 +405,7 @@ interface WorkspaceState { tabs: TabRef[]; activeId: string }
 | view | `view:workers` | `Workers` | 1 |
 | view | `view:settings` | `Settings` | 1 |
 | doc | `pipeline:<declared>` | `<basename>.ts` | 1 |
-| doc | `run:<runId>` | `<short id>` | 1 |
+| doc | `run:<runId>` | `run <short id>` | 1 |
 
 Rules:
 
@@ -346,9 +419,9 @@ Rules:
    independent of it.
 4. **Preview tab.** A single click on a pipeline or run row opens/replaces one *preview* tab (italic title; `*` prefix
    in the TUI). The next single click replaces it instead of adding another; double-click / `Enter` / first edit pins
-   it (`preview = false`). At most one preview exists. Rail icons, number keys and deep links always open pinned tabs.
-   This is what stops "20 pipelines visited → 20 tabs".
-5. **Close.** `×` or middle-click (web), `Ctrl+W` / `x` (TUI). Closing the active tab activates the right neighbour,
+   it (`preview = false`). At most one preview exists. Rail icons, quick-open, deep links (and the TUI number keys)
+   always open pinned tabs. This is what stops "20 pipelines visited → 20 tabs".
+5. **Close.** `×` or middle-click (web), `x` / `Ctrl+W` (TUI). Closing the active tab activates the right neighbour,
    else the left; closing the last tab opens `view:pipelines` — the workspace is never empty. Closing a `run:` tab
    drops its SSE subscription; dirty `pipeline:` tabs confirm first.
 6. **Keep-alive.** Switching tabs preserves scroll, filters, editor buffer/cursor and subscriptions. Web:
@@ -375,9 +448,11 @@ Rules:
 - 32 px tall, under the toolbar and above the toast row and splitter. Active: `bg-gray-800`, bright text, 2 px top
   accent in `text-blue-400`; inactive `text-gray-500`, hover `text-gray-300`.
 - Each tab: kind icon, title (truncated, `max-w-[200px]`), close `×` (shown on hover unless active), dirty dot for
-  unsaved pipelines, italic for preview.
-- Overflow: horizontal scroll plus a `⌄` menu listing every tab. `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle in open order,
-  `Ctrl+1…9` jumps to the nth tab, `Ctrl+W` closes. Never shrink a tab below 80 px — scroll instead.
+  unsaved pipelines, italic for preview. A `run:` tab title is `run <short id>` and carries the §5 state badge
+  (uppercase label, state colour) that updates from the tab's SSE stream.
+- Overflow: horizontal scroll plus a `⌄` menu listing every tab. `Ctrl+K` `N` / `Ctrl+K` `P` cycle in open order,
+  `Ctrl+K` `O` quick-opens, `×` or middle-click closes (§7). Browser-reserved chords never appear here. Never shrink
+  a tab below 80 px — scroll instead.
 - Never an empty frame: `view:pipelines` is the floor.
 
 #### TUI: accordion (same state)
@@ -397,10 +472,48 @@ vertically: one line per open tab, with the active one expanded in place.
 - Width ≥ 100 cols: two columns — views column (24–32 cols, resizable with the §10.6 keys) + active view. Below 100
   cols: one column, accordion mode — every tab is a one-line header and only `activeId` is expanded.
 - At most one section is expanded; expanding a header *is* `openTab`, so it cannot duplicate anything.
+- A `run:` header reads `run <short id>` plus the §5 state badge (uppercase, ANSI colour) from the same SSE stream
+  as the pane below it.
 - Keys: `↑`/`↓` move over headers, `Enter` activates, `Tab`/`Shift+Tab` cycle, `1`–`4` open-or-focus singleton views,
-  `Ctrl+W`/`x` closes, `Ctrl+B` toggles the views column, `Ctrl+P` quick-opens (fuzzy over open tabs, then pipelines
-  and runs).
+  `x`/`Ctrl+W` closes, `Ctrl+B` toggles the views column, `Ctrl+P` quick-opens (fuzzy over open tabs, then pipelines
+  and runs). These are TUI-owned terminal keys; they are not web bindings.
 - Rows inside the expanded section reuse §4–§6 verbatim. The accordion is a second renderer, not a second data path.
+
+#### Deep links and restore
+
+Web routes map 1:1 to tab ids; every route is open-or-focus, never a second copy:
+
+| Route | Tab |
+|---|---|
+| `/pipelines` | `view:pipelines` |
+| `/runs` | `view:runs` |
+| `/router` | `view:router` |
+| `/workers` | `view:workers` |
+| `/p/:declared` | `pipeline:<declared>` |
+| `/runs/:id` | `run:<id>` |
+
+- Browser back/forward walks **workspace history** (open, focus, close, preview replacement), not document reloads.
+  Push history on open/activate/pin; use `replaceState` when a preview is replaced in place.
+- Load precedence: **URL > `mt-workspace` restore > default**. A valid URL wins over persisted state; a route that
+  cannot be resolved (unknown `:declared`, pruned run) drops that tab, rewrites the URL to `/pipelines`, and opens
+  `view:pipelines` if nothing else remains. Unknown ids loaded from restore are dropped silently (§10.9 rule 8).
+- `pipeline:` / `run:` routes must work on a cold load with an empty store; they never depend on the sidebar.
+- TUI equivalent (planned): startup flags `--view <pipelines|runs|router|workers>`, `--run <id>`,
+  `--pipeline <declared>` instead of URLs, same precedence (flag > in-memory restore > default). An unknown flag value
+  prints the §6 error text and opens the default view.
+
+#### State ownership
+
+| Scope | Owner | State |
+|---|---|---|
+| Global | one workspace store per window | `tabs[]`, `activeId`, sidebar `{ collapsed, panel }`, splitter size, theme |
+| Per tab | that tab's component | scroll, cursor/selection, filters/search, graph viewport and node positions, one SSE subscription (`run:` tabs only) |
+| Host | `HostAdapter` | native tab/editor state, `vscode.getState()` (graph viewport, selected node) where the host has no URL |
+
+- Nothing in the per-tab column is persisted globally; switching tabs must not leak a filter or selection into a
+  sibling tab.
+- Toolbar actions read the active tab's run/pipeline (§10.3), never a focused row in another panel.
+- Deep links and restore only rebuild the global column; per-tab state is re-derived (and lost) on a cold load.
 
 #### Why not tabs *and* an accordion at once
 
@@ -426,7 +539,50 @@ vertically: one line per open tab, with the active one expanded in place.
 | 9 | TUI: press `2` three times | one Runs tab, active, order unchanged |
 | 10 | Reload / detach, reopen (web) | same tab ids and active tab |
 
+### 10.10 Run detail tab
+
+**Status: planned** (API shipped).
+
+One `run:<id>` document tab per run, opened from the Runs list or a deep link (§10.9), never from the sidebar. Title
+is `run <short id>`; all skins show the §5 state badge (uppercase `STATE`, state colour) on the tab.
+
+Web layout:
+
+```text
+┌ run 8f3a · RUNNING ───────────────────────────────────────────── [⏸ Pause] ┐
+│ run 8f3a…  pipeline books.ts  started 12:04  duration 3m 12s     [copy]    │
+├─────────────────────────────────────┬──────────────────────────────────────┤
+│ STEPS                               │ EVENTS                               │
+│ ✓ parse      tool  1.2s    0 t      │ 12:04:11 INFO  started               │
+│ ✓ translate  tool  2.8s  810 t      │ 12:04:13 INFO  step-done parse       │
+│ • validate   tool  —                │ 12:04:15 WARN  retry 2/3             │
+│ in 120 · out 118                    │                level ALL   /   f     │
+├─────────────────────────────────────┴──────────────────────────────────────┤
+│ item inspector · validate: in 2 · out 0 · first/last item                  │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Header**: run id with a copy button, state badge, pipeline name, started time, duration, `Pause` / `Resume`
+  (`Stop` only when §10.3's endpoint lands). No back arrow: closing the tab is the back action.
+- **Step timeline (left)**: one row per step — state icon, step id, kind, state, duration, tokens/cost, items in/out.
+  Rows come from `GET /api/runs/:id` (checkpoint tree); events patch state and counts in place, never reorder rows.
+  Selecting a row highlights it and drives the inspector.
+- **Event log (right)**: live append-only view. Level filter (`ALL`/`DEBUG`/`INFO`/`WARN`/`ERROR`), text search
+  activated with `/`, follow-tail toggled with `f`, and pause-on-scroll (scrolling up unfollows; `f` or returning to
+  the bottom resumes). Strip ANSI escapes for display, pretty-print JSON event payloads, keep the raw line available
+  via copy. The log is the `events.jsonl` stream, not console output.
+- **Item inspector**: the selected step's items in/out, first/last item links, and a paginated list from
+  `GET /api/runs/:id/items` filtered by step. Collapsed until a step is selected.
+- **Data**: `GET /api/runs/:id`, `GET /api/runs/:id/items`, `GET /api/runs/:id/events` (SSE with `Last-Event-ID`
+  reconnect). Exactly one subscription per open tab; closing the tab drops it (§10.9 rule 7).
+- **TUI**: the same two panes as stacked accordion sections `Steps` and `Events` — never side by side. Keys: `/`
+  filter, `f` follow, `Enter` select step, `Esc` back to the accordion header, `↑`/`↓` move inside the focused
+  section. The item inspector is a third collapsed section opened with `Enter` on a step.
+- Empty/loading/error strings reuse §6; a failed stream keeps the last good event list and shows the error row.
+
 ## 11. Hosts: web and VS Code (shared components)
+
+**Status: planned** (§11.4 step 1 is not shipped yet).
 
 `packages/components/` is the single UI source. Three packages, one contract:
 
@@ -444,8 +600,10 @@ vertically: one line per open tab, with the active one expanded in place.
   `startRun`, `pauseRun`, `resumeRun`, `stopRun`, `subscribeEvents(runId, cb)`, `revealLine(file, line)`, `notify(msg)`.
   Implementations: `http-host.ts` (web: `/api/*` + SSE) and `vscode-host.ts` (webview: `postMessage` request/response
   with correlation ids). A `mock-host.ts` backs tests and Vite dev.
-- No Tailwind/global CSS assumptions that break in a webview: colours come from the §5 palette via CSS variables; the
-  VS Code host maps them to `--vscode-*` theme variables so light/dark/high-contrast follow the editor theme.
+- Shared components use the Tailwind theme and class contract from §5 / [colors.md](colors.md); no component
+  hard-codes a raw colour or shadow. In the webview the VS Code host maps the same CSS colour variables to
+  `--vscode-*` so light/dark/high-contrast follow the editor theme. Tailwind itself is shared; only the token values
+  differ per host.
 - Labels, colours and states (§4–§6) are identical in both hosts; label tests run against the shared components once.
 
 ### 11.2 What differs per host
