@@ -47,7 +47,9 @@ Fixed names, fixed order. Same labels in both skins.
 Rules:
 
 - Title: `Mt — Pipeline Admin` (web `<title>` + h1; TUI header line).
-- Tab order is Pipelines, Runs, Router, Workers (then Run detail as a drill-in, not a tab). Default screen on open: **Pipelines**.
+- Sidebar order (and the order of tabs in a fresh workspace) is Pipelines, Runs, Router, Workers. Default screen on
+  open: **Pipelines**. These four are singleton *view tabs*; Run detail opens as a document tab, not a fifth sidebar
+  entry. Open order, not this list, orders the live tab strip — see §10.9.
 - No extra top-level screens without adding a row here first.
 
 ## 3. Page skeleton
@@ -146,7 +148,10 @@ Web = mouse first. TUI = keyboard first. Every web action has one fixed key.
 
 | Action | Web | TUI key |
 |---|---|---|
-| Switch tab | click tab | `1` Pipelines · `2` Runs · `3` Router · `4` Workers · `Tab` cycles |
+| Open/focus screen tab | click tab / rail icon | `1` Pipelines · `2` Runs · `3` Router · `4` Workers |
+| Cycle open tabs | `Ctrl+Tab` / `Ctrl+Shift+Tab` | `Tab` / `Shift+Tab` |
+| Close tab | `×` / middle-click / `Ctrl+W` | `x` / `Ctrl+W` |
+| Quick open | `Ctrl+K P` | `Ctrl+P` |
 | Move selection | hover | `↑`/`↓` or `k`/`j` |
 | Run selected pipeline | `▶ Run` | `r` or `Enter` |
 | Pause selected run | `⏸ Pause` | `p` |
@@ -171,7 +176,7 @@ Keys never change meaning between screens: `Esc` always backs out one level.
 
 ## 9. Change checklist
 
-1. Change screen/button/label/colour → edit this file first.
+1. Change screen/button/label/colour/navigation → edit this file first (§10.9 for tabs/accordion/sidebar).
 2. Update webui **and** TUI (or open a kanban row for the skin not yet built).
 3. Update [guiding/uc.md](../guiding/uc.md) if a user-visible capability changes.
 4. `pnpm lint && pnpm typecheck`.
@@ -214,14 +219,19 @@ Zones (names fixed, same wording in code and docs):
 | middle | **Splitter** | draggable divider between editor and graph |
 | bottom | **Status bar** | run state, step, counts, router cost, cursor position |
 
-The §3 toast row sits just under the toolbar. Header tabs from §2 move into the sidebar rail; Run detail opens as an
-editor-area tab. Default view on open: Pipelines panel expanded, first pipeline loaded.
+The §3 toast row sits just under the toolbar. Header tabs from §2 become **workspace tabs** (§10.9): each screen is one
+singleton view tab and the sidebar rail is a shortcut that opens-or-focuses it. The sidebar panel lists documents
+(pipelines, runs); clicking a row opens a document tab. Run detail is a document tab too. Default view on open:
+Pipelines tab active, sidebar expanded, first pipeline loaded.
 
 ### 10.2 Sidebar
 
 - Two states: **rail** (48 px, icons only, vertical line) and **expanded** (240 px, rail + panel with labels).
 - Rail icons, fixed order top to bottom: Pipelines, Runs, Router, Workers; Settings pinned at the bottom.
-- Click the active icon or press `Ctrl+B` to toggle; click another icon while collapsed = expand to that panel.
+- Rail click = `openTab({ id: 'view:<screen>' })` (§10.9): first click opens the tab, every later click only focuses
+  it. The rail is navigation chrome, never a tab itself — every screen must also be reachable without the sidebar
+  (TUI has none, deep links exist).
+- Click the active icon or press `Ctrl+B` to toggle the panel; click another icon while collapsed = expand to that panel.
 - Active icon = bright with a left accent bar; hover shows a tooltip with the screen name from §2.
 - Width animates (`transition-[width] duration-200`); state persisted in `localStorage` key `mt-sidebar`
   (`{ collapsed, panel }`), wrapped in try/catch. Below 768 px the sidebar is an overlay drawer, collapsed by default.
@@ -284,17 +294,137 @@ then right-aligned: connection (`SSE ● / ○`), cursor `Ln, Col`. Empty state 
 
 ### 10.8 Delivery order
 
-1. Shell: toolbar, sidebar rail/expand, splitter, status bar; existing screens as sidebar panels (no Monaco/Flow yet).
+1. Shell: workspace store (open-or-focus, preview, close, restore) + tab strip, toolbar, sidebar rail/expand, splitter,
+   status bar; existing screens as view tabs (no Monaco/Flow yet).
 2. Monaco editor pane, lazy-loaded, read-only source from API.
 3. Graph API (`/graph`) + Vue Flow read-only render + dagre layout.
 4. Run wiring: toolbar buttons, node run-state via SSE, status bar, stop endpoint.
 5. Save/edit loop and node↔editor reveal; label tests per §8.
 
-Pitfalls: Monaco worker config in production builds; `fitView` before nodes are measured; re-layout on every
+Pitfalls: tab ids derived from the click instead of the target (duplicate tabs); `activeTab` state duplicated per
+screen instead of one workspace store; Monaco worker config in production builds; `fitView` before nodes are measured; re-layout on every
 change causing flicker; Vue Flow container without height renders nothing; shipping Monaco in the main bundle;
 state persisted in `localStorage` must tolerate it being unavailable.
 
 Reference docs: [Vue Flow guide](https://vueflow.dev/guide/) (getting started, nodes, `useVueFlow`, utils).
+
+### 10.9 Workspace: tabs, accordion, and the sidebar
+
+One navigation state for both skins. The web renders it as a horizontal **tab strip**, the TUI as a vertical
+**accordion**. They are the same `tabs[] + activeId`, so no screen gets a "web-only" or "sidebar-only" home.
+
+```ts
+type TabKind = 'view' | 'doc'
+interface TabRef {
+  id: string        // stable, derived from the thing — never from the click
+  kind: TabKind
+  title: string
+  preview?: boolean // single transient tab, see rule 4
+}
+interface WorkspaceState { tabs: TabRef[]; activeId: string }
+```
+
+| kind | `id` | title | instances |
+|---|---|---|---|
+| view | `view:pipelines` | `Pipelines` | 1 |
+| view | `view:runs` | `Runs` | 1 |
+| view | `view:router` | `Router` | 1 |
+| view | `view:workers` | `Workers` | 1 |
+| view | `view:settings` | `Settings` | 1 |
+| doc | `pipeline:<declared>` | `<basename>.ts` | 1 |
+| doc | `run:<runId>` | `<short id>` | 1 |
+
+Rules:
+
+1. **Open means reveal.** Every entry point — rail icon, `1`–`4`, quick-open, deep link, row click — calls the same
+   `openTab(ref)`. If the id is already open it becomes active *in place*: never appended twice, never reordered.
+   Clicking the active tab is a no-op (no remount, refetch or scroll reset).
+2. **The sidebar is navigation, not a tab.** Rail icons map to the singleton `view:` ids; the expanded panel lists
+   documents and opens `doc` tabs. No screen exists *only* under the sidebar — the TUI has none and deep links must
+   work.
+3. **Stable order.** Tab order = open order. Closing a tab does not reorder the rest; the rail order (§2) is fixed and
+   independent of it.
+4. **Preview tab.** A single click on a pipeline or run row opens/replaces one *preview* tab (italic title; `*` prefix
+   in the TUI). The next single click replaces it instead of adding another; double-click / `Enter` / first edit pins
+   it (`preview = false`). At most one preview exists. Rail icons, number keys and deep links always open pinned tabs.
+   This is what stops "20 pipelines visited → 20 tabs".
+5. **Close.** `×` or middle-click (web), `Ctrl+W` / `x` (TUI). Closing the active tab activates the right neighbour,
+   else the left; closing the last tab opens `view:pipelines` — the workspace is never empty. Closing a `run:` tab
+   drops its SSE subscription; dirty `pipeline:` tabs confirm first.
+6. **Keep-alive.** Switching tabs preserves scroll, filters, editor buffer/cursor and subscriptions. Web:
+   `<KeepAlive>` over the tab views with a bounded LRU (max 10 `doc` tabs, oldest clean background tab evicted on the
+   11th open). TUI: components stay mounted; view state lives in the store, not in the widget.
+7. **Refresh budget.** The active tab polls live data at the §6 cadence (3 s active); background tabs at 30 s or are
+   paused. Exactly one SSE subscription per open `run:` id, owned by that tab.
+8. **Restore.** Web persists `{ tabs: string[], activeId }` under `localStorage` key `mt-workspace` (try/catch). Only
+   ids are stored; titles are re-resolved on load. Unknown ids (renamed pipeline, pruned run) are dropped; if nothing
+   remains, `view:pipelines` opens. TUI keeps workspace state in memory for now.
+9. **No nesting.** One tab strip per window. In the TUI the views column and the workspace accordion are the same
+   control; never render a second strip inside a pane.
+
+#### Web: tab strip
+
+```text
+┌─ Toolbar ────────────────────────────────────────────────────────────────┐
+│ Mt ▸ books.ts       [▶ Run] [⏸ Pause] …                                    │
+├──────────────────────────────────────────────────────────────────────────┤
+│ ▎books.ts × │ pipelines × │ runs × │ router × │ run 8f3a × │  ⌄           │  tab strip
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+- 32 px tall, under the toolbar and above the toast row and splitter. Active: `bg-gray-800`, bright text, 2 px top
+  accent in `text-blue-400`; inactive `text-gray-500`, hover `text-gray-300`.
+- Each tab: kind icon, title (truncated, `max-w-[200px]`), close `×` (shown on hover unless active), dirty dot for
+  unsaved pipelines, italic for preview.
+- Overflow: horizontal scroll plus a `⌄` menu listing every tab. `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle in open order,
+  `Ctrl+1…9` jumps to the nth tab, `Ctrl+W` closes. Never shrink a tab below 80 px — scroll instead.
+- Never an empty frame: `view:pipelines` is the floor.
+
+#### TUI: accordion (same state)
+
+A horizontal strip truncates titles to uselessness and costs a row on every screen. The TUI renders the **same list**
+vertically: one line per open tab, with the active one expanded in place.
+
+```text
+┌ Views ──────────────┬ Run detail · 8f3a ────────────────────────────────┐
+│ ▾ Pipelines         │ state  RUNNING   step 3/7   items 120            │
+│   ▸ Runs            │ ─────────────────────────────────────────────── │
+│   ▸ books.ts        │ ✓ parse   ✓ translate   • validate   …          │
+│   ▸ run 8f3a        │                                                 │
+└─────────────────────┴─────────────────────────────────────────────────┘
+```
+
+- Width ≥ 100 cols: two columns — views column (24–32 cols, resizable with the §10.6 keys) + active view. Below 100
+  cols: one column, accordion mode — every tab is a one-line header and only `activeId` is expanded.
+- At most one section is expanded; expanding a header *is* `openTab`, so it cannot duplicate anything.
+- Keys: `↑`/`↓` move over headers, `Enter` activates, `Tab`/`Shift+Tab` cycle, `1`–`4` open-or-focus singleton views,
+  `Ctrl+W`/`x` closes, `Ctrl+B` toggles the views column, `Ctrl+P` quick-opens (fuzzy over open tabs, then pipelines
+  and runs).
+- Rows inside the expanded section reuse §4–§6 verbatim. The accordion is a second renderer, not a second data path.
+
+#### Why not tabs *and* an accordion at once
+
+- Tabs answer "which parallel context am I in?"; the accordion answers "what is open and what is inside it?" Showing
+  both costs width and splits the single source of truth.
+- Choose by host, not by taste: web = tab strip at every width (below 768 px the sidebar is an overlay drawer);
+  TUI = views column + accordion. Never a second strip inside a pane.
+- Both must survive a cold restore and a deep link to `run:<id>` / `pipeline:<declared>`, which open-or-focus the
+  matching tab.
+
+#### Acceptance tests (both skins)
+
+| # | Action | Assert |
+|---|---|---|
+| 1 | Click the Pipelines rail icon 3× | exactly 1 tab, active, no extra fetch |
+| 2 | Pipelines active → click Runs icon | 2 tabs, Pipelines still first |
+| 3 | Open `pipeline:a`, then click it again | 1 tab, same scroll/state |
+| 4 | Single-click pipeline A row, then B row | one preview tab, B replaces A |
+| 5 | Pin A, then single-click B | A pinned + B preview, 2 tabs |
+| 6 | Close the middle tab | right neighbour active, order preserved |
+| 7 | Close the last tab | `view:pipelines` opens |
+| 8 | Restore with a stale `pipeline:gone` id | id dropped, other tabs intact |
+| 9 | TUI: press `2` three times | one Runs tab, active, order unchanged |
+| 10 | Reload / detach, reopen (web) | same tab ids and active tab |
 
 ## 11. Hosts: web and VS Code (shared components)
 
