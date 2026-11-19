@@ -155,12 +155,16 @@ theme definitions live in [colors.md](colors.md).
 | `paused` | `text-yellow-400` | yellow |
 | `done` | `text-blue-400` | blue |
 | `failed` | `text-red-400` | red |
-| other (`pending`, …) | `text-gray-500` | dim gray |
+| other (`pending`, …) | `text-gray-600` | dim gray |
 
-Palette (web base): page `bg-gray-900 text-gray-100`; row `border-gray-800 bg-gray-800/50`, hover `border-gray-700`;
-dim text `text-gray-600`; link `text-blue-400`. TUI maps to the nearest 16-colour ANSI; no truecolour required.
-Dark theme only for now. Light/high-contrast arrive through [colors.md](colors.md) tokens and the VS Code host
-mapping (§11.1), not by adding new ad-hoc classes.
+Palette (web base): page `bg-gray-50 text-gray-900`; surface `bg-gray-100`; row `border-gray-300 bg-gray-100/70`,
+hover `border-gray-400`; dim text `text-gray-500`; muted `text-gray-600`; link `text-blue-400`. TUI maps to the
+nearest 16-colour ANSI; no truecolour required.
+
+**Light is the default theme.** Dark flips the token values behind the same classes via `html[data-theme='dark']` —
+no `dark:` variants, no second class string. Concrete values, SCSS functions and the shadow scale live in
+[colors.md](colors.md); the VS Code host is the exception and follows `--vscode-*` (§11.1). Live preview:
+[colors-preview.html](colors-preview.html).
 
 Button colours: green = start/resume, yellow = pause. Red is reserved for errors/failed — no destructive button
 exists yet; when one is added it is red, last in the row, and confirms first.
@@ -445,8 +449,8 @@ Rules:
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-- 32 px tall, under the toolbar and above the toast row and splitter. Active: `bg-gray-800`, bright text, 2 px top
-  accent in `text-blue-400`; inactive `text-gray-500`, hover `text-gray-300`.
+- 32 px tall, under the toolbar and above the toast row and splitter. Active: `bg-gray-100 text-gray-900`, 2 px top
+  accent in `text-blue-400`; inactive `text-gray-600`, hover `text-gray-800`.
 - Each tab: kind icon, title (truncated, `max-w-[200px]`), close `×` (shown on hover unless active), dirty dot for
   unsaved pipelines, italic for preview. A `run:` tab title is `run <short id>` and carries the §5 state badge
   (uppercase label, state colour) that updates from the tab's SSE stream.
