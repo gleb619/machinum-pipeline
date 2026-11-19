@@ -767,7 +767,7 @@ describe('GitWorktreeTarget', () => {
 // Composite URI factories: createGitWorktreeSource / createGitWorktreeTarget
 // ---------------------------------------------------------------------------
 
-describe('createGitWorktreeSource (composite URI)', () => {
+describe('createGitWorktreeSource (via param)', () => {
   let repoRoot: string
   let originalSourceFactory: ReturnType<typeof registry.getSourceFactory>
 
@@ -796,12 +796,12 @@ describe('createGitWorktreeSource (composite URI)', () => {
     registry.registerSource('jsonl', () => innerSource)
 
     const uri: ParsedUri = {
-      scheme: 'jsonl',
+      scheme: 'git',
       host: '',
       path: '/data/test.jsonl',
-      query: { _inner_scheme: 'jsonl', branch: 'composite-test', root: repoRoot },
+      query: { via: 'jsonl', branch: 'composite-test', root: repoRoot },
       fragment: '',
-      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=composite-test&root=${encodeURIComponent(repoRoot)}`,
+      raw: `git://data/test.jsonl?via=jsonl&branch=composite-test&root=${encodeURIComponent(repoRoot)}`,
     }
 
     const source = createGitWorktreeSource<string>(uri)
@@ -810,27 +810,44 @@ describe('createGitWorktreeSource (composite URI)', () => {
     expect(source.uri).toContain('composite-test')
   })
 
-  it('throws when _inner_scheme is missing', () => {
+  it('still resolves the deprecated _inner_scheme (git+<scheme> alias)', () => {
+    registry.registerSource('jsonl', () => mockSource([]))
+
     const uri: ParsedUri = {
       scheme: 'jsonl',
       host: '',
       path: '/data/test.jsonl',
-      query: {},
+      query: { _inner_scheme: 'jsonl', branch: 'legacy-alias', root: repoRoot },
       fragment: '',
-      raw: 'jsonl://data/test.jsonl',
+      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=legacy-alias&root=${encodeURIComponent(repoRoot)}`,
     }
 
-    expect(() => createGitWorktreeSource(uri)).toThrow(/missing inner scheme/)
+    const source = createGitWorktreeSource<string>(uri)
+    expect(source).toBeInstanceOf(GitWorktreeSource)
+    expect(source.uri).toContain('legacy-alias')
+  })
+
+  it('throws when via is missing', () => {
+    const uri: ParsedUri = {
+      scheme: 'git',
+      host: '',
+      path: '/data/test.jsonl',
+      query: {},
+      fragment: '',
+      raw: 'git://data/test.jsonl',
+    }
+
+    expect(() => createGitWorktreeSource(uri)).toThrow(/missing required 'via' query param/)
   })
 
   it('throws when inner scheme has no registered factory', () => {
     const uri: ParsedUri = {
-      scheme: 'unknown',
+      scheme: 'git',
       host: '',
       path: '',
-      query: { _inner_scheme: 'no-such-scheme-xyz' },
+      query: { via: 'no-such-scheme-xyz' },
       fragment: '',
-      raw: 'no-such-scheme-xyz://test',
+      raw: 'git://test?via=no-such-scheme-xyz',
     }
 
     expect(() => createGitWorktreeSource(uri)).toThrow(/No source registered for inner scheme/)
@@ -840,12 +857,12 @@ describe('createGitWorktreeSource (composite URI)', () => {
     registry.registerSource('jsonl', () => mockSource([]))
 
     const uri: ParsedUri = {
-      scheme: 'jsonl',
+      scheme: 'git',
       host: '',
       path: '/data/test.jsonl',
-      query: { _inner_scheme: 'jsonl', root: repoRoot },
+      query: { via: 'jsonl', root: repoRoot },
       fragment: '',
-      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&root=${encodeURIComponent(repoRoot)}`,
+      raw: `git://data/test.jsonl?via=jsonl&root=${encodeURIComponent(repoRoot)}`,
     }
 
     const source = createGitWorktreeSource<string>(uri)
@@ -854,7 +871,7 @@ describe('createGitWorktreeSource (composite URI)', () => {
   })
 })
 
-describe('createGitWorktreeTarget (composite URI)', () => {
+describe('createGitWorktreeTarget (via param)', () => {
   let repoRoot: string
   let originalTargetFactory: ReturnType<typeof registry.getTargetFactory>
 
@@ -883,17 +900,17 @@ describe('createGitWorktreeTarget (composite URI)', () => {
     registry.registerTarget('jsonl', () => innerTarget)
 
     const uri: ParsedUri = {
-      scheme: 'jsonl',
+      scheme: 'git',
       host: '',
       path: '/out.jsonl',
       query: {
-        _inner_scheme: 'jsonl',
+        via: 'jsonl',
         branch: 'target-branch',
         root: repoRoot,
         commit: 'on-close',
       },
       fragment: '',
-      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=target-branch&root=${encodeURIComponent(repoRoot)}&commit=on-close`,
+      raw: `git://out.jsonl?via=jsonl&branch=target-branch&root=${encodeURIComponent(repoRoot)}&commit=on-close`,
     }
 
     const target = createGitWorktreeTarget<string>(uri)
@@ -902,16 +919,33 @@ describe('createGitWorktreeTarget (composite URI)', () => {
     expect(target.uri).toContain('target-branch')
   })
 
-  it('commitOnClose is false when commit query param is not on-close', () => {
+  it('still resolves the deprecated _inner_scheme (git+<scheme> alias)', () => {
     registry.registerTarget('jsonl', () => ({ ...mockTarget(), uri: 'jsonl://out.jsonl' }))
 
     const uri: ParsedUri = {
       scheme: 'jsonl',
       host: '',
       path: '/out.jsonl',
-      query: { _inner_scheme: 'jsonl', branch: 'no-commit', root: repoRoot, commit: 'never' },
+      query: { _inner_scheme: 'jsonl', branch: 'legacy-alias', root: repoRoot },
       fragment: '',
-      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=no-commit&root=${encodeURIComponent(repoRoot)}&commit=never`,
+      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=legacy-alias&root=${encodeURIComponent(repoRoot)}`,
+    }
+
+    const target = createGitWorktreeTarget<string>(uri)
+    expect(target).toBeInstanceOf(GitWorktreeTarget)
+    expect(target.uri).toContain('legacy-alias')
+  })
+
+  it('commitOnClose is false when commit query param is not on-close', () => {
+    registry.registerTarget('jsonl', () => ({ ...mockTarget(), uri: 'jsonl://out.jsonl' }))
+
+    const uri: ParsedUri = {
+      scheme: 'git',
+      host: '',
+      path: '/out.jsonl',
+      query: { via: 'jsonl', branch: 'no-commit', root: repoRoot, commit: 'never' },
+      fragment: '',
+      raw: `git://out.jsonl?via=jsonl&branch=no-commit&root=${encodeURIComponent(repoRoot)}&commit=never`,
     }
 
     const target = createGitWorktreeTarget<string>(uri) as GitWorktreeTarget<string>
@@ -919,27 +953,27 @@ describe('createGitWorktreeTarget (composite URI)', () => {
     expect(target).toBeInstanceOf(GitWorktreeTarget)
   })
 
-  it('throws when _inner_scheme is missing for target', () => {
+  it('throws when via is missing for target', () => {
     const uri: ParsedUri = {
-      scheme: 'jsonl',
+      scheme: 'git',
       host: '',
       path: '/out.jsonl',
       query: {},
       fragment: '',
-      raw: 'jsonl://out.jsonl',
+      raw: 'git://out.jsonl',
     }
 
-    expect(() => createGitWorktreeTarget(uri)).toThrow(/missing inner scheme/)
+    expect(() => createGitWorktreeTarget(uri)).toThrow(/missing required 'via' query param/)
   })
 
   it('throws when inner scheme has no registered target factory', () => {
     const uri: ParsedUri = {
-      scheme: 'unknown',
+      scheme: 'git',
       host: '',
       path: '',
-      query: { _inner_scheme: 'no-such-target-scheme' },
+      query: { via: 'no-such-target-scheme' },
       fragment: '',
-      raw: 'no-such-target-scheme://test',
+      raw: 'git://test?via=no-such-target-scheme',
     }
 
     expect(() => createGitWorktreeTarget(uri)).toThrow(/No target registered for inner scheme/)

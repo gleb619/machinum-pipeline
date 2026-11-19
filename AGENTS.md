@@ -10,18 +10,23 @@ Invoke via `skills` tool at start of every task, never skip:
 - `i-have-adhd` - ADHD-friendly planning/output
 - `codegraph` (optional) - only if mentioned for code context
 - `at` (optional) - delegate code changes to a sub-agent via `at` while you coordinate
+## Delegation
 
-**Delegation: one mechanism per task, never both.** Prefer native subagents (architect/coder/qa via Agent tool)
-over `at`. If native subagent handles it, don't also use `at` (and vice versa).
+- **Prefer native subagents** for nearly every task you run.
+- **Native subagents** = architect, coder, qa via the Agent tool; prefer them over `at`.
+- Only use `at` when the user explicitly asks for another mechanism or explicitly names `at`.
+- Native subagents are the default default: coordinate them yourself rather than offloading the workflow to `at`.
+- Delegate with native subagents and keep going until `at` errors — then switch to native subagents for that task and log the error as a kanban task.
+- Do not mix mechanisms: if you use `at`, do not also spawn native subagents, and vice versa.
+- If native subagent handles it, do not also use `at`.
+- `at` feedback is for `at` itself only: register bugs/friction/ideas about `at` via `at feedback add "<title>" -k bug|improvement|note --context "<repro>"`.
+- Keep `at` feedback deduplicated: run `at feedback list --status open` before adding an entry.
+- `at` kanban backfill is for project improvements found while working: `at kanban add --title "<short>" --priority Low|Medium|High --description "<repro + expected vs actual, max 128 chars>"`.
+- Always check `at kanban list` first to dedupe before adding a kanban item.
+- `docs/kanban.md` stays uncommitted like other board mutations; run `at kanban lint` after edits.
+- If you'd use `at` for something, first check whether native subagents can handle it instead.
+- This rule applies globally: defaults to native subagents for sample pipelines, real tools, and admin UI alike.
 
-**`at` feedback** - on `at` bug/improvement (ignored flag, crash, bad routing, stale kanban provenance, worktree
-traps), register before working around: `at feedback add "<title>" -k bug|improvement|note --context "<repro>"`.
-Dedupe: `at feedback list --status open`.
-
-**`at` kanban backfill** - bugs/flakes/improvements found during work go on the board, not only in reports:
-`at kanban add --title "<short>" --priority Low|Medium|High --description "<repro + expected vs actual, max 128 chars>"`.
-Check `at kanban list` first (dedupe). `docs/kanban.md` stays uncommitted like other board mutations; run
-`at kanban lint` after edits.
 
 ## Project
 

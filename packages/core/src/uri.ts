@@ -4,7 +4,7 @@ import type { ParsedUri, UriAliases } from './types.js'
 
 /**
  * URI registry — maps URI schemes to Source/Target factories.
- * Supports composite schemes (e.g. git+http://) via registered combinators.
+ * Supports composite schemes (e.g. the deprecated git+jsonl:// alias) via registered combinators.
  *
  * Also resolves named URI shortcuts (aliases): strings starting with '@'
  * (e.g. '@en') are looked up in the project's "uris" table from mt.json
@@ -61,7 +61,7 @@ class UriRegistry {
 
   /**
    * Register a composite resolver for a combined scheme prefix.
-   * E.g., 'git+http' for 'git+http://...'
+   * E.g. 'git+' for the deprecated 'git+jsonl://...' alias (use 'git://...?via=jsonl' instead).
    */
   registerComposite(prefix: string, resolver: CompositeResolver): void {
     this.compositeResolvers.set(prefix, resolver)

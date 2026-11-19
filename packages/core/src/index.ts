@@ -408,6 +408,7 @@ export {
 } from './engine/retry.js'
 export type { PartialRetryPolicy } from './engine/retry.js'
 export { Cache } from './engine/cache.js'
+export { execGit } from './engine/git.js'
 export { mapConcurrent } from './engine/stream.js'
 // Built-in source/target registration moved to @mt/waypoint package.
 // Import '@mt/waypoint' to register jsonl, md, http, hs, git+ schemes.

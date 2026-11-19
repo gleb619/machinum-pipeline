@@ -12,21 +12,21 @@
 | UC003 | Define a custom Tool                        | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) (branch pipelines define local tools) |
 | UC004 | Define custom Source/Target                 | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`waypointLogPipeline`) |
 | UC005 | Run a pipeline (foreground)                 | —          | all samples ([samples.md](samples.md)) |
-| UC006 | Resume a paused/failed Run                  | —          | — |
-| UC007 | Pause a running Run                         | —          | — |
+| UC006 | Resume a paused/failed Run                  | —          | [sample1-tutorial](../../samples/sample1-tutorial/tests/pipe06-stop-resume.test.ts) (`mt resume` after SIGINT pause) |
+| UC007 | Pause a running Run                         | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe06-stop-resume.ts) (SIGINT mid-run) |
 | UC008 | List runs                                   | —          | — |
 | UC009 | Inspect a Run                              | —          | — |
 | UC010 | Invoke a single Tool standalone             | —          | — |
 | UC011 | Invoke a Tool via `npx`                     | —          | [sample1-tutorial](../../samples/sample1-tutorial/tools/markdown-stats-cli.ts) |
-| UC012 | Process items in parallel                   | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) |
-| UC013 | Batch items (`Item[]`)                      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) |
+| UC012 | Process items in parallel                   | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts), [sample2-practical](../../samples/sample2-practical/pipelines/translate-chapters.ts) (concurrency 4 via `mt.json`) |
+| UC013 | Batch items (`Item[]`)                      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts), [sample2-practical](../../samples/sample2-practical/pipelines/translate-chapters.ts) (`.subflow('batch://?size=5')`) |
 | UC014 | Fork into nested pipeline                   | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) |
-| UC015 | Auto-checkpoint at step boundary            | —          | — |
+| UC015 | Auto-checkpoint at step boundary            | —          | [sample1-tutorial](../../samples/sample1-tutorial/tests/pipe06-stop-resume.test.ts) (resume from checkpoint tree) |
 | UC016 | Recover from crash                          | —          | — |
-| UC017 | Retry failing step                          | —          | — |
+| UC017 | Retry failing step                          | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe08-translate-mock.ts) (line-parity retry), [sample2-practical](../../samples/sample2-practical/mt.json) (`defaults.retry`) |
 | UC018 | Skip item on error (`skip-item`)            | —          | — |
 | UC019 | Route failures to dead-letter               | —          | — |
-| UC020 | Cache tool outputs                          | —          | — |
+| UC020 | Cache tool outputs                          | —          | [sample2-practical](../../samples/sample2-practical/mt.json) (`settings["llm.cache"]`) |
 | UC021 | Consume from JSONL Source                   | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe02-waypoints.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts), [sample2-practical](../../samples/sample2-practical) |
 | UC022 | Write to JSONL Target                      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe02-waypoints.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe04-forks.ts) |
 | UC023 | Long-lived HTTP Source                      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe02-waypoints.ts) |
@@ -39,7 +39,7 @@
 | UC030 | Browse runs list in UI                      | —          | — |
 | UC031 | Pause/Resume Run from UI                   | —          | — |
 | UC032 | Open Router panel                        | —          | — |
-| UC033 | Proxy LLM call via Router                  | —          | — |
+| UC033 | Proxy LLM call via Router                  | [TL028](../steering/tools.md), [TL216](../steering/tools.md), [TL229](../steering/tools.md) | — |
 | UC034 | Track cost/usage per Run                    | —          | — |
 | UC035 | Use Router offline/mock mode                | —          | [sample1-tutorial](../../samples/sample1-tutorial), [sample2-practical](../../samples/sample2-practical) (offline `mock` LLM backend) |
 | UC036 | Roll router logs                            | —          | — |
@@ -53,32 +53,32 @@
 | UC044 | Validate `mt.json` in VSCode               | —          | — |
 | UC045 | Hover DSL info in VSCode                   | —          | — |
 | UC046 | "Run pipeline" code lens                   | —          | — |
-| UC047 | Configure retry/onError policies           | —          | — |
-| UC048 | Discover pipelines from `mt.json`          | —          | — |
+| UC047 | Configure retry/onError policies           | —          | [sample2-practical](../../samples/sample2-practical/mt.json) (`defaults.retry`, `onError: "fail-run"`) |
+| UC048 | Discover pipelines from `mt.json`          | —          | [sample1-tutorial](../../samples/sample1-tutorial/mt.json) (`pipelines[]`) |
 | UC049 | Load pipelines without build step          | —          | all samples ([samples.md](samples.md)) |
 | UC051 | Compose Source/Target via URI joins        | —          | — |
 | UC052 | Persist artifacts under Run dir            | —          | — |
 | UC053 | Forward console logs to `.mt`               | —          | — |
 | UC054 | Mirror runs to SQLite (indicator)          | —          | — |
-| UC055 | Validate chapter structure (was UC-55)       | [TL008](../steering/tools.md), [TL010](../steering/tools.md), [TL011](../steering/tools.md), [TL063](../steering/tools.md), [TL071](../steering/tools.md) | — |
-| UC056 | Split large chapters by token count (was UC-56) | [TL106](../steering/tools.md)     | — |
-| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](../steering/tools.md), [TL005](../steering/tools.md), [TL006](../steering/tools.md), [TL014](../steering/tools.md), [TL015](../steering/tools.md), [TL043](../steering/tools.md), [TL059](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) (`chapterValidator`, `forbiddenCharDetector`), [pipe07](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`typoFinder` warnings) |
-| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](../steering/tools.md), [TL002](../steering/tools.md), [TL016](../steering/tools.md), [TL036](../steering/tools.md), [TL041](../steering/tools.md), [TL046](../steering/tools.md), [TL062](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`textNormalizer`, `markdownFormatter`, optional LLM typo fix) |
-| UC059 | Batch translate chapter titles (was UC-59) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample2-practical](../../samples/sample2-practical/pipelines/translate-titles.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe08-translate-mock.ts) (`titlePipeline`) |
-| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](../steering/tools.md), [TL051](../steering/tools.md), [TL054](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe08-translate-mock.ts) (`paragraphsPipeline`) |
-| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL026](../steering/tools.md), [TL051](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial), [sample2-practical](../../samples/sample2-practical) (`openrouter-pool` backend of `pickLlmTool`) |
+| UC055 | Validate chapter structure (was UC-55)       | [TL063](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) (`chapterValidator`) |
+| UC056 | Split large chapters by token count (was UC-56) | [TL106](../steering/tools.md), [TL209](../steering/tools.md), [TL233](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe05-chunks-ladder.ts) (`chunkSplit`, `tokens://` ladder), [sample2-practical](../../samples/sample2-practical/pipelines/split.ts) |
+| UC057 | Collect chapter quality warnings (was UC-57) | [TL004](../steering/tools.md), [TL005](../steering/tools.md), [TL038](../steering/tools.md), [TL205](../steering/tools.md), [TL212](../steering/tools.md), [TL214](../steering/tools.md), [TL253](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) (`chapterValidator`, `forbiddenCharDetector`), [pipe07](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`typoFinder` warnings), [sample2-practical](../../samples/sample2-practical/pipelines/quality.ts) (`collectChapterQuality`, parity lint) |
+| UC058 | Auto-fix chapter text issues (was UC-58)   | [TL001](../steering/tools.md), [TL208](../steering/tools.md), [TL217](../steering/tools.md), [TL218](../steering/tools.md), [TL226](../steering/tools.md), [TL227](../steering/tools.md), [TL228](../steering/tools.md), [TL245](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe07-normalize-analyze.ts) (`textNormalizer`, `markdownFormatter`, optional LLM typo fix), [sample2-practical](../../samples/sample2-practical/pipelines/preprocess.ts) (typo/proofread pass → `chapters/clean/`) |
+| UC059 | Batch translate chapter titles (was UC-59) | [TL207](../steering/tools.md), [TL241](../steering/tools.md) | [sample2-practical](../../samples/sample2-practical/pipelines/translate-titles.ts), [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe08-translate-mock.ts) (`titlePipeline`) |
+| UC060 | Translate chapter paragraph-by-paragraph (was UC-60) | [TL026](../steering/tools.md), [TL051](../steering/tools.md), [TL225](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe08-translate-mock.ts) (`paragraphsPipeline`), [sample2-practical](../../samples/sample2-practical/pipelines/translate-chapters.ts) (block-mode with per-line fallback) |
+| UC061 | Translate text via OpenRouter pool (was UC-61) | [TL223](../steering/tools.md), [TL224](../steering/tools.md) | [sample1-tutorial](../../samples/sample1-tutorial), [sample2-practical](../../samples/sample2-practical) (`openrouter-pool` backend of `pickLlmTool`) |
 | UC062 | Manage OpenRouter API key pool (was UC-62) | —          | — |
-| UC063 | Use remote GPU Ollama via a vault ref      | —          | [sample2-practical](../../samples/sample2-practical) (remote ollama via gitignored `mt.local.json`) |
+| UC063 | Use remote GPU Ollama via a vault ref      | [TL222](../steering/tools.md) | [sample2-practical](../../samples/sample2-practical) (remote ollama via gitignored `mt.local.json`) |
 | UC064 | Call LLM through a keyless router          | —          | — |
 | UC065 | Share a team router behind a token         | —          | — |
 | UC066 | Provision LLM keys with KeePass            | —          | — |
-| UC067 | Provision LLM keys with embedded store     | —          | — |
-| UC068 | Handle secrets with zero config (embed default) | —          | — |
+| UC067 | Provision LLM keys with embedded store     | —          | [sample1-tutorial](../../samples/sample1-tutorial/demo/embed.sh) (`mt vault embed-add`) |
+| UC068 | Handle secrets with zero config (embed default) | —          | [sample1-tutorial](../../samples/sample1-tutorial/demo/embed.sh) (built-in default password) |
 | UC069 | Reject plaintext keys in the vault         | —          | — |
 | UC070 | Rotate encryption keys (auto-generated or supplied) | —          | — |
 | UC071 | Keep secrets under different encryption keys | —          | — |
 | UC072 | Change the embedded store master password  | —          | — |
-| UC073 | Choose a secret backend (embed / KeePass / vlt) | —          | — |
+| UC073 | Choose a secret backend (embed / KeePass / vlt) | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe10-secrets.ts) (resolves `embed:`/`keepass:`/`vlt:` refs), [demo/embed.sh](../../samples/sample1-tutorial/demo/embed.sh) |
 | UC074 | Replace one secret value (`embed-rotate`)  | —          | — |
 | UC075 | Generate a master key on new installation  | —          | [sample1-tutorial](../../samples/sample1-tutorial/tests/init.test.ts) |
 | UC076 | Install the project skill into an agent folder | —       | — |
@@ -86,7 +86,7 @@
 | UC078 | Install `mt` with Docker                 | —          | — |
 | UC079 | Release pipeline and CI gates            | —          | — |
 | UC080 | Explain a pipeline without running it      | —          | [sample1-tutorial](../../samples/sample1-tutorial/pipelines/pipe03-tools-multitool.ts) (nested subflows) |
-| UC081 | Show project info (effective config + state) | —        | — |
+| UC081 | Show project info (effective config + state) | —        | [sample2-practical](../../samples/sample2-practical) (`mt info` script, see [samples.md](samples.md)) |
 
 ## Legacy ID Mapping
 

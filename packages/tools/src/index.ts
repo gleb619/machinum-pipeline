@@ -1,6 +1,18 @@
 export { TOOL_CATEGORIES, type ToolCategory } from './annotation-categories.js'
 
 export {
+  createGitStage,
+  createGitReset,
+  createGitCommit,
+  gitStage,
+  gitReset,
+  gitCommit,
+  type GitStageOptions,
+  type GitResetOptions,
+  type GitCommitOptions,
+} from './modification/git-tools.js'
+
+export {
   readDoc,
   writeDoc,
   parseCsvRows,

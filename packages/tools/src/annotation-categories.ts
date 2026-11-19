@@ -18,6 +18,7 @@ export const TOOL_CATEGORIES = Object.freeze([
   'analyzer',
   'stub',
   'pipeline',
+  'git',
 ] as const)
 
 export type ToolCategory = (typeof TOOL_CATEGORIES)[number]
