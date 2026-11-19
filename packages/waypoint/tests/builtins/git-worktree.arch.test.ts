@@ -32,9 +32,8 @@ describe('UC-23 — Git Worktree Source (architectural)', () => {
     expect(typeof wrapper.start).toBe('function')
     expect(wrapper.lifestyle).toBe('resumable') // delegates to inner
 
-    // URI includes git=worktree query param and encoded path
-    expect(wrapper.uri).toContain('git=worktree')
-    expect(wrapper.uri).toContain('path=')
+    // URI echoes the inner source uri verbatim (lossless round-trip, T288)
+    expect(wrapper.uri).toBe('jsonl://./test.jsonl')
   })
 
   it('GitWorktreeSource delegates .resume() to inner source', () => {

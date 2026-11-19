@@ -530,11 +530,10 @@ describe('GitWorktreeSource', () => {
     chdirSpy.mockRestore()
   })
 
-  it('exposes uri combining inner uri with git worktree query params', () => {
+  it('exposes the inner uri verbatim (lossless round-trip for the DSL/Runner)', () => {
     const inner = mockSource([])
     const wrapper = new GitWorktreeSource(inner, worktreePath)
-    expect(wrapper.uri).toContain('git=worktree')
-    expect(wrapper.uri).toContain(encodeURIComponent(worktreePath))
+    expect(wrapper.uri).toBe(inner.uri)
   })
 
   it('exposes the inner source lifestyle', () => {
@@ -750,7 +749,7 @@ describe('GitWorktreeTarget', () => {
     expect(branches).toContain('base-ov')
   })
 
-  it('exposes uri with branch name', () => {
+  it('exposes the inner uri verbatim', () => {
     const inner = mockTarget<string>()
     const target = new GitWorktreeTarget(
       inner,
@@ -758,8 +757,7 @@ describe('GitWorktreeTarget', () => {
       join(repoRoot, 'worktrees', 'my-branch'),
       true,
     )
-    expect(target.uri).toContain('git=worktree')
-    expect(target.uri).toContain('my-branch')
+    expect(target.uri).toBe(inner.uri)
   })
 })
 
@@ -806,12 +804,12 @@ describe('createGitWorktreeSource (via param)', () => {
 
     const source = createGitWorktreeSource<string>(uri)
     expect(source).toBeInstanceOf(GitWorktreeSource)
-    expect(source.uri).toContain('git=worktree')
-    expect(source.uri).toContain('composite-test')
+    expect(source.uri).toBe(innerSource.uri)
   })
 
   it('still resolves the deprecated _inner_scheme (git+<scheme> alias)', () => {
-    registry.registerSource('jsonl', () => mockSource([]))
+    const inner = mockSource([])
+    registry.registerSource('jsonl', () => inner)
 
     const uri: ParsedUri = {
       scheme: 'jsonl',
@@ -824,7 +822,7 @@ describe('createGitWorktreeSource (via param)', () => {
 
     const source = createGitWorktreeSource<string>(uri)
     expect(source).toBeInstanceOf(GitWorktreeSource)
-    expect(source.uri).toContain('legacy-alias')
+    expect(source.uri).toBe(inner.uri)
   })
 
   it('throws when via is missing', () => {
@@ -854,7 +852,8 @@ describe('createGitWorktreeSource (via param)', () => {
   })
 
   it('uses default branch name when none provided', () => {
-    registry.registerSource('jsonl', () => mockSource([]))
+    const inner = mockSource([])
+    registry.registerSource('jsonl', () => inner)
 
     const uri: ParsedUri = {
       scheme: 'git',
@@ -866,8 +865,8 @@ describe('createGitWorktreeSource (via param)', () => {
     }
 
     const source = createGitWorktreeSource<string>(uri)
-    // The branch name should contain a timestamp-based default
-    expect(source.uri).toContain('git=worktree')
+    // The branch name should contain a timestamp-based default; the uri echoes the inner one
+    expect(source.uri).toBe(inner.uri)
   })
 })
 
@@ -915,12 +914,12 @@ describe('createGitWorktreeTarget (via param)', () => {
 
     const target = createGitWorktreeTarget<string>(uri)
     expect(target).toBeInstanceOf(GitWorktreeTarget)
-    expect(target.uri).toContain('git=worktree')
-    expect(target.uri).toContain('target-branch')
+    expect(target.uri).toBe(innerTarget.uri)
   })
 
   it('still resolves the deprecated _inner_scheme (git+<scheme> alias)', () => {
-    registry.registerTarget('jsonl', () => ({ ...mockTarget(), uri: 'jsonl://out.jsonl' }))
+    const inner = { ...mockTarget(), uri: 'jsonl://out.jsonl' }
+    registry.registerTarget('jsonl', () => inner)
 
     const uri: ParsedUri = {
       scheme: 'jsonl',
@@ -933,7 +932,7 @@ describe('createGitWorktreeTarget (via param)', () => {
 
     const target = createGitWorktreeTarget<string>(uri)
     expect(target).toBeInstanceOf(GitWorktreeTarget)
-    expect(target.uri).toContain('legacy-alias')
+    expect(target.uri).toBe(inner.uri)
   })
 
   it('commitOnClose is false when commit query param is not on-close', () => {

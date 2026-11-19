@@ -1,6 +1,5 @@
-import { definePipeline, defineProcess, log, registry } from '@mt/core'
+import { definePipeline, defineProcess, log } from '@mt/core'
 import { createGitCommit, createGitStage } from '@mt/tools'
-import { createGitWorktreeTarget } from '@mt/waypoint'
 import '@mt/waypoint'
 
 /**
@@ -118,10 +117,6 @@ export const gitPersistPipeline = definePipeline({ id: 'pipe11-git-persist' })
   .tap((env) => {
     log.info('pipe11 persist', { item: env.item })
   })
-  // Pass the resolved Target instance (not the URI string): the string form is re-resolved
-  // by the Runner from the target's own `.uri`, which currently mangles the query string
-  // and silently drops `commit=on-close` (detached worktree, no merge — see kanban T288).
-  // The instance keeps the parsed `commit=on-close` intact.
-  .to(createGitWorktreeTarget(registry.parse(GIT_PERSIST_URI)))
+  .to(GIT_PERSIST_URI)
 
 export default gitPersistPipeline

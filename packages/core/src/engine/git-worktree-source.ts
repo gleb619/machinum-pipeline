@@ -31,11 +31,18 @@ function resolveUriPathToWorktree(uri: ParsedUri, worktreePath: string): ParsedU
 export class GitWorktreeSource<T> implements Source<T> {
   constructor(
     private innerSource: Source<T>,
-    private worktreePath: string,
+    _worktreePath: string,
   ) {}
 
+  /**
+   * The inner source's URI echoes the original `git://` URI verbatim (waypoint
+   * factories keep `uri.raw`), so returning it unchanged keeps the string form
+   * lossless: the DSL stores it and the Runner re-resolves it to an identical
+   * wrapper. Appending a synthetic query suffix here used to corrupt the query
+   * (`?…?git=worktree`) and silently drop params like `commit=on-close` (T288).
+   */
   get uri(): string {
-    return `${this.innerSource.uri}?git=worktree&path=${encodeURIComponent(this.worktreePath)}`
+    return this.innerSource.uri
   }
 
   get lifestyle(): Lifecycle {
@@ -85,8 +92,12 @@ export class GitWorktreeTarget<T> implements Target<T> {
     this.branchName = basename(worktreePath)
   }
 
+  /**
+   * Returns the inner target's URI verbatim — see {@link GitWorktreeSource.uri}
+   * for why the wrapper must not synthesize a query suffix (T288).
+   */
   get uri(): string {
-    return `${this.innerTarget.uri}?git=worktree&branch=${encodeURIComponent(this.branchName)}`
+    return this.innerTarget.uri
   }
 
   async open(ctx: TargetContext): Promise<void> {
