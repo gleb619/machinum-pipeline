@@ -88,25 +88,3 @@ function lastUser(req: LlmRequest): string {
 function translateLatin(text: string): string {
   return text.replace(/[A-Za-z]+/g, 'слово')
 }
-
-/** Book-wide mock glossary answer (the real extractor classifies these names). */
-export const MOCK_GLOSSARY = JSON.stringify([
-  {
-    name: 'Nadia Okonkwo',
-    category: 'character',
-    description: 'An audio archivist searching for her missing brother.',
-    references: ['Emeka Okonkwo'],
-  },
-  {
-    name: 'Emeka Okonkwo',
-    category: 'character',
-    description: 'Nadia’s brother, missing since the Pelargic sank.',
-    references: ['Nadia Okonkwo'],
-  },
-  {
-    name: 'Marrow Bay',
-    category: 'place',
-    description: 'The coastal town where the archive sits.',
-    references: [],
-  },
-])
