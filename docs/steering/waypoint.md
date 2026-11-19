@@ -10,7 +10,28 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `mem://` (alias of `ephemeral://`), `console://`, `review://`, `events://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter-output://`, `schema-doc://`, `git://`, `range://`, `void://`, `mem://` (alias of `ephemeral://`), `console://`, `review://`, `events://`.
+
+## Contents
+
+- [URI Scheme Reference](#uri-scheme-reference)
+- [Annotations](#annotations)
+- [Source/Target Shape](#sourcetarget-shape)
+  - [Source resume contract](#source-resume-contract)
+- [Atomicity Contract (hard rule)](#atomicity-contract-hard-rule)
+- [Key Implementation Details](#key-implementation-details)
+  - [`jsonl.ts`](#jsonlts), [`range.ts`](#rangets), [`void.ts`](#voidts), [`console.ts`](#consolets)
+  - [`review.ts`](#reviewts), [`http-server.ts`](#http-serverts), [`http-target.ts`](#http-targetts)
+  - [`git-worktree.ts`](#git-worktreets), [`schema-doc.ts`](#schema-docts), [`chapter-output.ts`](#chapter-outputts)
+  - [`book.ts`](#bookts), [`md.ts`](#mdts), [`settings.ts`](#settingsts)
+- [Listening to run lifecycle](#listening-to-run-lifecycle)
+- [`md://` dir mode — write intents](#md-dir-mode--write-intents)
+- [Adding a New URI Scheme](#adding-a-new-uri-scheme)
+- [Tests](#tests)
+- [WP index (scheme catalogue)](#wp-index-scheme-catalogue)
+- [Structure Ladder](#structure-ladder)
+  - [Batch subflow views: `batch://group|members|return`](#batch-subflow-views-batchgroupmembersreturn)
+- [Composing Waypoints: `defineWaypoint`](#composing-waypoints-definewaypoint)
 
 ## URI Scheme Reference
 
@@ -19,7 +40,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT001 | `jsonl://./file.jsonl` | `jsonl.ts` | ✓ | ✓ | Supports glob patterns for source |
 | WT002 | `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; source `?split=chunks\|paragraphs\|lines` fans each file out with the registered splitter; target `?series=true` splits each document with the registered `series` splitter before writing |
 | WT003 | `hs://` / `http://` / `https://` | `http-server.ts` / `http-target.ts` | ✓ | ✓ | Long-lived HTTP POST endpoint (`hs://`/`http://`); outbound HTTP client (`http://`/`https://`) |
-| WT004 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout |
+| WT004 | `chapter-output://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout; sample1 registers the same factories as `my-target://` |
 | WT005 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
 | WT006 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
 | WT007 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
@@ -420,43 +441,42 @@ packages/waypoint/tests/builtins/
 
 Architecture tests (`.arch.test.ts`) verify the registered schemes and interface shapes without full I/O.
 
-## WP index (planned-scheme spec)
+## WP index (scheme catalogue)
 
-The WP001–WP013 entries below are the planned-scheme spec index for the waypoint catalogue.
+Canonical IDs are the sealed `waypoint()` annotation IDs (`WT###`). The `WP###` column keeps the older
+planned-scheme numbering so existing cross-references still resolve; rows are ordered by WT id. `WT012`
+is a retired id, not a scheme.
 
-| ID   | Waypoint         | Source | Target | Lifestyle     | Used in Samples                           |
-|------|------------------|--------|--------|---------------|-------------------------------------------|
-| WP001 | jsonl://         | ✓      | ✓      | resumable     | sample1-tutorial, sample2-practical                |
-| WP002 | md://            | ✓      | ✓      | resumable     | sample1-tutorial, sample2-practical                |
-| WP003 | hs:// / http:// / https:// | ✓      | ✓ (`http://`, `https://`) | long-lived (source) | sample1-tutorial (`pipe02`)                |
-| WP004 | my-target://| ✓      | ✓      | resumable     | sample1-tutorial (`pipe02`)                |
-| WP005 | schema-doc://    | ✓      | ✓      | resumable     | — (samples write schema docs via `md://` write intents, not this scheme) |
-| WP006 | git://           | ✓      | ✓      | resumable     | —                                         |
-| WP007 | ephemeral:// / mem:// | ✓      | ✓      | resumable     | —                                         |
-| WP008 | range://         | ✓      | —      | resumable     | sample1-tutorial (`pipe06`)                |
-| WP009 | void://          | —      | ✓      | —             | sample1-tutorial (`pipe01`/`pipe03`)       |
-| WP010 | review://        | —      | ✓      | —             | —                                         |
-| WP011 | chapters:// / paragraphs:// / chunks:// / tokens:// / lines:// / words:// | ✓ | — | resumable | sample1-tutorial (`pipe05`: `paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`; `chapters://` unused) |
-| WP012 | — (retired) | — | — | — | auto-publish replaces the former write-side scheme |
-| WP013 | console:// | — | ✓ | — | sample1-tutorial (`consolePreviewPipeline`) |
+Categories and use cases mirror the target annotation contract in
+[T218](../plans/T218-waypoint-usecase-category-annotations.md). Code currently seals only
+`waypoint()`; the `useCase()` and `category()` annotations are still pending (T218, Backlog).
 
----
+Existing UC rows detected in [uc.md](../guiding/uc.md): `UC013`, `UC021`, `UC022`, `UC023`, `UC024`,
+`UC025`, `UC059`. `UC082` ("Use built-in URI waypoint schemes") does not exist yet — it is planned by
+T218 (highest existing id is `UC081`) — so those cells are marked *planned*.
 
-| Index | ID    | Name                | Source | Target | Lifestyle  | Input     | Output    | Description                                                                                                                               |
-|:------|-------|---------------------|--------|--------|------------|-----------|-----------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| 1     | WP001 | `jsonl://`          | ✓      | ✓      | resumable  | `unknown` | `unknown` | JSONL file source/target; supports glob patterns for source; position cursor for resume; atomic write with temp file.                     |
-| 2     | WP002 | `md://`             | ✓      | ✓      | resumable  | `string`  | `string`  | Markdown directory source/target; dir mode supports `mdOutputs` variable write intents (subdir + filename); single-file mode ignores intents. |
-| 3     | WP003 | `hs://` / `http://` / `https://` | ✓      | ✓ (`http://`, `https://`) | long-lived (source) | `unknown` | —         | Long-lived HTTP server source (POST ingest, GET /health, GET /events — SSE fan-out; no resume support) plus the outbound HTTP client target (`http://`/`https://`, one request per exchange). |
-| 4     | WP004 | `my-target://` | ✓      | ✓      | resumable  | `string`  | `string`  | Chapter-specific layout: `<base-dir>/<lang>/chapter<num>.md`; validates `meta.lang` and `meta.chapterNum`; atomic per-file writes.        |
-| 5     | WP005 | `schema-doc://`     | ✓      | ✓      | resumable  | `string`  | `string`  | Schema document source/target; custom YAML + CSV format; per-chapter `<dir>/chapter<num>.schema.md`.                                      |
-| 6     | WP006 | `git://`            | ✓      | ✓      | resumable  | varies    | varies    | Git worktree isolation wrapper; inner scheme named by `?via=` (deprecated alias `git+<scheme>://`); auto-commit on close with `commit=on-close`. |
-| 7     | WP007 | `ephemeral://` / `mem://` | ✓ | ✓ | resumable | `T` | `T` | In-memory buffer keyed by URI path (`mem://` is a short alias, same key space); for testing and in-memory pipelines; process-local, no persistence.                                   |
-| 8     | WP008 | `range://`          | ✓      | —      | resumable  | —         | `number`  | Integer range producer; `range://<start>..<end>` inclusive, both directions, `?step=N` magnitude; source-only.                              |
-| 9     | WP009 | `void://`           | —      | ✓      | —          | `T`       | —         | Discard sink (like /dev/null); open/close no-ops; `checkpoint()` counts discarded envelopes; target-only.                                    |
-| 10    | WP010 | `review://`         | —      | ✓      | —          | `Glossary`| `string`  | Glossary review-queue renderer: pending proposals (`term.pending`) + locked terms as a markdown worksheet; atomic write per envelope; `checkpoint()` counts renders; target-only. |
-| 11    | WP011 | `chapters://` / `paragraphs://` / `chunks://` / `tokens://` / `lines://` / `words://` | ✓ | — | resumable | — | `T` | Entity-level **source-only** ladder views over the in-memory buffer: one key space per entity scheme, optional namespace path; process-local, no persistence. |
-| 12    | WP012 | — (retired) | — | — | — | — | — | Splitter subflows auto-publish into the entity buffer; no write-side URI scheme. |
-| 13    | WP013 | `console://` | — | ✓ | — | `T` | — | Target-only terminal sink; prints each envelope to stdout/stderr immediately; `format=auto\|json\|pretty`, optional `prefix`, `envelope`, `stream`; `checkpoint()` counts accepted envelopes (waits for `drain`). |
+| WP    | WT    | Scheme(s) | File | Src | Tgt | Lifestyle | Category | UC | Used in samples |
+|-------|-------|-----------|------|-----|-----|-----------|----------|----|-----------------|
+| WP001 | WT001 | `jsonl://` | `jsonl.ts` | ✓ | ✓ | resumable | storage | UC021 / UC022 | sample1-tutorial |
+| WP002 | WT002 | `md://` | `md.ts` | ✓ | ✓ | resumable | storage | UC082 (planned) | sample1-tutorial, sample2-practical |
+| WP003 | WT003 | `hs://` / `http://` / `https://` | `http-server.ts` / `http-target.ts` | ✓ | ✓ (`http`, `https`) | long-lived (source) | transport | UC023 / UC082 (planned) | sample1-tutorial (`pipe02`) |
+| WP004 | WT004 | `chapter-output://` | `chapter-output.ts` | ✓ | ✓ | resumable | storage | UC059 | — (sample1 registers the same factories as `my-target://`) |
+| WP005 | WT005 | `schema-doc://` | `schema-doc.ts` | ✓ | ✓ | resumable | storage | UC082 (planned) | — (schema docs use `md://` write intents) |
+| WP006 | WT006 | `git://` | `git-worktree.ts` | ✓ | ✓ | resumable | workspace | UC024 / UC025 | — |
+| WP008 | WT007 | `range://` | `range.ts` | ✓ | — | resumable | generator | UC082 (planned) | sample1-tutorial (`pipe06`) |
+| WP009 | WT008 | `void://` | `void.ts` | — | ✓ | — | sink | UC082 (planned) | sample1-tutorial (`pipe01`/`pipe03`/`pipe04`), sample2-practical |
+| WP013 | WT009 | `console://` | `console.ts` | — | ✓ | — | sink | UC082 (planned) | sample1-tutorial (`consolePreviewPipeline`) |
+| —     | WT010 | `events://` | `events.ts` | ✓ | ✓ | long-lived (source) | events | UC082 (planned) | sample1-tutorial (`pipe04`: `events://chapterReady`) |
+| WP010 | WT011 | `review://` | `review.ts` | — | ✓ | — | storage | UC082 (planned) | — |
+| WP012 | WT012 | — (retired) | — | — | — | — | — | — | auto-publish replaces the former write-side scheme |
+| WP007 | WT013 | `ephemeral://` / `mem://` | `ephemeral.ts` | ✓ | ✓ | resumable | buffer | UC082 (planned) | — |
+| —     | WT014 | `batch://group\|members\|return` | `batch-scope.ts` | ✓ | ✓ (`return` only) | resumable | buffer | UC013 | sample1-tutorial, sample2-practical |
+| WP011 | WT015 | `batches://` … `words://` | `entity-buffers.ts` | ✓ | ✓ (`batches` only) | resumable | buffer | UC082 (planned) | sample1-tutorial (`pipe05`: `paragraphs://`, `chunks://`, `tokens://`, `lines://`, `words://`) |
+| —     | WT016 | `book://` | `book.ts` | — | ✓ | — | storage | UC082 (planned) | sample2-practical (`assemble`) |
+
+`WT015` covers the seven entity-buffer schemes (`batches`, `chapters`, `paragraphs`, `chunks`, `tokens`,
+`lines`, `words`). All but `batches` are source-only ladder rungs; `batches` is the non-ladder package
+buffer and stays bidirectional. See [Structure Ladder](#structure-ladder).
 
 ## Structure Ladder
 
