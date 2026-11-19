@@ -30,7 +30,7 @@
     "example": "pnpm run runner",
     "cleanup": "rm -rf chapters/en chapters/ru chapters/schema chapters/book chapters/titles.json chapters/glossary.json .mt .mt-translate-prompts.jsonl",
     "lint": "biome check .",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest"
   },
   "dependencies": {
