@@ -22,6 +22,9 @@ chapters/titles.json
 chapters/waypoint-log.jsonl
 chapters/secrets-demo.jsonl
 out/
+# out-git/ is deliberately NOT ignored: pipe11-git-persist commits its contents
+# via the git tools (`git add` refuses ignored pathspecs). Generated *.jsonl files
+# inside are cleaned by the sample cleanup.
 .mt/
 .mt-translate-prompts.jsonl
 mt.local.json

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
 import { registry } from '@mt/core'
+import { describe, expect, it } from 'vitest'
 import {
   GitWorktreeSource,
   GitWorktreeTarget,
@@ -19,9 +19,11 @@ describe('UC-23 — Git Worktree Source (architectural)', () => {
   it('GitWorktreeSource class is exported and implements Source', () => {
     const inner = createJsonlSource({
       scheme: 'jsonl',
+      host: '',
       raw: 'jsonl://./test.jsonl',
       path: './test.jsonl',
       query: {},
+      fragment: '',
     })
     const wrapper = new GitWorktreeSource(inner, '/tmp/worktree')
 
@@ -38,9 +40,11 @@ describe('UC-23 — Git Worktree Source (architectural)', () => {
   it('GitWorktreeSource delegates .resume() to inner source', () => {
     const inner = createJsonlSource({
       scheme: 'jsonl',
+      host: '',
       raw: 'jsonl://./test.jsonl',
       path: './test.jsonl',
       query: {},
+      fragment: '',
     })
     const wrapper = new GitWorktreeSource(inner, '/tmp/worktree')
     expect(typeof wrapper.resume).toBe('function')

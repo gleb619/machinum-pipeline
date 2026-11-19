@@ -97,6 +97,7 @@ fallback only for failed lines is the supported path.
 | `pipe08-translate-mock.ts` | Glossary-aware titles + line-by-line body translation, parity lint, plain/xml/properties modes |
 | `pipe09-llm-tools.ts` | One tiny pipeline per LLM tool, side-by-side input/output reports |
 | `pipe10-secrets.ts` | Vault ref resolution with the built-in `embed:` backend |
+| `pipe11-git-persist.ts` | `git://…?via=jsonl&branch=…&commit=on-close` worktree target (auto-commit + ff merge on close); `gitCommit` with option vs `meta.commitMessage` messages; `gitStage` with explicit pathspecs |
 
 Integration tests live under `samples/*/tests/` and are part of the pre-merge gate
 (see [change-workflow.md](../change-workflow.md)). Both samples use `fileParallelism: false`
