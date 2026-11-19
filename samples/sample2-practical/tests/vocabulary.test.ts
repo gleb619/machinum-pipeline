@@ -67,7 +67,7 @@ beforeAll(async () => {
   await clean(VOCAB_FILE, join(SAMPLE_DIR, '.mt'))
   ruBefore = await tree(join(CHAPTERS, 'ru'))
   splitBefore = await tree(join(CHAPTERS, 'split'))
-  output = run('vocabulary.ts', { timeout: 180_000, env: NO_LLM_ENV })
+  output = run('stages/vocabulary.ts', { timeout: 180_000, env: NO_LLM_ENV })
   firstRun = await readFile(VOCAB_FILE, 'utf-8')
   artifact = JSON.parse(firstRun) as VocabularyArtifact
 }, 180_000)
@@ -201,7 +201,7 @@ describe('vocabulary', () => {
   })
 
   it('is byte-identical on a second run', async () => {
-    run('vocabulary.ts', { timeout: 180_000, env: NO_LLM_ENV })
+    run('stages/vocabulary.ts', { timeout: 180_000, env: NO_LLM_ENV })
     expect(await readFile(VOCAB_FILE, 'utf-8')).toBe(firstRun)
   })
 

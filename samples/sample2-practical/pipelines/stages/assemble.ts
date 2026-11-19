@@ -1,7 +1,7 @@
 import { definePipeline } from '@mt/core'
 import { bookCompiler } from '@mt/tools'
 import '@mt/waypoint'
-import { sortChapters, withBookTitle } from '../lib/outputs.js'
+import { sortChapters, withBookTitle } from '../../lib/outputs.js'
 
 /**
  * Assemble the translated book with `bookCompiler` → `book://`.

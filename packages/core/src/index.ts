@@ -349,6 +349,8 @@ export {
 } from './dsl.js'
 export { createBatchScope } from './batch-scope.js'
 export type { LogLevel, ProcessInstall, ToolFn } from './dsl.js'
+export { itemArg, metaArg, variableArg } from './tool-args.js'
+export type { ItemArgConfig, MetaArgConfig, VariableArgConfig } from './tool-args.js'
 export { isProcess } from './process.js'
 export type { ProcessMode } from './process.js'
 export { runToolCli } from './tool-cli.js'

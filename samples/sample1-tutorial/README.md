@@ -14,7 +14,7 @@ line-by-line translation, the LLM tool gallery, and the secret-backend demo.
 | `pipe03-tools-multitool.ts` | Long tool chain, batch subflow (`.subflow('batch://?size=5', pipe)` with `batch://` views), `.subflow(...)` composition |
 | `pipe04-forks.ts` | `.fork('chapter-views', [three branches])` with isolated envelopes and per-branch files; plus a named-event publisher/subscriber pair (`emit://` → `events://`, `eventsSuite`, `--pipeline eventsSuite`) |
 | `pipe05-chunks-ladder.ts` | `chunkSplit`, separator reuse, structure ladder (`chunks` → `paragraphs` → `lines` → `words` / `tokens`), series split, tree mutation |
-| `pipe06-stop-resume.ts` | Ctrl-C pause, latch files, `mt resume` without duplicate JSONL lines |
+| `pipe06-stop-resume.ts` | Ctrl-C pause, latch files, `mt resume` without duplicate JSONL lines; lifecycle logger via the `events://` source (`stopResumeLifecycleSuite`, `--pipeline stopResumeLifecycleSuite`) |
 | `pipe07-normalize-analyze.ts` | Raw `{key,value}` JSONL → clean markdown → summaries, glossary, relation graph, `<term>` tagging |
 | `pipe08-translate-mock.ts` | Glossary-aware EN→RU titles + body, parity lint, plain/xml/properties modes, generic title/paragraph translators |
 | `pipe09-llm-tools.ts` | One tiny pipeline per LLM tool (summary, notes, entities, NER, vocabulary, metadata, schema, typo-fix, glossary, statdata, stat-dict-translate, proofread) |

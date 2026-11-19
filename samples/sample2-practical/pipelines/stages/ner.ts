@@ -1,9 +1,9 @@
 import { definePipeline } from '@mt/core'
 import { createGlossaryExtractor } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
-import { pickFor } from '../lib/llm.js'
-import { MOCK_NER_ANSWER, writeEntities } from '../lib/ner.js'
+import { chapterOnly } from '../../lib/input.js'
+import { pickFor } from '../../lib/llm.js'
+import { MOCK_NER_ANSWER, writeEntities } from '../../lib/ner.js'
 
 /**
  * Stage 3 of the book flow: main entities of the whole book (no new `Tool`).

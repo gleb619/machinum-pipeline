@@ -1,8 +1,8 @@
 import { definePipeline } from '@mt/core'
 import { chapterIndexer, tokenCounterBatchCached, wordCounter } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
-import { collectChapterStats, writeStats } from '../lib/stats.js'
+import { chapterOnly } from '../../lib/input.js'
+import { collectChapterStats, writeStats } from '../../lib/stats.js'
 
 /**
  * Stage 1 of the book flow: measure every chapter (no LLM, deterministic).

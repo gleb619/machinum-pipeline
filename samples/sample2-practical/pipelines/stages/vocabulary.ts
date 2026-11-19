@@ -1,8 +1,13 @@
 import { definePipeline } from '@mt/core'
 import { defineStatFreq } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
-import { VOCAB_MAX_NGRAM, VOCAB_MIN_WORD_LEN, VOCAB_TOP_K, writeVocabulary } from '../lib/vocab.js'
+import { chapterOnly } from '../../lib/input.js'
+import {
+  VOCAB_MAX_NGRAM,
+  VOCAB_MIN_WORD_LEN,
+  VOCAB_TOP_K,
+  writeVocabulary,
+} from '../../lib/vocab.js'
 
 /**
  * Stage 4 of the book flow: statistical 4/3/2/1-gram vocabulary (CPU only, 0 LLM calls).

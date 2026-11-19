@@ -30,7 +30,7 @@ function words(text: string): number {
 beforeAll(async () => {
   await cleanSummaries()
   await clean(join(SAMPLE_DIR, '.mt'))
-  run('summary.ts', { timeout: 240_000 })
+  run('stages/summary.ts', { timeout: 240_000 })
   const files = (await readdir(SCHEMA_DIR)).filter((file) => /^chapter\d+\.summary\.md$/.test(file))
   for (const file of files) {
     const number = Number.parseInt(file.slice('chapter'.length), 10)

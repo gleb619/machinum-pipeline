@@ -1,8 +1,13 @@
 import { annotate, definePipeline, useCase } from '@mt/core'
 import { chapterIndexer } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
-import { splitChapter, splitRootUri, splitSourceUri, writeSplitOutputs } from '../lib/split-map.js'
+import { chapterOnly } from '../../lib/input.js'
+import {
+  splitChapter,
+  splitRootUri,
+  splitSourceUri,
+  writeSplitOutputs,
+} from '../../lib/split-map.js'
 
 /**
  * Stage 1b of the book flow: split oversized chapters and assign stable book-wide ids.

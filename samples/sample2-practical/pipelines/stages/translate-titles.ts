@@ -7,9 +7,9 @@ import {
 } from '@mt/tools'
 import '@mt/waypoint'
 import { join } from 'node:path'
-import { chapterOnly } from '../lib/input.js'
-import { ROOT, pickFor } from '../lib/llm.js'
-import { writeTitles } from '../lib/outputs.js'
+import { chapterOnly } from '../../lib/input.js'
+import { ROOT, pickFor } from '../../lib/llm.js'
+import { writeTitles } from '../../lib/outputs.js'
 
 /**
  * Translate the chapter titles in batches of five.

@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.34.1 | 2026-11-19 -->
+<!-- skill-version: 1.34.4 | 2026-11-19 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree, tool-cli), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -146,7 +146,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `hs://http://...` | HTTP source (`POST <path>` ingest). Shares the `mt serve` listener when run in the same process/port; `/health` and `/events` move under the ingest path when shared; `/api/*` ingest paths are rejected |
 | `http://host/path` / `https://host/path` | HTTP target — one request per exchange; `?method=POST\|PUT\|PATCH\|DELETE`, `?bearer=ENV_NAME` (env/vault ref, never inline), `?timeoutMs=`, `?retries=`, `?batch=true` (body carries `items[]`), `?contentType=json\|item\|text`, `?header.X-Foo=bar`; `hs://` is source-only |
 | `mem://<name>` (alias `ephemeral://<name>`) | process-local in-memory buffer, source + target; both schemes share one key space |
-| `git://./out?via=jsonl&branch=<b>&commit=on-close` | git worktree wrapper — wraps any inner scheme (`via` names it, required); `branch` names the worktree branch, `commit=on-close` auto-commits + merges on close; deprecated alias `git+<scheme>://…` still resolves |
+| `git://./out?via=jsonl&branch=<b>&commit=on-close` | git worktree wrapper — wraps any inner scheme (`via` names it, required); `branch` names the worktree branch, `commit=on-close` auto-commits + merges on close |
 | `schema-doc://`, `range://`, `void://` | schema docs, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
 | `events://<channel>` | source: live subscription to the process-wide event bus — a custom channel (published with `emitEvent()`) or a lifecycle type (`events://started`); `?only=a,b` filters lifecycle types, `?limit=N` / `?timeout=<ms>` end the stream. target: run-scoped lifecycle log |
@@ -207,6 +207,14 @@ listAnnotations('useCase')       // process-wide registry, optionally filtered b
   process-wide registry. Use-case IDs may repeat across implementations; tool/waypoint IDs should
   be unique. `annotationOf(target, 'category')` narrows to the category record.
 
+### Tool argument declarations
+
+`defineTool({ args })` accepts raw `ToolArg` objects, but author them with the wrappers from `mt`:
+`itemArg({ type?, required?, description })` (name defaults to `item`, `required: true`),
+`metaArg({ name, ... })` (`required: false`, rejects a `meta.` name prefix), and
+`variableArg({ name, direction?, ... })` (`required: false`, `direction: 'in'` by default; use
+`'out'` for values the tool produces). `mt tools call <name> --info` shows a DIRECTION column.
+
 ## CLI
 
 All commands run from the project root. Exit code 0 ok, 1 error/usage (messages on stderr).
@@ -222,8 +230,8 @@ All commands run from the project root. Exit code 0 ok, 1 error/usage (messages 
 | `mt inspect <runId>` | checkpoint tree, events, metadata |
 | `mt info [--json] [--runs <n>]` | read-only project/state report: effective `mt.json` (imports + defaults, credential-looking values masked), `.mt` sizes/run health/slow steps, runtime + secrets-presence booleans; no pipeline import or writes |
 | `mt tool <name> [--pipeline <file>]` | run one tool standalone: JSON Exchange on stdin, JSON on stdout |
-| `mt tools list [--json] [--pipeline <file>]` | catalogue of the callable tools: `@mt/tools` built-ins plus every tool used by the pipelines in `mt.json`; Markdown table by default, `{ schemaVersion: 1, tools }` JSON with `--json` |
-| `mt tools call <name> [--pipeline <file>] [--item <string\|json>] [--meta <json>] [--var k=v]... [--json]` | run one tool standalone: piped stdin is the JSON Exchange, otherwise the flags build it; prints `item` by default, the whole Exchange with `--json`; logs on stderr |
+| `mt tools list [--json] [--pipeline <file>]` | catalogue of the callable tools: `@mt/tools` built-ins plus every tool used by the pipelines in `mt.json`; Markdown table by default, `{ schemaVersion: 1, tools }` JSON with `--json` (includes `args` per tool) |
+| `mt tools call <name> [--info] [--pipeline <file>] [--item <string\|json>] [--meta <json>] [--var k=v]... [--json]` | run one tool standalone or inspect its arguments: `--info` prints metadata, cacheable/idempotent and declared args table without invoking; otherwise piped stdin is the JSON Exchange or flags build it; prints `item` by default, the whole Exchange with `--json`; logs on stderr |
 | `mt worker --main <url> [--token-ref <ENV_OR_REF>] [--name N] [--tag a,b] [--max-runs N] [--allow-pipeline GLOB]` | dial out to a main `mt serve`: register, mirror the project into `.mt/worker/<mainId>/`, hold the signal stream, spawn child `mt run` per `run`; drain then exit 0 (T205) |
 | `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [-d\|--detach]` | admin API + UI + SSE, with the router LLM gateway embedded on the same port (`--no-router` disables); `hs://` sources on that `host:port` reuse the same listener; `--token-ref` takes an env var name, `env:NAME`, or `vlt:`/`keepass:`/`embed:` ref (no plaintext `--token`); detached state in `.mt/backend/{pid,server.log}` |
 | `mt remote sync [--push\|--pull] [--dry-run] [--prune] [--force] [--watch] [--url <url>] [--token-ref <ENV_OR_REF>] [--run <runId>] [--allow-version-mismatch]` | sync project sources to a remote `mt serve` mirror, or pull a run's outputs + `.mt/runs/<id>/`; `--watch` = push dev loop (300 ms debounce); conflict refuses unless `--force` |
@@ -247,6 +255,7 @@ mt ls runs
 mt resume 8f3a1c2e                      # after a crash or Ctrl-C
 echo '{"item":"hello"}' | mt tool <name>      # name from a tool step of a pipeline in mt.json
 mt tools list                                 # every callable tool: built-ins + pipeline tools
+mt tools call <name> --info                   # print declared args and metadata without invoking
 mt tools call <name> --item 'hello'           # flags instead of stdin
 mt tools call <name> --item 'hello' --var lang=de --json
 mt remote sync --push --dry-run               # sync plan against remote.url from mt.json

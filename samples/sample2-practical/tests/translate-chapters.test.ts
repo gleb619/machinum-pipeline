@@ -20,10 +20,10 @@ async function cleanup(): Promise<void> {
 beforeAll(async () => {
   await cleanup()
   const scoped = { MT_ONLY_CHAPTERS: '1,2' }
-  run('extract-en.ts', { env: scoped })
-  run('summary.ts', { env: scoped })
-  run('glossary.ts', { env: scoped })
-  run('translate-chapters.ts', {
+  run('stages/extract-en.ts', { env: scoped })
+  run('stages/summary.ts', { env: scoped })
+  run('stages/glossary.ts', { env: scoped })
+  run('stages/translate-chapters.ts', {
     env: { ...scoped, MT_TRANSLATE_PROMPT_LOG: PROMPT_LOG },
   })
 }, 120_000)
@@ -85,7 +85,7 @@ describe('translate-chapters', () => {
 
   it('supports a retry after a bad mock reply', async () => {
     await clean(RU_DIR, TITLES, PROMPT_LOG, join(SAMPLE_DIR, '.mt'))
-    run('translate-chapters.ts', {
+    run('stages/translate-chapters.ts', {
       env: {
         MT_ONLY_CHAPTERS: '1',
         MT_MOCK_FLAKY: '1',
@@ -99,8 +99,8 @@ describe('translate-chapters', () => {
 
   it('translates the whole book in block mode within the request budget', async () => {
     await clean(RU_DIR, TITLES, PROMPT_LOG, EN_DIR, join(SAMPLE_DIR, '.mt'))
-    run('extract-en.ts', { timeout: 120_000 })
-    run('translate-chapters.ts', {
+    run('stages/extract-en.ts', { timeout: 120_000 })
+    run('stages/translate-chapters.ts', {
       env: {
         MT_TRANSLATE_BLOCK_LINES: '40',
         MT_TRANSLATE_SLOTS: 'glossary',

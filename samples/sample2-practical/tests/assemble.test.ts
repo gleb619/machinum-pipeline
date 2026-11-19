@@ -17,7 +17,7 @@ beforeAll(async () => {
   for (const [number, title, body] of chapters) {
     await writeFileAt(join(RU_DIR, `chapter${number}.md`), `# ${title}\n\n${body}\n`)
   }
-  run('assemble.ts')
+  run('stages/assemble.ts')
 }, 60_000)
 
 afterEach(({ task }) => {

@@ -28,6 +28,7 @@ import type {
   Target,
   TargetContext,
   Tool,
+  ToolArg,
   ToolContext,
   ToolParams,
   WaypointSourceHooks,
@@ -901,6 +902,8 @@ export function defineTool<I, O>(config: {
   idempotent?: boolean
   /** Runtime annotations (`tool(...)`, `useCase(...)`) attached to the returned Tool. */
   annotations?: readonly Annotation[]
+  /** Declared inputs/outputs of the tool (item/meta/variable). */
+  args?: readonly ToolArg[]
 }): Tool<I, O> {
   const created: Tool<I, O> = {
     name: config.name,
@@ -909,6 +912,7 @@ export function defineTool<I, O>(config: {
     invoke: config.invoke,
     cacheable: config.cacheable,
     idempotent: config.idempotent,
+    args: config.args,
   }
   return annotate(created, ...(config.annotations ?? []))
 }

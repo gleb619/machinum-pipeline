@@ -19,7 +19,7 @@ vi.mock('node:fs', async (importOriginal) => {
 })
 
 vi.mock('@mt/tools', async () => {
-  const { category, defineTool, tool } = await import('@mt/core')
+  const { category, defineTool, tool, variableArg } = await import('@mt/core')
   const builtinTool = defineTool({
     name: 'builtin-echo',
     version: '1.0.0',
@@ -36,6 +36,21 @@ vi.mock('@mt/tools', async () => {
     name: 'builtin-only',
     version: '1.0.0',
     description: 'Built-in fixture tool no pipeline declares',
+    args: [
+      {
+        name: 'item',
+        target: 'item',
+        type: 'string',
+        required: true,
+        description: 'Input text to echo',
+      },
+      variableArg({
+        name: 'wordCount',
+        type: 'number',
+        direction: 'out',
+        description: 'Word count output',
+      }),
+    ],
     annotations: [tool('TL998', { name: 'builtin-only', description: 'Built-in only (fixture).' })],
     async invoke(env) {
       return { ...env, item: `builtin:${String(env.item)}` }
@@ -88,6 +103,14 @@ interface CatalogueTool {
   source: string
   category: string | null
   description: string | null
+  args?: Array<{
+    name: string
+    target: string
+    direction?: string
+    type?: string
+    required?: boolean
+    description?: string
+  }> | null
   usedBy: string[]
 }
 
@@ -154,10 +177,31 @@ describe('toolsCommand', () => {
       expect(builtin.source).toBe('builtin')
       expect(builtin.category).toBe('stub')
       expect(builtin.description).toBe('Builtin echo (fixture).')
+      expect(builtin.args).toBeNull()
+
+      const builtinOnly = doc.tools.find((entry) => entry.name === 'builtin-only') as CatalogueTool
+      expect(builtinOnly.args).toEqual([
+        {
+          name: 'item',
+          target: 'item',
+          type: 'string',
+          required: true,
+          description: 'Input text to echo',
+        },
+        {
+          name: 'wordCount',
+          target: 'variable',
+          direction: 'out',
+          type: 'number',
+          required: false,
+          description: 'Word count output',
+        },
+      ])
 
       const pipelineTool = doc.tools.find((entry) => entry.name === 'echo') as CatalogueTool
       expect(pipelineTool.source).toBe('fixture-pipeline')
       expect(pipelineTool.usedBy).toEqual(['fixture-pipeline'])
+      expect(pipelineTool.args).toBeNull()
     })
 
     it('does not duplicate a built-in used by a pipeline and records the pipeline in usedBy', async () => {
@@ -278,6 +322,39 @@ describe('toolsCommand', () => {
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('--var expects name=value'),
       )
+    })
+
+    it('--info prints declared args for a stub tool with args without reading stdin or invoking', async () => {
+      // builtin-only has args declared and is not overridden by a pipeline
+      await toolsCommand(['call', 'builtin-only', '--info'])
+
+      const printed = stdout()
+      expect(printed).toContain('Tool: builtin-only')
+      expect(printed).toContain('Built-in only (fixture).')
+      expect(printed).toContain('Cacheable: no | Idempotent: no')
+      expect(printed).toContain('NAME')
+      expect(printed).toContain('TARGET')
+      expect(printed).toContain('TYPE')
+      expect(printed).toContain('REQUIRED')
+      expect(printed).toContain('DEFAULT')
+      expect(printed).toContain('DESCRIPTION')
+      expect(printed).toContain('DIRECTION')
+      expect(printed).toContain('item')
+      expect(printed).toContain('Input text to echo')
+      expect(printed).toMatch(/wordCount\s+variable\s+out\s+number\s+no/)
+      // Ensure invoke was not called (which would output 'builtin:...')
+      expect(printed).not.toContain('builtin:')
+    })
+
+    it('--info prints "No args declared for this tool." when a tool has no args', async () => {
+      // echo pipeline tool declares no args
+      await toolsCommand(['call', 'echo', '--info'])
+
+      const printed = stdout()
+      expect(printed).toContain('Tool: echo')
+      expect(printed).toContain('Echo fixture tool')
+      expect(printed).toContain('No args declared for this tool.')
+      expect(printed).not.toContain('echo:')
     })
   })
 })

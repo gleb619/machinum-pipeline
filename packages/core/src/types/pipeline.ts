@@ -51,6 +51,32 @@ export interface Target<T> {
 }
 
 /**
+ * Declared argument / input requirement of a tool.
+ *
+ * Describes what the tool reads from or writes to the Exchange so tools like `mt tools call`
+ * can document its inputs and generate help text for humans.
+ */
+export interface ToolArg {
+  /** Name of the argument, e.g. 'item', 'meta.llmModel', 'variables.apiKey' or variable name. */
+  name: string
+  /** Where the argument is read from or written to in the Exchange. */
+  target: 'item' | 'meta' | 'variable'
+  /**
+   * Data-flow direction: 'in' = read from the Exchange, 'out' = produced by the tool into
+   * variables. Defaults to 'in' when omitted.
+   */
+  direction?: 'in' | 'out'
+  /** Free-form semantic type hint like 'string', 'markdown', 'number'. */
+  type?: string
+  /** Whether the argument is required. Defaults to false when omitted. */
+  required?: boolean
+  /** Human-readable description of what this argument is used for. */
+  description: string
+  /** Default value description when omitted or optional. */
+  default?: string
+}
+
+/**
  * Tool abstraction — transforms an Exchange in a pipeline. `I`/`O` are payload types wrapped in
  * the Exchange; the output must be derived from the input (`withItem`, `pushVariable`, ...) so
  * `id`, `meta` and `variables` propagate.
@@ -67,6 +93,7 @@ export interface Tool<I, O> {
   invoke(ex: Exchange<I>, ctx: ToolContext): Promise<Exchange<O>>
   cacheable?: boolean
   idempotent?: boolean
+  args?: readonly ToolArg[]
 }
 
 /**

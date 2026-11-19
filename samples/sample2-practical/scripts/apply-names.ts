@@ -1,7 +1,7 @@
 /**
  * Pin the extracted glossary to the editorial names table.
  *
- * `pipelines/glossary.ts` proposes terms but leaves `ru` empty and also proposes non-names
+ * `pipelines/stages/glossary.ts` proposes terms but leaves `ru` empty and also proposes non-names
  * (`March`, `Lock`, `He's`). This pass makes the proposal usable:
  *
  *   - every table name gets its `ru`/`type` written;

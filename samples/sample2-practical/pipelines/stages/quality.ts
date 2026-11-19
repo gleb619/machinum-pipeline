@@ -1,13 +1,13 @@
 import { annotate, definePipeline, useCase } from '@mt/core'
 import { chapterIndexer } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
+import { chapterOnly } from '../../lib/input.js'
 import {
   collectChapterQuality,
   qualityRootUri,
   qualitySourceUri,
   writeQuality,
-} from '../lib/quality.js'
+} from '../../lib/quality.js'
 
 /**
  * Stage 5 of the book flow: the quality gate (offline, 0 LLM calls).

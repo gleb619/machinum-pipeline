@@ -403,10 +403,45 @@ export const chapterValidator = defineTool({
   and methods. It deliberately avoids `context.metadata`, so the project does not need the `ESNext`
   lib or `experimentalDecorators`.
 - **Optional on user code** — `annotations` and `args` are optional on `defineTool`: user-defined tools need no
-  annotation or argument declarations at all. `args?: readonly ToolArg[]` allows tools to declare their input/output shapes (`item`, `meta`, `variable`) so tools like `mt tools call --info` can display help text.
+  annotation or argument declarations at all. `args?: readonly ToolArg[]` allows tools to declare their input/output shapes (`item`, `meta`, `variable`) so tools like `mt tools call --info` can display help text; prefer the `itemArg` / `metaArg` / `variableArg` wrappers (see [`tool-args.ts`](#tool-argsts--ergonomic-toolarg-constructors)).
 - **Coverage** — `@mt/tools` annotates every exported tool, `@mt/waypoint` every scheme factory, and
   CLI/engine entry points carry their `UC###`. `pnpm annotations` (repo-dev only, not part of the
   `mt` binary) lists the registry; package tests enforce coverage and ID uniqueness.
+
+### `tool-args.ts` — ergonomic `ToolArg` constructors
+
+`ToolArg` stays the plain JSON shape stored on `Tool.args` (`defineTool({ args })` accepts raw
+objects), but tool authors should use the smart constructors so the target is never written by hand:
+
+```typescript
+import { itemArg, metaArg, variableArg } from '@mt/core'
+
+args: [
+  itemArg({ type: 'string', description: 'text to count words in' }),
+  metaArg({ name: 'lang', description: 'language code', default: 'en' }),
+  variableArg({
+    name: 'wordCount',
+    type: 'number',
+    direction: 'out',
+    description: 'word count set as an output variable',
+  }),
+]
+```
+
+- `itemArg({ name?, type?, required?, description, default? })` — target `'item'`; `name` defaults
+  to `'item'`, `required` defaults to `true` (the item is almost always required).
+- `metaArg({ name, type?, required?, description, default? })` — target `'meta'`; `required`
+  defaults to `false`; rejects names starting with `'meta.'` because the target already implies
+  the prefix.
+- `variableArg({ name, type?, required?, description, default?, direction? })` — target
+  `'variable'`; `required` defaults to `false`, `direction` defaults to `'in'`; use `'out'` for
+  values the tool produces.
+- Validation at call time throws `Error` for an empty/blank description, a name that does not
+  match `^[A-Za-z][A-Za-z0-9_.-]*$`, a `metaArg` name with the `'meta.'` prefix, or a direction
+  other than `'in'` / `'out'`.
+- `direction` is metadata only (`'in'` = read from the Exchange, `'out'` = produced into
+  variables). `mt tools call --info` renders it (falling back to `'in'`), and `mt tools list
+  --json` passes it through when present.
 
 ### `uri.ts` — `UriRegistry`
 

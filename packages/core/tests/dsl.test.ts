@@ -197,6 +197,40 @@ describe('DSL', () => {
     expect(tool.idempotent).toBe(true)
   })
 
+  it('T002-10b: defineTool copies args onto the tool', () => {
+    const tool = defineTool<string, string>({
+      name: 'arg-tool',
+      version: '1.0.0',
+      description: 'Tool declaring arguments.',
+      args: [
+        {
+          name: 'item',
+          target: 'item',
+          type: 'string',
+          required: true,
+          description: 'Input text',
+        },
+        {
+          name: 'meta.lang',
+          target: 'meta',
+          type: 'string',
+          required: false,
+          default: 'en',
+          description: 'Language code',
+        },
+      ],
+      invoke: async (env) => env,
+    })
+
+    expect(tool.args).toBeDefined()
+    expect(tool.args).toHaveLength(2)
+    expect(tool.args?.[0]?.name).toBe('item')
+    expect(tool.args?.[0]?.target).toBe('item')
+    expect(tool.args?.[0]?.required).toBe(true)
+    expect(tool.args?.[1]?.name).toBe('meta.lang')
+    expect(tool.args?.[1]?.default).toBe('en')
+  })
+
   it('T002-11: domain models are correctly defined (type check)', () => {
     const book = new Book({ id: 'book-1', ruName: 'Test Book', author: 'Test Author' })
     const chapter = new Chapter({

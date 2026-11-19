@@ -10,24 +10,44 @@ network. Switch to a real model with environment variables or `mt.local.json`.
 
 ## Pipes
 
-| Pipe | Job |
-|---|---|
-| `extract-en.ts` | `books/book2` → `chapters/en/chapter<N>.md` (skips `index.md` / `plot.md`) |
-| `translate-titles.ts` | batch titles of five chapters → `chapters/titles.json` |
-| `glossary.ts` | cross-chapter term extraction → `chapters/glossary.json` |
-| `summary.ts` | per-chapter summary → `chapters/schema/chapter<N>.summary.md` (prompt context only) |
-| `translate-chapters.ts` | glossary-tagged body, one LLM call per line, summary injection, parity lint → `chapters/ru/chapter<N>.md` + `chapters/titles.json` |
-| `assemble.ts` | numeric chapter sort → `bookCompiler` → `chapters/book/book.md` + `book.json` |
+Three runnable processes mirror the three phases. Each process keeps its own per-stage runs and
+checkpoints; the stage modules live under `pipelines/stages/` and can still be run alone.
 
-Order matters: `summary` and `glossary` feed the prompts of `translate-chapters`; `assemble` reads
-the RU output.
+| Phase | Entry point | Stages |
+|---|---|---|
+| Normalization | `pipelines/normalization.ts` | `extract-en` → `stats` → `split` |
+| Preparation | `pipelines/preparation.ts` | `summary` → `ner` → `vocabulary` → `glossary` → `glossary-index` → `quality` → `preprocess` |
+| Translation | `pipelines/translation.ts` | `translate-titles` → `translate-chapters` → `assemble` |
+
+| Stage | Job |
+|---|---|
+| `stages/extract-en.ts` | `books/book2` → `chapters/en/chapter<N>.md` (skips `index.md` / `plot.md`) |
+| `stages/stats.ts` | measure every chapter → `chapters/schema/stats.json` |
+| `stages/split.ts` | split oversized chapters → `chapters/schema/chapter-map.json` (+ `chapters/split/`) |
+| `stages/summary.ts` | per-chapter summary → `chapters/schema/chapter<N>.summary.md` (prompt context only) |
+| `stages/ner.ts` | book entities → `chapters/schema/entities.json` + per-chapter projections |
+| `stages/vocabulary.ts` | statistical n-grams → `chapters/schema/vocabulary.json` |
+| `stages/glossary.ts` | cross-chapter term extraction → `chapters/glossary.json` |
+| `stages/glossary-index.ts` | project the glossary onto the chapters where it occurs |
+| `stages/quality.ts` | offline quality gate → `chapters/schema/quality.json` |
+| `stages/preprocess.ts` | conditional typo/proofread/gender pass → `chapters/clean/` |
+| `stages/translate-titles.ts` | batch titles of five chapters → `chapters/titles.json` |
+| `stages/translate-chapters.ts` | glossary-tagged body, one LLM call per line/block, summary injection, parity lint → `chapters/ru/chapter<N>.md` |
+| `stages/assemble.ts` | numeric chapter sort → `bookCompiler` → `chapters/book/book.md` + `book.json` |
+
+Order matters: `normalization` writes the size and split artefacts; `preparation` builds the
+prompt context and the translate/preprocess verdict; `translation` consumes both and assembles
+the RU output. Run the phases in that order.
 
 ## How to run
 
 ```bash
 pnpm install
-pnpm run example          # all pipes, offline mock backend
-pnpm run runner:summary   # or one pipe
+pnpm run example          # all three phases, offline mock backend
+pnpm run runner:normalization
+pnpm run runner:preparation
+pnpm run runner:translation
+pnpm run runner:summary   # or one stage
 pnpm run runner:chapters
 pnpm run lint:parity      # standalone EN/RU line-parity table
 pnpm run check-llm        # which backend/model the pipes will use

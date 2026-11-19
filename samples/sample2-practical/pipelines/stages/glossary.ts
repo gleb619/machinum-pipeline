@@ -1,9 +1,9 @@
 import { definePipeline } from '@mt/core'
 import { createGlossaryExtractor } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
-import { pickFor } from '../lib/llm.js'
-import { writeGlossary } from '../lib/outputs.js'
+import { chapterOnly } from '../../lib/input.js'
+import { pickFor } from '../../lib/llm.js'
+import { writeGlossary } from '../../lib/outputs.js'
 
 /**
  * Glossary / term extraction over the whole book.

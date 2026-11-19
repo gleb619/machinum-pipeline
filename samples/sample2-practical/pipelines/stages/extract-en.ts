@@ -1,7 +1,7 @@
 import { definePipeline } from '@mt/core'
 import { chapterIndexer, mdOutputEmitter } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
+import { chapterOnly } from '../../lib/input.js'
 
 /**
  * Extract the real book chapters into `chapters/en/chapter<N>.md` (no LLM).

@@ -99,9 +99,9 @@ async function buildDirtyFixture(): Promise<{ book: string; out: string }> {
 
 beforeAll(async () => {
   await clean(QUALITY_FILE, STATS_FILE, MAP_FILE, SPLIT_DIR, join(SAMPLE_DIR, '.mt'))
-  run('stats.ts', { timeout: 120_000 })
-  run('split.ts', { timeout: 120_000 })
-  run('quality.ts', { timeout: 120_000 })
+  run('stages/stats.ts', { timeout: 120_000 })
+  run('stages/split.ts', { timeout: 120_000 })
+  run('stages/quality.ts', { timeout: 120_000 })
   cleanRun = await readFile(QUALITY_FILE, 'utf-8')
   artifact = parse(cleanRun)
 }, 300_000)
@@ -150,14 +150,14 @@ describe('quality gate', () => {
   })
 
   it('reruns byte-identically without touching an LLM', async () => {
-    const output = run('quality.ts', { env: NO_LLM_ENV, timeout: 120_000 })
+    const output = run('stages/quality.ts', { env: NO_LLM_ENV, timeout: 120_000 })
     expect(output).not.toMatch(/model=/)
     expect(await readFile(QUALITY_FILE, 'utf-8')).toBe(cleanRun)
   })
 
   it('flags exactly the dirty chapters and sends the book to preprocess', async () => {
     const { book, out } = await buildDirtyFixture()
-    run('quality.ts', {
+    run('stages/quality.ts', {
       env: { MT_QUALITY_BOOK: `md://${book}`, MT_QUALITY_ROOT: `md://${out}` },
       timeout: 120_000,
     })

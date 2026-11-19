@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { annotate, annotationsOf, toExchange, useCase, variable, withVariable } from '@mt/core'
-import type { Exchange, ExchangeInput, ExchangeMeta, Tool } from '@mt/core'
+import type { Exchange, ExchangeInput, ExchangeMeta, Tool, ToolArg } from '@mt/core'
 import { findTool, listToolMatches } from '../utils/find-tool.js'
 import type { ToolMatch } from '../utils/find-tool.js'
 import { createStandaloneToolContext } from './utils/standalone-tool-context.js'
@@ -20,6 +20,8 @@ export interface ToolCatalogueEntry {
   source: string
   category: string | null
   description: string | null
+  /** Declared tool arguments, or null when none declared. */
+  args?: readonly ToolArg[] | null
   /** Ids of the pipelines that use the tool (empty for a built-in nobody uses). */
   usedBy: string[]
 }
@@ -107,6 +109,7 @@ async function buildCatalogue(
       source: 'builtin',
       category: builtin.category,
       description: builtin.description,
+      args: builtin.tool.args ?? null,
       usedBy: [],
     })
   }
@@ -122,6 +125,7 @@ async function buildCatalogue(
       source: match.pipelineId,
       category: categoryOf(match.tool),
       description: descriptionOf(match.tool),
+      args: match.tool.args ?? null,
       usedBy: [match.pipelineId],
     })
   }
@@ -190,6 +194,7 @@ interface CallArgs {
   meta?: string
   vars: string[]
   json: boolean
+  info: boolean
 }
 
 function parseCallArgs(args: string[]): CallArgs {
@@ -198,11 +203,15 @@ function parseCallArgs(args: string[]): CallArgs {
     console.error('Error: mt tools call requires a tool name')
     usage()
   }
-  const parsed: CallArgs = { name, vars: [], json: false }
+  const parsed: CallArgs = { name, vars: [], json: false, info: false }
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]
     if (arg === '--json') {
       parsed.json = true
+      continue
+    }
+    if (arg === '--info') {
+      parsed.info = true
       continue
     }
     if (arg === '--pipeline' || arg === '--item' || arg === '--meta' || arg === '--var') {
@@ -222,6 +231,42 @@ function parseCallArgs(args: string[]): CallArgs {
     usage()
   }
   return parsed
+}
+
+/** Print human-readable help text for a tool's declared arguments and metadata. */
+function printToolInfo(tool: Tool<unknown, unknown>): void {
+  const desc = descriptionOf(tool)
+  console.log(`Tool: ${tool.name} (v${tool.version})`)
+  if (desc) console.log(`Description: ${desc}`)
+  console.log(
+    `Cacheable: ${tool.cacheable ? 'yes' : 'no'} | Idempotent: ${tool.idempotent ? 'yes' : 'no'}`,
+  )
+  console.log('')
+  if (!tool.args || tool.args.length === 0) {
+    console.log('No args declared for this tool.')
+    return
+  }
+  const headers = ['NAME', 'TARGET', 'DIRECTION', 'TYPE', 'REQUIRED', 'DEFAULT', 'DESCRIPTION']
+  const rows = tool.args.map((arg) => [
+    arg.name,
+    arg.target,
+    arg.direction ?? 'in',
+    arg.type ?? '—',
+    arg.required ? 'yes' : 'no',
+    arg.default ?? '—',
+    arg.description,
+  ])
+  const colWidths = headers.map((header, colIdx) =>
+    Math.max(header.length, ...rows.map((row) => (row[colIdx] ?? '').length)),
+  )
+  const formatRow = (row: readonly string[]) =>
+    row.map((cellValue, colIdx) => cellValue.padEnd(colWidths[colIdx] ?? 0)).join('  ')
+
+  console.log(formatRow(headers))
+  console.log(colWidths.map((w) => '-'.repeat(w)).join('  '))
+  for (const row of rows) {
+    console.log(formatRow(row))
+  }
 }
 
 /** `--item` value: JSON when it parses, the raw string otherwise. */
@@ -315,6 +360,11 @@ async function callCommand(args: string[]): Promise<void> {
     process.exit(1)
   }
 
+  if (parsed.info) {
+    printToolInfo(tool)
+    return
+  }
+
   const stdinText = readStdin()
   let envelope: Exchange<unknown>
   if (stdinText !== '') {
@@ -329,7 +379,7 @@ async function callCommand(args: string[]): Promise<void> {
   } else {
     if (parsed.item === undefined) {
       console.error(
-        'Usage: mt tools call <name> [--item <string|json>] [--meta <json>] [--var k=v]',
+        'Usage: mt tools call <name> [--info] [--item <string|json>] [--meta <json>] [--var k=v]',
       )
       console.error(
         `Pipe a JSON exchange on stdin, e.g.: echo '{"item":"x","meta":{}}' | mt tools call ${parsed.name}`,
@@ -406,11 +456,12 @@ function usage(): never {
   console.error('Commands:')
   console.error('  list [--json] [--pipeline <file>]   Catalogue of the callable tools')
   console.error(
-    '  call <name> [--pipeline <file>] [--item <string|json>] [--meta <json>] [--var k=v] [--json]',
+    '  call <name> [--info] [--pipeline <file>] [--item <string|json>] [--meta <json>] [--var k=v] [--json]',
   )
   console.error('                                       Invoke one tool standalone')
   console.error('')
   console.error('Options:')
+  console.error('  --info                  Print tool arguments and metadata without invoking')
   console.error('  --pipeline <file>       Restrict the pipeline scan to one file')
   console.error('  --item <string|json>    Input payload (JSON when it parses)')
   console.error('  --meta <json>           Meta object of the input exchange')

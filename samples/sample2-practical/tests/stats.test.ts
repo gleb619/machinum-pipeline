@@ -53,7 +53,7 @@ async function filesUnder(dir: string, base = dir): Promise<string[]> {
 beforeAll(async () => {
   projectRoot = await buildProject()
   statsFile = join(projectRoot, 'chapters', 'schema', 'stats.json')
-  run('stats.ts', { cwd: projectRoot, timeout: 120_000 })
+  run('stages/stats.ts', { cwd: projectRoot, timeout: 120_000 })
   firstRun = await readFile(statsFile, 'utf-8')
 }, 120_000)
 
@@ -107,7 +107,7 @@ describe('stats', () => {
   })
 
   it('is byte-identical on a second run', async () => {
-    run('stats.ts', { cwd: projectRoot, timeout: 120_000 })
+    run('stages/stats.ts', { cwd: projectRoot, timeout: 120_000 })
     expect(await readFile(statsFile, 'utf-8')).toBe(firstRun)
   })
 

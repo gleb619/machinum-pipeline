@@ -85,7 +85,8 @@ export interface PreprocessLlm {
 }
 
 export interface PreprocessChapterToolOptions {
-  plan: PreprocessPlan
+  /** Resolved at invoke time so a combined phase sees the quality gate that ran earlier. */
+  plan: () => PreprocessPlan
   /** Lazy backend: never resolved on the no-op branch. */
   llm: () => PreprocessLlm
   /** Lazy glossary: never read when no chapter is processed. */
@@ -310,7 +311,7 @@ export function createPreprocessChapterTool(options: PreprocessChapterToolOption
       'Cleans one failed chapter with the merged typo/proofread/gender prompt; copies a passing chapter byte-identically.',
     async invoke(env, ctx) {
       const n = Number(env.meta.chapterNum ?? 0)
-      if (!chapterNeedsWork(options.plan, n)) return passThrough(env, n)
+      if (!chapterNeedsWork(options.plan(), n)) return passThrough(env, n)
       const llm = options.llm()
       const row = await preprocessText({
         n,
@@ -345,7 +346,7 @@ export function createEmitCleanChapter() {
 }
 
 /** Aggregation stage: writes `chapters/schema/preprocess-report.json` from the batch rows. */
-export function createWritePreprocessReport(plan: PreprocessPlan) {
+export function createWritePreprocessReport(plan: () => PreprocessPlan) {
   return defineTool<unknown, unknown>({
     name: 'write-preprocess-report',
     version: '1.0.0',
@@ -370,8 +371,8 @@ export function createWritePreprocessReport(plan: PreprocessPlan) {
         filename: 'preprocess-report.json',
         content: serializePreprocessReport({
           version: PREPROCESS_VERSION,
-          verdict: plan.verdict,
-          forced: plan.forced,
+          verdict: plan().verdict,
+          forced: plan().forced,
           chapters: rows,
         }),
       })

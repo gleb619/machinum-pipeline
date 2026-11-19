@@ -46,7 +46,7 @@ function qualityVerdict(logger: Logger): Branch {
  * - `translate` -> `md://./chapters/split` when the split stage produced parts, else
  *   {@link BOOK2} (identity case).
  *
- * Step 10 wires this into `pipelines/translate-chapters.ts`; nothing else calls it yet.
+ * Step 10 wires this into `pipelines/stages/translate-chapters.ts`; nothing else calls it yet.
  */
 export function bookSource(logger: Logger = createConsoleLogger()): string {
   const branch = forcedBranch() ?? qualityVerdict(logger)

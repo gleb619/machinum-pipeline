@@ -78,9 +78,9 @@ async function cleanAll(): Promise<void> {
 
 beforeAll(async () => {
   await cleanAll()
-  run('stats.ts', { timeout: 120_000 })
-  run('split.ts', { timeout: 120_000 })
-  run('quality.ts', { timeout: 120_000 })
+  run('stages/stats.ts', { timeout: 120_000 })
+  run('stages/split.ts', { timeout: 120_000 })
+  run('stages/quality.ts', { timeout: 120_000 })
 }, 300_000)
 
 afterEach(({ task }) => {
@@ -94,7 +94,7 @@ afterAll(async () => {
 describe('preprocess branch decision', () => {
   it('does nothing on a translate verdict: no LLM call, no file', async () => {
     await clean(CLEAN_DIR, REPORT_FILE)
-    const output = run('preprocess.ts', { env: NO_LLM_ENV, timeout: 120_000 })
+    const output = run('stages/preprocess.ts', { env: NO_LLM_ENV, timeout: 120_000 })
     const skipLines = output.split('\n').filter((line) => line.includes(SKIP_LOG))
     expect(skipLines).toHaveLength(1)
     expect(existsSync(CLEAN_DIR)).toBe(false)
@@ -105,7 +105,7 @@ describe('preprocess branch decision', () => {
 describe('forced preprocess on a clean book', () => {
   it('writes every chapter with the source line count and digit multiset', async () => {
     await clean(CLEAN_DIR, REPORT_FILE)
-    run('preprocess.ts', { env: FORCED_ENV, timeout: 120_000 })
+    run('stages/preprocess.ts', { env: FORCED_ENV, timeout: 120_000 })
 
     const files = (await readdir(CLEAN_DIR)).filter((file) => file.endsWith('.md')).sort()
     expect(files).toHaveLength(CHAPTER_COUNT)
@@ -130,9 +130,9 @@ describe('forced preprocess on a clean book', () => {
 
   it('reruns the report byte-identically', async () => {
     await clean(CLEAN_DIR, REPORT_FILE)
-    run('preprocess.ts', { env: FORCED_ENV, timeout: 120_000 })
+    run('stages/preprocess.ts', { env: FORCED_ENV, timeout: 120_000 })
     const first = await readFile(REPORT_FILE, 'utf-8')
-    run('preprocess.ts', { env: FORCED_ENV, timeout: 120_000 })
+    run('stages/preprocess.ts', { env: FORCED_ENV, timeout: 120_000 })
     expect(await readFile(REPORT_FILE, 'utf-8')).toBe(first)
   }, 180_000)
 })

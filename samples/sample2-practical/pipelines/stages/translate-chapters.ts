@@ -15,11 +15,11 @@ import {
   priorTermsEnabled,
   readGlossaryIndex,
   renderPriorTerms,
-} from '../lib/glossary-index.js'
-import { bookSource, chapterOnly } from '../lib/input.js'
-import { ROOT, pickFor } from '../lib/llm.js'
-import { tagWithGlossary } from '../lib/outputs.js'
-import { createBatchTitleTranslator } from '../lib/titles.js'
+} from '../../lib/glossary-index.js'
+import { bookSource, chapterOnly } from '../../lib/input.js'
+import { ROOT, pickFor } from '../../lib/llm.js'
+import { tagWithGlossary } from '../../lib/outputs.js'
+import { createBatchTitleTranslator } from '../../lib/titles.js'
 
 /**
  * Translate the whole book body with parity linting.

@@ -1,8 +1,8 @@
 import { join } from 'node:path'
 import { definePipeline } from '@mt/core'
 import '@mt/waypoint'
-import { writeGlossaryIndexTool } from '../lib/glossary-index.js'
-import { ROOT } from '../lib/llm.js'
+import { writeGlossaryIndexTool } from '../../lib/glossary-index.js'
+import { ROOT } from '../../lib/llm.js'
 
 /**
  * Stage between `glossary` and the quality gate: the book-wide glossary projected onto the

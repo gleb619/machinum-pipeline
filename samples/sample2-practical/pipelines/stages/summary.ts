@@ -2,9 +2,9 @@ import { definePipeline } from '@mt/core'
 import type { LlmRequest } from '@mt/tools'
 import { createSummaryTool, summarizeHeuristic } from '@mt/tools'
 import '@mt/waypoint'
-import { chapterOnly } from '../lib/input.js'
-import { pickFor } from '../lib/llm.js'
-import { writeSummaries } from '../lib/outputs.js'
+import { chapterOnly } from '../../lib/input.js'
+import { pickFor } from '../../lib/llm.js'
+import { writeSummaries } from '../../lib/outputs.js'
 
 /**
  * Per-chapter summary for context.
