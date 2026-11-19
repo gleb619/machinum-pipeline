@@ -17,6 +17,53 @@ variables (`llm`, `prompts`, `context`, `schemaDocLlm`) also accept the legacy `
 **Persistence.** Put anything that must survive pause/resume/dead-letter in a variable; `meta` is in-flight
 only and is not written to dead-letter entries or `jsonl://` targets. Ephemeral variables are in-flight too.
 
+## Contents
+
+- [Tool Catalogue](#tool-catalogue)
+  - [`chapter-validator.ts`](#chapter-validatorts)
+  - [`chapter-doc.ts`](#chapter-docts)
+    - [Chapter metadata](#chapter-metadata)
+    - [Chapter body tree](#chapter-body-tree)
+  - [`book-compiler.ts`](#book-compilerts)
+  - [`schema-doc.ts` + `schema/`](#schema-docts--schema)
+  - [`translate-text.ts`](#translate-textts)
+  - [`core/chunk-processor.ts`](#corechunk-processorts)
+  - [`modification/proofread.ts`](#modificationproofreadts)
+  - [`heuristic-summary.ts` / `glossary-extractor.ts` / `term-tagger.ts`](#heuristic-summaryts--glossary-extractorts--term-taggerts)
+  - [`stat-freq.ts`](#stat-freqts)
+  - [`stat-dict.ts`](#stat-dictts)
+  - [`translation-prompt.ts` / `line-parity-linter.ts`](#translation-promptts--line-parity-linterts)
+  - [`core/wait-for-file.ts`](#corewait-for-filets)
+  - [`modification/git-tools.ts`](#modificationgit-toolsts)
+  - [Sample-stage tools (moved from the old samples, T129)](#sample-stage-tools-moved-from-the-old-samples-t129)
+  - [`chapter-translator.ts`](#chapter-translatorts)
+  - [`modification/browser-translate.ts`](#modificationbrowser-translatets)
+  - [`openrouter-tool.ts`](#openrouter-toolts)
+  - [`openrouter-free.ts`](#openrouter-freets)
+  - [`openrouter-pool-tool.ts`](#openrouter-pool-toolts)
+  - [`ollama-tool.ts`](#ollama-toolts)
+  - [`md-formatter.ts`](#md-formatterts)
+  - [`fs-read.ts` / `fs-write.ts`](#fs-readts--fs-writets)
+  - [`docker-compose.ts`](#docker-composets)
+  - [`text-splitter.ts`](#text-splitterts)
+  - [`normalization/entity-splitters.ts`](#normalizationentity-splittersts)
+  - [`normalization/token-splitter.ts`](#normalizationtoken-splitterts)
+  - [`resolve-constants.ts` — tunable constant overrides](#resolve-constantsts--tunable-constant-overrides)
+  - [`word-counter.ts`](#word-counterts)
+  - [`chapter-indexer.ts`](#chapter-indexerts)
+  - [`token-counter.ts`](#token-counterts)
+- [LLM toolkit](#llm-toolkit)
+  - [LLM config precedence (`resolveLlmConfig`, pure)](#llm-config-precedence-resolvellmconfig-pure)
+  - [Prompt precedence (`resolvePrompt(name, vars, sources, env)`)](#prompt-precedence-resolvepromptname-vars-sources-env)
+  - [Context window (`contextWindow` tool, `fit` slot)](#context-window-contextwindow-tool-fit-slot)
+  - [Gates and swapping a slot](#gates-and-swapping-a-slot)
+- [Key Patterns](#key-patterns)
+- [Tests](#tests)
+- [Dependencies](#dependencies)
+- [TL index (planned-tool spec)](#tl-index-planned-tool-spec)
+- [Implemented tool index (TL201+)](#implemented-tool-index-tl201)
+- [Translation eval harness (`tests/eval/`)](#translation-eval-harness-testseval)
+
 ## Tool Catalogue
 
 Every exported tool carries sealed runtime annotations in its `defineTool({ annotations: [...] })`
@@ -44,6 +91,7 @@ names live in `packages/tools/src/annotation-categories.ts` (`TOOL_CATEGORIES`):
 | `analyzer` | Analyses tool output and produces reports/metrics |
 | `stub` | Test/stub implementation of a slot or tool |
 | `pipeline` | Orchestration helper that wires other tools together |
+| `git` | Stages, resets and commits repository changes |
 
 Categories are a dev marker only: grep `category([` or run
 `pnpm annotations --kind category`. They carry no runtime behaviour, and `annotations` is
@@ -388,6 +436,23 @@ Building blocks of the `sample2-practical` / `pipe08` translate stage (EN->RU, l
   throws a non-retryable error naming the path. `idempotent: true`, category `pipeline`. Sets the resolved
   path in the `latchFile` variable and passes the item through unchanged. Used by `samples/sample1-tutorial`'s
   `stop-resume` pipeline to gate each item, so the run can be paused and resumed deterministically.
+
+### `modification/git-tools.ts`
+
+- `gitStage` / `createGitStage({ pathspecs?, repoRoot? })` — stages changes with `git add`. Pathspecs come
+  from options, then the envelope `meta.gitPaths` (string or `string[]`), then `git add -A`. Sets
+  `gitStaged` (count of staged files) in the envelope meta. Item passes through unchanged. Category `git`.
+- `gitReset` / `createGitReset({ mode?, ref?, pathspecs?, repoRoot? })` — runs `git reset <mode> <ref>`.
+  `mode` is `soft` | `mixed` | `hard` (default `mixed`), `ref` defaults to `HEAD`, `pathspecs` limits the
+  reset scope. Sets `gitReset` (the mode) in the envelope meta. Category `git`.
+- `gitCommit` / `createGitCommit({ message?, stage?, pathspecs?, repoRoot? })` — stages (unless
+  `stage: false`) and commits. Message resolves from options → `meta.commitMessage`/`meta.message` →
+  generated `mt(<pipelineId>): <n> envelopes`. Sets `commit` (short hash) and `commitMessage` in the
+  envelope meta; `commit: null` when there is nothing to commit (no-op, not an error). Category `git`.
+
+All three resolve the repo root from options → `ctx.run.global.project.root` → `process.cwd()` and
+throw when it is not inside a git repository. Items pass through unchanged; failures throw with the git
+stderr.
 
 ### Sample-stage tools (moved from the old samples, T129)
 
@@ -925,124 +990,133 @@ The schema-doc tests stub `globalThis.fetch`, so they need neither a running rou
 The TL001–TL116 entries below are the planned-tool spec index — the full catalogue of specified tools
 (vs. the implemented tools above). UC links point at [../guiding/uc.md](../guiding/uc.md).
 
-| ID    | Tool                                 | Used in UCs                                    |
-|-------|--------------------------------------|------------------------------------------------|
-| TL001 | normalizeUnicode                     | [UC058](../guiding/uc.md)                                 |
-| TL002 | trimWhitespace                       | [UC058](../guiding/uc.md)                                 |
-| TL003 | detectEmptyParagraph                 | —                                              |
-| TL004 | spellcheckLine                       | [UC057](../guiding/uc.md)                                 |
-| TL005 | grammarCheckLine                     | [UC057](../guiding/uc.md)                                 |
-| TL006 | detectRepeatedWords                  | [UC057](../guiding/uc.md)                                 |
-| TL007 | titleCaseChapter                     | —                                              |
-| TL008 | extractFrontmatter                   | [UC055](../guiding/uc.md)                                 |
-| TL009 | validateISBN                         | —                                              |
-| TL010 | detectDeadLinks                      | [UC055](../guiding/uc.md)                                 |
-| TL011 | checkMarkdownLinks                   | [UC055](../guiding/uc.md)                                 |
-| TL012 | countWords                           | —                                              |
-| TL013 | readabilityScore                     | —                                              |
-| TL014 | detectPassiveVoice                   | [UC057](../guiding/uc.md)                                 |
-| TL015 | findWeaselWords                      | [UC057](../guiding/uc.md)                                 |
-| TL016 | normalizeLineEndings                 | [UC058](../guiding/uc.md)                                 |
-| TL017 | removeBOM                            | —                                              |
-| TL018 | detectProfanity                      | —                                              |
-| TL019 | extractEmails                        | —                                              |
-| TL020 | detectUrls                           | —                                              |
-| TL021 | splitLongParagraph                   | —                                              |
-| TL022 | joinShortLines                       | —                                              |
-| TL023 | addLineNumbers                       | —                                              |
-| TL024 | detectNumericLists                   | —                                              |
-| TL025 | capitalizeSentences                  | —                                              |
-| TL026 | translateLine                        | [UC059](../guiding/uc.md), [UC060](../guiding/uc.md), [UC061](../guiding/uc.md) |
-| TL027 | rewriteTone                          | —                                              |
-| TL028 | callOpenRouterAgent                  | —                                              |
-| TL029 | routeToRouter                        | —                                              |
-| TL030 | extractKeyPhrases                    | —                                              |
-| TL031 | embedForRAG                          | —                                              |
-| TL032 | semanticSimilarity                   | —                                              |
-| TL033 | detectPlagiarism                     | —                                              |
-| TL034 | summarizeChapter                     | —                                              |
-| TL035 | detectHallucination                  | —                                              |
-| TL036 | expandContractions                   | [UC058](../guiding/uc.md)                                 |
-| TL037 | detectGenderBias                     | —                                              |
-| TL038 | checkConsistencyGlossary             | —                                              |
-| TL039 | extractQuotes                        | —                                              |
-| TL040 | detectEllipsisStyle                  | —                                              |
-| TL041 | fixOrdinalNumbers                    | [UC058](../guiding/uc.md)                                 |
-| TL042 | redactPII                            | —                                              |
-| TL043 | detectAdverbs                        | [UC057](../guiding/uc.md)                                 |
-| TL044 | checkSerialComma                     | —                                              |
-| TL045 | extractAcronyms                      | —                                              |
-| TL046 | convertNumberWords                   | [UC058](../guiding/uc.md)                                 |
-| TL047 | detectDuplicateParagraphs            | —                                              |
-| TL048 | splitByHeading                       | —                                              |
-| TL049 | validateWordCountTarget              | —                                              |
-| TL050 | generateAltText                      | —                                              |
-| TL051 | translateWithContext                 | [UC059](../guiding/uc.md), [UC060](../guiding/uc.md), [UC061](../guiding/uc.md) |
-| TL052 | expandAbbreviations                  | —                                              |
-| TL053 | detectLongSentences                  | —                                              |
-| TL054 | sentenceSplitter                     | [UC060](../guiding/uc.md)                                 |
-| TL055 | detectWeaselTags                     | —                                              |
-| TL056 | convertSmartPunctuation              | —                                              |
-| TL057 | extractFootnotes                     | —                                              |
-| TL058 | validateReferenceFormat              | —                                              |
-| TL059 | detectClichés                        | [UC057](../guiding/uc.md)                                 |
-| TL060 | convertRomanNumerals                 | —                                              |
-| TL061 | detectMissingSpaces                  | —                                              |
-| TL062 | fixStraightQuotes                    | [UC058](../guiding/uc.md)                                 |
-| TL063 | detectHeadingLevelSkip               | [UC055](../guiding/uc.md)                                 |
-| TL064 | addYAMLFrontmatter                   | —                                              |
-| TL065 | checkReadingTime                     | —                                              |
-| TL066 | detectRedundantPhrases               | —                                              |
-| TL067 | extractCharacterNames                | —                                              |
-| TL068 | convertDateFormats                   | —                                              |
-| TL069 | detectAmbiguousPronouns              | —                                              |
-| TL070 | keywordDensity                       | —                                              |
-| TL071 | checkCodeBlockLanguage               | [UC055](../guiding/uc.md)                                 |
-| TL072 | detectTrailingSpaces                 | —                                              |
-| TL073 | detectUnescapedChars                 | —                                              |
-| TL074 | checkInternalConsistencyNames        | —                                              |
-| TL075 | extractTOC                           | —                                              |
-| TL076 | detectOverusedWords                  | —                                              |
-| TL077 | addLanguageTag                       | —                                              |
-| TL078 | convertDialoguePunctuation           | —                                              |
-| TL079 | splitRunonSentences                  | —                                              |
-| TL080 | detectMissingSubject                 | —                                              |
-| TL081 | extractStatistics                    | —                                              |
-| TL082 | detectFillerWords                    | —                                              |
-| TL083 | convertElision                       | —                                              |
-| TL084 | checkHtmlEntities                    | —                                              |
-| TL085 | detectRelativeTime                   | —                                              |
-| TL086 | extractGlossaryTerms                 | —                                              |
-| TL087 | capitalizeHeadings                   | —                                              |
-| TL088 | detectLeadingWhitespace              | —                                              |
-| TL089 | removeDuplicateSpaces                | —                                              |
-| TL090 | extractUUIDs                         | —                                              |
-| TL091 | detectSentenceSpacing                | —                                              |
-| TL092 | convertFractionToUnicode             | —                                              |
-| TL093 | detectMissingAltText                 | —                                              |
-| TL094 | addSoftHyphens                       | —                                              |
-| TL095 | detectURLShorteners                  | —                                              |
-| TL096 | extractPullQuotes                    | —                                              |
-| TL097 | checkEmojiUsage                      | —                                              |
-| TL098 | normalizeWhitespaceAroundPunctuation | —                                              |
-| TL099 | detectMicrosoftSmartTags             | —                                              |
-| TL100 | extractResearchQuestions             | —                                              |
-| TL101 | detectTautology                      | —                                              |
-| TL102 | checkDialogueTagVariety              | —                                              |
-| TL103 | convertNonBreakingSpaces             | —                                              |
-| TL104 | detectLazyWord                       | —                                              |
-| TL105 | extractTemporalExpressions           | —                                              |
-| TL106 | chunkChapter                         | [UC056](../guiding/uc.md)                                 |
-| TL107 | extractEntities                      | —                                              |
-| TL108 | consolidateSummaries                 | —                                              |
-| TL109 | generatePlotDiagram                  | —                                              |
-| TL110 | detectScenes                         | —                                              |
-| TL111 | generateImage                        | —                                              |
-| TL112 | generateAudio                        | —                                              |
-| TL113 | exportToVideo                        | —                                              |
-| TL114 | indexWithLightRAG                    | —                                              |
-| TL115 | synthesizeSpeech                     | —                                              |
-| TL116 | runAutomataWorkflow                  | —                                              |
+Columns: **UCs** — use cases the tool serves; for a shipped tool this mirrors the `refs` of its runtime
+`tool('TL###')` annotation. **Implemented as** — the shipped tool name when the planned tool already
+exists in `@mt/tools`, `covered by …` when another shipped tool covers it via the annotation's
+`meta.alsoCovers`, `—` when the tool is still planned. The runtime registry is the source of truth:
+`pnpm annotations --kind tool`.
+
+**25 of the 116 planned tools are already realized** — 20 shipped under their own TL id, 5 covered by
+another shipped tool (TL002, TL011, TL016, TL062, TL071). The remaining 91 are unimplemented.
+
+| ID     | Tool                                   | UCs                                                                      | Implemented as                               |
+|--------|----------------------------------------|--------------------------------------------------------------------------|----------------------------------------------|
+| TL001  | normalizeUnicode                       | [UC058](../guiding/uc.md)                                                | `text-normalizer`                            |
+| TL002  | trimWhitespace                         | [UC058](../guiding/uc.md)                                                | covered by `text-normalizer`                 |
+| TL003  | detectEmptyParagraph                   | —                                                                        | —                                            |
+| TL004  | spellcheckLine                         | [UC057](../guiding/uc.md)                                                | `typo-finder`                                |
+| TL005  | grammarCheckLine                       | [UC057](../guiding/uc.md)                                                | `ru-grammar`                                 |
+| TL006  | detectRepeatedWords                    | [UC057](../guiding/uc.md)                                                | —                                            |
+| TL007  | titleCaseChapter                       | —                                                                        | —                                            |
+| TL008  | extractFrontmatter                     | [UC055](../guiding/uc.md)                                                | `markdown-strip-frontmatter`                 |
+| TL009  | validateISBN                           | —                                                                        | —                                            |
+| TL010  | detectDeadLinks                        | [UC055](../guiding/uc.md)                                                | —                                            |
+| TL011  | checkMarkdownLinks                     | [UC055](../guiding/uc.md)                                                | covered by `chapter-validator`               |
+| TL012  | countWords                             | —                                                                        | `word-counter`                               |
+| TL013  | readabilityScore                       | —                                                                        | —                                            |
+| TL014  | detectPassiveVoice                     | [UC057](../guiding/uc.md)                                                | —                                            |
+| TL015  | findWeaselWords                        | [UC057](../guiding/uc.md)                                                | —                                            |
+| TL016  | normalizeLineEndings                   | [UC058](../guiding/uc.md)                                                | covered by `text-normalizer`                 |
+| TL017  | removeBOM                              | —                                                                        | —                                            |
+| TL018  | detectProfanity                        | —                                                                        | —                                            |
+| TL019  | extractEmails                          | —                                                                        | —                                            |
+| TL020  | detectUrls                             | —                                                                        | —                                            |
+| TL021  | splitLongParagraph                     | —                                                                        | —                                            |
+| TL022  | joinShortLines                         | —                                                                        | —                                            |
+| TL023  | addLineNumbers                         | —                                                                        | —                                            |
+| TL024  | detectNumericLists                     | —                                                                        | —                                            |
+| TL025  | capitalizeSentences                    | —                                                                        | —                                            |
+| TL026  | translateLine                          | [UC059](../guiding/uc.md), [UC060](../guiding/uc.md), [UC061](../guiding/uc.md) | `translate-text`                             |
+| TL027  | rewriteTone                            | —                                                                        | —                                            |
+| TL028  | callOpenRouterAgent                    | [UC033](../guiding/uc.md)                                                | `chat-completion`                            |
+| TL029  | routeToRouter                          | —                                                                        | —                                            |
+| TL030  | extractKeyPhrases                      | —                                                                        | `vocabulary`                                 |
+| TL031  | embedForRAG                            | —                                                                        | —                                            |
+| TL032  | semanticSimilarity                     | —                                                                        | —                                            |
+| TL033  | detectPlagiarism                       | —                                                                        | —                                            |
+| TL034  | summarizeChapter                       | —                                                                        | `summary`                                    |
+| TL035  | detectHallucination                    | —                                                                        | —                                            |
+| TL036  | expandContractions                     | [UC058](../guiding/uc.md)                                                | —                                            |
+| TL037  | detectGenderBias                       | —                                                                        | —                                            |
+| TL038  | checkConsistencyGlossary               | [UC057](../guiding/uc.md)                                                | `stat-proofread`                             |
+| TL039  | extractQuotes                          | —                                                                        | —                                            |
+| TL040  | detectEllipsisStyle                    | —                                                                        | —                                            |
+| TL041  | fixOrdinalNumbers                      | [UC058](../guiding/uc.md)                                                | —                                            |
+| TL042  | redactPII                              | —                                                                        | —                                            |
+| TL043  | detectAdverbs                          | [UC057](../guiding/uc.md)                                                | —                                            |
+| TL044  | checkSerialComma                       | —                                                                        | —                                            |
+| TL045  | extractAcronyms                        | —                                                                        | —                                            |
+| TL046  | convertNumberWords                     | [UC058](../guiding/uc.md)                                                | —                                            |
+| TL047  | detectDuplicateParagraphs              | —                                                                        | —                                            |
+| TL048  | splitByHeading                         | —                                                                        | —                                            |
+| TL049  | validateWordCountTarget                | —                                                                        | —                                            |
+| TL050  | generateAltText                        | —                                                                        | —                                            |
+| TL051  | translateWithContext                   | [UC059](../guiding/uc.md), [UC060](../guiding/uc.md), [UC061](../guiding/uc.md) | `llm-translate`                              |
+| TL052  | expandAbbreviations                    | —                                                                        | —                                            |
+| TL053  | detectLongSentences                    | —                                                                        | —                                            |
+| TL054  | sentenceSplitter                       | [UC060](../guiding/uc.md)                                                | —                                            |
+| TL055  | detectWeaselTags                       | —                                                                        | —                                            |
+| TL056  | convertSmartPunctuation                | —                                                                        | —                                            |
+| TL057  | extractFootnotes                       | —                                                                        | —                                            |
+| TL058  | validateReferenceFormat                | —                                                                        | —                                            |
+| TL059  | detectClichés                          | [UC057](../guiding/uc.md)                                                | —                                            |
+| TL060  | convertRomanNumerals                   | —                                                                        | —                                            |
+| TL061  | detectMissingSpaces                    | —                                                                        | —                                            |
+| TL062  | fixStraightQuotes                      | [UC058](../guiding/uc.md)                                                | covered by `markdown-formatter`, `text-normalizer` |
+| TL063  | detectHeadingLevelSkip                 | [UC055](../guiding/uc.md)                                                | `chapter-validator`                          |
+| TL064  | addYAMLFrontmatter                     | —                                                                        | `chapter-doc-build`                          |
+| TL065  | checkReadingTime                       | —                                                                        | —                                            |
+| TL066  | detectRedundantPhrases                 | —                                                                        | —                                            |
+| TL067  | extractCharacterNames                  | —                                                                        | —                                            |
+| TL068  | convertDateFormats                     | —                                                                        | —                                            |
+| TL069  | detectAmbiguousPronouns                | —                                                                        | —                                            |
+| TL070  | keywordDensity                         | —                                                                        | `stat-freq`                                  |
+| TL071  | checkCodeBlockLanguage                 | [UC055](../guiding/uc.md)                                                | covered by `chapter-validator`               |
+| TL072  | detectTrailingSpaces                   | —                                                                        | —                                            |
+| TL073  | detectUnescapedChars                   | —                                                                        | —                                            |
+| TL074  | checkInternalConsistencyNames          | —                                                                        | —                                            |
+| TL075  | extractTOC                             | —                                                                        | `markdown-outline`                           |
+| TL076  | detectOverusedWords                    | —                                                                        | —                                            |
+| TL077  | addLanguageTag                         | —                                                                        | —                                            |
+| TL078  | convertDialoguePunctuation             | —                                                                        | —                                            |
+| TL079  | splitRunonSentences                    | —                                                                        | —                                            |
+| TL080  | detectMissingSubject                   | —                                                                        | —                                            |
+| TL081  | extractStatistics                      | —                                                                        | `markdown-stats`                             |
+| TL082  | detectFillerWords                      | —                                                                        | —                                            |
+| TL083  | convertElision                         | —                                                                        | —                                            |
+| TL084  | checkHtmlEntities                      | —                                                                        | —                                            |
+| TL085  | detectRelativeTime                     | —                                                                        | —                                            |
+| TL086  | extractGlossaryTerms                   | —                                                                        | `glossary-extractor`                         |
+| TL087  | capitalizeHeadings                     | —                                                                        | —                                            |
+| TL088  | detectLeadingWhitespace                | —                                                                        | —                                            |
+| TL089  | removeDuplicateSpaces                  | —                                                                        | —                                            |
+| TL090  | extractUUIDs                           | —                                                                        | —                                            |
+| TL091  | detectSentenceSpacing                  | —                                                                        | —                                            |
+| TL092  | convertFractionToUnicode               | —                                                                        | —                                            |
+| TL093  | detectMissingAltText                   | —                                                                        | —                                            |
+| TL094  | addSoftHyphens                         | —                                                                        | —                                            |
+| TL095  | detectURLShorteners                    | —                                                                        | —                                            |
+| TL096  | extractPullQuotes                      | —                                                                        | —                                            |
+| TL097  | checkEmojiUsage                        | —                                                                        | —                                            |
+| TL098  | normalizeWhitespaceAroundPunctuation   | —                                                                        | —                                            |
+| TL099  | detectMicrosoftSmartTags               | —                                                                        | —                                            |
+| TL100  | extractResearchQuestions               | —                                                                        | —                                            |
+| TL101  | detectTautology                        | —                                                                        | —                                            |
+| TL102  | checkDialogueTagVariety                | —                                                                        | —                                            |
+| TL103  | convertNonBreakingSpaces               | —                                                                        | —                                            |
+| TL104  | detectLazyWord                         | —                                                                        | —                                            |
+| TL105  | extractTemporalExpressions             | —                                                                        | —                                            |
+| TL106  | chunkChapter                           | [UC056](../guiding/uc.md)                                                | `token-splitter`                             |
+| TL107  | extractEntities                        | —                                                                        | `entities`                                   |
+| TL108  | consolidateSummaries                   | —                                                                        | —                                            |
+| TL109  | generatePlotDiagram                    | —                                                                        | `schema`                                     |
+| TL110  | detectScenes                           | —                                                                        | —                                            |
+| TL111  | generateImage                          | —                                                                        | —                                            |
+| TL112  | generateAudio                          | —                                                                        | —                                            |
+| TL113  | exportToVideo                          | —                                                                        | —                                            |
+| TL114  | indexWithLightRAG                      | —                                                                        | —                                            |
+| TL115  | synthesizeSpeech                       | —                                                                        | —                                            |
+| TL116  | runAutomataWorkflow                    | —                                                                        | —                                            |
 
 ---
 
@@ -1167,7 +1241,7 @@ The TL001–TL116 entries below are the planned-tool spec index — the full cat
 
 ## Implemented tool index (TL201+)
 
-IDs TL201–TL253 are allocated to implemented tools that had no clear match in the
+IDs TL201–TL260 are allocated to implemented tools that had no clear match in the
 TL001–TL116 planned-tool spec. The ID is stable per exported tool value; aliases share one
 annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 
@@ -1229,6 +1303,9 @@ annotation. UC links point at [../guiding/uc.md](../guiding/uc.md).
 | TL255 | `parallelPairs` | `parallel-pairs` | — | `normalization/parallel-pairs.ts` |
 | TL256 | `datasetSplit` | `dataset-split` | — | `modification/dataset-split.ts` |
 | TL257 | `datasetCard` | `dataset-card` | — | `modification/dataset-card.ts` |
+| TL258 | `gitStage`, `createGitStage` | `git-stage` | — | `modification/git-tools.ts` |
+| TL259 | `gitReset`, `createGitReset` | `git-reset` | — | `modification/git-tools.ts` |
+| TL260 | `gitCommit`, `createGitCommit` | `git-commit` | — | `modification/git-tools.ts` |
 
 ## Translation eval harness (`tests/eval/`)
 

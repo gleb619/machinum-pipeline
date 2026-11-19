@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.33.4 | 2026-11-19 -->
+<!-- skill-version: 1.33.5 | 2026-11-19 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree, tool-cli), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -87,6 +87,7 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
   output. `around(ex, ctx, next)` is onion-style middleware — `next` invokes the remaining
   arounds + the tool; first registered is outermost. Fork/subflow/batch children without
   their own interceptors inherit the parent's chain.
+- `gitStage` / `createGitStage({ pathspecs?, repoRoot? })`, `gitReset` / `createGitReset({ mode?, ref?, pathspecs?, repoRoot? })`, `gitCommit` / `createGitCommit({ message?, stage?, pathspecs?, repoRoot? })` (`mt/tools`) — git tools. Stage pathspecs come from options / `meta.gitPaths` / `git add -A`; commit message: option → `meta.commitMessage` → generated `mt(<pipelineId>): <n> envelopes`; sets `meta.commit` (short hash). Category `git`.
 - `waitForFile` / `createWaitForFile({ path, pollMs?, timeoutMs?, consume? })` (`mt/tools`) — latch
   step: polls for a file (default `./latch/{item}.latch`; `{item}`/`{id}` interpolated), optionally
   deletes it, and passes the item through with `latchFile` set. Handy for deterministic stop/resume
@@ -145,7 +146,8 @@ export default definePipeline({ id: 'translate', retry: { max: 3, backoffMs: 100
 | `hs://http://...` | HTTP source (`POST <path>` ingest). Shares the `mt serve` listener when run in the same process/port; `/health` and `/events` move under the ingest path when shared; `/api/*` ingest paths are rejected |
 | `http://host/path` / `https://host/path` | HTTP target — one request per exchange; `?method=POST\|PUT\|PATCH\|DELETE`, `?bearer=ENV_NAME` (env/vault ref, never inline), `?timeoutMs=`, `?retries=`, `?batch=true` (body carries `items[]`), `?contentType=json\|item\|text`, `?header.X-Foo=bar`; `hs://` is source-only |
 | `mem://<name>` (alias `ephemeral://<name>`) | process-local in-memory buffer, source + target; both schemes share one key space |
-| `schema-doc://`, `git://`, `range://`, `void://` | schema docs, git worktree wrapper, range source, discard target |
+| `git://./out?via=jsonl&branch=<b>&commit=on-close` | git worktree wrapper — wraps any inner scheme (`via` names it, required); `branch` names the worktree branch, `commit=on-close` auto-commits + merges on close; deprecated alias `git+<scheme>://…` still resolves |
+| `schema-doc://`, `range://`, `void://` | schema docs, range source, discard target |
 | `console://?format=auto&prefix=…&envelope=true&stream=stderr` | terminal target sink; `format` = `auto`/`json`/`pretty`, optional prefix/envelope/stream; target-only |
 | `events://<channel>` | source: live subscription to the process-wide event bus — a custom channel (published with `emitEvent()`) or a lifecycle type (`events://started`); `?only=a,b` filters lifecycle types, `?limit=N` / `?timeout=<ms>` end the stream. target: run-scoped lifecycle log |
 | `chunks://<ns>` … `words://<ns>` | typed ladder buffers, source + target; fill with a split-form subflow child writing `.to('chunks://ladder')` and read with `.from('chunks://ladder')` (omitted ns = `default`) |

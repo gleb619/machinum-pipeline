@@ -26,8 +26,10 @@ function makeCtx(): ToolContext {
           concurrency: 1,
         },
         settings: {},
+        env: {},
       },
       checkpoint: { stepId: 's1', depth: 0, path: [] },
+      artifactsDir: join(dir, 'artifacts'),
       logger: {
         debug: () => {},
         info: () => {},

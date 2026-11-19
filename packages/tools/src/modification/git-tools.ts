@@ -40,7 +40,9 @@ function resolveRepoRoot(ctx: ToolContext, options?: { repoRoot?: string }): str
 async function assertGitRepo(repoRoot: string): Promise<void> {
   const res = await execGit(repoRoot, ['rev-parse', '--show-toplevel'])
   if (res.exitCode !== 0) {
-    throw new Error(`not a git repository: ${repoRoot} (${res.stderr.trim() || `exit ${res.exitCode}`})`)
+    throw new Error(
+      `not a git repository: ${repoRoot} (${res.stderr.trim() || `exit ${res.exitCode}`})`,
+    )
   }
 }
 
@@ -82,7 +84,9 @@ export function createGitStage(options: GitStageOptions = {}): Tool<string, stri
       const repoRoot = resolveRepoRoot(ctx, options)
       await assertGitRepo(repoRoot)
       const pathspecs = options.pathspecs ?? pathspecsFromMeta(env.meta)
-      ctx.run.logger.info(`[git-stage] staging ${pathspecs ? pathspecs.join(' ') : '-A'} in ${repoRoot}`)
+      ctx.run.logger.info(
+        `[git-stage] staging ${pathspecs ? pathspecs.join(' ') : '-A'} in ${repoRoot}`,
+      )
       const add = pathspecs
         ? await execGit(repoRoot, ['add', '--', ...pathspecs])
         : await execGit(repoRoot, ['add', '-A'])
@@ -113,7 +117,8 @@ export function createGitReset(options: GitResetOptions = {}): Tool<string, stri
     annotations: [
       tool('TL259', {
         name: 'git-reset',
-        description: 'Resets the repository (soft/mixed/hard) to a ref, optionally pathspec-scoped.',
+        description:
+          'Resets the repository (soft/mixed/hard) to a ref, optionally pathspec-scoped.',
         refs: [],
       }),
       category(['git']),
@@ -168,7 +173,9 @@ export function createGitCommit(options: GitCommitOptions = {}): Tool<string, st
         if (add.exitCode !== 0) throw gitFailure('add', add.stderr)
       }
 
-      const statusArgs = pathspecs ? ['status', '--porcelain', '--', ...pathspecs] : ['status', '--porcelain']
+      const statusArgs = pathspecs
+        ? ['status', '--porcelain', '--', ...pathspecs]
+        : ['status', '--porcelain']
       const status = await execGit(repoRoot, statusArgs)
       if (status.exitCode !== 0) throw gitFailure('status', status.stderr)
       if (status.stdout.trim() === '') {
