@@ -38,7 +38,7 @@ Implemented in `src/handlers.ts`:
 | `runs.inspect` | `{ runId }` | Full checkpoint tree + metadata | Done |
 | `runs.pause` | `{ runId }` | Pause a running pipeline | Deferred |
 | `runs.resume` | `{ runId }` | Resume a paused run | Deferred |
-| `tools.invoke` | `{ toolName, envelope }` | Invoke a processing tool directly | Deferred |
+| `tools.invoke` | `{ toolName, envelope }` | Invoke a processing tool directly | Done |
 | `book.read` | `{ path }` | Read book chapter index | Deferred |
 | `chapter.read` | `{ path }` | Read a single chapter | Deferred |
 
@@ -61,6 +61,17 @@ Tool semantics:
   `status`, `startedAt`, `updatedAt` and `pipelineId`.
 - `runs.inspect` — returns the run's `state.json` as stored: the full checkpoint tree plus the
   run metadata. `runId` must be a single directory name (no path separators, no `..`).
+- `tools.invoke` — resolves `toolName` in two passes: tool steps of the pipelines declared in
+  `mt.json` (the same scan as `mt tool`, ambiguity is an error), then the optional
+  `@mt/tools` exports loaded with a dynamic import. A missing `@mt/tools` is a note in the
+  error text, never a crash. `envelope` is a partial Exchange (`item` required; `id`, `meta`,
+  `variables` optional) normalized with `toExchange`; a malformed envelope is rejected before the
+  tool runs. The tool runs with the same minimal standalone context (`mcp-<uuid>` run,
+  `standalone` checkpoint, stderr logger) as `mt tool`. Stdout stays pure JSON-RPC — the handler
+  never writes to it, so every log line goes to stderr. The output Exchange is serialized as
+  pretty-printed JSON in the response text; an unknown/ambiguous tool, an invalid envelope or a
+  tool failure becomes `{ content: [{ type: 'text', text }], isError: true }`, never a JSON-RPC
+  error.
 
 The project root of the server is `MT_PROJECT_ROOT`, falling back to the current working
 directory.

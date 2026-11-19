@@ -1,8 +1,28 @@
+import { randomUUID } from 'node:crypto'
 import type { Dirent } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import type { DiscoveredPipeline, Pipeline, RunStateData } from '@mt/core'
-import { Runner, Store, discoverPipelines, importPipelineModule, loadGlobalContext } from '@mt/core'
+import type {
+  DiscoveredPipeline,
+  Exchange,
+  ExchangeInput,
+  Logger,
+  Pipeline,
+  PipelineStep,
+  RunContext,
+  RunStateData,
+  Tool,
+  ToolContext,
+} from '@mt/core'
+import {
+  Runner,
+  Store,
+  discoverPipelines,
+  formatLogLine,
+  importPipelineModule,
+  loadGlobalContext,
+  toExchange,
+} from '@mt/core'
 
 interface InitializeResult {
   protocolVersion: '2024-11-05'
@@ -85,6 +105,27 @@ interface ToolEntry {
 }
 
 /**
+ * Optional built-in tool package. The specifier lives in a constant because
+ * `@mt/mcp` does not depend on `@mt/tools` — the import is resolved at runtime
+ * and skipped when the package is not installed.
+ */
+const BUILTIN_TOOLS_PACKAGE = '@mt/tools'
+
+/** A tool resolved from a declared pipeline or from the optional `@mt/tools` package. */
+interface ToolMatch {
+  tool: Tool<unknown, unknown>
+  pipelineId: string
+  pipelinePath?: string
+}
+
+/** Result of resolving a tool name; the miss case carries the hint data. */
+interface ToolResolution {
+  match?: ToolMatch
+  available: string[]
+  builtinNote?: string
+}
+
+/**
  * The MCP tool surface. Only the tools listed here are exposed —
  * `tools/list` and `tools/call` share this single registry.
  */
@@ -153,6 +194,29 @@ const TOOLS: Record<string, ToolEntry> = {
       },
     },
     handler: inspectRun,
+  },
+  'tools.invoke': {
+    definition: {
+      name: 'tools.invoke',
+      description: 'Invoke a processing tool directly with a partial Exchange envelope.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          toolName: {
+            type: 'string',
+            description: 'Name of the tool to invoke',
+          },
+          envelope: {
+            type: 'object',
+            description: 'Partial Exchange — item is required; id, meta and variables are optional',
+            additionalProperties: true,
+          },
+        },
+        required: ['toolName', 'envelope'],
+        additionalProperties: false,
+      },
+    },
+    handler: invokeTool,
   },
 }
 
@@ -377,6 +441,194 @@ async function inspectRun(
     throw new Error(`Run not found: ${runId}`)
   }
   return runStore.readJson<RunStateData>('state.json')
+}
+
+/** True when the value looks like a Tool (name + invoke). */
+function isTool(value: unknown): value is Tool<unknown, unknown> {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as { name?: unknown; invoke?: unknown }
+  return typeof candidate.name === 'string' && typeof candidate.invoke === 'function'
+}
+
+/** Tools used by the tool steps of one pipeline. */
+function toolsOf(pipeline: Pipeline): Tool<unknown, unknown>[] {
+  const tools: Tool<unknown, unknown>[] = []
+  for (const step of pipeline.steps as PipelineStep[]) {
+    if (step.type !== 'tool') continue
+    const tool = (step.config as { tool?: unknown }).tool
+    if (isTool(tool)) tools.push(tool)
+  }
+  return tools
+}
+
+/** Scan the tool steps of every pipeline declared in `mt.json`. */
+async function findDeclaredTools(
+  projectRoot: string,
+  name: string,
+): Promise<{ matches: ToolMatch[]; names: Set<string> }> {
+  const matches: ToolMatch[] = []
+  const names = new Set<string>()
+  for (const pipeline of await discoverPipelines(projectRoot)) {
+    const mod = await importPipelineModule(pipeline.path)
+    for (const value of Object.values(mod)) {
+      if (!isPipeline(value)) continue
+      for (const tool of toolsOf(value)) {
+        names.add(tool.name)
+        if (tool.name === name) {
+          matches.push({ tool, pipelineId: value.id, pipelinePath: pipeline.path })
+        }
+      }
+    }
+  }
+  return { matches, names }
+}
+
+/** Load the optional built-in tools; a missing package is a note, never a crash. */
+async function importBuiltinTools(): Promise<{
+  tools: Tool<unknown, unknown>[]
+  note?: string
+}> {
+  try {
+    const module = (await import(BUILTIN_TOOLS_PACKAGE)) as Record<string, unknown>
+    const seen = new Set<unknown>()
+    const tools: Tool<unknown, unknown>[] = []
+    for (const value of Object.values(module)) {
+      if (!isTool(value) || seen.has(value)) continue
+      seen.add(value)
+      tools.push(value)
+    }
+    return { tools }
+  } catch (error) {
+    return {
+      tools: [],
+      note: `built-in tools from @mt/tools are unavailable (${errorMessage(error)})`,
+    }
+  }
+}
+
+/**
+ * Resolve a tool name: first the tool steps of pipelines declared in `mt.json`,
+ * then the optional built-in `@mt/tools` exports. A name used by more than one
+ * declared pipeline is ambiguous and rejected.
+ */
+async function resolveTool(projectRoot: string, name: string): Promise<ToolResolution> {
+  const { matches, names } = await findDeclaredTools(projectRoot, name)
+  if (matches.length > 1) {
+    const sources = matches.map(
+      (match) => `${match.pipelineId} (${match.pipelinePath ?? 'unknown path'})`,
+    )
+    throw new Error(
+      `Tool '${name}' is ambiguous — used by multiple pipelines: ${sources.join(', ')}. Restrict the search to one pipeline by giving the tool a unique name, or invoke the owning pipeline with pipelines.run.`,
+    )
+  }
+  if (matches[0]) return { match: matches[0], available: [...names].sort() }
+
+  const builtin = await importBuiltinTools()
+  for (const tool of builtin.tools) names.add(tool.name)
+  const builtinMatch = builtin.tools.find((tool) => tool.name === name)
+  return {
+    match: builtinMatch ? { tool: builtinMatch, pipelineId: builtinMatch.name } : undefined,
+    available: [...names].sort(),
+    builtinNote: builtin.note,
+  }
+}
+
+/** Normalize the `envelope` argument; `item` is required, the rest is optional. */
+function readEnvelope(value: unknown): Exchange<unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error("Invalid arguments for 'tools.invoke': 'envelope' must be an object")
+  }
+  const record = value as Record<string, unknown>
+  if (!Object.hasOwn(record, 'item') || record.item === undefined) {
+    throw new Error("Invalid arguments for 'tools.invoke': 'envelope.item' is required")
+  }
+  if (record.id !== undefined && typeof record.id !== 'string') {
+    throw new Error("Invalid arguments for 'tools.invoke': 'envelope.id' must be a string")
+  }
+  const meta = record.meta
+  if (meta !== undefined && (typeof meta !== 'object' || meta === null || Array.isArray(meta))) {
+    throw new Error("Invalid arguments for 'tools.invoke': 'envelope.meta' must be an object")
+  }
+  if (record.variables !== undefined && !Array.isArray(record.variables)) {
+    throw new Error("Invalid arguments for 'tools.invoke': 'envelope.variables' must be an array")
+  }
+  return toExchange(record as unknown as ExchangeInput<unknown>)
+}
+
+/** Invoke a processing tool directly, outside a pipeline run. */
+async function invokeTool(
+  args: Record<string, unknown>,
+  projectRoot: string,
+): Promise<Exchange<unknown>> {
+  const toolName = args.toolName
+  if (typeof toolName !== 'string' || toolName.trim() === '') {
+    throw new Error("Invalid arguments for 'tools.invoke': 'toolName' must be a non-empty string")
+  }
+  const envelope = readEnvelope(args.envelope)
+  const resolution = await resolveTool(projectRoot, toolName)
+  if (!resolution.match) throw new Error(unknownToolMessage(toolName, resolution))
+  return invokeResolvedTool(resolution.match, envelope, projectRoot)
+}
+
+/** Run one tool with the minimal standalone context used by `mt tool`. */
+async function invokeResolvedTool(
+  match: ToolMatch,
+  envelope: Exchange<unknown>,
+  projectRoot: string,
+): Promise<Exchange<unknown>> {
+  const globalContext = await loadGlobalContext(projectRoot)
+  const runId = `mcp-${randomUUID()}`
+  // MCP stdio reserves stdout for JSON-RPC: every log line goes to stderr.
+  const logger: Logger = {
+    info: (message, meta) => console.error(formatLogLine('info', message, meta)),
+    warn: (message, meta) => console.error(formatLogLine('warn', message, meta)),
+    error: (message, meta) => console.error(formatLogLine('error', message, meta)),
+    debug: (message, meta) => {
+      if (process.env.MT_DEBUG) console.error(formatLogLine('debug', message, meta))
+    },
+  }
+  const runContext: RunContext = {
+    runId,
+    pipelineId: match.pipelineId,
+    startedAt: new Date().toISOString(),
+    global: globalContext,
+    checkpoint: { stepId: 'standalone', depth: 0, path: ['standalone'] },
+    logger,
+    artifactsDir: join(projectRoot, '.mt', 'runs', runId, 'artifacts'),
+  }
+  const toolContext: ToolContext = {
+    run: runContext,
+    step: {
+      stepId: `standalone/${match.tool.name}`,
+      name: match.tool.name,
+      type: 'tool',
+      index: 0,
+    },
+  }
+
+  try {
+    return await match.tool.invoke(envelope, toolContext)
+  } catch (error) {
+    throw new Error(`Tool '${match.tool.name}' failed: ${errorMessage(error)}`)
+  }
+}
+
+/** Message for a tool name that resolved neither in a pipeline nor in @mt/tools. */
+function unknownToolMessage(name: string, resolution: ToolResolution): string {
+  const lines = [`Unknown tool: ${name}`]
+  if (resolution.available.length > 0) {
+    lines.push(`Available tools: ${resolution.available.join(', ')}`)
+  } else {
+    lines.push(
+      'No tools found in the declared pipelines (see mt.json pipelines[]) or in @mt/tools.',
+    )
+  }
+  if (resolution.builtinNote) lines.push(`Note: ${resolution.builtinNote}`)
+  return lines.join('\n')
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 /** Build the MCP error payload: a single text block flagged as an error. */

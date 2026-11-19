@@ -119,13 +119,14 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 5000): Pro
 }
 
 describe('MCP tools/list', () => {
-  it('lists exactly the four supported tools', () => {
+  it('lists exactly the five supported tools', () => {
     const { tools } = handleToolsList()
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       'pipelines.list',
       'pipelines.run',
       'runs.inspect',
       'runs.list',
+      'tools.invoke',
     ])
   })
 
@@ -137,12 +138,14 @@ describe('MCP tools/list', () => {
     }
   })
 
-  it('marks the required arguments of pipelines.run and runs.inspect', () => {
+  it('marks the required arguments of pipelines.run, runs.inspect and tools.invoke', () => {
     const tools = handleToolsList().tools
     const run = tools.find((tool) => tool.name === 'pipelines.run')
     const inspect = tools.find((tool) => tool.name === 'runs.inspect')
+    const invoke = tools.find((tool) => tool.name === 'tools.invoke')
     expect(run?.inputSchema.required).toEqual(['file'])
     expect(inspect?.inputSchema.required).toEqual(['runId'])
+    expect(invoke?.inputSchema.required).toEqual(['toolName', 'envelope'])
   })
 })
 

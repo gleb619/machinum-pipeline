@@ -9,6 +9,7 @@ const srcDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'src')
 const ALLOWED = new Set([
   '@mt/core',
   '@mt/plugins',
+  '@mt/tools',
   '@mt/waypoint',
   '@mt/webui/standalone',
   '@mt/router/standalone',
@@ -74,6 +75,15 @@ describe('CLI import layers (architectural)', () => {
       (ref) => ref.specifier.startsWith('@mt/webui') || ref.specifier.startsWith('@mt/router'),
     )
     for (const ref of serverRefs) {
+      expect(ref.dynamic).toBe(true)
+    }
+  })
+
+  it('imports @mt/tools lazily, so the CLI starts without the tool package', async () => {
+    const refs = await mtImports()
+    const toolRefs = refs.filter((ref) => ref.specifier === '@mt/tools')
+    expect(toolRefs.length).toBeGreaterThan(0)
+    for (const ref of toolRefs) {
       expect(ref.dynamic).toBe(true)
     }
   })

@@ -63,6 +63,9 @@ importers:
         specifier: workspace:*
         version: link:../webui
     devDependencies:
+      '@mt/tools':
+        specifier: workspace:*
+        version: link:../tools
       '@types/node':
         specifier: ^20.14.0
         version: 20.19.39

@@ -10,6 +10,7 @@ import { remoteCommand } from './commands/remote.js'
 import { resumeCommand } from './commands/resume.js'
 import { runCommand } from './commands/run.js'
 import { toolCommand } from './commands/tool.js'
+import { toolsCommand } from './commands/tools.js'
 import { workerCommand } from './commands/worker.js'
 
 export async function main(): Promise<void> {
@@ -51,6 +52,9 @@ export async function main(): Promise<void> {
       break
     case 'tool':
       await toolCommand(args.slice(1))
+      break
+    case 'tools':
+      await toolsCommand(args.slice(1))
       break
     case 'worker':
       await workerCommand(args.slice(1))
@@ -104,6 +108,7 @@ Commands:
   inspect <runId>        Show run details
   info                   Show effective mt.json (secrets masked) and .mt state/runs [--json] [--runs <n>]
   tool <name>            Invoke a tool standalone [--pipeline <file>] (JSON envelope on stdin/stdout)
+  tools <list|call>      Tool catalogue (list) or single-tool invocation (call) [--json]
   worker [opts]           Run a pull worker for a main mt serve (--main <url> [--token-ref] [--tag])
   serve [opts]            Start admin backend + embedded router (--no-router, --token-ref, -d|--detach)
   router [opts]          Start LLM router proxy (--help)

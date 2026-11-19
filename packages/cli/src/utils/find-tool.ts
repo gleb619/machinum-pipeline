@@ -49,14 +49,33 @@ async function pipelineFiles(projectRoot: string, pipelineFile?: string): Promis
  */
 export async function listToolNames(projectRoot: string, pipelineFile?: string): Promise<string[]> {
   const names = new Set<string>()
+  for (const match of await listToolMatches(projectRoot, pipelineFile)) {
+    names.add(match.tool.name)
+  }
+  return [...names].sort()
+}
+
+/**
+ * Every tool use of the scanned pipelines — one match per (pipeline, tool) pair,
+ * sorted by tool name and then pipeline id. Powers the catalogue of `mt tools list`.
+ */
+export async function listToolMatches(
+  projectRoot: string,
+  pipelineFile?: string,
+): Promise<ToolMatch[]> {
+  const matches: ToolMatch[] = []
   for (const file of await pipelineFiles(projectRoot, pipelineFile)) {
     const mod = await importPipelineModule(file)
     for (const value of Object.values(mod)) {
       if (!isPipeline(value)) continue
-      for (const tool of toolsOf(value)) names.add(tool.name)
+      for (const tool of toolsOf(value)) {
+        matches.push({ tool, pipelineId: value.id, pipelinePath: file })
+      }
     }
   }
-  return [...names].sort()
+  return matches.sort(
+    (a, b) => a.tool.name.localeCompare(b.tool.name) || a.pipelineId.localeCompare(b.pipelineId),
+  )
 }
 
 /**
@@ -69,18 +88,9 @@ export async function findTool(
   name: string,
   pipelineFile?: string,
 ): Promise<ToolMatch | undefined> {
-  const matches: ToolMatch[] = []
-  for (const file of await pipelineFiles(projectRoot, pipelineFile)) {
-    const mod = await importPipelineModule(file)
-    for (const value of Object.values(mod)) {
-      if (!isPipeline(value)) continue
-      for (const tool of toolsOf(value)) {
-        if (tool.name === name) {
-          matches.push({ tool, pipelineId: value.id, pipelinePath: file })
-        }
-      }
-    }
-  }
+  const matches = (await listToolMatches(projectRoot, pipelineFile)).filter(
+    (match) => match.tool.name === name,
+  )
   if (matches.length > 1) {
     const sources = matches.map((match) => `${match.pipelineId} (${match.pipelinePath})`)
     throw new Error(

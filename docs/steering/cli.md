@@ -78,6 +78,8 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 | `mt inspect <runId>` | `inspect.ts` | Show checkpoint tree, events, run metadata, and the dead-letter queue (count + last 3 dropped envelopes) — a run that ends DONE after the `dead-letter` policy dropped items must not look fully successful |
 | `mt info [--json] [--runs <n>]` | `info.ts` | Read-only project/state report: effective `mt.json` (`imports` deep-merged, then merged over `DEFAULT_MT_CONFIG`) with credential-looking values masked, `.mt` size/run/slow-step summary, and runtime/secrets-presence booleans. No pipeline import, Runner/source/tool/target/hook, run id or `.mt` write; `--json` for agents, `--runs` limits the run list |
 | `mt tool <name> [--pipeline <file>]` | `tool.ts` | Invoke a tool standalone (JSON exchange on stdin/stdout (`id`/`variables` optional, normalized by `toExchange`)); the tool is found by scanning the tool steps of the pipelines declared in `mt.json` (`discoverPipelines` + `importPipelineModule`, see `utils/find-tool.ts`), `--pipeline` restricts the search to one file. Unknown name lists the available tools; a TTY stdin prints a usage hint instead of hanging |
+| `mt tools list [--json] [--pipeline <file>]` | `tools.ts` | Catalogue of the callable tools: the `@mt/tools` built-ins (lazy import; a missing package only warns on stderr) plus every tool used by the pipelines declared in `mt.json` (`listToolMatches`; `--pipeline` restricts the scan to one file). One row per tool name with `source` (`builtin` or the declaring pipeline id), `usedBy` pipeline ids, `category` (from the `category([...])` annotation) and `description` (from `tool()`, falling back to `mdDescription`); Markdown table by default, `{ schemaVersion: 1, tools: [...] }` with `--json` |
+| `mt tools call <name> [--pipeline <file>] [--item <string\|json>] [--meta <json>] [--var k=v]... [--json]` | `tools.ts` | Invoke one tool standalone: pipeline-declared tools first (`findTool`; ambiguity is an error, `--pipeline` disambiguates), then the `@mt/tools` built-ins. A piped stdin is the JSON exchange; otherwise the flags build it (`--item` parsed as JSON when it parses, else a raw string; `--meta` a JSON object merged over the envelope meta; each repeatable `--var k=v` goes through `withVariable`). Without stdin and `--item` it prints usage. Default output is the resulting `item` (raw for a string, JSON otherwise), `--json` prints the whole Exchange; logs stay on stderr |
 | `mt worker --main <url> [--token-ref <ENV_OR_REF>] [--name N] [--tag a,b] [--max-runs N] [--allow-pipeline GLOB]` | `worker.ts` | Dial out to a main `mt serve`: register, pull the project into `.mt/worker/<mainId>/`, hold the signal SSE channel, spawn one child `mt run` per `run`, report events, drain then exit 0. `--max-runs` default 1; `--allow-pipeline` default `pipelines/**` |
 | `mt serve [--port N\|0] [--host H] [--no-router] [--token-ref <ENV_OR_REF>] [--detach]` | `serve.ts` | Start admin API + UI (`@mt/webui/standalone`) with the router API embedded on the same port (T197; `--no-router` opts out); `--detach` re-execs self in background (`.mt/backend/{pid,server.log}`); port 0 = random free port |
 | `mt remote sync [--push\|--pull] [--dry-run] [--prune] [--force] [--watch] [--url <url>] [--token-ref <ENV_OR_REF>] [--run <runId>] [--allow-version-mismatch]` | `remote.ts` | Content-addressed project sync with a remote `mt serve`: push the source scope to `<remote>/.mt/remote/<projectId>/`, or pull target outputs + `.mt/runs/<runId>/` back; `--watch` debounces local edits 300 ms; state in `.mt/remote/<projectId>.sync.json`; both-changed refuses unless `--force` |
@@ -87,7 +89,7 @@ Imports from `@mt/core` and `@mt/waypoint` only; `@mt/webui/standalone` is impor
 
 ## Pipeline Loading
 
-`tool.ts` resolves the tool before reading stdin (a bad name must not hang the terminal), then builds a minimal RunContext/ToolContext like the Runner's (`loadGlobalContext` + a `tool-<uuid>` runId, checkpoint id `standalone`).
+`tool.ts` resolves the tool before reading stdin (a bad name must not hang the terminal), then builds a minimal RunContext/ToolContext like the Runner's via the shared `utils/standalone-tool-context.ts` (`loadGlobalContext` + a `tool-<uuid>` runId, checkpoint id `standalone`, stderr logger — also used by `mt tools call`).
 
 `explain.ts` reuses the same `loadRunnable()` selector as `run.ts` (named export → default process → default pipeline → implicit process), so it explains exactly the export `mt run` would execute. It imports the pipeline module (top-level code runs) but reads `mt.json` (+ `imports`) only: no `loadGlobalContext()`, `.env`, vault or Runner. Import-time stdout (`console.log`/`process.stdout.write`) is captured and replayed on stderr, so the command's own stdout stays a single Markdown/JSON document; JSON masks credential-looking `envDefaults` keys/values as `***`.
 
@@ -137,6 +139,30 @@ the original file.
 ### `src/index.ts`
 
 Entry point: `main()` function, arg parsing, dispatch to command modules. Handles top-level errors and process exit codes.
+
+### `src/commands/tools.ts`
+
+`mt tools list` / `mt tools call`.
+
+`list` merges two sources: the built-ins of `@mt/tools`, loaded with a lazy `import('@mt/tools')`
+(the package is optional — a missing one only prints a warning on stderr), and every tool used by
+the tool steps of the pipelines declared in `mt.json` (`listToolMatches`, sorted by name then
+pipeline id); `--pipeline <file>` restricts the scan to one file. A tool present in both sources
+keeps one row: `source: 'builtin'`, `category` from the `category([...])` annotation,
+`description` from the `tool()` annotation (falling back to `mdDescription`), and the declaring
+pipelines collected in `usedBy`. Markdown table by default; `--json` prints
+`{ schemaVersion: 1, tools: [...] }`. Warnings go to stderr, the document to stdout.
+
+`call` resolves the name pipeline-first with `findTool` (a name used by more than one pipeline is
+an error; `--pipeline` disambiguates), then falls back to the `@mt/tools` built-ins. Input: piped
+stdin is parsed as a JSON Exchange (`toExchange`); otherwise the flags build one — `--item` is
+parsed as JSON when it parses and kept as a raw string otherwise, `--meta` must be a JSON object
+and is merged over the envelope meta, and each repeatable `--var k=v` goes through `withVariable`.
+With neither stdin nor `--item` the command prints usage instead of hanging. The tool runs in the
+shared standalone context of `utils/standalone-tool-context.ts` (same as `mt tool`:
+`loadGlobalContext` + a `tool-<uuid>` run, checkpoint `standalone`, stderr logger). Default output
+is the resulting `item` — printed raw when a string, otherwise as pretty JSON; `--json` prints the
+whole Exchange. Logs stay on stderr.
 
 ### `src/commands/worker.ts`
 
@@ -333,6 +359,7 @@ packages/cli/tests/
 │   ├── inspect.test.ts        # inspect checkpoint tree
 │   ├── skill.test.ts          # skill output/install/out/usage + drift guard vs docs/SKILL.md
 │   ├── tool.test.ts           # tool stdin/stdout pipe
+│   ├── tools.test.ts          # mt tools list/call: catalogue, flags, built-in fallback
 │   ├── vault.test.ts          # vault command (init/add/list/show/rm/path)
 │   ├── remote.test.ts         # remote sync push/pull/dry-run/prune/conflict + two in-process servers
 │   ├── run.remote.test.ts     # remote run e2e: push -> start -> SSE -> pull, failure, pause, resume

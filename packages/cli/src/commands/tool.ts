@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { annotate, formatLogLine, loadGlobalContext, toExchange, useCase } from '@mt/core'
-import type { Exchange, ExchangeInput, Logger, RunContext, ToolContext } from '@mt/core'
+import { annotate, toExchange, useCase } from '@mt/core'
+import type { Exchange, ExchangeInput } from '@mt/core'
 import { findTool, listToolNames } from '../utils/find-tool.js'
 import type { ToolMatch } from '../utils/find-tool.js'
+import { createStandaloneToolContext } from './utils/standalone-tool-context.js'
 
 /**
  * `mt tool <name> [--pipeline <file>]` — invoke a tool standalone.
@@ -78,35 +77,11 @@ export async function toolCommand(args: string[]): Promise<void> {
     process.exit(1)
   }
 
-  const globalContext = await loadGlobalContext(projectRoot)
-  const runId = `tool-${randomUUID()}`
-  // stderr keeps stdout reserved for the machine-readable result document
-  const logger: Logger = {
-    info: (message, meta) => console.error(formatLogLine('info', message, meta)),
-    warn: (message, meta) => console.error(formatLogLine('warn', message, meta)),
-    error: (message, meta) => console.error(formatLogLine('error', message, meta)),
-    debug: (message, meta) => {
-      if (process.env.MT_DEBUG) console.error(formatLogLine('debug', message, meta))
-    },
-  }
-  const runContext: RunContext = {
-    runId,
+  const { toolContext } = await createStandaloneToolContext({
+    projectRoot,
+    toolName: match.tool.name,
     pipelineId: match.pipelineId,
-    startedAt: new Date().toISOString(),
-    global: globalContext,
-    checkpoint: { stepId: 'standalone', depth: 0, path: ['standalone'] },
-    logger,
-    artifactsDir: join(projectRoot, '.mt', 'runs', runId, 'artifacts'),
-  }
-  const toolContext: ToolContext = {
-    run: runContext,
-    step: {
-      stepId: `standalone/${match.tool.name}`,
-      name: match.tool.name,
-      type: 'tool',
-      index: 0,
-    },
-  }
+  })
 
   try {
     const output = await match.tool.invoke(envelope, toolContext)

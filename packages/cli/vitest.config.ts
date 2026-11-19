@@ -10,6 +10,7 @@ export default defineConfig({
         '../core/src/engine/git-worktree-source.ts',
       ),
       '@mt/waypoint': resolve(import.meta.dirname, '../waypoint/src'),
+      '@mt/tools': resolve(import.meta.dirname, '../tools/src'),
     },
   },
   test: {
