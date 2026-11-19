@@ -65,7 +65,7 @@ function isForbiddenControl(codePoint: number): boolean {
 export const forbiddenCharDetector = defineTool<string, string>({
   name: 'forbidden-char-detector',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Detects zero-width characters and forbidden control characters. Reports findings in envelope metadata.',
   annotations: [
     tool('TL212', {
@@ -230,7 +230,7 @@ function checkBrokenLinks(text: string): string[] {
 export const chapterValidator = defineTool<string, string>({
   name: 'chapter-validator',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Validates markdown structure: H1 presence, heading level skips, code block languages, link references.',
   annotations: [
     tool('TL063', {
@@ -271,7 +271,7 @@ export const chapterValidator = defineTool<string, string>({
 export const typoFinder = defineTool<FinderInput, FinderOutput>({
   name: 'typo-finder',
   version: '2.0.0',
-  mdDescription:
+  description:
     'Detects spelling typos using cspell-lib. Reports suggestions in envelope metadata.',
 
   annotations: [
@@ -337,7 +337,7 @@ export const typoFinder = defineTool<FinderInput, FinderOutput>({
 export const markdownFormatter = defineTool<MarkdownFormatterInput, MarkdownFormatterOutput>({
   name: 'markdown-formatter',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Lightweight markdown formatter: fixes list bullets, tabs, and fence spacing. Uses remark.',
 
   annotations: [

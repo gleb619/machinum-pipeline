@@ -509,7 +509,7 @@ function explainStep(
       }
       const name = tool.name
       const version = tool.version ? ` v${tool.version}` : ''
-      const description = firstLine(tool?.mdDescription)
+      const description = firstLine(tool?.description)
       const retry = resolveRetryPolicy(
         step.config.retry as PartialRetryPolicy | undefined,
         pipeline.retry,

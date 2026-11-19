@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { definePipeline } from '@mt/core'
+import { annotate, definePipeline, useCase } from '@mt/core'
 import type { LlmRequest } from '@mt/tools'
 import {
   chapterPairsLinter,
@@ -97,25 +97,30 @@ function ruMock(text: string): string {
 
 const llm = pickFor('translate', mockAnswer)
 
+const bodyTranslator = createChapterBodyTranslator({
+  call: llm.schemaCall,
+  chaptersDir: CHAPTERS,
+  concurrency: translateConcurrency(),
+  blockLines: BLOCK_LINES,
+  maxTokens: MAX_TOKENS,
+  priorTerms,
+})
+annotate(bodyTranslator, useCase('UC012', { name: 'Process items in parallel' }))
+
 const translateChild = definePipeline({ id: 'practical-translate-chapters-child' })
   .use(tagWithGlossary(CHAPTERS))
   .use(chaptersToTitleInputs)
   .use(createBatchTitleTranslator({ call: llm.schemaCall, chaptersDir: CHAPTERS }))
-  .use(
-    createChapterBodyTranslator({
-      call: llm.schemaCall,
-      chaptersDir: CHAPTERS,
-      concurrency: translateConcurrency(),
-      blockLines: BLOCK_LINES,
-      maxTokens: MAX_TOKENS,
-      priorTerms,
-    }),
-  )
+  .use(bodyTranslator)
   .use(chapterPairsLinter)
   .use(createTranslateOutputs({ chaptersDir: CHAPTERS }))
   .to('@chapters')
+annotate(translateChild, useCase('UC060', { name: 'Translate chapter paragraph-by-paragraph' }))
 
-export default definePipeline({ id: 'practical-translate-chapters' })
-  .from(bookSource())
-  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
-  .subflow('batch://?size=5', translateChild)
+export default annotate(
+  definePipeline({ id: 'practical-translate-chapters' })
+    .from(bookSource())
+    .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
+    .subflow('batch://?size=5', translateChild),
+  useCase('UC013', { name: 'Batch items (Item[])' }),
+)

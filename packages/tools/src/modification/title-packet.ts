@@ -125,7 +125,7 @@ export function createSchemaTitles(options: SchemaTitlesOptions = {}) {
   return defineTool<unknown, ChapterTitle[]>({
     name: 'schema-titles',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Batch-aware: reads `{ chapter, title }` for each member from its schema doc ' +
       '(`chapter<N>.schema.md`). Emits a package payload `ChapterTitle[]` and sets `titles`.',
     async invoke(env: Exchange<unknown>, ctx: ToolContext): Promise<Exchange<ChapterTitle[]>> {
@@ -175,7 +175,7 @@ export function createDictionaryTitleTranslator(options: DictionaryTitleTranslat
   return defineTool<ChapterTitle[] | ChapterTitle, string>({
     name: 'dictionary-title-translator',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Deterministic dictionary translation of chapter titles into a `<chapter><sep><title>` ' +
       'packet (no LLM). Sets the `titlePacket` variable.',
     async invoke(
@@ -204,7 +204,7 @@ export function createTitlePacketParser(options: TitlePacketParserOptions = {}) 
   return defineTool<string, ChapterTitle[]>({
     name: 'title-packet-parser',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Parses a `<chapter><sep><title>` packet into `ChapterTitle[]` (`item` + `translatedTitles`).',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<ChapterTitle[]>> {
       const parsed = await parse.invoke(env, ctx)
@@ -277,7 +277,7 @@ export function createApplyTranslatedTitle(options: ApplyTranslatedTitleOptions 
   return defineTool<string, string>({
     name: 'apply-translated-title',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Per-item: replaces the H1 with the translated title from `translatedTitles` (matched by ' +
       '`meta.chapterNum`) and sets `meta.lang` for `chapter://`.',
     async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string>> {

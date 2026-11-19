@@ -116,7 +116,7 @@ describe('factory fallback (no explicit call)', () => {
       translate: {
         name: 'fixed-translate',
         version: '1.0.0',
-        mdDescription: 'test double',
+        description: 'test double',
         async invoke(env) {
           return withItem(env, { ...env.item, translatedText: `fixed:${env.item.text}` })
         },

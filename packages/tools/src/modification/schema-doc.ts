@@ -296,7 +296,7 @@ function extractTitleFromInput(item: unknown, chapterNum: number): string {
 export const schemaDocBuild = defineTool<unknown, string>({
   name: 'schema-doc-build',
   version: '1.0.0',
-  mdDescription: 'Builds schema-doc markdown from envelope metadata.',
+  description: 'Builds schema-doc markdown from envelope metadata.',
   annotations: [
     tool('TL230', {
       name: 'schema-doc-build',
@@ -358,7 +358,7 @@ export const schemaDocWriter = annotate(
   defineComposableTool<unknown, string, 'build' | 'emit'>({
     name: 'schema-doc-writer',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Builds schema-doc markdown from envelope metadata. Sets the `mdOutputs` variable for writes.',
     slots: { build: schemaDocBuild, emit: schemaDocEmit },
   }),

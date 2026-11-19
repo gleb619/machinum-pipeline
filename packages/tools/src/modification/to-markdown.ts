@@ -62,7 +62,7 @@ export function recordToMarkdown(input: ToMarkdownInput): string {
 export const toMarkdown = defineTool<ToMarkdownInput, string>({
   name: 'to-markdown',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Builds markdown from structured input (title + body). Uses remark with GFM and frontmatter support.',
 
   annotations: [

@@ -12,9 +12,11 @@ const USAGE = `Usage: pnpm annotations [options]
 Lists annotations registered by built @mt/core, @mt/waypoint and @mt/tools output.
 Run \`pnpm build\` first.
 
+Print a Markdown table (default), or JSON with --json.
+
 Options:
   --kind <kind>   Filter by kind: tool | waypoint | useCase | category
-  --json          Print a JSON array instead of a table
+  --json          Print a JSON array instead of Markdown
   -h, --help      Show this help
 `
 
@@ -53,25 +55,20 @@ function buildRows(records: readonly AnnotationRecord[]): AnnotationRow[] {
   )
 }
 
-function printTable(rows: readonly AnnotationRow[]): void {
+function escapeCell(value: string): string {
+  return value.replaceAll('|', '\\|').replace(/\r\n?|\n/g, '<br>')
+}
+
+function renderMarkdown(rows: readonly AnnotationRow[]): string {
   const headers = ['KIND', 'ID', 'NAME', 'REFS', 'TARGET']
-  const cells = rows.map((row) => [
-    row.kind,
-    row.id || row.categories.join(','),
-    row.name,
-    row.refs.join(', '),
-    row.targetName,
-  ])
-  const widths = headers.map((header, index) =>
-    cells.reduce((width, row) => Math.max(width, (row[index] ?? '').length), header.length),
-  )
-  const line = (row: readonly string[]): string =>
-    row
-      .map((cell, index) => (index === row.length - 1 ? cell : cell.padEnd(widths[index] ?? 0)))
-      .join('  ')
-  console.log(line(headers))
-  console.log(widths.map((width) => '-'.repeat(width)).join('  '))
-  for (const row of cells) console.log(line(row))
+  const lines = [`| ${headers.join(' | ')} |`, `| ${headers.map(() => '---').join(' | ')} |`]
+  for (const row of rows) {
+    // Category annotations have no id; show their category names in the ID column.
+    const id = row.id || row.categories.join(',')
+    const cells = [row.kind, id, row.name, row.refs.join(', '), row.targetName]
+    lines.push(`| ${cells.map(escapeCell).join(' | ')} |`)
+  }
+  return lines.join('\n')
 }
 
 async function main(): Promise<void> {
@@ -123,10 +120,8 @@ async function main(): Promise<void> {
   const rows = buildRows(listAnnotations(kind))
   if (json) {
     console.log(JSON.stringify(rows, null, 2))
-  } else if (rows.length === 0) {
-    console.log('No annotations registered.')
   } else {
-    printTable(rows)
+    console.log(renderMarkdown(rows))
   }
 }
 

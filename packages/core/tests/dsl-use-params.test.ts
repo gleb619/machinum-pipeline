@@ -68,7 +68,7 @@ function echoTool(): Tool<string, string> {
   return {
     name: 'params-echo',
     version: '1.0.0',
-    mdDescription: 'Echoes the item, recording the incoming meta.',
+    description: 'Echoes the item, recording the incoming meta.',
     invoke: async (env) => {
       toolEnvMetas.push(env.meta)
       return withItem(env, `echo:${env.item}`)

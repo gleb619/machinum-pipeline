@@ -345,7 +345,7 @@ export function createLineParityLinter(options: LineParityLinterOptions = {}) {
   return defineTool<LineParityInput, LineParityInput>({
     name: 'line-parity-linter',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Compares EN vs RU: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and think blocks. Report in the parity variable; throws a retryable error on hard errors. Optional stability escape hatch accepts a chunk when only the Cyrillic-ratio check fails and stays stable.',
     annotations: [
       tool('TL214', {

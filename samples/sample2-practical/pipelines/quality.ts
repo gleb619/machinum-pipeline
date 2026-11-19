@@ -1,4 +1,4 @@
-import { definePipeline } from '@mt/core'
+import { annotate, definePipeline, useCase } from '@mt/core'
 import { chapterIndexer } from '@mt/tools'
 import '@mt/waypoint'
 import { chapterOnly } from '../lib/input.js'
@@ -31,9 +31,12 @@ const aggregateChild = definePipeline({ id: 'practical-quality-aggregate' })
   .use(writeQuality)
   .to('batch://return')
 
-export default definePipeline({ id: 'practical-quality' })
-  .from(qualitySourceUri())
-  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
-  .subflow('batch://?size=100', measureChild)
-  .subflow('batch://?size=100', aggregateChild)
-  .to(qualityRootUri())
+export default annotate(
+  definePipeline({ id: 'practical-quality' })
+    .from(qualitySourceUri())
+    .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
+    .subflow('batch://?size=100', measureChild)
+    .subflow('batch://?size=100', aggregateChild)
+    .to(qualityRootUri()),
+  useCase('UC057', { name: 'Collect chapter quality warnings' }),
+)

@@ -154,7 +154,7 @@ function makeMdFormatter(defaults?: FormatOptions) {
   return defineTool<string, string>({
     name: 'md-formatter',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Reformats markdown with configurable line width and wrapping. Uses remark (GFM + frontmatter aware).',
 
     annotations: [

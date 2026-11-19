@@ -84,7 +84,7 @@ const tool = (
 ): Tool<never, unknown> => ({
   name,
   version: '1',
-  mdDescription: name,
+  description: name,
   async invoke(ex, ctx) {
     return fn(ex, ctx)
   },

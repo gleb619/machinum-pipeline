@@ -1,4 +1,4 @@
-import { definePipeline, defineTool } from '@mt/core'
+import { annotate, definePipeline, defineTool, useCase } from '@mt/core'
 import { type Glossary, type LlmRequest, chapterIndexer } from '@mt/tools'
 import '@mt/waypoint'
 import { chapterOnly } from '../lib/input.js'
@@ -71,7 +71,7 @@ function skipPipeline() {
   const notice = defineTool<string, string>({
     name: 'preprocess-skip-notice',
     version: '1.0.0',
-    mdDescription: 'Logs the no-op preprocess verdict once and passes the item through.',
+    description: 'Logs the no-op preprocess verdict once and passes the item through.',
     async invoke(env, ctx) {
       ctx.run.logger.info(SKIP_LOG)
       return env
@@ -89,4 +89,7 @@ function skipPipeline() {
     .to('void://')
 }
 
-export default plan.skip ? skipPipeline() : processPipeline()
+export default annotate(
+  plan.skip ? skipPipeline() : processPipeline(),
+  useCase('UC058', { name: 'Auto-fix chapter text issues' }),
+)

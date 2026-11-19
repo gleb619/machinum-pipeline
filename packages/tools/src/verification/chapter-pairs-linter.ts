@@ -10,7 +10,7 @@ import type { LineParityInput, LineParityReport } from './line-parity-linter.js'
 export const chapterPairsLinter = defineTool<LineParityInput, LineParityInput>({
   name: 'chapter-pairs-linter',
   version: '1.0.0',
-  mdDescription:
+  description:
     'lineParityLinter over every EN/RU chapter pair; reports in the parityByChapter variable.',
   annotations: [
     tool('TL205', {

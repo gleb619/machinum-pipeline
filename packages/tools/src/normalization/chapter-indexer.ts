@@ -9,7 +9,7 @@ import { readChapterDoc } from '../modification/chapter-doc.js'
 export const chapterIndexer = defineTool<string, string>({
   name: 'chapter-indexer',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Extracts chapter number from frontmatter or heading. Stores `chapterNum` in envelope metadata.',
   annotations: [
     tool('TL204', {

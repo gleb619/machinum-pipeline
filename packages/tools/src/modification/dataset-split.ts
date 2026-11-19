@@ -103,7 +103,7 @@ export function splitDataset(jsonl: string, options: DatasetSplitOptions = {}): 
 export const datasetSplit = defineTool<string, DatasetSplitOutput>({
   name: 'dataset-split',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Deterministic hash split of JSONL into `{ train, val }` by `sha256(record) mod 100 < valPercent` (default 3); no randomness, stable across runs, counts in meta.',
   annotations: [
     tool('TL256', {

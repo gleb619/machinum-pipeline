@@ -80,7 +80,7 @@ export function createHeuristicSummaryTool(options: HeuristicSummaryOptions = {}
   return defineTool<string | string[], string | string[]>({
     name: 'heuristic-summary',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Offline extractive summary: lead sentence + highest term-frequency sentences, original ' +
       'order. Stores variables `summary` / `summaryByItem` / `heuristicSummaryByItem`.',
     annotations: [

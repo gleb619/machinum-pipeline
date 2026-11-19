@@ -306,7 +306,7 @@ export function createPreprocessChapterTool(options: PreprocessChapterToolOption
   return defineTool<string, string>({
     name: 'preprocess-chapter',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Cleans one failed chapter with the merged typo/proofread/gender prompt; copies a passing chapter byte-identically.',
     async invoke(env, ctx) {
       const n = Number(env.meta.chapterNum ?? 0)
@@ -330,7 +330,7 @@ export function createEmitCleanChapter() {
   return defineTool<unknown, unknown>({
     name: 'emit-clean-chapter',
     version: '1.0.0',
-    mdDescription: 'Writes the cleaned text of one chapter to chapters/clean/chapter<N>.md.',
+    description: 'Writes the cleaned text of one chapter to chapters/clean/chapter<N>.md.',
     async invoke(env) {
       const row = getVariable<PreprocessRow>(env, VAR_PREPROCESS_ROW)
       if (!row) return env
@@ -349,7 +349,7 @@ export function createWritePreprocessReport(plan: PreprocessPlan) {
   return defineTool<unknown, unknown>({
     name: 'write-preprocess-report',
     version: '1.0.0',
-    mdDescription: 'Writes schema/preprocess-report.json from the measured chapter rows.',
+    description: 'Writes schema/preprocess-report.json from the measured chapter rows.',
     async invoke(env, ctx) {
       const members = batchMembersOf<unknown>(env) ?? []
       const rows = members

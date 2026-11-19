@@ -35,7 +35,7 @@ export function createTranslateOutputs(options: TranslateOutputsOptions) {
   return defineTool<LineParityInput, string>({
     name: 'translate-outputs',
     version: '1.0.0',
-    mdDescription: `Emits ${ruDir}/chapter<N>.md and ${titlesFile}.`,
+    description: `Emits ${ruDir}/chapter<N>.md and ${titlesFile}.`,
     async invoke(env, ctx) {
       const pairs = env.items ?? [env.item]
       const nums = getVariable<number[]>(env, 'chapterNums') ?? []

@@ -105,7 +105,7 @@ export const chatCompletion = annotate(
   createLlmGate<ChatCompletionInput, ChatCompletionOutput>({
     name: 'chat-completion',
     version: '1.0.0',
-    mdDescription:
+    description:
       'LLM chat completion via OpenRouter proxy. Supports system prompts, temperature, and max tokens.',
     metaFlags: { chatCompletion: true },
   }),
@@ -122,7 +122,7 @@ export const runPrompt = annotate(
   createLlmGate<PromptInput, PromptOutput>({
     name: 'run-prompt',
     version: '1.0.0',
-    mdDescription: 'Simplified single-prompt runner. Wraps `chat-completion` with a user message.',
+    description: 'Simplified single-prompt runner. Wraps `chat-completion` with a user message.',
     metaFlags: { runPrompt: true },
   }),
   tool('TL229', {

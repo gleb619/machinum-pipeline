@@ -21,7 +21,7 @@ type Encoder = ReturnType<typeof get_encoding>
 export const tokenCounter = defineTool<string, string>({
   name: 'token-counter',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Counts tokens in a string envelope item using tiktoken (cl100k_base). Adds `tokenCount` to the envelope meta. Creates/frees the encoder per call.',
   annotations: [
     tool('TL242', {
@@ -52,7 +52,7 @@ export const tokenCounter = defineTool<string, string>({
 export const tokenCounterBatch = defineTool<string, string>({
   name: 'token-counter-batch',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Counts tokens for a batch package (`items` of a batch:// child) using tiktoken (cl100k_base). One encoder create/free per package. Adds `tokenCounts` (per item) and `tokenCount` (package total) to the envelope meta.',
   annotations: [
     tool('TL243', {
@@ -105,7 +105,7 @@ function getCachedEncoder(): Encoder {
 export const tokenCounterBatchCached = defineTool<string, string>({
   name: 'token-counter-batch-cached',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Counts tokens for a batch package (`items` of a batch:// child) using tiktoken (cl100k_base). Reuses one encoder process-wide, freed on process exit. Adds `tokenCounts` (per item) and `tokenCount` (package total) to the envelope meta.',
   annotations: [
     tool('TL244', {

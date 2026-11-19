@@ -12,7 +12,7 @@ export const stubParagraphTranslateSlot = defineTool<
 >({
   name: 'stub-paragraph-translate-slot',
   version: '1.0.0',
-  mdDescription: 'Dry-run paragraph translation slot that wraps output in mock markers',
+  description: 'Dry-run paragraph translation slot that wraps output in mock markers',
   annotations: [
     tool('TL236', {
       name: 'stub-paragraph-translate-slot',

@@ -169,7 +169,7 @@ function seriesSplitter(): ReturnType<typeof createSeriesSplitTool> {
 export const splitChapter = defineTool<string, string[]>({
   name: 'split-chapter',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Splits a chapter larger than the book threshold into series parts and records the split unit.',
   async invoke(env: Exchange<string>, ctx: ToolContext): Promise<Exchange<string[]>> {
     const orig = Number(env.meta.chapterNum ?? 0)
@@ -187,7 +187,7 @@ export const splitChapter = defineTool<string, string[]>({
 export const writeSplitOutputs = defineTool<unknown, unknown>({
   name: 'write-split-outputs',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Renumbers the book sequentially and emits chapter-map.json; emits split/chapter<id>.md when a chapter was split.',
   async invoke(env) {
     const members = batchMembersOf<unknown>(env) ?? []

@@ -60,7 +60,7 @@ export function createWaitForFile(options: WaitForFileOptions): Tool<unknown, un
     name: 'wait-for-file',
     version: '1.0.0',
     idempotent: true,
-    mdDescription:
+    description:
       'Blocks until a latch file exists (path supports `{item}` and `{id}`), then passes the envelope through. Use it to pace a pipeline by hand across `mt pause`/`mt resume`.',
     annotations: [
       tool('TL252', {

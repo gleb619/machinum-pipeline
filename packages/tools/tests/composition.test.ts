@@ -46,7 +46,7 @@ describe('schemaDocWriter slots', () => {
     const mock = defineTool<string, string>({
       name: 'mock-emit',
       version: '1',
-      mdDescription: 'mock',
+      description: 'mock',
       invoke: async (env) => {
         seen.push(env.item)
         return { ...env, meta: { ...env.meta, mocked: true } }

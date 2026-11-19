@@ -66,7 +66,7 @@ function ctx(root: string): GlobalContext {
 const flaky: Tool<number, number> = {
   name: 'flaky',
   version: '1',
-  mdDescription: 'fails on one item',
+  description: 'fails on one item',
   async invoke(ex) {
     if (ex.item === failOn) throw new Error('boom')
     return ex

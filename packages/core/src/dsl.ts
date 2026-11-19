@@ -895,7 +895,7 @@ export function isPipeline(value: unknown): value is Pipeline {
 export function defineTool<I, O>(config: {
   name: string
   version: string
-  mdDescription: string
+  description: string
   invoke: (ex: Exchange<I>, ctx: ToolContext) => Promise<Exchange<O>>
   cacheable?: boolean
   idempotent?: boolean
@@ -905,7 +905,7 @@ export function defineTool<I, O>(config: {
   const created: Tool<I, O> = {
     name: config.name,
     version: config.version,
-    mdDescription: config.mdDescription,
+    description: config.description,
     invoke: config.invoke,
     cacheable: config.cacheable,
     idempotent: config.idempotent,
@@ -1067,7 +1067,7 @@ export function chain<I = unknown, O = unknown>(
   return defineTool<I, O>({
     name,
     version: '1.0.0',
-    mdDescription: `Chain: ${steps.map((t) => t.name).join(' -> ')}`,
+    description: `Chain: ${steps.map((t) => t.name).join(' -> ')}`,
     async invoke(ex, ctx) {
       let current = ex as unknown as Exchange<unknown>
       for (const tool of steps) current = await tool.invoke(current, ctx)
@@ -1083,7 +1083,7 @@ export function chain<I = unknown, O = unknown>(
 export function defineComposableTool<I, O, S extends string>(config: {
   name: string
   version: string
-  mdDescription: string
+  description: string
   slots: Record<S, Tool<never, unknown> | Tool<unknown, unknown>>
 }): ComposableTool<I, O, S> {
   const slots = Object.freeze({ ...config.slots }) as ComposableTool<I, O, S>['slots']
@@ -1091,7 +1091,7 @@ export function defineComposableTool<I, O, S extends string>(config: {
   const base = defineTool<I, O>({
     name: config.name,
     version: config.version,
-    mdDescription: config.mdDescription,
+    description: config.description,
     async invoke(ex, ctx) {
       let current = ex as unknown as Exchange<unknown>
       for (const key of names) {
@@ -1115,7 +1115,7 @@ export function defineComposableTool<I, O, S extends string>(config: {
           next[key] = defineTool<unknown, unknown>({
             name: `${config.name}:${key}`,
             version: config.version,
-            mdDescription: `Override of slot '${key}'`,
+            description: `Override of slot '${key}'`,
             invoke: repl as ToolFn,
           })
         } else {

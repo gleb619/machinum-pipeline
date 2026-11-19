@@ -93,7 +93,7 @@ export function createSchemaTool(options?: SchemaDocLlmOptions) {
   return defineTool<string, string>({
     name: 'schema',
     version: '1.1.0',
-    mdDescription:
+    description:
       'Generates a mermaid structure diagram for the chapter with an LLM through the OpenRouter ' +
       'proxy. Loop-guarded retries fall back to the schema-doc Schema block, then a generated ' +
       '`graph TD`. Stores variable `schema`.',

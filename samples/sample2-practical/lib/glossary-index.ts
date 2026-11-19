@@ -218,7 +218,7 @@ export function writeGlossaryIndexTool(chaptersDir: string) {
   return defineTool<unknown, unknown>({
     name: 'write-glossary-index',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Emits glossary-index.json (per-term occurrence chapters) from chapters/en and glossary.json; no LLM.',
     async invoke(env, ctx) {
       const glossaryPath = join(chaptersDir, 'glossary.json')

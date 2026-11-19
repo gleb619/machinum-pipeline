@@ -182,7 +182,7 @@ import {
 const myTool = defineTool({
   name: 'chapter-validator',
   version: '1.0.0',
-  mdDescription: '…',
+  description: '…',
   invoke: async (ex) => ex,
   // optional: user tools may omit `annotations` entirely
   annotations: [

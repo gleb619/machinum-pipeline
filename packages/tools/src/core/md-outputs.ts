@@ -36,7 +36,7 @@ export function mdOutputEmitter(config: MdOutputEmitterConfig): Tool<string, str
   return defineTool<string, string>({
     name: config.toolName ?? `${config.name}-emit`,
     version: '1.0.0',
-    mdDescription: `Appends item markdown to the mdOutputs variable as '${config.name}' in ${subdir || '.'}.`,
+    description: `Appends item markdown to the mdOutputs variable as '${config.name}' in ${subdir || '.'}.`,
     async invoke(ex: Exchange<string>) {
       const meta = ex.meta ?? {}
       if (config.when && !config.when(meta)) return ex

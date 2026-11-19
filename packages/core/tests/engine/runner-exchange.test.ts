@@ -58,7 +58,7 @@ function ctx(root: string): GlobalContext {
 const tag: Tool<number, number> = {
   name: 'tag',
   version: '1',
-  mdDescription: 'sets variable',
+  description: 'sets variable',
   async invoke(ex) {
     return setVariable(withItem(ex, ex.item * 2), 'seen', ex.item)
   },
@@ -226,7 +226,7 @@ describe('runner exchange semantics', () => {
     const cached: Tool<number, number> = {
       name: 'c',
       version: '1',
-      mdDescription: 'c',
+      description: 'c',
       cacheable: true,
       async invoke(ex) {
         calls++

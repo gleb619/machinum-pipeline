@@ -33,7 +33,7 @@ export function createChapterDocLinter(options: ChapterDocLintOptions = {}) {
   return defineTool<LineParityInput, LineParityInput>({
     name: 'chapter-doc-linter',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Parses EN/RU chapter documents (YAML frontmatter + # title + body) and runs the line-parity lint on their content: line count, empty/bracket line positions, Cyrillic ratio, leftover <term> tags and think blocks. Report in the parity variable; throws a retryable error on hard errors.',
     annotations: [
       tool('TL253', {

@@ -34,7 +34,7 @@ export function createLlmTypoFix(options: LlmTypoFixOptions) {
   return defineTool<string, string>({
     name: enabled ? 'llm-typo-fix' : 'llm-typo-fix-off',
     version: '1.1.0',
-    mdDescription: enabled
+    description: enabled
       ? 'Fixes typos through the picked LLM backend; keeps the line count. Supports shrink/chunk/auto modes (a chunk whose reply changes the line count keeps its original text).'
       : 'Pass-through (LLM typo fix disabled).',
     async invoke(env, ctx) {

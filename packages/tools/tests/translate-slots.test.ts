@@ -27,7 +27,7 @@ afterEach(() => vi.unstubAllGlobals())
 const mockTranslator = defineTool<TranslateInput, TranslateOutput>({
   name: 'mock-translator',
   version: '1.0.0',
-  mdDescription: 'Offline mock translator.',
+  description: 'Offline mock translator.',
   invoke: async (env) => withItem(env, { translatedText: `«t»${env.item.text}«/t»` }),
 })
 
@@ -166,7 +166,7 @@ Body text here.
     const slotMock = defineTool<TitleTranslatorState, TitleTranslatorState>({
       name: 'state-mock',
       version: '1.0.0',
-      mdDescription: 'state-level mock translate slot',
+      description: 'state-level mock translate slot',
       invoke: async (env) => ({
         ...env,
         item: { ...env.item, translatedTitle: `«m»${env.item.title ?? ''}«/m»` },
@@ -231,7 +231,7 @@ Body text here.
     const tracker = defineTool<TranslateInput, TranslateOutput>({
       name: 'tracker-translator',
       version: '1.0.0',
-      mdDescription: 'Tracks in-flight calls; resolves when released.',
+      description: 'Tracks in-flight calls; resolves when released.',
       invoke: async (env) => {
         inFlight++
         maxInFlight = Math.max(maxInFlight, inFlight)
@@ -268,7 +268,7 @@ Body text here.
     const flaky = defineTool<TranslateInput, TranslateOutput>({
       name: 'flaky-translator',
       version: '1.0.0',
-      mdDescription: 'Fails once on p3.',
+      description: 'Fails once on p3.',
       invoke: async (env) => {
         calls.push(env.item.text)
         if (env.item.text === 'p3' && !failed) {
@@ -296,7 +296,7 @@ Body text here.
     const nonIdempotent = defineTool<TranslateInput, TranslateOutput>({
       name: 'non-idempotent-translator',
       version: '1.0.0',
-      mdDescription: 'Fails once; not idempotent.',
+      description: 'Fails once; not idempotent.',
       idempotent: false,
       invoke: async (env) => {
         calls.push(env.item.text)
@@ -321,7 +321,7 @@ Body text here.
     const slotMock = defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
       name: 'state-mock-p',
       version: '1.0.0',
-      mdDescription: 'state-level mock translate slot',
+      description: 'state-level mock translate slot',
       invoke: async (env) => ({
         ...env,
         item: { ...env.item, translated: env.item.paragraphs.map((p) => `«p»${p}«/p»`) },

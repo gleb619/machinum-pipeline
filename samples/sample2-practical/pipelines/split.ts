@@ -1,4 +1,4 @@
-import { definePipeline } from '@mt/core'
+import { annotate, definePipeline, useCase } from '@mt/core'
 import { chapterIndexer } from '@mt/tools'
 import '@mt/waypoint'
 import { chapterOnly } from '../lib/input.js'
@@ -26,9 +26,12 @@ const aggregateChild = definePipeline({ id: 'practical-split-aggregate' })
   .use(writeSplitOutputs)
   .to('batch://return')
 
-export default definePipeline({ id: 'practical-split' })
-  .from(splitSourceUri())
-  .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
-  .subflow('batch://?size=100', measureChild)
-  .subflow('batch://?size=100', aggregateChild)
-  .to(splitRootUri())
+export default annotate(
+  definePipeline({ id: 'practical-split' })
+    .from(splitSourceUri())
+    .flatMap(async (markdown: unknown) => (chapterOnly(markdown) ? [String(markdown)] : []))
+    .subflow('batch://?size=100', measureChild)
+    .subflow('batch://?size=100', aggregateChild)
+    .to(splitRootUri()),
+  useCase('UC056', { name: 'Split large chapters by token count' }),
+)

@@ -230,7 +230,7 @@ export function buildDatasetCard(stats: ResolvedDatasetCardStats): string {
 export const datasetCard = defineTool<DatasetCardStats, string>({
   name: 'dataset-card',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Renders a markdown dataset card from dataset stats (counts, chars, token estimate, source breakdown, licence, intended use) plus a fenced JSON stats block.',
   annotations: [
     tool('TL257', {

@@ -35,14 +35,14 @@ const defaultRetry = { max: 0, backoffMs: 0, strategy: 'fixed' as const }
 const echoTool: Tool<unknown, unknown> = {
   name: 'echo',
   version: '1.0.0',
-  mdDescription: 'Passes the envelope through unchanged.',
+  description: 'Passes the envelope through unchanged.',
   invoke: async (env) => env,
 }
 
 const explodeTool: Tool<unknown, unknown> = {
   name: 'exploder',
   version: '1.0.0',
-  mdDescription: 'Always throws.',
+  description: 'Always throws.',
   invoke: async () => {
     throw new Error('exploder exploded')
   },
@@ -224,7 +224,7 @@ describe('runner events.jsonl', () => {
     const flakyTool: Tool<unknown, unknown> = {
       name: 'flaky',
       version: '1.0.0',
-      mdDescription: 'Throws on the first pass, echoes afterwards.',
+      description: 'Throws on the first pass, echoes afterwards.',
       invoke: async (env) => {
         if (explode) throw new Error('flaky exploded')
         return env

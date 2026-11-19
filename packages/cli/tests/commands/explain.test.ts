@@ -82,11 +82,11 @@ function toolStep(
     config: {
       name,
       version: '1.2.3',
-      mdDescription: description,
+      description: description,
       tool: {
         name,
         version: '1.2.3',
-        mdDescription: description,
+        description: description,
         cacheable: true,
         invoke: async (ex: unknown) => ex,
       },
@@ -866,11 +866,11 @@ describe('explain command', () => {
             config: {
               name: 'echo',
               version: '1.2.3',
-              mdDescription: 'Echo.',
+              description: 'Echo.',
               tool: {
                 name: 'echo',
                 version: '1.2.3',
-                mdDescription: 'Echo.',
+                description: 'Echo.',
                 invoke: toolInvoke,
               },
             },

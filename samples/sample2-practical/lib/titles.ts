@@ -34,7 +34,7 @@ export function createBatchTitleTranslator(options: BatchTitleTranslatorOptions)
   return defineTool<TitleInput, { text: string }>({
     name: 'batch-title-translator',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Translates a batch of chapter titles with one xml request (title rules + glossary).',
     async invoke(env, ctx) {
       const inputs = env.items ?? (Array.isArray(env.item) ? env.item : [env.item])

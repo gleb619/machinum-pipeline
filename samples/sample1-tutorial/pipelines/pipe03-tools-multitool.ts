@@ -148,7 +148,7 @@ const retitle = (text: string, title: string): string => text.replace(/^#\s+.+$/
 const collectTitles = defineTool<unknown, unknown>({
   name: 'pipe03-collect-titles',
   version: '1.0.0',
-  mdDescription: 'Joins the H1 of every package member into one text block.',
+  description: 'Joins the H1 of every package member into one text block.',
   async invoke(env) {
     return withItem(env, itemsOf<string>(env).map(titleOf).join('\n'))
   },
@@ -157,7 +157,7 @@ const collectTitles = defineTool<unknown, unknown>({
 const translateTitles = defineTool<string, string>({
   name: 'pipe03-translate-titles',
   version: '1.0.0',
-  mdDescription: 'One text in, one text out — the offline stand-in for a translation call.',
+  description: 'One text in, one text out — the offline stand-in for a translation call.',
   async invoke(env) {
     return withItem(env, env.item.toUpperCase())
   },
@@ -166,7 +166,7 @@ const translateTitles = defineTool<string, string>({
 const applyTitles = defineTool<string, unknown>({
   name: 'pipe03-apply-titles',
   version: '1.0.0',
-  mdDescription: 'Parses the translated titles back into the chapter payloads (package zip).',
+  description: 'Parses the translated titles back into the chapter payloads (package zip).',
   async invoke(env) {
     const titles = String(env.item).split('\n')
     // `withItem` clears `items`, so the package members come from the ephemeral batch variable;

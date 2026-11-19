@@ -177,7 +177,7 @@ export function createSummaryTool(options?: SchemaDocLlmOptions & SummaryChunkOp
   return defineTool<string, string>({
     name: 'summary',
     version: '1.2.1',
-    mdDescription:
+    description:
       'Summarises the chapter with an LLM through the OpenRouter proxy (configurable prompts, ' +
       'loop-guarded retries, deterministic schema-doc parse as fallback). The default system ' +
       'prompt is composed from the bundled summary.* blocks (plain input + brief bullet-list ' +
@@ -328,7 +328,7 @@ export function createNotesSummaryTool(options?: NotesSummaryOptions & SummaryCh
   return defineTool<string, string>({
     name: 'summary-notes',
     version: '1.1.0',
-    mdDescription:
+    description:
       'Extracts `count` plain-text summary notes (`- ` bullets) from the chapter with an LLM ' +
       'through the OpenRouter proxy. The system prompt is composed from the bundled summary.* ' +
       'blocks (plain input + bullet-list output); the user prompt is the bundled `summary.user`. ' +

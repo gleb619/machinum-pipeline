@@ -52,7 +52,7 @@ describe('UC-03 — Define a custom Tool (architectural)', () => {
     const tool = defineTool({
       name: 'uppercase',
       version: '1.0.0',
-      mdDescription: 'Test tool that converts text to uppercase.',
+      description: 'Test tool that converts text to uppercase.',
       invoke: async (env) => env,
     })
 
@@ -66,7 +66,7 @@ describe('UC-03 — Define a custom Tool (architectural)', () => {
     const tool = defineTool({
       name: 'cached-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool for cacheable flag tests.',
+      description: 'Test tool for cacheable flag tests.',
       cacheable: true,
       invoke: async (env) => env,
     })
@@ -95,7 +95,7 @@ describe('UC-47 — Configure retry/onError policies (architectural)', () => {
     const tool = defineTool({
       name: 't',
       version: '1.0.0',
-      mdDescription: 'Test tool for retry override tests.',
+      description: 'Test tool for retry override tests.',
       invoke: async (env) => env,
     })
 

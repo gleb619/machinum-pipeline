@@ -65,7 +65,7 @@ function flakyTool(failTimes: number): { tool: Tool<unknown, unknown>; calls: ()
   const tool: Tool<unknown, unknown> = {
     name: 'flaky-tool',
     version: '1.0.0',
-    mdDescription: 'Test tool flaky-tool that fails a configurable number of times.',
+    description: 'Test tool flaky-tool that fails a configurable number of times.',
     invoke: async (env: Envelope<unknown>) => {
       attempts++
       if (failTimes === Number.POSITIVE_INFINITY || attempts <= failTimes) {
@@ -83,7 +83,7 @@ function fatalTool(): { tool: Tool<unknown, unknown>; calls: () => number } {
   const tool: Tool<unknown, unknown> = {
     name: 'fatal-tool',
     version: '1.0.0',
-    mdDescription: 'Test tool fatal-tool that fails the same way on every attempt.',
+    description: 'Test tool fatal-tool that fails the same way on every attempt.',
     invoke: async (_env: Envelope<unknown>) => {
       attempts++
       throw Object.assign(new Error('insufficient credits'), { retryable: false, status: 402 })

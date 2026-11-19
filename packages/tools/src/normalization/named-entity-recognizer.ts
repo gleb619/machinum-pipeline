@@ -344,7 +344,7 @@ export function createNamedEntityTool(options: NamedEntityToolOptions = {}) {
   return defineTool<string | string[], string | string[]>({
     name: 'named-entity-recognizer',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Named-entity recognition (pluggable backends: built-in heuristic, `compromise` NLP, ' +
       'optional OpenNLP models via MT_NER_MODELS + MT_NER_ENDPOINT). The item is untouched; ' +
       'the unique entities (by text, sorted) land in variable `entities`.',

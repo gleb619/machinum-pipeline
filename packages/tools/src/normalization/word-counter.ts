@@ -11,7 +11,7 @@ export const VAR_WORD_COUNT = 'wordCount'
 export const wordCounter = defineTool<string, string>({
   name: 'word-counter',
   version: '1.0.0',
-  mdDescription: 'Counts words in a string envelope. Adds `wordCount` to envelope metadata.',
+  description: 'Counts words in a string envelope. Adds `wordCount` to envelope metadata.',
   annotations: [
     tool('TL012', {
       name: 'word-counter',

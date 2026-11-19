@@ -8,7 +8,7 @@ import { category, defineTool, setVariable, tool, withItem, withMeta } from '@mt
 export const stubTranslator = defineTool<string, string>({
   name: 'stub-translator',
   version: '1.0.0',
-  mdDescription: 'Dry-run translation stub that wraps text in language markers',
+  description: 'Dry-run translation stub that wraps text in language markers',
   annotations: [
     tool('TL239', {
       name: 'stub-translator',

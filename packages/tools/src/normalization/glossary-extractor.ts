@@ -595,7 +595,7 @@ export function createGlossaryExtractor(options: GlossaryExtractorToolOptions = 
   return defineTool<string | string[], string | string[]>({
     name: 'glossary-extractor',
     version: '2.0.0',
-    mdDescription:
+    description:
       'Glossary extraction (heuristic candidates + NER seeding, LLM extraction with the ' +
       'bundled glossary prompts, reuse of the terms of the previous glossary, relation ' +
       'graph). Stores variables `glossary`, `glossaryJson` and `glossaryGraph`.',

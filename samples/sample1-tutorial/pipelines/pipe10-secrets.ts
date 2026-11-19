@@ -1,4 +1,12 @@
-import { definePipeline, defineTool, isSecretRef, resolveVaultRef, withItem } from '@mt/core'
+import {
+  annotate,
+  definePipeline,
+  defineTool,
+  isSecretRef,
+  resolveVaultRef,
+  useCase,
+  withItem,
+} from '@mt/core'
 import '@mt/waypoint'
 
 /**
@@ -22,7 +30,7 @@ const revealKeyLength = defineTool<unknown, { entry: string; provider: string; k
   {
     name: 'pipe10-secrets',
     version: '1.0.0',
-    mdDescription: 'Resolves a vault entry and reports its key length (never the key).',
+    description: 'Resolves a vault entry and reports its key length (never the key).',
     async invoke(env, ctx) {
       const setting = ctx.run.global.settings['demo.vaultRef']
       const ref =
@@ -42,7 +50,10 @@ const revealKeyLength = defineTool<unknown, { entry: string; provider: string; k
   },
 )
 
-export default definePipeline({ id: 'pipe10-secrets' })
-  .from('jsonl://./.demo/input.jsonl')
-  .use(revealKeyLength)
-  .to('jsonl://./.demo/result.jsonl')
+export default annotate(
+  definePipeline({ id: 'pipe10-secrets' })
+    .from('jsonl://./.demo/input.jsonl')
+    .use(revealKeyLength)
+    .to('jsonl://./.demo/result.jsonl'),
+  useCase('UC073', { name: 'Choose a secret backend (embed / KeePass / vlt)' }),
+)

@@ -82,7 +82,7 @@ export function createChunkClean(options: ChunkCleanOptions = {}) {
   return defineTool<string, string>({
     name: 'chunk-clean',
     version: '1.0.0',
-    mdDescription:
+    description:
       "Strip chunk separator lines ('---' by default) and other decorative-only lines from fixated text, collapsing the blank runs left behind. Sets `chunkCount` (meta + variable, separator-delimited chunks in the result text) and the `chunkSeparator` variable.",
     annotations: [
       tool('TL208', {
@@ -127,7 +127,7 @@ export function createChunkSplit(options: ChunkSplitOptions = {}) {
   return defineTool<string, string>({
     name: 'chunk-split',
     version: '1.0.0',
-    mdDescription:
+    description:
       "Clean text and split it into token-bounded chunks fixated by separator lines ('---' by default). Chunk size resolution: `meta.chunkSize` → tool option `chunkSize` → mt.json `settings.chunkSize` → `MT_CHUNK_SIZE` → 6000. With `reuse` (default true) text that already contains separator lines is kept as-is, so later runs never re-split fixated chunks. Sets `chunkCount` (meta + variable) and the `chunkSeparator` variable.",
     annotations: [
       tool('TL209', {

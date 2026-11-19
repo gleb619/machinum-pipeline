@@ -7,7 +7,7 @@ const appender = (name: string) =>
   defineTool<unknown, unknown>({
     name,
     version: '1',
-    mdDescription: name,
+    description: name,
     invoke: async (env) => ({
       ...env,
       meta: { ...env.meta, trail: [...((env.meta.trail as string[]) ?? []), name] },
@@ -33,7 +33,7 @@ describe('defineComposableTool', () => {
     defineComposableTool<unknown, unknown, 'build' | 'emit'>({
       name: 'ct',
       version: '1',
-      mdDescription: 'ct',
+      description: 'ct',
       slots: { build: appender('build'), emit: appender('emit') },
     })
 

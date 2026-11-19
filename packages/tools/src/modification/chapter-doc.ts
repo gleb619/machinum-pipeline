@@ -456,7 +456,7 @@ function buildChapterDocFromInput(
 export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
   name: 'chapter-doc-build',
   version: '1.0.0',
-  mdDescription: 'Serializes chapter metadata into YAML-frontmatter markdown.',
+  description: 'Serializes chapter metadata into YAML-frontmatter markdown.',
 
   annotations: [
     tool('TL064', {
@@ -496,7 +496,7 @@ export const chapterDocBuild = defineTool<ChapterDocToolInput, string>({
 export const chapterDocEmit = defineTool<string, string>({
   name: 'chapter-doc-emit',
   version: '1.0.0',
-  mdDescription: "Appends item markdown to the mdOutputs variable as 'chapter' in .",
+  description: "Appends item markdown to the mdOutputs variable as 'chapter' in .",
   annotations: [
     tool('TL203', {
       name: 'chapter-doc-emit',
@@ -532,7 +532,7 @@ export const chapterDoc = annotate(
   defineComposableTool<ChapterDocToolInput, string, 'build' | 'emit'>({
     name: 'chapter-doc',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Serializes chapter metadata (title, number, warnings, body) into YAML-frontmatter markdown.',
     slots: { build: chapterDocBuild, emit: chapterDocEmit },
   }),

@@ -158,7 +158,7 @@ export function createVocabularyTool(
   return defineTool<string, string>({
     name: 'vocabulary',
     version: '1.2.0',
-    mdDescription:
+    description:
       'Extracts key terms from the chapter with an LLM through the OpenRouter proxy, deduplicates ' +
       'them against variable `knownWords`, and falls back to summary word extraction when the loop guard ' +
       'is exhausted. Supports shrink/chunk/auto modes (terms merged and deduped across chunks). Stores ' +

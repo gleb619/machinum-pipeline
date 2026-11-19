@@ -160,7 +160,7 @@ function buildEmit(
   return defineTool<GateState<Glossary>, Glossary>({
     name: 'stat-translate-dict:emit',
     version: '1.0.0',
-    mdDescription: options.outFile
+    description: options.outFile
       ? `Merges translations back into the glossary and writes ${options.outFile}.`
       : 'Merges translations back into the glossary.',
     async invoke(env, _ctx) {
@@ -201,7 +201,7 @@ export function createStatTranslateDict(
   const gateOptions: LlmGateOptions<Glossary, Glossary> = {
     name: 'stat-translate-dict',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Translates untranslated dictionary entries in batches via an LLM, validates id parity, ' +
       'and merges translations back into the glossary.',
     llm: options.llm,

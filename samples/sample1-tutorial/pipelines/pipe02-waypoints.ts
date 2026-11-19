@@ -30,7 +30,7 @@ import '../waypoints/my-target.js'
 const stampChapterNumber = defineTool<string, string>({
   name: 'pipe02-stamp-chapter-number',
   version: '1.0.0',
-  mdDescription: 'Reads the chapter number from the H1 and stamps meta.chapterNum.',
+  description: 'Reads the chapter number from the H1 and stamps meta.chapterNum.',
   async invoke(env) {
     const digits = /^#\s+(?:Chapter\s+)?(\d+)/m.exec(env.item)?.[1]
     if (digits === undefined) return env

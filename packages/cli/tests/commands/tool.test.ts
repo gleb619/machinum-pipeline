@@ -22,7 +22,7 @@ const ECHO_PIPELINE = `
 const echo = {
   name: 'echo',
   version: '1.0.0',
-  mdDescription: 'Echo fixture tool',
+  description: 'Echo fixture tool',
   invoke: async (env) => ({ item: 'echo:' + env.item, meta: env.meta }),
 }
 export default {
@@ -40,7 +40,7 @@ const OTHER_PIPELINE = `
 const other = {
   name: 'other',
   version: '1.0.0',
-  mdDescription: 'Other fixture tool',
+  description: 'Other fixture tool',
   invoke: async (env) => ({ item: 'other:' + env.item, meta: env.meta }),
 }
 export default {

@@ -336,7 +336,7 @@ function renderBook(doc: BookDoc): string {
 export const bookCompilerBuild = defineTool<BookCompilerInput, BookDoc>({
   name: 'book-compiler-build',
   version: '1.0.0',
-  mdDescription: 'Assembles chapter inputs into a BookDoc with a generated table of contents.',
+  description: 'Assembles chapter inputs into a BookDoc with a generated table of contents.',
 
   annotations: [
     tool('TL248', {
@@ -362,7 +362,7 @@ export const bookCompilerBuild = defineTool<BookCompilerInput, BookDoc>({
 export const bookCompilerValidate = defineTool<BookDoc, BookDoc>({
   name: 'book-compiler-validate',
   version: '1.0.0',
-  mdDescription: 'Checks chapter numbering, ordering, titles and paragraph duplication.',
+  description: 'Checks chapter numbering, ordering, titles and paragraph duplication.',
 
   annotations: [
     tool('TL249', {
@@ -386,7 +386,7 @@ export const bookCompilerValidate = defineTool<BookDoc, BookDoc>({
 export const bookCompilerEmit = defineTool<BookDoc, string>({
   name: 'book-compiler-emit',
   version: '1.0.0',
-  mdDescription: 'Renders the compiled book as one markdown document with a table of contents.',
+  description: 'Renders the compiled book as one markdown document with a table of contents.',
 
   annotations: [
     tool('TL250', {
@@ -406,7 +406,7 @@ export const bookCompiler = annotate(
   defineComposableTool<BookCompilerInput, string, 'build' | 'validate' | 'emit'>({
     name: 'book-compiler',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Assembles chapters into one book with a table of contents and a completeness report.',
     slots: { build: bookCompilerBuild, validate: bookCompilerValidate, emit: bookCompilerEmit },
   }),

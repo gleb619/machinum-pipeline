@@ -172,7 +172,7 @@ function withModel(
   const pinned = defineTool<GateInput, GateState>({
     name: `${gate.name}:prepare`,
     version: '1.0.0',
-    mdDescription: `Pins the picked model (${model}) on the gate input.`,
+    description: `Pins the picked model (${model}) on the gate input.`,
     async invoke(env, ctx) {
       if (!vault) return prepare.invoke(withItemKeepItems(env, { ...env.item, model }), ctx)
       const { model: _callerModel, ...rest } = env.item
@@ -223,7 +223,7 @@ function translateTool(
   return defineTool<TranslateInput, TranslateOutput>({
     name: 'picked-translate',
     version: '1.0.0',
-    mdDescription: 'Translates text through the selected LLM backend (MT_LLM_TOOL).',
+    description: 'Translates text through the selected LLM backend (MT_LLM_TOOL).',
     async invoke(env, ctx) {
       const gateInput: GateInput = { ...normalize(env.item) }
       let cur = await prepare.invoke(withItem(env, gateInput), ctx)

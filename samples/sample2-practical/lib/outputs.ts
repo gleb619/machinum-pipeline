@@ -71,7 +71,7 @@ export function assertSummaryIsShort(
 export const writeSummaries = defineTool<unknown, string>({
   name: 'write-summaries',
   version: '1.1.0',
-  mdDescription:
+  description:
     'Emits schema/chapter<N>.summary.md from the `summaryByItem` variable (or `summary` for one chapter).',
   async invoke(env) {
     const chapters = (env.items ?? [env.item]).flat() as string[]
@@ -99,7 +99,7 @@ export const writeSummaries = defineTool<unknown, string>({
 export const writeGlossary = defineTool<unknown, string>({
   name: 'write-glossary',
   version: '1.0.0',
-  mdDescription: 'Emits glossary.json from the `glossaryJson` variable.',
+  description: 'Emits glossary.json from the `glossaryJson` variable.',
   async invoke(env) {
     return appendMdOutput(withItem(env, ''), {
       name: 'glossary',
@@ -114,7 +114,7 @@ export const writeGlossary = defineTool<unknown, string>({
 export const writeTitles = defineTool<unknown, string>({
   name: 'write-titles',
   version: '1.0.0',
-  mdDescription: 'Emits titles.json from the translated title batch and the `chapters` variable.',
+  description: 'Emits titles.json from the translated title batch and the `chapters` variable.',
   async invoke(env) {
     const chapters = getVariable<string[]>(env, 'chapters') ?? []
     const outputs = (env.items ?? (Array.isArray(env.item) ? env.item : [env.item])) as
@@ -143,7 +143,7 @@ export function tagWithGlossary(glossaryDir: string) {
   return defineTool<unknown, string | string[]>({
     name: 'tag-with-glossary',
     version: '1.0.0',
-    mdDescription: 'Wraps glossary terms of every batched chapter in <term> tags.',
+    description: 'Wraps glossary terms of every batched chapter in <term> tags.',
     async invoke(env) {
       const glossary = await loadGlossaryOrEmpty(glossaryDir)
       const tag = (markdown: string) => tagTerms(markdown, glossary)
@@ -166,7 +166,7 @@ function headingNumber(markdown: string): number {
 export const sortChapters = defineTool<unknown, string[]>({
   name: 'sort-chapters',
   version: '1.0.0',
-  mdDescription: 'Sorts batched chapter markdown by chapter number.',
+  description: 'Sorts batched chapter markdown by chapter number.',
   async invoke(env) {
     const chapters = (env.items ?? [env.item]).flat() as string[]
     const sorted = [...chapters].sort((left, right) => headingNumber(left) - headingNumber(right))
@@ -179,7 +179,7 @@ export function withBookTitle(title: string) {
   return defineTool<string[], { title: string; chapters: string[] }>({
     name: 'with-book-title',
     version: '1.0.0',
-    mdDescription: 'Sets the compiled book title.',
+    description: 'Sets the compiled book title.',
     async invoke(env) {
       return withItem(env, { title, chapters: env.item })
     },

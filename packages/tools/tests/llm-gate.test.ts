@@ -532,7 +532,7 @@ describe('config reaches the call slot', () => {
     const custom = defineTool<GateState, GateState>({
       name: 'c',
       version: '1',
-      mdDescription: 'c',
+      description: 'c',
       invoke: async (env) => ({
         ...env,
         item: {

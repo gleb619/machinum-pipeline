@@ -238,7 +238,7 @@ export function buildParallelPairs(chapter: ParallelChapter): ParallelPairsResul
 export const parallelPairs = defineTool<ParallelChapter | string, string>({
   name: 'parallel-pairs',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Splits `{ en, ru }` chapter markdown into paragraphs, drops empty/heading-only blocks and emits JSONL aligned pairs `{ id, src, tgt, chars, ratio }`; retryable error below 60% alignment.',
   annotations: [
     tool('TL255', {

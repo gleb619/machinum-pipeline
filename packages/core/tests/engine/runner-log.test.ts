@@ -31,7 +31,7 @@ const defaultRetry = { max: 0, backoffMs: 0, strategy: 'fixed' as const }
 const loggingTool: Tool<unknown, unknown> = {
   name: 'logger',
   version: '1.0.0',
-  mdDescription: 'Writes a log line through the run logger.',
+  description: 'Writes a log line through the run logger.',
   invoke: async (env, ctx) => {
     ctx.run.logger.info('tool logged a line')
     return env

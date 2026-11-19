@@ -116,7 +116,7 @@ describe('annotations', () => {
     const created = defineTool<string, string>({
       name: 'plain-tool',
       version: '1.0.0',
-      mdDescription: 'no annotations',
+      description: 'no annotations',
       async invoke(ex) {
         return ex
       },
@@ -152,7 +152,7 @@ describe('annotations', () => {
     const created = defineTool<string, string>({
       name: 'annotated-tool',
       version: '1.0.0',
-      mdDescription: 'test',
+      description: 'test',
       annotations: [tool('TL900', { refs: ['UC001'] }), useCase('UC001')],
       async invoke(ex) {
         return ex

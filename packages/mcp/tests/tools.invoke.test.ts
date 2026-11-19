@@ -12,7 +12,7 @@ vi.mock('@mt/tools', () => {
   const echoTool = {
     name: 'echo',
     version: '1.0.0',
-    mdDescription: 'Echo the payload with a prefix.',
+    description: 'Echo the payload with a prefix.',
     invoke: async (ex: { item?: unknown }) => ({ ...ex, item: `echo:${String(ex.item)}` }),
   }
   return { echoTool }
@@ -54,7 +54,7 @@ async function createProject(
       'const tool = defineTool<string, string>({',
       `  name: '${toolName}',`,
       "  version: '1.0.0',",
-      "  mdDescription: 'fixture tool',",
+      "  description: 'fixture tool',",
       `  invoke: ${invoke},`,
       '})',
       '',

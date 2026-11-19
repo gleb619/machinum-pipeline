@@ -70,7 +70,7 @@ export function createGitStage(options: GitStageOptions = {}): Tool<string, stri
   return defineTool<string, string>({
     name: 'git-stage',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Stages changes in a git repository (`git add`). Pathspecs from options, then `meta.gitPaths`, then `git add -A`. Sets `gitStaged` in envelope meta.',
     annotations: [
       tool('TL258', {
@@ -112,7 +112,7 @@ export function createGitReset(options: GitResetOptions = {}): Tool<string, stri
   return defineTool<string, string>({
     name: 'git-reset',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Runs `git reset` (default `--mixed HEAD`). Resolves the repo root from options, project root, or cwd; throws outside a git repo. Sets `gitReset` in envelope meta.',
     annotations: [
       tool('TL259', {
@@ -150,7 +150,7 @@ export function createGitCommit(options: GitCommitOptions = {}): Tool<string, st
   return defineTool<string, string>({
     name: 'git-commit',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Stages (pathspec-scoped) and commits. Message from options, `meta.commitMessage`, or generated `mt(<pipelineId>): <n> envelopes`. Sets `commit` (short hash) and `commitMessage` in envelope meta; `commit: null` when nothing to commit.',
     annotations: [
       tool('TL260', {

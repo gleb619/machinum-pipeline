@@ -35,14 +35,14 @@ const defaultRetry = { max: 0, backoffMs: 0, strategy: 'fixed' as const }
 const echoTool: Tool<unknown, unknown> = {
   name: 'echo',
   version: '1.0.0',
-  mdDescription: 'Passes the envelope through unchanged.',
+  description: 'Passes the envelope through unchanged.',
   invoke: async (env) => env,
 }
 
 const explodeTool: Tool<unknown, unknown> = {
   name: 'exploder',
   version: '1.0.0',
-  mdDescription: 'Always throws.',
+  description: 'Always throws.',
   invoke: async () => {
     throw new Error('exploder exploded')
   },

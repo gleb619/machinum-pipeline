@@ -110,7 +110,7 @@ export function createEntitiesTool(options?: SchemaDocLlmOptions & ChunkModeOpti
   return defineTool<string, string>({
     name: 'entities',
     version: '1.2.0',
-    mdDescription:
+    description:
       'Extracts named entities from the chapter with an LLM through the OpenRouter proxy, as CSV ' +
       'rows (`index,name`). Loop-guarded retries fall back to the schema-doc Entities block, then a ' +
       'default entity. Supports shrink/chunk/auto modes (entities merged and deduped across ' +

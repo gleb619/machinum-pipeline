@@ -64,7 +64,7 @@ const defaultRetry = { max: 0, backoffMs: 0, strategy: 'fixed' as const }
 const metaWriterTool: Tool<unknown, unknown> = {
   name: 'meta-writer',
   version: '1.0.0',
-  mdDescription: 'Test tool meta-writer that writes meta keys.',
+  description: 'Test tool meta-writer that writes meta keys.',
   invoke: async (env: Envelope<unknown>) => ({
     ...env,
     meta: { ...env.meta, tokenCount: 42, errors: [] },

@@ -104,7 +104,7 @@ export function createMetadataTool(options?: SchemaDocLlmOptions) {
   return defineTool<string, string>({
     name: 'metadata',
     version: '1.1.0',
-    mdDescription:
+    description:
       'Extracts the schema-doc Metadata row (chapter, wordCount, tokenCount, charLength) with an ' +
       'LLM through the OpenRouter proxy, validated against the measured values and falling back to ' +
       'the deterministic row. Stores variable `metadata`.',

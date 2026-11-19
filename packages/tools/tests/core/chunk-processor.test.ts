@@ -166,7 +166,7 @@ describe('withTextChunks', () => {
     const inner = defineTool<{ text: string }, { text: string }>({
       name: 'inner',
       version: '1.0.0',
-      mdDescription: 'inner',
+      description: 'inner',
       invoke: async (env) => withItem(env, { text: `out:${env.item.text}` }),
     })
     const wrapped = withTextChunks(inner, { budget: budget(100), mode: 'auto' })
@@ -182,7 +182,7 @@ describe('withTextChunks', () => {
     const inner = defineTool<{ text: string }, { text: string }>({
       name: 'inner',
       version: '1.0.0',
-      mdDescription: 'inner',
+      description: 'inner',
       invoke: async (env) => withItem(env, { text: `out:${env.item.text}` }),
     })
     const wrapped = withTextChunks(inner, {
@@ -205,7 +205,7 @@ describe('withTextChunks', () => {
     const inner = defineTool<{ text: string }, { text: string }>({
       name: 'inner',
       version: '1.0.0',
-      mdDescription: 'inner',
+      description: 'inner',
       invoke: async (env) => withItem(env, { text: env.item.text.toUpperCase() }),
     })
     const wrapped = withTextChunks(inner, { budget: budget(100), mode: 'auto' })

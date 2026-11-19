@@ -63,7 +63,7 @@ export function translateChapter(llm: LlmChoice, mode: TranslateWorkMode): Tool<
   return defineTool<string, string>({
     name: `translate-chapter-${mode}`,
     version: '1.0.0',
-    mdDescription: `Glossary-aware chapter translation, work mode '${mode}'.`,
+    description: `Glossary-aware chapter translation, work mode '${mode}'.`,
     async invoke(env: Exchange<string>, ctx) {
       const heading = /^#\s+.+$/m.exec(env.item)?.[0] ?? '# Untitled'
       const title = await titleTranslator.invoke(

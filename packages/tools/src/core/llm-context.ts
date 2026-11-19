@@ -934,7 +934,7 @@ export function createContextWindow(
   return defineTool<ContextWindowItem, ContextWindowItem>({
     name: options.name ?? 'context-window',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Shrinks chat messages to a token budget using ordered strategies ' +
       '(truncateLines, summarize, dropOldest, ...). Preserves system + last user message. ' +
       'Records the contextWindow variable.',

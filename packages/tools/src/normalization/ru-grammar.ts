@@ -359,7 +359,7 @@ export function createRuGrammarTool(options: RuGrammarToolOptions = {}) {
   return defineTool<string | string[], string | string[]>({
     name: 'ru-grammar',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Validates Russian inflected forms against glossary `ruGrammar`; reports ' +
       'deviations in variable `ruGrammar` and can infer missing grammar for a glossary file.',
     annotations: [

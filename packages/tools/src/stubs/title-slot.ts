@@ -9,7 +9,7 @@ import type { TitleTranslatorState } from '../modification/chapter-translator.js
 export const stubTitleTranslateSlot = defineTool<TitleTranslatorState, TitleTranslatorState>({
   name: 'stub-title-translate-slot',
   version: '1.0.0',
-  mdDescription: 'Dry-run title translation slot that wraps output in mock markers',
+  description: 'Dry-run title translation slot that wraps output in mock markers',
   annotations: [
     tool('TL238', {
       name: 'stub-title-translate-slot',

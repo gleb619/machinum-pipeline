@@ -414,7 +414,7 @@ export function createGlossaryTitleTranslator(
   return defineTool<TranslateInput, TranslateOutput>({
     name: 'glossary-title-translate',
     version: '1.2.0',
-    mdDescription:
+    description:
       'Translates a chapter title through the picked LLM with glossary hints (optional work mode).',
     async invoke(env, ctx) {
       const title = env.item.text
@@ -441,7 +441,7 @@ export const chaptersToTitleInputs = defineTool<
 >({
   name: 'chapters-to-title-inputs',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Stashes the tagged chapters in a variable and emits one "# title" text per chapter.',
   annotations: [
     tool('TL207', {
@@ -863,7 +863,7 @@ export function createChapterBodyTranslator(options: ChapterBodyTranslatorOption
   return defineTool<{ text: string }, LineParityInput>({
     name: 'chapter-body-translator',
     version: '1.2.0',
-    mdDescription:
+    description:
       'Translates each tagged chapter line by line (glossary + summary injection, optional work mode).',
     async invoke(env, ctx) {
       const chapters = exField<string[]>(env, 'chapters') ?? []

@@ -239,7 +239,7 @@ export function buildSftTriples(jsonl: string): SftTriplesResult {
 export const sftTriples = defineTool<string, string>({
   name: 'sft-triples',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Normalises JSONL records (system/user/reply, `messages`, or chapter `pairs`) into canonical chat triples; drops empty-assistant and prompt-echo records and counts them in `meta.dropped`.',
   annotations: [
     tool('TL254', {

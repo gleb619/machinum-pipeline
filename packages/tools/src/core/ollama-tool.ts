@@ -39,7 +39,7 @@ export const ollamaTool = annotate(
   createLlmGate<GateInput, GateOutput>({
     name: 'ollama',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Ollama gate (provider ollama). ' +
       'Endpoint from MT_OLLAMA_URL (default http://localhost:11434/v1, e.g. a remote GPU server), model from MT_OLLAMA_MODEL (default gemma4:latest).',
     llm: OLLAMA_LLM,

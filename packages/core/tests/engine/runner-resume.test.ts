@@ -98,7 +98,7 @@ const globalContext: GlobalContext = {
 const gateTool: Tool<{ value: number }, { value: number }> = {
   name: 'gate',
   version: '1.0.0',
-  mdDescription: 'passes items through, throws on the configured value',
+  description: 'passes items through, throws on the configured value',
   invoke: async (env) => {
     if (env.item.value === failOn) throw new Error(`gate exploded on ${env.item.value}`)
     return env

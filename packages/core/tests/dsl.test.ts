@@ -55,7 +55,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'uppercase',
       version: '1.0.0',
-      mdDescription: 'Test tool that converts text to uppercase.',
+      description: 'Test tool that converts text to uppercase.',
       invoke: async (env) => env,
     })
     const batchChild = definePipeline({ id: 'batch-child' }).tap(async () => {})
@@ -81,7 +81,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'test-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool for unit tests.',
+      description: 'Test tool for unit tests.',
       invoke: async (env) => env,
     })
 
@@ -94,7 +94,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'cached-tool',
       version: '2.0.0',
-      mdDescription: 'Test tool with cacheable configuration.',
+      description: 'Test tool with cacheable configuration.',
       invoke: async (env) => env,
       cacheable: true,
     })
@@ -126,7 +126,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'retry-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool for retry override tests.',
+      description: 'Test tool for retry override tests.',
       invoke: async (env) => env,
     })
 
@@ -149,7 +149,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'test-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool for operator chain tests.',
+      description: 'Test tool for operator chain tests.',
       invoke: async (env) => env,
     })
     const batchChild = definePipeline({ id: 'chain-batch-child' }).tap(async () => {})
@@ -189,7 +189,7 @@ describe('DSL', () => {
     const tool = defineTool({
       name: 'idempotent-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool for idempotent flag tests.',
+      description: 'Test tool for idempotent flag tests.',
       invoke: async (env) => env,
       idempotent: true,
     })

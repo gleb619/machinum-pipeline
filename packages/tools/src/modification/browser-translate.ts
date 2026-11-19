@@ -852,7 +852,7 @@ export function createBrowserTranslate(
   return defineTool<TranslateInput, TranslateOutput>({
     name: 'browser-translate',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Translates text through a headless Chrome page backed by the Google Translate web endpoint.',
     annotations: [
       tool('TL247', {

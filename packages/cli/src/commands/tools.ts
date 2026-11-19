@@ -49,13 +49,13 @@ function categoryOf(tool: Tool<unknown, unknown>): string | null {
   return annotation.categories.length > 0 ? annotation.categories.join(', ') : null
 }
 
-/** Description of a tool: the `tool(...)` annotation wins over `mdDescription`. */
+/** Description of a tool: the `tool(...)` annotation wins over `description`. */
 function descriptionOf(tool: Tool<unknown, unknown>): string | null {
   const annotation = annotationsOf(tool).find((entry) => entry.kind === 'tool')
   if (annotation && 'description' in annotation && annotation.description) {
     return annotation.description
   }
-  return tool.mdDescription || null
+  return tool.description || null
 }
 
 /**

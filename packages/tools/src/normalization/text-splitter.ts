@@ -140,7 +140,7 @@ export function createTokenSplitter(options: Partial<TokenSplitterOptions> = {})
   const base = defineTool<string, string[]>({
     name: 'token-splitter',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Splits text into chunks using a pluggable TokenSplitStrategy. Default strategy splits at paragraph boundaries respecting a token limit. Any chunk a strategy leaves above the limit is re-split with a finer built-in fallback chain (paragraph → sentence → whitespace); the `strategy` variable records the path actually used (e.g. `paragraph+sentence`).',
     annotations: [
       tool('TL106', {
@@ -365,7 +365,7 @@ export function createSeriesSplitTool(options: SeriesSplitOptions = {}) {
   return defineTool<string, string[]>({
     name: 'series-split',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Split a large chapter document into numbered series parts with series frontmatter.',
     annotations: [
       tool('TL233', {

@@ -109,7 +109,7 @@ export function buildStats(measures: readonly ChapterMeasure[]): StatsArtifact {
 export const collectChapterStats = defineTool<string, string>({
   name: 'collect-chapter-stats',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Stores the chapter number, words, body characters and tokens of one batch member as `chapterStats`.',
   async invoke(env) {
     const n = Number(env.meta.chapterNum ?? 0)
@@ -131,7 +131,7 @@ export const collectChapterStats = defineTool<string, string>({
 export const writeStats = defineTool<unknown, unknown>({
   name: 'write-stats',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Emits schema/stats.json from the `chapterStats` rows of every member of the batch package.',
   async invoke(env) {
     const members = batchMembersOf<unknown>(env) ?? []

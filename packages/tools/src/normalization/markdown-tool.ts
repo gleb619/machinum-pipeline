@@ -1,4 +1,4 @@
-import { category, defineTool, setVariable, tool, withItem } from '@mt/core'
+import { category, defineTool, setVariable, tool, useCase, withItem } from '@mt/core'
 import type { Exchange, ToolContext } from '@mt/core'
 import type { Heading, Nodes, Root, RootContent } from 'mdast'
 import { toString as mdastToString } from 'mdast-util-to-string'
@@ -220,7 +220,7 @@ export function stripFrontmatter(input: string): { text: string; stripped: boole
 export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
   name: 'markdown-stats',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Collects structural statistics from markdown: headings, paragraphs, code blocks, links, word count.',
 
   annotations: [
@@ -243,7 +243,7 @@ export const markdownStatsTool = defineTool<string, MarkdownStatsOutput>({
 export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
   name: 'markdown-outline',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Extracts a flat heading outline from markdown, in document order with depth and line numbers.',
 
   annotations: [
@@ -266,14 +266,15 @@ export const markdownOutlineTool = defineTool<string, MarkdownOutlineOutput>({
 export const markdownStripFrontmatter = defineTool<string, MarkdownStripOutput>({
   name: 'markdown-strip-frontmatter',
   version: '1.0.0',
-  mdDescription: 'Removes leading YAML frontmatter from markdown documents.',
+  description: 'Removes leading YAML frontmatter from markdown documents.',
 
   annotations: [
     tool('TL008', {
       name: 'markdown-strip-frontmatter',
       description: 'Removes leading YAML frontmatter from markdown.',
-      refs: [],
+      refs: ['UC055'],
     }),
+    useCase('UC055'),
     category(['normalizer', 'formatter']),
   ],
   async invoke(env: Exchange<string>, _ctx: ToolContext): Promise<Exchange<MarkdownStripOutput>> {

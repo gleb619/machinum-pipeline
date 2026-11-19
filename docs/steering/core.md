@@ -113,7 +113,7 @@ Core interface shapes (`I`/`O` are **payload** types wrapped in an Exchange):
 ```typescript
 interface Source<T> { uri: string; lifestyle: Lifecycle; start(ctx): AsyncIterable<ExchangeInput<T>>; resume?(ctx, cursor) }
 interface Target<T> { uri: string; open(ctx): Promise<void>; write(ex: Exchange<T>, ctx): Promise<void>; close(ctx): Promise<void>; checkpoint?(ctx): Promise<number | undefined> }
-interface Tool<I, O> { name: string; version: string; mdDescription: string; invoke(ex: Exchange<I>, ctx): Promise<Exchange<O>>; cacheable?; idempotent? }
+interface Tool<I, O> { name: string; version: string; description: string; invoke(ex: Exchange<I>, ctx): Promise<Exchange<O>>; cacheable?; idempotent? }
 ```
 
 ### `contexts.ts`
@@ -279,7 +279,7 @@ immutably (default `'sync'`). Full contract in [Processes](#processes). `process
 
 - `chain(name, ...tools)` — one `Tool` running tools sequentially (output envelope feeds next).
 - `builder.useAll(a, b, c)` — sugar for `.use(a).use(b).use(c)`.
-- `defineComposableTool({ name, version, mdDescription, slots })` — tool built from named, ordered slots
+- `defineComposableTool({ name, version, description, slots })` — tool built from named, ordered slots
   (object key order = run order), each slot itself a `Tool`. `tool.with({ slot: Tool | fn })` returns a NEW
   tool (immutable; the default export is never mutated); unknown slot names throw.
 

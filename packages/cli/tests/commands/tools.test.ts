@@ -23,7 +23,7 @@ vi.mock('@mt/tools', async () => {
   const builtinTool = defineTool({
     name: 'builtin-echo',
     version: '1.0.0',
-    mdDescription: 'Builtin echo fixture tool',
+    description: 'Builtin echo fixture tool',
     annotations: [
       tool('TL999', { name: 'builtin-echo', description: 'Builtin echo (fixture).' }),
       category(['stub']),
@@ -35,7 +35,7 @@ vi.mock('@mt/tools', async () => {
   const builtinOnlyTool = defineTool({
     name: 'builtin-only',
     version: '1.0.0',
-    mdDescription: 'Built-in fixture tool no pipeline declares',
+    description: 'Built-in fixture tool no pipeline declares',
     annotations: [tool('TL998', { name: 'builtin-only', description: 'Built-in only (fixture).' })],
     async invoke(env) {
       return { ...env, item: `builtin:${String(env.item)}` }
@@ -48,7 +48,7 @@ const ECHO_PIPELINE = `
 const echo = {
   name: 'echo',
   version: '1.0.0',
-  mdDescription: 'Echo fixture tool',
+  description: 'Echo fixture tool',
   invoke: async (env) => ({
     id: env.id,
     item: 'echo:' + env.item,
@@ -72,7 +72,7 @@ const REUSE_PIPELINE = `
 const reuse = {
   name: 'builtin-echo',
   version: '1.0.0',
-  mdDescription: 'Pipeline-local tool with a built-in name',
+  description: 'Pipeline-local tool with a built-in name',
   invoke: async (env) => ({ ...env, item: 'pipeline:' + env.item }),
 }
 export default {

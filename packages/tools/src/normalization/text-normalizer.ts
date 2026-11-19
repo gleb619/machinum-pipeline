@@ -198,7 +198,7 @@ export function createTextNormalizer(options: TextNormalizerOptions = {}) {
   return defineTool<string, string>({
     name: 'text-normalizer',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Offline text normalization: unifies quotes/dashes/ellipsis, strips invisible and stray symbols, collapses spaces and blank lines, fixes punctuation spacing. Optional source cleaning: credit-line patterns, title dedupe, Cloudflare email artifacts. One paragraph per line preserved. Sets variable `normalized`.',
     annotations: [
       tool('TL001', {

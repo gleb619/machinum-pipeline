@@ -78,7 +78,7 @@ function markingTool(name: string): Tool<{ seen: string[] }, { seen: string[] }>
   return {
     name,
     version: '1.0.0',
-    mdDescription: `Marks the item with '${name}'.`,
+    description: `Marks the item with '${name}'.`,
     invoke: async (env) => {
       events.push(`${name}:tool`)
       return { ...env, item: { seen: [...env.item.seen, name] } }
@@ -182,7 +182,7 @@ describe('pipeline interceptors', () => {
     const failing: Tool<unknown, unknown> = {
       name: 'failing',
       version: '1.0.0',
-      mdDescription: 'Always throws.',
+      description: 'Always throws.',
       invoke: async () => {
         throw new Error('boom')
       },
@@ -252,7 +252,7 @@ describe('pipeline interceptors', () => {
     const failing: Tool<unknown, unknown> = {
       name: 'failing',
       version: '1.0.0',
-      mdDescription: 'Always throws.',
+      description: 'Always throws.',
       invoke: async () => {
         throw new Error('tool boom')
       },

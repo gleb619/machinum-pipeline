@@ -143,12 +143,12 @@ export function translateToOutput(state: GateState<TranslateInput>): TranslateOu
 export function createTranslateGate(
   name: string,
   options: TranslateTextOptions = {},
-  mdDescription?: string,
+  description?: string,
 ): ComposableTool<TranslateInput, TranslateOutput, GateSlot> {
   return createLlmGate<TranslateInput, TranslateOutput>({
     name,
-    mdDescription:
-      mdDescription ??
+    description:
+      description ??
       'Translates text with swappable slots prepare/fit/call/parse/emit; prompts translate.system / translate.user.',
     llm: options.llm,
     prompts: options.prompts,
@@ -198,7 +198,7 @@ export function routerTranslateCall(
   return defineTool<GateState, GateState>({
     name: 'translate-text:call',
     version: '1.0.0',
-    mdDescription: 'Calls the router proxy POST /api/translate endpoint.',
+    description: 'Calls the router proxy POST /api/translate endpoint.',
     async invoke(env: Exchange<GateState>, ctx: ToolContext): Promise<Exchange<GateState>> {
       const routerUrl = options.routerUrl ?? readCtx(ctx).routerUrl ?? 'http://localhost:7777'
       const states = env.items ?? [env.item]
@@ -322,7 +322,7 @@ export function createChunkedTranslateText(
   const wrapper: TranslateToolLike = defineTool<TranslateInput, TranslateOutput>({
     name: gate.name,
     version: gate.version,
-    mdDescription: `${gate.mdDescription ?? ''} Chunk mode: oversized text is split into budget-sized chunks, translated, and merged.`,
+    description: `${gate.description ?? ''} Chunk mode: oversized text is split into budget-sized chunks, translated, and merged.`,
     async invoke(env, ctx) {
       const inputs = env.items ?? [env.item]
       const outputs: TranslateOutput[] = []

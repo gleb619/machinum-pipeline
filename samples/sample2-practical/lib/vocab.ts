@@ -318,7 +318,7 @@ export function buildVocabulary(
 export const writeVocabulary = defineTool<unknown, unknown>({
   name: 'write-vocabulary',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Emits schema/vocabulary.json (4/3/2/1-grams with chapters, df and capRatio) from the `statFreq` report and the batched chapters.',
   async invoke(env: Exchange<unknown>, ctx) {
     const report = getVariable<StatFreqReport>(env, 'statFreq')

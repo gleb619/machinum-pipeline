@@ -298,7 +298,7 @@ export function defineStatFreq(options: StatFreqOptions = {}) {
   return defineTool<string | string[], string | string[]>({
     name: 'stat-freq',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Offline statistical frequency analyzer: counts word, sentence and n-gram frequencies ' +
       '(stopwords filtered) of the envelope text; ranked report in variable statFreq.',
     annotations: [

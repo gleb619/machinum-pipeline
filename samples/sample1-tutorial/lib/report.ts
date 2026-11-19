@@ -13,7 +13,7 @@ import { appendMdOutput } from '@mt/tools'
 export const keepInput = defineTool<string, string>({
   name: 'keep-input',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Copies the item text (or all batched items) into the input variable for the report.',
   async invoke(env) {
     const input = (env.items ?? [env.item]).join('\n\n---\n\n')
@@ -42,7 +42,7 @@ export function report(spec: ReportSpec) {
   return defineTool<unknown, string>({
     name: `report-${spec.tool}`,
     version: '1.0.0',
-    mdDescription: 'Renders input + tool output as one markdown report (mdOutputs).',
+    description: 'Renders input + tool output as one markdown report (mdOutputs).',
     async invoke(env) {
       const source = typeof env.meta.filePath === 'string' ? basename(env.meta.filePath) : undefined
       const filename = spec.filename ?? source ?? `${spec.tool}.md`

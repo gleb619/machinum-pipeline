@@ -83,7 +83,7 @@ export function dockerComposeEmitter(
   return defineTool<unknown, DockerComposeOutput>({
     name: 'docker-compose-emitter',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Generates a docker-compose.yml with ollama/qdrant/lightrag service presets ' +
       'and optional top-level include: entries; written atomically relative to the project root.',
     async invoke(env: Exchange<unknown>, ctx) {

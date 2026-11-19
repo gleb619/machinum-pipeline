@@ -218,7 +218,7 @@ export function defineStatDict(options: StatDictOptions = {}) {
   return defineTool<string | string[], string | string[]>({
     name: 'stat-dict',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Ranked translation dictionary from a stat-freq report (variable statFreq, a report file or the ' +
       'envelope text): candidates above a frequency threshold, type guess, merged into an existing ' +
       'glossary without touching existing entries. Result in variable statDict.',

@@ -34,7 +34,7 @@ export const openrouterFree = annotate(
   createLlmGate<GateInput, GateOutput>({
     name: 'openrouter-free',
     version: '1.0.0',
-    mdDescription:
+    description:
       'OpenRouter free-tier gate (provider openrouter; model openrouter/free as a default, overridable by ' +
       'per-call / meta / settings / vault). Keys from OPENROUTER_API_KEYS / OPENROUTER_API_KEY.',
     llm: OPENROUTER_FREE_LLM,

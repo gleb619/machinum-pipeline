@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { definePipeline, defineTool, getVariable, withItem } from '@mt/core'
+import { annotate, definePipeline, defineTool, getVariable, useCase, withItem } from '@mt/core'
 import type { LlmRequest } from '@mt/tools'
 import {
   type ParagraphTranslatorInput,
@@ -117,7 +117,7 @@ const titleLlm = pickFor('translate-title', (req: LlmRequest) =>
 const toParagraphInput = defineTool<string, ParagraphTranslatorInput>({
   name: 'pipe08-to-paragraph-input',
   version: '1.0.0',
-  mdDescription: 'Wraps the chapter text as a paragraph translator request (EN → RU).',
+  description: 'Wraps the chapter text as a paragraph translator request (EN → RU).',
   async invoke(env) {
     return withItem(env, { text: env.item, sourceLang: 'English', targetLang: 'Russian' })
   },
@@ -126,7 +126,7 @@ const toParagraphInput = defineTool<string, ParagraphTranslatorInput>({
 const toTitleInput = defineTool<string, TitleTranslatorInput>({
   name: 'pipe08-to-title-input',
   version: '1.0.0',
-  mdDescription: 'Wraps the chapter text as a title translator request (EN → RU).',
+  description: 'Wraps the chapter text as a title translator request (EN → RU).',
   async invoke(env) {
     return withItem(env, { text: env.item, sourceLang: 'English', targetLang: 'Russian' })
   },
@@ -172,4 +172,4 @@ export const titlePipeline = definePipeline({ id: 'pipe08-translate-title' })
   )
   .to('md://./chapters/translate-title')
 
-export default translatePipeline
+export default annotate(translatePipeline, useCase('UC017', { name: 'Retry failing step' }))

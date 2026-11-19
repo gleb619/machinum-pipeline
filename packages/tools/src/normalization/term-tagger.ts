@@ -189,7 +189,7 @@ export function countTerms(
 export const termTagger = defineTool<string | string[], string | string[]>({
   name: 'term-tagger',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Wraps glossary terms as `<term id="ID">text</term>` (longest first, no nesting, skips code, ' +
     'idempotent, line count preserved). Result in variable `taggedItems`; `stripTerms` reverses it.',
   annotations: [

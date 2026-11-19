@@ -10,23 +10,6 @@ Invoke via `skills` tool at start of every task, never skip:
 - `i-have-adhd` - ADHD-friendly planning/output
 - `codegraph` (optional) - only if mentioned for code context
 - `at` (optional) - delegate code changes to a sub-agent via `at` while you coordinate
-## Delegation
-
-- **Prefer native subagents** for nearly every task you run.
-- **Native subagents** = architect, coder, qa via the Agent tool; prefer them over `at`.
-- Only use `at` when the user explicitly asks for another mechanism or explicitly names `at`.
-- Native subagents are the default default: coordinate them yourself rather than offloading the workflow to `at`.
-- Delegate with native subagents and keep going until `at` errors — then switch to native subagents for that task and log the error as a kanban task.
-- Do not mix mechanisms: if you use `at`, do not also spawn native subagents, and vice versa.
-- If native subagent handles it, do not also use `at`.
-- `at` feedback is for `at` itself only: register bugs/friction/ideas about `at` via `at feedback add "<title>" -k bug|improvement|note --context "<repro>"`.
-- Keep `at` feedback deduplicated: run `at feedback list --status open` before adding an entry.
-- `at` kanban backfill is for project improvements found while working: `at kanban add --title "<short>" --priority Low|Medium|High --description "<repro + expected vs actual, max 128 chars>"`.
-- Always check `at kanban list` first to dedupe before adding a kanban item.
-- `docs/kanban.md` stays uncommitted like other board mutations; run `at kanban lint` after edits.
-- If you'd use `at` for something, first check whether native subagents can handle it instead.
-- This rule applies globally: defaults to native subagents for sample pipelines, real tools, and admin UI alike.
-
 
 ## Project
 
@@ -67,6 +50,7 @@ pnpm test                                          # workspace + sample IT
 pnpm test --filter=@mt/tools                       # one package
 pnpm --filter=@mt/tools exec vitest run src/chapter-validator.ts   # one file
 pnpm annotations [--kind tool|waypoint|useCase|category] [--json]  # needs pnpm build first
+pnpm tools [--json]                               # tool catalogue as a Markdown table (needs pnpm build first)
 pnpm build:bin                                     # standalone `mt` binary (Bun --compile)
 ```
 
@@ -97,6 +81,8 @@ conventional commits. Tests co-located `*.test.ts`, `describe`/`it`. Full: steer
 
 ## Hard rules
 
+- **Default: use native subagents** (architect, coder, qa via the Agent tool) for nearly every task; coordinate them yourself.
+- Only use `at` when the user explicitly asks for it or names `at`; if you'd reach for `at`, check native subagents first.
 - **You are not alone.** Focus on your task and ignore other agents' errors — but never silently: register each observed error/broken test as a kanban task via the `at` kanban feature (`at kanban add --title "..." --description "..."`) for the owner, and keep working on your own slice.
 - **`at` feedback is for `at` itself only.** Log every bug/friction/idea about the `at` agent tool via `at feedback add -k bug|improvement "<text>" -T <tags>` (tags AFTER the text; variadic `-T` swallows it), one entry per issue, with evidence (command, output, error string). File immediately, never ask permission. Suspicion is enough — no reproduction or root cause needed; do not investigate or patch. Check `at feedback list` first to update an existing entry instead of duplicating. Filing is not a deliverable: it never replaces your own task.
 - **Project improvements go to kanban.** If you see a way to improve machinum-pipeline (code, docs, process, decisions), register a kanban task via the `at` kanban feature — not in `at feedback`. Self-improvement loop: notice → register → keep working; never silently work around or leave it unrecorded.

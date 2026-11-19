@@ -540,7 +540,7 @@ export function serializeQuality(artifact: QualityArtifact): string {
 export const collectChapterQuality = defineTool<string, string>({
   name: 'collect-chapter-quality',
   version: '1.0.0',
-  mdDescription: 'Measures the offline quality signals of one chapter.',
+  description: 'Measures the offline quality signals of one chapter.',
   async invoke(env: Exchange<string>) {
     const n = Number(env.meta.chapterNum ?? 0)
     const signals = await analyzeChapter(env.item)
@@ -552,7 +552,7 @@ export const collectChapterQuality = defineTool<string, string>({
 export const writeQuality = defineTool<unknown, unknown>({
   name: 'write-quality',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Emits schema/quality.json from the measured chapter rows and logs the translate/preprocess verdict.',
   async invoke(env, ctx) {
     const members = batchMembersOf<unknown>(env) ?? []

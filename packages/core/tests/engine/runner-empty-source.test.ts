@@ -67,7 +67,7 @@ describe('runner empty source', () => {
     const crashTool: Tool<unknown, unknown> = {
       name: 'crash-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool',
+      description: 'Test tool',
       invoke: vi.fn(async (env: Envelope<unknown>) => {
         toolCalls.push(env.item)
         return env
@@ -97,7 +97,7 @@ describe('runner empty source', () => {
     const toolOnlyTool: Tool<unknown, unknown> = {
       name: 'tool-only-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool',
+      description: 'Test tool',
       invoke: vi.fn(async (env: Envelope<unknown>) => {
         toolCalls.push(env.item)
         return env

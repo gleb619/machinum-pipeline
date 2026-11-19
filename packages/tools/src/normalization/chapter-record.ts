@@ -30,7 +30,7 @@ export function toChapterRecord(raw: RawChapter): ChapterRecord {
 export const chapterRecordMapper = defineTool<RawChapter, string>({
   name: 'chapter-record-mapper',
   version: '1.0.0',
-  mdDescription: 'Maps a raw {key,value} line to a chapter record; item becomes "title\\nbody".',
+  description: 'Maps a raw {key,value} line to a chapter record; item becomes "title\\nbody".',
   annotations: [
     tool('TL206', {
       name: 'chapter-record-mapper',
@@ -49,7 +49,7 @@ export const chapterRecordMapper = defineTool<RawChapter, string>({
 export const lineTextToMarkdown = defineTool<string, { text: string }>({
   name: 'line-text-to-markdown',
   version: '1.0.0',
-  mdDescription: 'First line becomes "# title"; remaining lines become one paragraph each.',
+  description: 'First line becomes "# title"; remaining lines become one paragraph each.',
   annotations: [
     tool('TL215', {
       name: 'line-text-to-markdown',
@@ -69,7 +69,7 @@ export const lineTextToMarkdown = defineTool<string, { text: string }>({
 export const unwrapMarkdownText = defineTool<MarkdownFormatterOutput | FinderOutput, string>({
   name: 'unwrap-markdown-text',
   version: '1.0.0',
-  mdDescription:
+  description:
     "Unwraps { text } to a markdown string; undoes remark's \\[ escaping so [system messages] stay literal.",
   annotations: [
     tool('TL246', {

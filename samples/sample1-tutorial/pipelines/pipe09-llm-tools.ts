@@ -292,7 +292,7 @@ const dictGate = createStatTranslateDict({ batchSize: 10 })
 const dictAsItem = defineTool<string, Glossary>({
   name: 'pipe09-dict-as-item',
   version: '1.0.0',
-  mdDescription: 'Moves meta.statDict into the item.',
+  description: 'Moves meta.statDict into the item.',
   async invoke(env) {
     return withItem(env, getVariable(env, 'statDict') as Glossary)
   },

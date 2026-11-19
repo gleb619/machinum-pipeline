@@ -47,7 +47,7 @@ function chapterNumber(text: string): number | undefined {
 const renderStats = defineTool<MarkdownStatsOutput, string>({
   name: 'pipe04-render-stats',
   version: '1.0.0',
-  mdDescription: 'Renders markdown statistics as a chapter view.',
+  description: 'Renders markdown statistics as a chapter view.',
   async invoke(env) {
     const { text, stats } = env.item
     const doc = readChapterDoc(text)
@@ -74,7 +74,7 @@ const renderStats = defineTool<MarkdownStatsOutput, string>({
 const reorderLines = defineTool<string, string>({
   name: 'pipe04-reorder-lines',
   version: '1.0.0',
-  mdDescription: 'Parses a chapter and sorts every paragraph’s lines alphabetically.',
+  description: 'Parses a chapter and sorts every paragraph’s lines alphabetically.',
   async invoke(env) {
     const doc = readChapterDoc(env.item)
     const meta = doc.metadata()
@@ -97,7 +97,7 @@ const reorderLines = defineTool<string, string>({
 const replaceDots = defineTool<string, string>({
   name: 'pipe04-dots-to-commas',
   version: '1.0.0',
-  mdDescription: 'Parses a chapter and replaces every dot in its body with a comma.',
+  description: 'Parses a chapter and replaces every dot in its body with a comma.',
   async invoke(env) {
     const doc = readChapterDoc(env.item)
     const meta = doc.metadata()

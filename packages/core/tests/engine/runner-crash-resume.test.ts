@@ -89,7 +89,7 @@ let parkItem6 = false
 const gateTool = {
   name: 'crash-gate',
   version: '1.0.0',
-  mdDescription: 'passes items through; parks item 6 while crashing',
+  description: 'passes items through; parks item 6 while crashing',
   invoke: async (env: Envelope<{ value: number }>) => {
     if (env.item.value === 6 && parkItem6) await new Promise(() => {})
     return { item: env.item, meta: env.meta }

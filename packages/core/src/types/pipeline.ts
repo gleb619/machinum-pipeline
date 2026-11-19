@@ -63,7 +63,7 @@ export interface Target<T> {
 export interface Tool<I, O> {
   name: string
   version: string
-  mdDescription: string
+  description: string
   invoke(ex: Exchange<I>, ctx: ToolContext): Promise<Exchange<O>>
   cacheable?: boolean
   idempotent?: boolean

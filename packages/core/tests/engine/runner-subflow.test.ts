@@ -85,7 +85,7 @@ const defaultRetry = { max: 0, backoffMs: 0, strategy: 'fixed' as const }
 const processTool: Tool<unknown, unknown> = {
   name: 'process-tool',
   version: '1.0.0',
-  mdDescription: 'Process tool for subflow tests.',
+  description: 'Process tool for subflow tests.',
   invoke: vi.fn(async (env: Envelope<unknown>) => ({
     ...env,
     meta: { ...env.meta, processed: true },
@@ -172,7 +172,7 @@ describe('runner subflow', () => {
     const recordingTool: Tool<unknown, unknown> = {
       name: 'recording-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool recording-tool for subflow tests.',
+      description: 'Test tool recording-tool for subflow tests.',
       invoke: async (env) => {
         order.push('subflow')
         return env
@@ -252,7 +252,7 @@ describe('runner subflow', () => {
     const orchTool: Tool<unknown, unknown> = {
       name: 'orch-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool orch-tool for subflow tests.',
+      description: 'Test tool orch-tool for subflow tests.',
       invoke: vi.fn(async (env) => env),
     }
 
@@ -295,7 +295,7 @@ describe('runner subflow', () => {
     const orchTool: Tool<unknown, unknown> = {
       name: 'orch-tool',
       version: '1.0.0',
-      mdDescription: 'Test tool orch-tool for subflow tests.',
+      description: 'Test tool orch-tool for subflow tests.',
       invoke: vi.fn(async (env) => env),
     }
 

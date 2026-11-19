@@ -921,7 +921,7 @@ translators resolving the process-level LLM pick — `defineProcess().install(mo
 export const myTool = defineTool<Input, Output>({
   name: 'my-tool',
   version: '1.0.0',
-  mdDescription: 'Tool purpose in Markdown.',
+  description: 'Tool purpose in Markdown.',
   async invoke(env, ctx) {
     // transform env.item
     return { ...env, item: result }
@@ -933,7 +933,7 @@ export const myTool = defineTool<Input, Output>({
 
 ```typescript
 export const myDoc = defineComposableTool({
-  name: 'my-doc', version: '1.0.0', mdDescription: '...',
+  name: 'my-doc', version: '1.0.0', description: '...',
   slots: {
     build: myBuildTool,                                        // pure: variables -> markdown
     emit: mdOutputEmitter({ name: 'my-doc', subdir: 'x', filename: (m) => `c${m.chapterNum}.md` }),

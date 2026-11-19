@@ -238,7 +238,7 @@ export const MOCK_NER_ANSWER = JSON.stringify([
 export const writeEntities = defineTool<unknown, string>({
   name: 'write-entities',
   version: '1.0.0',
-  mdDescription:
+  description:
     'Projects the `glossary` variable onto the batched chapters and emits schema/entities.json plus schema/chapter<N>.entities.json.',
   async invoke(env, ctx) {
     const glossary = getVariable<Glossary>(env, 'glossary')

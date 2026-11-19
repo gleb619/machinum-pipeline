@@ -1,4 +1,12 @@
-import { definePipeline, defineProcess, getVariable, log, parseChapterTree } from '@mt/core'
+import {
+  annotate,
+  definePipeline,
+  defineProcess,
+  getVariable,
+  log,
+  parseChapterTree,
+  useCase,
+} from '@mt/core'
 import {
   VAR_CHUNK_COUNT,
   VAR_CHUNK_SEPARATOR,
@@ -235,17 +243,20 @@ export const tokenLadderPipeline = definePipeline({ id: 'pipe05-token-ladder' })
   .subflow(tokensStage)
   .subflow(tokenSummaryStage)
 
-export default defineProcess()
-  .config({
-    env: {
-      MT_CHUNK_SIZE: '40',
-      MT_CONST_SERIES_SPLIT_TARGET_CHARS: '150',
-    },
-  })
-  .pipeline(
-    definePipeline({ id: 'pipe05-suite' })
-      .subflow(cleanSplitPipeline)
-      .subflow(ladderPipeline)
-      .subflow(tokenLadderPipeline)
-      .subflow(treeMutationPipeline),
-  )
+export default annotate(
+  defineProcess()
+    .config({
+      env: {
+        MT_CHUNK_SIZE: '40',
+        MT_CONST_SERIES_SPLIT_TARGET_CHARS: '150',
+      },
+    })
+    .pipeline(
+      definePipeline({ id: 'pipe05-suite' })
+        .subflow(cleanSplitPipeline)
+        .subflow(ladderPipeline)
+        .subflow(tokenLadderPipeline)
+        .subflow(treeMutationPipeline),
+    ),
+  useCase('UC056', { name: 'Split large chapters by token count' }),
+)

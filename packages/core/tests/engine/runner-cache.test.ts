@@ -60,7 +60,7 @@ function cacheableTool(output: Envelope<unknown>): Tool<unknown, unknown> {
   return {
     name: 'cacheableTool',
     version: '1.0.0',
-    mdDescription: 'Cacheable tool for best-effort cache tests.',
+    description: 'Cacheable tool for best-effort cache tests.',
     cacheable: true,
     invoke: vi.fn().mockResolvedValue(output),
   }
@@ -81,7 +81,7 @@ describe('runner caching', () => {
     const mockTool: Tool<unknown, unknown> = {
       name: 'testTool',
       version: '1.0.0',
-      mdDescription: 'Test tool for caching tests.',
+      description: 'Test tool for caching tests.',
       cacheable: true,
       invoke: vi.fn().mockImplementation(async () => {
         return { item: 'result' }

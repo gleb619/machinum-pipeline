@@ -171,7 +171,7 @@ function parsePropertiesBlock(content: string): ResultBlock[] {
 interface ProofreadVariant {
   name: string
   version: string
-  mdDescription: string
+  description: string
   annotations: readonly Annotation[]
   /** Default system prompt. */
   system: string
@@ -343,7 +343,7 @@ function createProofreadVariantTool(
   return defineTool<string, string>({
     name: variant.name,
     version: variant.version,
-    mdDescription: variant.mdDescription,
+    description: variant.description,
     annotations: variant.annotations,
     async invoke(env: Envelope<string>, ctx: ToolContext): Promise<Envelope<string>> {
       const { blocks, payload } = variant.prepare(env.item)
@@ -409,7 +409,7 @@ export function createProofreadTool(
     {
       name: 'proofread',
       version: '1.1.0',
-      mdDescription:
+      description:
         'Proofreads plain text with an LLM through the OpenRouter proxy. Splits the text into ' +
         'paragraphs, sends XML to the model, and returns the corrected text. English by default; ' +
         'prompts are fully overridable. Supports shrink/chunk/auto modes.',
@@ -474,7 +474,7 @@ export function createProofreadXmlTool(
     {
       name: 'proofread-xml',
       version: '1.1.0',
-      mdDescription:
+      description:
         'Lower-level proofreading sub tool. Accepts the paragraph XML expected by the proofreader ' +
         'and returns the raw `<proofread>` XML from the LLM. Supports chunk modes.',
       annotations: proofreadAnnotations(
@@ -531,7 +531,7 @@ export function createProofreadPropertiesTool(
     {
       name: 'proofread-properties',
       version: '1.0.0',
-      mdDescription:
+      description:
         'Lower-level proofreading sub tool using Java properties format. ' +
         'Accepts one key=value per line (key = id/line number, value = original text) ' +
         'and returns the same keys with proofread values.',

@@ -10,7 +10,7 @@ import type { Exchange } from '../src/types/exchange.js'
 const upperTool = defineTool<string, string>({
   name: 'upper',
   version: '1.0.0',
-  mdDescription: 'Uppercases the payload.',
+  description: 'Uppercases the payload.',
   async invoke(ex: Exchange<string>): Promise<Exchange<string>> {
     const output = withItem(ex, ex.item.toUpperCase())
     return setVariable(output, 'length', ex.item.length)
@@ -20,7 +20,7 @@ const upperTool = defineTool<string, string>({
 const failingTool = defineTool<string, string>({
   name: 'boom',
   version: '1.0.0',
-  mdDescription: 'Always fails.',
+  description: 'Always fails.',
   async invoke(): Promise<Exchange<string>> {
     throw new Error('kaboom')
   },

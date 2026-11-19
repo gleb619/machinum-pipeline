@@ -91,7 +91,7 @@ export type GateSlot = 'prepare' | 'fit' | 'call' | 'parse' | 'emit'
 export interface LlmGateOptions<I, O> {
   name: string
   version?: string
-  mdDescription?: string
+  description?: string
   /** Tool-level LLM config (below per-call input, above meta/settings/env). */
   llm?: LlmConfigLayer
   /**
@@ -212,7 +212,7 @@ export function llmPrepare<I, O>(opts: LlmGateOptions<I, O>): Tool<I, GateState<
   return defineTool<I, GateState<I>>({
     name: `${opts.name}:prepare`,
     version: opts.version ?? '1.0.0',
-    mdDescription: 'Resolves prompts (overridable templates) and request parameters.',
+    description: 'Resolves prompts (overridable templates) and request parameters.',
     async invoke(env, ctx) {
       const ps = promptSourcesFromCtx(ctx, { tool: opts.prompts, meta: exchangeConfigBag(env) })
       return mapEnv(env, async (input) => {
@@ -264,7 +264,7 @@ export function llmFit<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, Gat
   return defineTool<GateState<I>, GateState<I>>({
     name: `${opts.name}:fit`,
     version: opts.version ?? '1.0.0',
-    mdDescription: 'Fits messages into the context budget (strategies: see llm-context).',
+    description: 'Fits messages into the context budget (strategies: see llm-context).',
     async invoke(env, ctx) {
       return mapEnv(env, async (state) => {
         const request = state.request
@@ -348,7 +348,7 @@ export function llmCall<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, Ga
   return defineTool<GateState<I>, GateState<I>>({
     name: `${opts.name}:call`,
     version: opts.version ?? '1.0.0',
-    mdDescription: 'Calls the LLM (timeout, retry, optional cache; provider from config).',
+    description: 'Calls the LLM (timeout, retry, optional cache; provider from config).',
     async invoke(env, ctx) {
       return mapEnv(env, async (state) => {
         const cfg = resolveLlmConfigFromCtx(ctx, {
@@ -387,7 +387,7 @@ export function llmParse<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, G
   return defineTool<GateState<I>, GateState<I>>({
     name: `${opts.name}:parse`,
     version: opts.version ?? '1.0.0',
-    mdDescription:
+    description:
       'Parses/validates output; on failure re-asks with a corrective message carrying the rejection reason.',
     async invoke(env, ctx) {
       const ps = promptSourcesFromCtx(ctx, { tool: opts.prompts, meta: exchangeConfigBag(env) })
@@ -492,7 +492,7 @@ export function llmEmit<I, O>(opts: LlmGateOptions<I, O>): Tool<GateState<I>, O>
   return defineTool<GateState<I>, O>({
     name: `${opts.name}:emit`,
     version: opts.version ?? '1.0.0',
-    mdDescription: 'Shapes the final output and records usage/context metadata.',
+    description: 'Shapes the final output and records usage/context metadata.',
     async invoke(env) {
       const states = env.items ?? [env.item]
       const results = states.map((s) =>
@@ -537,8 +537,8 @@ export function createLlmGate<I = GateInput, O = GateOutput>(
   return defineComposableTool<I, O, GateSlot>({
     name: opts.name,
     version: opts.version ?? '1.0.0',
-    mdDescription:
-      opts.mdDescription ??
+    description:
+      opts.description ??
       'LLM gate: prepare (prompts) -> fit (context window) -> call (LlmClient) -> parse -> emit.',
     slots: {
       prepare: llmPrepare(opts) as Tool<unknown, unknown>,
@@ -554,7 +554,7 @@ export function createLlmGate<I = GateInput, O = GateOutput>(
 export const llmGate = annotate(
   createLlmGate<GateInput, GateOutput>({
     name: 'llm-gate',
-    mdDescription:
+    description:
       'Generic LLM gate with swappable slots prepare/fit/call/parse/emit. Provider, model, prompts and context budget are configurable (see docs/steering/tools.md).',
     metaFlags: { llmGate: true },
   }),
@@ -627,7 +627,7 @@ export function mockLlmCall(
   const tool = defineTool<GateState, GateState>({
     name: 'mock-llm-call',
     version: '1.0.0',
-    mdDescription: 'Mock `call` slot: scripted LLM answers, no network.',
+    description: 'Mock `call` slot: scripted LLM answers, no network.',
     async invoke(env) {
       return mapEnv(env, (state) =>
         runLlmCall(state, (req) => client.chatCompletion(req), options.shrinkOnContextError),

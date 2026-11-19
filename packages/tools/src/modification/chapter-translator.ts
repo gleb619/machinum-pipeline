@@ -83,7 +83,7 @@ function processTranslateSlot(
   return defineTool<TranslateInput, TranslateOutput>({
     name: 'process-llm-translate',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Invoke-time translator resolution: installed process LLM mocks / MT_LLM_TOOL, else the default translator.',
     async invoke(env, ctx) {
       const translator = resolveProcessLlm()?.translate ?? fallback
@@ -142,7 +142,7 @@ export interface TitleTranslatorOptions {
 const titleExtract = defineTool<TitleTranslatorInput, TitleTranslatorState>({
   name: 'title-translator:extract',
   version: '1.0.0',
-  mdDescription: 'Finds the chapter title (frontmatter, H1, or first line).',
+  description: 'Finds the chapter title (frontmatter, H1, or first line).',
   async invoke(env, _ctx) {
     return mapState(env, async (input) => {
       const base: TitleTranslatorState = { input, mode: 'none' }
@@ -184,7 +184,7 @@ function titleTranslateSlot(
   return defineTool<TitleTranslatorState, TitleTranslatorState>({
     name: 'title-translator:translate',
     version: '1.0.0',
-    mdDescription: 'Translates the extracted title via the configured translator.',
+    description: 'Translates the extracted title via the configured translator.',
     async invoke(env, ctx) {
       return mapState(env, async (state) => {
         if (!state.title) return state
@@ -203,7 +203,7 @@ function titleTranslateSlot(
 const titleAssemble = defineTool<TitleTranslatorState, TitleTranslatorOutput>({
   name: 'title-translator:assemble',
   version: '1.0.0',
-  mdDescription: 'Rebuilds the chapter with the translated title.',
+  description: 'Rebuilds the chapter with the translated title.',
   async invoke(env) {
     const states = env.items ?? [env.item]
     const results: TitleTranslatorOutput[] = []
@@ -252,7 +252,7 @@ export function createTitleTranslator(
     defineComposableTool<TitleTranslatorInput, TitleTranslatorOutput, TitleTranslatorSlot>({
       name: 'title-translator',
       version: '1.0.0',
-      mdDescription:
+      description:
         'Translates chapter titles. Reads from frontmatter or H1 heading. ' +
         'Composable: slots extract/translate/assemble; swap the translator via `.with({ translate })`.',
       slots: {
@@ -326,7 +326,7 @@ async function* asAsync<T>(items: readonly T[]): AsyncIterable<T> {
 const paragraphSplit = defineTool<ParagraphTranslatorInput, ParagraphTranslatorState>({
   name: 'paragraph-translator:split',
   version: '1.0.0',
-  mdDescription: 'Splits the chapter body into paragraph texts.',
+  description: 'Splits the chapter body into paragraph texts.',
   async invoke(env, _ctx) {
     const input = env.item
     try {
@@ -361,7 +361,7 @@ function paragraphTranslateSlot(
   return defineTool<ParagraphTranslatorState, ParagraphTranslatorState>({
     name: 'paragraph-translator:translate',
     version: '1.1.0',
-    mdDescription:
+    description:
       'Translates every paragraph via the configured translator (bounded concurrency, ' +
       'per-paragraph memo so retries skip already-translated paragraphs).',
     async invoke(env, ctx) {
@@ -392,7 +392,7 @@ function paragraphTranslateSlot(
 const paragraphAssemble = defineTool<ParagraphTranslatorState, ParagraphTranslatorOutput>({
   name: 'paragraph-translator:assemble',
   version: '1.0.0',
-  mdDescription: 'Rebuilds the chapter with the translated paragraphs.',
+  description: 'Rebuilds the chapter with the translated paragraphs.',
   async invoke(env) {
     const state = env.item
     const translated = state.translated ?? []
@@ -437,7 +437,7 @@ export function createParagraphTranslator(
     >({
       name: 'paragraph-translator',
       version: '1.1.0',
-      mdDescription:
+      description:
         'Translates chapter body paragraphs. Preserves paragraph structure. ' +
         'Composable: slots split/translate/assemble; swap the translator via `.with({ translate })`.',
       slots: {

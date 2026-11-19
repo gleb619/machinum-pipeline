@@ -59,7 +59,7 @@ describe('runner envDefaults', () => {
     return {
       name: 'probe',
       version: '1.0.0',
-      mdDescription: 'Test tool',
+      description: 'Test tool',
       invoke: vi.fn(async (env: Envelope<unknown>, ctx: ToolContext) => {
         seen.globalEnv = { ...process.env, ...ctx.run.global.env }
         return env

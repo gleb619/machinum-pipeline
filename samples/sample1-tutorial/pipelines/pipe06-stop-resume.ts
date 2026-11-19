@@ -1,4 +1,4 @@
-import { definePipeline, log } from '@mt/core'
+import { annotate, definePipeline, log, useCase } from '@mt/core'
 import { createWaitForFile } from '@mt/tools'
 import '@mt/waypoint'
 
@@ -17,8 +17,18 @@ import '@mt/waypoint'
  * The JSONL target keeps the committed lines, so nothing is written twice. The checkpoint tree
  * under `.mt/runs/<runId>/` is the only resume mechanism — there is no separate database.
  */
-export default definePipeline({ id: 'pipe06-stop-resume' })
-  .from('range://1..5')
-  .use(createWaitForFile({ path: './jsonl/latches/{item}.latch', pollMs: 100, timeoutMs: 600_000 }))
-  .tap((env) => log.info('stop-resume item', { item: env.item }))
-  .to('jsonl://./jsonl/stop-resume.jsonl')
+const waitForLatch = createWaitForFile({
+  path: './jsonl/latches/{item}.latch',
+  pollMs: 100,
+  timeoutMs: 600_000,
+})
+annotate(waitForLatch, useCase('UC015', { name: 'Auto-checkpoint at step boundary' }))
+
+export default annotate(
+  definePipeline({ id: 'pipe06-stop-resume' })
+    .from('range://1..5')
+    .use(waitForLatch)
+    .tap((env) => log.info('stop-resume item', { item: env.item }))
+    .to('jsonl://./jsonl/stop-resume.jsonl'),
+  useCase('UC007', { name: 'Pause a running Run' }),
+)

@@ -168,7 +168,7 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
   const gateOpts = {
     name: 'openrouter-pool',
     version: '1.0.0',
-    mdDescription:
+    description:
       'OpenRouter free-model gate with sticky pinning: one model per key-set (default, overridable by any ' +
       'higher config layer), re-pinned only on 404/429-exhausted/402.',
     llm,
@@ -187,7 +187,7 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
   const prepare = defineTool<GateInput, GateState<GateInput>>({
     name: 'openrouter-pool:prepare',
     version: '1.0.0',
-    mdDescription: 'Base prepare + sticky pinned model unless the call overrides it.',
+    description: 'Base prepare + sticky pinned model unless the call overrides it.',
     async invoke(env, ctx) {
       const out = (await basePrepare.invoke(env, ctx)) as Exchange<PooledState>
       const states = out.items ?? [out.item]
@@ -217,7 +217,7 @@ export function createOpenrouterPool(options: OpenrouterPoolOptions = {}) {
   const emit = defineTool<GateState<GateInput>, GateOutput>({
     name: 'openrouter-pool:emit',
     version: '1.0.0',
-    mdDescription: 'Base emit + openrouterPool variable = { model, pinnedAt, repins }.',
+    description: 'Base emit + openrouterPool variable = { model, pinnedAt, repins }.',
     async invoke(env, ctx) {
       const out = await baseEmit.invoke(env, ctx)
       const states = (env.items ?? [env.item]) as PooledState[]

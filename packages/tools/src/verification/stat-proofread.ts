@@ -253,7 +253,7 @@ export function createStatProofread(options: StatProofreadOptions = {}): Tool<st
   return defineTool<string, string>({
     name: 'stat-proofread',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Offline proofreader for translated text: term consistency vs a glossary and ' +
       'Cyrillic/untranslated-share checks. Report in the proofread variable; with fix: "llm" it throws ' +
       'a retryable StatProofreadError carrying measured feedback.',

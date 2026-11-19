@@ -63,7 +63,7 @@ export function createBatchCollect(options: BatchCollectOptions) {
   return defineTool<unknown, BatchEntry[]>({
     name: 'batch-collect',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Batch-aware: collects one `{ key, value }` entry per package member via the supplied ' +
       '`read` fn. Payload `BatchEntry[]` + variable (default `entries`).',
     async invoke(env: Exchange<unknown>, ctx: ToolContext): Promise<Exchange<BatchEntry[]>> {
@@ -104,7 +104,7 @@ export function createEntryTranslator(options: EntryTranslatorOptions = {}) {
   return defineTool<BatchEntry[] | BatchEntry, string>({
     name: 'entry-translator',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Serializes `BatchEntry[]` into a `<key><sep><value>` packet (one line per entry) via the ' +
       'supplied `translate` fn. Sets the packet variable (default `packet`).',
     async invoke(env: Exchange<BatchEntry[] | BatchEntry>): Promise<Exchange<string>> {
@@ -139,7 +139,7 @@ export function createEntryPacketParser(options: EntryPacketParserOptions = {}) 
   return defineTool<string, BatchEntry[]>({
     name: 'entry-packet-parser',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Parses a `<key><sep><value>` packet into `BatchEntry[]` (`item` + variable, default ' +
       '`entries`). Malformed lines fail fast.',
     async invoke(env: Exchange<string>): Promise<Exchange<BatchEntry[]>> {
@@ -210,7 +210,7 @@ export function createBatchApply(options: BatchApplyOptions) {
   return defineTool<unknown, unknown>({
     name: 'batch-apply',
     version: '1.0.0',
-    mdDescription:
+    description:
       'Per-item (on `batch://members`): patches the member with its entry from the entries ' +
       'variable via the supplied `apply` fn; unmatched members pass through.',
     async invoke(env: Exchange<unknown>): Promise<Exchange<unknown>> {

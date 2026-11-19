@@ -34,7 +34,7 @@ export function createAnalyzeOutputs(options: AnalyzeOutputsOptions = {}) {
   return defineTool<string | string[], string>({
     name: 'analyze-outputs',
     version: '1.0.0',
-    mdDescription: `Emits ${summaryDir}/chapter<N>.summary.md, ${taggedDir}/chapter<N>.md, ${glossaryFile} and ${graphFile}.`,
+    description: `Emits ${summaryDir}/chapter<N>.summary.md, ${taggedDir}/chapter<N>.md, ${glossaryFile} and ${graphFile}.`,
     annotations: [
       tool('TL201', {
         name: 'analyze-outputs',
