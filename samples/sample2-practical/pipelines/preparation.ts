@@ -180,8 +180,7 @@ export const preprocess = annotate(
 )
 
 /** summary → NER → vocabulary → glossary → glossary-index → quality → preprocess. */
-export default installSampleMock(
-  defineProcess([summary, ner, vocabulary, glossary, glossaryIndex, quality, preprocess], {
-    id: 'practical-preparation',
-  }),
-)
+export default defineProcess(
+  [summary, ner, vocabulary, glossary, glossaryIndex, quality, preprocess],
+  { id: 'practical-preparation' },
+).install(installSampleMock())

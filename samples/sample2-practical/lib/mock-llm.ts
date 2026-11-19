@@ -1,5 +1,5 @@
 import { appendFileSync } from 'node:fs'
-import type { ProcessBuilder } from '@mt/core'
+import type { ProcessInstall } from '@mt/core'
 import {
   type InstalledLlmProvider,
   type LlmRequest,
@@ -10,13 +10,24 @@ import {
 import { assertRealBackend, usesMockBackend } from './llm.js'
 import { MOCK_NER_ANSWER } from './mock-ner.js'
 
-/** Install the sample-wide mock only when the resolved backend is `mock`. */
-export function installSampleMock(process: ProcessBuilder): ProcessBuilder {
-  if (!usesMockBackend()) return process
-  assertRealBackend('sample2', 'mock')
-  const options: MockLlmOptions = { source: sampleMockAnswer }
-  const provider: InstalledLlmProvider = mockLlm(options)
-  return process.install(provider)
+/**
+ * Process-level sample mock, used fluently:
+ *
+ *   export default defineProcess([...], { id: '...' }).install(installSampleMock())
+ *
+ * The returned installer is a no-op unless the resolved backend is `mock`, so a real backend
+ * never gets the mock installed.
+ */
+export function installSampleMock(): ProcessInstall {
+  return {
+    install() {
+      if (!usesMockBackend()) return
+      assertRealBackend('sample2', 'mock')
+      const options: MockLlmOptions = { source: sampleMockAnswer }
+      const provider: InstalledLlmProvider = mockLlm(options)
+      provider.install()
+    },
+  }
 }
 
 let xmlCalls = 0

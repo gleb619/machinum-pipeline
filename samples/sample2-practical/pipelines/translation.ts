@@ -112,8 +112,6 @@ export const assemble = defineChapterPipeline('practical-assemble', '@ru').subfl
   assembleChild,
 )
 
-export default installSampleMock(
-  defineProcess([translateTitles, translateChapters, assemble], {
-    id: 'practical-translation',
-  }),
-)
+export default defineProcess([translateTitles, translateChapters, assemble], {
+  id: 'practical-translation',
+}).install(installSampleMock())
