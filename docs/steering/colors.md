@@ -2,9 +2,9 @@
 
 Audience: anyone touching `packages/components/`, `packages/tui/`, `packages/vscode/` or
 `packages/components/tailwind.config.js`.
-Rule: **class names stay, values change.** Components keep stock Tailwind names (`gray-900`, `blue-400`, …); the
-palette behind those names is ours. Never add a second naming scheme, never hard-code a hex in a component, never add
-`dark:` variants. State colours are the same contract as [layout.md §5](layout.md#5-state-colours); host rules are
+Rule: **class names stay, values change — permanently.** Components keep the stock Tailwind names (`gray-900`,
+`blue-400`, …); only the values behind those names are ours. Shade renaming is **rejected**: no `mt-*` palette, no
+codemod, no second naming scheme. Never hard-code a hex in a component, never add `dark:` variants. State colours are the same contract as [layout.md §5](layout.md#5-state-colours); host rules are
 [layout.md §11](layout.md#11-hosts-web-and-vs-code-shared-components).
 
 `packages/components/tailwind.config.js` is the **only** place tokens are registered into Tailwind; literal values live
@@ -33,9 +33,9 @@ does not exist — a typo'd class renders nothing, which is the point.
 
 ## 2. Tailwind override mapping
 
-Two options exist. Pick **A** and stay with it:
+Two options exist. **A is the decision, not a preference** — the user keeps the default shade names:
 
-| | A. Override `theme.colors` (chosen) | B. `theme.extend.colors.mt-*` |
+| | A. Override `theme.colors` (chosen, permanent) | B. `theme.extend.colors.mt-*` (rejected) |
 |---|---|---|
 | Class names | unchanged (`bg-gray-900`) | every call site renamed (`bg-mt-page`) |
 | Default palette | gone — `bg-slate-700` renders nothing | still available, easy to drift back |
@@ -177,13 +177,13 @@ Checklist:
 
 ## 7. Open questions
 
-1. Keep stock shade names for ever, or plan a v2 rename to `mt-*`? Overriding buys speed now and makes the rename a
-   codemod; extending does the opposite. Current decision: override, revisit only with a codemod owner.
-2. Should the web follow `--vscode-editor-background` when hosted in VS Code (true host parity, one more bridge
+**Decided:** stock shade names stay permanently; `theme.colors` override, no rename.
+
+1. Should the web follow `--vscode-editor-background` when hosted in VS Code (true host parity, one more bridge
    input), or keep `#0b0e12` everywhere?
-3. Dim text at 4.5:1 is not very dim (`#828c9c`). Allow 3:1 for purely decorative paths/timestamps, or keep the
+2. Dim text at 4.5:1 is not very dim (`#828c9c`). Allow 3:1 for purely decorative paths/timestamps, or keep the
    stricter rule and lean on size/weight?
-4. Light theme is deliberately unscheduled: tokens flip (no `dark:` variants), but every ramp needs a second table and
+3. Light theme is deliberately unscheduled: tokens flip (no `dark:` variants), but every ramp needs a second table and
    shadows must get much shallower. Needs an owner before any light-only styling ships.
-5. High-contrast VS Code themes (`--vscode-contrastBorder`, forced colours): honour fully (drop our palette) or only
+4. High-contrast VS Code themes (`--vscode-contrastBorder`, forced colours): honour fully (drop our palette) or only
    for borders? And who owns `tokens.css` — `packages/components` (current assumption) or a shared `@mt/theme`?
