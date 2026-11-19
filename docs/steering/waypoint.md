@@ -42,7 +42,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT003 | `hs://` / `http://` / `https://` | `http-server.ts` / `http-target.ts` | ✓ | ✓ | Long-lived HTTP POST endpoint (`hs://`/`http://`); outbound HTTP client (`http://`/`https://`) |
 | WT004 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout; sample1 registers the same factories under its own `@ru` alias |
 | WT005 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
-| WT006 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
+| WT006 | `git://<path>?via=<scheme>&branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; `via` (required) names any registered inner scheme; optional auto-commit on close |
 | WT007 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
 | WT008 | `void://` | `void.ts` | — | ✓ | Discards everything (like /dev/null) |
 | WT009 | `console://` | `console.ts` | — | ✓ | Terminal sink (stdout/stderr), per-envelope, target-only |
@@ -310,6 +310,8 @@ The `#` shortcut (e.g. `#only=done`, bare `#`) resolves through the alias layer 
 
 ### `git-worktree.ts`
 
+- Sole syntax: `git://./out?via=<inner>&branch=<b>&commit=on-close` — `via` is required and names
+  any registered inner scheme (`jsonl`, `md`, `chapter`, …); no other form is accepted
 - `GitWorktreeSource` / `GitWorktreeTarget` — use `createWorktree()` / `removeWorktree()` from `@mt/core/engine/git-worktree`
 - Target calls `autoCommit()` in `close()` when `commit` query param is set
 - On close with `commit=on-close`, `mergeWorktreeToMain()` rebases the worktree branch onto the
@@ -462,7 +464,7 @@ T218 (highest existing id is `UC081`) — so those cells are marked *planned*.
 | WP003 | WT003 | `hs://` / `http://` / `https://` | `http-server.ts` / `http-target.ts` | ✓ | ✓ (`http`, `https`) | long-lived (source) | transport | UC023 / UC082 (planned) | sample1-tutorial (`pipe02`) |
 | WP004 | WT004 | `chapter://` | `chapter-output.ts` | ✓ | ✓ | resumable | storage | UC059 | — (sample1 registers the same factories under its own `@ru` alias) |
 | WP005 | WT005 | `schema-doc://` | `schema-doc.ts` | ✓ | ✓ | resumable | storage | UC082 (planned) | — (schema docs use `md://` write intents) |
-| WP006 | WT006 | `git://` | `git-worktree.ts` | ✓ | ✓ | resumable | workspace | UC024 / UC025 | — |
+| WP006 | WT006 | `git://` (`?via=<inner>`) | `git-worktree.ts` | ✓ | ✓ | resumable | workspace | UC024 / UC025 | — |
 | WP008 | WT007 | `range://` | `range.ts` | ✓ | — | resumable | generator | UC082 (planned) | sample1-tutorial (`pipe06`) |
 | WP009 | WT008 | `void://` | `void.ts` | — | ✓ | — | sink | UC082 (planned) | sample1-tutorial (`pipe01`/`pipe03`/`pipe04`), sample2-practical |
 | WP013 | WT009 | `console://` | `console.ts` | — | ✓ | — | sink | UC082 (planned) | sample1-tutorial (`consolePreviewPipeline`) |

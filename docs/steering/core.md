@@ -12,7 +12,7 @@ Re-exports everything needed by consumers:
 
 - `definePipeline`, `defineTool`, `defineSource`, `defineTarget`, `defineWaypoint`, `defineProcess` (DSL builders; `defineProcess(pipelines, ...)` = process form, see [Processes](#processes))
 - `isPipeline`, `isProcess` (type guards; see [Processes](#processes))
-- `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `Pipeline`, `Lifecycle`, `RunState` (types)
+- `Exchange` (`Envelope` deprecated alias), `Source`, `Target`, `Tool`, `ToolArg`, `Pipeline`, `Lifecycle`, `RunState` (types)
 - `GlobalContext`, `RunContext`, `ToolContext`, `SourceContext`, `TargetContext` (contexts)
 - `loadGlobalContext`, `parseEnvFile`, `readMtConfig`, `readMtConfigSync`, `MtConfig`, `DEFAULT_MT_CONFIG` (mt.json → `GlobalContext`)
 - `runToolCli` (`ToolCliOptions`) — expose a `Tool` as a standalone stdin/stdout JSON CLI (UC011, see [tool-cli.ts](#tool-clits--runtoolclitool-options))
@@ -402,16 +402,18 @@ export const chapterValidator = defineTool({
 - **Decorator adapter** — `decorate(annotation)` returns a standard ECMAScript decorator for classes
   and methods. It deliberately avoids `context.metadata`, so the project does not need the `ESNext`
   lib or `experimentalDecorators`.
-- **Optional on user code** — `annotations` is optional on `defineTool`: user-defined tools need no
-  annotation at all. It exists so coding agents can grep an ID and jump to the implementation.
+- **Optional on user code** — `annotations` and `args` are optional on `defineTool`: user-defined tools need no
+  annotation or argument declarations at all. `args?: readonly ToolArg[]` allows tools to declare their input/output shapes (`item`, `meta`, `variable`) so tools like `mt tools call --info` can display help text.
 - **Coverage** — `@mt/tools` annotates every exported tool, `@mt/waypoint` every scheme factory, and
   CLI/engine entry points carry their `UC###`. `pnpm annotations` (repo-dev only, not part of the
   `mt` binary) lists the registry; package tests enforce coverage and ID uniqueness.
 
 ### `uri.ts` — `UriRegistry`
 
-Singleton `registry`. Sources and targets registered by scheme; resolved by `resolveSource(uri)` / `resolveTarget(uri)`.
-Composite schemes (e.g. `git://`) wrap another scheme. Named URI aliases from mt.json (`"uris": { "en": "md://./chapters/en" }`)
+Singleton `registry`. Sources and targets registered by scheme (plain scheme → factory); resolved by
+`resolveSource(uri)` / `resolveTarget(uri)`. A scheme factory may wrap another scheme internally (e.g.
+`git://` resolves `?via=<scheme>` itself), but the registry maps one scheme to one factory.
+Named URI aliases from mt.json (`"uris": { "en": "md://./chapters/en" }`)
 expand `'@name'` strings (e.g. `.to('@en')`) at resolution time (in `resolveSource`/`resolveTarget` via optional settings, and in the
 Runner, which has `GlobalContext.settings`). Alias chains are capped at
 `MAX_URI_ALIAS_DEPTH` (10) with cycle detection.

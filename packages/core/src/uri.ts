@@ -4,7 +4,6 @@ import type { ParsedUri, UriAliases } from './types.js'
 
 /**
  * URI registry — maps URI schemes to Source/Target factories.
- * Supports composite schemes (e.g. the deprecated git+jsonl:// alias) via registered combinators.
  *
  * Also resolves named URI shortcuts (aliases): strings starting with '@'
  * (e.g. '@en') are looked up in the project's "uris" table from mt.json
@@ -22,11 +21,6 @@ export type SourceFactory<T> = (uri: ParsedUri) => Source<T>
 export type TargetFactory<T> = (uri: ParsedUri) => Target<T>
 
 /**
- * Composite resolver — combines two or more schemes.
- */
-export type CompositeResolver = (schemes: string[], rest: string) => ParsedUri
-
-/**
  * Maximum number of alias-to-alias hops before expansion fails.
  */
 export const MAX_URI_ALIAS_DEPTH = 10
@@ -41,7 +35,6 @@ const EVENT_DEFAULT_NAME = 'default'
 class UriRegistry {
   private sources = new Map<string, SourceFactory<unknown>>()
   private targets = new Map<string, TargetFactory<unknown>>()
-  private compositeResolvers = new Map<string, CompositeResolver>()
   private splitters = new Map<string, Splitter<unknown>>()
   private bufferWriters = new Map<string, BufferWriterFactory>()
 
@@ -57,14 +50,6 @@ class UriRegistry {
    */
   registerTarget<T>(scheme: string, factory: TargetFactory<T>): void {
     this.targets.set(scheme, factory as TargetFactory<unknown>)
-  }
-
-  /**
-   * Register a composite resolver for a combined scheme prefix.
-   * E.g. 'git+' for the deprecated 'git+jsonl://...' alias (use 'git://...?via=jsonl' instead).
-   */
-  registerComposite(prefix: string, resolver: CompositeResolver): void {
-    this.compositeResolvers.set(prefix, resolver)
   }
 
   /**
@@ -263,18 +248,9 @@ class UriRegistry {
 
   /**
    * Parse a URI string into components.
-   * Supports composite schemes like 'jsonl://path?key=val'.
+   * Supports schemes like 'jsonl://path?key=val'.
    */
   parse(uri: string): ParsedUri {
-    // Try composite resolvers first
-    for (const [prefix, resolver] of this.compositeResolvers) {
-      if (uri.startsWith(prefix)) {
-        const schemes = prefix.split('+')
-        const rest = uri.slice(prefix.length)
-        return resolver(schemes, rest)
-      }
-    }
-
     // Standard parsing: scheme://host/path?query#fragment
     const match = uri.match(
       /^([a-zA-Z][a-zA-Z0-9+\-.]*):\/\/([^/?#]*)([^?#]*)(?:\?([^#]*))?(?:#(.*))?$/,

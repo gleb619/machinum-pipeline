@@ -146,11 +146,10 @@ export class GitWorktreeTarget<T> implements Target<T> {
 
 /**
  * Resolve a ParsedUri into a GitWorktreeSource. The inner scheme comes from
- * the `via` query param (legacy `_inner_scheme` from the deprecated `git+<scheme>`
- * composite alias is still honored).
+ * the `via` query param.
  */
 export function createGitWorktreeSource<T>(uri: ParsedUri): Source<T> {
-  const innerScheme = uri.query.via ?? uri.query._inner_scheme
+  const innerScheme = uri.query.via
   if (!innerScheme) {
     throw new Error(
       `git:// URI missing required 'via' query param naming the inner scheme: ${uri.raw}`,
@@ -174,11 +173,10 @@ export function createGitWorktreeSource<T>(uri: ParsedUri): Source<T> {
 
 /**
  * Resolve a ParsedUri into a GitWorktreeTarget. The inner scheme comes from
- * the `via` query param (legacy `_inner_scheme` from the deprecated `git+<scheme>`
- * composite alias is still honored).
+ * the `via` query param.
  */
 export function createGitWorktreeTarget<T>(uri: ParsedUri): Target<T> {
-  const innerScheme = uri.query.via ?? uri.query._inner_scheme
+  const innerScheme = uri.query.via
   if (!innerScheme) {
     throw new Error(
       `git:// URI missing required 'via' query param naming the inner scheme: ${uri.raw}`,

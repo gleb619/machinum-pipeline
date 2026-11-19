@@ -658,12 +658,12 @@ describe('GitWorktreeTarget', () => {
 
     const branchName = 'concurrent-test'
     const uri: ParsedUri = {
-      scheme: 'git+relative-file',
+      scheme: 'git',
       host: '',
       path: './out.txt',
-      query: { _inner_scheme: 'relative-file', branch: branchName, root: repoRoot },
+      query: { via: 'relative-file', branch: branchName, root: repoRoot },
       fragment: '',
-      raw: 'git+relative-file://./out.txt?branch=concurrent-test',
+      raw: 'git://./out.txt?via=relative-file&branch=concurrent-test',
     }
     const target = createGitWorktreeTarget<string>(uri)
     const originalCwd = process.cwd()
@@ -807,22 +807,19 @@ describe('createGitWorktreeSource (via param)', () => {
     expect(source.uri).toBe(innerSource.uri)
   })
 
-  it('still resolves the deprecated _inner_scheme (git+<scheme> alias)', () => {
-    const inner = mockSource([])
-    registry.registerSource('jsonl', () => inner)
+  it('throws when only the legacy _inner_scheme is provided (no via)', () => {
+    registry.registerSource('jsonl', () => mockSource([]))
 
     const uri: ParsedUri = {
-      scheme: 'jsonl',
+      scheme: 'git',
       host: '',
       path: '/data/test.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'legacy-alias', root: repoRoot },
       fragment: '',
-      raw: `jsonl://data/test.jsonl?_inner_scheme=jsonl&branch=legacy-alias&root=${encodeURIComponent(repoRoot)}`,
+      raw: `git://data/test.jsonl?_inner_scheme=jsonl&branch=legacy-alias&root=${encodeURIComponent(repoRoot)}`,
     }
 
-    const source = createGitWorktreeSource<string>(uri)
-    expect(source).toBeInstanceOf(GitWorktreeSource)
-    expect(source.uri).toBe(inner.uri)
+    expect(() => createGitWorktreeSource<string>(uri)).toThrow(/missing required 'via' query param/)
   })
 
   it('throws when via is missing', () => {
@@ -917,22 +914,19 @@ describe('createGitWorktreeTarget (via param)', () => {
     expect(target.uri).toBe(innerTarget.uri)
   })
 
-  it('still resolves the deprecated _inner_scheme (git+<scheme> alias)', () => {
-    const inner = { ...mockTarget(), uri: 'jsonl://out.jsonl' }
-    registry.registerTarget('jsonl', () => inner)
+  it('throws when only the legacy _inner_scheme is provided (no via)', () => {
+    registry.registerTarget('jsonl', () => ({ ...mockTarget(), uri: 'jsonl://out.jsonl' }))
 
     const uri: ParsedUri = {
-      scheme: 'jsonl',
+      scheme: 'git',
       host: '',
       path: '/out.jsonl',
       query: { _inner_scheme: 'jsonl', branch: 'legacy-alias', root: repoRoot },
       fragment: '',
-      raw: `jsonl://out.jsonl?_inner_scheme=jsonl&branch=legacy-alias&root=${encodeURIComponent(repoRoot)}`,
+      raw: `git://out.jsonl?_inner_scheme=jsonl&branch=legacy-alias&root=${encodeURIComponent(repoRoot)}`,
     }
 
-    const target = createGitWorktreeTarget<string>(uri)
-    expect(target).toBeInstanceOf(GitWorktreeTarget)
-    expect(target.uri).toBe(inner.uri)
+    expect(() => createGitWorktreeTarget<string>(uri)).toThrow(/missing required 'via' query param/)
   })
 
   it('commitOnClose is false when commit query param is not on-close', () => {

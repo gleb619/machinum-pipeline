@@ -77,10 +77,12 @@ describe('UC-23 — git:// scheme registration (end-to-end resolution)', () => {
     expect(() => registry.resolveSource('git://./x.jsonl')).toThrow(/'via' query param/)
   })
 
-  it('deprecated git+jsonl:// alias still resolves', () => {
-    const source = registry.resolveSource('git+jsonl://./x.jsonl')
-    expect(source).toBeInstanceOf(GitWorktreeSource)
-    const target = registry.resolveTarget('git+jsonl://./x.jsonl')
-    expect(target).toBeInstanceOf(GitWorktreeTarget)
+  it('git+jsonl:// alias is rejected with a clear error', () => {
+    expect(() => registry.resolveSource('git+jsonl://./x.jsonl')).toThrow(
+      /No source registered for scheme: git\+jsonl/,
+    )
+    expect(() => registry.resolveTarget('git+jsonl://./x.jsonl')).toThrow(
+      /No target registered for scheme: git\+jsonl/,
+    )
   })
 })

@@ -1,7 +1,7 @@
 /**
  * @mt/waypoint — Source/Target implementations for machinum-pipeline.
  *
- * Registers built-in URI schemes (jsonl, md, http, hs, git+…) via side-effect imports.
+ * Registers built-in URI schemes (jsonl, md, http, hs, git…) via side-effect imports.
  * Re-exports factory functions for direct use if needed.
  */
 export { createJsonlSource, createJsonlTarget } from './jsonl.js'

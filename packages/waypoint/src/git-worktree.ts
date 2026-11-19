@@ -1,4 +1,3 @@
-import type { ParsedUri } from '@mt/core'
 import { registry } from '@mt/core'
 import {
   createGitWorktreeSource,
@@ -12,8 +11,7 @@ import { annotateWaypoint } from './registration.js'
  * engine. This module re-exports them and owns the `git` URI scheme
  * registration, which is waypoint's responsibility.
  *
- * Primary syntax: git://<path>?via=<scheme>&branch=…&commit=on-close
- * Deprecated alias: git+<scheme>://<path>?… (still resolves).
+ * Syntax: git://<path>?via=<scheme>&branch=…&commit=on-close
  */
 export { GitWorktreeSource, GitWorktreeTarget } from '@mt/core/engine/git-worktree-source.js'
 export { createGitWorktreeSource, createGitWorktreeTarget }
@@ -40,19 +38,3 @@ annotateWaypoint(createGitWorktreeTarget, {
 registry.registerSource('git', createGitWorktreeSource)
 registry.registerTarget('git', createGitWorktreeTarget)
 
-/**
- * Deprecated composite resolver for git+ URIs (e.g. git+jsonl://data.jsonl?branch=feat).
- * Still resolves for backward compatibility; new pipelines should use
- * git://data.jsonl?via=jsonl&branch=feat instead.
- *
- * Parses the inner scheme and injects it as _inner_scheme query param
- * so that createGitWorktreeSource / createGitWorktreeTarget can use it.
- */
-registry.registerComposite('git+', (_schemes: string[], rest: string): ParsedUri => {
-  // rest looks like: jsonl://data.jsonl?branch=feat&commit=on-close
-  const parsed = registry.parse(rest)
-  parsed.query._inner_scheme = parsed.scheme
-  parsed.scheme = 'git'
-  parsed.raw = `git+${rest}`
-  return parsed
-})

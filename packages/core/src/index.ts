@@ -225,6 +225,7 @@ export type {
   TargetContext,
   TokenSplitStrategy,
   Tool,
+  ToolArg,
   ToolContext,
   ToolParams,
   UriAliases,
@@ -353,7 +354,7 @@ export type { ProcessMode } from './process.js'
 export { runToolCli } from './tool-cli.js'
 export type { ToolCliOptions } from './tool-cli.js'
 export { registry, UriRegistry, MAX_URI_ALIAS_DEPTH } from './uri.js'
-export type { SourceFactory, TargetFactory, CompositeResolver } from './uri.js'
+export type { SourceFactory, TargetFactory } from './uri.js'
 export { discoverPipelines } from './discovery.js'
 export { derivePipelineId } from './dsl.js'
 export { StageError, defineStage, wrap } from './wrap.js'
@@ -411,7 +412,7 @@ export { Cache } from './engine/cache.js'
 export { execGit } from './engine/git.js'
 export { mapConcurrent } from './engine/stream.js'
 // Built-in source/target registration moved to @mt/waypoint package.
-// Import '@mt/waypoint' to register jsonl, md, http, hs, git+ schemes.
+// Import '@mt/waypoint' to register jsonl, md, http, hs, git schemes.
 
 export {
   MT_VERSION,
