@@ -233,8 +233,8 @@ describe('waypoint targets — atomic writes', () => {
     it('writes each chapter file atomically', async () => {
       const dir = join(tempDir, 'chapters')
       const target = createChapterOutputTarget<string>({
-        scheme: 'chapter-output',
-        raw: `my-target://${dir}`,
+        scheme: 'chapter',
+        raw: `chapter://${dir}`,
         host: dir,
         path: dir,
         fragment: '',
@@ -252,8 +252,8 @@ describe('waypoint targets — atomic writes', () => {
     it('replaces a truncated chapter left by a crash', async () => {
       const dir = join(tempDir, 'chapters')
       const target = createChapterOutputTarget<string>({
-        scheme: 'chapter-output',
-        raw: `my-target://${dir}`,
+        scheme: 'chapter',
+        raw: `chapter://${dir}`,
         host: dir,
         path: dir,
         fragment: '',

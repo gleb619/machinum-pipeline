@@ -10,7 +10,7 @@ Source and Target implementations for the URI registry. Import as a **side-effec
 import '@mt/waypoint'
 ```
 
-This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter-output://`, `schema-doc://`, `git://`, `range://`, `void://`, `mem://` (alias of `ephemeral://`), `console://`, `review://`, `events://`.
+This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` / `https://` (target), `chapter://`, `schema-doc://`, `git://`, `range://`, `void://`, `mem://` (alias of `ephemeral://`), `console://`, `review://`, `events://`.
 
 ## Contents
 
@@ -40,7 +40,7 @@ This registers: `jsonl://`, `md://`, `hs://` / `http://` (source) and `http://` 
 | WT001 | `jsonl://./file.jsonl` | `jsonl.ts` | ✓ | ✓ | Supports glob patterns for source |
 | WT002 | `md://./chapters/` | `md.ts` | ✓ | ✓ | Markdown files in directory; source `?split=chunks\|paragraphs\|lines` fans each file out with the registered splitter; target `?series=true` splits each document with the registered `series` splitter before writing |
 | WT003 | `hs://` / `http://` / `https://` | `http-server.ts` / `http-target.ts` | ✓ | ✓ | Long-lived HTTP POST endpoint (`hs://`/`http://`); outbound HTTP client (`http://`/`https://`) |
-| WT004 | `chapter-output://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout; sample1 registers the same factories as `my-target://` |
+| WT004 | `chapter://./en/` | `chapter-output.ts` | ✓ | ✓ | Language-folder chapter layout; sample1 registers the same factories under its own `@ru` alias |
 | WT005 | `schema-doc://./docs/` | `schema-doc.ts` | ✓ | ✓ | Per-chapter schema doc files |
 | WT006 | `git://<path>?branch=<b>` | `git-worktree.ts` | ✓ | ✓ | Git worktree isolation; optional auto-commit on close |
 | WT007 | `range://<start>..<end>` | `range.ts` | ✓ | — | Integer generator; `?step=` magnitude, direction derived |
@@ -117,7 +117,7 @@ the runner double-count and the next resume silently skips unprocessed work. A n
 means "skip nothing" (`sourceStart = 0`). All waypoint resumable orderings are deterministic
 (sorted file walks, buffer insertion order), so a plain skip is exact. Shared helper:
 `src/resume.ts` (`resumeFrom(startFn, cursor)` / `skipEnvelopes(stream, n)`), used by `md://`,
-`my-target://`, `ephemeral://`, `chapters://`/`paragraphs://`/`chunks://`/`tokens://`/`lines://`/`words://`, `schema-doc://` and `range://`.
+`chapter://`, `ephemeral://`, `chapters://`/`paragraphs://`/`chunks://`/`tokens://`/`lines://`/`words://`, `schema-doc://` and `range://`.
 
 ## Atomicity Contract (hard rule)
 
@@ -133,7 +133,7 @@ Every waypoint target writes through the helpers in `@mt/core`:
 
 Target shapes:
 
-- **Per-file targets** (`my-target://`, `schema-doc://`, `md://<dir>`) call `atomicWriteFile`
+- **Per-file targets** (`chapter://`, `schema-doc://`, `md://<dir>`) call `atomicWriteFile`
   per envelope. A crash keeps every chapter written so far intact — never a truncated one.
 - **Single-file targets** (`jsonl://<file>`, `md://<file>`) accumulate into
   `<path>.tmp.<runId>` and rename in `close()`. Their `checkpoint()` flushes the staged bytes and
@@ -460,7 +460,7 @@ T218 (highest existing id is `UC081`) — so those cells are marked *planned*.
 | WP001 | WT001 | `jsonl://` | `jsonl.ts` | ✓ | ✓ | resumable | storage | UC021 / UC022 | sample1-tutorial |
 | WP002 | WT002 | `md://` | `md.ts` | ✓ | ✓ | resumable | storage | UC082 (planned) | sample1-tutorial, sample2-practical |
 | WP003 | WT003 | `hs://` / `http://` / `https://` | `http-server.ts` / `http-target.ts` | ✓ | ✓ (`http`, `https`) | long-lived (source) | transport | UC023 / UC082 (planned) | sample1-tutorial (`pipe02`) |
-| WP004 | WT004 | `chapter-output://` | `chapter-output.ts` | ✓ | ✓ | resumable | storage | UC059 | — (sample1 registers the same factories as `my-target://`) |
+| WP004 | WT004 | `chapter://` | `chapter-output.ts` | ✓ | ✓ | resumable | storage | UC059 | — (sample1 registers the same factories under its own `@ru` alias) |
 | WP005 | WT005 | `schema-doc://` | `schema-doc.ts` | ✓ | ✓ | resumable | storage | UC082 (planned) | — (schema docs use `md://` write intents) |
 | WP006 | WT006 | `git://` | `git-worktree.ts` | ✓ | ✓ | resumable | workspace | UC024 / UC025 | — |
 | WP008 | WT007 | `range://` | `range.ts` | ✓ | — | resumable | generator | UC082 (planned) | sample1-tutorial (`pipe06`) |

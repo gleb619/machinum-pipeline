@@ -5,7 +5,7 @@ import { join, relative } from 'node:path'
 /**
  * Shared recursive directory walker for waypoint sources.
  *
- * Both `md://` and `chapter-output://` walk a directory tree and collect files
+ * Both `md://` and `chapter://` walk a directory tree and collect files
  * matching a predicate; this is the one implementation. Results are returned in
  * walk order — callers sort for their deterministic ordering.
  */

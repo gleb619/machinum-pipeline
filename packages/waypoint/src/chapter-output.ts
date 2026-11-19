@@ -15,8 +15,8 @@ import { resolveUriInContext } from './settings.js'
 /**
  * Chapter Output Target — writes chapters to chapters/{lang}/chapter{N}.md.
  *
- * URI scheme: my-target://<base-dir>
- * Example: my-target://./chapters
+ * URI scheme: chapter://<base-dir>
+ * Example: chapter://./chapters
  *
  * Envelope meta:
  *   - lang: language code (e.g. 'ru', 'en'); used as subdirectory
@@ -162,12 +162,12 @@ registerWaypointPair({
     factory: createChapterOutputSource,
     name: 'chapter-output source',
     description: 'Reads chapter files recursively from a chapter-output directory.',
-    schemes: ['chapter-output'],
+    schemes: ['chapter'],
   },
   target: {
     factory: createChapterOutputTarget,
     name: 'chapter-output target',
     description: 'Writes chapters to <base-dir>/<lang>/chapter<N>.md files atomically.',
-    schemes: ['chapter-output'],
+    schemes: ['chapter'],
   },
 })

@@ -2,7 +2,7 @@
 name: mt
 description: Use when a project contains mt.json, a .mt/ directory or pipelines/*.ts built with `definePipeline`, or when the user asks to build, run, resume, debug or test a machinum-pipeline (`mt`) ETL pipeline for long-form text (books, chapters, translation), manage LLM secrets in the mt vault (embed/vlt/keepass refs, master key), start `mt serve` / `mt router`, or install this skill with `mt skill`.
 ---
-<!-- skill-version: 1.33.3 | 2026-11-14 -->
+<!-- skill-version: 1.33.4 | 2026-11-19 -->
 <!-- last reviewed against: packages/cli (commands, index.ts), packages/core (annotation, dsl, config, vault, engine, domain-tree, tool-cli), packages/waypoint (URI schemes), packages/tools (llm-picker, mock LLM, splitters), docs/guiding/{lifecycle,vault,installation,mock-tools,remote-browser-translate,remote-run}.md, docs/steering/{cli,core,webui,waypoint,tools}.md -->
 
 # mt (machinum-pipeline) for coding agents
@@ -483,7 +483,7 @@ Runner never enters it. `paused -> done` is illegal.
 - File writes are atomic (temp then rename); safe to kill the process.
 - Logs: text mode is one markdown-safe line (`<ISO-ms> [LEVEL] msg[ {meta}]`); `mt run`/`mt resume`
   accept `--json`/`--jsonl` for `{ ts, level, message, meta? }` JSONL in console and `run.log`.
-- Incremental targets (`jsonl://`, `md://`, `chapter-output://`, `schema-doc://`, `book://`,
+- Incremental targets (`jsonl://`, `md://`, `chapter://`, `schema-doc://`, `book://`,
   `review://`, `console://`, `void://`) flush each envelope, fsync where the sink supports it, and report how
   many envelopes they committed. The runner clamps the persisted source cursor to that count and
   passes it back as `resumeCursor`; on resume the target truncates its run-scoped staging file back

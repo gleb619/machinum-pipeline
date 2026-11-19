@@ -63,13 +63,13 @@ describe('resumable sources honor the resume cursor (T098)', () => {
     expect(replayed.map((e) => e.item)).toEqual(['# A', '# B'])
   })
 
-  it('my-target:// source: resume(ctx, 2) yields only the tail after 2 envelopes', async () => {
+  it('chapter:// source: resume(ctx, 2) yields only the tail after 2 envelopes', async () => {
     mkdirSync(join(tempDir, 'en'), { recursive: true })
     writeFileSync(join(tempDir, 'en', 'chapter1.md'), '# Ch 1', 'utf-8')
     writeFileSync(join(tempDir, 'en', 'chapter2.md'), '# Ch 2', 'utf-8')
     writeFileSync(join(tempDir, 'en', 'chapter3.md'), '# Ch 3', 'utf-8')
 
-    const source = createChapterOutputSource<string>(fileUri('chapter-output', tempDir))
+    const source = createChapterOutputSource<string>(fileUri('chapter', tempDir))
     if (!source.resume) throw new Error('resume not supported')
 
     const tail = await collect(source.resume(ctx, 2))

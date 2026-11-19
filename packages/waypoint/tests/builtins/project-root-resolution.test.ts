@@ -84,7 +84,7 @@ describe('waypoint paths resolve against project.root, not process.cwd()', () =>
   })
 
   it('chapter-output target writes a relative dir under project.root', async () => {
-    const target = createChapterOutputTarget<string>(uri('chapter-output', 'chapters'))
+    const target = createChapterOutputTarget<string>(uri('chapter', 'chapters'))
     const c = ctx()
     await target.open(c)
     await target.write({ item: '# Ch 1', meta: { lang: 'en', chapterNum: 1 } }, c)
@@ -99,9 +99,9 @@ describe('waypoint paths resolve against project.root, not process.cwd()', () =>
     writeFileSync(join(projectRoot, 'chapters', 'chapter1.md'), '# Ch 1')
 
     const out: unknown[] = []
-    for await (const env of createChapterOutputSource<string>(
-      uri('chapter-output', 'chapters'),
-    ).start(ctx())) {
+    for await (const env of createChapterOutputSource<string>(uri('chapter', 'chapters')).start(
+      ctx(),
+    )) {
       out.push(env.item)
     }
 

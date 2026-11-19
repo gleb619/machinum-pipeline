@@ -622,7 +622,7 @@ committed in its current open session. `Target.checkpoint?()` is optional:
   persisted cursor as `TargetContext.resumeCursor`; `open()` truncates the staging file back to
   that boundary (JSONL by line offset, md file mode via an `<tmp>.offsets.json` sidecar of
   per-envelope byte offsets) before appending.
-- **Per-file targets** (`chapter-output://`, `schema-doc://`, `book://`, `review://`) write every
+- **Per-file targets** (`chapter://`, `schema-doc://`, `book://`, `review://`) write every
   envelope atomically and return a counter. Auto-numbered filenames seed from the highest existing
   chapter when `resumeCursor > 0`, so replay never overwrites lower chapters.
 - **Terminal/stateful sinks** (`console://`, `void://`, `events://`) count accepted envelopes;
@@ -758,7 +758,7 @@ const titles = definePipeline({ id: 'translate-titles' })
 
 definePipeline().from('md://./chapters/en')
   .subflow('batch://?size=5', titles)
-  .to('my-target://./chapters')
+  .to('chapter://./chapters')
 ```
 
 - The package reaches the child as its INPUT stream: one exchange with `id` `batch-<...>`,

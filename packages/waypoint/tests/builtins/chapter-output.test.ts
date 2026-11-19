@@ -14,7 +14,7 @@ describe('chapter-output target — path validation', () => {
   let ctx: TargetContext
 
   const uri = (): ParsedUri => ({
-    raw: `my-target://${baseDir}`,
+    raw: `chapter://${baseDir}`,
     host: baseDir,
     path: baseDir,
     query: {},

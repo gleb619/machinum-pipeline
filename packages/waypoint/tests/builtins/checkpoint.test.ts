@@ -119,7 +119,7 @@ describe('waypoint targets — incremental checkpoints', () => {
 
   it('chapter-output: seeds auto-numbering from existing chapters on resume', async () => {
     const root = join(tempDir, 'chapters')
-    const uri = makeUri(`chapter-output://${root}`)
+    const uri = makeUri(`chapter://${root}`)
 
     const first = createChapterOutputTarget<string>(uri)
     await first.open(ctx)
