@@ -1,0 +1,33 @@
+// Emitted CSS variables: values are generated from the anchors in `_palette.scss`.
+// Light is the no-attribute default; dark is the same names with flipped values.
+@use 'sass:map';
+@use 'palette' as p;
+
+$shadow-levels: sm, md, lg, xl;
+
+@mixin emit($theme) {
+  @each $family, $scale in p.theme-scales($theme) {
+    @each $step, $color in $scale {
+      --#{'' + $family}-#{$step}: #{p.triplet($color)};
+    }
+  }
+  @each $level in $shadow-levels {
+    --mt-shadow-#{$level}: #{p.elevation($level, $theme)};
+  }
+}
+
+:root {
+  @include emit(light);
+}
+
+[data-theme='dark'] {
+  @include emit(dark);
+}
+
+// The VS Code webview follows the editor theme (colours come from the host bridge);
+// elevation becomes borders only.
+[data-host='vscode'] {
+  @each $level in $shadow-levels {
+    --mt-shadow-#{$level}: none;
+  }
+}

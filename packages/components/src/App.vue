@@ -235,199 +235,201 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto px-4 py-8">
-    <header class="mb-8">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold tracking-tight">Mt — Pipeline Admin</h1>
-        <nav class="flex gap-4 text-sm">
-          <button
-            class="transition-colors"
-            :class="activeTab === 'pipelines' ? 'text-white font-medium' : 'text-blue-400 hover:text-blue-300'"
-            @click="activeTab = 'pipelines'"
-          >Pipelines</button>
-          <button
-            class="transition-colors"
-            :class="activeTab === 'runs' ? 'text-white font-medium' : 'text-blue-400 hover:text-blue-300'"
-            @click="activeTab = 'runs'"
-          >Runs</button>
-          <button
-            class="transition-colors"
-            :class="activeTab === 'router' ? 'text-white font-medium' : 'text-blue-400 hover:text-blue-300'"
-            @click="activeTab = 'router'"
-          >Router</button>
-        </nav>
-      </div>
-    </header>
-
-    <!-- Toast -->
-    <div
-      v-if="toast"
-      class="mb-6 rounded-lg border px-4 py-3 text-sm flex items-center justify-between"
-      :class="toast.startsWith('Error') ? 'border-red-800 bg-red-900/50 text-red-300' : 'border-green-800 bg-green-900/50 text-green-300'"
-    >
-      <span>{{ toast }}</span>
-      <button
-        class="ml-4 text-current opacity-60 hover:opacity-100 font-mono text-lg leading-none"
-        @click="clearToast"
-      >&times;</button>
-    </div>
-
-    <!-- Pipelines Tab -->
-    <div v-if="activeTab === 'pipelines'">
-      <div v-if="loading" class="text-gray-500 text-sm animate-pulse">Loading pipelines...</div>
-
-      <div v-else-if="error" class="rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-400">
-        {{ error }}
-        <button class="ml-4 underline hover:text-red-300" @click="fetchPipelines">Retry</button>
-      </div>
-
-      <div v-else-if="pipelines.length === 0" class="text-gray-600 text-sm">
-        No pipelines registered.
-      </div>
-
-      <ul v-else class="space-y-2">
-        <li
-          v-for="pipe in pipelines"
-          :key="pipe.declared"
-          class="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-3 hover:border-gray-700 transition-colors"
-        >
-          <div class="min-w-0 flex-1">
-            <code class="text-sm text-gray-200 font-mono truncate block">{{ pipe.declared }}</code>
-            <span class="text-xs text-gray-600 mt-0.5 block truncate">{{ pipe.path }}</span>
-          </div>
-          <button
-            class="ml-4 shrink-0 rounded-md bg-green-700 px-4 py-1.5 text-sm font-medium text-white hover:bg-green-600 active:bg-green-800 transition-colors"
-            @click="startRun(pipe.declared)"
-          >&#9654; Run</button>
-        </li>
-      </ul>
-    </div>
-
-    <!-- Runs Tab -->
-    <div v-if="activeTab === 'runs'">
-      <div v-if="runs.length === 0" class="text-gray-600 text-sm">
-        No runs yet. Start one from the <button class="underline text-blue-400 hover:text-blue-300" @click="activeTab = 'pipelines'">Pipelines</button> tab.
-      </div>
-
-      <ul v-else class="space-y-2">
-        <li
-          v-for="run in runs"
-          :key="run.id"
-          class="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-3 hover:border-gray-700 transition-colors"
-        >
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <code class="text-sm text-gray-200 font-mono truncate">{{ run.id }}</code>
-              <span class="text-xs font-medium uppercase" :class="stateColor(run.state)">{{ run.state }}</span>
-            </div>
-            <span v-if="run.started" class="text-xs text-gray-600 mt-0.5 block">{{ run.started }}</span>
-          </div>
-          <div class="flex gap-2 ml-4 shrink-0">
+  <div class="min-h-screen bg-gray-50 text-gray-900">
+    <div class="max-w-4xl mx-auto px-4 py-8">
+      <header class="mb-8">
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold tracking-tight text-gray-900">Mt — Pipeline Admin</h1>
+          <nav class="flex gap-4 text-sm">
             <button
-              v-if="run.state === 'running'"
-              class="rounded-md bg-yellow-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-600 active:bg-yellow-800 transition-colors"
-              @click="pauseRun(run.id)"
-            >⏸ Pause</button>
+              class="transition-colors"
+              :class="activeTab === 'pipelines' ? 'text-gray-950 font-medium' : 'text-blue-400 hover:opacity-80'"
+              @click="activeTab = 'pipelines'"
+            >Pipelines</button>
             <button
-              v-if="run.state === 'paused'"
-              class="rounded-md bg-green-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-600 active:bg-green-800 transition-colors"
-              @click="resumeRun(run.id)"
-            >▶ Resume</button>
-          </div>
-        </li>
-      </ul>
-    </div>
+              class="transition-colors"
+              :class="activeTab === 'runs' ? 'text-gray-950 font-medium' : 'text-blue-400 hover:opacity-80'"
+              @click="activeTab = 'runs'"
+            >Runs</button>
+            <button
+              class="transition-colors"
+              :class="activeTab === 'router' ? 'text-gray-950 font-medium' : 'text-blue-400 hover:opacity-80'"
+              @click="activeTab = 'router'"
+            >Router</button>
+          </nav>
+        </div>
+      </header>
 
-    <!-- Router Tab -->
-    <div v-if="activeTab === 'router'">
-      <div class="mb-4 rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-3">
-        <label for="router-token" class="text-xs uppercase tracking-wide text-gray-500">Router token</label>
-        <input
-          id="router-token"
-          v-model="routerToken"
-          type="password"
-          autocomplete="off"
-          placeholder="MT_ROUTER_TOKEN (optional)"
-          class="mt-1 block w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 placeholder:text-gray-600 focus:border-blue-500 focus:outline-none"
-          @change="persistRouterToken"
-        >
-        <p class="mt-1 text-xs text-gray-600">Kept in this tab only; never added to URLs or logs.</p>
+      <!-- Toast -->
+      <div
+        v-if="toast"
+        class="mb-6 rounded-lg border px-4 py-3 text-sm flex items-center justify-between"
+        :class="toast.startsWith('Error') ? 'border-red-300 bg-red-50 text-red-400' : 'border-green-300 bg-green-50 text-green-400'"
+      >
+        <span>{{ toast }}</span>
+        <button
+          class="ml-4 text-current opacity-60 hover:opacity-100 font-mono text-lg leading-none"
+          @click="clearToast"
+        >&times;</button>
       </div>
 
-      <div v-if="routerLoading" class="text-gray-500 text-sm animate-pulse">Loading router status...</div>
+      <!-- Pipelines Tab -->
+      <div v-if="activeTab === 'pipelines'">
+        <div v-if="loading" class="text-gray-500 text-sm animate-pulse">Loading pipelines...</div>
 
-      <div v-else-if="routerError" class="rounded-lg border border-red-800 bg-red-900/30 px-4 py-3 text-sm text-red-400">
-        {{ routerError }}
-        <button class="ml-4 underline hover:text-red-300" @click="fetchRouterPanel">Retry</button>
-      </div>
-
-      <template v-else>
-        <div v-if="dashboard" class="grid gap-4 sm:grid-cols-3">
-          <section class="rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-3">
-            <h2 class="text-xs uppercase tracking-wide text-gray-500">Today</h2>
-            <p class="mt-1 text-lg font-semibold text-gray-100">{{ money(dashboard.today.totalCost) }}</p>
-            <p class="text-xs text-gray-600">{{ dashboard.today.calls }} calls</p>
-          </section>
-          <section class="rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-3">
-            <h2 class="text-xs uppercase tracking-wide text-gray-500">Month</h2>
-            <p class="mt-1 text-lg font-semibold text-gray-100">{{ money(dashboard.month.totalCost) }}</p>
-            <p class="text-xs text-gray-600">{{ dashboard.month.calls }} calls</p>
-          </section>
-          <section class="rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-3">
-            <h2 class="text-xs uppercase tracking-wide text-gray-500">Daily budget</h2>
-            <p class="mt-1 text-lg font-semibold text-gray-100">{{ money(dashboard.budgetRemaining) }}</p>
-            <p class="text-xs text-gray-600">of {{ money(dashboard.budgetLimit) }} left</p>
-          </section>
+        <div v-else-if="error" class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-400">
+          {{ error }}
+          <button class="ml-4 underline hover:opacity-80" @click="fetchPipelines">Retry</button>
         </div>
 
-        <section v-if="pool" class="mt-6 rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-3">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="text-xs uppercase tracking-wide text-gray-500">Pool</h2>
-            <span
-              v-if="pool.mockMode"
-              class="rounded bg-blue-900 px-2 py-0.5 text-xs font-medium text-blue-300"
-            >MOCK</span>
-          </div>
-          <p class="mt-1 text-sm text-gray-200">
-            {{ pool.activeKeys }} / {{ pool.totalKeys }} active
-            <span class="text-gray-600">
-              · {{ pool.rateLimitedKeys }} rate limited · {{ pool.blockedKeys }} blocked
-            </span>
-          </p>
-          <ul v-if="pool.upstreams.length > 0" class="mt-2 space-y-1 text-xs text-gray-500">
-            <li v-for="upstream in pool.upstreams" :key="upstream.name">
-              <span class="font-mono text-gray-300">{{ upstream.name }}</span>
-              ({{ upstream.kind }}{{ upstream.keyless ? ', keyless' : '' }})
-              · {{ upstream.available }} / {{ upstream.total }} active
-            </li>
-          </ul>
-        </section>
+        <div v-else-if="pipelines.length === 0" class="text-gray-600 text-sm">
+          No pipelines registered.
+        </div>
 
-        <section class="mt-6">
-          <h2 class="mb-2 text-xs uppercase tracking-wide text-gray-500">Recent calls</h2>
-          <div v-if="routerLogs.length === 0" class="text-gray-600 text-sm">
-            No router calls logged today.
-          </div>
-          <ul v-else class="space-y-2">
-            <li
-              v-for="(entry, index) in routerLogs"
-              :key="`${entry.timestamp}-${index}`"
-              class="flex items-center justify-between rounded-lg border border-gray-800 bg-gray-800/50 px-4 py-2 text-sm"
-            >
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <code class="truncate font-mono text-gray-200">{{ entry.model }}</code>
-                  <span v-if="entry.client" class="text-xs text-gray-600">{{ entry.client }}</span>
-                </div>
-                <span class="text-xs text-gray-600">
-                  {{ clock(entry.timestamp) }} · {{ entry.promptTokens + entry.completionTokens }} tokens
-                </span>
+        <ul v-else class="space-y-2">
+          <li
+            v-for="pipe in pipelines"
+            :key="pipe.declared"
+            class="flex items-center justify-between rounded-lg border border-gray-300 bg-gray-100/70 px-4 py-3 hover:border-gray-400 transition-colors"
+          >
+            <div class="min-w-0 flex-1">
+              <code class="text-sm text-gray-800 font-mono truncate block">{{ pipe.declared }}</code>
+              <span class="text-xs text-gray-500 mt-0.5 block truncate">{{ pipe.path }}</span>
+            </div>
+            <button
+              class="ml-4 shrink-0 rounded-md bg-green-400 px-4 py-1.5 text-sm font-medium text-gray-50 hover:opacity-90 active:opacity-80 transition-opacity"
+              @click="startRun(pipe.declared)"
+            >&#9654; Run</button>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Runs Tab -->
+      <div v-if="activeTab === 'runs'">
+        <div v-if="runs.length === 0" class="text-gray-600 text-sm">
+          No runs yet. Start one from the <button class="underline text-blue-400 hover:opacity-80" @click="activeTab = 'pipelines'">Pipelines</button> tab.
+        </div>
+
+        <ul v-else class="space-y-2">
+          <li
+            v-for="run in runs"
+            :key="run.id"
+            class="flex items-center justify-between rounded-lg border border-gray-300 bg-gray-100/70 px-4 py-3 hover:border-gray-400 transition-colors"
+          >
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <code class="text-sm text-gray-800 font-mono truncate">{{ run.id }}</code>
+                <span class="text-xs font-medium uppercase" :class="stateColor(run.state)">{{ run.state }}</span>
               </div>
-              <span class="ml-4 shrink-0 font-mono text-xs text-gray-400">{{ money(entry.cost) }}</span>
-            </li>
-          </ul>
-        </section>
-      </template>
+              <span v-if="run.started" class="text-xs text-gray-500 mt-0.5 block">{{ run.started }}</span>
+            </div>
+            <div class="flex gap-2 ml-4 shrink-0">
+              <button
+                v-if="run.state === 'running'"
+                class="rounded-md bg-yellow-400 px-3 py-1.5 text-xs font-medium text-gray-50 hover:opacity-90 active:opacity-80 transition-opacity"
+                @click="pauseRun(run.id)"
+              >⏸ Pause</button>
+              <button
+                v-if="run.state === 'paused'"
+                class="rounded-md bg-green-400 px-3 py-1.5 text-xs font-medium text-gray-50 hover:opacity-90 active:opacity-80 transition-opacity"
+                @click="resumeRun(run.id)"
+              >▶ Resume</button>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Router Tab -->
+      <div v-if="activeTab === 'router'">
+        <div class="mb-4 rounded-lg border border-gray-300 bg-gray-100 px-4 py-3">
+          <label for="router-token" class="text-xs uppercase tracking-wide text-gray-600">Router token</label>
+          <input
+            id="router-token"
+            v-model="routerToken"
+            type="password"
+            autocomplete="off"
+            placeholder="MT_ROUTER_TOKEN (optional)"
+            class="mt-1 block w-full rounded-md border border-gray-400 bg-gray-100 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 focus:ring-offset-2 focus:ring-offset-gray-50 focus:outline-none"
+            @change="persistRouterToken"
+          >
+          <p class="mt-1 text-xs text-gray-500">Kept in this tab only; never added to URLs or logs.</p>
+        </div>
+
+        <div v-if="routerLoading" class="text-gray-500 text-sm animate-pulse">Loading router status...</div>
+
+        <div v-else-if="routerError" class="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-400">
+          {{ routerError }}
+          <button class="ml-4 underline hover:opacity-80" @click="fetchRouterPanel">Retry</button>
+        </div>
+
+        <template v-else>
+          <div v-if="dashboard" class="grid gap-4 sm:grid-cols-3">
+            <section class="rounded-lg border border-gray-300 bg-gray-100 px-4 py-3">
+              <h2 class="text-xs uppercase tracking-wide text-gray-600">Today</h2>
+              <p class="mt-1 text-lg font-semibold text-gray-900">{{ money(dashboard.today.totalCost) }}</p>
+              <p class="text-xs text-gray-500">{{ dashboard.today.calls }} calls</p>
+            </section>
+            <section class="rounded-lg border border-gray-300 bg-gray-100 px-4 py-3">
+              <h2 class="text-xs uppercase tracking-wide text-gray-600">Month</h2>
+              <p class="mt-1 text-lg font-semibold text-gray-900">{{ money(dashboard.month.totalCost) }}</p>
+              <p class="text-xs text-gray-500">{{ dashboard.month.calls }} calls</p>
+            </section>
+            <section class="rounded-lg border border-gray-300 bg-gray-100 px-4 py-3">
+              <h2 class="text-xs uppercase tracking-wide text-gray-600">Daily budget</h2>
+              <p class="mt-1 text-lg font-semibold text-gray-900">{{ money(dashboard.budgetRemaining) }}</p>
+              <p class="text-xs text-gray-500">of {{ money(dashboard.budgetLimit) }} left</p>
+            </section>
+          </div>
+
+          <section v-if="pool" class="mt-6 rounded-lg border border-gray-300 bg-gray-100 px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <h2 class="text-xs uppercase tracking-wide text-gray-600">Pool</h2>
+              <span
+                v-if="pool.mockMode"
+                class="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-400"
+              >MOCK</span>
+            </div>
+            <p class="mt-1 text-sm text-gray-700">
+              {{ pool.activeKeys }} / {{ pool.totalKeys }} active
+              <span class="text-gray-500">
+                · {{ pool.rateLimitedKeys }} rate limited · {{ pool.blockedKeys }} blocked
+              </span>
+            </p>
+            <ul v-if="pool.upstreams.length > 0" class="mt-2 space-y-1 text-xs text-gray-500">
+              <li v-for="upstream in pool.upstreams" :key="upstream.name">
+                <span class="font-mono text-gray-800">{{ upstream.name }}</span>
+                ({{ upstream.kind }}{{ upstream.keyless ? ', keyless' : '' }})
+                · {{ upstream.available }} / {{ upstream.total }} active
+              </li>
+            </ul>
+          </section>
+
+          <section class="mt-6">
+            <h2 class="mb-2 text-xs uppercase tracking-wide text-gray-600">Recent calls</h2>
+            <div v-if="routerLogs.length === 0" class="text-gray-600 text-sm">
+              No router calls logged today.
+            </div>
+            <ul v-else class="space-y-2">
+              <li
+                v-for="(entry, index) in routerLogs"
+                :key="`${entry.timestamp}-${index}`"
+                class="flex items-center justify-between rounded-lg border border-gray-300 bg-gray-100/70 px-4 py-2 text-sm"
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <code class="truncate font-mono text-gray-800">{{ entry.model }}</code>
+                    <span v-if="entry.client" class="text-xs text-gray-500">{{ entry.client }}</span>
+                  </div>
+                  <span class="text-xs text-gray-500">
+                    {{ clock(entry.timestamp) }} · {{ entry.promptTokens + entry.completionTokens }} tokens
+                  </span>
+                </div>
+                <span class="ml-4 shrink-0 font-mono text-xs text-gray-700">{{ money(entry.cost) }}</span>
+              </li>
+            </ul>
+          </section>
+        </template>
+      </div>
     </div>
   </div>
 </template>

@@ -1,0 +1,187 @@
+// Folio palette — the single authored value source (docs/steering/colors.md §2–§6).
+// No output: only anchors + functions. Steps are roles, not literal lightness, so the
+// same stock Tailwind class names survive both themes.
+@use 'sass:color';
+@use 'sass:map';
+@use 'sass:math';
+
+$anchors: (
+  light: (
+    gray: (
+      paper: #f7f3ec,
+      surface: #fffdf8,
+      ink: #1f1b16,
+    ),
+    blue: (
+      base: #1f5f5b,
+    ),
+    green: (
+      base: #2f7d4f,
+    ),
+    yellow: (
+      base: #97610f,
+    ),
+    red: (
+      base: #a63a32,
+    ),
+  ),
+  dark: (
+    gray: (
+      page: #14120f,
+      surface: #1c1916,
+      ink: #f2ece1,
+    ),
+    blue: (
+      base: #1f5f5b,
+      signal: #6fb3ad,
+    ),
+    green: (
+      base: #2f7d4f,
+      signal: #61b97f,
+    ),
+    yellow: (
+      base: #97610f,
+      signal: #d9a441,
+    ),
+    red: (
+      base: #a63a32,
+      signal: #e0736a,
+    ),
+  ),
+);
+
+@function mixc($a, $b, $w) {
+  @return color.mix($a, $b, $w);
+}
+
+@function gray-light($paper, $surface, $ink) {
+  @return (
+    50: $paper,
+    100: $surface,
+    200: mixc($ink, $paper, 3.5%),
+    300: mixc($ink, $paper, 15%),
+    400: mixc($ink, $paper, 53%),
+    500: mixc($ink, $paper, 64%),
+    600: mixc($ink, $paper, 67%),
+    700: mixc($ink, $paper, 76%),
+    800: mixc($ink, $paper, 86%),
+    900: $ink,
+    950: mixc(#000, $ink, 52%)
+  );
+}
+
+@function gray-dark($page, $surface, $ink) {
+  @return (
+    50: $page,
+    100: $surface,
+    200: mixc($ink, $page, 7%),
+    300: mixc($ink, $page, 15%),
+    400: mixc($ink, $page, 39%),
+    500: mixc($ink, $page, 57%),
+    600: mixc($ink, $page, 68%),
+    700: mixc($ink, $page, 82%),
+    800: mixc($ink, $page, 91%),
+    900: $ink,
+    950: mixc(#fff, $ink, 60%)
+  );
+}
+
+// 50-300 tints, 400 = the authored signal, 500-950 deeper.
+@function accent-light($base) {
+  @return (
+    50: mixc($base, #fff, 6%),
+    100: mixc($base, #fff, 10%),
+    200: mixc($base, #fff, 18%),
+    300: mixc($base, #fff, 28%),
+    400: $base,
+    500: mixc($base, #000, 88%),
+    600: mixc($base, #000, 76%),
+    700: mixc($base, #000, 64%),
+    800: mixc($base, #000, 52%),
+    900: mixc($base, #000, 40%),
+    950: mixc($base, #000, 28%)
+  );
+}
+
+@function accent-dark($base, $signal, $bg) {
+  @return (
+    50: mixc($base, $bg, 18%),
+    100: mixc($base, $bg, 28%),
+    200: mixc($base, $bg, 42%),
+    300: mixc($base, $bg, 56%),
+    400: $signal,
+    500: mixc($base, #fff, 78%),
+    600: mixc($base, #fff, 88%),
+    700: $base,
+    800: mixc($base, #000, 85%),
+    900: mixc($base, #000, 72%),
+    950: mixc($base, #000, 60%)
+  );
+}
+
+@function accent-scale($anchors, $family, $theme, $bg) {
+  $a: map.get($anchors, $family);
+  @if $theme == light {
+    @return accent-light(map.get($a, base));
+  }
+  @return accent-dark(map.get($a, base), map.get($a, signal), $bg);
+}
+
+/// Every ramp for one theme: `(gray: (50: …, …), blue: (…), …)`.
+@function theme-scales($theme) {
+  $a: map.get($anchors, $theme);
+  $g: map.get($a, gray);
+  @if $theme == light {
+    @return (
+      gray: gray-light(map.get($g, paper), map.get($g, surface), map.get($g, ink)),
+      blue: accent-scale($a, blue, light, map.get($g, paper)),
+      green: accent-scale($a, green, light, map.get($g, paper)),
+      yellow: accent-scale($a, yellow, light, map.get($g, paper)),
+      red: accent-scale($a, red, light, map.get($g, paper))
+    );
+  }
+  @return (
+    gray: gray-dark(map.get($g, page), map.get($g, surface), map.get($g, ink)),
+    blue: accent-scale($a, blue, dark, map.get($g, page)),
+    green: accent-scale($a, green, dark, map.get($g, page)),
+    yellow: accent-scale($a, yellow, dark, map.get($g, page)),
+    red: accent-scale($a, red, dark, map.get($g, page))
+  );
+}
+
+// y / blur / spread (px), ink alpha per theme, white inset alpha per theme.
+$elevation-spec: (
+  sm: (y: 1, blur: 2, spread: 0, light: 0.1, dark: 0.55, inset-light: 0.55, inset-dark: 0.04),
+  md: (y: 2, blur: 6, spread: -1, light: 0.12, dark: 0.6, inset-light: 0, inset-dark: 0),
+  lg: (y: 12, blur: 32, spread: -8, light: 0.18, dark: 0.7, inset-light: 0, inset-dark: 0),
+  xl: (y: 24, blur: 64, spread: -12, light: 0.22, dark: 0.8, inset-light: 0, inset-dark: 0)
+);
+
+@function elevation($level, $theme) {
+  $spec: map.get($elevation-spec, $level);
+  @if $spec == null {
+    @error 'elevation(): unknown level `#{$level}` (expected sm, md, lg or xl)';
+  }
+  $ink: #3b2f22;
+  $alpha: map.get($spec, light);
+  $inset: map.get($spec, inset-light);
+  @if $theme == dark {
+    $ink: #000;
+    $alpha: map.get($spec, dark);
+    $inset: map.get($spec, inset-dark);
+  }
+  $shadow: 0 map.get($spec, y) * 1px map.get($spec, blur) * 1px map.get($spec, spread) * 1px
+    color.change($ink, $alpha: $alpha);
+  @if $inset > 0 {
+    $shadow: $shadow, inset 0 1px 0 color.change(#fff, $alpha: $inset);
+  }
+  @return $shadow;
+}
+
+/// Tailwind needs "R G B" so `rgb(var(--gray-50) / <alpha-value>)` works.
+@function triplet($c) {
+  $r: math.round(color.channel($c, 'red', $space: rgb));
+  $g: math.round(color.channel($c, 'green', $space: rgb));
+  $b: math.round(color.channel($c, 'blue', $space: rgb));
+  @return #{$r} #{$g} #{$b};
+}
